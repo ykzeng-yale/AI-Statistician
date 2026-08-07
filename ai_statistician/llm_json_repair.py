@@ -82,15 +82,20 @@ def generate_validated_json_packet(
     last_invalid_packet: dict[str, Any] | None = None
     semantic_regenerations_remaining = max(0, max_repair_attempts)
     truncation_regenerations_remaining = _MAX_TRUNCATION_REGENERATIONS
+    output_token_budget_floor = max(1, int(request.max_tokens or 1))
     attempt_index = 0
     while True:
         truncation_regeneration_mode = bool(
             history and _history_row_indicates_truncation(history[-1])
         )
-        request_max_tokens = _regeneration_attempt_max_tokens(
-            request.max_tokens,
-            truncation_regeneration_mode=truncation_regeneration_mode,
+        request_max_tokens = max(
+            output_token_budget_floor,
+            _regeneration_attempt_max_tokens(
+                request.max_tokens,
+                truncation_regeneration_mode=truncation_regeneration_mode,
+            ),
         )
+        output_token_budget_floor = request_max_tokens
         attempt_metadata = {
             **dict(request.metadata),
             "json_repair_attempt": attempt_index,

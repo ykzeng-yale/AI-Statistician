@@ -40,7 +40,9 @@ from .metric_protocol_stage import (
 )
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
-from .semantic_review_feedback import model_observations_without_repair_recipes
+from .semantic_review_feedback import (
+    architect_observations_without_runtime_routing,
+)
 
 
 ARCHITECT_COORDINATOR_SCHEMA_VERSION = 1
@@ -430,7 +432,7 @@ class LLMArchitectCoordinatorAgent:
             "architect_plan_generation",
             metadata={
                 "model_tier": self.config.model_tier,
-                "max_packet_repair_attempts": self.config.max_repair_attempts,
+                "max_packet_regeneration_attempts": self.config.max_repair_attempts,
                 "metric_protocol_authored": bool(metric_authoring_packet),
             },
         ):
@@ -639,9 +641,7 @@ def _architect_metric_authoring_deferred_for_active_replan(
             resolution=resolution,
         ):
             return False
-        return str(code_replan.get("repair_scope", "") or "").strip() != (
-            "upstream_metric_contract"
-        )
+        return True
     packet_replan = architect_context.get("runtime_packet_validation_replan", {})
     return bool(isinstance(packet_replan, Mapping) and packet_replan)
 
@@ -653,26 +653,12 @@ def _generated_code_semantic_review_replan_is_resolved(
 ) -> bool:
     if not isinstance(resolution, Mapping):
         return False
-    dependency_repair = (
-        str(replan.get("repair_scope", "") or "")
-        == "upstream_generated_dependency"
-    )
     rejected_manifest_id = str(
-        replan.get(
-            (
-                "repair_target_source_manifest_id"
-                if dependency_repair
-                else "source_manifest_id"
-            ),
-            "",
-        )
+        replan.get("source_manifest_id", "")
         or ""
     )
     rejected_subsystem = str(
-        replan.get(
-            "repair_target_subsystem" if dependency_repair else "source_subsystem",
-            "",
-        )
+        replan.get("source_subsystem", "")
         or ""
     )
     return bool(
@@ -681,7 +667,7 @@ def _generated_code_semantic_review_replan_is_resolved(
         and rejected_manifest_id
         and resolution.get("rejected_source_manifest_id")
         == rejected_manifest_id
-        and resolution.get("source_subsystem") == rejected_subsystem
+        and resolution.get("rejected_source_subsystem") == rejected_subsystem
         and str(resolution.get("accepted_source_manifest_id", "") or "")
         and resolution.get("accepted_source_manifest_id")
         != rejected_manifest_id
@@ -711,7 +697,10 @@ def _architect_frozen_metric_protocol_rebinding_context(
     invalidation = architect_context.get(
         "architect_metric_protocol_authority_invalidation", {}
     )
-    dispatch = architect_context.get("architect_typed_repair_dispatch", {})
+    routing = architect_context.get("architect_initial_routing", {})
+    architect_packet_id = str(
+        architect_context.get("architect_coordinator_proposal_id", "") or ""
+    )
     if not (
         isinstance(resolution, Mapping)
         and resolution.get("artifact_kind")
@@ -734,11 +723,17 @@ def _architect_frozen_metric_protocol_rebinding_context(
             invalidation.get("current_source_theory_packet_hash", "") or ""
         )
         == current_theory_packet_hash
-        and isinstance(dispatch, Mapping)
-        and dispatch.get("artifact_kind")
-        == "RuntimeArchitectTypedRepairDispatch"
-        and dispatch.get("repair_scope") == "upstream_theory"
-        and str(dispatch.get("review_execution_id", "") or "")
+        and architect_packet_id
+        and str(resolution.get("architect_packet_id", "") or "")
+        == architect_packet_id
+        and isinstance(routing, Mapping)
+        and routing.get("artifact_kind") == "ArchitectInitialRoutingDecision"
+        and routing.get("source") == "architect_packet"
+        and routing.get("requested_subsystem") == "TheoryDeveloper"
+        and routing.get("selected_subsystem") == "TheoryDeveloper"
+        and str(routing.get("architect_packet_id", "") or "")
+        == architect_packet_id
+        and str(routing.get("environment_feedback_execution_id", "") or "")
         == str(resolution.get("rejected_review_execution_id", "") or "")
     ):
         return {}
@@ -1161,7 +1156,7 @@ def build_architect_coordinator_prompt(
     evaluation_mode = str(
         requested_evidence_contract.get("evaluation_mode", "debug") or "debug"
     )
-    model_architect_context = model_observations_without_repair_recipes(
+    model_architect_context = architect_observations_without_runtime_routing(
         architect_context
     )
     payload = {

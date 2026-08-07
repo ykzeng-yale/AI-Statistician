@@ -305,7 +305,6 @@ def generated_code_semantic_review_proposal_projection(
                 for field in (
                     "estimator_id",
                     "adapter_strategy",
-                    "registered_template_hint",
                     "data_contract",
                     "estimator_interface_contract",
                     "estimator_interface_contract_id",

@@ -50,6 +50,7 @@ from ai_statistician.formalizer_llm import (
     validate_formalizer_packet,
 )
 from ai_statistician.model_backend import (
+    LIVE_EVALUATION_CLAUDE_MODEL,
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     GeneratorRequest,
     GeneratorResponse,
@@ -1458,6 +1459,7 @@ def test_formalizer_prompt_exposes_pseudo_formalization_contract() -> None:
         proof_bank_obligation_catalog=[],
         proof_bank_runtime_memory_summary={},
         environment_feedback={
+            "requires_pseudo_formalization": True,
             "source_theorem_proof_body_adapter_feedback": {
                 "diagnostics": [
                     {
@@ -1471,7 +1473,7 @@ def test_formalizer_prompt_exposes_pseudo_formalization_contract() -> None:
     assert "pseudo_formalization_contract" in prompt
     assert "pseudo_formal_proof_packets" in prompt
     assert PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE in prompt
-    assert "do not satisfy the Lean-candidate gate" in prompt
+    assert "cannot claim Lean or kernel proof" in prompt
 
 
 def test_formalizer_normalizes_pseudo_formal_packets_without_proof_promotion() -> None:
@@ -1584,8 +1586,8 @@ def test_formalizer_normalizes_pseudo_formal_packets_without_proof_promotion() -
             ],
         },
         question=question,
-        model="claude-sonnet-test",
-        model_tier="sonnet",
+        model=LIVE_EVALUATION_CLAUDE_MODEL,
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         provider_name="anthropic",
         backend_provider_name="static",
         raw_response="{}",
@@ -1628,7 +1630,7 @@ def test_formalizer_rejects_pseudo_formal_block_aliases_without_rewriting() -> N
         payload,
         question=_pf_test_question(),
         model="static-formalizer",
-        model_tier="sonnet",
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         provider_name="static",
         backend_provider_name="static",
         raw_response="{}",
@@ -1697,7 +1699,7 @@ def test_required_pf_bv_leaves_lean_placeholder_detection_to_lean() -> None:
         payload,
         question=_pf_test_question(),
         model="static-formalizer",
-        model_tier="sonnet",
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         provider_name="static",
         backend_provider_name="static",
         raw_response="{}",
@@ -1727,7 +1729,7 @@ def test_formalizer_alias_normalization_does_not_fake_empty_source_anchor() -> N
         payload,
         question=_pf_test_question(),
         model="static-formalizer",
-        model_tier="sonnet",
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         provider_name="static",
         backend_provider_name="static",
         raw_response="{}",
@@ -1913,7 +1915,7 @@ def test_required_pf_validator_rejects_independently_verified_but_unrouted_packe
         ),
         question=question,
         model="static-formalizer",
-        model_tier="sonnet",
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         provider_name="static",
         backend_provider_name="static",
         raw_response="{}",
@@ -1941,7 +1943,7 @@ def test_capability_eval_allows_required_pf_bv_route_without_lean_candidate() ->
         _minimal_formalizer_response(include_pseudo_formal=True),
         question=_pf_test_question(),
         model="static-formalizer",
-        model_tier="sonnet",
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         provider_name="static",
         backend_provider_name="static",
         raw_response="{}",
@@ -1967,7 +1969,7 @@ def test_capability_eval_still_requires_lean_candidate_without_pf_bv_route() -> 
         _minimal_formalizer_response(include_pseudo_formal=False),
         question=_pf_test_question(),
         model="static-formalizer",
-        model_tier="sonnet",
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         provider_name="static",
         backend_provider_name="static",
         raw_response="{}",
@@ -2002,7 +2004,7 @@ def test_required_pf_validator_accepts_pending_block_with_independent_bv_request
         ),
         question=question,
         model="static-formalizer",
-        model_tier="sonnet",
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         provider_name="static",
         backend_provider_name="static",
         raw_response="{}",
@@ -2115,7 +2117,7 @@ def test_structural_exact_semantic_memory_accepts_independent_review_handoff() -
         _minimal_formalizer_response(include_pseudo_formal=True),
         question=question,
         model="static-formalizer",
-        model_tier="sonnet",
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         provider_name="static",
         backend_provider_name="static",
         raw_response="{}",
@@ -2201,7 +2203,7 @@ def test_structural_exact_semantic_memory_rejects_unnamed_exact_row() -> None:
         ),
         question=question,
         model="static-formalizer",
-        model_tier="sonnet",
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         provider_name="static",
         backend_provider_name="static",
         raw_response="{}",
@@ -2234,7 +2236,7 @@ def test_proof_body_adapter_feedback_does_not_require_pf_without_explicit_gate()
         _minimal_formalizer_response(include_pseudo_formal=False),
         question=question,
         model="static-formalizer",
-        model_tier="sonnet",
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         provider_name="static",
         backend_provider_name="static",
         raw_response="{}",

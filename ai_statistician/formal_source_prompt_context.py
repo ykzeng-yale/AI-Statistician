@@ -600,7 +600,6 @@ def formalizer_feedback_with_task_bound_formal_source_queries(
         "context_kind",
         "task_bound_formal_source_grounding",
     )
-    repair_context.setdefault("owner_subsystem", "FormalizerProofEngineer")
     repair_context["retrieval_query_seeds"] = query_seeds
     if source_scope_ids:
         repair_context["formal_source_scope_ids"] = list(source_scope_ids)
@@ -616,7 +615,6 @@ def formalizer_feedback_with_task_bound_formal_source_queries(
         "feedback_type",
         "formalizer_task_bound_formal_source_context",
     )
-    payload.setdefault("repair_owner_agent", "FormalizerProofEngineer")
     return payload
 
 

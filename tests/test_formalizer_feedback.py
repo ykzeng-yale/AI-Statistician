@@ -3,17 +3,17 @@ from __future__ import annotations
 import inspect
 import json
 
-import ai_statistician.formalizer_repair_policy as repair_feedback_module
+import ai_statistician.formalizer_feedback as feedback_module
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.formalizer_llm import build_formalizer_prompt
-from ai_statistician.formalizer_repair_policy import (
+from ai_statistician.formalizer_feedback import (
     formalizer_validation_feedback_envelope,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
 
 
 def test_formalizer_repair_feedback_is_observation_not_rule_table() -> None:
-    source = inspect.getsource(repair_feedback_module)
+    source = inspect.getsource(feedback_module)
     assert "trigger_markers" not in source
     assert "violation_family" not in source
     assert "prompt_directive" not in source
@@ -33,8 +33,8 @@ def test_formalizer_repair_feedback_is_observation_not_rule_table() -> None:
 
     assert feedback["validation_error_messages"] == [error]
     assert feedback["rejected_packet_projection"] == rejected
-    assert feedback["repair_authority"]["runtime_selected_semantics"] is False
-    assert feedback["repair_authority"]["model_owns"]
+    assert feedback["regeneration_authority"]["runtime_selected_semantics"] is False
+    assert feedback["regeneration_authority"]["model_owns"]
     assert "rules" not in feedback
     assert "directives" not in feedback
 

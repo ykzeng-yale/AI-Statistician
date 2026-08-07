@@ -12288,6 +12288,11 @@ def audit_research_agent_runtime(
     payload["n_runtime_capability_scorecard_failed_rows"] = int(
         capability_gap_routing_summary["n_runtime_capability_scorecard_failed_rows"]
     )
+    payload["n_optional_experiment_failed_rows_excluded_from_routing"] = int(
+        capability_gap_routing_summary[
+            "n_optional_experiment_failed_rows_excluded_from_routing"
+        ]
+    )
     payload[
         "n_runtime_capability_gap_routing_scorecard_rows_missing_requirement_id"
     ] = int(
@@ -15391,10 +15396,13 @@ def _runtime_scorecard_gaps_from_scorecard(
     for row in rows:
         if not isinstance(row, Mapping):
             continue
-        is_component_calibration = row.get("scope") == "component_calibration"
+        scope = str(row.get("scope", "integrated_runtime") or "integrated_runtime")
+        is_component_calibration = scope == "component_calibration"
+        if scope == "optional_experiment":
+            continue
         if component_calibration_only and not is_component_calibration:
             continue
-        if not include_component_calibration and is_component_calibration:
+        if not include_component_calibration and scope != "integrated_runtime":
             continue
         if row.get("passed") is True:
             continue
@@ -15598,6 +15606,8 @@ def _runtime_capability_gap_routing_rows(
         if not isinstance(row, Mapping) or row.get("passed") is True:
             continue
         scope = str(row.get("scope", "integrated_runtime") or "integrated_runtime")
+        if scope == "optional_experiment":
+            continue
         if scope == "component_calibration" and not include_component_calibration:
             continue
         requirement_id, missing_requirement_id = _runtime_scorecard_row_requirement_id(
@@ -16395,10 +16405,15 @@ def _runtime_capability_gap_routing_contract_summary(
 ) -> dict[str, Any]:
     scorecard_rows = scorecard.get("rows", []) if isinstance(scorecard, Mapping) else []
     failed_keys: set[tuple[str, str]] = set()
+    optional_experiment_failed_rows_excluded = 0
     missing_scorecard_requirement_id = 0
     issues: list[dict[str, Any]] = []
     for row_index, row in enumerate(scorecard_rows, start=1):
         if not isinstance(row, Mapping) or row.get("passed") is True:
+            continue
+        scope = str(row.get("scope", "integrated_runtime") or "integrated_runtime")
+        if scope == "optional_experiment":
+            optional_experiment_failed_rows_excluded += 1
             continue
         requirement_id, missing_requirement_id = _runtime_scorecard_row_requirement_id(
             row,
@@ -16415,7 +16430,6 @@ def _runtime_capability_gap_routing_contract_summary(
                     f"using diagnostic routing id {requirement_id!r}"
                 ),
             )
-        scope = str(row.get("scope", "integrated_runtime") or "integrated_runtime")
         failed_keys.add((scope, requirement_id))
 
     routing_keys: set[tuple[str, str]] = set()
@@ -16565,6 +16579,9 @@ def _runtime_capability_gap_routing_contract_summary(
         "artifact_kind": "RuntimeCapabilityGapRoutingContractAudit",
         "runtime_capability_gap_routing_contract_complete": complete,
         "n_runtime_capability_scorecard_failed_rows": len(failed_keys),
+        "n_optional_experiment_failed_rows_excluded_from_routing": (
+            optional_experiment_failed_rows_excluded
+        ),
         "n_runtime_capability_gap_routing_scorecard_rows_missing_requirement_id": (
             missing_scorecard_requirement_id
         ),
@@ -29792,11 +29809,36 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             **_cross_task_generalization_scorecard_routing(payload),
         ),
     ]
+    optional_experiment_prefixes = (
+        "formal_gap_planner_",
+        "runtime_pseudo_formal_",
+        "typed_pseudo_formal_",
+        "source_theorem_",
+        "source_semantic_",
+        "post_executor_",
+        "post_adapter_",
+        "pseudo_formal_",
+        "adapter_instantiation_",
+        "source_to_bridge_",
+        "exact_semantic_definition_",
+        "formalizer_premise_",
+        "adapter_premise_",
+    )
+    for row in rows:
+        requirement_id = str(row.get("requirement_id", "") or "")
+        if row.get("scope") == "integrated_runtime" and requirement_id.startswith(
+            optional_experiment_prefixes
+        ):
+            row["scope"] = "optional_experiment"
+
     integrated_rows = [
-        row for row in rows if row.get("scope") != "component_calibration"
+        row for row in rows if row.get("scope") == "integrated_runtime"
     ]
     component_calibration_rows = [
         row for row in rows if row.get("scope") == "component_calibration"
+    ]
+    optional_experiment_rows = [
+        row for row in rows if row.get("scope") == "optional_experiment"
     ]
     n_passed = sum(1 for row in rows if row["passed"])
     n_integrated_passed = sum(1 for row in integrated_rows if row["passed"])
@@ -29826,6 +29868,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             len(component_calibration_rows) - n_component_calibration_passed
         ),
         "component_calibration_ready": component_calibration_ready,
+        "n_optional_experiment_requirements": len(optional_experiment_rows),
+        "n_optional_experiment_passed": sum(
+            1 for row in optional_experiment_rows if row["passed"]
+        ),
+        "n_optional_experiment_failed": sum(
+            1 for row in optional_experiment_rows if not row["passed"]
+        ),
         "component_calibration": {
             "attached_coding_repair_ready": attached_live_component_repair_gate_passed,
             "attached_formalizer_repair_ready": attached_formalizer_live_gate_passed,
@@ -29845,8 +29894,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         "rows": rows,
         "boundary": (
             "This scorecard is a capability truth table. It separates runtime "
-            "contract health from live-agent ability, attached component calibration, "
-            "and Lean-kernel theorem evidence."
+            "contract health and end-to-end outcomes from live-agent ability, "
+            "attached component calibration, optional proof-pipeline experiments, "
+            "and Lean-kernel theorem evidence. Optional experiment rows do not "
+            "define integrated readiness."
         ),
     }
 
@@ -30921,33 +30972,6 @@ def _full_live_explicit_capability_args(payload: Mapping[str, Any]) -> str:
     args = [
         "--local-lean",
         "--formalizer-candidate-lean-lsp-mcp",
-        "--formalization-gap-planner-live-route-planner",
-        "--theorem-closure-proofengineer-bridge",
-        "--theorem-closure-proofengineer-local-lean",
-        "--source-semantic-proofengineer-bridge",
-        "--source-semantic-proofengineer-local-lean",
-        "--source-theorem-promotion-proofengineer-bridge",
-        "--source-theorem-promotion-proofengineer-local-lean",
-        "--source-theorem-formal-environment-proofengineer-bridge",
-        "--source-theorem-formal-environment-proofengineer-signature-probes",
-        "--source-theorem-formal-environment-proofengineer-execute-proof-body",
-        "--source-theorem-formal-environment-proofengineer-proof-body-local-lean",
-        "--source-theorem-proof-body-adapter-proofengineer-bridge",
-        "--source-theorem-proof-body-adapter-proofengineer-local-lean",
-        "--source-to-bridge-premise-derivation-proofengineer-bridge",
-        "--source-to-bridge-premise-derivation-proofengineer-local-lean",
-        "--source-theorem-exact-semantic-definition-source-lookup",
-        "--source-theorem-exact-semantic-definition-proofengineer-bridge",
-        "--source-theorem-exact-semantic-definition-lean-repair-executor",
-        "--source-theorem-exact-semantic-definition-lean-repair-executor-local-lean",
-        "--source-theorem-exact-semantic-definition-lean-environment-repair-executor",
-        "--source-theorem-exact-semantic-definition-closure-review",
-        "--source-theorem-exact-semantic-definition-candidate-synthesis",
-        "--source-theorem-exact-semantic-definition-candidate-synthesis-local-lean",
-        "--source-theorem-exact-semantic-definition-authoring-worker",
-        "--source-theorem-exact-semantic-definition-authoring-worker-allow-external-export",
-        "--source-theorem-exact-semantic-definition-authoring-worker-external-export-mode",
-        "full",
     ]
     config = payload.get("config", {})
     config = config if isinstance(config, Mapping) else {}
@@ -31182,8 +31206,6 @@ def _capability_full_live_rerun_command(
         "--capability-eval-preset full-live "
         f"{_full_live_explicit_capability_args(payload)} "
         f"--max-iterations {effective_max_iterations} "
-        "--formalization-gap-planner-live-max-handoffs 1 "
-        "--formalization-gap-planner-live-max-route-requests-per-handoff 1 "
         f"--out {shlex.quote(out_arg)}"
     )
 

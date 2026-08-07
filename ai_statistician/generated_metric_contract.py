@@ -187,9 +187,11 @@ def generated_metric_evaluation_semantics_contract() -> dict[str, Any]:
             ),
             "boolean": (
                 "an intrinsically boolean predicate returned as bool or exact "
-                "0/1; operator ==, threshold 1, and tolerance 0 are the "
-                "runtime-owned truth representation rather than a substantive "
-                "numeric cutoff"
+                "0/1; select operator == and do not author threshold or tolerance "
+                "gate_fields. The runtime materializes threshold 1 and tolerance 0 "
+                "as its truth representation, not as substantive numeric cutoffs. "
+                "Only aggregation quorum fields remain model-authored when the "
+                "selected aggregation requires them"
             ),
         },
         "scalar_aggregations": {
@@ -212,7 +214,8 @@ def generated_metric_evaluation_semantics_contract() -> dict[str, Any]:
         ),
         "boolean_predicate_rule": (
             "only an intrinsically boolean predicate may return bool or 0/1 values; "
-            "bind those values with operator == and threshold 1"
+            "select operator ==, omit threshold and tolerance from model-authored "
+            "gate_fields, and let the runtime materialize == 1 with zero tolerance"
         ),
         "boundary": GENERATED_METRIC_CONTRACT_BOUNDARY,
     }

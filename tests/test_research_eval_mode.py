@@ -103,7 +103,6 @@ def test_fresh_accepted_artifact_retires_only_its_exact_stale_replan() -> None:
         "source_subsystem": "AlgorithmEngineer",
         "source_manifest_id": "algorithm:rejected",
         "review_execution_id": "review-execution:rejected",
-        "repair_scope": "source_code",
     }
     context = {
         "runtime_generated_code_semantic_review_replan": stale_replan,
@@ -239,9 +238,9 @@ def test_research_eval_returns_before_formal_postprocessing(tmp_path) -> None:
         config=ResearchArchitectConfig(
             provider_name="static",
             model="static",
-            model_tier="sonnet",
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
             serious_model="static",
-            serious_model_tier="sonnet",
+            serious_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         ),
     )
     semantic_reviewer = LLMGeneratedCodeSemanticReviewerAgent(
@@ -249,7 +248,7 @@ def test_research_eval_returns_before_formal_postprocessing(tmp_path) -> None:
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="static",
             model="static",
-            model_tier="sonnet",
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         ),
     )
 
@@ -280,9 +279,9 @@ def test_research_eval_exports_pending_continuations_for_every_question(
         config=ResearchArchitectConfig(
             provider_name="static",
             model="static",
-            model_tier="sonnet",
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
             serious_model="static",
-            serious_model_tier="sonnet",
+            serious_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         ),
     )
     semantic_reviewer = LLMGeneratedCodeSemanticReviewerAgent(
@@ -290,7 +289,7 @@ def test_research_eval_exports_pending_continuations_for_every_question(
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="static",
             model="static",
-            model_tier="sonnet",
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         ),
     )
     questions = [
@@ -373,7 +372,7 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
         formal_verification_policy="required",
         recommended_research_path="proof_first",
         architect_max_tokens=5000,
-        serious_theory_model_tier="sonnet",
+        serious_theory_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         serious_theory_max_tokens=1000,
         llm_timeout_seconds=120.0,
     )
@@ -397,7 +396,7 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     assert args.max_iterations == 24
     assert args.architect_metric_protocol_max_upstream_theory_revisions == 2
     assert args.architect_metric_protocol_max_fresh_candidate_revisions == 1
-    assert args.coding_agent_packet_validation_max_lineage_failures == 4
+    assert args.coding_agent_packet_validation_max_lineage_failures == 2
 
     parsed = build_parser().parse_args(
         ["research-agent-runtime", "--research-eval"]
@@ -405,7 +404,6 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     assert parsed.research_eval is True
     assert parsed.capability_eval is False
     assert parsed.architect_metric_protocol_max_upstream_theory_revisions == 1
-    assert parsed.generated_code_semantic_review_max_upstream_theory_revisions == 1
     assert parsed.architect_metric_protocol_max_fresh_candidate_revisions == 0
     with pytest.raises(SystemExit):
         build_parser().parse_args(
@@ -493,10 +491,8 @@ def test_packet_validation_budget_survives_theory_revision_and_stays_source_owne
     ]
     assert second["packet_validation_replan_required"] is False
     assert second["packet_validation_source_retry_escalated"] is True
-    assert second["packet_validation_repair_owner"] == "AlgorithmEngineer"
-    assert second["packet_validation_repair_owner_basis"] == (
-        "local_packet_validator"
-    )
+    assert "packet_validation_repair_owner" not in second
+    assert "packet_validation_repair_owner_basis" not in second
 
     third_task = AgentTask(
         task_id="algorithm:after-second-architect",
@@ -532,6 +528,58 @@ def test_packet_validation_budget_survives_theory_revision_and_stays_source_owne
         "theory:revised",
         "theory:revised-again",
     ]
+
+
+def test_packet_validation_lineage_does_not_reset_when_error_text_changes() -> None:
+    first_task = AgentTask(
+        task_id="algorithm:first",
+        owner_subsystem="AlgorithmEngineer",
+        objective="validate generated packet",
+        inputs={
+            "question": {"id": "generic_packet_budget"},
+            "theory_packet_id": "theory:stable",
+            "architect_context": {},
+        },
+    )
+    first = _coding_agent_packet_validation_state(
+        task=first_task,
+        feedback_type="algorithm_engineer_packet_validation_feedback",
+        validation_label="AlgorithmEngineer packet",
+        validation_errors=["JSON ended at byte 100"],
+        replan_after_attempts=2,
+        max_lineage_failures=2,
+    )
+    second_task = AgentTask(
+        task_id="algorithm:second",
+        owner_subsystem="AlgorithmEngineer",
+        objective="validate regenerated packet",
+        inputs={
+            **first_task.inputs,
+            "architect_context": {
+                "runtime_packet_validation_attempt_ledger": first[
+                    "packet_validation_attempt_ledger"
+                ]
+            },
+        },
+    )
+    second = _coding_agent_packet_validation_state(
+        task=second_task,
+        feedback_type="algorithm_engineer_packet_validation_feedback",
+        validation_label="AlgorithmEngineer packet",
+        validation_errors=["JSON ended at byte 101"],
+        replan_after_attempts=2,
+        max_lineage_failures=2,
+    )
+
+    assert second["packet_validation_lineage_key"] == first[
+        "packet_validation_lineage_key"
+    ]
+    assert second["lineage_packet_validation_round"] == 2
+    assert second["packet_validation_lineage_budget_exhausted"] is True
+    lineage_row = second["packet_validation_attempt_ledger"][
+        second["packet_validation_lineage_key"]
+    ]
+    assert len(lineage_row["observed_validation_error_fingerprints"]) == 2
 
 
 def test_simulation_guard_blocks_before_proposal_or_execution() -> None:

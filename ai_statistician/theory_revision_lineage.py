@@ -83,17 +83,16 @@ def build_theory_developer_revision_binding(
     return body
 
 
-def build_postexecution_theory_revision_binding(
+def build_architect_routed_generated_code_theory_revision_binding(
     *,
     architect_context: Mapping[str, Any],
     question_id: str,
     artifacts: Mapping[str, Any],
-    budget_state: Mapping[str, Any],
 ) -> tuple[dict[str, Any], list[str]]:
-    """Adapt one generated-code review into the shared revision contract."""
+    """Bind an Architect-selected TheoryDeveloper turn to exact review evidence."""
 
     context = dict(architect_context)
-    replan = budget_state.get("replan", {})
+    replan = context.get("runtime_generated_code_semantic_review_replan", {})
     replan = dict(replan) if isinstance(replan, Mapping) else {}
     source_feedback = context.get(
         "theory_developer_source_environment_feedback", {}
@@ -101,11 +100,11 @@ def build_postexecution_theory_revision_binding(
     if not isinstance(source_feedback, Mapping) or not source_feedback:
         source_feedback = context.get("environment_feedback", {})
     feedback = dict(source_feedback) if isinstance(source_feedback, Mapping) else {}
-    dispatch = context.get("architect_typed_repair_dispatch", {})
-    dispatch = dict(dispatch) if isinstance(dispatch, Mapping) else {}
-    pending_ids = replan.get("pending_artifact_ids", {})
-    pending_ids = dict(pending_ids) if isinstance(pending_ids, Mapping) else {}
-
+    architect_packet_id = str(
+        context.get("architect_coordinator_proposal_id", "") or ""
+    ).strip()
+    routing = context.get("architect_initial_routing", {})
+    routing = dict(routing) if isinstance(routing, Mapping) else {}
     errors: list[str] = []
     if replan.get("artifact_kind") != (
         "RuntimeGeneratedCodeSemanticReviewReplanContext"
@@ -113,12 +112,8 @@ def build_postexecution_theory_revision_binding(
         errors.append("post-execution theory revision has no typed replan context")
     if str(replan.get("question_id", "") or "") != question_id:
         errors.append("post-execution theory replan belongs to another question")
-    if replan.get("repair_scope") != "upstream_theory":
-        errors.append("post-execution theory replan is not upstream_theory")
     if feedback.get("feedback_type") != "generated_code_semantic_review_feedback":
         errors.append("post-execution theory revision has the wrong feedback type")
-    if feedback.get("repair_scope") != "upstream_theory":
-        errors.append("post-execution feedback is not routed to upstream theory")
 
     review_packet_id = str(replan.get("review_packet_id", "") or "").strip()
     review_execution_id = str(
@@ -133,22 +128,30 @@ def build_postexecution_theory_revision_binding(
     ).strip():
         errors.append("post-execution review execution lineage does not match")
 
-    if dispatch.get("artifact_kind") != "RuntimeArchitectTypedRepairDispatch":
-        errors.append("post-execution theory revision has no typed Architect dispatch")
-    if dispatch.get("repair_scope") != "upstream_theory":
-        errors.append("typed Architect dispatch is not for upstream theory")
-    if str(dispatch.get("question_id", "") or "") != question_id:
-        errors.append("typed Architect dispatch belongs to another question")
-    if str(dispatch.get("review_packet_id", "") or "") != review_packet_id:
-        errors.append("typed Architect dispatch review packet does not match")
-    if str(dispatch.get("review_execution_id", "") or "") != review_execution_id:
-        errors.append("typed Architect dispatch review execution does not match")
-    if str(dispatch.get("feedback_fingerprint", "") or "") != stable_hash(feedback):
-        errors.append("typed Architect dispatch feedback fingerprint does not match")
+    if not architect_packet_id:
+        errors.append("post-execution theory revision has no Architect model packet")
+    if routing.get("artifact_kind") != "ArchitectInitialRoutingDecision":
+        errors.append("post-execution theory revision has no Architect routing record")
+    if str(routing.get("architect_packet_id", "") or "") != architect_packet_id:
+        errors.append("Architect routing record does not match its model packet")
+    if str(routing.get("question_id", "") or "") != question_id:
+        errors.append("Architect routing record belongs to another question")
+    if routing.get("source") != "architect_packet":
+        errors.append("post-execution theory revision was not selected by the Architect model")
+    if routing.get("requested_subsystem") != "TheoryDeveloper":
+        errors.append("Architect model packet did not request TheoryDeveloper")
+    if routing.get("selected_subsystem") != "TheoryDeveloper":
+        errors.append("Architect model packet was not routed to TheoryDeveloper")
+    if str(routing.get("environment_feedback_execution_id", "") or "") != (
+        review_execution_id
+    ):
+        errors.append("Architect model route does not match the reviewed execution")
+    if str(routing.get("environment_feedback_hash", "") or "") != stable_hash(
+        feedback
+    ):
+        errors.append("Architect model route does not match the feedback bytes")
 
-    parent_packet_id = str(
-        pending_ids.get("theory_packet_id", "") or ""
-    ).strip()
+    parent_packet_id = str(replan.get("theory_packet_id", "") or "").strip()
     current_packet_id = str(context.get("theory_packet_id", "") or "").strip()
     if not parent_packet_id:
         errors.append("post-execution theory replan has no parent theory packet id")
@@ -187,16 +190,29 @@ def build_postexecution_theory_revision_binding(
         errors.append("current theory handoff bytes do not match the reviewed parent")
 
     binding = build_theory_developer_revision_binding(
-        revision_source="generated_code_semantic_review_postexecution",
+        revision_source="architect_routed_generated_code_observations",
         question_id=question_id,
         source_feedback=feedback,
         theory_material=theory_material,
         feedback_id=str(feedback.get("feedback_id", "") or ""),
-        upstream_theory_revision_count=(
-            int(budget_state.get("revisions_used", 0) or 0) + 1
+        upstream_theory_revision_count=max(
+            1,
+            int(
+                _mapping(replan.get("semantic_review_replan_budget")).get(
+                    "replans_used", 0
+                )
+                or 0
+            )
+            + 1,
         ),
-        max_upstream_theory_revisions=int(
-            budget_state.get("max_revisions", 0) or 0
+        max_upstream_theory_revisions=max(
+            1,
+            int(
+                _mapping(replan.get("semantic_review_replan_budget")).get(
+                    "max_replans", 0
+                )
+                or 0
+            ),
         ),
         execution_results_observed=True,
         source_review_packet_id=review_packet_id,
@@ -209,6 +225,75 @@ def build_postexecution_theory_revision_binding(
         )
     )
     return binding, list(dict.fromkeys(errors))
+
+
+def consume_architect_routed_generated_code_theory_revision(
+    *,
+    architect_context: Mapping[str, Any],
+    revision_binding: Mapping[str, Any],
+    revised_theory_packet_id: str,
+    revised_theory_packet_hash: str,
+) -> dict[str, Any]:
+    """Retire reviewed descendants after the model selects a new theory packet."""
+
+    context = dict(architect_context)
+    replan = context.get("runtime_generated_code_semantic_review_replan", {})
+    if not isinstance(replan, Mapping) or not replan:
+        return context
+    parent_packet_id = str(
+        revision_binding.get("source_theory_packet_id", "") or ""
+    ).strip()
+    if not (
+        revision_binding.get("revision_source")
+        == "architect_routed_generated_code_observations"
+        and parent_packet_id
+        and revised_theory_packet_id
+        and revised_theory_packet_id != parent_packet_id
+        and revised_theory_packet_hash
+    ):
+        return context
+
+    resolution = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanResolution",
+        "resolution_status": "CONSUMED_BY_MODEL_ROUTED_THEORY_REVISION",
+        "question_id": str(replan.get("question_id", "") or ""),
+        "replan_id": str(replan.get("replan_id", "") or ""),
+        "source_review_execution_id": str(
+            replan.get("review_execution_id", "") or ""
+        ),
+        "source_review_packet_id": str(replan.get("review_packet_id", "") or ""),
+        "rejected_source_subsystem": str(
+            replan.get("source_subsystem", "") or ""
+        ),
+        "rejected_source_manifest_id": str(
+            replan.get("source_manifest_id", "") or ""
+        ),
+        "prior_theory_packet_id": parent_packet_id,
+        "revised_theory_packet_id": revised_theory_packet_id,
+        "revised_theory_packet_hash": revised_theory_packet_hash,
+        "theory_revision_binding_id": str(
+            revision_binding.get("binding_id", "") or ""
+        ),
+        "next_subsystem_was_model_selected": True,
+        "proof_evidence_status": (
+            "GENERATED_CODE_SEMANTIC_REVIEW_REPLAN_RESOLUTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    resolution["resolution_id"] = (
+        "generated_code_semantic_review_replan_resolution:"
+        + stable_hash(resolution)[:20]
+    )
+    context["runtime_generated_code_semantic_review_replan_resolution"] = resolution
+    context.pop("runtime_generated_code_semantic_review_replan", None)
+    context.pop("environment_feedback", None)
+    context.pop("runtime_feedback_loop", None)
+    context.pop("accepted_algorithm_handoff", None)
+    context.pop("accepted_implementation_interface_handoff", None)
+    context.pop("accepted_algorithm_semantic_review_materialization", None)
+    context.pop("simulation_generated_code_draft", None)
+    context["previous_theory_packet_id"] = parent_packet_id
+    context["theory_packet_id"] = revised_theory_packet_id
+    return context
 
 
 def theory_developer_revision_binding_errors(
@@ -344,3 +429,7 @@ def theory_developer_revision_binding_errors(
     if not binding_id or binding_id != expected_binding_id:
         errors.append("theory revision binding fingerprint does not match")
     return list(dict.fromkeys(errors))
+
+
+def _mapping(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, Mapping) else {}

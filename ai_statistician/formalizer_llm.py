@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -12,7 +11,7 @@ from .fingerprint import stable_hash
 from .formal_source_prompt_context import (
     compact_formal_source_grounding_hits_for_prompt,
 )
-from .formalizer_repair_policy import (
+from .formalizer_feedback import (
     formalizer_validation_feedback_envelope,
 )
 from .llm_json_repair import (
@@ -442,19 +441,6 @@ def _formalizer_contextual_validation_errors(
         _validate_indexed_lean_environment_candidate_bindings(
             packet,
             environment_feedback=environment_feedback,
-        )
-    )
-    errors.extend(
-        _validate_source_theorem_candidate_materialization_packet(
-            packet,
-            environment_feedback=environment_feedback,
-            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
-        )
-    )
-    errors.extend(
-        _validate_exact_source_theorem_whole_proof_repair_packet(
-            packet,
-            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
         )
     )
     if requires_lean_candidate:
@@ -1896,16 +1882,6 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
         forbidden = _contains_forbidden_proof_claim(row)
         if forbidden:
             errors.append(f"formal target contains forbidden proof claim: {forbidden}")
-        provenance = row.get("source_theorem_target_provenance", {})
-        if isinstance(provenance, Mapping):
-            declaration_error = _target_lean_declaration_identifier_error(
-                provenance.get("target_lean_declaration", "")
-            )
-            if declaration_error:
-                errors.append(
-                    "source_theorem_target_provenance.target_lean_declaration "
-                    + declaration_error
-                )
     for row in packet.get("proof_bank_obligation_requests", []) or []:
         if not isinstance(row, Mapping):
             errors.append("proof_bank_obligation_requests entries must be objects")
@@ -2872,80 +2848,6 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
     return errors
 
 
-def _source_theorem_candidate_materialization_context(
-    *,
-    environment_feedback: Mapping[str, Any] | None = None,
-    proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    proof_summary = (
-        proof_bank_runtime_memory_summary
-        if isinstance(proof_bank_runtime_memory_summary, Mapping)
-        else {}
-    )
-    feedback = environment_feedback if isinstance(environment_feedback, Mapping) else {}
-    required = bool(
-        proof_summary.get("source_theorem_candidate_materialization_required")
-        or proof_summary.get("recommended_formalizer_target_mode")
-        == "source_theorem_exact_candidate_materialization_required"
-    )
-    target_names = [
-        str(value).strip()
-        for value in proof_summary.get(
-            "source_theorem_candidate_materialization_required_target_names",
-            [],
-        )
-        or []
-        if str(value).strip()
-    ]
-    target_ids = [
-        str(value).strip()
-        for value in proof_summary.get(
-            "source_theorem_candidate_materialization_required_target_ids",
-            [],
-        )
-        or []
-        if str(value).strip()
-    ]
-    for row in feedback.get("high_priority_agenda", []) or []:
-        if not isinstance(row, Mapping):
-            continue
-        if (
-            str(row.get("id", "") or "")
-            == "formal_gap:source_theorem_candidate_materialization"
-            or str(row.get("recommended_formalizer_target_mode", "") or "")
-            == "source_theorem_exact_candidate_materialization_required"
-        ):
-            required = True
-            target_ids.extend(
-                str(value).strip()
-                for value in row.get("target_ids", []) or []
-                if str(value).strip()
-            )
-    for row in feedback.get("formal_blocker_resource_requests", []) or []:
-        if not isinstance(row, Mapping):
-            continue
-        if (
-            str(row.get("blocker_kind", "") or "")
-            == "SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
-        ):
-            required = True
-            target_ids.extend(
-                str(value).strip()
-                for value in row.get("target_ids", []) or []
-                if str(value).strip()
-            )
-    if _source_theorem_exact_semantic_definition_gate_active(
-        environment_feedback=environment_feedback,
-        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
-    ):
-        required = False
-    return {
-        "required": required,
-        "target_names": list(dict.fromkeys(target_names)),
-        "target_ids": list(dict.fromkeys(target_ids)),
-    }
-
-
 def _source_theorem_exact_semantic_definition_gate_active(
     *,
     environment_feedback: Mapping[str, Any] | None = None,
@@ -3074,281 +2976,6 @@ def _formal_target_materialization_identity_tokens(
                 tokens.append(str(value or "").strip())
     return {token for token in tokens if token}
 
-
-def _validate_exact_source_theorem_whole_proof_repair_packet(
-    packet: Mapping[str, Any],
-    *,
-    proof_bank_runtime_memory_summary: Mapping[str, Any],
-) -> list[str]:
-    if str(
-        proof_bank_runtime_memory_summary.get(
-            "recommended_formalizer_target_mode", ""
-        )
-        or ""
-    ) != "source_theorem_exact_proof_body_repair":
-        return []
-    diagnostics = [
-        row
-        for row in proof_bank_runtime_memory_summary.get(
-            "source_theorem_exact_proof_body_repair_diagnostics", []
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    repair_context = next(
-        (
-            row
-            for row in diagnostics
-            if str(row.get("proof_body_repair_scope", "") or "")
-            == "replace_entire_exact_declaration_proof_body"
-            and str(row.get("target_theorem_statement", "") or "").strip()
-        ),
-        None,
-    )
-    if repair_context is None:
-        return []
-    expected_statement = str(
-        repair_context.get("target_theorem_statement", "") or ""
-    ).strip()
-    expected_declaration = str(
-        repair_context.get("target_theorem_name", "")
-        or repair_context.get("target_lean_declaration", "")
-        or ""
-    ).strip()
-    if not expected_declaration:
-        expected_declaration = _formalizer_lean_declaration_name(expected_statement)
-    expected_signature = _normalized_lean_declaration_signature(expected_statement)
-    lean_targets = [
-        row
-        for row in packet.get("formal_targets", []) or []
-        if isinstance(row, Mapping)
-        and str(row.get("lean_statement_sketch", "") or "").strip()
-    ]
-    source_targets: list[Mapping[str, Any]] = []
-    for row in lean_targets:
-        source = str(row.get("lean_statement_sketch", "") or "").strip()
-        provenance = (
-            row.get("source_theorem_target_provenance", {})
-            if isinstance(
-                row.get("source_theorem_target_provenance", {}), Mapping
-            )
-            else {}
-        )
-        provenance_declaration = str(
-            provenance.get("target_lean_declaration", "") or ""
-        ).strip()
-        source_target_known = _source_theorem_target_known(provenance)
-        if (
-            source_target_known is True
-            or _formalizer_lean_declaration_name(source) == expected_declaration
-            or (
-                source_target_known is not False
-                and provenance_declaration == expected_declaration
-            )
-        ):
-            source_targets.append(row)
-    if not source_targets:
-        if _exact_source_theorem_whole_proof_typed_blocker_present(
-            packet,
-            expected_declaration=expected_declaration,
-        ):
-            return []
-        return [
-            "exact source theorem whole-proof repair requires either a complete "
-            "Lean source-theorem candidate preserving target_theorem_statement "
-            "or a typed FORMAL_GAP with a concrete retrieval/dependency work order"
-        ]
-
-    observed_declarations: list[str] = []
-    exact_signature_candidate_found = False
-    provenance_mismatches: list[str] = []
-    missing_complete_proof_body = False
-    for target in source_targets:
-        source = str(target.get("lean_statement_sketch", "") or "").strip()
-        declaration = _formalizer_lean_declaration_name(source)
-        if declaration:
-            observed_declarations.append(declaration)
-        provenance = (
-            target.get("source_theorem_target_provenance", {})
-            if isinstance(
-                target.get("source_theorem_target_provenance", {}), Mapping
-            )
-            else {}
-        )
-        provenance_declaration = str(
-            provenance.get("target_lean_declaration", "") or ""
-        ).strip()
-        if (
-            expected_declaration
-            and provenance_declaration
-            and provenance_declaration != expected_declaration
-        ):
-            provenance_mismatches.append(provenance_declaration)
-        proof_match = re.search(r":=\s*by\b", source)
-        if not proof_match:
-            missing_complete_proof_body = True
-            continue
-        candidate_signature = _normalized_lean_declaration_signature(
-            source[: proof_match.start()]
-        )
-        if (
-            (not expected_declaration or declaration == expected_declaration)
-            and candidate_signature == expected_signature
-            and source[proof_match.end() :].strip()
-        ):
-            exact_signature_candidate_found = True
-
-    errors: list[str] = []
-    if not exact_signature_candidate_found:
-        if expected_declaration and expected_declaration not in observed_declarations:
-            errors.append(
-                "exact source theorem whole-proof repair must preserve declaration "
-                f"name {expected_declaration!r}; observed: "
-                + ", ".join(observed_declarations or ["<none>"])
-            )
-        errors.append(
-            "exact source theorem whole-proof repair must preserve "
-            "target_theorem_statement exactly modulo whitespace and replace only "
-            "the complete proof after `:= by`"
-        )
-    if provenance_mismatches:
-        errors.append(
-            "exact source theorem whole-proof repair provenance must keep "
-            f"target_lean_declaration={expected_declaration!r}; observed: "
-            + ", ".join(dict.fromkeys(provenance_mismatches))
-        )
-    if missing_complete_proof_body and not exact_signature_candidate_found:
-        errors.append(
-            "exact source theorem whole-proof repair candidate must include a "
-            "nonempty complete proof after `:= by`"
-        )
-    return sorted(set(errors))
-
-
-def _formalizer_lean_declaration_name(source: str) -> str:
-    match = re.search(
-        r"\b(?:theorem|lemma)\s+([A-Za-z_][A-Za-z0-9_'.]*)",
-        str(source or ""),
-    )
-    return match.group(1) if match else ""
-
-
-def _exact_source_theorem_whole_proof_typed_blocker_present(
-    packet: Mapping[str, Any],
-    *,
-    expected_declaration: str,
-) -> bool:
-    formal_gap_targets = [
-        row
-        for row in packet.get("formal_targets", []) or []
-        if isinstance(row, Mapping)
-        and str(row.get("expected_status", "") or "") == "FORMAL_GAP"
-    ]
-    matching_gap_target = any(
-        expected_declaration
-        in {
-            str(row.get("id", "") or "").strip(),
-            str(
-                (
-                    row.get("source_theorem_target_provenance", {})
-                    if isinstance(
-                        row.get("source_theorem_target_provenance", {}), Mapping
-                    )
-                    else {}
-                ).get("target_lean_declaration", "")
-                or ""
-            ).strip(),
-        }
-        for row in formal_gap_targets
-    )
-    typed_gaps = [
-        row
-        for row in packet.get("gap_taxonomy", []) or []
-        if isinstance(row, Mapping)
-        and str(
-            row.get("gap", "")
-            or row.get("description", "")
-            or row.get("blocker", "")
-            or ""
-        ).strip()
-        and str(
-            row.get("kind", "")
-            or row.get("gap_type", "")
-            or row.get("category", "")
-            or ""
-        ).strip()
-    ]
-    dependency_work_available = bool(
-        packet.get("retrieval_queries", [])
-        or packet.get("source_to_bridge_premise_derivation_candidate_requests", [])
-        or packet.get("proof_bank_obligation_requests", [])
-    )
-    return bool(matching_gap_target and typed_gaps and dependency_work_available)
-
-
-def _normalized_lean_declaration_signature(source: str) -> str:
-    return re.sub(r"\s+", " ", str(source or "").strip())
-
-
-def _validate_source_theorem_candidate_materialization_packet(
-    packet: Mapping[str, Any],
-    *,
-    environment_feedback: Mapping[str, Any] | None = None,
-    proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
-) -> list[str]:
-    context = _source_theorem_candidate_materialization_context(
-        environment_feedback=environment_feedback,
-        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
-    )
-    if not context["required"]:
-        return []
-    formal_targets = [
-        row
-        for row in packet.get("formal_targets", []) or []
-        if isinstance(row, Mapping)
-    ]
-    source_candidates: list[Mapping[str, Any]] = []
-    for row in formal_targets:
-        source = str(row.get("lean_statement_sketch", "") or "").strip()
-        provenance = (
-            row.get("source_theorem_target_provenance", {})
-            if isinstance(row.get("source_theorem_target_provenance", {}), Mapping)
-            else {}
-        )
-        if (
-            str(row.get("expected_status", "") or "") == "NEEDS_KERNEL_CHECK"
-            and source
-            and not source.startswith("FORMAL_GAP")
-            and re.search(r"\b(theorem|lemma)\b", source)
-            and _source_theorem_target_known(provenance) is True
-        ):
-            source_candidates.append(row)
-    errors: list[str] = []
-    if not source_candidates:
-        errors.append(
-            "source_theorem_exact_candidate_materialization_required requires "
-            "a concrete source-theorem formal_targets entry with "
-            "expected_status=NEEDS_KERNEL_CHECK, nonempty Lean theorem/lemma "
-            "sketch, and source_theorem_target_provenance. "
-            "source_theorem_target_known=true; FORMAL_GAP and helper/support "
-            "candidates do not satisfy this materialization gate"
-        )
-        return errors
-    requested_targets = set(context["target_ids"] or context["target_names"])
-    if requested_targets:
-        matched = any(
-            requested_targets
-            & _formal_target_materialization_identity_tokens(row)
-            for row in source_candidates
-        )
-        if not matched:
-            errors.append(
-                "source_theorem_exact_candidate_materialization_required "
-                "formal_targets candidate must preserve a requested target "
-                "id/name: "
-                + ", ".join(sorted(requested_targets))
-            )
-    return sorted(set(errors))
 
 
 def _pending_source_to_bridge_premise_names_for_capability_eval(
@@ -3678,13 +3305,7 @@ def _source_to_bridge_candidate_skeleton_lean_source_excerpt(
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ""
-    lines = text.splitlines()
-    theorem_start = 0
-    for index, line in enumerate(lines):
-        if re.search(r"\b(?:theorem|lemma)\s+[A-Za-z_][A-Za-z0-9_'.]*\b", line):
-            theorem_start = max(0, index - 8)
-            break
-    return "\n".join(lines[theorem_start : theorem_start + max_lines])[:max_chars]
+    return "\n".join(text.splitlines()[:max_lines])[:max_chars]
 
 
 def _compact_premise_derivation_candidate_request(
@@ -3825,8 +3446,6 @@ def _formalizer_local_lean_observations(
     raw = (
         feedback.get("local_lean_observation", {})
         or input_summary.get("local_lean_observation", {})
-        or feedback.get("local_lean_repair_contract", {})
-        or input_summary.get("local_lean_repair_contract", {})
     )
     explicit = deepcopy(dict(raw)) if isinstance(raw, Mapping) else {}
     cleaned = without_legacy_python_lean_strategy_fields(explicit)
@@ -3916,7 +3535,9 @@ def _complete_lean_candidate_revision_feedback(
         "formal_source_grounding_hits",
         "proof_state_trace_rag",
         "external_proof_search_result",
-        "proof_search_result_use",
+        "candidate_proof_state_feedback_rows",
+        "candidate_proof_state_feedback_counts",
+        "candidate_proof_state_provider",
         "proof_evidence_status",
     )
     target_and_environment = {
@@ -3955,6 +3576,10 @@ def _complete_lean_candidate_revision_feedback(
         "local_lean_compiled",
         "local_lean_source_compiled",
         "local_lean_exit_status",
+        "local_lean_command",
+        "local_lean_project",
+        "local_lean_timeout",
+        "local_lean_skipped_reason",
         "local_lean_stdout",
         "local_lean_stderr",
         "local_lean_stdout_excerpt",
@@ -4122,16 +3747,32 @@ def _complete_formalizer_environment_observations(
         if isinstance(feedback.get("input_summary", {}), Mapping)
         else {}
     )
+    prior_observations = (
+        feedback.get("prior_environment_observations", {})
+        if isinstance(
+            feedback.get("prior_environment_observations", {}),
+            Mapping,
+        )
+        else {}
+    )
 
     def observed(key: str, default: Any = "") -> Any:
         value = feedback.get(key)
         if value not in (None, "", [], {}):
             return value
-        return input_summary.get(key, default)
+        value = input_summary.get(key)
+        if value not in (None, "", [], {}):
+            return value
+        return prior_observations.get(key, default)
 
     candidate_id = str(observed("candidate_id", "") or "")
+    observation_view = {
+        **deepcopy(dict(prior_observations)),
+        **deepcopy(dict(input_summary)),
+        **deepcopy(dict(feedback)),
+    }
     correction_observations = _complete_lean_candidate_revision_feedback(
-        feedback,
+        observation_view,
         candidate_id=candidate_id,
     )
     validation_errors = [
@@ -4215,6 +3856,9 @@ def _complete_formalizer_environment_observations(
     budget_fields = (
         "attempts",
         "formalizer_packet_repair_retry_depth",
+        "formalizer_packet_regeneration_attempts_used",
+        "formalizer_packet_regeneration_max_attempts",
+        "same_model_regeneration_budget_exhausted",
         "repeated_formalizer_packet_validation_failure",
         "formalizer_lean_repair_retry_depth",
         "repeated_formalizer_lean_candidate_failure",
@@ -4405,6 +4049,9 @@ def _complete_formalizer_environment_observations(
             observed("rejected_candidate_fingerprint", "") or ""
         ),
         "formalizer_validation_feedback": validation_feedback,
+        "regeneration_contract": deepcopy(
+            observed("regeneration_contract", {})
+        ),
         "control_plane": control,
         "lineage": lineage,
         "budgets": budgets,
@@ -4524,6 +4171,11 @@ def _theory_trace_downstream_alignment_feedback(
 
 
 def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[str, Any]:
+    raw_row = row
+    observation_row = model_observations_without_repair_recipes(row)
+    if not isinstance(observation_row, Mapping):
+        return {}
+    row = observation_row
     keys = (
         "artifact_kind",
         "proof_bank_bridge_catalog_size",
@@ -4689,6 +4341,11 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
             row.get("source_theorem_exact_candidate_repair_diagnostics", []),
             keys=(
                 "target_theorem_name",
+                "target_lean_declaration",
+                "target_declaration_source_excerpt",
+                "target_theorem_statement",
+                "current_proof_body_excerpt",
+                "residual_goal_excerpt",
                 "trigger",
                 "placeholder_symbol",
                 "missing_formal_symbols",
@@ -5399,7 +5056,107 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
             ),
             limit=4,
         )
-    return compact
+    raw_exact_candidate_failures = raw_row.get(
+        "source_theorem_exact_candidate_repair_diagnostics",
+        [],
+    )
+    raw_exact_proof_state_failures = raw_row.get(
+        "source_theorem_exact_proof_body_repair_diagnostics",
+        [],
+    )
+    prior_exact_candidate_failures = [
+        *(
+            raw_exact_candidate_failures
+            if isinstance(raw_exact_candidate_failures, list)
+            else []
+        ),
+        *(
+            raw_exact_proof_state_failures
+            if isinstance(raw_exact_proof_state_failures, list)
+            else []
+        ),
+    ]
+    if prior_exact_candidate_failures:
+        compact["source_theorem_exact_candidate_tool_observations"] = _compact_rows(
+            prior_exact_candidate_failures,
+            keys=(
+                "target_theorem_name",
+                "target_lean_declaration",
+                "target_declaration_source_excerpt",
+                "target_theorem_statement",
+                "current_proof_body_excerpt",
+                "residual_goal_excerpt",
+                "trigger",
+                "placeholder_symbol",
+                "verification_status",
+                "failure_classification",
+                "candidate_artifact_path",
+                "candidate_source_file",
+                "local_lean_compiled",
+                "diagnostics",
+                "validation_errors",
+                "source_lookup_hits",
+                "missing_formal_symbols",
+                "typeclass_blockers",
+                "source_theorem_target_identity_status",
+                "semantic_definition_risks",
+                "semantic_alignment_blockers",
+                "semantic_alignment_constraints",
+                "proof_body_gate_status",
+                "proof_body_goal_reached",
+                "proof_body_goal_excerpt",
+                "proof_body_attempt_summaries",
+            ),
+            limit=6,
+        )
+        compact["source_theorem_exact_candidate_tool_failure_observed"] = True
+    prior_lean_failures = raw_row.get(
+        "formalizer_lean_candidate_repair_memory",
+        [],
+    )
+    if isinstance(prior_lean_failures, list) and prior_lean_failures:
+        compact["formalizer_lean_candidate_tool_observations"] = _compact_rows(
+            prior_lean_failures,
+            keys=(
+                "candidate_id",
+                "candidate_kind",
+                "source_field",
+                "source_manifest_path",
+                "artifact_path",
+                "source_hash",
+                "target_lean_declaration",
+                "target_ids",
+                "target_theorem_goal_ids",
+                "target_theorem_name",
+                "lean_source",
+                "lean_source_excerpt",
+                "precheck_status",
+                "local_lean_attempted",
+                "local_lean_compiled",
+                "local_lean_exit_status",
+                "local_lean_project",
+                "local_lean_command",
+                "local_lean_stdout",
+                "local_lean_stderr",
+                "local_lean_stdout_excerpt",
+                "local_lean_stderr_excerpt",
+                "proof_evidence_status",
+            ),
+            limit=max(1, len(prior_lean_failures)),
+        )
+        compact["formalizer_lean_candidate_tool_failure_observed"] = True
+    prior_manifest_paths = raw_row.get(
+        "formalizer_lean_candidate_repair_manifest_paths",
+        [],
+    )
+    if isinstance(prior_manifest_paths, list) and prior_manifest_paths:
+        compact["formalizer_lean_candidate_tool_observation_manifest_paths"] = [
+            str(value)
+            for value in prior_manifest_paths
+            if str(value).strip()
+        ]
+    projected = model_observations_without_repair_recipes(compact)
+    return dict(projected) if isinstance(projected, Mapping) else {}
 
 
 def _source_theorem_candidate_materialization_contract(
@@ -5825,7 +5582,6 @@ def _compact_value(value: Any) -> Any:
             "semantic_alignment_constraints",
             "semantic_alignment_blockers",
             "external_proof_search_result",
-            "proof_search_result_use",
             "repair_target_identity_contract",
             "feedback_kind",
             "contract_kind",
@@ -5921,21 +5677,6 @@ def _contains_forbidden_proof_claim(value: Any) -> str:
     for token in forbidden:
         if token in text:
             return token
-    return ""
-
-
-def _target_lean_declaration_identifier_error(value: Any) -> str:
-    text = str(value or "").strip()
-    if not text:
-        return ""
-    lowered = text.lower()
-    if (
-        re.search(r"\s", text)
-        or lowered.startswith(("theorem ", "lemma ", "def "))
-        or ":=" in text
-        or ":" in text
-    ):
-        return "must be a Lean declaration identifier, not a full theorem statement"
     return ""
 
 

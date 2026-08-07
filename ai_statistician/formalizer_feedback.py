@@ -6,20 +6,20 @@ from typing import Any, Mapping, Sequence
 from .fingerprint import stable_hash
 
 
-FORMALIZER_REPAIR_FEEDBACK_SCHEMA_VERSION = 3
+FORMALIZER_FEEDBACK_SCHEMA_VERSION = 4
 FORMALIZER_TOOL_OBSERVATION_SCHEMA_VERSION = 1
 
 FORMALIZER_VALIDATION_FEEDBACK_BOUNDARY = (
-    "Formalizer repair feedback is an environment observation, not a repair "
-    "recipe and not proof evidence. AgentRuntime owns packet identity, retry "
+    "Formalizer validation feedback is an environment observation, not a source "
+    "edit or proof evidence. AgentRuntime owns packet identity, retry "
     "budgets, execution, validation, and proof authority. The model owns the "
-    "mathematical decomposition, Lean candidate, and repair strategy. Only the "
+    "mathematical decomposition, Lean candidate, and regeneration strategy. Only the "
     "unchanged local validators and active-project Lean/kernel checks can accept "
     "their respective artifacts."
 )
 
 FORMALIZER_TOOL_OBSERVATION_BOUNDARY = (
-    "Tool output is an environment observation, not a repair recipe and not "
+    "Tool output is an environment observation, not a source edit and not "
     "proof evidence. The model chooses the next candidate or typed blocker. "
     "AgentRuntime owns artifact lineage, budgets, tool execution, and proof "
     "authority; Lean/kernel acceptance remains unchanged."
@@ -62,8 +62,8 @@ def formalizer_tool_observation_envelope(
             "structured_tool_output" if classes else "not_provided"
         ),
         "model_owned_next_action": True,
-        "runtime_selected_repair": False,
-        "repair_authority": {
+        "runtime_selected_revision": False,
+        "regeneration_authority": {
             "model_owns": [
                 "candidate_revision",
                 "retrieval_or_tool_request",
@@ -128,7 +128,7 @@ def formalizer_validation_feedback_envelope(
         ]
     )[:20]
     return {
-        "schema_version": FORMALIZER_REPAIR_FEEDBACK_SCHEMA_VERSION,
+        "schema_version": FORMALIZER_FEEDBACK_SCHEMA_VERSION,
         "artifact_kind": "FormalizerValidationFeedbackEnvelope",
         "feedback_id": feedback_id,
         "producer": "local_formalizer_packet_validator",
@@ -140,15 +140,17 @@ def formalizer_validation_feedback_envelope(
         "rejected_packet_fingerprint": (
             stable_hash(rejected_packet) if rejected_packet else ""
         ),
+        "rejected_candidate": rejected_packet,
+        "rejected_candidate_complete": bool(rejected_packet),
         "rejected_packet_projection": _compact_rejected_packet(rejected_packet),
         "attempt_history": history,
         "retry_depth": max(0, int(retry_depth)),
-        "repair_authority": {
+        "regeneration_authority": {
             "model_owns": [
                 "mathematical_decomposition",
                 "formal_target_selection",
                 "Lean_candidate_source",
-                "repair_or_typed_blocker_decision",
+                "regeneration_or_typed_blocker_decision",
             ],
             "runtime_owns": [
                 "artifact_identity_and_lineage",
@@ -160,9 +162,11 @@ def formalizer_validation_feedback_envelope(
             "runtime_selected_semantics": False,
         },
         "acceptance_contract": {
+            "same_model_regenerates_complete_packet": True,
             "same_response_schema": True,
             "same_local_validators": True,
             "preserve_task_and_artifact_lineage": True,
+            "runtime_edits_candidate": False,
             "allow_model_authored_typed_blocker": True,
             "compiler_or_validator_feedback_is_not_proof": True,
             "kernel_verification_required_for_proof": True,
@@ -177,7 +181,6 @@ def _compact_attempt(row: Mapping[str, Any]) -> dict[str, Any]:
         for key in (
             "attempt_index",
             "ok",
-            "repair_mode",
             "errors",
             "raw_response_fingerprint",
             "response_metadata",

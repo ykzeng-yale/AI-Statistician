@@ -274,7 +274,7 @@ def test_lean_candidate_tool_loop_stops_repeated_identical_checks() -> None:
         raise AssertionError("repeated identical Lean checks did not stop")
 
 
-def test_lean_candidate_tool_loop_checks_latest_edit_at_turn_budget() -> None:
+def test_lean_candidate_tool_loop_does_not_hide_a_check_at_turn_budget() -> None:
     initial = "theorem target : True := by exact True.intro\n"
     repaired = "theorem target : True := by\n  exact True.intro\n"
     backend = ScriptedLeanToolBackend(
@@ -299,36 +299,36 @@ def test_lean_candidate_tool_loop_checks_latest_edit_at_turn_budget() -> None:
             "local_lean_stderr": "" if source == repaired else "initial failure",
         }
 
-    result = run_lean_candidate_revision_tool_loop(
-        provider=backend,
-        system_prompt="Use tools.",
-        user_prompt="Repair this target.",
-        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-        model_tier="haiku",
-        temperature=0.0,
-        max_tokens=1200,
-        max_turns=2,
-        max_source_updates=1,
-        max_searches=1,
-        max_checks=2,
-        max_no_progress_turns=2,
-        candidate_id="target-candidate",
-        candidate_lean_declaration="target",
-        initial_source=initial,
-        check_candidate=check,
-        search_formal_environment=lambda query, k: [],
-    )
+    try:
+        run_lean_candidate_revision_tool_loop(
+            provider=backend,
+            system_prompt="Use tools.",
+            user_prompt="Revise this target.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            temperature=0.0,
+            max_tokens=1200,
+            max_turns=2,
+            max_source_updates=1,
+            max_searches=1,
+            max_checks=2,
+            max_no_progress_turns=2,
+            candidate_id="target-candidate",
+            candidate_lean_declaration="target",
+            initial_source=initial,
+            check_candidate=check,
+            search_formal_environment=lambda query, k: [],
+        )
+    except PacketValidationError as exc:
+        checkpoint = exc.recovery_checkpoint
+        assert checkpoint is not None
+        assert checkpoint["current_source"] == repaired
+        assert checkpoint["last_check"] == {}
+        assert "final_runtime_check_performed" not in checkpoint
+    else:
+        raise AssertionError("unsubmitted final source was accepted")
 
-    assert result.lean_source == repaired
-    assert checked_sources == [initial, repaired]
-    assert result.evidence["handoff_mode"] == (
-        "turn_budget_runtime_validated_candidate"
-    )
-    assert result.evidence["model_explicit_submit"] is False
-    assert result.evidence["budget_exhausted"] is True
-    assert result.evidence["runtime_verifier_checks"] == 1
-    assert result.evidence["local_lean_checks"] == 2
-    assert result.evidence["kernel_verified"] is False
+    assert checked_sources == [initial]
 
 
 def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() -> None:
@@ -378,8 +378,8 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
         )
         assert checkpoint["current_source"] == latest
         assert checkpoint["current_source_hash"] == stable_hash(latest)
-        assert checkpoint["last_check"]["local_lean_stderr"] == "type mismatch"
-        assert checkpoint["final_runtime_check_performed"] is True
+        assert checkpoint["last_check"] == {}
+        assert "final_runtime_check_performed" not in checkpoint
         assert checkpoint["model_owned_lean_code"] is True
         assert checkpoint["kernel_verified"] is False
     else:
@@ -833,8 +833,6 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
     for name in (
         "validate_formalizer_packet",
         "_validate_indexed_lean_environment_candidate_bindings",
-        "_validate_source_theorem_candidate_materialization_packet",
-        "_validate_exact_source_theorem_whole_proof_repair_packet",
         "_validate_capability_eval_formalizer_lean_candidate_packet",
     ):
         monkeypatch.setattr(formalizer_module, name, lambda *args, **kwargs: [])

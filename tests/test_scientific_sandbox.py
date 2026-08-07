@@ -29,7 +29,6 @@ from ai_statistician.simulation_engineer_llm import (
     _validate_simulation_estimator_selection,
     validate_simulation_engineer_packet,
 )
-from ai_statistician.research_schema import OpenResearchQuestion
 
 
 def test_generated_code_contract_keeps_stdlib_default_and_requires_r_wasm() -> None:
@@ -525,100 +524,65 @@ def test_runtime_simulation_dispatch_records_mechanical_estimator_reuse(
     assert receipt["all_handoff_estimators_invoked"] is False
 
 
-def test_estimator_abi_failure_routes_typed_feedback_to_algorithm_engineer() -> None:
-    task = runtime_module._simulation_estimator_abi_repair_task(
-        question=OpenResearchQuestion(
-            id="abi-routing",
-            title="Generic estimator ABI routing",
-            description="Exercise a reviewed estimator inside a generated DGP.",
-            tags=("capability-eval",),
-        ),
-        theory_packet_id="theory:abi",
-        simulation_manifest_id="simulation:abi-failed",
-        implementation_gaps=[{"estimator_id": "candidate"}],
-        architect_context={},
-        simulation_feedback={
-            "generated_simulation_prototypes": [
+def test_estimator_abi_failure_preserves_typed_observation() -> None:
+    feedback = runtime_module._generated_simulation_revision_feedback(
+        manifest={
+            "manifest_id": "simulation:abi-failed",
+            "generated_simulation_sandbox_prototypes": [
                 {
+                    "simulation_id": "abi-probe",
                     "estimator_binding_errors": [
                         "accepted algorithm did not define callable run_estimator: candidate"
                     ]
                 }
-            ]
+            ],
         },
-        n_runs=20,
-        seed=9,
-        repair_attempts_used=0,
-        yield_after_attempts=1,
+        boundary="simulation observations are not proof evidence",
+        failure_classification="accepted_algorithm_estimator_abi_failed",
     )
 
-    assert task.owner_subsystem == "AlgorithmEngineer"
-    feedback = task.inputs["environment_feedback"]
-    assert feedback["feedback_type"] == "accepted_algorithm_estimator_abi_feedback"
     assert feedback["failure_classification"] == (
         "accepted_algorithm_estimator_abi_failed"
     )
-    assert feedback["validation_errors"] == [
+    assert feedback["generated_simulation_prototypes"][0][
+        "estimator_binding_errors"
+    ] == [
         "accepted algorithm did not define callable run_estimator: candidate"
     ]
     assert "target_behavior" not in feedback
     assert "success_metric" not in feedback
     assert "required_repair" not in feedback
-    assert task.inputs["implementation_gaps"] == [{"estimator_id": "candidate"}]
-    assert task.inputs["architect_context"]["runtime_feedback_loop"][
-        "simulation_evaluator_generated_code_repair_attempts_used"
-    ] == 1
-    assert task.inputs["architect_context"]["runtime_feedback_loop"][
-        "simulation_evaluator_generated_code_repair_yield_after_attempts"
-    ] == 1
 
 
-def test_estimator_runtime_failure_routes_typed_feedback_to_algorithm_engineer() -> None:
-    task = runtime_module._simulation_estimator_runtime_repair_task(
-        question=OpenResearchQuestion(
-            id="runtime-routing",
-            title="Generic estimator runtime routing",
-            description="Exercise a reviewed estimator inside a generated DGP.",
-            tags=("capability-eval",),
-        ),
-        theory_packet_id="theory:runtime",
-        simulation_manifest_id="simulation:runtime-failed",
-        implementation_gaps=[{"estimator_id": "candidate"}],
-        architect_context={},
-        simulation_feedback={
-            "generated_simulation_prototypes": [
+def test_estimator_runtime_failure_preserves_typed_observation() -> None:
+    feedback = runtime_module._generated_simulation_revision_feedback(
+        manifest={
+            "manifest_id": "simulation:runtime-failed",
+            "generated_simulation_sandbox_prototypes": [
                 {
+                    "simulation_id": "runtime-probe",
                     "estimator_runtime_failure_ids": ["candidate"],
                     "estimator_runtime_errors": [
                         "RuntimeError: run_estimator response was non-finite"
                     ],
                 }
-            ]
+            ],
         },
-        n_runs=20,
-        seed=9,
-        repair_attempts_used=0,
-        yield_after_attempts=1,
+        boundary="simulation observations are not proof evidence",
+        failure_classification="accepted_algorithm_estimator_runtime_failed",
     )
 
-    assert task.owner_subsystem == "AlgorithmEngineer"
-    feedback = task.inputs["environment_feedback"]
     assert feedback["failure_classification"] == (
         "accepted_algorithm_estimator_runtime_failed"
     )
-    assert feedback["failed_estimator_ids"] == ["candidate"]
-    assert feedback["runtime_errors"] == [
+    row = feedback["generated_simulation_prototypes"][0]
+    assert row["estimator_runtime_failure_ids"] == ["candidate"]
+    assert row["estimator_runtime_errors"] == [
         "RuntimeError: run_estimator response was non-finite"
     ]
     assert "target_behavior" not in feedback
     assert "success_metric" not in feedback
     assert "required_repair" not in feedback
-    assert task.inputs["architect_context"]["runtime_feedback_loop"][
-        "simulation_evaluator_generated_code_repair_attempts_used"
-    ] == 1
-    assert task.inputs["architect_context"]["runtime_feedback_loop"][
-        "simulation_evaluator_generated_code_repair_yield_after_attempts"
-    ] == 1
 
 
 @pytest.mark.parametrize(

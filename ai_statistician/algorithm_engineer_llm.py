@@ -23,15 +23,13 @@ from .generated_metric_contract import (
     materialize_generated_metric_contract_bindings,
     validate_generated_metric_contracts,
 )
-from .algorithm_template_registry import (
-    registered_algorithm_template_hint_contract,
-    registered_algorithm_template_ids,
-    registered_algorithm_template_prompt_rows,
-)
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
-from .semantic_review_feedback import compact_semantic_review_feedback
+from .semantic_review_feedback import (
+    coding_agent_observations_only,
+    compact_semantic_review_feedback,
+)
 from .scientific_sandbox import (
     generated_code_draft_json_schema,
     generated_code_execution_contract_errors,
@@ -219,7 +217,6 @@ def build_algorithm_engineer_prompt(
             GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
         ),
         "runtime_environment_feedback": runtime_environment_feedback,
-        "registered_runtime_templates": registered_algorithm_template_prompt_rows(),
         "generated_code_sandbox_contract": {
             "status": "primary model-authored implementation path",
             "entrypoint": "run_sandbox",
@@ -233,8 +230,7 @@ def build_algorithm_engineer_prompt(
                 "run_estimator <- function(request)"
             ),
             "default": (
-                "generate complete sandbox source for each novel implementation gap; "
-                "registered templates are retrieved baselines, not repair fallbacks"
+                "generate complete sandbox source for each implementation gap"
             ),
             "execution_contract": scientific_sandbox_contract(),
             "runtime_policy": (
@@ -258,8 +254,7 @@ def build_algorithm_engineer_prompt(
         )
         payload["generated_code_sandbox_contract"]["default"] = (
             "include one safe sandbox_code_drafts entry for every canonical "
-            "implementation gap even when a registered template also matches; "
-            "templates may be referenced only as baselines"
+            "implementation gap"
         )
     generated_code_instruction = (
         (
@@ -283,10 +278,8 @@ def build_algorithm_engineer_prompt(
             "def run_sandbox(seed: int, replicates: int) -> dict or R "
             "run_sandbox <- function(seed, replicates). Declare language, "
             "execution_profile, and only dependencies actually imported. Set every "
-            "implementation_targets row registered_template_hint to none so AgentRuntime "
-            "can test Claude-generated algorithm code execution. Registered templates may "
-            "be named only in prose as baselines; they will not be executed for this "
-            "capability gate. Treat each supplied implementation_gaps estimator_id as "
+            "implementation_targets and generated source are model-authored. Treat "
+            "each supplied implementation_gaps estimator_id as "
             "an exact task-artifact foreign key: copy it unchanged into the matching "
             "implementation_targets and sandbox_code_drafts rows rather than inventing "
             "a clearer alias. Use execution_profile=scientific_wasm when mature "
@@ -295,9 +288,7 @@ def build_algorithm_engineer_prompt(
         )
         if requires_generated_code
         else (
-            "Use model-authored complete sandbox source for novel implementation gaps. "
-            "Treat registered runtime templates only as retrieved examples or exact "
-            "reusable baselines, never as a fallback after a generated candidate fails. "
+            "Use model-authored complete sandbox source for implementation gaps. "
         )
     )
     feedback_regeneration_instruction = (
@@ -321,7 +312,7 @@ def build_algorithm_engineer_prompt(
         + "You may "
         "propose code and tests, but "
         "you must not claim you executed code, wrote files, promoted a production algorithm, or proved "
-        "any theorem. Pick registered runtime templates only when their contract matches the estimator. "
+        "any theorem. "
         "Use theory_packet_summary.theory_derivation_trace to align generated code, validation metrics, "
         "and risk controls with the derivation assumptions and equation-chain quantities. "
         "Populate theory_trace_alignment with exact referenced_derivation_steps, "
@@ -329,7 +320,7 @@ def build_algorithm_engineer_prompt(
         "from the supplied trace anchors. "
         "If runtime_environment_feedback reports rejected or failed sandbox code, regenerate the complete "
         "model-authored draft from the supplied source and exact observations; do not repeat the same unsafe "
-        "or non-executable code and do not substitute a template as a hidden replacement. "
+        "or non-executable code. "
         "For sandbox_code_drafts, obey the selected profile in "
         "generated_code_sandbox_contract. The stdlib profile permits only its "
         "listed pure-Python subset. The scientific_wasm profile permits only "
@@ -337,8 +328,8 @@ def build_algorithm_engineer_prompt(
         "file/network/subprocess/host-bridge/reflection access. Prefer mature "
         "package APIs for numerical and statistical machinery. If the requested "
         "prototype cannot run under either profile, omit the draft and report the "
-        "actual missing runtime capability. A registered template hint never authorizes "
-        "AgentRuntime to edit or replace model-authored source.\n\n"
+        "actual missing runtime capability. AgentRuntime never edits or replaces "
+        "model-authored source.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
@@ -437,7 +428,7 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
     theory_alignment_feedback = _compact_theory_trace_downstream_alignment_feedback(
         feedback
     )
-    return {
+    projected = {
         "architect_evidence_contract": _compact_architect_evidence_contract(
             feedback.get("architect_evidence_contract", {}),
             target_subsystem="AlgorithmEngineer",
@@ -545,10 +536,6 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
         "packet_validation_source_retry_escalated": feedback.get(
             "packet_validation_source_retry_escalated"
         ),
-        "packet_validation_repair_owner": _truncate_text(
-            feedback.get("packet_validation_repair_owner", ""),
-            limit=80,
-        ),
         "lineage_packet_validation_round": feedback.get(
             "lineage_packet_validation_round"
         ),
@@ -613,6 +600,7 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
         ],
         "boundary": _truncate_text(feedback.get("boundary", ""), limit=240),
     }
+    return coding_agent_observations_only(projected)
 
 
 def _compact_theory_trace_downstream_alignment_feedback(
@@ -806,7 +794,6 @@ ALGORITHM_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
         {
             "estimator_id": "string",
             "adapter_strategy": "short string",
-            "registered_template_hint": registered_algorithm_template_hint_contract(),
             "data_contract": ["one short string"],
             "validation_metrics": ["one short string"],
             "risk_controls": ["one short string"],
@@ -879,15 +866,10 @@ def _algorithm_engineer_response_schema(
                     "additionalProperties": False,
                     "required": [
                         "estimator_id",
-                        "registered_template_hint",
                     ],
                     "properties": {
                         "estimator_id": estimator_id_schema,
                         "adapter_strategy": {"type": "string"},
-                        "registered_template_hint": {
-                            "type": "string",
-                            "enum": ["none"],
-                        },
                         "data_contract": _string_array_json_schema(),
                         "estimator_interface_contract": (
                             _estimator_interface_contract_json_schema()
@@ -1008,9 +990,6 @@ def validate_algorithm_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
             continue
         if not str(row.get("estimator_id", "")).strip():
             errors.append("implementation target missing estimator_id")
-        template = str(row.get("registered_template_hint", "none") or "none")
-        if template not in {*registered_algorithm_template_ids(), "none"}:
-            errors.append(f"unsupported registered_template_hint: {template}")
         interface_errors = _estimator_interface_contract_errors(
             row.get("estimator_interface_contract"),
             label=(
@@ -1091,9 +1070,7 @@ def _feedback_requires_generated_algorithm_code(feedback: Mapping[str, Any]) -> 
         )
         == "generated_code_semantic_review_feedback"
         and str(
-            feedback.get("repair_target_subsystem", "")
-            or semantic_review.get("repair_target_subsystem", "")
-            or feedback.get("source_subsystem", "")
+            feedback.get("source_subsystem", "")
             or semantic_review.get("source_subsystem", "")
             or ""
         )
@@ -1135,7 +1112,7 @@ def _validate_capability_eval_generated_algorithm_packet(
     *,
     implementation_gaps: list[Mapping[str, Any]],
 ) -> list[str]:
-    """Capability eval must exercise Claude-generated code, not a template path."""
+    """Capability eval must exercise model-generated code."""
 
     errors: list[str] = []
     targets = [row for row in packet.get("implementation_targets", []) or [] if isinstance(row, Mapping)]
@@ -1147,12 +1124,6 @@ def _validate_capability_eval_generated_algorithm_packet(
     for row in drafts:
         if normalized_generated_code_language(row.get("language")) == "python":
             errors.extend(generated_python_syntax_errors(str(row.get("code", ""))))
-    for row in targets:
-        template = str(row.get("registered_template_hint", "none") or "none").strip()
-        if template != "none":
-            errors.append(
-                "capability_eval requires registered_template_hint=none for every implementation target"
-            )
     target_ids = {
         str(row.get("estimator_id", "")).strip()
         for row in targets

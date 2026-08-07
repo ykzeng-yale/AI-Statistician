@@ -12,7 +12,7 @@ from .formalizer_llm import (
     validate_formalizer_packet,
 )
 from .llm_json_repair import PacketValidationError
-from .formalizer_repair_policy import formalizer_validation_feedback_envelope
+from .formalizer_feedback import formalizer_validation_feedback_envelope
 from .pseudo_formal_block_verifier_worker import (
     pseudo_formal_block_verifier_request_rows,
 )

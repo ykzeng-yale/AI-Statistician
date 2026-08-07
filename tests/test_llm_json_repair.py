@@ -309,6 +309,45 @@ def test_final_semantic_attempt_truncation_gets_one_transport_regeneration() -> 
     assert packet["llm_json_repair_history"][1]["truncation_detected"] is True
 
 
+def test_expanded_output_budget_does_not_shrink_after_complete_invalid_response() -> None:
+    class _FirstAttemptTruncatedBackend(_SequenceBackend):
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            response = super().generate(request)
+            if len(self.requests) == 1:
+                response.metadata["provider_stop_reason"] = "max_tokens"
+            return response
+
+    backend = _FirstAttemptTruncatedBackend(
+        [
+            '{"status": "unfinished"',
+            {"status": "still-invalid"},
+            {"status": "valid"},
+        ]
+    )
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=_request(),
+        extract_payload=lambda text: extract_json_object(text, label="status"),
+        build_packet=lambda payload, _response, _raw: dict(payload),
+        validate_packet=lambda candidate: (
+            [] if candidate.get("status") == "valid" else ["status must be valid"]
+        ),
+        validation_label="status packet",
+        max_repair_attempts=2,
+    )
+
+    expanded_budget = _regeneration_attempt_max_tokens(
+        128,
+        truncation_regeneration_mode=True,
+    )
+    assert packet["status"] == "valid"
+    assert [request.max_tokens for request in backend.requests] == [
+        128,
+        expanded_budget,
+        expanded_budget,
+    ]
+
+
 def test_transport_regeneration_is_bounded() -> None:
     class _RepeatedTruncationBackend(_SequenceBackend):
         def generate(self, request: GeneratorRequest) -> GeneratorResponse:

@@ -525,9 +525,6 @@ LIVE_EVALUATION_MIN_SERIOUS_THEORY_MAX_TOKENS = 16000
 SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS = (
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 3.0
 )
-FULL_LIVE_MIN_GAP_PLANNER_PROVIDER_TIMEOUT_SECONDS = (
-    SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS
-)
 
 
 def _resolve_dotenv_path(path: Path | str | None) -> Path:
@@ -5163,10 +5160,10 @@ def _build_generated_code_semantic_reviewer_agent_from_args(
                 0.0,
             ),
             provider_name=provider_name,
-            max_repair_attempts=(
+            max_validation_retries=(
                 2
                 if _runtime_evaluation_model_tier(args)
-                else GeneratedCodeSemanticReviewerConfig().max_repair_attempts
+                else GeneratedCodeSemanticReviewerConfig().max_validation_retries
             ),
         ),
     )
@@ -11810,14 +11807,6 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 )
                 or 0
             ),
-            generated_code_semantic_review_max_upstream_theory_revisions=int(
-                getattr(
-                    args,
-                    "generated_code_semantic_review_max_upstream_theory_revisions",
-                    2,
-                )
-                or 0
-            ),
             metric_protocol_max_upstream_theory_revisions=int(
                 getattr(
                     args,
@@ -14027,7 +14016,7 @@ def _apply_research_agent_runtime_research_eval_profile(
         ),
     )
     args.coding_agent_packet_validation_max_lineage_failures = max(
-        4,
+        2,
         int(
             getattr(
                 args,
@@ -14096,42 +14085,10 @@ def _apply_research_agent_runtime_capability_eval_preset(
     for field_name in (
         "formalizer_candidate_local_lean",
         "pseudo_formal_block_verifier_runtime",
-        "theorem_closure_proofengineer_bridge",
-        "theorem_closure_proofengineer_local_lean",
-        "source_semantic_proofengineer_bridge",
-        "source_semantic_proofengineer_local_lean",
-        "source_theorem_promotion_proofengineer_bridge",
-        "source_theorem_promotion_proofengineer_local_lean",
-        "source_theorem_formal_environment_proofengineer_bridge",
-        "source_theorem_formal_environment_proofengineer_signature_probes",
-        "source_theorem_formal_environment_proofengineer_execute_proof_body",
-        "source_theorem_formal_environment_proofengineer_proof_body_local_lean",
-        "source_theorem_proof_body_adapter_proofengineer_bridge",
-        "source_theorem_proof_body_adapter_proofengineer_local_lean",
-        "source_to_bridge_premise_derivation_proofengineer_bridge",
-        "source_to_bridge_premise_derivation_proofengineer_local_lean",
-        "source_theorem_exact_semantic_definition_source_lookup",
-        "source_theorem_exact_semantic_definition_proofengineer_bridge",
-        "source_theorem_exact_semantic_definition_lean_repair_executor",
-        "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean",
-        "source_theorem_exact_semantic_definition_lean_environment_repair_executor",
-        "source_theorem_exact_semantic_definition_closure_review",
-        "source_theorem_exact_semantic_definition_candidate_synthesis",
-        "source_theorem_exact_semantic_definition_candidate_synthesis_local_lean",
     ):
         setattr(args, field_name, True)
 
-    lean_project_fields = (
-        "formalizer_candidate_lean_project",
-        "theorem_closure_proofengineer_lean_project",
-        "source_semantic_proofengineer_lean_project",
-        "source_theorem_proof_body_adapter_proofengineer_lean_project",
-        "source_to_bridge_premise_derivation_proofengineer_lean_project",
-        "source_theorem_formal_environment_proofengineer_lean_project",
-        "source_theorem_promotion_proofengineer_lean_project",
-        "source_theorem_exact_semantic_definition_lean_repair_executor_lean_project",
-        "source_theorem_exact_semantic_definition_candidate_synthesis_lean_project",
-    )
+    lean_project_fields = ("formalizer_candidate_lean_project",)
     if lean_project:
         for field_name in lean_project_fields:
             if not str(getattr(args, field_name, "") or "").strip():
@@ -14204,7 +14161,6 @@ def _apply_research_agent_runtime_capability_eval_preset(
                 or 0
             ),
         )
-        args.formalization_gap_planner_live_route_planner = True
         args.llm_timeout_seconds = max(
             SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS,
             float(
@@ -14278,7 +14234,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
             )
             <= 0
         ):
-            args.coding_agent_packet_validation_max_lineage_failures = 4
+            args.coding_agent_packet_validation_max_lineage_failures = 2
         if (
             int(
                 getattr(
@@ -14303,7 +14259,8 @@ def _apply_research_agent_runtime_capability_eval_preset(
             <= 0
         ):
             args.simulation_evaluator_generated_code_repair_yield_after_attempts = 1
-        if (
+        args.generated_code_semantic_review_max_revisions = max(
+            2,
             int(
                 getattr(
                     args,
@@ -14311,22 +14268,8 @@ def _apply_research_agent_runtime_capability_eval_preset(
                     0,
                 )
                 or 0
-            )
-            <= 0
-        ):
-            args.generated_code_semantic_review_max_revisions = 1
-        if (
-            int(
-                getattr(
-                    args,
-                    "generated_code_semantic_review_max_upstream_theory_revisions",
-                    0,
-                )
-                or 0
-            )
-            <= 0
-        ):
-            args.generated_code_semantic_review_max_upstream_theory_revisions = 1
+            ),
+        )
         if (
             int(
                 getattr(
@@ -14363,107 +14306,6 @@ def _apply_research_agent_runtime_capability_eval_preset(
             <= 0
         ):
             args.max_formalizer_proof_state_repair_rounds = 1
-        if (
-            int(
-                getattr(
-                    args,
-                    "formalization_gap_planner_live_max_handoffs",
-                    1,
-                )
-                or 0
-            )
-            <= 0
-        ):
-            args.formalization_gap_planner_live_max_handoffs = 1
-        if (
-            int(
-                getattr(
-                    args,
-                    "formalization_gap_planner_live_max_route_requests_per_handoff",
-                    1,
-                )
-                or 0
-            )
-            <= 0
-        ):
-            args.formalization_gap_planner_live_max_route_requests_per_handoff = 1
-        if (
-            int(
-                getattr(
-                    args,
-                    "formalization_gap_planner_live_max_provider_retries",
-                    0,
-                )
-                or 0
-            )
-            <= 0
-        ):
-            args.formalization_gap_planner_live_max_provider_retries = 1
-        if (
-            getattr(
-                args,
-                "formalization_gap_planner_live_timeout_seconds",
-                None,
-            )
-            is None
-            or float(args.formalization_gap_planner_live_timeout_seconds) <= 0
-        ):
-            args.formalization_gap_planner_live_timeout_seconds = max(
-                1.0,
-                FULL_LIVE_MIN_GAP_PLANNER_PROVIDER_TIMEOUT_SECONDS,
-                float(
-                    getattr(
-                        args,
-                        "llm_timeout_seconds",
-                        DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-                    )
-                    or DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
-                ),
-            )
-        if str(
-            getattr(args, "formalization_gap_planner_live_provider", "same")
-            or "same"
-        ) in {"", "none", "static"}:
-            args.formalization_gap_planner_live_provider = "same"
-        args.source_theorem_exact_semantic_definition_authoring_worker = True
-        authoring_provider = str(
-            getattr(
-                args,
-                "source_theorem_exact_semantic_definition_authoring_worker_provider",
-                "none",
-            )
-            or "none"
-        )
-        if authoring_provider in {"", "none", "static"}:
-            args.source_theorem_exact_semantic_definition_authoring_worker_provider = (
-                args.provider
-            )
-        args.source_theorem_exact_semantic_definition_authoring_worker_allow_external_export = True
-        args.source_theorem_exact_semantic_definition_authoring_worker_external_export_mode = (
-            "full"
-        )
-        if str(
-            getattr(args, "coding_agent_repair_eval_provider", "same") or "same"
-        ) in {"", "none", "static"}:
-            args.coding_agent_repair_eval_provider = "same"
-        if str(
-            getattr(args, "formalizer_repair_eval_provider", "same") or "same"
-        ) in {"", "none", "static"}:
-            args.formalizer_repair_eval_provider = "same"
-        if str(
-            getattr(args, "formalizer_pseudo_formal_packet_eval_provider", "same")
-            or "same"
-        ) in {"", "none", "static"}:
-            args.formalizer_pseudo_formal_packet_eval_provider = "same"
-        if str(
-            getattr(args, "pseudo_formal_block_verifier_eval_provider", "same")
-            or "same"
-        ) in {"", "none", "static"}:
-            args.pseudo_formal_block_verifier_eval_provider = "same"
-        if lean_project and not str(
-            getattr(args, "formalizer_repair_eval_lean_project", "") or ""
-        ).strip():
-            args.formalizer_repair_eval_lean_project = lean_project
 
 
 def _apply_research_agent_runtime_live_lean_defaults(
@@ -14471,11 +14313,9 @@ def _apply_research_agent_runtime_live_lean_defaults(
 ) -> None:
     """Attach the canonical Lake project to live Formalizer/ProofEngineer checks.
 
-    This is intentionally narrower than the capability-eval preset: it does not
-    enable registered proof-bank local Lean gates or broad source-theorem proof
-    bridges. It prevents live Formalizer/ProofEngineer runs from stalling before
-    local diagnostics, and it keeps source-to-bridge premise work orders from
-    being dropped after the Formalizer emits them.
+    The default path supplies compiler/LSP feedback to the model-owned source
+    loop. Historical bridge, planner, and executor experiments remain available
+    only when the caller explicitly enables them.
     """
 
     if not _research_agent_runtime_formalizer_resolves_to_live_provider(args):
@@ -14495,19 +14335,6 @@ def _apply_research_agent_runtime_live_lean_defaults(
         args.formalizer_candidate_lean_project = lean_project
     if not bool(getattr(args, "formalizer_candidate_lean_lsp_mcp", False)):
         args.formalizer_candidate_local_lean = True
-    if not str(
-        getattr(
-            args,
-            "source_to_bridge_premise_derivation_proofengineer_lean_project",
-            "",
-        )
-        or ""
-    ).strip():
-        args.source_to_bridge_premise_derivation_proofengineer_lean_project = (
-            lean_project
-        )
-    args.source_to_bridge_premise_derivation_proofengineer_bridge = True
-    args.source_to_bridge_premise_derivation_proofengineer_local_lean = True
 
 
 def _research_agent_runtime_formalizer_resolves_to_live_provider(
@@ -14832,94 +14659,6 @@ def _research_agent_runtime_capability_config_errors(
             "formalizer_candidate_local_lean",
             "--formalizer-candidate-local-lean",
         ),
-        (
-            "theorem_closure_proofengineer_bridge",
-            "--theorem-closure-proofengineer-bridge",
-        ),
-        (
-            "theorem_closure_proofengineer_local_lean",
-            "--theorem-closure-proofengineer-local-lean",
-        ),
-        (
-            "source_semantic_proofengineer_bridge",
-            "--source-semantic-proofengineer-bridge",
-        ),
-        (
-            "source_semantic_proofengineer_local_lean",
-            "--source-semantic-proofengineer-local-lean",
-        ),
-        (
-            "source_theorem_promotion_proofengineer_bridge",
-            "--source-theorem-promotion-proofengineer-bridge",
-        ),
-        (
-            "source_theorem_promotion_proofengineer_local_lean",
-            "--source-theorem-promotion-proofengineer-local-lean",
-        ),
-        (
-            "source_theorem_formal_environment_proofengineer_bridge",
-            "--source-theorem-formal-environment-proofengineer-bridge",
-        ),
-        (
-            "source_theorem_formal_environment_proofengineer_signature_probes",
-            "--source-theorem-formal-environment-proofengineer-signature-probes",
-        ),
-        (
-            "source_theorem_formal_environment_proofengineer_execute_proof_body",
-            "--source-theorem-formal-environment-proofengineer-execute-proof-body",
-        ),
-        (
-            "source_theorem_formal_environment_proofengineer_proof_body_local_lean",
-            "--source-theorem-formal-environment-proofengineer-proof-body-local-lean",
-        ),
-        (
-            "source_theorem_proof_body_adapter_proofengineer_bridge",
-            "--source-theorem-proof-body-adapter-proofengineer-bridge",
-        ),
-        (
-            "source_theorem_proof_body_adapter_proofengineer_local_lean",
-            "--source-theorem-proof-body-adapter-proofengineer-local-lean",
-        ),
-        (
-            "source_to_bridge_premise_derivation_proofengineer_bridge",
-            "--source-to-bridge-premise-derivation-proofengineer-bridge",
-        ),
-        (
-            "source_to_bridge_premise_derivation_proofengineer_local_lean",
-            "--source-to-bridge-premise-derivation-proofengineer-local-lean",
-        ),
-        (
-            "source_theorem_exact_semantic_definition_source_lookup",
-            "--source-theorem-exact-semantic-definition-source-lookup",
-        ),
-        (
-            "source_theorem_exact_semantic_definition_proofengineer_bridge",
-            "--source-theorem-exact-semantic-definition-proofengineer-bridge",
-        ),
-        (
-            "source_theorem_exact_semantic_definition_lean_repair_executor",
-            "--source-theorem-exact-semantic-definition-lean-repair-executor",
-        ),
-        (
-            "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean",
-            "--source-theorem-exact-semantic-definition-lean-repair-executor-local-lean",
-        ),
-        (
-            "source_theorem_exact_semantic_definition_lean_environment_repair_executor",
-            "--source-theorem-exact-semantic-definition-lean-environment-repair-executor",
-        ),
-        (
-            "source_theorem_exact_semantic_definition_closure_review",
-            "--source-theorem-exact-semantic-definition-closure-review",
-        ),
-        (
-            "source_theorem_exact_semantic_definition_candidate_synthesis",
-            "--source-theorem-exact-semantic-definition-candidate-synthesis",
-        ),
-        (
-            "source_theorem_exact_semantic_definition_candidate_synthesis_local_lean",
-            "--source-theorem-exact-semantic-definition-candidate-synthesis-local-lean",
-        ),
     )
     for field_name, flag in proofengineer_required_flags:
         if not bool(getattr(args, field_name, False)):
@@ -14976,13 +14715,7 @@ def _research_agent_runtime_capability_config_errors(
         live_gap_planner_enabled = bool(
             getattr(args, "formalization_gap_planner_live_route_planner", False)
         )
-        if not live_gap_planner_enabled:
-            errors.append(
-                "capability eval preset full-live requires the integrated live "
-                "FormalizationGapPlanner route planner; missing "
-                "--formalization-gap-planner-live-route-planner"
-            )
-        else:
+        if live_gap_planner_enabled:
             route_provider_choice = str(
                 getattr(args, "formalization_gap_planner_live_provider", "same")
                 or "same"
@@ -15043,7 +14776,7 @@ def _research_agent_runtime_capability_config_errors(
         ):
             errors.append(
                 "capability eval preset full-live requires bounded "
-                "AlgorithmEngineer generated-code repair scheduling; set "
+                "AlgorithmEngineer full-candidate revision scheduling; set "
                 "--algorithm-engineer-generated-code-repair-yield-after-attempts > 0"
             )
         if (
@@ -15059,7 +14792,7 @@ def _research_agent_runtime_capability_config_errors(
         ):
             errors.append(
                 "capability eval preset full-live requires bounded "
-                "SimulationEvaluator generated-simulation repair scheduling; set "
+                "SimulationEvaluator full-candidate revision scheduling; set "
                 "--simulation-evaluator-generated-code-repair-yield-after-attempts > 0"
             )
         if (
@@ -15075,24 +14808,8 @@ def _research_agent_runtime_capability_config_errors(
         ):
             errors.append(
                 "capability eval preset full-live requires bounded independent "
-                "generated-code semantic-review repair; set "
+                "generated-code semantic-review revision; set "
                 "--generated-code-semantic-review-max-revisions > 0"
-            )
-        if (
-            int(
-                getattr(
-                    args,
-                    "generated_code_semantic_review_max_upstream_theory_revisions",
-                    0,
-                )
-                or 0
-            )
-            <= 0
-        ):
-            errors.append(
-                "capability eval preset full-live requires a global cross-theory "
-                "semantic-review repair budget; set "
-                "--generated-code-semantic-review-max-upstream-theory-revisions > 0"
             )
         if not bool(
             getattr(args, "formal_target_semantic_review_required", False)
@@ -15131,8 +14848,8 @@ def _research_agent_runtime_capability_config_errors(
         ):
             errors.append(
                 "capability eval preset full-live requires bounded "
-                "Formalizer/ProofEngineer Lean-candidate repair scheduling; set "
-                "--formalizer-lean-candidate-repair-yield-to-gap-planner-after-attempts > 0"
+                "same-agent Lean full-source revision before Architect replan; set "
+                "--formalizer-lean-candidate-revision-max-attempts > 0"
             )
         if (
             int(
@@ -15147,7 +14864,7 @@ def _research_agent_runtime_capability_config_errors(
         ):
             errors.append(
                 "capability eval preset full-live requires at least one bounded "
-                "Formalizer proof-state repair turn; set "
+                "ProofEngineer full-source proof-state revision turn; set "
                 "--max-formalizer-proof-state-repair-rounds > 0"
             )
         if live_gap_planner_enabled and (
@@ -21888,16 +21605,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_agent_runtime.add_argument(
-        "--generated-code-semantic-review-max-upstream-theory-revisions",
-        type=int,
-        default=1,
-        help=(
-            "maximum fresh TheoryDeveloper revisions consumed by upstream-theory "
-            "findings from independent generated-code review across theory hashes; "
-            "full-live requires a positive global bound"
-        ),
-    )
-    research_agent_runtime.add_argument(
         "--formal-target-semantic-reviewer-provider",
         choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
         default="none",
@@ -22475,8 +22182,9 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=0,
         help=(
-            "hard cap on repeated identical packet-validator failures for one "
-            "question/fresh-candidate lineage across coding retries and theory "
+            "hard cap on packet-validator failure rounds for one question, "
+            "source subsystem, and fresh-candidate lineage across changing "
+            "validator messages, coding retries, and theory "
             "revisions; research-eval and full-live enable a bounded default, "
             "while 0 disables the cap"
         ),
@@ -22506,14 +22214,18 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_agent_runtime.add_argument(
+        "--formalizer-lean-candidate-revision-max-attempts",
         "--formalizer-lean-candidate-repair-yield-to-gap-planner-after-attempts",
+        dest=(
+            "formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts"
+        ),
         type=int,
         default=0,
         help=(
-            "in capability-eval, route repeated Formalizer/ProofEngineer "
-            "Lean-candidate diagnostics to FormalizationGapPlanner after this "
-            "many repair attempts; 0 keeps the legacy unbounded ProofEngineer "
-            "repair routing"
+            "in capability-eval, let the same ProofEngineer regenerate complete "
+            "Lean source for this many failed rounds, then route the unchanged "
+            "source and exact Lean observations to ArchitectCoordinator for a "
+            "typed replan; 0 keeps unbounded same-agent revision routing"
         ),
     )
     research_agent_runtime.add_argument(

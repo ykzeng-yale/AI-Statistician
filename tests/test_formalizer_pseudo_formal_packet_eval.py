@@ -387,7 +387,7 @@ def test_formalizer_prompt_exposes_component_failure_without_repair_seed() -> No
     assert memory["formalizer_validation_feedback"][
         "validation_error_messages"
     ] == validation_errors
-    assert memory["model_owned_repair_required"] is True
+    assert "model_owned_repair_required" not in memory
     assert memory["runtime_selected_mathematical_content"] is False
     assert "concrete_lane_routable_repair_seed" not in memory
     assert "pseudo_formalization_required_packet_seed" not in payload
@@ -564,13 +564,7 @@ def test_formalizer_prompt_string_false_does_not_require_pf_bv() -> None:
         "pseudo_formalization_required_copy_fragment",
     ):
         assert inactive_key not in payload
-    assert isinstance(
-        payload["required_output_contract"]["pseudo_formal_proof_packets"],
-        str,
-    )
-    assert "optional PF/BV routing packets" in payload["required_output_contract"][
-        "pseudo_formal_proof_packets"
-    ]
+    assert "pseudo_formal_proof_packets" not in payload["required_output_contract"]
     assert "you must emit at least one pseudo_formal_proof_packets" not in prompt
 
 
@@ -594,9 +588,7 @@ def test_formalizer_prompt_does_not_infer_pf_bv_control_flow_from_prose() -> Non
     )
     payload = _prompt_payload(prompt)
 
-    assert "optional PF/BV routing packets" in payload["required_output_contract"][
-        "pseudo_formal_proof_packets"
-    ]
+    assert "pseudo_formal_proof_packets" not in payload["required_output_contract"]
     assert "you must emit at least one pseudo_formal_proof_packets" not in prompt
 
 
@@ -885,8 +877,8 @@ def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_feedback(
 
     feedback = manifest["formalizer_validation_feedback"]
     assert feedback["validation_error_messages"] == exc.errors
-    assert feedback["repair_authority"]["runtime_selected_semantics"] is False
-    assert feedback["repair_authority"]["model_owns"]
+    assert feedback["regeneration_authority"]["runtime_selected_semantics"] is False
+    assert feedback["regeneration_authority"]["model_owns"]
     assert manifest["pseudo_formal_failure_required_target_lanes"] == [
         "source_theorem_exact_semantic_definition",
         "source_to_bridge",

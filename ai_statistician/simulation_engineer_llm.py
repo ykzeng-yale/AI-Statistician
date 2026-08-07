@@ -26,7 +26,10 @@ from .generated_metric_contract import (
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
-from .semantic_review_feedback import compact_semantic_review_feedback
+from .semantic_review_feedback import (
+    coding_agent_observations_only,
+    compact_semantic_review_feedback,
+)
 from .scientific_sandbox import (
     generated_code_draft_json_schema,
     generated_code_execution_contract_errors,
@@ -534,7 +537,7 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
     theory_alignment_feedback = _compact_theory_trace_downstream_alignment_feedback(
         feedback
     )
-    return {
+    projected = {
         "empirical_evaluation_phase": _feedback_empirical_evaluation_phase(
             feedback
         ),
@@ -627,10 +630,6 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
         ),
         "packet_validation_source_retry_escalated": feedback.get(
             "packet_validation_source_retry_escalated"
-        ),
-        "packet_validation_repair_owner": _truncate_text(
-            feedback.get("packet_validation_repair_owner", ""),
-            limit=80,
         ),
         "lineage_packet_validation_round": feedback.get(
             "lineage_packet_validation_round"
@@ -750,6 +749,7 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
         ],
         "boundary": _truncate_text(feedback.get("boundary", ""), limit=240),
     }
+    return coding_agent_observations_only(projected)
 
 
 def _compact_simulation_runtime_execution_contract(value: Any) -> dict[str, Any]:

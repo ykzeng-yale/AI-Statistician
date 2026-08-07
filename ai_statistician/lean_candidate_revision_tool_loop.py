@@ -554,64 +554,6 @@ def run_lean_candidate_revision_tool_loop(
             max_no_progress_turns=max_no_progress_turns,
         )
     except ClientToolLoopError as exc:
-        final_runtime_check_performed = False
-        last_check = state["last_check"]
-        current_check_bound = bool(
-            str(last_check.get("source_hash", "") or "") == state["source_hash"]
-        )
-        current_check_passed = bool(
-            current_check_bound and last_check.get("compiled", False)
-        )
-        if (
-            exc.reason == "global client-tool turn budget exhausted"
-            and not current_check_bound
-            and state["checks"] < max_checks
-        ):
-            final_runtime_check_performed = True
-            try:
-                last_check = check_current_source()
-            except Exception as final_check_exc:  # pragma: no cover - defensive tool path
-                state["checks"] += 1
-                last_check = {
-                    "source_hash": state["source_hash"],
-                    "compiled": False,
-                    "checker_error": type(final_check_exc).__name__,
-                }
-                state["last_check"] = last_check
-            current_check_passed = bool(
-                str(last_check.get("source_hash", "") or "") == state["source_hash"]
-                and last_check.get("compiled", False)
-            )
-        if (
-            exc.reason == "global client-tool turn budget exhausted"
-            and current_check_passed
-        ):
-            return _lean_candidate_revision_success_result(
-                source=str(state["source"]),
-                check_result=last_check,
-                state=state,
-                candidate_id=candidate_id,
-                candidate_lean_declaration=candidate_lean_declaration,
-                parent_source_hash=parent_source_hash,
-                tools=tools,
-                max_turns=max_turns,
-                max_tool_calls=max_tool_calls,
-                max_no_progress_turns=max_no_progress_turns,
-                turns=exc.turns,
-                tool_calls=exc.tool_calls,
-                runtime_executed_tool_calls=exc.runtime_executed_tool_calls,
-                runtime_verifier_checks=(1 if final_runtime_check_performed else 0),
-                provider=exc.provider,
-                model=exc.model or model,
-                model_tier=model_tier,
-                provider_usage=exc.provider_usage,
-                response_metadata=exc.final_response_metadata,
-                history=exc.history,
-                transcript_fingerprint=exc.transcript_fingerprint,
-                handoff_mode="turn_budget_runtime_validated_candidate",
-                model_explicit_submit=False,
-                budget_exhausted=True,
-            )
         raise PacketValidationError(
             validation_label="LLM Formalizer Lean candidate client-tool revision",
             attempts=exc.turns,
@@ -635,11 +577,12 @@ def run_lean_candidate_revision_tool_loop(
                 "provider": exc.provider,
                 "model": exc.model or model,
                 "model_tier": model_tier,
-                "final_runtime_check_performed": final_runtime_check_performed,
                 "runtime_selected_lean_code": False,
                 "model_owned_lean_code": True,
                 "kernel_verified": False,
-                "proof_evidence_status": "CLIENT_TOOL_REPAIR_CHECKPOINT_NOT_PROOF_EVIDENCE",
+                "proof_evidence_status": (
+                    "CLIENT_TOOL_REVISION_CHECKPOINT_NOT_PROOF_EVIDENCE"
+                ),
             },
         ) from exc
 
@@ -675,7 +618,6 @@ def run_lean_candidate_revision_tool_loop(
         turns=loop.turns,
         tool_calls=loop.tool_calls,
         runtime_executed_tool_calls=loop.runtime_executed_tool_calls,
-        runtime_verifier_checks=0,
         provider=loop.provider,
         model=loop.model,
         model_tier=model_tier,
@@ -704,7 +646,6 @@ def _lean_candidate_revision_success_result(
     turns: int,
     tool_calls: int,
     runtime_executed_tool_calls: int,
-    runtime_verifier_checks: int,
     provider: str,
     model: str,
     model_tier: str,
@@ -729,7 +670,7 @@ def _lean_candidate_revision_success_result(
         "turns": turns,
         "tool_calls": tool_calls,
         "runtime_executed_tool_calls": runtime_executed_tool_calls,
-        "runtime_verifier_checks": runtime_verifier_checks,
+        "runtime_verifier_checks": 0,
         "max_turns": max_turns,
         "max_tool_calls": max_tool_calls,
         "max_no_progress_turns": max_no_progress_turns,
@@ -749,7 +690,7 @@ def _lean_candidate_revision_success_result(
         "budget_exhausted": budget_exhausted,
         "local_candidate_validation_passed": True,
         "tools_executed_by_runtime": bool(
-            runtime_executed_tool_calls or runtime_verifier_checks
+            runtime_executed_tool_calls
         ),
         "tools_executed_by_backend": bool(
             response_metadata.get("tools_executed_by_backend", False)

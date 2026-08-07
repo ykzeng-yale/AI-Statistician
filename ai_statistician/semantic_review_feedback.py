@@ -7,14 +7,17 @@ from typing import Any, Mapping, Sequence
 PRESCRIPTIVE_REPAIR_FIELDS = frozenset(
     {
         "candidate_reroute_options",
+        "core_lean_diagnostic_helper_shape",
         "next_action",
         "preferred_tool_order",
+        "proof_search_result_use",
         "proof_state_workflow",
         "recommended_action",
         "recommended_actions",
         "recommended_capability_eval_command",
         "recommended_command",
         "recommended_commands",
+        "recommended_formalizer_target_mode",
         "recommended_next_action",
         "recommended_repair",
         "recommended_repairs",
@@ -30,6 +33,7 @@ PRESCRIPTIVE_REPAIR_FIELDS = frozenset(
         "required_repair",
         "required_resolution",
         "required_revision",
+        "route_revision_recommended",
         "semantic_reviewer_required_change",
         "source_repair_strategy",
         "suggested_fix",
@@ -38,6 +42,50 @@ PRESCRIPTIVE_REPAIR_FIELDS = frozenset(
         "target_shape_contract",
         "unknown_identifier_grounding_requests",
         "validation_issue_repair_actions",
+    }
+)
+
+
+CODING_AGENT_ROUTING_FIELDS = frozenset(
+    {
+        "active_pending_repair_scopes",
+        "model_requested_repair_instructions",
+        "model_requested_repair_scope",
+        "model_requested_repair_scopes",
+        "pending_repair_plan",
+        "pending_repair_plan_id",
+        "repair_instructions",
+        "repair_owner",
+        "repair_owner_agent",
+        "repair_plan",
+        "repair_scope",
+        "repair_scopes",
+        "repair_target_subsystem",
+        "runtime_carried_pending_repair",
+        "semantic_reviewer_repair_instructions",
+        "semantic_reviewer_repair_scope",
+        "semantic_reviewer_repair_scopes",
+        "source_repair_contract",
+    }
+)
+
+
+ARCHITECT_RUNTIME_ROUTING_FIELDS = frozenset(
+    {
+        "active_pending_repair_scopes",
+        "candidate_reroute_options",
+        "model_requested_repair_scope",
+        "model_requested_repair_scopes",
+        "pending_repair_plan",
+        "pending_repair_plan_id",
+        "repair_owner",
+        "repair_owner_agent",
+        "repair_plan",
+        "repair_scope",
+        "repair_scopes",
+        "repair_target_subsystem",
+        "semantic_reviewer_repair_scope",
+        "semantic_reviewer_repair_scopes",
     }
 )
 
@@ -51,6 +99,30 @@ def model_observations_without_repair_recipes(
 
     preserved = frozenset(str(key) for key in preserve_exact_keys)
 
+    def is_prescriptive_key(key: Any) -> bool:
+        key_text = str(key)
+        return bool(
+            key_text in PRESCRIPTIVE_REPAIR_FIELDS
+            or key_text == "required_next_checks"
+            or key_text.endswith(
+                (
+                    "_repair_contract",
+                    "_repair_diagnostics",
+                    "_repair_manifest_paths",
+                    "_repair_memory",
+                    "_repair_placeholder_symbols",
+                    "_repair_required",
+                    "_repair_rule",
+                    "_repair_target_names",
+                    "_repair_triggers",
+                    "_recipe",
+                    "_requires_repair",
+                    "_strategy",
+                    "_structural_reformulation_required",
+                )
+            )
+        )
+
     def project(child: Any, *, parent_key: str = "") -> Any:
         if parent_key in preserved:
             return deepcopy(child)
@@ -58,8 +130,7 @@ def model_observations_without_repair_recipes(
             return {
                 str(key): project(item, parent_key=str(key))
                 for key, item in child.items()
-                if str(key) not in PRESCRIPTIVE_REPAIR_FIELDS
-                and not str(key).endswith(("_repair_rule", "_recipe"))
+                if not is_prescriptive_key(key)
             }
         if isinstance(child, list):
             return [project(item) for item in child]
@@ -68,6 +139,58 @@ def model_observations_without_repair_recipes(
         return deepcopy(child)
 
     return project(value)
+
+
+def coding_agent_observations_only(
+    value: Any,
+    *,
+    preserve_exact_keys: Sequence[str] = ("rejected_candidate",),
+) -> Any:
+    """Expose evidence to a coding model without runtime-authored fix routing."""
+
+    projected = model_observations_without_repair_recipes(
+        value,
+        preserve_exact_keys=preserve_exact_keys,
+    )
+    preserved = frozenset(str(key) for key in preserve_exact_keys)
+
+    def strip_routing(child: Any, *, parent_key: str = "") -> Any:
+        if parent_key in preserved:
+            return deepcopy(child)
+        if isinstance(child, Mapping):
+            return {
+                str(key): strip_routing(item, parent_key=str(key))
+                for key, item in child.items()
+                if str(key) not in CODING_AGENT_ROUTING_FIELDS
+            }
+        if isinstance(child, list):
+            return [strip_routing(item) for item in child]
+        if isinstance(child, tuple):
+            return [strip_routing(item) for item in child]
+        return deepcopy(child)
+
+    return strip_routing(projected)
+
+
+def architect_observations_without_runtime_routing(value: Any) -> Any:
+    """Give the Architect evidence without a runtime or reviewer-authored route."""
+
+    projected = model_observations_without_repair_recipes(value)
+
+    def strip_owner_plan(child: Any) -> Any:
+        if isinstance(child, Mapping):
+            return {
+                str(key): strip_owner_plan(item)
+                for key, item in child.items()
+                if str(key) not in ARCHITECT_RUNTIME_ROUTING_FIELDS
+            }
+        if isinstance(child, list):
+            return [strip_owner_plan(item) for item in child]
+        if isinstance(child, tuple):
+            return [strip_owner_plan(item) for item in child]
+        return deepcopy(child)
+
+    return strip_owner_plan(projected)
 
 
 def compact_semantic_review_feedback(
@@ -97,7 +220,6 @@ def compact_semantic_review_feedback(
             "severity",
             "category",
             "summary",
-            "repair_scope",
             "evidence_refs",
         ),
         max_rows=max_rows,
@@ -139,12 +261,6 @@ def compact_semantic_review_feedback(
         "overall_verdict": _bounded_text(
             feedback.get("overall_verdict", ""), max_text_chars
         ),
-        "repair_owner_agent": _bounded_text(
-            feedback.get("repair_owner_agent", ""), max_text_chars
-        ),
-        "repair_target_subsystem": _bounded_text(
-            feedback.get("repair_target_subsystem", ""), max_text_chars
-        ),
         "dimension_reviews": dimension_reviews,
         "findings": findings,
         "reviewed_source_artifacts": _compact_reviewed_source_artifacts(
@@ -153,8 +269,8 @@ def compact_semantic_review_feedback(
             max_source_chars=40000,
             max_text_chars=max_text_chars,
         ),
-        "source_repair_contract": _compact_source_repair_contract(
-            feedback.get("source_repair_contract", {}),
+        "source_lineage": _compact_source_lineage(
+            feedback.get("source_lineage", {}),
             max_text_chars=max_text_chars,
         ),
         "blocking_reason": _bounded_text(
@@ -235,7 +351,7 @@ def _compact_reviewed_source_artifacts(
     return rows
 
 
-def _compact_source_repair_contract(
+def _compact_source_lineage(
     value: Any,
     *,
     max_text_chars: int,
@@ -245,7 +361,6 @@ def _compact_source_repair_contract(
     fields = (
         "parent_source_manifest_id",
         "parent_source_manifest_hash",
-        "repair_target_subsystem",
         "rejected_descendant_source_manifest_id",
         "rejected_descendant_source_manifest_hash",
         "theory_packet_id",

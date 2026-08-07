@@ -27,10 +27,6 @@ from .agent_runtime import (
     ToolCallRecord,
     agent_runtime_substage,
 )
-from .algorithm_template_registry import (
-    registered_algorithm_template_hint_from_context,
-    registered_algorithm_template_row,
-)
 from .architect_coordinator_llm import (
     ARCHITECT_COORDINATOR_BOUNDARY,
     ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE,
@@ -46,11 +42,6 @@ from .algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_BOUNDARY,
     ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
     LLMAlgorithmEngineerAgent,
-)
-from .coding_agent_source_repair_lineage import (
-    CODING_AGENT_SOURCE_OWNED_FAILURE_CLASSIFICATIONS,
-    coding_agent_source_repair_lineage_exhausted_result,
-    coding_agent_source_repair_lineage_state,
 )
 from .critic_evaluator_llm import (
     CRITIC_EVALUATOR_BOUNDARY,
@@ -79,31 +70,18 @@ from .generated_metric_contract import (
 )
 from .generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
-    GENERATED_CODE_SEMANTIC_REVIEW_DEPENDENCY_VERIFICATION_MODE,
     GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE,
-    GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER,
     GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_SUBSYSTEMS,
-    GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE,
-    GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES,
     LLMGeneratedCodeSemanticReviewerAgent,
-    generated_code_semantic_review_active_pending_repair_plan,
-    generated_code_semantic_review_pending_plan_errors,
     normalize_generated_code_semantic_review_findings,
     validate_generated_code_semantic_review_packet,
 )
 from .generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
-    GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY,
-    GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY,
     GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
     advance_generated_code_semantic_review_lineage_budget,
     build_generated_code_semantic_review_architect_replan_task,
-    consume_generated_code_semantic_review_upstream_theory_replan,
-    generated_code_dependency_verification_plan_after_repair,
-    generated_code_semantic_review_upstream_theory_budget_exhausted_result,
-    generated_code_semantic_review_upstream_theory_revision_state,
     record_generated_code_semantic_review_lineage_action,
-    retire_generated_code_dependency_verification_obligation,
 )
 from .generated_code_semantic_review_scope import (
     generated_code_semantic_review_proposal_projection,
@@ -112,12 +90,6 @@ from .generated_code_semantic_review_scope import (
     generated_code_semantic_review_upstream_dependency_projection,
 )
 
-# Compatibility names for persisted repair-plan artifacts. New reviewer packets
-# author the canonical scope directly; no separate ownership model is consulted.
-ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY = (
-    GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
-)
-ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED = "unresolved"
 from .scientific_sandbox import (
     SCIENTIFIC_WASM_SANDBOX_PROFILE,
     ScientificEstimatorBinding,
@@ -189,7 +161,6 @@ from .exact_source_theorem_proof_body_executor import (
     _extract_lean_declaration_block as _external_exact_declaration_block,
     _normalize_external_proof_body as _normalize_external_exact_proof_body,
     _normalized_lean_signature as _normalized_external_lean_signature,
-    _proofengineer_whole_proof_repair_context as _external_exact_whole_proof_repair_context,
     exact_target_statement_hash as _external_exact_target_statement_hash,
     execute_external_exact_source_theorem_proof_candidates,
     export_exact_source_theorem_proof_body_execution_results,
@@ -261,7 +232,7 @@ from .formalizer_llm import (
     _feedback_requires_pseudo_formalization,
     _required_pseudo_formal_target_lanes,
 )
-from .formalizer_repair_policy import (
+from .formalizer_feedback import (
     formalizer_tool_observation_envelope,
     formalizer_validation_feedback_envelope,
 )
@@ -271,6 +242,10 @@ from .formalizer_candidate_identity import (
     repair_target_identity_binding_from_diagnostic,
 )
 from .llm_json_repair import PacketValidationError
+from .semantic_review_feedback import (
+    architect_observations_without_runtime_routing,
+    coding_agent_observations_only,
+)
 from .model_backend import (
     AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY,
     AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
@@ -370,8 +345,9 @@ from .research_architect import (
 )
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
-    build_postexecution_theory_revision_binding,
+    build_architect_routed_generated_code_theory_revision_binding,
     build_theory_developer_revision_binding,
+    consume_architect_routed_generated_code_theory_revision,
     theory_developer_revision_binding_errors,
 )
 from .research_lab import FormalSubclaimProver, ProblemFormalizer, ResearchSimulator, TheoryPlanner
@@ -407,10 +383,6 @@ from .theory_derivation_trace import (
     THEORY_TRACE_ALIGNMENT_BOUNDARY,
     THEORY_TRACE_CONSUMPTION_BOUNDARY,
     theory_trace_alignment_contract,
-)
-from .typed_repair_handoff import (
-    build_typed_repair_handoff_contract,
-    typed_repair_handoff_contract_errors,
 )
 from .source_theorem_semantic_primitive_proofengineer_bridge import (
     inferred_exact_goal_shape_obligation_ids as _policy_inferred_exact_goal_shape_obligation_ids,
@@ -6757,18 +6729,18 @@ def _runtime_handoff_artifact_missing_feedback_rows(
                 missing_role = str(
                     feedback.get("missing_artifact_role", "") or ""
                 ).strip()
-                repair_owner = str(
-                    feedback.get("repair_owner_agent", "")
+                producer_subsystem = str(
+                    feedback.get("producer_subsystem", "")
                     or feedback.get("next_owner_subsystem", "")
                     or ""
                 ).strip()
-                if not missing_artifact_id or not repair_owner:
+                if not missing_artifact_id or not producer_subsystem:
                     continue
                 key = (
                     question_id,
                     missing_artifact_id,
                     missing_role,
-                    repair_owner,
+                    producer_subsystem,
                 )
                 if key in seen:
                     continue
@@ -6786,12 +6758,12 @@ def _runtime_handoff_artifact_missing_feedback_rows(
                         "question_id": question_id,
                         "missing_artifact_id": missing_artifact_id,
                         "missing_artifact_role": missing_role,
-                        "repair_owner_agent": repair_owner,
+                        "producer_subsystem": producer_subsystem,
                     }
                 )[:16]
                 target_behavior = (
                     f"Restore artifact {missing_artifact_id} through its owning "
-                    f"subsystem {repair_owner} before downstream consumption."
+                    f"subsystem {producer_subsystem} before downstream consumption."
                 )
                 acceptance_gate = str(
                     feedback.get("acceptance_gate", "") or ""
@@ -6816,7 +6788,7 @@ def _runtime_handoff_artifact_missing_feedback_rows(
                     "expected_artifact_kind": str(
                         feedback.get("expected_artifact_kind", "") or ""
                     ),
-                    "repair_owner_agent": repair_owner,
+                    "producer_subsystem": producer_subsystem,
                     "failure_classifications": list(failure_classifications),
                 }
                 learning_row = {
@@ -6826,7 +6798,7 @@ def _runtime_handoff_artifact_missing_feedback_rows(
                     "question_id": question_id,
                     "learning_task": "runtime_handoff_artifact_missing_feedback",
                     "work_order_id": work_order_id,
-                    "next_owner_subsystem": repair_owner,
+                    "next_owner_subsystem": producer_subsystem,
                     "missing_artifact_id": missing_artifact_id,
                     "missing_artifact_role": missing_role,
                     "expected_artifact_kind": str(
@@ -6848,7 +6820,7 @@ def _runtime_handoff_artifact_missing_feedback_rows(
                 agenda_row = {
                     "id": f"runtime_handoff_missing:{work_order_id}",
                     "question_id": question_id,
-                    "owner_subsystem": repair_owner,
+                    "owner_subsystem": producer_subsystem,
                     "trigger": "RUNTIME_HANDOFF_ARTIFACT_MISSING",
                     "action": target_behavior,
                     "acceptance_gate": acceptance_gate,
@@ -6975,7 +6947,6 @@ class ResearchAgentRuntimeConfig:
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0
     simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0
     generated_code_semantic_review_max_revisions: int = 1
-    generated_code_semantic_review_max_upstream_theory_revisions: int = 1
     metric_protocol_max_upstream_theory_revisions: int = 1
     metric_protocol_max_fresh_candidate_revisions: int = 0
     formal_target_semantic_review_required: bool = False
@@ -7109,6 +7080,18 @@ def _normalized_runtime_evaluation_model_config(
         errors.append(
             "research evaluation requires evaluation_claude_model="
             f"{LIVE_EVALUATION_CLAUDE_MODEL}; configured {configured_model}"
+        )
+    if config.source_theorem_formal_environment_proofengineer_execute_proof_body:
+        errors.append(
+            "research evaluation forbids the legacy proof-body executor; use the "
+            "model-owned complete-source Lean client-tool loop"
+        )
+    if (
+        config.source_theorem_exact_semantic_definition_candidate_synthesis_allow_draft_semantic_repair
+    ):
+        errors.append(
+            "research evaluation forbids runtime draft semantic repair; return the "
+            "observations to the model for complete-source regeneration"
         )
     if errors:
         raise ValueError("; ".join(errors))
@@ -7282,7 +7265,7 @@ def _runtime_requested_evidence_contract(
     )
     if capability_eval and formalizer_yield_after_attempts > 0:
         contract[
-            "capability_eval_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts"
+            "capability_eval_formalizer_lean_candidate_revision_max_attempts"
         ] = formalizer_yield_after_attempts
     return contract
 
@@ -7366,7 +7349,7 @@ def _runtime_architect_context_with_requested_evidence_contract(
     )
     if formalizer_yield_after_attempts > 0:
         requested_contract[
-            "capability_eval_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts"
+            "capability_eval_formalizer_lean_candidate_revision_max_attempts"
         ] = formalizer_yield_after_attempts
     payload["runtime_requested_evidence_contract"] = requested_contract
     payload["runtime_evaluation_mode"] = str(evaluation_mode or "debug")
@@ -8243,17 +8226,6 @@ class ArchitectCoordinatorRuntimeSubsystem:
             architect_context=context,
             blackboard=blackboard,
         )
-        typed_repair_dispatch = (
-            _architect_identity_bound_repair_dispatch_result(
-                task=task,
-                question=question,
-                architect_context=context,
-                runtime_config=self.runtime_config,
-                blackboard=blackboard,
-            )
-        )
-        if typed_repair_dispatch is not None:
-            return typed_repair_dispatch
         runtime_config_payload = asdict(self.runtime_config)
         runtime_config_payload["exact_source_theorem_prover_available"] = (
             self.exact_source_theorem_prover_available
@@ -8469,30 +8441,6 @@ class ArchitectCoordinatorRuntimeSubsystem:
         context["architect_initial_routing"] = routing_decision["record"]
         next_task = routing_decision["task"]
         rationale = str(routing_decision["rationale"])
-        if resume_pending_task_payload:
-            theory_refresh_task = _architect_resume_theory_refresh_task_if_needed(
-                question=question,
-                architect_task=task,
-                blackboard=blackboard,
-                architect_context=context,
-                resume_pending_task_payload=resume_pending_task_payload,
-            )
-            if theory_refresh_task is not None:
-                next_task = theory_refresh_task
-                rationale = (
-                    "ArchitectCoordinator reviewed the resumed pending task, "
-                    "detected a weak or missing structured theory trace, and is "
-                    "routing to TheoryDeveloper before returning to downstream work."
-                )
-            else:
-                next_task = _merge_resume_task_architect_context(
-                    _agent_task_from_runtime_payload(resume_pending_task_payload),
-                    context,
-                )
-                rationale = (
-                    "ArchitectCoordinator reviewed the resumed pending task, refreshed "
-                    "the evidence contract, and is routing back to the pending subsystem."
-                )
         return AgentStepResult(
             status="REROUTE",
             rationale=rationale,
@@ -8524,257 +8472,6 @@ class ArchitectCoordinatorRuntimeSubsystem:
             evidence_entries=(evidence,),
             next_task=next_task,
         )
-
-
-def _architect_identity_bound_repair_dispatch_result(
-    *,
-    task: AgentTask,
-    question: OpenResearchQuestion,
-    architect_context: Mapping[str, Any],
-    runtime_config: ResearchAgentRuntimeConfig,
-    blackboard: BlackboardState,
-) -> AgentStepResult | None:
-    """Dispatch a reviewer-bound repair without a redundant LLM replan."""
-
-    replan = architect_context.get(
-        "runtime_generated_code_semantic_review_replan",
-        {},
-    )
-    if not isinstance(replan, Mapping):
-        return None
-    repair_scope = str(replan.get("repair_scope", "") or "")
-    if repair_scope not in {
-        "source_code",
-        "upstream_theory",
-        ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY,
-    }:
-        return None
-    source_subsystem = _canonical_architect_subsystem(
-        replan.get("source_subsystem")
-    )
-    if source_subsystem not in {"AlgorithmEngineer", "SimulationEvaluator"}:
-        return None
-    feedback = _architect_selected_worker_environment_feedback(
-        selected={},
-        architect_context=architect_context,
-    )
-    if not feedback:
-        return None
-    source_manifest_id = str(replan.get("source_manifest_id", "") or "")
-    if not (
-        source_manifest_id
-        and str(feedback.get("source_manifest_id", "") or "")
-        == source_manifest_id
-        and _canonical_architect_subsystem(
-            feedback.get("source_subsystem")
-        )
-        == source_subsystem
-        and str(replan.get("review_packet_id", "") or "")
-        and str(replan.get("review_execution_id", "") or "")
-    ):
-        return None
-    if repair_scope == (
-        ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
-    ):
-        repair_contract = feedback.get("source_repair_contract", {})
-        if not (
-            _canonical_architect_subsystem(
-                replan.get("repair_target_subsystem")
-            )
-            == "AlgorithmEngineer"
-            and _canonical_architect_subsystem(
-                feedback.get("repair_target_subsystem")
-            )
-            == "AlgorithmEngineer"
-            and isinstance(repair_contract, Mapping)
-            and str(
-                repair_contract.get("parent_source_manifest_id", "") or ""
-            )
-            and str(
-                repair_contract.get("parent_source_manifest_id", "") or ""
-            )
-            == str(
-                replan.get("repair_target_source_manifest_id", "") or ""
-            )
-        ):
-            return None
-    if repair_scope == "upstream_theory":
-        budget_state = (
-            generated_code_semantic_review_upstream_theory_revision_state(
-                architect_context=architect_context,
-                question_id=question.id,
-                max_revisions=(
-                    runtime_config.generated_code_semantic_review_max_upstream_theory_revisions
-                ),
-            )
-        )
-        if budget_state["budget_exhausted"]:
-            return (
-                generated_code_semantic_review_upstream_theory_budget_exhausted_result(
-                    task=task,
-                    question_id=question.id,
-                    budget_state=budget_state,
-                )
-            )
-    prior_plan = architect_context.get("architect_runtime_plan", {})
-    if not isinstance(prior_plan, Mapping) or not prior_plan.get(
-        "subsystem_execution_plan"
-    ):
-        return None
-
-    dispatch_seed = {
-        "question_id": question.id,
-        "repair_scope": repair_scope,
-        "source_review_task_id": str(
-            replan.get("source_review_task_id", "") or ""
-        ),
-        "source_subsystem": source_subsystem,
-        "source_manifest_id": source_manifest_id,
-        "review_packet_id": str(replan.get("review_packet_id", "") or ""),
-        "review_execution_id": str(
-            replan.get("review_execution_id", "") or ""
-        ),
-        "feedback_fingerprint": stable_hash(feedback),
-    }
-    dispatch_id = (
-        "architect_typed_repair_dispatch:" + stable_hash(dispatch_seed)[:20]
-    )
-    routing_packet = {
-        "packet_id": dispatch_id,
-        "subsystem_execution_plan": list(
-            prior_plan.get("subsystem_execution_plan", []) or []
-        ),
-        "evidence_contract": dict(
-            prior_plan.get("evidence_contract", {}) or {}
-        ),
-    }
-    selection = _architect_select_initial_subsystem(
-        packet=routing_packet,
-        architect_context=architect_context,
-        blackboard=blackboard,
-        question_id=question.id,
-    )
-    target_subsystem = (
-        source_subsystem
-        if repair_scope == "source_code"
-        else "AlgorithmEngineer"
-        if repair_scope
-        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
-        else "RetrievalMemory"
-    )
-    expected_route_source = (
-        "generated_code_semantic_review_source_repair"
-        if repair_scope == "source_code"
-        else "generated_code_semantic_review_upstream_dependency_repair"
-        if repair_scope
-        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
-        else "generated_code_semantic_review_upstream_theory_repair"
-    )
-    if not (
-        selection.get("source") == expected_route_source
-        and selection.get("requested_subsystem") == target_subsystem
-        and selection.get("selected_subsystem") == target_subsystem
-    ):
-        return None
-
-    dispatch_artifact = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "RuntimeArchitectTypedRepairDispatch",
-        "dispatch_id": dispatch_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        **dispatch_seed,
-        "repair_scope": repair_scope,
-        "repair_target_subsystem": target_subsystem,
-        "llm_planner_invoked": False,
-        "dispatch_authority": (
-            "identity-bound independent semantic-review lineage"
-        ),
-        "proof_evidence_status": (
-            "ARCHITECT_TYPED_REPAIR_DISPATCH_NOT_PROOF_EVIDENCE"
-        ),
-        "boundary": (
-            "This deterministic dispatch preserves an already adjudicated repair "
-            "owner, immutable feedback lineage, and the existing Architect plan. "
-            "The target agent must still produce a fresh artifact that passes its "
-            "normal execution and independent-review gates; this dispatch is not "
-            "research or proof evidence."
-        ),
-    }
-    dispatch_context = dict(architect_context)
-    dispatch_context["architect_typed_repair_dispatch"] = dict(dispatch_artifact)
-    if repair_scope == "source_code":
-        dispatch_context["architect_typed_source_repair_dispatch"] = dict(
-            dispatch_artifact
-        )
-    elif (
-        repair_scope
-        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
-    ):
-        dispatch_context[
-            "architect_typed_upstream_dependency_repair_dispatch"
-        ] = dict(dispatch_artifact)
-    routing_decision = _architect_initial_routing_decision(
-        question=question,
-        packet=routing_packet,
-        architect_context=dispatch_context,
-        packet_id=dispatch_id,
-        runtime_config=runtime_config,
-        blackboard=blackboard,
-    )
-    next_task = routing_decision["task"]
-    dispatch_artifact["routing_record"] = dict(routing_decision["record"])
-    dispatch_artifact["next_task_id"] = next_task.task_id
-    dispatch_artifact["next_owner_subsystem"] = next_task.owner_subsystem
-    evidence = EvidenceLedgerEntry(
-        evidence_id="evidence:" + stable_hash([task.task_id, dispatch_id])[:20],
-        task_id=task.task_id,
-        artifact_id=dispatch_id,
-        evidence_type=f"architect_typed_{repair_scope}_dispatch",
-        status="TYPED_REPAIR_DISPATCH_RECORDED_NOT_RESEARCH_EVIDENCE",
-        boundary=str(dispatch_artifact["boundary"]),
-        payload={
-            "source_subsystem": source_subsystem,
-            "repair_scope": repair_scope,
-            "repair_target_subsystem": target_subsystem,
-            "source_manifest_id": source_manifest_id,
-            "review_packet_id": dispatch_seed["review_packet_id"],
-            "review_execution_id": dispatch_seed["review_execution_id"],
-            "next_task_id": next_task.task_id,
-            "llm_planner_invoked": False,
-            "proof_evidence_status": dispatch_artifact[
-                "proof_evidence_status"
-            ],
-        },
-    )
-    return AgentStepResult(
-        status="REROUTE",
-        rationale=(
-            "ArchitectCoordinator consumed an identity-bound repair decision and "
-            f"dispatched the exact reviewer feedback to {target_subsystem} without "
-            "another planning-model call."
-        ),
-        produced_artifacts={dispatch_id: dispatch_artifact},
-        observations=(
-            EnvironmentObservation(
-                observation_type="architect_typed_repair_dispatch",
-                summary=(
-                    f"typed {repair_scope} repair dispatched to {target_subsystem}"
-                ),
-                payload={
-                    "dispatch_id": dispatch_id,
-                    "repair_scope": repair_scope,
-                    "next_task_id": next_task.task_id,
-                    "next_owner_subsystem": next_task.owner_subsystem,
-                    "llm_planner_invoked": False,
-                    "proof_evidence_status": dispatch_artifact[
-                        "proof_evidence_status"
-                    ],
-                },
-            ),
-        ),
-        evidence_entries=(evidence,),
-        next_task=next_task,
-    )
 
 
 def _architect_context_with_bound_metric_protocol_theory_material(
@@ -9091,89 +8788,35 @@ def _runtime_retire_resolved_generated_code_semantic_review_replan(
     replan = context.get("runtime_generated_code_semantic_review_replan", {})
     if not isinstance(replan, Mapping) or not replan:
         return context
-
-    repair_scope = str(replan.get("repair_scope", "") or "")
-    repairs_upstream_dependency = bool(
-        repair_scope
-        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
-    )
-    rejected_descendant_subsystem = str(
-        replan.get("source_subsystem", "") or ""
-    )
-    rejected_descendant_manifest_id = str(
-        replan.get("source_manifest_id", "") or ""
-    )
-    rejected_subsystem = (
-        str(replan.get("repair_target_subsystem", "") or "")
-        if repairs_upstream_dependency
-        else rejected_descendant_subsystem
-    )
-    rejected_manifest_id = (
-        str(replan.get("repair_target_source_manifest_id", "") or "")
-        if repairs_upstream_dependency
-        else rejected_descendant_manifest_id
+    rejected_manifest_id = str(replan.get("source_manifest_id", "") or "")
+    rejected_subsystem = str(replan.get("source_subsystem", "") or "")
+    accepted_manifest_id = str(
+        accepted_review.get("source_manifest_id", "") or ""
     )
     accepted_subsystem = str(
         accepted_review.get("source_subsystem", "") or ""
     )
-    accepted_manifest_id = str(
-        accepted_review.get("source_manifest_id", "") or ""
-    )
     if not (
         accepted_review.get("overall_verdict") == "ACCEPT"
-        and rejected_subsystem
-        and accepted_subsystem == rejected_subsystem
         and rejected_manifest_id
+        and rejected_subsystem
         and accepted_manifest_id
+        and accepted_subsystem == rejected_subsystem
         and accepted_manifest_id != rejected_manifest_id
     ):
         return context
-
-    dependency_verification_plan: dict[str, Any] = {}
-    if repairs_upstream_dependency:
-        dependency_verification_plan = (
-            generated_code_dependency_verification_plan_after_repair(
-                architect_context=context,
-                replan=replan,
-                accepted_review=accepted_review,
-            )
-        )
-        if not dependency_verification_plan:
-            return context
 
     resolution = {
         "artifact_kind": (
             "RuntimeGeneratedCodeSemanticReviewReplanResolution"
         ),
-        "source_subsystem": accepted_subsystem,
-        "repair_scope": repair_scope,
+        "accepted_source_subsystem": str(
+            accepted_review.get("source_subsystem", "") or ""
+        ),
+        "rejected_source_subsystem": str(
+            replan.get("source_subsystem", "") or ""
+        ),
         "rejected_source_manifest_id": rejected_manifest_id,
-        "rejected_source_manifest_hash": str(
-            replan.get("repair_target_source_manifest_hash", "") or ""
-        )
-        if repairs_upstream_dependency
-        else "",
-        "rejected_descendant_source_subsystem": (
-            rejected_descendant_subsystem
-            if repairs_upstream_dependency
-            else ""
-        ),
-        "rejected_descendant_source_manifest_id": (
-            rejected_descendant_manifest_id
-            if repairs_upstream_dependency
-            else ""
-        ),
-        "rejected_descendant_source_manifest_hash": (
-            str(
-                replan.get(
-                    "rejected_descendant_source_manifest_hash",
-                    "",
-                )
-                or ""
-            )
-            if repairs_upstream_dependency
-            else ""
-        ),
         "rejected_review_execution_id": str(
             replan.get("review_execution_id", "") or ""
         ),
@@ -9187,20 +8830,8 @@ def _runtime_retire_resolved_generated_code_semantic_review_replan(
         "accepted_review_execution_id": str(
             accepted_review.get("execution_id", "") or ""
         ),
-        "resolution_status": (
-            "DEPENDENCY_ACCEPTED_AWAITING_DESCENDANT_REVIEW"
-            if repairs_upstream_dependency
-            else "SUPERSEDED_BY_FRESH_ACCEPTED_ARTIFACT"
-        ),
-        "descendant_rerun_required": repairs_upstream_dependency,
-        "repair_obligation_id": str(
-            dependency_verification_plan.get("repair_obligation_id", "")
-            or ""
-        ),
-        "pending_repair_plan_id": str(
-            dependency_verification_plan.get("pending_repair_plan_id", "")
-            or ""
-        ),
+        "resolution_status": "SUPERSEDED_BY_FRESH_ACCEPTED_ARTIFACT",
+        "next_subsystem_was_model_selected": True,
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_REPLAN_RESOLUTION_NOT_PROOF_EVIDENCE"
         ),
@@ -9212,10 +8843,6 @@ def _runtime_retire_resolved_generated_code_semantic_review_replan(
     context["runtime_generated_code_semantic_review_replan_resolution"] = (
         resolution
     )
-    if dependency_verification_plan:
-        context[
-            GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY
-        ] = dependency_verification_plan
     context.pop("runtime_generated_code_semantic_review_replan", None)
 
     stale_execution_id = str(replan.get("review_execution_id", "") or "")
@@ -9561,76 +9188,6 @@ def _architect_selected_worker_environment_feedback(
     if isinstance(explicit_feedback, Mapping) and explicit_feedback:
         return dict(explicit_feedback)
 
-    selected_subsystem = _canonical_architect_subsystem(
-        selected.get("selected_subsystem")
-    )
-    pending_source_repair = architect_context.get(
-        GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY,
-        {},
-    )
-    if (
-        selected_subsystem in {"AlgorithmEngineer", "SimulationEvaluator"}
-        and isinstance(pending_source_repair, Mapping)
-        and pending_source_repair.get("artifact_kind")
-        == "RuntimeGeneratedCodeSemanticReviewPendingSourceRepair"
-        and pending_source_repair.get("dispatch_status")
-        == "PENDING_AFTER_THEORY_REVISION"
-        and _canonical_architect_subsystem(
-            pending_source_repair.get("target_subsystem")
-        )
-        == selected_subsystem
-        and str(
-            pending_source_repair.get("revised_theory_packet_id", "") or ""
-        )
-        == _architect_context_theory_packet_id(architect_context)
-        and pending_source_repair.get("findings")
-    ):
-        return {
-            "feedback_type": (
-                "generated_code_semantic_review_pending_source_repair_feedback"
-            ),
-            "pending_source_repair_id": str(
-                pending_source_repair.get("pending_source_repair_id", "")
-                or ""
-            ),
-            "semantic_review_packet_id": str(
-                pending_source_repair.get(
-                    "semantic_review_packet_id", ""
-                )
-                or ""
-            ),
-            "semantic_review_execution_id": str(
-                pending_source_repair.get(
-                    "semantic_review_execution_id", ""
-                )
-                or ""
-            ),
-            "source_subsystem": selected_subsystem,
-            "source_manifest_id": str(
-                pending_source_repair.get("source_manifest_id", "") or ""
-            ),
-            "repair_scope": "source_code",
-            "findings": [
-                dict(row)
-                for row in pending_source_repair.get("findings", []) or []
-                if isinstance(row, Mapping)
-            ],
-            "repair_instructions": [
-                str(value)
-                for value in pending_source_repair.get(
-                    "repair_instructions", []
-                )
-                or []
-                if str(value).strip()
-            ],
-            "execution_results_observed": True,
-            "frozen_protocol_immutable_after_execution": True,
-            "proof_evidence_status": "PENDING_SOURCE_REPAIR_NOT_PROOF_EVIDENCE",
-            "boundary": str(
-                pending_source_repair.get("boundary", "") or ""
-            ),
-        }
-
     replan = architect_context.get(
         "runtime_generated_code_semantic_review_replan",
         {},
@@ -9664,46 +9221,6 @@ def _architect_selected_worker_environment_feedback(
     return dict(feedback)
 
 
-def _runtime_context_with_dispatched_pending_source_repair(
-    *,
-    architect_context: Mapping[str, Any],
-    target_subsystem: str,
-    theory_packet_id: str,
-) -> dict[str, Any]:
-    context = dict(architect_context)
-    pending = context.get(
-        GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY,
-        {},
-    )
-    if not (
-        isinstance(pending, Mapping)
-        and pending.get("artifact_kind")
-        == "RuntimeGeneratedCodeSemanticReviewPendingSourceRepair"
-        and pending.get("dispatch_status") == "PENDING_AFTER_THEORY_REVISION"
-        and _canonical_architect_subsystem(
-            pending.get("target_subsystem")
-        )
-        == _canonical_architect_subsystem(target_subsystem)
-        and str(pending.get("revised_theory_packet_id", "") or "")
-        == str(theory_packet_id or "")
-    ):
-        return context
-    dispatched = dict(pending)
-    dispatched.update(
-        {
-            "dispatch_status": "DISPATCHED_TO_REVISED_DESCENDANT",
-            "dispatched_to_subsystem": _canonical_architect_subsystem(
-                target_subsystem
-            ),
-            "dispatched_theory_packet_id": str(theory_packet_id or ""),
-        }
-    )
-    context[
-        GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY
-    ] = dispatched
-    return context
-
-
 def _architect_initial_routing_decision(
     *,
     question: OpenResearchQuestion,
@@ -9726,15 +9243,6 @@ def _architect_initial_routing_decision(
             architect_context=architect_context,
         )
     )
-    if (
-        routed_environment_feedback.get("feedback_type")
-        == "generated_code_semantic_review_pending_source_repair_feedback"
-    ):
-        context = _runtime_context_with_dispatched_pending_source_repair(
-            architect_context=context,
-            target_subsystem=selected["selected_subsystem"],
-            theory_packet_id=_architect_context_theory_packet_id(context),
-        )
     metric_protocol_execution_route_authorized = bool(
         selected["selected_subsystem"]
         in {"AlgorithmEngineer", "SimulationEvaluator"}
@@ -9745,6 +9253,8 @@ def _architect_initial_routing_decision(
     )
     record = {
         "artifact_kind": "ArchitectInitialRoutingDecision",
+        "question_id": question.id,
+        "architect_packet_id": packet_id,
         "selected_subsystem": selected["selected_subsystem"],
         "requested_subsystem": selected["requested_subsystem"],
         "source": selected["source"],
@@ -9773,40 +9283,8 @@ def _architect_initial_routing_decision(
             )
             or ""
         )
-    if selected.get("gap_row"):
-        gap_row = (
-            selected["gap_row"]
-            if isinstance(selected.get("gap_row"), Mapping)
-            else {}
-        )
-        record["capability_gap_requirement_id"] = str(
-            gap_row.get("requirement_id", "")
-        )
-        record["capability_gap_success_metric"] = str(
-            gap_row.get("success_metric", "")
-        )
-        record["capability_gap_target_behavior"] = str(
-            gap_row.get("target_behavior", "")
-        )
-        record["capability_gap_recommended_capability_eval_command"] = str(
-            gap_row.get("recommended_capability_eval_command", "")
-        )
-        record["capability_gap_blocker"] = str(gap_row.get("blocker", ""))
-        record["capability_gap_routing_boundary"] = str(
-            gap_row.get("routing_boundary", "")
-        )
-        if isinstance(gap_row.get("scorecard_payload", {}), Mapping):
-            record["capability_gap_scorecard_payload"] = dict(
-                gap_row.get("scorecard_payload", {})
-            )
-    deferred_meta_gap = selected.get("deferred_meta_capability_gap")
-    if isinstance(deferred_meta_gap, Mapping) and deferred_meta_gap:
-        record["deferred_meta_capability_gap"] = dict(deferred_meta_gap)
-        record["deferred_meta_capability_gap_requirement_id"] = str(
-            deferred_meta_gap.get("requirement_id", "")
-        )
-        record["deferred_meta_capability_gap_owner"] = str(
-            deferred_meta_gap.get("requested_next_owner_subsystem", "")
+        record["environment_feedback_hash"] = stable_hash(
+            routed_environment_feedback
         )
     context["architect_initial_routing"] = record
     if metric_protocol_execution_route_authorized:
@@ -9883,12 +9361,6 @@ def _architect_initial_routing_decision(
             )
     if selected["selected_subsystem"] == "TheoryDeveloper":
         feedback = routed_environment_feedback
-        if not feedback and selected.get("gap_row"):
-            feedback = _architect_capability_gap_execution_feedback(
-                requested_subsystem=str(selected.get("requested_subsystem", "")),
-                routed_subsystem="TheoryDeveloper",
-                gap_row=selected.get("gap_row", {}),
-            )
         inputs: dict[str, Any] = {
             "question": _question_to_payload(question),
             "architect_context": context,
@@ -9932,12 +9404,6 @@ def _architect_initial_routing_decision(
         }
     if selected["selected_subsystem"] == "SimulationEvaluator":
         feedback = routed_environment_feedback
-        if not feedback and selected.get("gap_row"):
-            feedback = _architect_capability_gap_execution_feedback(
-                requested_subsystem=str(selected.get("requested_subsystem", "")),
-                routed_subsystem="SimulationEvaluator",
-                gap_row=selected.get("gap_row", {}),
-            )
         evidence_contract = packet.get("evidence_contract", {})
         requires_accepted_algorithm_handoff = bool(
             metric_protocol_execution_route_authorized
@@ -9991,7 +9457,7 @@ def _architect_initial_routing_decision(
                     context,
                     "SimulationEvaluator",
                     "Execute simulation and generated-simulation diagnostics requested "
-                    "by the Architect plan or capability-gap routing agenda.",
+                    "by the Architect model plan.",
                 ),
                 inputs=inputs,
                 allowed_tools=(
@@ -10010,32 +9476,17 @@ def _architect_initial_routing_decision(
                     "SimulationEvaluator",
                     "simulation manifest plus generated-simulation capability evidence or an explicit blocker",
                 ),
-                stop_condition=(
-                    "simulation diagnostics recorded and routed to algorithm or repair"
-                ),
+                stop_condition="simulation diagnostics recorded for the next typed task",
             ),
             "record": record,
             "rationale": (
-                "ArchitectCoordinator preserved the identity-bound semantic-review "
-                "feedback and returned the rejected source to SimulationEvaluator "
-                "for the one authorized fresh revision."
-                if record["source"] in {
-                    "generated_code_semantic_review_source_repair",
-                    "generated_code_semantic_review_pending_source_repair",
-                }
-                else "ArchitectCoordinator recorded a top-level execution plan and "
-                "is routing directly to SimulationEvaluator because the selected "
-                "capability obligation is simulation-executable."
+                "ArchitectCoordinator recorded a top-level execution plan and "
+                "is routing directly to SimulationEvaluator because the model "
+                "selected that worker and its required handoff artifacts exist."
             ),
         }
     if selected["selected_subsystem"] == "AlgorithmEngineer":
         feedback = routed_environment_feedback
-        if not feedback and selected.get("gap_row"):
-            feedback = _architect_capability_gap_execution_feedback(
-                requested_subsystem=str(selected.get("requested_subsystem", "")),
-                routed_subsystem="AlgorithmEngineer",
-                gap_row=selected.get("gap_row", {}),
-            )
         simulation_manifest_id = _architect_context_simulation_manifest_id(
             architect_context
         )
@@ -10069,7 +9520,7 @@ def _architect_initial_routing_decision(
                     context,
                     "AlgorithmEngineer",
                     "Execute algorithm sandbox and generated-code diagnostics requested "
-                    "by the Architect plan or capability-gap routing agenda.",
+                    "by the Architect model plan.",
                 ),
                 inputs=inputs,
                 allowed_tools=("model_backend", "python", "filesystem_sandbox"),
@@ -10083,37 +9534,17 @@ def _architect_initial_routing_decision(
                     "AlgorithmEngineer",
                     "algorithm sandbox manifest plus generated-code capability evidence or an explicit blocker",
                 ),
-                stop_condition=(
-                    "algorithm sandbox diagnostics recorded and routed to formalization or repair"
-                ),
+                stop_condition="algorithm sandbox diagnostics recorded for the next typed task",
             ),
             "record": record,
             "rationale": (
-                "ArchitectCoordinator preserved the identity-bound semantic-review "
-                "feedback and returned the rejected source or immutable dependency "
-                "to AlgorithmEngineer for the one authorized fresh revision."
-                if record["source"] in {
-                    "generated_code_semantic_review_source_repair",
-                    "generated_code_semantic_review_pending_source_repair",
-                    (
-                        "generated_code_semantic_review_upstream_"
-                        "dependency_repair"
-                    ),
-                }
-                else "ArchitectCoordinator recorded a top-level execution plan and "
-                "is routing directly to AlgorithmEngineer because the selected "
-                "capability obligation has theory, simulation, and implementation-gap "
-                "handoff artifacts available."
+                "ArchitectCoordinator recorded a top-level execution plan and "
+                "is routing directly to AlgorithmEngineer because the model selected "
+                "that worker and its required handoff artifacts exist."
             ),
         }
     if selected["selected_subsystem"] == "FormalizationEvaluator":
         feedback = routed_environment_feedback
-        if not feedback and selected.get("gap_row"):
-            feedback = _architect_capability_gap_execution_feedback(
-                requested_subsystem=str(selected.get("requested_subsystem", "")),
-                routed_subsystem="FormalizationEvaluator",
-                gap_row=selected.get("gap_row", {}),
-            )
         inputs: dict[str, Any] = {
             "question": _question_to_payload(question),
             "theory_packet_id": _architect_context_theory_packet_id(
@@ -10144,7 +9575,7 @@ def _architect_initial_routing_decision(
                     "FormalizationEvaluator",
                     "Run Formalizer/ProofEngineer candidate generation, Lean "
                     "materialization, proof-state, and formal-gap diagnostics "
-                    "requested by the Architect plan or capability-gap routing agenda.",
+                    "requested by the Architect model plan.",
                 ),
                 inputs=inputs,
                 allowed_tools=(
@@ -10168,27 +9599,18 @@ def _architect_initial_routing_decision(
                 ),
                 stop_condition=(
                     "formalization, Lean-candidate, proof-state, or formal-gap "
-                    "diagnostics recorded and routed to repair or critique"
+                    "diagnostics recorded for the next model decision"
                 ),
             ),
             "record": record,
             "rationale": (
                 "ArchitectCoordinator recorded a top-level execution plan and is "
-                "routing directly to FormalizationEvaluator because the selected "
-                "capability obligation has the required theory, simulation, and "
-                "algorithm handoff context available."
+                "routing directly to FormalizationEvaluator because the model "
+                "selected that worker and its required handoff artifacts exist."
             ),
         }
     if selected["selected_subsystem"] == "FormalizationGapPlanner":
         feedback = routed_environment_feedback
-        if not feedback:
-            feedback = _architect_formalization_gap_planner_execution_feedback(
-                requested_subsystem=str(selected.get("requested_subsystem", "")),
-                gap_row=selected.get("gap_row", {}),
-                architect_context=architect_context,
-                blackboard=blackboard,
-                question_id=question.id,
-            )
         bridge_ids = _architect_formalization_gap_planner_bridge_ids(
             architect_context=architect_context,
             blackboard=blackboard,
@@ -10236,8 +9658,7 @@ def _architect_initial_routing_decision(
                     "FormalizationGapPlanner",
                     "Execute formalization-gap planner bridge replay, handoff "
                     "audit, route-planner prompt staging, and optional bounded "
-                    "target-prover feedback requested by the Architect plan or "
-                    "capability-gap routing agenda.",
+                    "target-prover feedback requested by the Architect model plan.",
                 ),
                 inputs=inputs,
                 allowed_tools=(
@@ -10276,11 +9697,11 @@ def _architect_initial_routing_decision(
     if selected["selected_subsystem"] == "ProofEngineer":
         feedback = routed_environment_feedback
         if not feedback:
-            feedback = _architect_proofengineer_execution_feedback(
-                requested_subsystem=str(selected.get("requested_subsystem", "")),
-                gap_row=selected.get("gap_row", {}),
-                architect_context=architect_context,
-                blackboard=blackboard,
+            feedback = _formalizer_lean_candidate_repair_feedback(
+                _architect_formalizer_lean_candidate_materialization(
+                    architect_context=architect_context,
+                    blackboard=blackboard,
+                )
             )
         inputs: dict[str, Any] = {
             "question": _question_to_payload(question),
@@ -10313,9 +9734,9 @@ def _architect_initial_routing_decision(
                 objective=_architect_initial_objective(
                     context,
                     "ProofEngineer",
-                    "Repair the exact materialized Lean candidate using prior "
-                    "Formalizer diagnostics, local Lean feedback, and proof-state "
-                    "context requested by the Architect plan or capability-gap agenda.",
+                    "Regenerate the complete exact Lean source using the prior "
+                    "candidate, local Lean diagnostics, proof-state feedback, and "
+                    "retrieval context selected by the Architect plan.",
                 ),
                 inputs=inputs,
                 allowed_tools=(
@@ -10334,15 +9755,17 @@ def _architect_initial_routing_decision(
                 acceptance_gate=_architect_acceptance_gate(
                     context,
                     "ProofEngineer",
-                    "ProofEngineer repair candidate is non-vacuous and reruns through local Lean/AXLE or records a precise formal blocker",
+                    "the regenerated complete candidate is non-vacuous and reruns through local Lean/AXLE or records a precise formal blocker",
                 ),
-                stop_condition="repaired Lean candidate or explicit formal blocker recorded",
+                stop_condition=(
+                    "regenerated complete Lean candidate or explicit formal blocker recorded"
+                ),
             ),
             "record": record,
             "rationale": (
                 "ArchitectCoordinator recorded a top-level execution plan and is "
                 "routing directly to ProofEngineer because a materialized Lean "
-                "candidate repair handoff is available."
+                "candidate and exact environment feedback are available."
             ),
         }
     return {
@@ -10398,208 +9821,6 @@ def _architect_select_initial_subsystem(
         evidence_contract.get("empirical_metric_protocol_phase", "") or ""
     )
     requested_for_metric_gate = _architect_packet_requested_subsystem(packet)
-    gap_selection = _architect_capability_gap_requested_subsystem(architect_context)
-    pending_source_repair = architect_context.get(
-        GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY,
-        {},
-    )
-    pending_source_owner = (
-        _canonical_architect_subsystem(
-            pending_source_repair.get("target_subsystem")
-        )
-        if isinstance(pending_source_repair, Mapping)
-        else ""
-    )
-    if (
-        metric_protocol_phase
-        == METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
-        and evidence_contract.get("metric_protocol_execution_authorized") is True
-        and isinstance(pending_source_repair, Mapping)
-        and pending_source_repair.get("artifact_kind")
-        == "RuntimeGeneratedCodeSemanticReviewPendingSourceRepair"
-        and pending_source_repair.get("dispatch_status")
-        == "PENDING_AFTER_THEORY_REVISION"
-        and pending_source_owner
-        in {"AlgorithmEngineer", "SimulationEvaluator"}
-        and str(
-            pending_source_repair.get("revised_theory_packet_id", "") or ""
-        )
-        == _architect_context_theory_packet_id(architect_context)
-        and pending_source_repair.get("findings")
-    ):
-        requires_current_algorithm_handoff = bool(
-            pending_source_owner == "SimulationEvaluator"
-            and evidence_contract.get(
-                "capability_eval_requires_generated_algorithm_code"
-            )
-            is True
-        )
-        current_algorithm_handoff_ready = (
-            _architect_current_theory_algorithm_handoff_ready(
-                architect_context=architect_context,
-                blackboard=blackboard,
-                question_id=question_id,
-            )
-        )
-        if (
-            requires_current_algorithm_handoff
-            and not current_algorithm_handoff_ready
-        ):
-            return {
-                "requested_subsystem": pending_source_owner,
-                "selected_subsystem": "AlgorithmEngineer",
-                "source": (
-                    "generated_code_semantic_review_pending_source_repair_"
-                    "prerequisite_algorithm"
-                ),
-                "requires_prerequisite_theory": False,
-                "requires_prerequisite_algorithm": True,
-            }
-        pending_source_feedback = (
-            _architect_selected_worker_environment_feedback(
-                selected={"selected_subsystem": pending_source_owner},
-                architect_context=architect_context,
-            )
-        )
-        if pending_source_feedback:
-            return {
-                "requested_subsystem": pending_source_owner,
-                "selected_subsystem": pending_source_owner,
-                "source": (
-                    "generated_code_semantic_review_pending_source_repair"
-                ),
-                "requires_prerequisite_theory": False,
-                "environment_feedback": pending_source_feedback,
-            }
-    metric_gate_replan = architect_context.get(
-        "runtime_metric_gate_replan",
-        {},
-    )
-    if (
-        isinstance(metric_gate_replan, Mapping)
-        and metric_gate_replan.get("artifact_kind")
-        == "RuntimeCodingAgentMetricGateReplanContext"
-    ):
-        source_repair_budget = metric_gate_replan.get(
-            "source_repair_budget",
-            {},
-        )
-        source_owner = _canonical_architect_subsystem(
-            metric_gate_replan.get("source_subsystem")
-        )
-        deferred_owner = _canonical_architect_subsystem(
-            metric_gate_replan.get("deferred_next_owner_subsystem")
-        )
-        if (
-            isinstance(source_repair_budget, Mapping)
-            and source_repair_budget.get("budget_exhausted") is True
-            and requested_for_metric_gate == source_owner
-            and deferred_owner
-            and deferred_owner != source_owner
-        ):
-            selected_owner = _architect_feasible_initial_subsystem(
-                deferred_owner,
-                architect_context=architect_context,
-                blackboard=blackboard,
-                question_id=question_id,
-            )
-            environment_feedback = architect_context.get(
-                "environment_feedback",
-                {},
-            )
-            return {
-                "requested_subsystem": requested_for_metric_gate,
-                "selected_subsystem": selected_owner,
-                "source": "metric_gate_source_repair_budget_yield",
-                "requires_prerequisite_theory": (
-                    selected_owner != deferred_owner
-                ),
-                "environment_feedback": (
-                    dict(environment_feedback)
-                    if isinstance(environment_feedback, Mapping)
-                    else {}
-                ),
-            }
-    semantic_replan = architect_context.get(
-        "runtime_generated_code_semantic_review_replan",
-        {},
-    )
-    semantic_feedback = _architect_selected_worker_environment_feedback(
-        selected={},
-        architect_context=architect_context,
-    )
-    if (
-        isinstance(semantic_replan, Mapping)
-        and semantic_replan.get("repair_scope")
-        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
-        and semantic_feedback
-        and _canonical_architect_subsystem(
-            semantic_replan.get("repair_target_subsystem")
-        )
-        == "AlgorithmEngineer"
-        and _canonical_architect_subsystem(
-            semantic_feedback.get("repair_target_subsystem")
-        )
-        == "AlgorithmEngineer"
-    ):
-        selected_dependency_owner = _architect_feasible_initial_subsystem(
-            "AlgorithmEngineer",
-            architect_context=architect_context,
-            blackboard=blackboard,
-            question_id=question_id,
-        )
-        return {
-            "requested_subsystem": "AlgorithmEngineer",
-            "selected_subsystem": selected_dependency_owner,
-            "source": (
-                "generated_code_semantic_review_upstream_dependency_repair"
-            ),
-            "requires_prerequisite_theory": (
-                selected_dependency_owner != "AlgorithmEngineer"
-            ),
-            "environment_feedback": semantic_feedback,
-        }
-    if (
-        isinstance(semantic_replan, Mapping)
-        and semantic_replan.get("repair_scope") == "source_code"
-        and semantic_feedback
-    ):
-        requested_source_owner = _canonical_architect_subsystem(
-            semantic_replan.get("source_subsystem")
-        )
-        if requested_source_owner in {
-            "AlgorithmEngineer",
-            "SimulationEvaluator",
-        }:
-            selected_source_owner = _architect_feasible_initial_subsystem(
-                requested_source_owner,
-                architect_context=architect_context,
-                blackboard=blackboard,
-                question_id=question_id,
-            )
-            return {
-                "requested_subsystem": requested_source_owner,
-                "selected_subsystem": selected_source_owner,
-                "source": "generated_code_semantic_review_source_repair",
-                "requires_prerequisite_theory": (
-                    requested_source_owner != selected_source_owner
-                ),
-                "environment_feedback": semantic_feedback,
-            }
-    if (
-        isinstance(semantic_replan, Mapping)
-        and semantic_replan.get("repair_scope") == "upstream_theory"
-        and semantic_feedback
-    ):
-        return {
-            "requested_subsystem": "RetrievalMemory",
-            "selected_subsystem": "RetrievalMemory",
-            "source": (
-                "generated_code_semantic_review_upstream_theory_repair"
-            ),
-            "requires_prerequisite_theory": True,
-            "environment_feedback": semantic_feedback,
-        }
     if (
         metric_protocol_phase
         == METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING
@@ -10610,111 +9831,14 @@ def _architect_select_initial_subsystem(
             or architect_context.get("retrieval_context")
         )
         pending_selection: dict[str, Any] = {
-            "requested_subsystem": str(
-                gap_selection.get("requested_subsystem", "")
-                if gap_selection
-                and gap_selection.get("meta_capability_gap_only") is not True
-                else requested_for_metric_gate
-            ),
+            "requested_subsystem": requested_for_metric_gate,
             "selected_subsystem": (
                 "TheoryDeveloper" if has_retrieval_context else "RetrievalMemory"
             ),
             "source": "metric_protocol_theory_prerequisite",
             "requires_prerequisite_theory": True,
         }
-        if gap_selection.get("gap_row"):
-            pending_selection["gap_row"] = gap_selection["gap_row"]
-        deferred_meta_gap = gap_selection.get("deferred_meta_capability_gap")
-        if isinstance(deferred_meta_gap, Mapping) and deferred_meta_gap:
-            pending_selection["deferred_meta_capability_gap"] = dict(
-                deferred_meta_gap
-            )
         return pending_selection
-    metric_gate = architect_context.get("architect_metric_protocol_gate", {})
-    if (
-        isinstance(metric_gate, Mapping)
-        and metric_gate.get("artifact_kind")
-        == "RuntimeArchitectMetricProtocolGate"
-        and metric_gate.get("consumed") is not True
-        and metric_protocol_phase
-        == METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
-        and evidence_contract.get("metric_protocol_execution_authorized") is True
-    ):
-        algorithm_required = bool(
-            evidence_contract.get(
-                "capability_eval_requires_generated_algorithm_code"
-            )
-            is True
-        )
-        algorithm_handoff_ready = (
-            _architect_current_theory_algorithm_handoff_ready(
-                architect_context=architect_context,
-                blackboard=blackboard,
-                question_id=question_id,
-            )
-        )
-        selected_subsystem = (
-            "AlgorithmEngineer"
-            if algorithm_required and not algorithm_handoff_ready
-            else "SimulationEvaluator"
-        )
-        return {
-            "requested_subsystem": requested_for_metric_gate,
-            "selected_subsystem": selected_subsystem,
-            "source": "theory_informed_metric_protocol_accepted",
-            "requires_prerequisite_theory": False,
-            "requires_prerequisite_algorithm": bool(
-                algorithm_required and not algorithm_handoff_ready
-            ),
-        }
-    if gap_selection:
-        if gap_selection.get("meta_capability_gap_only") is True:
-            requested = _architect_packet_requested_subsystem(packet)
-            selected = _architect_feasible_initial_subsystem(
-                requested,
-                architect_context=architect_context,
-                blackboard=blackboard,
-                question_id=question_id,
-            )
-            return {
-                "requested_subsystem": requested,
-                "selected_subsystem": selected,
-                "source": "architect_packet_after_meta_capability_gap",
-                "requires_prerequisite_theory": requested != selected,
-                "deferred_meta_capability_gap": gap_selection.get(
-                    "deferred_meta_capability_gap",
-                    {},
-                ),
-            }
-        requested = str(gap_selection.get("requested_subsystem", "") or "")
-        selected = _architect_feasible_initial_subsystem(
-            requested,
-            architect_context=architect_context,
-            blackboard=blackboard,
-            question_id=question_id,
-        )
-        result = {
-            "requested_subsystem": requested,
-            "selected_subsystem": selected,
-            "source": "runtime_capability_gap_routing_agenda",
-            "gap_row": gap_selection.get("gap_row", {}),
-            "requires_prerequisite_theory": requested != selected,
-        }
-        if isinstance(
-            gap_selection.get("deferred_meta_capability_gap"), Mapping
-        ) and gap_selection.get("deferred_meta_capability_gap"):
-            result["deferred_meta_capability_gap"] = gap_selection.get(
-                "deferred_meta_capability_gap"
-            )
-        if requested != selected:
-            result["environment_feedback"] = (
-                _architect_capability_gap_prerequisite_feedback(
-                    requested_subsystem=requested,
-                    routed_prerequisite_subsystem=selected,
-                    gap_row=gap_selection.get("gap_row", {}),
-                )
-            )
-        return result
     requested = _architect_packet_requested_subsystem(packet)
     selected = _architect_feasible_initial_subsystem(
         requested,
@@ -10728,37 +9852,6 @@ def _architect_select_initial_subsystem(
         "source": "architect_packet",
         "requires_prerequisite_theory": requested != selected,
     }
-
-
-def _architect_current_theory_algorithm_handoff_ready(
-    *,
-    architect_context: Mapping[str, Any],
-    blackboard: BlackboardState,
-    question_id: str,
-) -> bool:
-    algorithm_manifest_id = _architect_context_algorithm_sandbox_manifest_id(
-        architect_context
-    )
-    raw_algorithm_handoff = architect_context.get(
-        "upstream_algorithm_handoff", {}
-    )
-    return bool(
-        algorithm_manifest_id
-        and _runtime_validated_algorithm_handoff(
-            architect_context=architect_context,
-            blackboard=blackboard,
-            question_id=question_id,
-            theory_packet_id=_architect_context_theory_packet_id(
-                architect_context
-            ),
-            algorithm_sandbox_manifest_id=algorithm_manifest_id,
-            upstream_algorithm_handoff=(
-                raw_algorithm_handoff
-                if isinstance(raw_algorithm_handoff, Mapping)
-                else {}
-            ),
-        )
-    )
 
 
 def _architect_packet_requested_subsystem(packet: Mapping[str, Any]) -> str:
@@ -10779,70 +9872,6 @@ def _architect_packet_requested_subsystem(packet: Mapping[str, Any]) -> str:
         if subsystem and subsystem != "ArchitectCoordinator":
             return subsystem
     return "RetrievalMemory"
-
-
-def _architect_capability_gap_requested_subsystem(
-    architect_context: Mapping[str, Any],
-) -> dict[str, Any]:
-    plan = _architect_runtime_plan(architect_context)
-    agenda = plan.get("runtime_capability_gap_routing_agenda", {})
-    if not isinstance(agenda, Mapping):
-        return {}
-    deferred_meta_gap: dict[str, Any] = {}
-    for row in agenda.get("rows", []) or []:
-        if not isinstance(row, Mapping):
-            continue
-        owner = _canonical_architect_subsystem(row.get("next_owner_subsystem"))
-        if owner in {"AgentRuntimeOrchestrator", "ArchitectCoordinator"}:
-            if not deferred_meta_gap:
-                deferred_meta_gap = _architect_deferred_meta_capability_gap(row, owner)
-            continue
-        if owner:
-            selection = {
-                "requested_subsystem": owner,
-                "gap_row": dict(row),
-            }
-            if deferred_meta_gap:
-                selection["deferred_meta_capability_gap"] = deferred_meta_gap
-            return selection
-    if deferred_meta_gap:
-        return {
-            "meta_capability_gap_only": True,
-            "deferred_meta_capability_gap": deferred_meta_gap,
-        }
-    return {}
-
-
-def _architect_deferred_meta_capability_gap(
-    row: Mapping[str, Any],
-    owner: str,
-) -> dict[str, Any]:
-    gap = {
-        "artifact_kind": "ArchitectDeferredMetaCapabilityGap",
-        "requested_next_owner_subsystem": owner,
-        "requirement_id": str(row.get("requirement_id", "") or ""),
-        "target_behavior": str(row.get("target_behavior", "") or ""),
-        "success_metric": str(row.get("success_metric", "") or ""),
-        "recommended_capability_eval_command": str(
-            row.get("recommended_capability_eval_command", "") or ""
-        ),
-        "blocker": str(row.get("blocker", "") or ""),
-        "deferred_reason": (
-            "This capability gap targets the AgentRuntime/Architect control plane "
-            "rather than an executable science worker. It requires a runtime "
-            "configuration, harness, orchestration, or code change outside the "
-            "current worker handoff loop."
-        ),
-        "proof_evidence_status": "ARCHITECT_META_CAPABILITY_GAP_NOT_PROOF_EVIDENCE",
-        "boundary": (
-            "This deferred meta capability gap is unresolved control-plane debt. "
-            "Recording it does not execute a live generator, run a simulation, "
-            "validate generated code, or prove a Lean theorem."
-        ),
-    }
-    if isinstance(row.get("scorecard_payload", {}), Mapping):
-        gap["scorecard_payload"] = dict(row.get("scorecard_payload", {}))
-    return gap
 
 
 def _architect_feasible_initial_subsystem(
@@ -11430,52 +10459,6 @@ def _architect_terminal_acceptance_review_policy(
     )
 
 
-def _formalizer_budget_yield_handoff_is_runtime_authorized(
-    *,
-    subsystem_name: str,
-    next_task: AgentTask,
-    runtime_feedback_loop: Mapping[str, Any],
-) -> bool:
-    """Recognize the bounded formal-repair yield already authorized by runtime."""
-
-    if (
-        str(runtime_feedback_loop.get("handoff", "") or "")
-        != "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
-        or next_task.owner_subsystem != "FormalizationGapPlanner"
-        or not next_task.task_id.startswith("gap-planner-handoff:")
-    ):
-        return False
-    if _canonical_architect_subsystem(
-        runtime_feedback_loop.get("source_subsystem")
-    ) != _canonical_architect_subsystem(subsystem_name):
-        return False
-    inputs = next_task.inputs if isinstance(next_task.inputs, Mapping) else {}
-    feedback = (
-        inputs.get("environment_feedback", {})
-        if isinstance(inputs.get("environment_feedback", {}), Mapping)
-        else {}
-    )
-    try:
-        attempts_used = int(
-            feedback.get("formalizer_lean_repair_attempts_used", 0) or 0
-        )
-        yield_after = int(
-            feedback.get(
-                "formalizer_lean_repair_yield_to_gap_planner_after_attempts",
-                0,
-            )
-            or 0
-        )
-    except (TypeError, ValueError):
-        return False
-    return bool(
-        str(feedback.get("failure_classification", "") or "")
-        == "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
-        and yield_after > 0
-        and attempts_used >= yield_after
-    )
-
-
 def _architect_plan_guard_handoff_policy(
     *,
     iteration: int,
@@ -11506,41 +10489,6 @@ def _architect_plan_guard_handoff_policy(
     )
     if not architect_context:
         return result
-    direct_repair_errors: list[str] = []
-    runtime_feedback_loop = (
-        architect_context.get("runtime_feedback_loop", {})
-        if isinstance(
-            architect_context.get("runtime_feedback_loop", {}), Mapping
-        )
-        else {}
-    )
-    if _formalizer_budget_yield_handoff_is_runtime_authorized(
-        subsystem_name=subsystem_name,
-        next_task=next_task,
-        runtime_feedback_loop=runtime_feedback_loop,
-    ):
-        return result
-    direct_repair_contract = runtime_feedback_loop.get(
-        "direct_repair_handoff_contract",
-        {},
-    )
-    if isinstance(direct_repair_contract, Mapping) and direct_repair_contract:
-        environment_feedback = (
-            inputs.get("environment_feedback", {})
-            if isinstance(inputs.get("environment_feedback", {}), Mapping)
-            else {}
-        )
-        direct_repair_errors = typed_repair_handoff_contract_errors(
-            direct_repair_contract,
-            source_reviewer_subsystem=subsystem_name,
-            source_task_id=task.task_id,
-            target_repair_subsystem=next_task.owner_subsystem,
-            target_task_id=next_task.task_id,
-            environment_feedback=environment_feedback,
-            produced_artifacts=result.produced_artifacts,
-        )
-        if not direct_repair_errors:
-            return result
     plan = (
         architect_context.get("architect_runtime_plan", {})
         if isinstance(architect_context.get("architect_runtime_plan", {}), Mapping)
@@ -11601,10 +10549,6 @@ def _architect_plan_guard_handoff_policy(
             "proof_evidence_status": "ARCHITECT_PLAN_REPAIR_NOT_PROOF_EVIDENCE",
         }
     )
-    if direct_repair_errors:
-        feedback_loop["direct_repair_handoff_validation_errors"] = list(
-            direct_repair_errors
-        )
     context["runtime_feedback_loop"] = feedback_loop
     context["runtime_unplanned_handoff_review"] = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -11689,407 +10633,6 @@ def _architect_plan_guard_handoff_policy(
     )
 
 
-def _architect_capability_gap_prerequisite_feedback(
-    *,
-    requested_subsystem: str,
-    routed_prerequisite_subsystem: str,
-    gap_row: Any,
-) -> dict[str, Any]:
-    row = dict(gap_row) if isinstance(gap_row, Mapping) else {}
-    feedback = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "ArchitectCapabilityGapPrerequisiteFeedback",
-        "feedback_source": "ArchitectCoordinator",
-        "trigger": "ARCHITECT_CAPABILITY_GAP_PREREQUISITE",
-        "requested_next_owner_subsystem": requested_subsystem,
-        "routed_prerequisite_subsystem": routed_prerequisite_subsystem,
-        "requirement_id": str(row.get("requirement_id", "") or ""),
-        "target_behavior": str(row.get("target_behavior", "") or ""),
-        "success_metric": str(row.get("success_metric", "") or ""),
-        "recommended_capability_eval_command": str(
-            row.get("recommended_capability_eval_command", "") or ""
-        ),
-        "acceptance_gate": (
-            f"A {routed_prerequisite_subsystem} handoff artifact is available "
-            f"with the concrete inputs needed by {requested_subsystem}."
-        ),
-        "proof_evidence_status": (
-            "ARCHITECT_CAPABILITY_GAP_PREREQUISITE_NOT_PROOF_EVIDENCE"
-        ),
-        "boundary": (
-            "This is Architect prerequisite-routing feedback. It is not proof, "
-            "simulation, generated-code, or verifier evidence and does not "
-            "resolve the capability gap."
-        ),
-    }
-    contract = _architect_capability_gap_execution_contract(
-        routed_subsystem=requested_subsystem,
-        row=row,
-    )
-    if contract:
-        feedback["runtime_requested_evidence_contract"] = contract
-    if isinstance(row.get("scorecard_payload", {}), Mapping):
-        feedback["scorecard_payload"] = dict(row.get("scorecard_payload", {}))
-    return feedback
-
-
-def _architect_proofengineer_execution_feedback(
-    *,
-    requested_subsystem: str,
-    gap_row: Any,
-    architect_context: Mapping[str, Any],
-    blackboard: BlackboardState,
-) -> dict[str, Any]:
-    base = _architect_capability_gap_execution_feedback(
-        requested_subsystem=requested_subsystem,
-        routed_subsystem="ProofEngineer",
-        gap_row=gap_row,
-    )
-    materialization = _architect_formalizer_lean_candidate_materialization(
-        architect_context=architect_context,
-        blackboard=blackboard,
-    )
-    repair_feedback = _formalizer_lean_candidate_repair_feedback(materialization)
-    if not isinstance(repair_feedback, Mapping) or not repair_feedback:
-        return base
-    feedback = dict(repair_feedback)
-    feedback["architect_capability_gap_execution_feedback"] = base
-    feedback["requested_next_owner_subsystem"] = requested_subsystem
-    feedback["routed_subsystem"] = "ProofEngineer"
-    feedback.setdefault("trigger", "ARCHITECT_CAPABILITY_GAP_EXECUTION")
-    requested_contract = (
-        dict(feedback.get("runtime_requested_evidence_contract", {}))
-        if isinstance(feedback.get("runtime_requested_evidence_contract", {}), Mapping)
-        else {}
-    )
-    base_contract = base.get("runtime_requested_evidence_contract", {})
-    if isinstance(base_contract, Mapping):
-        requested_contract.update(
-            {
-                str(key): value
-                for key, value in base_contract.items()
-                if str(key).startswith("capability_eval_requires_")
-            }
-        )
-    if requested_contract:
-        feedback["runtime_requested_evidence_contract"] = requested_contract
-    if isinstance(base.get("scorecard_payload", {}), Mapping):
-        feedback["scorecard_payload"] = dict(base.get("scorecard_payload", {}))
-    feedback["proof_evidence_status"] = (
-        "ARCHITECT_PROOFENGINEER_EXECUTION_FEEDBACK_NOT_PROOF_EVIDENCE"
-    )
-    feedback["boundary"] = (
-        "This is ProofEngineer repair feedback derived from a materialized "
-        "Formalizer Lean candidate and Architect capability-gap routing. It is "
-        "not proof evidence until a repaired artifact passes local Lean/AXLE "
-        "kernel verification."
-    )
-    return feedback
-
-
-def _architect_formalization_gap_planner_execution_feedback(
-    *,
-    requested_subsystem: str,
-    gap_row: Any,
-    architect_context: Mapping[str, Any],
-    blackboard: BlackboardState,
-    question_id: str = "",
-) -> dict[str, Any]:
-    feedback = _architect_capability_gap_execution_feedback(
-        requested_subsystem=requested_subsystem,
-        routed_subsystem="FormalizationGapPlanner",
-        gap_row=gap_row,
-    )
-    bridge_ids = _architect_formalization_gap_planner_bridge_ids(
-        architect_context=architect_context,
-        blackboard=blackboard,
-        question_id=question_id,
-    )
-    if bridge_ids:
-        feedback["formalization_gap_planner_bridge_ids"] = list(bridge_ids)
-    formalization_manifest_id = (
-        _architect_context_formalization_manifest_id(architect_context)
-        or _architect_formalization_gap_planner_formalization_manifest_id(
-            architect_context=architect_context,
-            blackboard=blackboard,
-            question_id=question_id,
-        )
-    )
-    if formalization_manifest_id:
-        feedback["formalization_manifest_id"] = formalization_manifest_id
-    feedback["feedback_type"] = (
-        "architect_capability_gap_formalization_gap_planner_handoff"
-    )
-    feedback["failure_classification"] = (
-        "architect_requested_formalization_gap_planner_execution"
-    )
-    feedback["proof_evidence_status"] = (
-        "ARCHITECT_FORMALIZATION_GAP_PLANNER_EXECUTION_NOT_PROOF_EVIDENCE"
-    )
-    feedback["proof_evidence_boundary"] = (
-        RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY
-    )
-    feedback["boundary"] = (
-        "This is Architect routing feedback for FormalizationGapPlanner. It "
-        "authorizes replaying bridge and handoff artifacts, staging route plans, "
-        "and recording target-prover diagnostics as planning evidence only; it "
-        "does not prove or repair a Lean theorem."
-    )
-    return feedback
-
-
-def _architect_capability_gap_execution_feedback(
-    *,
-    requested_subsystem: str,
-    routed_subsystem: str,
-    gap_row: Any,
-) -> dict[str, Any]:
-    row = dict(gap_row) if isinstance(gap_row, Mapping) else {}
-    requirement_id = str(row.get("requirement_id", "") or "")
-    target_behavior = str(row.get("target_behavior", "") or "")
-    success_metric = str(row.get("success_metric", "") or "")
-    blocker = str(row.get("blocker", "") or "")
-    feedback = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "ArchitectCapabilityGapExecutionFeedback",
-        "feedback_source": "ArchitectCoordinator",
-        "trigger": "ARCHITECT_CAPABILITY_GAP_EXECUTION",
-        "requested_next_owner_subsystem": requested_subsystem,
-        "routed_subsystem": routed_subsystem,
-        "requirement_id": requirement_id,
-        "target_behavior": target_behavior,
-        "success_metric": success_metric,
-        "blocker": blocker,
-        "recommended_capability_eval_command": str(
-            row.get("recommended_capability_eval_command", "") or ""
-        ),
-        "required_execution": (
-            f"{routed_subsystem} must execute the capability-gap obligation and "
-            "record runtime evidence or a concrete blocker. Routing feedback alone "
-            "does not satisfy the gap."
-        ),
-        "acceptance_gate": (
-            success_metric
-            or "follow-up capability scorecard row passes with runtime evidence"
-        ),
-        "proof_evidence_status": (
-            "ARCHITECT_CAPABILITY_GAP_EXECUTION_NOT_PROOF_EVIDENCE"
-        ),
-        "boundary": (
-            "This is Architect capability-gap execution feedback. It is "
-            "orchestration control only, not proof, simulation, generated-code, "
-            "or verifier evidence until the target subsystem records its own "
-            "runtime artifact."
-        ),
-    }
-    contract = _architect_capability_gap_execution_contract(
-        routed_subsystem=routed_subsystem,
-        row=row,
-    )
-    if contract:
-        feedback["runtime_requested_evidence_contract"] = contract
-    if isinstance(row.get("scorecard_payload", {}), Mapping):
-        feedback["scorecard_payload"] = dict(row.get("scorecard_payload", {}))
-    return feedback
-
-
-def _architect_capability_gap_execution_contract(
-    *,
-    routed_subsystem: str,
-    row: Mapping[str, Any],
-) -> dict[str, Any]:
-    text = " ".join(
-        str(row.get(key, "") or "")
-        for key in ("requirement_id", "target_behavior", "success_metric", "blocker")
-    ).lower()
-    contract: dict[str, Any] = {}
-    algorithm_requested = (
-        "algorithmengineer" in text
-        or "algorithm engineer" in text
-        or "algorithm_sandbox" in text
-        or "generated_algorithm" in text
-        or "n_generated_code_sandbox" in text
-    )
-    simulation_requested = (
-        "simulationevaluator" in text
-        or "simulation evaluator" in text
-        or "simulationengineer" in text
-        or "simulation engineer" in text
-        or "generated_simulation" in text
-        or "simulation_sandbox" in text
-        or "simulation_code" in text
-        or "n_generated_simulation_sandbox" in text
-    )
-    generic_generated_code_requested = (
-        "generated_code" in text
-        or "generated-code" in text
-        or "generated code" in text
-        or "sandbox_code" in text
-        or "sandbox code" in text
-        or "generated python" in text
-    )
-    if (
-        routed_subsystem in {"SimulationEvaluator", "AlgorithmEngineer"}
-        and simulation_requested
-    ) or (
-        routed_subsystem == "SimulationEvaluator"
-        and generic_generated_code_requested
-        and not algorithm_requested
-    ):
-        contract["capability_eval_requires_generated_simulation_code"] = True
-    if (
-        routed_subsystem in {"AlgorithmEngineer", "SimulationEvaluator"}
-        and algorithm_requested
-    ) or (
-        routed_subsystem == "AlgorithmEngineer"
-        and generic_generated_code_requested
-        and not simulation_requested
-    ):
-        contract["capability_eval_requires_generated_algorithm_code"] = True
-    if routed_subsystem == "SimulationEvaluator" and (
-        "generated_simulation" in text
-        or "simulation_sandbox" in text
-        or "simulation_code" in text
-        or "n_generated_simulation_sandbox" in text
-    ):
-        contract["capability_eval_requires_generated_simulation_code"] = True
-    if routed_subsystem == "AlgorithmEngineer" and (
-        "generated_code" in text
-        or "algorithm_sandbox" in text
-        or "sandbox_code" in text
-        or "n_generated_code_sandbox" in text
-    ):
-        contract["capability_eval_requires_generated_algorithm_code"] = True
-    if routed_subsystem in {"FormalizationEvaluator", "ProofEngineer"} and (
-        "formalizer" in text
-        or "proofengineer" in text
-        or "proof engineer" in text
-        or "lean" in text
-        or "proof_state" in text
-        or "proof-state" in text
-        or "prover" in text
-    ):
-        contract["capability_eval_requires_formalizer_lean_candidate"] = True
-        if (
-            "local_lean" in text
-            or "local lean" in text
-            or "checked_locally" in text
-            or "local.lake_env_lean" in text
-        ):
-            contract["capability_eval_requires_formalizer_local_lean_check"] = True
-            contract["capability_eval_requires_formalizer_local_lean_tool_call"] = True
-        if (
-            "proof_state" in text
-            or "proof-state" in text
-            or "lsp" in text
-            or "mcp" in text
-            or "prover" in text
-        ):
-            contract["capability_eval_requires_formalizer_proof_state_request"] = True
-            contract["capability_eval_requires_formalizer_proof_state_feedback"] = True
-        if "lean_lsp_mcp" in text or "lean lsp" in text or "lsp/mcp" in text:
-            contract["capability_eval_requires_formalizer_live_prover_tool_call"] = True
-    exact_semantic_definition_requested = (
-        "exact_semantic_definition" in text
-        or "exact semantic-definition" in text
-        or "exact semantic definition" in text
-        or "semantic-definition authoring" in text
-        or "semantic definition authoring" in text
-        or "source-theorem semantic-definition" in text
-        or "source theorem semantic definition" in text
-    )
-    source_grounded_exact_semantic_definition_requested = (
-        "source_grounded" in text
-        or "source-grounded" in text
-        or "source grounded" in text
-        or "source theorem binders" in text
-        or "required anchor binding" in text
-        or "required anchor bindings" in text
-        or "complete required anchors" in text
-        or "source-anchor context" in text
-        or "source anchor context" in text
-        or "lean authoring environment" in text
-        or "machine-routable" in text
-    )
-    if (
-        routed_subsystem in {"FormalizationEvaluator", "ProofEngineer"}
-        and exact_semantic_definition_requested
-    ):
-        contract[
-            "capability_eval_requires_exact_semantic_definition_authoring_worker"
-        ] = True
-        if source_grounded_exact_semantic_definition_requested:
-            contract[
-                "capability_eval_requires_exact_semantic_definition_source_grounded_authoring_handoff"
-            ] = True
-        if (
-            "live_attempted" in text
-            or "live attempted" in text
-            or "live llm" in text
-            or "live claude" in text
-            or "live openai" in text
-            or "authoring worker" in text
-        ):
-            contract[
-                "capability_eval_requires_exact_semantic_definition_authoring_live_attempt"
-            ] = True
-        if (
-            "candidate_verifier_checked" in text
-            or "candidate verifier" in text
-            or "candidate packets" in text
-            or "materialize" in text
-            or "materialized" in text
-            or "materializer" in text
-            or "local lean" in text
-            or "local_lean" in text
-            or "verifier diagnostics" in text
-        ):
-            contract[
-                "capability_eval_requires_exact_semantic_definition_candidate_materializer"
-            ] = True
-            contract[
-                "capability_eval_requires_exact_semantic_definition_materialized_lean_repair"
-            ] = True
-            contract[
-                "capability_eval_requires_exact_semantic_definition_materialized_feedback_rows"
-            ] = True
-    if routed_subsystem == "FormalizationGapPlanner" and (
-        "formalization_gap_planner" in text
-        or "formalization gap planner" in text
-        or "gap planner" in text
-        or "pseudo-formal" in text
-        or "pseudo formal" in text
-        or "block verification" in text
-        or "route planner" in text
-        or "target-prover" in text
-        or "target prover" in text
-        or "prover replay" in text
-    ):
-        contract["capability_eval_requires_formalization_gap_planner_bridge"] = True
-        contract["capability_eval_requires_formalization_gap_planner_handoff"] = True
-        if (
-            "route planner" in text
-            or "pseudo-formal" in text
-            or "pseudo formal" in text
-            or "block verification" in text
-        ):
-            contract[
-                "capability_eval_requires_formalization_gap_planner_route_planner"
-            ] = True
-        if (
-            "target-prover" in text
-            or "target prover" in text
-            or "prover replay" in text
-            or "local_lean" in text
-            or "local lean" in text
-            or "lean" in text
-        ):
-            contract[
-                "capability_eval_requires_formalization_gap_planner_target_prover_replay"
-            ] = True
-    return contract
-
-
 def _architect_initial_objective(
     context: Mapping[str, Any],
     subsystem: str,
@@ -12159,121 +10702,6 @@ def _runtime_theory_trace_failure_classifications_from_summary(
             "downstream_theory_trace_alignment_missing"
         )
     return list(dict.fromkeys(failure_classifications))
-
-
-def _architect_resume_theory_refresh_task_if_needed(
-    *,
-    question: OpenResearchQuestion,
-    architect_task: AgentTask,
-    blackboard: BlackboardState,
-    architect_context: Mapping[str, Any],
-    resume_pending_task_payload: Mapping[str, Any],
-) -> AgentTask | None:
-    pending_owner = str(
-        resume_pending_task_payload.get("owner_subsystem", "") or ""
-    ).strip()
-    if not resume_pending_task_payload or pending_owner == "TheoryDeveloper":
-        return None
-    theory_summary = _runtime_evidence_summary(
-        [{"blackboard": {"artifacts": dict(blackboard.artifacts)}}]
-    )["theory"]
-    if bool(theory_summary.get("structured_derivation_trace_observed", False)):
-        return None
-    failures = _runtime_theory_trace_failure_classifications_from_summary(
-        theory_summary,
-        include_downstream=False,
-    )
-    if not failures:
-        return None
-    pending_inputs = (
-        resume_pending_task_payload.get("inputs", {})
-        if isinstance(resume_pending_task_payload.get("inputs", {}), Mapping)
-        else {}
-    )
-    pending_context = (
-        pending_inputs.get("architect_context", {})
-        if isinstance(pending_inputs.get("architect_context", {}), Mapping)
-        else {}
-    )
-    source_theory_packet_id = str(
-        pending_inputs.get("theory_packet_id", "")
-        or pending_context.get("previous_theory_packet_id", "")
-        or _latest_runtime_artifact_id_with_prefix(
-            blackboard.artifacts,
-            "theory_derivation:",
-        )
-        or ""
-    )
-    feedback = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "RuntimeTheoryTraceRepairFeedback",
-        "feedback_source": "ArchitectCoordinator",
-        "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
-        "failure_classification": "runtime_theory_derivation_trace_incomplete",
-        "failure_classifications": list(failures),
-        "question_id": question.id,
-        "source_task_id": architect_task.task_id,
-        "source_owner_subsystem": architect_task.owner_subsystem,
-        "source_theory_packet_id": source_theory_packet_id,
-        "resume_pending_task_id": str(
-            resume_pending_task_payload.get("task_id", "") or ""
-        ),
-        "resume_pending_owner_subsystem": pending_owner,
-        "acceptance_gate": (
-            "The repaired TheoryDerivationPacket satisfies the derivation "
-            "contract and can be consumed by SimulationEngineer, "
-            "AlgorithmEngineer, and FormalizerProofEngineer before any proof "
-            "claim is made."
-        ),
-        "proof_evidence_status": (
-            "THEORY_TRACE_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE"
-        ),
-        "boundary": (
-            "This is Architect resume-routing feedback for LLM theory repair. "
-            "It is not simulation evidence, implementation evidence, or "
-            "Lean/kernel proof evidence."
-        ),
-    }
-    repair_context = dict(architect_context)
-    repair_context["environment_feedback"] = feedback
-    repair_context["runtime_resume_review"] = {
-        **(
-            dict(repair_context.get("runtime_resume_review", {}) or {})
-            if isinstance(repair_context.get("runtime_resume_review", {}), Mapping)
-            else {}
-        ),
-        "theory_refresh_required": True,
-        "theory_refresh_reason": "runtime_theory_derivation_trace_incomplete",
-        "source_theory_packet_id": source_theory_packet_id,
-        "resume_pending_task_after_theory_refresh": dict(
-            resume_pending_task_payload
-        ),
-        "proof_evidence_status": (
-            "ARCHITECT_RESUME_REVIEW_NOT_PROOF_EVIDENCE"
-        ),
-    }
-    return AgentTask(
-        task_id=(
-            f"theory-resume-refresh:{question.id}:"
-            f"{stable_hash([architect_task.task_id, source_theory_packet_id, failures])[:8]}"
-        ),
-        owner_subsystem="TheoryDeveloper",
-        objective=(
-            "Refresh the structured theory derivation trace before resuming "
-            "the pending downstream subsystem."
-        ),
-        inputs={
-            "question": _question_to_payload(question),
-            "architect_context": repair_context,
-            "environment_feedback": feedback,
-        },
-        allowed_tools=("model_backend", "rag_memory", "evidence_ledger"),
-        expected_artifacts=("theory_derivation_packet",),
-        acceptance_gate=str(feedback["acceptance_gate"]),
-        stop_condition=(
-            "structured theory derivation trace reroutes to downstream gates"
-        ),
-    )
 
 
 RUNTIME_RETRIEVAL_RETURN_OWNERS = {
@@ -12598,18 +11026,10 @@ class TheoryDeveloperRuntimeSubsystem:
         theory_developer: LLMTheoryDeveloperAgent,
         n_runs: int,
         seed: int,
-        max_generated_code_semantic_review_upstream_theory_revisions: int = 1,
     ) -> None:
         self.theory_developer = theory_developer
         self.n_runs = n_runs
         self.seed = seed
-        self.max_generated_code_semantic_review_upstream_theory_revisions = max(
-            0,
-            int(
-                max_generated_code_semantic_review_upstream_theory_revisions
-                or 0
-            ),
-        )
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -12617,23 +11037,9 @@ class TheoryDeveloperRuntimeSubsystem:
         context["runtime_task"] = _runtime_task_prompt_summary(task)
         if "environment_feedback" in task.inputs:
             context["environment_feedback"] = task.inputs["environment_feedback"]
-        upstream_theory_revision_state = (
-            generated_code_semantic_review_upstream_theory_revision_state(
-                architect_context=context,
-                question_id=question.id,
-                max_revisions=(
-                    self.max_generated_code_semantic_review_upstream_theory_revisions
-                ),
-            )
+        generated_code_replan = context.get(
+            "runtime_generated_code_semantic_review_replan", {}
         )
-        if upstream_theory_revision_state["budget_exhausted"]:
-            return (
-                generated_code_semantic_review_upstream_theory_budget_exhausted_result(
-                    task=task,
-                    question_id=question.id,
-                    budget_state=upstream_theory_revision_state,
-                )
-            )
         metric_protocol_revision_feedback = (
             theory_developer_source_environment_feedback(context)
         )
@@ -12716,13 +11122,12 @@ class TheoryDeveloperRuntimeSubsystem:
             context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY] = (
                 revision_binding
             )
-        elif upstream_theory_revision_state["active"]:
+        elif isinstance(generated_code_replan, Mapping) and generated_code_replan:
             revision_binding, binding_errors = (
-                build_postexecution_theory_revision_binding(
+                build_architect_routed_generated_code_theory_revision_binding(
                     architect_context=context,
                     question_id=question.id,
                     artifacts=blackboard.artifacts,
-                    budget_state=upstream_theory_revision_state,
                 )
             )
             if binding_errors:
@@ -12963,18 +11368,18 @@ class TheoryDeveloperRuntimeSubsystem:
             architect_context=context,
             theory_material=current_theory_material,
         )
-        context = consume_generated_code_semantic_review_upstream_theory_replan(
-            architect_context=context,
-            question_id=question.id,
-            revised_theory_packet_id=packet_id,
-            revised_theory_packet_hash=str(
-                current_theory_material.get("source_theory_packet_hash", "")
-                or ""
-            ),
-            max_revisions=(
-                self.max_generated_code_semantic_review_upstream_theory_revisions
-            ),
-        )
+        if active_revision_binding.get("revision_source") == (
+            "architect_routed_generated_code_observations"
+        ):
+            context = consume_architect_routed_generated_code_theory_revision(
+                architect_context=context,
+                revision_binding=active_revision_binding,
+                revised_theory_packet_id=packet_id,
+                revised_theory_packet_hash=str(
+                    current_theory_material.get("source_theory_packet_hash", "")
+                    or ""
+                ),
+            )
         simulation_inputs = dict(simulation_task.inputs)
         simulation_inputs["architect_context"] = context
         simulation_task = replace(simulation_task, inputs=simulation_inputs)
@@ -13806,7 +12211,7 @@ def _runtime_handoff_artifact_missing_result_if_needed(
         "missing_artifact_id": artifact_id,
         "missing_artifact_role": artifact_role,
         "expected_artifact_kind": expected_artifact_kind,
-        "repair_owner_agent": producer_subsystem,
+        "producer_subsystem": producer_subsystem,
         "acceptance_gate": acceptance_gate,
         "proof_evidence_status": (
             "HANDOFF_ARTIFACT_MISSING_FEEDBACK_NOT_PROOF_EVIDENCE"
@@ -14113,19 +12518,19 @@ def _runtime_generated_code_semantic_review_rows(
     return rows
 
 
-def _runtime_generated_code_source_repair_budget_state(
+def _runtime_generated_code_candidate_revision_budget_state(
     *,
     source_subsystem: str,
-    repair_task: AgentTask,
+    source_task: AgentTask,
 ) -> dict[str, Any]:
-    """Expose the source agent's existing bounded repair state to its reviewer."""
+    """Expose the source model's bounded full-candidate regeneration count."""
 
-    context = repair_task.inputs.get("architect_context", {})
+    context = source_task.inputs.get("architect_context", {})
     context = dict(context) if isinstance(context, Mapping) else {}
-    feedback = repair_task.inputs.get("environment_feedback", {})
+    feedback = source_task.inputs.get("environment_feedback", {})
     feedback = dict(feedback) if isinstance(feedback, Mapping) else {}
     theory_packet_id = str(
-        repair_task.inputs.get("theory_packet_id", "")
+        source_task.inputs.get("theory_packet_id", "")
         or _architect_context_theory_packet_id(context)
         or ""
     )
@@ -14170,73 +12575,11 @@ def _runtime_generated_code_source_repair_budget_state(
             int(yield_after_attempts or 0) > 0
             and int(attempts_used or 0) >= int(yield_after_attempts or 0)
         ),
-        "authority": "runtime_source_agent_repair_budget",
+        "authority": "runtime_candidate_revision_budget",
         "proof_evidence_status": (
-            "SOURCE_REPAIR_BUDGET_STATE_NOT_PROOF_EVIDENCE"
+            "CANDIDATE_REVISION_BUDGET_STATE_NOT_PROOF_EVIDENCE"
         ),
     }
-
-
-def _runtime_generated_code_semantic_review_source_repair_task_payload(
-    *,
-    source_subsystem: str,
-    source_execution_task: Mapping[str, Any],
-    source_planned_next_task: Mapping[str, Any],
-) -> dict[str, Any]:
-    if _canonical_architect_subsystem(
-        source_planned_next_task.get("owner_subsystem")
-    ) == _canonical_architect_subsystem(source_subsystem):
-        return dict(source_planned_next_task)
-    return dict(source_execution_task)
-
-
-def _runtime_generated_code_semantic_review_source_budget_yield_task(
-    *,
-    question: OpenResearchQuestion,
-    source_subsystem: str,
-    source_manifest_id: str,
-    theory_packet_id: str,
-    deferred_task: AgentTask,
-    architect_context: Mapping[str, Any],
-    feedback: Mapping[str, Any],
-    source_repair_budget: Mapping[str, Any],
-) -> AgentTask:
-    """Keep a rejected source artifact away from its downstream consumer."""
-
-    if not (
-        source_subsystem == "AlgorithmEngineer"
-        and _canonical_architect_subsystem(deferred_task.owner_subsystem)
-        == "SimulationEvaluator"
-    ):
-        return deferred_task
-    deferred_context = deferred_task.inputs.get("architect_context", {})
-    effective_context = (
-        dict(deferred_context)
-        if isinstance(deferred_context, Mapping)
-        else dict(architect_context)
-    )
-    simulation_manifest_id = str(
-        deferred_task.inputs.get("simulation_manifest_id", "")
-        or effective_context.get("previous_simulation_manifest_id", "")
-        or ""
-    ).strip()
-    return _algorithm_engineer_repair_budget_yield_to_formalization_task(
-        question=question,
-        theory_packet_id=theory_packet_id,
-        simulation_manifest_id=simulation_manifest_id,
-        algorithm_sandbox_manifest_id=source_manifest_id,
-        architect_context=effective_context,
-        algorithm_feedback=feedback,
-        failure_classification=(
-            "generated_code_semantic_review_source_repair_budget_yield"
-        ),
-        repair_attempts_used=int(
-            source_repair_budget.get("attempts_used", 0) or 0
-        ),
-        yield_after_attempts=int(
-            source_repair_budget.get("yield_after_attempts", 0) or 0
-        ),
-    )
 
 
 def _runtime_generated_code_semantic_review_dispatch(
@@ -14321,19 +12664,6 @@ def _runtime_generated_code_semantic_review_dispatch(
             ),
         )
     )
-    pending_repair_plan = architect_context.get(
-        GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY,
-        {},
-    )
-    pending_repair_plan = (
-        dict(pending_repair_plan)
-        if isinstance(pending_repair_plan, Mapping)
-        and str(pending_repair_plan.get("question_id", "") or "")
-        == question.id
-        and str(pending_repair_plan.get("source_subsystem", "") or "")
-        == source_subsystem
-        else {}
-    )
     has_required_metric_failure = any(
         isinstance(row.get("metric_contract_evaluation", {}), Mapping)
         and row.get("metric_contract_evaluation", {}).get("all_required_passed")
@@ -14352,10 +12682,6 @@ def _runtime_generated_code_semantic_review_dispatch(
         == expected_metric_failure_classification
         else {}
     )
-    source_repair_budget = _runtime_generated_code_source_repair_budget_state(
-        source_subsystem=source_subsystem,
-        repair_task=task,
-    )
     accepted_next_task = deferred_next_task
     if trusted_metric_failure_feedback:
         accepted_next_task = _coding_agent_metric_gate_architect_task(
@@ -14364,7 +12690,6 @@ def _runtime_generated_code_semantic_review_dispatch(
             context=architect_context,
             metric_feedback=trusted_metric_failure_feedback,
             source_manifest_id=manifest_id,
-            deferred_next_owner_subsystem=deferred_next_task.owner_subsystem,
         )
     work_order_id = "generated_code_semantic_review_work_order:" + stable_hash(
         [task.task_id, manifest_id, reviewed_artifacts, review_revision_count]
@@ -14395,8 +12720,6 @@ def _runtime_generated_code_semantic_review_dispatch(
         "source_responsibility_contract_fingerprint": stable_hash(
             source_responsibility_contract
         ),
-        "pending_repair_plan": pending_repair_plan,
-        "source_repair_budget": source_repair_budget,
         "capability_eval": research_evaluation,
         "review_revision_count": review_revision_count,
         "max_revisions": max(0, int(max_revisions or 0)),
@@ -14404,7 +12727,7 @@ def _runtime_generated_code_semantic_review_dispatch(
         "confirmatory_empirical_evidence_eligible": (
             confirmatory_empirical_evidence_eligible
         ),
-        "repair_task": asdict(task),
+        "source_task": asdict(task),
         "deferred_next_task": asdict(deferred_next_task),
         "review_accepted_next_task": asdict(accepted_next_task),
         "proof_evidence_status": (
@@ -14498,28 +12821,28 @@ def _runtime_generated_code_semantic_review_dispatch(
     }
 
 
-def _runtime_generated_code_semantic_review_inherited_obligations(
+def _runtime_generated_code_semantic_review_prior_observations(
     *,
     work_order: Mapping[str, Any],
     source_subsystem: str,
 ) -> dict[str, Any]:
-    """Recover the exact review findings that caused this descendant repair."""
+    """Recover prior semantic observations carried by the model-selected route."""
 
-    repair_task = work_order.get("repair_task", {})
-    repair_inputs = (
-        repair_task.get("inputs", {})
-        if isinstance(repair_task, Mapping)
+    source_task = work_order.get("source_task", {})
+    source_inputs = (
+        source_task.get("inputs", {})
+        if isinstance(source_task, Mapping)
         else {}
     )
-    if not isinstance(repair_inputs, Mapping):
+    if not isinstance(source_inputs, Mapping):
         return {}
-    architect_context = repair_inputs.get("architect_context", {})
+    architect_context = source_inputs.get("architect_context", {})
     architect_context = (
         architect_context
         if isinstance(architect_context, Mapping)
         else {}
     )
-    environment_feedback = repair_inputs.get("environment_feedback", {})
+    environment_feedback = source_inputs.get("environment_feedback", {})
     environment_feedback = (
         environment_feedback
         if isinstance(environment_feedback, Mapping)
@@ -14546,19 +12869,6 @@ def _runtime_generated_code_semantic_review_inherited_obligations(
             candidate.get("question_id", "") or ""
         ).strip()
         if candidate_question_id and candidate_question_id != question_id:
-            continue
-        target_subsystem = str(
-            candidate.get("repair_target_subsystem", "")
-            or candidate.get("target_subsystem", "")
-            or ""
-        ).strip()
-        candidate_source = str(
-            candidate.get("source_subsystem", "") or ""
-        ).strip()
-        if target_subsystem:
-            if target_subsystem != source_subsystem:
-                continue
-        elif candidate_source != source_subsystem:
             continue
         if not candidate.get("findings") and not candidate.get(
             "cumulative_finding_ledger"
@@ -14593,8 +12903,6 @@ def _runtime_generated_code_semantic_review_inherited_obligations(
                 "finding": row,
             }
             for row in findings
-            if str(row.get("repair_scope", "") or "").strip()
-            not in {"", "none"}
         ]
     if not active_ledger:
         return {}
@@ -14612,20 +12920,17 @@ def _runtime_generated_code_semantic_review_inherited_obligations(
         ).strip()
         if not finding_id:
             continue
-        precise_required_change = str(
-            source_finding.get(
-                "semantic_reviewer_required_change",
-                source_finding.get("required_change", ""),
-            )
-            or ""
-        ).strip()
         compact_finding = {
             "finding_id": finding_id,
             "severity": str(source_finding.get("severity", "") or ""),
             "category": str(source_finding.get("category", "") or ""),
             "summary": str(source_finding.get("summary", "") or ""),
-            "required_change": precise_required_change,
-            "repair_scope": "source_code",
+            "observed_behavior": str(
+                source_finding.get("observed_behavior", "") or ""
+            ),
+            "expected_behavior": str(
+                source_finding.get("expected_behavior", "") or ""
+            ),
             "evidence_refs": [
                 str(value).strip()
                 for value in source_finding.get("evidence_refs", []) or []
@@ -14666,10 +12971,10 @@ def _runtime_generated_code_semantic_review_inherited_obligations(
     )
     obligations = {
         "artifact_kind": (
-            "RuntimeGeneratedCodeSemanticReviewInheritedRepairObligations"
+            "RuntimeGeneratedCodeSemanticReviewInheritedObservations"
         ),
         "question_id": question_id,
-        "repair_target_subsystem": source_subsystem,
+        "model_selected_subsystem": source_subsystem,
         "source_review_packet_id": str(
             selected.get("review_packet_id", "")
             or selected.get("semantic_review_packet_id", "")
@@ -14691,12 +12996,11 @@ def _runtime_generated_code_semantic_review_inherited_obligations(
         "required_prior_finding_ids": required_ids,
         "active_prior_finding_ledger": active_ledger,
         "review_rule": (
-            "Review every active parent finding against the fresh current artifact. "
-            "Resolve it explicitly or preserve the same finding identity as "
-            "unresolved; unrelated new blockers require current explicit authority."
+            "Review every active prior observation against the fresh current artifact "
+            "and report whether the evidence closes it."
         ),
         "proof_evidence_status": (
-            "INHERITED_GENERATED_CODE_REPAIR_OBLIGATIONS_NOT_PROOF_EVIDENCE"
+            "INHERITED_GENERATED_CODE_OBSERVATIONS_NOT_PROOF_EVIDENCE"
         ),
     }
     obligations["obligation_set_fingerprint"] = stable_hash(obligations)
@@ -14843,26 +13147,26 @@ def _runtime_generated_code_semantic_review_material(
         for key, value in source_manifest.items()
         if key not in {"generated_simulation_sandbox_prototypes", "prototypes"}
     }
-    repair_task = work_order.get("repair_task", {})
-    repair_inputs = (
-        repair_task.get("inputs", {})
-        if isinstance(repair_task, Mapping)
+    source_task = work_order.get("source_task", {})
+    source_inputs = (
+        source_task.get("inputs", {})
+        if isinstance(source_task, Mapping)
         else {}
     )
-    repair_context = (
-        repair_inputs.get("architect_context", {})
-        if isinstance(repair_inputs, Mapping)
+    source_context = (
+        source_inputs.get("architect_context", {})
+        if isinstance(source_inputs, Mapping)
         else {}
     )
     dependency_handoff = (
-        repair_inputs.get("upstream_algorithm_handoff", {})
-        if isinstance(repair_inputs, Mapping)
+        source_inputs.get("upstream_algorithm_handoff", {})
+        if isinstance(source_inputs, Mapping)
         else {}
     )
     if not isinstance(dependency_handoff, Mapping) or not dependency_handoff:
         dependency_handoff = (
-            repair_context.get("upstream_algorithm_handoff", {})
-            if isinstance(repair_context, Mapping)
+            source_context.get("upstream_algorithm_handoff", {})
+            if isinstance(source_context, Mapping)
             else {}
         )
     if not isinstance(dependency_handoff, Mapping):
@@ -14948,11 +13252,8 @@ def _runtime_generated_code_semantic_review_material(
         ),
         "source_responsibility_contract": source_responsibility_contract,
         "review_scope_projection": review_scope_projection,
-        "pending_repair_plan": dict(
-            work_order.get("pending_repair_plan", {}) or {}
-        ),
-        "inherited_repair_obligations": (
-            _runtime_generated_code_semantic_review_inherited_obligations(
+        "prior_semantic_observations": (
+            _runtime_generated_code_semantic_review_prior_observations(
                 work_order=work_order,
                 source_subsystem=source_subsystem,
             )
@@ -14962,166 +13263,6 @@ def _runtime_generated_code_semantic_review_material(
         "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
     }
     return material, sorted(set(errors))
-
-
-def _runtime_generated_code_authoritative_repair_routing(
-    *,
-    source_subsystem: str,
-    review_packet: Mapping[str, Any],
-    routed_findings: Sequence[Mapping[str, Any]],
-    prioritized_repair_scopes: Sequence[str] = (),
-) -> dict[str, Any]:
-    target_scope_by_role = {
-        "source_theory_packet": "upstream_theory",
-        "metric_protocol_candidate": "upstream_metric_contract",
-        "upstream_generated_dependency": (
-            GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
-        ),
-        "generated_source_artifact": "source_code",
-    }
-    deferred_routed_findings: list[dict[str, Any]] = []
-    deferred_fingerprints: set[str] = set()
-    for row in routed_findings:
-        if not isinstance(row, Mapping):
-            continue
-        for target in row.get("deferred_repair_target_artifacts", []) or []:
-            if not isinstance(target, Mapping):
-                continue
-            artifact_role = str(target.get("artifact_role", "") or "").strip()
-            deferred_scope = target_scope_by_role.get(artifact_role, "")
-            if not deferred_scope:
-                continue
-            semantic_required_change = str(
-                row.get(
-                    "semantic_reviewer_required_change",
-                    row.get("required_change", ""),
-                )
-                or ""
-            )
-            deferred_fingerprint = stable_hash(
-                [
-                    deferred_scope,
-                    artifact_role,
-                    str(row.get("category", "") or ""),
-                    str(row.get("summary", "") or ""),
-                    semantic_required_change,
-                ]
-            )
-            if deferred_fingerprint in deferred_fingerprints:
-                continue
-            deferred_fingerprints.add(deferred_fingerprint)
-            deferred_finding = dict(row)
-            deferred_finding.update(
-                {
-                    "repair_scope": deferred_scope,
-                    "repair_target_artifacts": [dict(target)],
-                    "deferred_repair_target_artifacts": [],
-                    "required_change": semantic_required_change,
-                    "runtime_deferred_repair_target": True,
-                    "runtime_deferred_target_artifact_role": artifact_role,
-                }
-            )
-            deferred_routed_findings.append(deferred_finding)
-    observed_scopes = {
-        str(row.get("repair_scope", "") or "").strip()
-        for row in routed_findings
-        if isinstance(row, Mapping)
-    }
-    observed_scopes.update(
-        str(row.get("repair_scope", "") or "").strip()
-        for row in deferred_routed_findings
-    )
-    actionable_observed_scopes = observed_scopes.intersection(
-        GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER
-    )
-    unresolved_ownership_observed = bool(
-        "unresolved" in observed_scopes
-    )
-    ordered_actionable_scopes = [
-        scope
-        for scope in GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER
-        if scope in actionable_observed_scopes
-    ]
-    partial_source_repair_frontier = bool(
-        unresolved_ownership_observed
-        and "source_code" in actionable_observed_scopes
-    )
-    routing_unresolved = bool(
-        unresolved_ownership_observed or not actionable_observed_scopes
-    )
-    if partial_source_repair_frontier:
-        repair_scopes = [
-            "source_code",
-            *[
-                scope
-                for scope in ordered_actionable_scopes
-                if scope != "source_code"
-            ],
-            "unresolved",
-        ]
-    elif routing_unresolved:
-        repair_scopes = ["unresolved"]
-    else:
-        repair_scopes = [
-            scope
-            for scope in GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER
-            if scope in actionable_observed_scopes
-        ]
-    prioritized_scopes = [
-        scope
-        for scope in dict.fromkeys(
-            str(value).strip() for value in prioritized_repair_scopes
-        )
-        if scope in repair_scopes
-    ]
-    repair_scopes = [
-        *prioritized_scopes,
-        *[scope for scope in repair_scopes if scope not in prioritized_scopes],
-    ]
-    repair_scope = repair_scopes[0] if repair_scopes else ""
-    repair_owner = (
-        source_subsystem
-        if repair_scope == "source_code"
-        else "AlgorithmEngineer"
-        if repair_scope
-        == GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
-        else "ArchitectCoordinator"
-    )
-    repair_plan = [
-        {
-            "sequence": index,
-            "repair_scope": scope,
-            "repair_owner": (
-                source_subsystem
-                if scope == "source_code"
-                else "AlgorithmEngineer"
-                if scope
-                == GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
-                else "ArchitectCoordinator"
-            ),
-        }
-        for index, scope in enumerate(repair_scopes, start=1)
-    ]
-    return {
-        "semantic_reviewer_repair_scope": str(
-            review_packet.get("repair_scope", "") or ""
-        ),
-        "semantic_reviewer_repair_scopes": list(
-            review_packet.get("repair_scopes", []) or []
-        ),
-        "repair_scope": repair_scope,
-        "repair_scopes": repair_scopes,
-        "repair_owner": repair_owner,
-        "repair_plan": repair_plan,
-        "ownership_resolved": not routing_unresolved,
-        "partial_repair_frontier": partial_source_repair_frontier,
-        "deferred_unresolved_ownership": bool(
-            unresolved_ownership_observed
-            and partial_source_repair_frontier
-        ),
-        "deferred_routed_findings": deferred_routed_findings,
-        "prioritized_repair_scopes": prioritized_scopes,
-    }
 
 
 class GeneratedCodeSemanticReviewerRuntimeSubsystem:
@@ -15239,9 +13380,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             expected_manifest_kind
         ):
             validation_errors.append("semantic review source manifest kind mismatch")
-        repair_task_payload = (
-            work_order.get("repair_task", {})
-            if isinstance(work_order.get("repair_task", {}), Mapping)
+        source_task_payload = (
+            work_order.get("source_task", {})
+            if isinstance(work_order.get("source_task", {}), Mapping)
             else {}
         )
         deferred_task_payload = (
@@ -15259,14 +13400,14 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         )
         if not accepted_task_payload:
             accepted_task_payload = deferred_task_payload
-        if str(repair_task_payload.get("owner_subsystem", "") or "") != (
+        if str(source_task_payload.get("owner_subsystem", "") or "") != (
             source_subsystem
         ):
-            validation_errors.append("semantic review repair task owner mismatch")
-        if str(repair_task_payload.get("task_id", "") or "") != str(
+            validation_errors.append("semantic review source task owner mismatch")
+        if str(source_task_payload.get("task_id", "") or "") != str(
             work_order.get("source_task_id", "") or ""
         ):
-            validation_errors.append("semantic review repair task identity mismatch")
+            validation_errors.append("semantic review source task identity mismatch")
         if not str(deferred_task_payload.get("owner_subsystem", "") or ""):
             validation_errors.append("semantic review deferred task missing")
         if not str(accepted_task_payload.get("owner_subsystem", "") or ""):
@@ -15285,12 +13426,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 )
             )
             validation_errors.extend(material_errors)
-            validation_errors.extend(
-                generated_code_semantic_review_pending_plan_errors(
-                    packet={},
-                    review_material=review_material,
-                )
-            )
         if validation_errors:
             return AgentStepResult(
                 status="BLOCKED",
@@ -15438,16 +13573,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     "packet_id",
                     "review_input_fingerprint",
                     "model_requested_overall_verdict",
-                    "model_requested_repair_scope",
-                    "model_requested_repair_scopes",
                     "overall_verdict",
-                    "repair_scope",
-                    "repair_scopes",
-                    "repair_owner",
                     "prior_finding_reviews",
                     "dimension_reviews",
                     "findings",
-                    "repair_instructions",
                     "proof_evidence_status",
                 )
                 if key in last_invalid_packet
@@ -15577,120 +13706,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         reviewer_model = str(review_packet.get("model", "") or "")
         reviewer_tier = str(review_packet.get("model_tier", "") or "")
         reviewer_agent = str(review_packet.get("source_agent", "") or "")
-        active_pending_plan = (
-            generated_code_semantic_review_active_pending_repair_plan(
-                review_material
-            )
-        )
-        active_pending_scopes = [
-            str(value)
-            for value in active_pending_plan.get(
-                "active_repair_scopes", []
-            )
-            or []
-            if str(value)
-        ]
-        existing_finding_fingerprints = {
-            stable_hash(
-                [
-                    str(row.get("repair_scope", "") or ""),
-                    str(row.get("category", "") or ""),
-                    str(row.get("summary", "") or ""),
-                    str(row.get("required_change", "") or ""),
-                ]
-            )
-            for row in routed_findings
-        }
-        carried_pending_findings: list[dict[str, Any]] = []
-        for row in active_pending_plan.get("active_findings", []) or []:
-            if not isinstance(row, Mapping):
-                continue
-            finding_fingerprint = stable_hash(
-                [
-                    str(row.get("repair_scope", "") or ""),
-                    str(row.get("category", "") or ""),
-                    str(row.get("summary", "") or ""),
-                    str(row.get("required_change", "") or ""),
-                ]
-            )
-            if finding_fingerprint in existing_finding_fingerprints:
-                continue
-            carried = dict(row)
-            carried["runtime_carried_pending_repair"] = True
-            carried["pending_repair_plan_id"] = str(
-                active_pending_plan.get(
-                    "pending_repair_plan_id",
-                    "",
-                )
-                or ""
-            )
-            carried_pending_findings.append(carried)
-            existing_finding_fingerprints.add(finding_fingerprint)
-        routed_findings.extend(carried_pending_findings)
-        verdict = (
-            "REVISE"
-            if active_pending_scopes
-            else reviewer_verdict
-        )
-        authoritative_routing = (
-            _runtime_generated_code_authoritative_repair_routing(
-                source_subsystem=source_subsystem,
-                review_packet=review_packet,
-                routed_findings=routed_findings,
-                prioritized_repair_scopes=active_pending_scopes,
-            )
-            if verdict == "REVISE"
-            else {
-                "semantic_reviewer_repair_scope": str(
-                    review_packet.get("repair_scope", "") or ""
-                ),
-                "semantic_reviewer_repair_scopes": list(
-                    review_packet.get("repair_scopes", []) or []
-                ),
-                "repair_scope": str(
-                    review_packet.get("repair_scope", "") or ""
-                ),
-                "repair_scopes": list(
-                    review_packet.get("repair_scopes", []) or []
-                ),
-                "repair_owner": str(
-                    review_packet.get("repair_owner", "") or ""
-                ),
-                "repair_plan": list(
-                    review_packet.get("repair_plan", []) or []
-                ),
-                "ownership_resolved": True,
-            }
-        )
-        repair_scope = str(
-            authoritative_routing.get("repair_scope", "") or ""
-        )
-        repair_scopes = [
-            str(value)
-            for value in authoritative_routing.get("repair_scopes", []) or []
-            if str(value)
-        ]
-        repair_plan = [
-            dict(row)
-            for row in authoritative_routing.get("repair_plan", []) or []
-            if isinstance(row, Mapping)
-        ]
-        repair_owner_agent = str(
-            authoritative_routing.get("repair_owner", "") or ""
-        )
-        immediate_routed_findings = [
-            dict(row)
-            for row in routed_findings
-            if isinstance(row, Mapping)
-            and (
-                repair_scope
-                not in {
-                    "source_code",
-                    ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY,
-                }
-                or str(row.get("repair_scope", "") or "") == repair_scope
-            )
-        ]
+        verdict = reviewer_verdict
         empirical_evaluation_phase = str(
             work_order.get("empirical_evaluation_phase", "") or ""
         )
@@ -15714,6 +13730,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "actual_runtime_arguments": dict(
                     row.get("actual_runtime_arguments", {}) or {}
                 ),
+                "artifact_role": "reviewed_source",
             }
             for row in review_material.get("exact_executed_artifacts", []) or []
             if isinstance(row, Mapping)
@@ -15742,6 +13759,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     row.get("exact_result_hash", "") or ""
                 ),
                 "actual_runtime_arguments": {},
+                "artifact_role": "upstream_generated_dependency",
             }
             for row in upstream_dependency_material.get(
                 "exact_dependency_artifacts",
@@ -15750,56 +13768,17 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             or []
             if isinstance(row, Mapping)
         ]
-        repairing_upstream_dependency = bool(
-            repair_scope
-            == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
-        )
-        reviewed_source_artifacts = (
-            upstream_dependency_artifacts
-            if repairing_upstream_dependency
-            else current_reviewed_source_artifacts
-        )
-        repair_target_subsystem = (
-            "AlgorithmEngineer"
-            if repairing_upstream_dependency
-            else repair_owner_agent
-        )
-        parent_source_manifest_id = (
-            str(
-                upstream_dependency_material.get(
-                    "algorithm_sandbox_manifest_id",
-                    "",
-                )
-                or ""
-            )
-            if repairing_upstream_dependency
-            else str(work_order.get("source_manifest_id", "") or "")
-        )
-        parent_source_manifest_hash = (
-            str(
-                upstream_dependency_material.get(
-                    "algorithm_sandbox_manifest_hash",
-                    "",
-                )
-                or ""
-            )
-            if repairing_upstream_dependency
-            else str(work_order.get("source_manifest_hash", "") or "")
-        )
-        source_repair_contract = {
-            "parent_source_manifest_id": parent_source_manifest_id,
-            "parent_source_manifest_hash": parent_source_manifest_hash,
-            "repair_target_subsystem": repair_target_subsystem,
-            "rejected_descendant_source_manifest_id": str(
+        reviewed_source_artifacts = [
+            *current_reviewed_source_artifacts,
+            *upstream_dependency_artifacts,
+        ]
+        source_lineage = {
+            "source_manifest_id": str(
                 work_order.get("source_manifest_id", "") or ""
-            )
-            if repairing_upstream_dependency
-            else "",
-            "rejected_descendant_source_manifest_hash": str(
+            ),
+            "source_manifest_hash": str(
                 work_order.get("source_manifest_hash", "") or ""
-            )
-            if repairing_upstream_dependency
-            else "",
+            ),
             "theory_packet_id": str(
                 work_order.get("theory_packet_id", "") or ""
             ),
@@ -15825,13 +13804,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             ),
             "embedded_source_is_untrusted_data": True,
             "proof_evidence_status": (
-                "GENERATED_CODE_SOURCE_REPAIR_CONTRACT_NOT_PROOF_EVIDENCE"
+                "GENERATED_CODE_SOURCE_LINEAGE_NOT_PROOF_EVIDENCE"
             ),
         }
-        if repairing_upstream_dependency:
-            source_repair_contract[
-                "current_consumer_source_may_not_modify_dependency"
-            ] = True
         execution_id = "generated_code_semantic_review_execution:" + stable_hash(
             [work_order_id, work_order_hash, review_packet_id, review_packet_hash]
         )[:20]
@@ -15885,49 +13860,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "reviewer_overall_verdict": reviewer_verdict,
             "overall_verdict": verdict,
             "workflow_verdict": verdict,
-            "runtime_carried_pending_repair": bool(
-                active_pending_scopes
-            ),
-            "active_pending_repair_scopes": active_pending_scopes,
-            "pending_repair_plan_id": str(
-                active_pending_plan.get(
-                    "pending_repair_plan_id",
-                    "",
-                )
-                or ""
-            ),
-            "repair_scope": repair_scope,
-            "repair_scopes": repair_scopes,
-            "repair_plan": repair_plan,
-            "repair_owner_agent": repair_owner_agent,
-            "repair_target_subsystem": repair_target_subsystem,
-            "semantic_reviewer_repair_scope": str(
-                authoritative_routing.get(
-                    "semantic_reviewer_repair_scope", ""
-                )
-                or ""
-            ),
-            "semantic_reviewer_repair_scopes": list(
-                authoritative_routing.get(
-                    "semantic_reviewer_repair_scopes", []
-                )
-                or []
-            ),
-            "repair_scope_resolved": bool(
-                authoritative_routing.get("ownership_resolved", True)
-            ),
-            "partial_repair_frontier": bool(
-                authoritative_routing.get("partial_repair_frontier", False)
-            ),
-            "deferred_unresolved_ownership": bool(
-                authoritative_routing.get(
-                    "deferred_unresolved_ownership",
-                    False,
-                )
-            ),
-            "source_repair_budget": dict(
-                work_order.get("source_repair_budget", {}) or {}
-            ),
             "reviewed_source_artifact_lineage": [
                 {
                     "artifact_id": row["artifact_id"],
@@ -15939,14 +13871,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 }
                 for row in reviewed_source_artifacts
             ],
-            "source_repair_contract_fingerprint": stable_hash(
-                source_repair_contract
-            ),
-            "repair_routing_authority": (
-                "GeneratedCodeSemanticReviewer+RuntimePendingRepairPlan"
-                if active_pending_scopes
-                else "GeneratedCodeSemanticReviewer"
-            ),
+            "source_lineage_fingerprint": stable_hash(source_lineage),
+            "routing_authority_on_revise": "ArchitectCoordinator_model_packet",
+            "runtime_selected_owner": False,
             "reviewer_packet_accepted": reviewer_verdict == "ACCEPT",
             "semantic_review_accepted": verdict == "ACCEPT",
             "empirical_evaluation_phase": empirical_evaluation_phase,
@@ -15982,8 +13909,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "semantic_review_execution_id": execution_id,
             "semantic_review_packet_id": review_packet_id,
             "semantic_review_packet_hash": review_packet_hash,
-            "repair_scope": repair_scope,
-            "repair_scopes": repair_scopes,
         }
         feedback = {
             "feedback_id": (
@@ -15996,43 +13921,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "reviewer_overall_verdict": reviewer_verdict,
             "overall_verdict": verdict,
             "workflow_verdict": verdict,
-            "runtime_carried_pending_repair": bool(
-                active_pending_scopes
-            ),
-            "active_pending_repair_scopes": active_pending_scopes,
-            "pending_repair_plan_id": str(
-                active_pending_plan.get(
-                    "pending_repair_plan_id",
-                    "",
-                )
-                or ""
-            ),
-            "repair_scope": repair_scope,
-            "repair_scopes": repair_scopes,
-            "repair_plan": repair_plan,
-            "repair_owner_agent": repair_owner_agent,
-            "repair_target_subsystem": repair_target_subsystem,
-            "semantic_reviewer_repair_scope": str(
-                authoritative_routing.get(
-                    "semantic_reviewer_repair_scope", ""
-                )
-                or ""
-            ),
-            "semantic_reviewer_repair_scopes": list(
-                authoritative_routing.get(
-                    "semantic_reviewer_repair_scopes", []
-                )
-                or []
-            ),
-            "partial_repair_frontier": bool(
-                authoritative_routing.get("partial_repair_frontier", False)
-            ),
-            "deferred_unresolved_ownership": bool(
-                authoritative_routing.get(
-                    "deferred_unresolved_ownership",
-                    False,
-                )
-            ),
+            "routing_authority": "ArchitectCoordinator_model_packet",
+            "runtime_selected_owner": False,
             "empirical_evaluation_phase": empirical_evaluation_phase,
             "confirmatory_empirical_evidence_eligible": (
                 confirmatory_empirical_evidence_eligible
@@ -16056,18 +13946,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "active_unresolved_finding_ids": list(
                 review_packet.get("active_unresolved_finding_ids", []) or []
             ),
-            "findings": immediate_routed_findings,
-            "semantic_reviewer_repair_instructions": list(
-                review_packet.get("repair_instructions", []) or []
-            ),
-            "repair_instructions": [
-                str(row.get("required_change", "") or "")
-                for row in immediate_routed_findings
-                if str(row.get("repair_scope", "") or "") != "none"
-                if str(row.get("required_change", "") or "").strip()
-            ],
+            "findings": routed_findings,
             "reviewed_source_artifacts": reviewed_source_artifacts,
-            "source_repair_contract": source_repair_contract,
+            "source_lineage": source_lineage,
             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
             "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
         }
@@ -16082,11 +13963,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             routing_bound_review_packet = {
                 **dict(review_packet),
                 "findings": routed_findings,
-                "repair_scope": repair_scope,
-                "repair_scopes": repair_scopes,
-                "repair_owner": repair_owner_agent,
-                "repair_plan": repair_plan,
-                "source_repair_contract": source_repair_contract,
             }
             lineage_budget_state = (
                 advance_generated_code_semantic_review_lineage_budget(
@@ -16101,9 +13977,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             )
             lineage_budget_summary = {
                 **dict(lineage_budget_state.get("row", {})),
-                "local_repair_available": bool(
-                    lineage_budget_state.get("local_repair_available")
-                ),
                 "architect_replan_available": bool(
                     lineage_budget_state.get("architect_replan_available")
                 ),
@@ -16182,35 +14055,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             next_context["accepted_generated_code_semantic_reviews"] = (
                 accepted_reviews
             )
-            next_feedback = next_inputs.get("environment_feedback", {})
-            if (
-                isinstance(next_feedback, Mapping)
-                and next_feedback.get("feedback_type")
-                == (
-                    "generated_code_semantic_review_pending_source_repair_"
-                    "feedback"
-                )
-            ):
-                next_context = (
-                    _runtime_context_with_dispatched_pending_source_repair(
-                        architect_context=next_context,
-                        target_subsystem=deferred_task.owner_subsystem,
-                        theory_packet_id=str(
-                            work_order.get("theory_packet_id", "") or ""
-                        ),
-                    )
-                )
             next_context = (
                 _runtime_retire_resolved_generated_code_semantic_review_replan(
                     architect_context=next_context,
                     accepted_review=accepted_review,
-                )
-            )
-            next_context = (
-                retire_generated_code_dependency_verification_obligation(
-                    architect_context=next_context,
-                    accepted_review=accepted_review,
-                    review_material=review_material,
                 )
             )
             if algorithm_handoff:
@@ -16301,322 +14149,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "artifacts and the runtime is resuming the deferred task."
             )
             failure_classification = ""
-        elif repair_scope == ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED:
-            lineage_ledger = record_generated_code_semantic_review_lineage_action(
-                lineage_budget_state,
-                action="blocked",
-            )
-            execution_manifest["semantic_review_lineage_budget"][
-                "selected_action"
-            ] = "blocked_unresolved_ownership"
-            execution_manifest[
-                GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
-            ] = lineage_ledger
-            next_task = None
-            status = "BLOCKED"
-            rationale = (
-                "The independent artifact-owner router could not resolve which "
-                "immutable artifact must change. The runtime stopped this lineage "
-                "instead of guessing or resetting the repair loop."
-            )
-            failure_classification = (
-                "generated_code_repair_ownership_unresolved"
-            )
-        elif (
-            repair_scope == "source_code"
-            and isinstance(work_order.get("source_repair_budget", {}), Mapping)
-            and work_order.get("source_repair_budget", {}).get(
-                "budget_exhausted"
-            )
-            is True
-            and lineage_budget_state.get("local_repair_available") is not True
-        ):
-            deferred_task = _agent_task_from_runtime_payload(
-                deferred_task_payload
-            )
-            source_repair_budget = dict(
-                work_order.get("source_repair_budget", {}) or {}
-            )
-            deferred_task = (
-                _runtime_generated_code_semantic_review_source_budget_yield_task(
-                    question=question,
-                    source_subsystem=source_subsystem,
-                    source_manifest_id=str(
-                        work_order.get("source_manifest_id", "") or ""
-                    ),
-                    theory_packet_id=str(
-                        work_order.get("theory_packet_id", "") or ""
-                    ),
-                    deferred_task=deferred_task,
-                    architect_context=(
-                        task.inputs.get("architect_context", {})
-                        if isinstance(
-                            task.inputs.get("architect_context", {}),
-                            Mapping,
-                        )
-                        else {}
-                    ),
-                    feedback=feedback,
-                    source_repair_budget=source_repair_budget,
-                )
-            )
-            next_inputs = dict(deferred_task.inputs)
-            prior_feedback = next_inputs.get("environment_feedback", {})
-            next_inputs["environment_feedback"] = {
-                **(
-                    dict(prior_feedback)
-                    if isinstance(prior_feedback, Mapping)
-                    else {}
-                ),
-                "generated_code_semantic_review_feedback": feedback,
-                "source_artifact_remains_unaccepted": True,
-            }
-            next_context = dict(
-                next_inputs.get("architect_context", {}) or {}
-            )
-            next_context[
-                "runtime_generated_code_semantic_review_source_budget_yield"
-            ] = {
-                "artifact_kind": (
-                    "RuntimeGeneratedCodeSemanticReviewSourceBudgetYield"
-                ),
-                "source_manifest_id": str(
-                    work_order.get("source_manifest_id", "") or ""
-                ),
-                "review_execution_id": execution_id,
-                "source_repair_budget": dict(
-                    source_repair_budget
-                ),
-                "source_artifact_remains_unaccepted": True,
-                "proof_evidence_status": (
-                    "SOURCE_REPAIR_BUDGET_YIELD_NOT_PROOF_EVIDENCE"
-                ),
-            }
-            lineage_ledger = (
-                record_generated_code_semantic_review_lineage_action(
-                    lineage_budget_state,
-                    action="source_budget_yield",
-                )
-            )
-            next_context[
-                GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
-            ] = lineage_ledger
-            execution_manifest["semantic_review_lineage_budget"][
-                "selected_action"
-            ] = "source_budget_yield"
-            execution_manifest[
-                GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
-            ] = lineage_ledger
-            next_inputs["architect_context"] = next_context
-            next_task = replace(
-                deferred_task,
-                task_id=(
-                    f"semantic-review-source-budget-yield:{question.id}:"
-                    f"{stable_hash([execution_id, deferred_task.task_id])[:8]}"
-                ),
-                inputs=next_inputs,
-            )
-            status = "REROUTE"
-            rationale = (
-                "Independent semantic review kept the source-code blocker open, "
-                "but the source agent's runtime repair budget was already "
-                f"exhausted; the deferred {deferred_task.owner_subsystem} task "
-                "is resuming so the empirical loop cannot starve other evidence "
-                "lanes."
-            )
-            failure_classification = (
-                "generated_code_semantic_review_source_repair_budget_yield"
-            )
-        elif (
-            repair_scope == "source_code"
-            and lineage_budget_state.get("local_repair_available") is True
-        ):
-            source_repair_budget = dict(
-                work_order.get("source_repair_budget", {}) or {}
-            )
-            reviewer_bound_repair_reserved = bool(
-                source_repair_budget.get("budget_exhausted") is True
-            )
-            if reviewer_bound_repair_reserved:
-                feedback["ordinary_source_repair_budget_exhausted"] = True
-                feedback["reviewer_bound_repair_reserved"] = True
-            source_planned_task_payload = (
-                _runtime_generated_code_semantic_review_source_repair_task_payload(
-                    source_subsystem=source_subsystem,
-                    source_execution_task=repair_task_payload,
-                    source_planned_next_task=deferred_task_payload,
-                )
-            )
-            repair_task = _agent_task_from_runtime_payload(
-                source_planned_task_payload
-            )
-            next_inputs = dict(repair_task.inputs)
-            prior_feedback = (
-                dict(next_inputs.get("environment_feedback", {}) or {})
-                if isinstance(next_inputs.get("environment_feedback", {}), Mapping)
-                else {}
-            )
-            next_inputs["environment_feedback"] = (
-                _generated_code_review_feedback_with_source_execution_snapshot(
-                    prior_feedback=prior_feedback,
-                    review_feedback=feedback,
-                )
-            )
-            next_inputs["generated_code_semantic_review_revision_count"] = (
-                revision_count + 1
-            )
-            next_context = dict(next_inputs.get("architect_context", {}) or {})
-            next_context["environment_feedback"] = next_inputs[
-                "environment_feedback"
-            ]
-            pending_upstream_scopes = [
-                scope
-                for scope in repair_scopes
-                if scope in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
-            ]
-            if pending_upstream_scopes:
-                pending_finding_candidates = [
-                    *routed_findings,
-                    *[
-                        dict(row)
-                        for row in authoritative_routing.get(
-                            "deferred_routed_findings",
-                            [],
-                        )
-                        or []
-                        if isinstance(row, Mapping)
-                    ],
-                ]
-                pending_plan = {
-                    "artifact_kind": (
-                        "RuntimeGeneratedCodeSemanticReviewPendingRepairPlan"
-                    ),
-                    "question_id": question.id,
-                    "source_subsystem": source_subsystem,
-                    "rejected_source_manifest_id": str(
-                        work_order.get("source_manifest_id", "") or ""
-                    ),
-                    "review_packet_id": review_packet_id,
-                    "review_execution_id": execution_id,
-                    "pending_repair_scopes": pending_upstream_scopes,
-                    "repair_plan": repair_plan,
-                    "theory_packet_hash": str(
-                        work_order.get("theory_packet_hash", "") or ""
-                    ),
-                    "architect_evidence_contract_hash": stable_hash(
-                        work_order.get("architect_evidence_contract", {})
-                    ),
-                    "pending_findings": [
-                        dict(row)
-                        for row in pending_finding_candidates
-                        if isinstance(row, Mapping)
-                        and str(row.get("repair_scope", "") or "")
-                        in pending_upstream_scopes
-                    ],
-                    "proof_evidence_status": (
-                        "GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_"
-                        "PLAN_NOT_PROOF_EVIDENCE"
-                    ),
-                }
-                pending_plan["pending_repair_plan_id"] = (
-                    "generated_code_semantic_review_pending_repair_plan:"
-                    + stable_hash(pending_plan)[:20]
-                )
-                next_context[
-                    GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY
-                ] = pending_plan
-            lineage_ledger = record_generated_code_semantic_review_lineage_action(
-                lineage_budget_state,
-                action="local_repair",
-            )
-            execution_manifest["semantic_review_lineage_budget"][
-                "reviewer_bound_repair_reserved"
-            ] = reviewer_bound_repair_reserved
-            next_context[
-                GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
-            ] = lineage_ledger
-            if reviewer_bound_repair_reserved:
-                next_context[
-                    "runtime_generated_code_semantic_review_reviewer_bound_repair"
-                ] = {
-                    "artifact_kind": (
-                        "RuntimeGeneratedCodeSemanticReviewReviewerBoundRepair"
-                    ),
-                    "source_manifest_id": str(
-                        work_order.get("source_manifest_id", "") or ""
-                    ),
-                    "review_execution_id": execution_id,
-                    "semantic_review_lineage_key": str(
-                        lineage_budget_state.get("lineage_key", "") or ""
-                    ),
-                    "source_repair_budget": source_repair_budget,
-                    "reviewer_bound_repair_reserved": True,
-                    "source_artifact_remains_unaccepted": True,
-                    "proof_evidence_status": (
-                        "REVIEWER_BOUND_SOURCE_REPAIR_NOT_PROOF_EVIDENCE"
-                    ),
-                }
-            execution_manifest["semantic_review_lineage_budget"][
-                "selected_action"
-            ] = "local_repair"
-            next_context["runtime_feedback_loop"] = {
-                **(
-                    dict(next_context.get("runtime_feedback_loop", {}) or {})
-                    if isinstance(
-                        next_context.get("runtime_feedback_loop", {}), Mapping
-                    )
-                    else {}
-                ),
-                "source_subsystem": GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
-                "handoff": "generated_code_semantic_review_repair",
-                "semantic_review_execution_id": execution_id,
-                "generated_code_semantic_review_revision_count": (
-                    revision_count + 1
-                ),
-            }
-            next_task_id = (
-                f"semantic-review-revise:{question.id}:"
-                f"{stable_hash([execution_id, revision_count + 1])[:8]}"
-            )
-            next_context["runtime_feedback_loop"][
-                "direct_repair_handoff_contract"
-            ] = build_typed_repair_handoff_contract(
-                source_reviewer_subsystem=(
-                    GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
-                ),
-                source_task_id=task.task_id,
-                target_repair_subsystem=repair_task.owner_subsystem,
-                target_task_id=next_task_id,
-                feedback_artifact_id=review_packet_id,
-                feedback_artifact_kind="GeneratedCodeSemanticReviewPacket",
-                feedback_execution_id=execution_id,
-                feedback_execution_artifact_kind=(
-                    "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
-                ),
-                feedback_type="generated_code_semantic_review_feedback",
-                revision_count=revision_count + 1,
-                max_revisions=max_revisions,
-            )
-            next_inputs["architect_context"] = next_context
-            next_task = replace(
-                repair_task,
-                task_id=next_task_id,
-                inputs=next_inputs,
-            )
-            status = "REVISE"
-            rationale = (
-                "Independent ownership routing resolved a bounded current-source "
-                "repair while preserving other unresolved ownership for fresh "
-                "review; exact source findings are returning to the coding agent."
-                if authoritative_routing.get("partial_repair_frontier") is True
-                else "Independent semantic review rejected runnable generated code "
-                "and is routing exact findings to the source coding agent for fresh "
-                "generation and execution."
-            )
-            failure_classification = "generated_code_semantic_review_revise"
         else:
             prior_feedback: dict[str, Any] = {}
-            for task_payload in (repair_task_payload, deferred_task_payload):
+            for task_payload in (source_task_payload, deferred_task_payload):
                 task_inputs = (
                     task_payload.get("inputs", {})
                     if isinstance(task_payload.get("inputs", {}), Mapping)
@@ -16626,22 +14161,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 if isinstance(task_feedback, Mapping):
                     prior_feedback.update(dict(task_feedback))
             escalation_classification = (
-                "generated_code_semantic_review_metric_protocol_revision_required"
-                if repair_scope == "upstream_metric_contract"
-                else (
-                    "generated_code_semantic_review_upstream_generated_"
-                    "dependency_repair_escalated_to_architect"
-                )
-                if repair_scope
-                == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
-                else "generated_code_semantic_review_upstream_theory_repair_escalated_to_architect"
-                if repair_scope == "upstream_theory"
-                else "generated_code_semantic_review_upstream_repair_escalated_to_architect"
-                if repair_scope
-                in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
-                else "generated_code_semantic_review_revision_budget_escalated_to_architect"
+                "generated_code_semantic_review_requires_architect_replan"
             )
-            escalation_feedback = {
+            escalation_feedback = architect_observations_without_runtime_routing({
                 **_generated_code_review_feedback_with_source_execution_snapshot(
                     prior_feedback=prior_feedback,
                     review_feedback=feedback,
@@ -16652,7 +14174,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     "max_revisions": max_revisions,
                     "source_artifact_remains_unaccepted": True,
                 },
-            }
+            })
             if lineage_budget_state.get("lineage_budget_exhausted") is True:
                 lineage_ledger = (
                     record_generated_code_semantic_review_lineage_action(
@@ -16669,9 +14191,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 next_task = None
                 status = "BLOCKED"
                 rationale = (
-                    "The theory-bound generated-code review exhausted its global "
-                    "local-repair and Architect-replan budget. The runtime stopped "
-                    "the source lineage instead of resetting a local counter."
+                    "The generated-code semantic review exhausted its global "
+                    "model-replan budget. The rejected artifact and observations "
+                    "remain recorded without a runtime-authored source change."
                 )
                 failure_classification = (
                     "generated_code_semantic_review_lineage_budget_exhausted"
@@ -16701,21 +14223,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 )
                 status = "REROUTE"
                 rationale = (
-                    "Independent semantic review bound the defect to an immutable "
-                    "upstream generated dependency; its complete parent source and "
-                    "the rejected descendant lineage are routed through "
-                    "ArchitectCoordinator to AlgorithmEngineer under unchanged gates."
-                    if repair_scope
-                    == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
-                    else "Independent semantic review found an upstream protocol or "
-                    "theory blocker; exact findings and failed execution lineage are "
-                    "routed to ArchitectCoordinator without post-result gate changes."
-                    if repair_scope
-                    in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
-                    else "Generated code still failed independent semantic review "
-                    "after the bounded local revision budget; exact review and "
-                    "execution lineage are routed to ArchitectCoordinator while the "
-                    "source artifact remains unaccepted."
+                    "Independent semantic review rejected the exact executed artifact. "
+                    "Complete source, execution evidence, and observations are routed "
+                    "to ArchitectCoordinator, whose model selects the next subsystem."
                 )
                 failure_classification = escalation_classification
 
@@ -16740,15 +14250,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     work_order.get("source_manifest_id", "") or ""
                 ),
                 "overall_verdict": verdict,
-                "repair_scope": repair_scope,
-                "repair_scopes": repair_scopes,
-                "repair_owner_agent": repair_owner_agent,
-                "repair_routing_authority": execution_manifest[
-                    "repair_routing_authority"
-                ],
-                "repair_scope_resolved": execution_manifest[
-                    "repair_scope_resolved"
-                ],
+                "routing_authority_on_revise": (
+                    "ArchitectCoordinator_model_packet"
+                ),
+                "runtime_selected_owner": False,
                 "empirical_evaluation_phase": empirical_evaluation_phase,
                 "confirmatory_empirical_evidence_eligible": (
                     confirmatory_empirical_evidence_eligible
@@ -18051,164 +15556,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 yield_after_attempts > 0
                 and repair_attempts_used >= yield_after_attempts
             )
-            if (
-                n_generated_simulation_estimator_binding_failed > 0
-                and not repair_budget_exhausted
-            ):
-                next_task = _simulation_estimator_abi_repair_task(
-                    question=question,
-                    theory_packet_id=packet_id,
-                    simulation_manifest_id=manifest_id,
-                    implementation_gaps=implementation_gaps,
-                    architect_context=effective_context,
-                    simulation_feedback=feedback,
-                    n_runs=n_runs,
-                    seed=seed,
-                    repair_attempts_used=repair_attempts_used,
-                    yield_after_attempts=yield_after_attempts,
-                )
-                observations.append(
-                    EnvironmentObservation(
-                        observation_type="accepted_algorithm_estimator_abi_regeneration",
-                        summary=(
-                            "confirmatory simulation could not mechanically invoke "
-                            "the accepted algorithm source; repair routed to "
-                            "AlgorithmEngineer"
-                        ),
-                        payload={
-                            "simulation_manifest_id": manifest_id,
-                            "failure_classification": (
-                                generated_simulation_failure_classification
-                            ),
-                            "next_owner_subsystem": next_task.owner_subsystem,
-                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                        },
-                    )
-                )
-                simulation_rationale = (
-                    "The exact accepted algorithm source failed the shared estimator "
-                    "ABI; typed runtime feedback is routed to AlgorithmEngineer before "
-                    "a fresh independent review and confirmatory retry."
-                )
-            elif (
-                n_generated_simulation_estimator_runtime_failed > 0
-                and not repair_budget_exhausted
-            ):
-                next_task = _simulation_estimator_runtime_repair_task(
-                    question=question,
-                    theory_packet_id=packet_id,
-                    simulation_manifest_id=manifest_id,
-                    implementation_gaps=implementation_gaps,
-                    architect_context=effective_context,
-                    simulation_feedback=feedback,
-                    n_runs=n_runs,
-                    seed=seed,
-                    repair_attempts_used=repair_attempts_used,
-                    yield_after_attempts=yield_after_attempts,
-                )
-                observations.append(
-                    EnvironmentObservation(
-                        observation_type=(
-                            "accepted_algorithm_estimator_runtime_regeneration"
-                        ),
-                        summary=(
-                            "a selected accepted estimator failed under the "
-                            "confirmatory DGP request; repair routed to "
-                            "AlgorithmEngineer"
-                        ),
-                        payload={
-                            "simulation_manifest_id": manifest_id,
-                            "failure_classification": (
-                                generated_simulation_failure_classification
-                            ),
-                            "next_owner_subsystem": next_task.owner_subsystem,
-                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                        },
-                    )
-                )
-                simulation_rationale = (
-                    "The selected hash-bound algorithm source failed on the runtime "
-                    "DGP request; typed implementation feedback is routed directly "
-                    "to AlgorithmEngineer before a fresh review and retry."
-                )
-            elif (
-                repair_budget_exhausted
-            ):
-                algorithm_sandbox_manifest_id = str(
-                    task.inputs.get("algorithm_sandbox_manifest_id", "") or ""
-                ).strip()
-                passed_algorithm_sandbox_manifest_id = (
-                    _runtime_generated_algorithm_sandbox_passed_manifest_id(
-                        blackboard,
-                        question_id=question.id,
-                        theory_packet_id=packet_id,
-                        required_estimator_ids=_implementation_gap_estimator_ids(
-                            implementation_gaps
-                        ),
-                    )
-                    if implementation_gaps
-                    else ""
-                )
-                if passed_algorithm_sandbox_manifest_id:
-                    algorithm_sandbox_manifest_id = (
-                        passed_algorithm_sandbox_manifest_id
-                    )
-                route_to_algorithm_engineer = bool(
-                    implementation_gaps
-                    and not passed_algorithm_sandbox_manifest_id
-                )
-                if route_to_algorithm_engineer:
-                    next_task = (
-                        _simulation_evaluator_repair_budget_yield_to_algorithm_task(
-                            question=question,
-                            theory_packet_id=packet_id,
-                            simulation_manifest_id=manifest_id,
-                            implementation_gaps=implementation_gaps,
-                            architect_context=effective_context,
-                            simulation_feedback=feedback,
-                            failure_classification=(
-                                generated_simulation_failure_classification
-                            ),
-                            repair_attempts_used=repair_attempts_used,
-                            yield_after_attempts=yield_after_attempts,
-                            n_runs=n_runs,
-                            seed=seed,
-                        )
-                    )
-                    yield_observation_type = (
-                        "simulation_evaluator_repair_budget_yield_to_algorithm"
-                    )
-                    yield_summary = (
-                        "SimulationEvaluator generated-code repair budget was "
-                        "exhausted; routing the still-open implementation gaps "
-                        "to AlgorithmEngineer before formalization."
-                    )
-                else:
-                    next_task = (
-                        _simulation_evaluator_repair_budget_yield_to_formalization_task(
-                            question=question,
-                            theory_packet_id=packet_id,
-                            simulation_manifest_id=manifest_id,
-                            algorithm_sandbox_manifest_id=(
-                                algorithm_sandbox_manifest_id
-                            ),
-                            architect_context=effective_context,
-                            simulation_feedback=feedback,
-                            failure_classification=(
-                                generated_simulation_failure_classification
-                            ),
-                            repair_attempts_used=repair_attempts_used,
-                            yield_after_attempts=yield_after_attempts,
-                        )
-                    )
-                    yield_observation_type = (
-                        "simulation_evaluator_repair_budget_yield_to_formalization"
-                    )
-                    yield_summary = (
-                        "SimulationEvaluator generated-code repair budget was "
-                        "exhausted; routing diagnostics to FormalizationEvaluator "
-                        "while keeping the generated simulation blocker open."
-                    )
+            if repair_budget_exhausted:
                 deferred_metric_protocol_payload = task.inputs.get(
                     "deferred_metric_protocol_task", {}
                 )
@@ -18239,16 +15587,14 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "exploratory_simulation_repair_budget_yield_to_metric_protocol"
                     )
                     yield_summary = (
-                        "Exploratory code exhausted its bounded repair budget; its "
+                        "Exploratory code exhausted its bounded revision budget; its "
                         "non-confirmatory diagnostics remain visible while the existing "
                         "Architect metric-protocol gate resumes."
                     )
-                if (
+                elif (
                     generated_simulation_failure_classification
                     == "generated_simulation_sandbox_metric_gate_failed"
                 ):
-                    deferred_next_task = next_task
-                    semantic_review_deferred_next_task = deferred_next_task
                     next_task = _coding_agent_metric_gate_architect_task(
                         task=task,
                         question=question,
@@ -18259,18 +15605,39 @@ class SimulationEvaluatorRuntimeSubsystem:
                         },
                         metric_feedback=feedback,
                         source_manifest_id=manifest_id,
-                        deferred_next_owner_subsystem=(
-                            deferred_next_task.owner_subsystem
-                        ),
                     )
+                    semantic_review_deferred_next_task = next_task
                     yield_observation_type = (
                         "simulation_metric_gate_architect_replan"
                     )
                     yield_summary = (
-                        "SimulationEvaluator exhausted its local metric repair "
+                        "SimulationEvaluator exhausted its local metric revision "
                         "budget; exact empirical failures are routed to "
                         "ArchitectCoordinator to choose theory, measurement, or "
                         "implementation work without weakening the frozen gate."
+                    )
+                else:
+                    next_task = _coding_agent_revision_budget_architect_task(
+                        task=task,
+                        question=question,
+                        context={
+                            **effective_context,
+                            "theory_packet_id": packet_id,
+                            "simulation_manifest_id": manifest_id,
+                        },
+                        revision_feedback=feedback,
+                        source_manifest_id=manifest_id,
+                        revision_attempts_used=repair_attempts_used,
+                        revision_max_attempts=yield_after_attempts,
+                    )
+                    yield_observation_type = (
+                        "simulation_revision_budget_architect_replan"
+                    )
+                    yield_summary = (
+                        "SimulationEvaluator exhausted its bounded same-agent "
+                        "revision budget; the complete candidate observations are "
+                        "routed to ArchitectCoordinator without a fixed subsystem "
+                        "backedge."
                     )
                 observations.append(
                     EnvironmentObservation(
@@ -18281,8 +15648,8 @@ class SimulationEvaluatorRuntimeSubsystem:
                             "failure_classification": (
                                 generated_simulation_failure_classification
                             ),
-                            "repair_attempts_used": repair_attempts_used,
-                            "yield_after_attempts": yield_after_attempts,
+                            "revision_attempts_used": repair_attempts_used,
+                            "revision_max_attempts": yield_after_attempts,
                             "next_owner_subsystem": next_task.owner_subsystem,
                             "n_open_implementation_gaps": len(
                                 implementation_gaps
@@ -18292,19 +15659,14 @@ class SimulationEvaluatorRuntimeSubsystem:
                     )
                 )
                 simulation_rationale = (
-                    "Exploratory simulation exhausted its bounded code-repair budget; "
+                    "Exploratory simulation exhausted its bounded code revision budget; "
                     "the failed diagnostic remains non-confirmatory and the existing "
                     "metric-protocol gate is resuming."
                     if exploratory_diagnostic
-                    else "Generated simulation sandbox repeatedly missed an "
-                    "independent empirical gate; exact evaluations are routed "
-                    "to ArchitectCoordinator for cross-subsystem diagnosis."
-                    if next_task.owner_subsystem == "ArchitectCoordinator"
-                    else "Generated simulation sandbox did not satisfy the "
-                    "required generated-simulation evidence after the bounded "
-                    f"repair budget; runtime is routing the blocker to "
-                    f"{next_task.owner_subsystem} so remaining subsystem work is "
-                    "not starved."
+                    else "Generated simulation did not satisfy its execution or "
+                    "empirical gate after bounded same-agent revision; exact source "
+                    "and observations are routed to ArchitectCoordinator for a typed "
+                    "cross-subsystem replan."
                 )
             else:
                 revision_context = dict(effective_context)
@@ -18355,8 +15717,9 @@ class SimulationEvaluatorRuntimeSubsystem:
                     task_id=f"simulation-revise:{question.id}:{stable_hash(feedback)[:8]}",
                     owner_subsystem="SimulationEvaluator",
                     objective=(
-                        "Repair the LLM-generated simulation stress-test draft using "
-                        "local sandbox diagnostics before downstream algorithm/formalization."
+                        "Regenerate the complete LLM simulation packet from the prior "
+                        "source and exact local sandbox observations before downstream "
+                        "algorithm/formalization."
                     ),
                     inputs=revision_inputs,
                     allowed_tools=("model_backend", "python", "filesystem_sandbox"),
@@ -18370,7 +15733,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "SimulationEvaluator",
                         "generated simulation draft executes safely or is removed with an explicit blocker",
                     ),
-                    stop_condition="repaired generated simulation feedback recorded",
+                    stop_condition="regenerated simulation feedback recorded",
                 )
                 simulation_rationale = (
                     "Generated simulation sandbox produced no acceptable "
@@ -18416,7 +15779,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "Generated simulation code executed but did not satisfy all "
                         "gates; the exact source, runtime result, theory packet, and "
                         "frozen protocol are routed to independent semantic review "
-                        "before repair or architectural replanning."
+                        "before complete model regeneration or architectural replanning."
                     )
             return AgentStepResult(
                 status=(
@@ -18613,22 +15976,30 @@ class SimulationEvaluatorRuntimeSubsystem:
         }
         revision_context = dict(context)
         revision_context["previous_theory_packet_id"] = packet_id
+        revision_context["environment_feedback"] = feedback
         next_task = AgentTask(
-            task_id=f"theory-revise:{question.id}:{stable_hash(feedback)[:8]}",
-            owner_subsystem="TheoryDeveloper",
-            objective="Revise theorem/procedure proposal using executable simulation feedback.",
+            task_id=f"simulation-replan:{question.id}:{stable_hash(feedback)[:8]}",
+            owner_subsystem="ArchitectCoordinator",
+            objective=(
+                "Choose the next subsystem from the complete simulation candidate "
+                "and raw execution observations."
+            ),
             inputs={
                 "question": _question_to_payload(question),
                 "architect_context": revision_context,
                 "environment_feedback": feedback,
             },
-            expected_artifacts=("revised_theory_derivation_packet",),
-            acceptance_gate="revised packet must address failed simulation diagnostics",
-            stop_condition="proposal revised or blocker classified",
+            expected_artifacts=("architect_coordinator_proposal",),
+            acceptance_gate="Architect packet selects a feasible next subsystem",
+            stop_condition="Architect replans or classifies a blocker",
         )
         return AgentStepResult(
-            status="REVISE",
-            rationale="Simulation did not pass; runtime is routing feedback back to TheoryDeveloper.",
+            status="REROUTE",
+            rationale=(
+                "Simulation did not pass; the runtime is returning the complete "
+                "observations to ArchitectCoordinator without assigning a fixed "
+                "theory or coding owner."
+            ),
             produced_artifacts=produced_artifacts,
             observations=tuple(observations),
             tool_calls=(
@@ -18920,11 +16291,6 @@ class AlgorithmEngineerRuntimeSubsystem:
             spec = _estimator_spec(packet, estimator_id)
             proposal_target = _algorithm_proposal_for_estimator(proposal_packet, estimator_id)
             code_draft = _algorithm_code_draft_for_estimator(proposal_packet, estimator_id)
-            template_hint = _registered_algorithm_template_hint(
-                proposal_target=proposal_target,
-                spec=spec,
-                question=question,
-            )
             if code_draft:
                 prototype, tool_call = _run_generated_code_sandbox(
                     sandbox_dir=sandbox_dir,
@@ -18951,18 +16317,18 @@ class AlgorithmEngineerRuntimeSubsystem:
                     )
                 )
                 tool_calls.append(tool_call)
-            elif requires_generated_algorithm_code:
+            else:
                 prototype_rows.append(
                     _annotate_generated_sandbox_prototype_provenance(
                         {
                             "estimator_id": estimator_id,
-                            "prototype_status": "GENERATED_CODE_REQUIRED_BUT_MISSING",
+                            "prototype_status": "MODEL_CODE_REQUIRED_BUT_MISSING",
                             "executor": "generated_python_sandbox",
                             "spec": dict(spec),
                             "reason": (
-                                "Capability evaluation requires a Claude/OpenAI-generated "
-                                "sandbox_code_drafts entry. Registered templates are "
-                                "baselines and were not executed for this capability gate."
+                                "AlgorithmEngineer did not return a complete executable "
+                                "sandbox_code_drafts entry for this estimator. AgentRuntime "
+                                "does not substitute registered or handwritten source."
                             ),
                             "promotion_ready": False,
                             "llm_algorithm_engineer_target": proposal_target,
@@ -18970,47 +16336,6 @@ class AlgorithmEngineerRuntimeSubsystem:
                         proposal_packet=proposal_packet,
                         repair_feedback=environment_feedback,
                     )
-                )
-            elif template_hint:
-                template_result = _run_registered_algorithm_template_prototype(
-                    template_hint=template_hint,
-                    sandbox_dir=sandbox_dir,
-                    estimator_id=estimator_id,
-                    spec=spec,
-                    n_runs=int(task.inputs.get("n_runs", self.n_runs) or self.n_runs),
-                    seed=int(task.inputs.get("seed", self.seed) or self.seed),
-                    timeout_s=self.timeout_s,
-                )
-                if template_result is not None:
-                    prototype, tool_call = template_result
-                    prototype["llm_algorithm_engineer_target"] = proposal_target
-                    prototype_rows.append(prototype)
-                    tool_calls.append(tool_call)
-                else:
-                    prototype_rows.append(
-                        {
-                            "estimator_id": estimator_id,
-                            "prototype_status": "UNSUPPORTED_SANDBOX_TEMPLATE",
-                            "spec": dict(spec),
-                            "registered_template_hint": template_hint,
-                            "reason": (
-                                "Registered algorithm template has no AgentRuntime "
-                                "sandbox executor binding."
-                            ),
-                            "promotion_ready": False,
-                            "llm_algorithm_engineer_target": proposal_target,
-                        }
-                    )
-            else:
-                prototype_rows.append(
-                    {
-                        "estimator_id": estimator_id,
-                        "prototype_status": "UNSUPPORTED_SANDBOX_TEMPLATE",
-                        "spec": dict(spec),
-                        "reason": "No sandbox implementation template is registered for this estimator id.",
-                        "promotion_ready": False,
-                        "llm_algorithm_engineer_target": proposal_target,
-                    }
                 )
         n_generated_code_execution_attempted = sum(
             1
@@ -19279,36 +16604,8 @@ class AlgorithmEngineerRuntimeSubsystem:
                 and yield_after_attempts > 0
                 and repair_attempts_used >= yield_after_attempts
             )
-            source_owned_failure = bool(
-                revision_failure_classification
-                in CODING_AGENT_SOURCE_OWNED_FAILURE_CLASSIFICATIONS
-            )
-            source_lineage = coding_agent_source_repair_lineage_state(
-                question_id=question.id,
-                source_subsystem="AlgorithmEngineer",
-                theory_packet_id=packet_id,
-                implementation_gaps=implementation_gaps,
-                architect_context=effective_context,
-                yield_after_attempts=yield_after_attempts,
-            )
-            if (
-                local_repair_budget_exhausted
-                and source_owned_failure
-                and int(source_lineage["dispatches_used"])
-                >= int(source_lineage["max_dispatches"])
-            ):
-                return coding_agent_source_repair_lineage_exhausted_result(
-                    task=task,
-                    question=question,
-                    source_manifest_id=manifest_id,
-                    lineage_state=source_lineage,
-                    produced_artifacts=produced_artifacts,
-                    observations=observations,
-                    tool_calls=tool_calls,
-                    evidence_entries=(proposal_evidence, evidence),
-                )
-            if local_repair_budget_exhausted and not source_owned_failure:
-                next_task = _coding_agent_repair_budget_architect_task(
+            if local_repair_budget_exhausted:
+                next_task = _coding_agent_revision_budget_architect_task(
                     task=task,
                     question=question,
                     context={
@@ -19317,19 +16614,19 @@ class AlgorithmEngineerRuntimeSubsystem:
                         "simulation_manifest_id": simulation_manifest_id,
                         "algorithm_sandbox_manifest_id": manifest_id,
                     },
-                    repair_feedback=feedback,
+                    revision_feedback=feedback,
                     source_manifest_id=manifest_id,
-                    repair_attempts_used=repair_attempts_used,
-                    yield_after_attempts=yield_after_attempts,
+                    revision_attempts_used=repair_attempts_used,
+                    revision_max_attempts=yield_after_attempts,
                 )
                 observations.append(
                     EnvironmentObservation(
                         observation_type=(
-                            "algorithm_engineer_repair_budget_architect_replan"
+                            "algorithm_engineer_revision_budget_architect_replan"
                         ),
                         summary=(
                             "AlgorithmEngineer exhausted its local generated-code "
-                            "repair budget; routing exact execution diagnostics to "
+                            "revision budget; routing exact execution observations to "
                             "ArchitectCoordinator for theory, implementation, or "
                             "interface replanning."
                         ),
@@ -19338,8 +16635,8 @@ class AlgorithmEngineerRuntimeSubsystem:
                             "failure_classification": (
                                 revision_failure_classification
                             ),
-                            "repair_attempts_used": repair_attempts_used,
-                            "yield_after_attempts": yield_after_attempts,
+                            "revision_attempts_used": repair_attempts_used,
+                            "revision_max_attempts": yield_after_attempts,
                             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                         },
                     )
@@ -19371,51 +16668,12 @@ class AlgorithmEngineerRuntimeSubsystem:
                         yield_after_attempts
                     ),
                 }
-                if local_repair_budget_exhausted and source_owned_failure:
-                    source_ledger = dict(source_lineage["ledger"])
-                    source_ledger[str(source_lineage["lineage_key"])] = {
-                        "dispatches_used": int(
-                            source_lineage["dispatches_used"]
-                        )
-                        + 1,
-                        "max_dispatches": int(source_lineage["max_dispatches"]),
-                        "source_subsystem": "AlgorithmEngineer",
-                        "theory_packet_id": packet_id,
-                    }
-                    revision_context[
-                        "runtime_coding_agent_source_repair_lineage_ledger"
-                    ] = source_ledger
-                    revision_context["runtime_feedback_loop"]["handoff"] = (
-                        "algorithm_engineer_global_source_repair"
-                    )
-                    observations.append(
-                        EnvironmentObservation(
-                            observation_type=(
-                                "algorithm_engineer_global_source_repair"
-                            ),
-                            summary=(
-                                "exact sandbox diagnostics routed directly to the "
-                                "source coding agent under a global lineage budget"
-                            ),
-                            payload={
-                                "algorithm_sandbox_manifest_id": manifest_id,
-                                "source_repair_dispatch_index": int(
-                                    source_lineage["dispatches_used"]
-                                )
-                                + 1,
-                                "max_source_repair_dispatches": int(
-                                    source_lineage["max_dispatches"]
-                                ),
-                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                            },
-                        )
-                    )
                 next_task = AgentTask(
                     task_id=f"algorithm-revise:{question.id}:{stable_hash(feedback)[:8]}",
                     owner_subsystem="AlgorithmEngineer",
                     objective=(
-                        "Repair the LLM implementation/sandbox draft using local "
-                        "sandbox diagnostics before routing to formalization."
+                        "Regenerate the complete LLM implementation packet from the "
+                        "prior source and raw sandbox observations."
                     ),
                     inputs={
                         "question": _question_to_payload(question),
@@ -19640,8 +16898,8 @@ class AlgorithmEngineerRuntimeSubsystem:
                 algorithm_rationale = (
                     "Generated algorithm code executed but did not satisfy all gates; "
                     "the exact source, runtime result, theory packet, and frozen "
-                    "protocol are routed to independent semantic review before repair "
-                    "or architectural replanning."
+                    "protocol are routed to independent semantic review before complete "
+                    "model regeneration or architectural replanning."
                 )
             elif next_task.owner_subsystem == "ArchitectCoordinator":
                 algorithm_rationale = (
@@ -19649,21 +16907,15 @@ class AlgorithmEngineerRuntimeSubsystem:
                     "empirical gate; exact evaluations are routed to "
                     "ArchitectCoordinator for cross-subsystem diagnosis."
                 )
-            elif next_task.owner_subsystem == "FormalizationEvaluator":
-                algorithm_rationale = (
-                    "AlgorithmEngineer did not satisfy the required generated-code "
-                    "sandbox evidence after the bounded repair budget; runtime is "
-                    "routing the blocker to FormalizationEvaluator so proof and "
-                    "formal-gap feedback are not starved."
-                )
             else:
                 algorithm_rationale = (
                     "AlgorithmEngineer did not satisfy the required generated-code "
                     "sandbox evidence; runtime is routing local diagnostics back to "
-                    "AlgorithmEngineer for repair."
+                    "AlgorithmEngineer for complete model-owned regeneration."
                     if requires_generated_algorithm_code
                     else "AlgorithmEngineer sandbox produced no acceptable executable prototype; "
-                    "runtime is routing local diagnostics back to AlgorithmEngineer for repair."
+                    "runtime is routing local diagnostics back to AlgorithmEngineer "
+                    "for complete model-owned regeneration."
                 )
         else:
             if next_task.owner_subsystem == "SimulationEvaluator":
@@ -19750,7 +17002,6 @@ def _coding_agent_packet_validation_state(
             "question_id": question_id,
             "source_subsystem": task.owner_subsystem,
             "validation_label": validation_label,
-            "validation_error_fingerprint": error_fingerprint,
             "fresh_candidate_id": str(
                 revision_cycle.get("fresh_candidate_id", "") or ""
             ),
@@ -19766,6 +17017,22 @@ def _coding_agent_packet_validation_state(
     if not isinstance(prior_lineage_row, Mapping):
         prior_lineage_row = {}
     lineage_round = int(prior_lineage_row.get("attempt_count", 0) or 0) + 1
+    observed_error_fingerprints = list(
+        dict.fromkeys(
+            [
+                *[
+                    str(value).strip()
+                    for value in prior_lineage_row.get(
+                        "observed_validation_error_fingerprints",
+                        [],
+                    )
+                    or []
+                    if str(value).strip()
+                ],
+                error_fingerprint,
+            ]
+        )
+    )
     observed_theory_packet_ids = list(
         dict.fromkeys(
             [
@@ -19791,6 +17058,7 @@ def _coding_agent_packet_validation_state(
         "observed_theory_packet_ids": observed_theory_packet_ids,
         "validation_label": validation_label,
         "validation_error_fingerprint": error_fingerprint,
+        "observed_validation_error_fingerprints": observed_error_fingerprints,
         "attempt_count": lineage_round,
         "max_lineage_failures": max_failures,
     }
@@ -19836,72 +17104,70 @@ def _coding_agent_packet_validation_state(
         "packet_validation_source_retry_escalated": (
             source_retry_escalated
         ),
-        "packet_validation_repair_owner": task.owner_subsystem,
-        "packet_validation_repair_owner_basis": "local_packet_validator",
         "packet_validation_replan_required": False,
     }
 
 
-def _coding_agent_repair_budget_architect_task(
+def _coding_agent_revision_budget_architect_task(
     *,
     task: AgentTask,
     question: OpenResearchQuestion,
     context: Mapping[str, Any],
-    repair_feedback: Mapping[str, Any],
+    revision_feedback: Mapping[str, Any],
     source_manifest_id: str,
-    repair_attempts_used: int,
-    yield_after_attempts: int,
+    revision_attempts_used: int,
+    revision_max_attempts: int,
 ) -> AgentTask:
     replan_context = dict(context)
-    replan_context["environment_feedback"] = dict(repair_feedback)
-    replan_context["runtime_coding_agent_repair_budget_replan"] = {
-        "artifact_kind": "RuntimeCodingAgentRepairBudgetReplanContext",
+    replan_context["environment_feedback"] = dict(revision_feedback)
+    replan_context["runtime_coding_agent_revision_budget_replan"] = {
+        "artifact_kind": "RuntimeCodingAgentRevisionBudgetReplanContext",
         "source_task_id": task.task_id,
         "source_subsystem": task.owner_subsystem,
         "source_manifest_id": source_manifest_id,
         "failure_classification": str(
-            repair_feedback.get("failure_classification", "") or ""
+            revision_feedback.get("failure_classification", "") or ""
         ),
-        "repair_attempts_used": int(repair_attempts_used),
-        "yield_after_attempts": int(yield_after_attempts),
+        "revision_attempts_used": int(revision_attempts_used),
+        "revision_max_attempts": int(revision_max_attempts),
         "implementation_gaps": [
             dict(row)
             for row in task.inputs.get("implementation_gaps", []) or []
             if isinstance(row, Mapping)
         ],
         "routing_contract": (
-            "Select a theory, implementation, interface, or execution-environment "
-            "repair from the exact diagnostics. Do not invent statistical acceptance, "
-            "treat a failed implementation as accepted, or use formalization progress "
-            "to close the empirical blocker."
+            "Select the next typed owner from the exact candidate and observations. "
+            "Do not prescribe a source patch, invent statistical acceptance, treat "
+            "a failed implementation as accepted, or use formalization progress to "
+            "close the empirical blocker."
         ),
         "proof_evidence_status": (
-            "CODING_AGENT_REPAIR_BUDGET_REPLAN_NOT_PROOF_EVIDENCE"
+            "CODING_AGENT_REVISION_BUDGET_REPLAN_NOT_PROOF_EVIDENCE"
         ),
     }
     return AgentTask(
         task_id=(
             f"architect-code-replan:{question.id}:"
-            f"{stable_hash([task.task_id, source_manifest_id, repair_feedback])[:8]}"
+            f"{stable_hash([task.task_id, source_manifest_id, revision_feedback])[:8]}"
         ),
         owner_subsystem="ArchitectCoordinator",
         objective=(
             "Replan an unresolved generated-code implementation failure after the "
-            "source worker exhausted its bounded local repair budget."
+            "same source worker exhausted its bounded full-candidate revision budget."
         ),
         inputs={
             "question": _question_to_payload(question),
             "architect_context": replan_context,
-            "environment_feedback": dict(repair_feedback),
+            "environment_feedback": dict(revision_feedback),
         },
         allowed_tools=("model_backend", "evidence_ledger"),
         expected_artifacts=("architect_coordinator_proposal",),
         acceptance_gate=(
-            "validated Architect proposal routes an evidence-producing repair or "
+            "validated Architect proposal routes to an evidence-producing owner or "
             "records a typed blocker without weakening execution gates"
         ),
         stop_condition=(
-            "amended route selects a theory, code, interface, or environment repair"
+            "amended route selects a theory, code, interface, or environment owner"
         ),
     )
 
@@ -19913,15 +17179,16 @@ def _coding_agent_metric_gate_architect_task(
     context: Mapping[str, Any],
     metric_feedback: Mapping[str, Any],
     source_manifest_id: str,
-    deferred_next_owner_subsystem: str,
 ) -> AgentTask:
     """Route an independently reviewed empirical failure without gate weakening."""
 
     replan_context = dict(context)
     replan_context["environment_feedback"] = dict(metric_feedback)
-    source_repair_budget = _runtime_generated_code_source_repair_budget_state(
+    candidate_revision_budget = (
+        _runtime_generated_code_candidate_revision_budget_state(
         source_subsystem=task.owner_subsystem,
-        repair_task=task,
+        source_task=task,
+        )
     )
     prototype_rows = [
         dict(row)
@@ -19953,8 +17220,7 @@ def _coding_agent_metric_gate_architect_task(
         ),
         "feedback_id": str(metric_feedback.get("feedback_id", "") or ""),
         "metric_evaluations": metric_evaluations,
-        "deferred_next_owner_subsystem": deferred_next_owner_subsystem,
-        "source_repair_budget": source_repair_budget,
+        "candidate_revision_budget": candidate_revision_budget,
         "pending_artifact_ids": {
             str(key): str(value)
             for key, value in {
@@ -20115,9 +17381,9 @@ def _simulation_engineer_packet_validation_failure_result(
         ),
         "source_subsystem": "SimulationEvaluator",
         "handoff": (
-            "simulation_engineer_packet_validation_escalated_source_repair"
+            "simulation_engineer_packet_validation_escalated_complete_regeneration"
             if validation_state["packet_validation_source_retry_escalated"]
-            else "simulation_engineer_packet_validation_repair"
+            else "simulation_engineer_packet_validation_complete_regeneration"
         ),
         "simulation_engineer_validation_failure_id": failure_id,
     }
@@ -20344,9 +17610,9 @@ def _algorithm_engineer_packet_validation_failure_result(
         ),
         "source_subsystem": "AlgorithmEngineer",
         "handoff": (
-            "algorithm_engineer_packet_validation_escalated_source_repair"
+            "algorithm_engineer_packet_validation_escalated_complete_regeneration"
             if validation_state["packet_validation_source_retry_escalated"]
-            else "algorithm_engineer_packet_validation_repair"
+            else "algorithm_engineer_packet_validation_complete_regeneration"
         ),
         "algorithm_engineer_validation_failure_id": failure_id,
     }
@@ -20522,13 +17788,13 @@ def _runtime_external_proof_search_request(
         return {}
     target_statement = str(
         repair_context.get("target_theorem_statement", "") or ""
-    ).strip()
+    )
     target_declaration = str(
         repair_context.get("target_lean_declaration", "")
         or repair_context.get("target_theorem_name", "")
         or ""
     ).strip()
-    if not target_statement or not target_declaration:
+    if not target_statement.strip() or not target_declaration:
         return {}
     if semantic_review_status == accepted_semantic_review_status:
         candidate_path = str(
@@ -21837,6 +19103,8 @@ def _runtime_environment_feedback_with_external_proof_search_result(
     feedback: Mapping[str, Any],
     result: Mapping[str, Any],
 ) -> dict[str, Any]:
+    """Attach provider observations without prescribing how the model uses them."""
+
     payload = dict(feedback)
     compact = {
         key: result.get(key)
@@ -21868,19 +19136,14 @@ def _runtime_environment_feedback_with_external_proof_search_result(
         if result.get(key) not in (None, "", [], {})
     }
     payload["external_proof_search_result"] = compact
-    repair_context = (
+    model_context = (
         dict(payload.get("proofengineer_repair_context", {}) or {})
         if isinstance(payload.get("proofengineer_repair_context", {}), Mapping)
         else {}
     )
-    repair_context["external_proof_search_result"] = compact
-    repair_context["proof_search_result_use"] = (
-        "Treat source_theorem_candidate_proof_bodies as whole-proof proposals and "
-        "verified_support_assets as candidate dependencies. Preserve the exact theorem "
-        "statement and rerun the resulting exact declaration under local Lean/AXLE."
-    )
-    payload["proofengineer_repair_context"] = repair_context
-    payload["repair_owner_agent"] = "ProofEngineer"
+    model_context["external_proof_search_result"] = compact
+    payload["proofengineer_repair_context"] = model_context
+    payload["runtime_selected_next_action"] = False
     return payload
 
 
@@ -23646,7 +20909,6 @@ class FormalizationEvaluatorRuntimeSubsystem:
             environment_feedback = dict(environment_feedback)
             environment_feedback.update(
                 {
-                    "repair_owner_agent": "ProofEngineer",
                     "source_theorem_promotion_execution_id": str(
                         task.inputs.get(
                             "source_theorem_promotion_execution_id",
@@ -26640,50 +23902,44 @@ class FormalizationEvaluatorRuntimeSubsystem:
             except (TypeError, ValueError):
                 repair_attempts_used = 0
             yield_after_attempts = (
-                _runtime_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts(
+                _runtime_formalizer_lean_candidate_revision_max_attempts(
                     context,
                     lean_candidate_repair_feedback,
                 )
             )
-            gap_planner_bridge_id = str(gap_planner_bridge.get("bridge_id", "") or "")
-            gap_planner_yield_required = (
+            architect_replan_required = (
                 yield_after_attempts > 0
                 and repair_attempts_used >= yield_after_attempts
-                and bool(gap_planner_bridge_id.strip())
             )
-            if gap_planner_yield_required:
+            if architect_replan_required:
                 next_task = (
-                    _formalizer_lean_candidate_repair_budget_yield_to_gap_planner_task(
+                    _formalizer_lean_candidate_revision_budget_architect_replan_task(
+                        task=task,
                         question=question,
                         theory_packet_id=packet_id,
                         formalization_manifest_id=manifest_id,
-                        gap_planner_bridge_id=gap_planner_bridge_id,
                         architect_context=context,
                         lean_candidate_repair_feedback=lean_candidate_repair_feedback,
-                        source_task_inputs=task.inputs,
                         source_subsystem=subsystem_name,
-                        repair_attempts_used=repair_attempts_used,
-                        yield_after_attempts=yield_after_attempts,
+                        revision_attempts_used=repair_attempts_used,
+                        revision_max_attempts=yield_after_attempts,
                     )
                 )
                 observations.append(
                     EnvironmentObservation(
                         observation_type=(
-                            "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+                            "formalizer_lean_candidate_revision_budget_architect_replan"
                         ),
                         summary=(
-                            "Formalizer/ProofEngineer Lean-candidate repair "
-                            "budget was exhausted; routing the current bridge to "
-                            "FormalizationGapPlanner while keeping the Lean "
-                            "candidate blocker open."
+                            "The same ProofEngineer exhausted its bounded direct "
+                            "full-source revision budget; exact source and Lean "
+                            "observations are routed to ArchitectCoordinator while "
+                            "the candidate blocker remains open."
                         ),
                         payload={
                             "formalization_manifest_id": manifest_id,
-                            "formalization_gap_planner_bridge_id": (
-                                gap_planner_bridge_id
-                            ),
-                            "repair_attempts_used": repair_attempts_used,
-                            "yield_after_attempts": yield_after_attempts,
+                            "revision_attempts_used": repair_attempts_used,
+                            "revision_max_attempts": yield_after_attempts,
                             "source_failure_classification": str(
                                 lean_candidate_repair_feedback.get(
                                     "failure_classification",
@@ -26695,28 +23951,29 @@ class FormalizationEvaluatorRuntimeSubsystem:
                         },
                     )
                 )
-                result_status = "REVISE"
+                result_status = "REROUTE"
                 result_rationale = (
                     "Runtime checked the LLM Formalizer Lean candidate and found "
                     "local Lean/precheck failures after the bounded "
-                    "Formalizer/ProofEngineer repair budget; routing the current "
-                    "formal-gap bridge to FormalizationGapPlanner so live "
-                    "route-planner feedback is not starved."
+                    "same-agent full-source revision budget; exact observations are "
+                    "routed to ArchitectCoordinator for a typed replan without an "
+                    "intermediate correction planner."
                 )
                 failure_classification = (
-                    "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+                    "formalizer_lean_candidate_revision_budget_architect_replan"
                 )
             else:
                 next_objective = (
-                    "Repair the exact materialized Lean candidate using local Lean "
-                    "diagnostics and prover feedback before routing to CriticEvaluator."
+                    "Regenerate the complete exact-target Lean source from the current "
+                    "source, local Lean diagnostics, and prover observations before "
+                    "routing to CriticEvaluator."
                 )
                 next_acceptance_gate = (
-                    "ProofEngineer repair candidate is non-vacuous and either "
+                    "ProofEngineer revision candidate is non-vacuous and either "
                     "passes local Lean/AXLE or records a precise formal blocker"
                 )
                 next_stop_condition = (
-                    "repaired Lean candidate or explicit formal blocker recorded"
+                    "regenerated Lean candidate or explicit formal blocker recorded"
                 )
                 next_task = AgentTask(
                     task_id=(
@@ -26763,7 +24020,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                             if isinstance(proposal_packet, Mapping)
                             else {}
                         ),
-                        repair_feedback=lean_candidate_repair_feedback,
+                        candidate_feedback=lean_candidate_repair_feedback,
                         architect_context=context,
                         deferred_next_task=next_task,
                         max_revisions=(
@@ -26819,7 +24076,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     result_rationale = (
                         "Runtime checked the LLM Formalizer Lean candidate and found "
                         "local Lean/precheck failures; diagnostics are routed to the "
-                        "internal ProofEngineer repair loop before CriticEvaluator "
+                        "same ProofEngineer for complete-source revision before CriticEvaluator "
                         "summarization."
                     )
                     failure_classification = str(
@@ -26840,18 +24097,11 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 else {}
             )
             next_task = proof_state_routing_task
-            next_owner = str(
-                routing_decision.get("next_owner_subsystem", "") or ""
-            )
-            result_status = "REVISE" if next_owner == "ProofEngineer" else "REROUTE"
+            result_status = "REROUTE"
             result_rationale = (
-                "Runtime routed exact Formalizer proof-state diagnostics to the "
-                "explicit ProofEngineer repair worker."
-                if next_owner == "ProofEngineer"
-                else (
-                    "Runtime routed structural, lineage-blocked, or exhausted "
-                    "Formalizer proof-state diagnostics to FormalizationGapPlanner."
-                )
+                "Runtime preserved the exact Formalizer proof-state observations "
+                "and returned them to the same proposal model for one bounded "
+                "complete-packet revision; runtime did not choose or patch source."
             )
             failure_classification = str(
                 routing_decision.get(
@@ -26872,6 +24122,14 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     "question": _question_to_payload(question),
                     "theory_packet_id": packet_id,
                     "formalization_manifest_id": manifest_id,
+                    "formalizer_proof_state_routing_manifest_id": (
+                        str(
+                            proof_state_routing_manifest.get("manifest_id", "")
+                            or ""
+                        )
+                        if isinstance(proof_state_routing_manifest, Mapping)
+                        else ""
+                    ),
                     "architect_context": context,
                 },
                 allowed_tools=("blackboard", "evidence_ledger"),
@@ -26948,7 +24206,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                             if isinstance(proposal_packet, Mapping)
                             else {}
                         ),
-                        repair_feedback=compiled_exact_review_feedback,
+                        candidate_feedback=compiled_exact_review_feedback,
                         architect_context=context,
                         deferred_next_task=compiled_exact_proofengineer_task,
                         max_revisions=(
@@ -28727,8 +25985,11 @@ def _formalizer_packet_validation_failure_result(
     environment_feedback: Mapping[str, Any] | None = None,
     formal_source_retriever: Any | None = None,
 ) -> AgentStepResult:
+    """Return exact observations to the same model for full-packet regeneration."""
+
+    del formal_source_retriever
     validation_errors = [str(error) for error in exc.errors if str(error)]
-    prior_environment_feedback = (
+    prior_feedback = (
         environment_feedback
         if isinstance(environment_feedback, Mapping)
         else (
@@ -28737,44 +25998,41 @@ def _formalizer_packet_validation_failure_result(
             else {}
         )
     )
-    try:
-        prior_packet_repair_retry_depth = max(
-            0,
-            int(
-                prior_environment_feedback.get(
-                    "formalizer_packet_repair_retry_depth",
-                    0,
-                )
-                or 0
-            ),
-        )
-    except (TypeError, ValueError):
-        prior_packet_repair_retry_depth = 0
-    packet_repair_lineage_active = bool(
-        str(
-            prior_environment_feedback.get(
-                "formalizer_packet_repair_root_failure_id",
-                "",
-            )
-            or ""
-        ).strip()
+    prior_observations = coding_agent_observations_only(
+        prior_feedback
     )
-    packet_repair_retry_depth = (
-        prior_packet_repair_retry_depth + 1
-        if packet_repair_lineage_active
-        else 0
-    )
-    internal_json_repair_attempts = max(0, int(exc.attempts or 0) - 1)
     last_invalid_packet = (
         deepcopy(dict(exc.last_invalid_packet))
         if isinstance(exc.last_invalid_packet, Mapping)
         else {}
     )
-    formalizer_recovery_checkpoint = (
+    recovery_checkpoint = (
         deepcopy(dict(exc.recovery_checkpoint))
         if isinstance(exc.recovery_checkpoint, Mapping)
         else {}
     )
+    previous_root_id = str(
+        prior_feedback.get("formalizer_packet_regeneration_root_failure_id", "")
+        or prior_feedback.get("formalizer_packet_repair_root_failure_id", "")
+        or ""
+    ).strip()
+    try:
+        previous_attempts = max(
+            0,
+            int(
+                prior_feedback.get(
+                    "formalizer_packet_regeneration_attempts_used",
+                    prior_feedback.get(
+                        "formalizer_packet_repair_retry_depth",
+                        0,
+                    ),
+                )
+                or 0
+            ),
+        )
+    except (TypeError, ValueError):
+        previous_attempts = 0
+    attempts_used = previous_attempts + (1 if previous_root_id else 0)
     failure_id = (
         "formalizer_validation_failure:"
         + stable_hash(
@@ -28784,549 +26042,141 @@ def _formalizer_packet_validation_failure_result(
                 validation_errors,
                 exc.history,
                 last_invalid_packet,
-                formalizer_recovery_checkpoint,
+                recovery_checkpoint,
+                attempts_used,
             ]
         )[:20]
     )
-    formalizer_packet_repair_root_failure_id = str(
-        prior_environment_feedback.get(
-            "formalizer_packet_repair_root_failure_id",
-            "",
-        )
-        or failure_id
+    root_failure_id = previous_root_id or failure_id
+    rejected_candidate_fingerprint = (
+        stable_hash(last_invalid_packet) if last_invalid_packet else ""
     )
     validation_feedback = formalizer_validation_feedback_envelope(
         validation_errors,
         validation_label=exc.validation_label,
         invalid_packet=last_invalid_packet,
         attempt_history=exc.history,
-        retry_depth=packet_repair_retry_depth,
+        retry_depth=attempts_used,
     )
-    rejected_candidate_fingerprint = (
-        stable_hash(last_invalid_packet) if last_invalid_packet else ""
+    exhausted = bool(
+        attempts_used >= FORMALIZER_PACKET_MAX_SAME_LINEAGE_REPAIR_RETRIES
     )
-
-    active_source_theorem_promotion_generation_request = (
-        dict(
-            prior_environment_feedback.get(
-                "source_theorem_promotion_generation_request",
-                {},
-            )
-            or {}
-        )
-        if isinstance(
-            prior_environment_feedback.get(
-                "source_theorem_promotion_generation_request",
-                {},
-            ),
-            Mapping,
-        )
-        else {}
-    )
-    source_theorem_promotion_generation_repair = bool(
-        active_source_theorem_promotion_generation_request
-    )
-    source_theorem_promotion_generation_feedback_fields = (
-        {
-            "repair_owner_agent": "ProofEngineer",
-            "source_theorem_promotion_execution_id": str(
-                prior_environment_feedback.get(
-                    "source_theorem_promotion_execution_id",
-                    "",
-                )
-                or ""
-            ),
-            "source_theorem_promotion_generation_request_id": str(
-                prior_environment_feedback.get(
-                    "source_theorem_promotion_generation_request_id",
-                    "",
-                )
-                or active_source_theorem_promotion_generation_request.get(
-                    "request_id",
-                    "",
-                )
-                or ""
-            ),
-            "source_theorem_promotion_generation_request_hash": str(
-                prior_environment_feedback.get(
-                    "source_theorem_promotion_generation_request_hash",
-                    "",
-                )
-                or ""
-            ),
-            "source_theorem_promotion_generation_request": (
-                active_source_theorem_promotion_generation_request
-            ),
-        }
-        if source_theorem_promotion_generation_repair
-        else {}
-    )
-
-    pseudo_formalization_required = any(
-        _bool_like(source.get(key, False))
-        for source in (
-            proof_bank_runtime_memory_summary,
-            prior_environment_feedback,
-        )
-        for key in (
-            "pseudo_formalization_required",
-            "requires_pseudo_formalization",
-            "source_theorem_exact_semantic_definition_structural_reformulation_required",
-        )
-    )
-    pseudo_formalization_required_reason = str(
-        proof_bank_runtime_memory_summary.get(
-            "pseudo_formalization_required_reason",
-            "",
-        )
-        or prior_environment_feedback.get(
-            "pseudo_formalization_required_reason",
-            "",
-        )
-        or ("runtime_required_pseudo_formalization" if pseudo_formalization_required else "")
-    )
-    pseudo_formalization_target_lanes = (
-        list(
-            _required_pseudo_formal_target_lanes(
-                prior_environment_feedback,
-                proof_bank_runtime_memory_summary,
-            )
-        )
-        if pseudo_formalization_required
-        else []
-    )
-    prior_pseudo_formalization_repair_contract = (
-        dict(
-            prior_environment_feedback.get(
-                "pseudo_formalization_repair_contract",
-                {},
-            )
-            or {}
-        )
-        if isinstance(
-            prior_environment_feedback.get(
-                "pseudo_formalization_repair_contract",
-                {},
-            ),
-            Mapping,
-        )
-        else {}
-    )
-
-    def runtime_string_list(value: Any) -> list[str]:
-        if isinstance(value, str):
-            return [value] if value else []
-        if not isinstance(value, (list, tuple, set)):
-            return []
-        return [str(item) for item in value if str(item)]
-
-    pseudo_formalization_target_names = runtime_string_list(
-        proof_bank_runtime_memory_summary.get(
-            "source_theorem_exact_semantic_definition_structural_reformulation_target_names",
-            [],
-        )
-        or prior_environment_feedback.get(
-            "source_theorem_exact_semantic_definition_structural_reformulation_target_names",
-            [],
-        )
-        or prior_pseudo_formalization_repair_contract.get("target_names", [])
-    )
-    pseudo_formalization_placeholder_symbols = runtime_string_list(
-        proof_bank_runtime_memory_summary.get(
-            "source_theorem_exact_semantic_definition_structural_reformulation_placeholder_symbols",
-            [],
-        )
-        or prior_environment_feedback.get(
-            "source_theorem_exact_semantic_definition_structural_reformulation_placeholder_symbols",
-            [],
-        )
-        or prior_pseudo_formalization_repair_contract.get(
-            "placeholder_symbols",
-            [],
-        )
-    )
-    structural_reformulation_required = any(
-        _bool_like(source.get(
-            "source_theorem_exact_semantic_definition_structural_reformulation_required",
-            False,
-        ))
-        for source in (
-            proof_bank_runtime_memory_summary,
-            prior_environment_feedback,
-        )
-    )
-    structural_response_validation_feedback = (
-        _formalizer_structural_response_validation_feedback(
-            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
-            prior_environment_feedback=prior_environment_feedback,
-        )
-        if structural_reformulation_required
-        else {}
-    )
-    structural_unverified_required_imports = runtime_string_list(
-        structural_response_validation_feedback.get(
-            "unverified_required_imports",
-            [],
-        )
-    )
-    pseudo_formalization_repair_contract = (
-        {
-            "contract_kind": "pseudo_formalization_required_repair",
-            "required_output_key": "pseudo_formal_proof_packets",
-            "pseudo_formalization_required_reason": (
-                pseudo_formalization_required_reason
-            ),
-            "target_lanes": pseudo_formalization_target_lanes,
-            "target_names": pseudo_formalization_target_names,
-            "placeholder_symbols": pseudo_formalization_placeholder_symbols,
-            "formalizer_validation_feedback_id": validation_feedback["feedback_id"],
-            "response_schema_authority": "current Formalizer provider schema",
-            "validation_authority": "unchanged local Formalizer validators",
-            "model_owns_block_content_and_repair_strategy": True,
-            "runtime_selected_semantics": False,
-            "acceptance_gate": (
-                "the model-authored packet satisfies the current PF/BV schema and "
-                "unchanged lane-routability validators; this remains non-proof evidence"
-            ),
-            "proof_evidence_status": (
-                "FORMALIZER_PSEUDO_FORMALIZATION_REPAIR_CONTRACT_NOT_PROOF_EVIDENCE"
-            ),
-            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-        }
-        if pseudo_formalization_required
-        else {}
-    )
-    pseudo_formalization_feedback_fields = (
-        {
-            "pseudo_formalization_required": True,
-            "pseudo_formalization_required_reason": (
-                pseudo_formalization_required_reason
-            ),
-            "pseudo_formalization_repair_contract": (
-                pseudo_formalization_repair_contract
-            ),
-            "source_theorem_exact_semantic_definition_structural_reformulation_required": (
-                structural_reformulation_required
-            ),
-        }
-        if pseudo_formalization_required
-        else {"pseudo_formalization_required": False}
-    )
-    structural_response_validation_feedback_fields = (
-        {
-            "response_validation_feedback": structural_response_validation_feedback,
-            "unverified_required_imports": structural_unverified_required_imports,
-            "source_failed_candidate_packet_id": str(
-                structural_response_validation_feedback.get(
-                    "source_failed_candidate_packet_id",
-                    "",
-                )
-                or ""
-            ),
-        }
-        if structural_response_validation_feedback
-        else {}
-    )
-
-    active_local_lean_repair_contract = (
-        dict(prior_environment_feedback.get("local_lean_repair_contract", {}) or {})
-        if isinstance(
-            prior_environment_feedback.get("local_lean_repair_contract", {}),
-            Mapping,
-        )
-        else {}
-    )
-    active_candidate_diagnostics = (
-        [
-            deepcopy(dict(row))
-            for row in prior_environment_feedback.get("candidate_diagnostics", []) or []
-            if isinstance(row, Mapping)
-        ]
-        if isinstance(
-            prior_environment_feedback.get("candidate_diagnostics", []),
-            (list, tuple),
-        )
-        else []
-    )
-    active_proofengineer_repair_context = (
-        dict(prior_environment_feedback.get("proofengineer_repair_context", {}) or {})
-        if isinstance(
-            prior_environment_feedback.get("proofengineer_repair_context", {}),
-            Mapping,
-        )
-        else {}
-    )
-    if active_proofengineer_repair_context:
-        active_proofengineer_repair_context = (
-            _proofengineer_repair_context_with_formal_source_grounding(
-                active_proofengineer_repair_context,
-                formal_source_retriever=formal_source_retriever,
-                unknown_identifiers=active_local_lean_repair_contract.get(
-                    "unknown_identifiers",
-                    [],
-                ),
-            )
-        )
-    active_formal_blocker_resource_requests = (
-        _formal_blocker_resource_requests_from_feedback(prior_environment_feedback)
-    )
-    source_theorem_candidate_materialization_contract = (
-        _formalizer_source_theorem_candidate_materialization_contract_from_runtime_memory(
-            proof_bank_runtime_memory_summary
-        )
-    )
-    whole_proof_agent_repair = bool(
-        str(active_proofengineer_repair_context.get("repair_scope", "") or "")
-        == "replace_entire_exact_declaration_proof_body"
-        and str(
-            active_proofengineer_repair_context.get(
-                "target_theorem_statement",
-                "",
-            )
-            or ""
-        ).strip()
-    )
-    packet_validation_escalation_active = bool(
-        packet_repair_retry_depth
-        >= FORMALIZER_PACKET_MAX_SAME_LINEAGE_REPAIR_RETRIES
-        and not source_theorem_promotion_generation_repair
-        and not whole_proof_agent_repair
-    )
-    packet_validation_escalation = (
-        {
-            "escalation_kind": "formalizer_repeated_packet_validation_loop",
-            "root_failure_id": formalizer_packet_repair_root_failure_id,
-            "latest_failure_id": failure_id,
-            "source_task_id": task.task_id,
-            "retry_depth": packet_repair_retry_depth,
-            "max_same_lineage_repair_retries": (
-                FORMALIZER_PACKET_MAX_SAME_LINEAGE_REPAIR_RETRIES
-            ),
-            "validation_error_fingerprint": stable_hash(validation_errors),
-            "internal_json_repair_attempts": internal_json_repair_attempts,
-            "required_next_subsystem": "",
-            "terminal_disposition": "BLOCKED_NO_VALID_FORMALIZER_PACKET",
-            "proof_evidence_status": (
-                "FORMALIZER_PACKET_VALIDATION_ESCALATION_NOT_PROOF_EVIDENCE"
-            ),
-            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-        }
-        if packet_validation_escalation_active
-        else {}
-    )
-
-    shared_feedback_fields = {
+    regeneration_contract = {
+        "same_owner_subsystem": task.owner_subsystem,
+        "same_model_regenerates_complete_packet": True,
+        "complete_rejected_candidate_provided": bool(last_invalid_packet),
+        "raw_validation_observations_provided": True,
+        "runtime_edits_candidate": False,
+        "runtime_selects_mathematics_or_lean": False,
+        "response_schema_unchanged": True,
+        "local_validators_unchanged": True,
+        "kernel_gate_unchanged": True,
+    }
+    feedback = {
+        **deepcopy(dict(prior_observations)),
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "FormalizerPacketRegenerationObservations",
+        "feedback_type": "formalizer_packet_regeneration_observations",
+        "feedback_id": str(validation_feedback["feedback_id"]),
+        "failure_id": failure_id,
+        "failure_classification": "formalizer_packet_validation_failed",
+        "formalizer_packet_regeneration_root_failure_id": root_failure_id,
+        "formalizer_packet_regeneration_attempts_used": attempts_used,
+        "formalizer_packet_regeneration_max_attempts": (
+            FORMALIZER_PACKET_MAX_SAME_LINEAGE_REPAIR_RETRIES
+        ),
+        "same_model_regeneration_budget_exhausted": exhausted,
+        "validation_label": exc.validation_label,
+        "validation_errors": validation_errors,
         "formalizer_validation_feedback": validation_feedback,
         "rejected_candidate": last_invalid_packet,
+        "rejected_candidate_complete": bool(last_invalid_packet),
         "rejected_candidate_fingerprint": rejected_candidate_fingerprint,
-        "source_theorem_candidate_materialization_contract": (
-            source_theorem_candidate_materialization_contract
+        "formalizer_recovery_checkpoint": recovery_checkpoint,
+        "attempt_history": [deepcopy(dict(row)) for row in exc.history],
+        "prior_environment_observations": prior_observations,
+        "proof_bank_runtime_memory_summary": dict(
+            proof_bank_runtime_memory_summary
         ),
-        **source_theorem_promotion_generation_feedback_fields,
-        **pseudo_formalization_feedback_fields,
-        **structural_response_validation_feedback_fields,
-        "local_lean_repair_contract": active_local_lean_repair_contract,
-        "candidate_diagnostics": active_candidate_diagnostics,
-        "proofengineer_repair_context": active_proofengineer_repair_context,
-        "formalizer_recovery_checkpoint": formalizer_recovery_checkpoint,
-        "formal_blocker_resource_requests": active_formal_blocker_resource_requests,
-    }
-    target_behavior = (
-        "The Formalizer/ProofEngineer model consumes the exact rejected packet, "
-        "validator messages, task-bound source context, retrieval, and compiler or "
-        "proof-state observations, then authors a revised packet or typed blocker. "
-        "AgentRuntime does not choose mathematical or Lean repairs."
-    )
-    acceptance_gate = (
-        "The revised packet passes the same response schema and unchanged local "
-        "Formalizer validators. Any executable Lean candidate must subsequently pass "
-        "active-project Lean/kernel verification before it is proof evidence."
-    )
-    learning_row = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "question_id": question.id,
-        "question_title": question.title,
-        "theory_packet_id": theory_packet_id,
-        "simulation_manifest_id": simulation_manifest_id,
-        "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
-        "learning_task": "formalizer_packet_validation_feedback",
-        "input_summary": {
-            "trigger": "FORMALIZER_PACKET_VALIDATION_FAILED",
-            "failed_subsystem": "FormalizationEvaluator",
-            "failure_classification": "formalizer_packet_validation_failed",
-            "validation_label": exc.validation_label,
-            "validation_errors": validation_errors,
-            **shared_feedback_fields,
-            "attempts": exc.attempts,
-            "internal_json_repair_attempts": internal_json_repair_attempts,
-            "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
-            "formalizer_packet_repair_root_failure_id": (
-                formalizer_packet_repair_root_failure_id
-            ),
-            "repeated_formalizer_packet_validation_failure": (
-                packet_repair_retry_depth > 0
-            ),
-            "packet_validation_escalation": packet_validation_escalation,
-            "last_attempt_summary": exc.history[-1] if exc.history else {},
-        },
-        "target_behavior": target_behavior,
-        "acceptance_gate": acceptance_gate,
+        "regeneration_contract": regeneration_contract,
         "proof_evidence_status": (
             "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
         ),
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
     failure_artifact = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
+        **feedback,
         "artifact_kind": "RuntimeFormalizerValidationFailure",
-        "failure_id": failure_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "question": _question_to_payload(question),
         "task_id": task.task_id,
         "theory_packet_id": theory_packet_id,
         "simulation_manifest_id": simulation_manifest_id,
         "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
-        "validation_label": exc.validation_label,
-        "failure_classification": "formalizer_packet_validation_failed",
-        "validation_errors": validation_errors,
-        **shared_feedback_fields,
-        "llm_json_repair_history": exc.history,
-        "internal_json_repair_attempts": internal_json_repair_attempts,
-        "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
-        "formalizer_packet_repair_root_failure_id": (
-            formalizer_packet_repair_root_failure_id
+        "llm_json_repair_history": [
+            deepcopy(dict(row)) for row in exc.history
+        ],
+        "internal_json_regeneration_attempts": max(
+            0,
+            int(exc.attempts or 0) - 1,
         ),
-        "packet_validation_escalation": packet_validation_escalation,
-        "proof_bank_runtime_memory_summary": dict(proof_bank_runtime_memory_summary),
-        "learning_rows": [learning_row],
-        "recommended_next_action": target_behavior,
-        "proof_evidence_status": (
-            "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
-        ),
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        "learning_rows": [
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "question_id": question.id,
+                "learning_task": (
+                    "formalizer_packet_full_regeneration_from_observations"
+                ),
+                "input_summary": {
+                    "failure_id": failure_id,
+                    "failure_classification": (
+                        "formalizer_packet_validation_failed"
+                    ),
+                    "validation_label": exc.validation_label,
+                    "validation_errors": validation_errors,
+                    "rejected_candidate_fingerprint": (
+                        rejected_candidate_fingerprint
+                    ),
+                    "regeneration_contract": regeneration_contract,
+                },
+                "proof_evidence_status": (
+                    "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        ],
         "boundary": (
-            "This artifact records model output and exact environment feedback. "
-            "It is neither a runtime-authored repair nor Lean proof evidence."
+            "This artifact records the complete rejected model packet and exact "
+            "environment observations. It is not a source edit, repair recipe, "
+            "or proof artifact."
         ),
     }
-    repair_feedback = {
-        "feedback_type": "formalizer_packet_validation_feedback",
-        "failure_classification": "formalizer_packet_validation_failed",
-        "validation_label": exc.validation_label,
-        "validation_errors": validation_errors,
-        **shared_feedback_fields,
-        "attempts": exc.attempts,
-        "internal_json_repair_attempts": internal_json_repair_attempts,
-        "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
-        "formalizer_packet_repair_root_failure_id": (
-            formalizer_packet_repair_root_failure_id
-        ),
-        "repeated_formalizer_packet_validation_failure": (
-            packet_repair_retry_depth > 0
-        ),
-        "packet_validation_escalation": packet_validation_escalation,
-        "last_attempt_summary": exc.history[-1] if exc.history else {},
-        "target_behavior": target_behavior,
-        "acceptance_gate": acceptance_gate,
-        "proof_evidence_status": (
-            "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
-        ),
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-    }
-    repair_feedback = _formalizer_feedback_with_preserved_action_work_order_binding(
-        repair_feedback,
-        prior_environment_feedback=prior_environment_feedback,
-    )
-    target_ids = list(
-        source_theorem_candidate_materialization_contract.get("target_ids", []) or []
-    )
-    target_names = list(
-        source_theorem_candidate_materialization_contract.get("target_names", []) or []
-    )
-    for payload in (learning_row, failure_artifact, repair_feedback):
-        if target_ids:
-            payload["target_ids"] = target_ids
-        if target_names:
-            payload["target_names"] = target_names
-
-    next_inputs = dict(task.inputs)
-    next_inputs["environment_feedback"] = repair_feedback
-    next_inputs.setdefault("question", _question_to_payload(question))
-    if packet_validation_escalation_active:
-        next_task_objective = ""
-        next_task_acceptance_gate = ""
-    elif source_theorem_promotion_generation_repair:
-        next_task_objective = (
-            "Repair the lineage-bound source-theorem promotion response from the "
-            "exact request, rejected packet, and validator observations."
+    next_task = None
+    if not exhausted:
+        next_inputs = dict(task.inputs)
+        next_inputs["environment_feedback"] = feedback
+        next_inputs.setdefault("question", _question_to_payload(question))
+        next_task = replace(
+            task,
+            task_id=(
+                f"formalizer-regenerate:{question.id}:"
+                f"{stable_hash([failure_id, rejected_candidate_fingerprint])[:8]}"
+            ),
+            objective=(
+                "Regenerate the complete Formalizer/ProofEngineer packet using "
+                "the complete rejected candidate, original task context, and exact "
+                "validator or environment observations."
+            ),
+            inputs=next_inputs,
+            acceptance_gate=(
+                "the complete regenerated packet passes the unchanged response "
+                "schema and local validators; any Lean proof still requires the "
+                "unchanged active-project kernel gate"
+            ),
+            stop_condition=(
+                "complete regenerated packet accepted or the bounded same-model "
+                "regeneration budget is exhausted"
+            ),
         )
-        next_task_acceptance_gate = acceptance_gate
-    elif whole_proof_agent_repair:
-        next_task_objective = (
-            "Continue the lineage-bound whole-theorem ProofEngineer loop from the "
-            "exact target, failed candidate, retrieval, proof state, and validator "
-            "observations."
-        )
-        next_task_acceptance_gate = acceptance_gate
-    elif pseudo_formalization_required:
-        next_task_objective = (
-            "Regenerate the required pseudo-formal Formalizer output from the current "
-            "source context, provider schema, and exact validator observations."
-        )
-        next_task_acceptance_gate = acceptance_gate
-    elif source_theorem_candidate_materialization_contract:
-        next_task_objective = (
-            "Regenerate the requested exact source-theorem candidate from the "
-            "task-bound materialization request and exact validator observations."
-        )
-        next_task_acceptance_gate = acceptance_gate
-    else:
-        next_task_objective = (
-            "Repair the rejected Formalizer packet from its exact schema, source "
-            "context, environment observations, and unchanged validator feedback."
-        )
-        next_task_acceptance_gate = acceptance_gate
-    next_task = None if packet_validation_escalation_active else AgentTask(
-        task_id=(
-            f"proofengineer-source-promotion:{question.id}:"
-            f"{stable_hash([failure_id, repair_feedback])[:8]}"
-            if source_theorem_promotion_generation_repair
-            else f"proofengineer-whole-proof:{question.id}:"
-            f"{stable_hash([failure_id, repair_feedback])[:8]}"
-            if whole_proof_agent_repair
-            else f"formalize-repair:{question.id}:"
-            f"{stable_hash([failure_id, repair_feedback])[:8]}"
-        ),
-        owner_subsystem=(
-            "ProofEngineer"
-            if source_theorem_promotion_generation_repair or whole_proof_agent_repair
-            else "FormalizationEvaluator"
-        ),
-        objective=next_task_objective,
-        inputs=next_inputs,
-        allowed_tools=(
-            tuple(
-                dict.fromkeys(
-                    (
-                        *task.allowed_tools,
-                        "model_backend",
-                        "formal_source_retriever",
-                        "proof_search",
-                        "local_lean",
-                        "lean_lsp_mcp",
-                    )
-                )
-            )
-            if source_theorem_promotion_generation_repair or whole_proof_agent_repair
-            else task.allowed_tools
-        ),
-        expected_artifacts=task.expected_artifacts,
-        acceptance_gate=next_task_acceptance_gate,
-        stop_condition=(
-            "revised packet accepted by the unchanged validator or a typed blocker "
-            "recorded without a proof claim"
-        ),
-    )
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
         task_id=task.task_id,
@@ -29335,27 +26185,24 @@ def _formalizer_packet_validation_failure_result(
         status="VALIDATION_FAILED_RECORDED_NOT_PROOF_EVIDENCE",
         boundary=FORMALIZER_BOUNDARY,
         payload={
-            "failure_classification": "formalizer_packet_validation_failed",
             "validation_errors": validation_errors,
-            "formalizer_validation_feedback": validation_feedback,
-            **pseudo_formalization_feedback_fields,
-            **structural_response_validation_feedback_fields,
-            "attempts": exc.attempts,
+            "same_owner_subsystem": task.owner_subsystem,
+            "same_model_regeneration_budget_exhausted": exhausted,
+            "runtime_edits_candidate": False,
             "proof_evidence_status": (
                 "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
             ),
         },
     )
     return AgentStepResult(
-        status="BLOCKED" if packet_validation_escalation_active else "REVISE",
+        status="BLOCKED" if exhausted else "REVISE",
         rationale=(
-            "The same lineage-bound Formalizer packet failed validation after its "
-            "bounded outer retry; the exact observations were recorded and the lane "
-            "stopped without proof evidence."
-            if packet_validation_escalation_active
-            else "The model-authored Formalizer packet failed local validation; its "
-            "rejected artifact and exact environment observations were routed back "
-            "to the responsible LLM agent without a runtime-authored repair."
+            "The bounded same-model full-packet regeneration budget was exhausted; "
+            "the exact rejected candidate and observations were recorded without "
+            "runtime-authored source changes."
+            if exhausted
+            else "The complete rejected packet and exact validator observations "
+            "were returned to the same model for full-packet regeneration."
         ),
         produced_artifacts={failure_id: failure_artifact},
         observations=(
@@ -29364,10 +26211,10 @@ def _formalizer_packet_validation_failure_result(
                 summary="; ".join(validation_errors)[:500],
                 payload={
                     "failure_id": failure_id,
-                    "failure_classification": "formalizer_packet_validation_failed",
-                    "formalizer_validation_feedback": validation_feedback,
-                    **pseudo_formalization_feedback_fields,
-                    **structural_response_validation_feedback_fields,
+                    "validation_errors": validation_errors,
+                    "same_owner_subsystem": task.owner_subsystem,
+                    "same_model_regeneration_budget_exhausted": exhausted,
+                    "runtime_edits_candidate": False,
                     "proof_evidence_status": (
                         "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
                     ),
@@ -29377,13 +26224,11 @@ def _formalizer_packet_validation_failure_result(
         evidence_entries=(evidence,),
         next_task=next_task,
         failure_classification=(
-            "formalizer_packet_validation_lineage_exhausted"
-            if packet_validation_escalation_active
+            "formalizer_packet_regeneration_budget_exhausted"
+            if exhausted
             else "formalizer_packet_validation_failed"
         ),
     )
-
-
 def _formalizer_runtime_capability_contract_failure_result_if_needed(
     *,
     task: AgentTask,
@@ -29857,7 +26702,7 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
         "source_materialization_manifest_id": str(
             lean_candidate_materialization.get("manifest_id", "") or ""
         ),
-        "repair_owner_agent": semantic_owner or task.owner_subsystem,
+        "source_subsystem": semantic_owner or task.owner_subsystem,
         "proof_evidence_status": (
             "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE"
         ),
@@ -30065,10 +26910,7 @@ def _materialize_formalizer_lean_candidate_artifacts(
             for value in candidate.get("lean_imports", []) or []
             if str(value).strip()
         ]
-        source = _formalizer_candidate_source_with_declared_imports(
-            str(candidate.get("lean_source", "") or ""),
-            declared_lean_imports,
-        )
+        source = str(candidate.get("lean_source", "") or "").strip()
         candidate_id = str(candidate.get("candidate_id", "") or f"candidate_{index}")
         candidate_metadata = dict(candidate.get("candidate_metadata", {}) or {})
         candidate_lean_declaration = str(
@@ -31763,8 +28605,8 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                 candidate.get("local_lean_stderr", "") or ""
             ),
         }
-        local_lean_repair_contract = (
-            _formalizer_local_lean_repair_contract_from_diagnostics([diagnostic_row])
+        local_lean_observation = (
+            _formalizer_local_lean_observation_from_diagnostics([diagnostic_row])
         )
         live_request = (
             dict(candidate.get("live_proof_state_request", {}) or {})
@@ -31901,9 +28743,9 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                     candidate.get("local_lean_stderr", "") or ""
                 ),
                 "local_lean_diagnostic_classes": list(
-                    local_lean_repair_contract.get("diagnostic_classes", []) or []
+                    local_lean_observation.get("diagnostic_classes", []) or []
                 ),
-                "local_lean_repair_contract": local_lean_repair_contract,
+                "local_lean_observation": local_lean_observation,
                 "source_theorem_target_known": source_theorem_target_known,
                 "diagnostic_helper_not_source_theorem": (
                     diagnostic_helper_not_source_theorem
@@ -32178,11 +29020,19 @@ def _formalizer_proof_state_repair_round(
     )
     parent = feedback.get("parent_formalizer_proof_state_feedback", {})
     parent = parent if isinstance(parent, Mapping) else {}
-    raw = (
-        feedback.get("next_formalizer_proof_state_repair_round")
-        if feedback.get("next_formalizer_proof_state_repair_round") is not None
-        else feedback.get("formalizer_proof_state_repair_round")
-    )
+    raw = feedback.get("next_formalizer_proof_state_revision_round")
+    if raw is None:
+        raw = feedback.get("formalizer_proof_state_revision_round")
+    if raw is None:
+        raw = (
+            feedback.get("next_formalizer_proof_state_repair_round")
+            if feedback.get("next_formalizer_proof_state_repair_round") is not None
+            else feedback.get("formalizer_proof_state_repair_round")
+        )
+    if raw is None:
+        raw = parent.get("next_formalizer_proof_state_revision_round")
+    if raw is None:
+        raw = parent.get("formalizer_proof_state_revision_round")
     if raw is None:
         raw = (
             parent.get("next_formalizer_proof_state_repair_round")
@@ -32293,13 +29143,9 @@ def _formalizer_proof_state_routing_manifest(
     candidate_proof_state_manifest: Mapping[str, Any] | None = None,
     lean_candidate_materialization: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    subclaims_by_id = {str(row.id): row for row in subclaims}
-    general_rows = [
-        _compact_formalizer_proof_state_routing_row(
-            row,
-            feedback_scope="formal_subclaim",
-            subclaim=subclaims_by_id.get(str(row.get("subclaim_id", "") or "")),
-        )
+    del subclaims
+    unresolved_subclaim_rows = [
+        dict(row)
         for row in proof_state_rows
         if isinstance(row, Mapping)
         and _bool_like(row.get("route_revision_recommended", False))
@@ -32326,157 +29172,45 @@ def _formalizer_proof_state_routing_manifest(
         and materialization_manifest_id
         and candidate_source_manifest_id == materialization_manifest_id
     )
-    candidate_rows = [
-        _compact_formalizer_proof_state_routing_row(
-            row,
-            feedback_scope="formalizer_lean_candidate",
-        )
+    unresolved_candidate_rows = [
+        dict(row)
         for row in candidate_manifest.get("rows", []) or []
         if isinstance(row, Mapping)
         and _bool_like(row.get("route_revision_recommended", False))
         and not _bool_like(row.get("subclaim_kernel_verified", False))
     ]
-    if not general_rows and not candidate_rows:
+    if not unresolved_subclaim_rows and not unresolved_candidate_rows:
         return None
 
-    proofengineer_rows = [
-        *(
-            candidate_rows
-            if candidate_rows_bound
-            else []
-        ),
-        *[
-            row
-            for row in general_rows
-            if str(row.get("claim_type", "") or "") == "lean_obligation"
-        ],
-    ]
-    structural_rows = [
-        row
-        for row in general_rows
-        if str(row.get("claim_type", "") or "") != "lean_obligation"
-    ]
-    lineage_blocked_rows = [] if candidate_rows_bound else candidate_rows
     current_round = _formalizer_proof_state_repair_round(environment_feedback)
     max_rounds = max(0, int(max_repair_rounds))
-    proofengineer_budget_available = bool(
-        proofengineer_rows
-        and proofengineer_available
-        and current_round < max_rounds
+    same_agent_revision_available = bool(
+        proofengineer_available and current_round < max_rounds
     )
-    if proofengineer_budget_available:
-        next_owner = "ProofEngineer"
-        next_round = current_round + 1
-        failure_classification = "formalizer_proof_state_repair_requested"
-        routing_reason = (
-            "route-revision diagnostics are tied to a materialized Lean candidate "
-            "or registered Lean obligation and the bounded ProofEngineer budget "
-            "remains available"
-        )
-        target_behavior = (
-            "Consume the exact proof-state rows, formal-subclaim statement or "
-            "materialized candidate lineage, diagnostics, residual goals, and "
-            "requested prover tools. Return a bounded repaired candidate, smaller "
-            "lemma split, or explicit formal blocker, then rerun local Lean/AXLE."
-        )
-        acceptance_gate = (
-            "ProofEngineer emits a non-vacuous, lineage-preserving repair that is "
-            "rerun through local Lean/AXLE, or records a precise unresolved formal "
-            "blocker without promoting diagnostic feedback to proof evidence."
-        )
-    elif formalization_gap_planner_bridge_id and (
-        (
-            proofengineer_rows
-            and current_round >= max_rounds
-        )
-        or lineage_blocked_rows
-        or source_subsystem == "ProofEngineer"
-    ):
-        next_owner = "FormalizationGapPlanner"
-        next_round = current_round
-        failure_classification = (
-            "formalizer_proof_state_repair_budget_exhausted"
-            if proofengineer_rows and current_round >= max_rounds
-            else "formalizer_proof_state_structural_replan_requested"
-        )
-        routing_reason = (
-            "proof-state feedback requires structural replanning, has unbound "
-            "candidate lineage, lacks a live ProofEngineer, or exhausted the "
-            "bounded ProofEngineer repair budget"
-        )
-        target_behavior = (
-            "Execute the formalization-gap bridge and optional live route planner "
-            "for unresolved structural, semantic, lineage, or exhausted repair "
-            "rows. Preserve each diagnostic and residual goal as non-proof routing "
-            "evidence."
-        )
-        acceptance_gate = (
-            "FormalizationGapPlanner records an executable handoff or typed blocker "
-            "for every routed proof-state row without treating a route plan, Lean "
-            "diagnostic, or residual goal as theorem proof evidence."
-        )
-    else:
-        next_owner = "CriticEvaluator"
-        next_round = current_round
-        failure_classification = (
-            "formalizer_proof_state_structural_review_requested"
-            if structural_rows
-            else "formalizer_proof_state_routing_blocked"
-        )
-        routing_reason = (
-            "structural theory-gap proof-state rows remain under Critic/Architect "
-            "prioritization, or no executable repair resource is available"
-        )
-        target_behavior = (
-            "Keep unresolved structural proof-state rows visible to "
-            "CriticEvaluator, preserve the current gap-planner bridge, and request "
-            "a concrete downstream resource without bypassing research-path "
-            "prioritization."
-        )
-        acceptance_gate = (
-            "CriticEvaluator reports the missing repair resource and keeps all "
-            "formal gaps open."
-        )
-
-    proofengineer_context = {
-        "repair_scope": "formalizer_proof_state_feedback",
-        "source_formalization_manifest_id": formalization_manifest_id,
-        "source_proof_state_feedback_manifest_id": (
-            proof_state_feedback_manifest_id
-        ),
-        "source_candidate_proof_state_feedback_manifest_id": str(
-            candidate_manifest.get("manifest_id", "") or ""
-        ),
-        "source_candidate_materialization_manifest_id": (
-            materialization_manifest_id
-        ),
-        "candidate_materialization_lineage_bound": candidate_rows_bound,
-        "proof_state_feedback_rows": proofengineer_rows[:8],
-        "deferred_structural_route_revision_rows": structural_rows[:8],
-        "lineage_blocked_candidate_rows": lineage_blocked_rows[:8],
-        "available_runtime_tools": [
-            "lean_diagnostic_messages",
-            "lean_goal",
-            "lean_state_search",
-            "proof_search",
-            "lean_multi_attempt",
-            "formal_source_retrieval",
-            "proof_bank_memory",
-            "local_lean_or_axle_rerun",
-        ],
-        "repair_round": current_round,
-        "next_repair_round": next_round,
-        "max_repair_rounds": max_rounds,
-        "proof_evidence_boundary": PROOF_STATE_FEEDBACK_BOUNDARY,
-    }
+    next_round = current_round + 1 if same_agent_revision_available else current_round
+    next_owner = (
+        source_subsystem
+        if same_agent_revision_available
+        else "CriticEvaluator"
+    )
+    failure_classification = (
+        "formalizer_proof_state_same_agent_revision_requested"
+        if same_agent_revision_available
+        else "formalizer_proof_state_observations_require_critic_review"
+    )
+    routing_authority = (
+        "same_model_tool_loop"
+        if same_agent_revision_available
+        else "ArchitectCoordinator_model_packet_after_critic"
+    )
     feedback = {
         "feedback_type": "formalizer_proof_state_feedback",
         "failure_classification": failure_classification,
-        "repair_owner_agent": next_owner,
         "source_subsystem": source_subsystem,
-        "formalizer_proof_state_repair_round": current_round,
-        "next_formalizer_proof_state_repair_round": next_round,
-        "max_formalizer_proof_state_repair_rounds": max_rounds,
+        "formalizer_proof_state_revision_round": current_round,
+        "next_formalizer_proof_state_revision_round": next_round,
+        "max_formalizer_proof_state_revision_rounds": max_rounds,
+        "same_agent_revision_available": same_agent_revision_available,
         "formalization_manifest_id": formalization_manifest_id,
         "proof_state_feedback_manifest_id": proof_state_feedback_manifest_id,
         "candidate_proof_state_feedback_manifest_id": str(
@@ -32492,13 +29226,21 @@ def _formalizer_proof_state_routing_manifest(
             if formalization_gap_planner_bridge_id
             else []
         ),
-        "proof_state_feedback_rows": proofengineer_rows[:8],
-        "structural_route_revision_rows": structural_rows[:8],
-        "lineage_blocked_candidate_rows": lineage_blocked_rows[:8],
-        "proofengineer_repair_context": proofengineer_context,
-        "routing_reason": routing_reason,
-        "target_behavior": target_behavior,
-        "acceptance_gate": acceptance_gate,
+        "proof_state_feedback_rows": unresolved_subclaim_rows,
+        "candidate_proof_state_feedback_rows": unresolved_candidate_rows,
+        "runtime_resource_observations": {
+            "proofengineer_available": bool(proofengineer_available),
+            "formalization_gap_planner_available": bool(
+                formalization_gap_planner_bridge_id
+            ),
+            "candidate_materialization_lineage_bound": candidate_rows_bound,
+            "revision_rounds_used": current_round,
+            "max_revision_rounds": max_rounds,
+            "same_model_revision_available": same_agent_revision_available,
+        },
+        "routing_authority": routing_authority,
+        "runtime_selected_research_owner": False,
+        "runtime_selected_source_edit": False,
         "proof_evidence_status": (
             "FORMALIZER_PROOF_STATE_ROUTING_NOT_PROOF_EVIDENCE"
         ),
@@ -32522,36 +29264,26 @@ def _formalizer_proof_state_routing_manifest(
         "input_summary": {
             "trigger": "FORMALIZER_PROOF_STATE_ROUTE_REVISION",
             "failure_classification": failure_classification,
-            "n_proofengineer_rows": len(proofengineer_rows),
-            "n_structural_rows": len(structural_rows),
-            "n_lineage_blocked_rows": len(lineage_blocked_rows),
-            "formalizer_proof_state_repair_round": current_round,
-            "max_formalizer_proof_state_repair_rounds": max_rounds,
+            "n_subclaim_rows": len(unresolved_subclaim_rows),
+            "n_candidate_rows": len(unresolved_candidate_rows),
+            "revision_rounds_used": current_round,
+            "max_revision_rounds": max_rounds,
+            "same_agent_revision_available": same_agent_revision_available,
             "subclaim_ids": sorted(
                 {
                     str(row.get("subclaim_id", "") or "")
-                    for row in [
-                        *proofengineer_rows,
-                        *structural_rows,
-                        *lineage_blocked_rows,
-                    ]
+                    for row in [*unresolved_subclaim_rows, *unresolved_candidate_rows]
                     if str(row.get("subclaim_id", "") or "").strip()
                 }
             ),
             "attempt_statuses": sorted(
                 {
                     str(row.get("attempt_status", "") or "")
-                    for row in [
-                        *proofengineer_rows,
-                        *structural_rows,
-                        *lineage_blocked_rows,
-                    ]
+                    for row in [*unresolved_subclaim_rows, *unresolved_candidate_rows]
                     if str(row.get("attempt_status", "") or "").strip()
                 }
             ),
         },
-        "target_behavior": target_behavior,
-        "acceptance_gate": acceptance_gate,
         "proof_evidence_status": (
             "FORMALIZER_PROOF_STATE_ROUTING_LEARNING_NOT_PROOF_EVIDENCE"
         ),
@@ -32575,20 +29307,20 @@ def _formalizer_proof_state_routing_manifest(
         "decision": {
             "next_owner_subsystem": next_owner,
             "failure_classification": failure_classification,
-            "routing_reason": routing_reason,
-            "formalizer_proof_state_repair_round": current_round,
-            "next_formalizer_proof_state_repair_round": next_round,
-            "max_formalizer_proof_state_repair_rounds": max_rounds,
+            "formalizer_proof_state_revision_round": current_round,
+            "next_formalizer_proof_state_revision_round": next_round,
+            "max_formalizer_proof_state_revision_rounds": max_rounds,
+            "same_agent_revision_available": same_agent_revision_available,
+            "routing_authority": routing_authority,
+            "runtime_selected_research_owner": False,
+            "runtime_selected_source_edit": False,
         },
         "counts": {
             "route_revision_rows": (
-                len(proofengineer_rows)
-                + len(structural_rows)
-                + len(lineage_blocked_rows)
+                len(unresolved_subclaim_rows) + len(unresolved_candidate_rows)
             ),
-            "proofengineer_rows": len(proofengineer_rows),
-            "structural_rows": len(structural_rows),
-            "lineage_blocked_rows": len(lineage_blocked_rows),
+            "subclaim_rows": len(unresolved_subclaim_rows),
+            "candidate_rows": len(unresolved_candidate_rows),
         },
         "environment_feedback": feedback,
         "learning_rows": [learning_row],
@@ -32620,7 +29352,13 @@ def _formalizer_proof_state_routing_task(
         else {}
     )
     next_owner = str(decision.get("next_owner_subsystem", "") or "")
-    if next_owner not in {"ProofEngineer", "FormalizationGapPlanner"}:
+    if (
+        not feedback
+        or not _bool_like(decision.get("same_agent_revision_available", False))
+        or next_owner not in {"FormalizationEvaluator", "ProofEngineer"}
+        or next_owner
+        != str(routing_manifest.get("source_subsystem", "") or "")
+    ):
         return None
     context = dict(architect_context)
     context["environment_feedback"] = dict(feedback)
@@ -32642,62 +29380,17 @@ def _formalizer_proof_state_routing_task(
         ),
     }
     context = _runtime_context_with_environment_feedback_contract(
-        context,
-        feedback,
-        subsystem=next_owner,
+        context, feedback, subsystem=next_owner
     )
-    if next_owner == "ProofEngineer":
-        inputs = dict(source_task.inputs)
-        inputs["architect_context"] = context
-        inputs["environment_feedback"] = dict(feedback)
-        inputs["formalization_manifest_id"] = str(
-            routing_manifest.get("source_formalization_manifest_id", "") or ""
-        )
-        return AgentTask(
-            task_id=(
-                f"formalize-proofstate-repair:{question.id}:"
-                f"{stable_hash([routing_manifest.get('manifest_id', ''), feedback])[:8]}"
-            ),
-            owner_subsystem="ProofEngineer",
-            objective=(
-                "Repair Formalizer proof-state route revisions using the explicit "
-                "ProofEngineer prover loop and rerun the exact candidate or subclaim."
-            ),
-            inputs=inputs,
-            allowed_tools=tuple(
-                dict.fromkeys(
-                    (
-                        *source_task.allowed_tools,
-                        "model_backend",
-                        "local_lean",
-                        "lean_lsp_mcp",
-                        "formal_source_retrieval",
-                        "proof_search",
-                        "proof_bank_memory",
-                        "evidence_ledger",
-                    )
-                )
-            ),
-            expected_artifacts=(
-                "formalizer_proofengineer_repair_packet",
-                "formalization_manifest",
-                "formalizer_proof_state_routing_manifest",
-            ),
-            acceptance_gate=str(feedback.get("acceptance_gate", "") or ""),
-            stop_condition=(
-                "repaired candidate rerun through local Lean/AXLE, explicit formal "
-                "blocker recorded, or bounded repair budget yielded to gap planner"
-            ),
-        )
     return AgentTask(
         task_id=(
-            f"gap-planner-proofstate-replan:{question.id}:"
+            f"formalizer-proofstate-revision:{question.id}:"
             f"{stable_hash([routing_manifest.get('manifest_id', ''), feedback])[:8]}"
         ),
-        owner_subsystem="FormalizationGapPlanner",
+        owner_subsystem=next_owner,
         objective=(
-            "Replan structural, semantic, lineage-blocked, or exhausted "
-            "Formalizer proof-state route revisions."
+            "Regenerate one complete Formalizer proposal from the exact proof-state "
+            "observations using the same proposal model."
         ),
         inputs={
             **dict(source_task.inputs),
@@ -32710,24 +29403,32 @@ def _formalizer_proof_state_routing_task(
             "theory_packet_id": str(
                 source_task.inputs.get("theory_packet_id", "") or ""
             ),
-            "formalization_gap_planner_bridge_ids": list(
-                feedback.get("formalization_gap_planner_bridge_ids", []) or []
-            ),
         },
-        allowed_tools=(
-            "formalization_gap_planner",
-            "formal_source_retriever",
-            "model_backend",
-            "evidence_ledger",
+        allowed_tools=tuple(
+            dict.fromkeys(
+                (
+                    *source_task.allowed_tools,
+                    "model_backend",
+                    "local_lean",
+                    "lean_lsp_mcp",
+                    "formal_source_retrieval",
+                    "proof_search",
+                    "evidence_ledger",
+                )
+            )
         ),
         expected_artifacts=(
-            "runtime_formalization_gap_planner_execution_manifest",
-            "runtime_formalization_gap_planner_handoffs",
+            "formalizer_proof_engineer_proposal",
+            "formalization_manifest",
+            "formalizer_proof_state_routing_manifest",
         ),
-        acceptance_gate=str(feedback.get("acceptance_gate", "") or ""),
+        acceptance_gate=(
+            "the same model emits a complete new packet or source, and every "
+            "compiler/proof-state result remains immutable environment feedback"
+        ),
         stop_condition=(
-            "gap-planner handoff, optional live route-planner feedback, or typed "
-            "formal blocker recorded with proof boundary preserved"
+            "the complete candidate is tool-checked, the bounded same-model "
+            "revision budget is exhausted, or a typed blocker is recorded"
         ),
     )
 
@@ -32748,18 +29449,26 @@ def _compact_parent_formalizer_proof_state_feedback(
         "failure_classification": str(
             source.get("failure_classification", "") or ""
         ),
-        "repair_owner_agent": str(source.get("repair_owner_agent", "") or ""),
-        "formalizer_proof_state_repair_round": _formalizer_proof_state_repair_round(
-            source
-        ),
-        "next_formalizer_proof_state_repair_round": _formalizer_proof_state_repair_round(
-            source
-        ),
-        "max_formalizer_proof_state_repair_rounds": max(
+        "formalizer_proof_state_revision_round": max(
             0,
             _runtime_safe_int(
-                source.get("max_formalizer_proof_state_repair_rounds", 0)
+                source.get("formalizer_proof_state_revision_round", 0)
             ),
+        ),
+        "next_formalizer_proof_state_revision_round": max(
+            0,
+            _runtime_safe_int(
+                source.get("next_formalizer_proof_state_revision_round", 0)
+            ),
+        ),
+        "max_formalizer_proof_state_revision_rounds": max(
+            0,
+            _runtime_safe_int(
+                source.get("max_formalizer_proof_state_revision_rounds", 0)
+            ),
+        ),
+        "same_agent_revision_available": _bool_like(
+            source.get("same_agent_revision_available", False)
         ),
         "formalization_manifest_id": str(
             source.get("formalization_manifest_id", "") or ""
@@ -32782,12 +29491,18 @@ def _compact_parent_formalizer_proof_state_feedback(
             dict(row)
             for row in source.get("proof_state_feedback_rows", []) or []
             if isinstance(row, Mapping)
-        ][:6],
-        "structural_route_revision_rows": [
+        ],
+        "candidate_proof_state_feedback_rows": [
             dict(row)
-            for row in source.get("structural_route_revision_rows", []) or []
+            for row in source.get("candidate_proof_state_feedback_rows", []) or []
             if isinstance(row, Mapping)
-        ][:6],
+        ],
+        "runtime_resource_observations": dict(
+            source.get("runtime_resource_observations", {}) or {}
+        ),
+        "routing_authority": str(source.get("routing_authority", "") or ""),
+        "runtime_selected_research_owner": False,
+        "runtime_selected_source_edit": False,
         "proof_evidence_status": str(
             source.get("proof_evidence_status", "") or ""
         ),
@@ -32874,7 +29589,7 @@ def _formalizer_lean_candidate_repair_feedback(
     local_compiled = int(manifest.get("n_local_lean_compiled", 0) or 0)
     precheck_rejected = int(manifest.get("n_precheck_rejected", 0) or 0)
     diagnostics = []
-    for row in failed_rows[:3]:
+    for row in failed_rows:
         diagnostics.append(
             {
                 "candidate_id": str(row.get("candidate_id", "") or ""),
@@ -33080,55 +29795,17 @@ def _formalizer_lean_candidate_repair_feedback(
                 ),
             }
         )
-    local_lean_repair_contract = _formalizer_local_lean_repair_contract_from_diagnostics(
-        diagnostics
+    del formal_source_retriever
+    prior_feedback = (
+        prior_environment_feedback
+        if isinstance(prior_environment_feedback, Mapping)
+        else {}
     )
-    target_identity_failed = any(
-        not _bool_like(row.get("diagnostic_helper_not_source_theorem", False))
-        and not _bool_like(row.get("support_candidate_not_source_theorem", False))
-        and (
-            _bool_like(
-                row.get("target_identity_mismatch_not_source_theorem", False)
-            )
-            or _bool_like(
-                row.get("target_identity_unbound_not_source_theorem", False)
-            )
-        )
-        for row in failed_rows
-    )
-    failure_classification = (
-        "formalizer_lean_candidate_target_identity_mismatch"
-        if target_identity_failed
-        else (
-            "formalizer_lean_candidate_precheck_rejected"
-            if precheck_rejected > 0 and local_checked <= 0
-            else (
-                "formalizer_lean_candidate_precheck_diagnostics"
-                if any(
-                    str(row.get("precheck_status", "") or "")
-                    == "MATERIALIZED_WITH_PRECHECK_DIAGNOSTICS_REQUIRES_LOCAL_LEAN_OR_AXLE"
-                    for row in failed_rows
-                )
-                and local_checked <= 0
-                else "formalizer_lean_candidate_local_lean_failed"
-            )
-        )
-    )
-    proofengineer_repair_context = _proofengineer_repair_context_from_diagnostics(
+    candidate_context = _formalizer_candidate_exact_proof_search_context(
         manifest=manifest,
         diagnostics=diagnostics,
-        local_lean_repair_contract=local_lean_repair_contract,
-        formal_source_retriever=formal_source_retriever,
     )
-    formal_blocker_resource_requests = _merge_formal_blocker_resource_requests(
-        _formal_blocker_resource_requests_from_feedback(
-            prior_environment_feedback or {}
-        ),
-    )
-    prior_feedback = (
-        prior_environment_feedback if isinstance(prior_environment_feedback, Mapping) else {}
-    )
-    prior_proofengineer_repair_context = (
+    prior_candidate_context = (
         prior_feedback.get("proofengineer_repair_context", {})
         if isinstance(
             prior_feedback.get("proofengineer_repair_context", {}),
@@ -33136,94 +29813,73 @@ def _formalizer_lean_candidate_repair_feedback(
         )
         else {}
     )
-    if prior_proofengineer_repair_context:
-        current_exact_search_eligible = _bool_like(
-            proofengineer_repair_context.get(
-                "formalizer_candidate_exact_search_eligible",
-                False,
-            )
-        )
-        merged_repair_context = dict(proofengineer_repair_context)
-        exact_lineage_keys = (
-            "context_kind",
-            "owner_subsystem",
-            "repair_scope",
-            "target_lean_declaration",
-            "target_ids",
-            "source_theorem_target_known",
-            "source_theorem_target_identity_status",
-            "source_theorem_target_provenance",
-            "target_identity_status",
-            "target_identity_errors",
-            "source_theorem_kernel_evidence_eligible",
-            "candidate_artifact_path",
-            "source_candidate_artifact_path",
-            "expected_target_lean_declaration",
-            "source_work_order_id",
-            "execution_queue_id",
-            "lineage_candidate_artifact_path",
-            "lineage_candidate_artifact_hash",
-            "target_declaration_source_hash",
-            "target_theorem_statement",
-            "target_theorem_statement_hash",
-            "target_theorem_statement_hash_algorithm",
-            "proof_body_signature_probe_artifact_path",
-            "proof_body_signature_probe_artifact_hash",
-            "source_lineage_id",
-            "formal_environment_placeholder_symbols",
-            "formal_environment_typeclass_blockers",
-            "semantic_alignment_constraints",
-            "semantic_alignment_blockers",
-            "external_proof_search_result",
-            "proof_search_result_use",
-            "repair_target_identity_contract",
-        )
-        for key in exact_lineage_keys:
-            value = prior_proofengineer_repair_context.get(key)
-            current_value = merged_repair_context.get(key)
-            if value not in (None, "", [], {}) and (
-                not current_exact_search_eligible
-                or current_value in (None, "", [], {})
-            ):
-                merged_repair_context[key] = value
-        if not current_exact_search_eligible:
-            merged_repair_context[
-                "external_proof_search_dispatch_eligible"
-            ] = False
-            merged_repair_context[
-                "external_proof_search_dispatch_blockers"
-            ] = [
-                "The current Formalizer turn did not materialize a hash-valid "
-                "exact target artifact; carried lineage is diagnostic context only."
-            ]
-        proofengineer_repair_context = merged_repair_context
+    for observation_key in (
+        "target_lean_declaration",
+        "expected_target_lean_declaration",
+        "target_ids",
+        "target_theorem_goal_ids",
+        "target_theorem_name",
+        "target_theorem_statement",
+        "target_theorem_statement_hash",
+        "target_theorem_statement_hash_algorithm",
+        "source_work_order_id",
+        "execution_queue_id",
+        "source_lineage_id",
+        "lineage_candidate_artifact_path",
+        "lineage_candidate_artifact_hash",
+        "target_declaration_source_hash",
+        "candidate_artifact_path",
+        "source_candidate_artifact_path",
+        "candidate_source",
+        "source_theorem_target_provenance",
+        "semantic_alignment_constraints",
+        "semantic_alignment_blockers",
+    ):
+        if observation_key in candidate_context:
+            continue
+        observation_value = prior_candidate_context.get(observation_key)
+        if observation_value not in (None, "", [], {}):
+            candidate_context[observation_key] = deepcopy(observation_value)
+    for runtime_authored_strategy_field in (
+        "owner_subsystem",
+        "repair_scope",
+        "required_behavior",
+        "acceptance_gate",
+        "proof_body_generation_contract",
+        "proof_search_role",
+    ):
+        candidate_context.pop(runtime_authored_strategy_field, None)
+    candidate_context.update(
+        {
+            "context_kind": "model_owned_complete_lean_revision_observations",
+            "candidate_observation_interface": (
+                "The model receives the complete submitted source and exact tool "
+                "observations, then authors a complete replacement source or reports "
+                "a blocker. The runtime does not edit source or choose a correction."
+            ),
+            "model_owns_next_action": True,
+            "runtime_selected_source_edit": False,
+            "external_proof_search_dispatch_eligible": False,
+            "external_proof_search_dispatch_blockers": [
+                "The current candidate failed its tool checks; prior prover output "
+                "is observation context only until a complete replacement source "
+                "passes the independent semantic and kernel gates."
+            ],
+            "routing_authority_after_revision_budget": (
+                "ArchitectCoordinator_model_packet"
+            ),
+        }
+    )
     parent_formalizer_proof_state_feedback = (
         _compact_parent_formalizer_proof_state_feedback(prior_feedback)
     )
-    prior_source_theorem_proof_body_adapter_feedback = (
-        prior_feedback.get("source_theorem_proof_body_adapter_feedback", {})
-        if isinstance(
-            prior_feedback.get("source_theorem_proof_body_adapter_feedback", {}),
-            Mapping,
-        )
-        else {}
-    )
-    proofengineer_repair_context = (
-        _proofengineer_repair_context_with_route_feedback(
-            proofengineer_repair_context,
-            formal_blocker_resource_requests=formal_blocker_resource_requests,
-            source_theorem_proof_body_adapter_feedback=(
-                prior_source_theorem_proof_body_adapter_feedback
-            ),
-        )
-    )
     if parent_formalizer_proof_state_feedback:
-        proofengineer_repair_context[
+        candidate_context[
             "parent_formalizer_proof_state_feedback"
         ] = parent_formalizer_proof_state_feedback
     feedback = {
         "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
-        "failure_classification": failure_classification,
+        "failure_classification": "formalizer_lean_candidate_tool_rejected",
         "source_manifest_id": str(manifest.get("manifest_id", "") or ""),
         "n_candidate_sources": int(manifest.get("n_candidate_sources", 0) or 0),
         "n_candidate_artifacts_written": int(
@@ -33233,19 +29889,12 @@ def _formalizer_lean_candidate_repair_feedback(
         "n_local_lean_checked": local_checked,
         "n_local_lean_compiled": local_compiled,
         "candidate_diagnostics": diagnostics,
-        "repair_owner_agent": "ProofEngineer",
-        "proofengineer_repair_context": proofengineer_repair_context,
-        "proof_evidence_status": "FORMALIZER_LEAN_CANDIDATE_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE",
+        "proofengineer_repair_context": candidate_context,
+        "model_owned_complete_source_regeneration": True,
+        "runtime_selected_source_edit": False,
+        "proof_evidence_status": "FORMALIZER_LEAN_CANDIDATE_TOOL_OBSERVATIONS_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
-    if local_lean_repair_contract:
-        feedback["local_lean_repair_contract"] = local_lean_repair_contract
-    if formal_blocker_resource_requests:
-        feedback["formal_blocker_resource_requests"] = formal_blocker_resource_requests
-    if prior_source_theorem_proof_body_adapter_feedback:
-        feedback["source_theorem_proof_body_adapter_feedback"] = (
-            prior_source_theorem_proof_body_adapter_feedback
-        )
     if parent_formalizer_proof_state_feedback:
         feedback["parent_formalizer_proof_state_feedback"] = (
             parent_formalizer_proof_state_feedback
@@ -33257,14 +29906,10 @@ def _formalizer_lean_candidate_repair_feedback(
     if isinstance(prior_external_proof_search_result, Mapping) and (
         prior_external_proof_search_result
     ):
-        feedback = _runtime_environment_feedback_with_external_proof_search_result(
-            feedback,
-            prior_external_proof_search_result,
+        feedback["external_proof_search_result"] = dict(
+            prior_external_proof_search_result
         )
-    return _formalizer_feedback_with_preserved_action_work_order_binding(
-        feedback,
-        prior_environment_feedback=prior_feedback,
-    )
+    return feedback
 
 
 def _enrich_repeated_formalizer_lean_candidate_feedback(
@@ -33278,28 +29923,23 @@ def _enrich_repeated_formalizer_lean_candidate_feedback(
         feedback.get("repeated_formalizer_lean_candidate_failure", False)
     ):
         return feedback
-    contract = (
-        dict(feedback.get("local_lean_repair_contract", {}) or {})
-        if isinstance(feedback.get("local_lean_repair_contract", {}), Mapping)
-        else {}
-    )
     feedback["repeated_formalizer_lean_candidate_observation"] = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RepeatedFormalizerToolObservation",
         "observation_id": "repeated_formalizer_tool_observation:"
         + stable_hash(
             [
-                contract.get("observation_id", ""),
+                feedback.get("source_manifest_id", ""),
                 feedback.get("formalizer_lean_repair_retry_depth", 0),
                 feedback.get("candidate_diagnostics", []),
             ]
         )[:20],
-        "parent_observation_id": str(contract.get("observation_id", "") or ""),
+        "source_manifest_id": str(feedback.get("source_manifest_id", "") or ""),
         "retry_depth": int(
             feedback.get("formalizer_lean_repair_retry_depth", 0) or 0
         ),
         "model_owned_next_action": True,
-        "runtime_selected_repair": False,
+        "runtime_selected_revision": False,
         "proof_evidence_status": (
             "REPEATED_FORMALIZER_TOOL_OBSERVATION_NOT_PROOF_EVIDENCE"
         ),
@@ -33311,209 +29951,16 @@ def _enrich_repeated_formalizer_lean_candidate_feedback(
     return feedback
 
 
-def _proofengineer_repair_context_from_diagnostics(
-    *,
-    manifest: Mapping[str, Any],
-    diagnostics: list[dict[str, Any]],
-    local_lean_repair_contract: Mapping[str, Any],
-    formal_source_retriever: Any | None = None,
-) -> dict[str, Any]:
-    """Bind exact artifacts and raw tool observations for model-owned revision."""
-
-    question = (
-        manifest.get("question", {})
-        if isinstance(manifest.get("question", {}), Mapping)
-        else {}
-    )
-    unknown_identifiers = [
-        str(value).strip()
-        for value in local_lean_repair_contract.get("unknown_identifiers", []) or []
-        if str(value).strip()
-    ]
-    diagnostic_classes = [
-        str(value).strip()
-        for value in local_lean_repair_contract.get("diagnostic_classes", []) or []
-        if str(value).strip()
-    ]
-    live_proof_state_requests = [
-        dict(row.get("live_proof_state_request", {}) or {})
-        for row in diagnostics
-        if isinstance(row.get("live_proof_state_request", {}), Mapping)
-        and row.get("live_proof_state_request", {})
-    ]
-    query_seed_parts = [
-        str(question.get("title", "") or ""),
-        str(question.get("id", "") or ""),
-    ]
-    query_seed_parts.extend(unknown_identifiers[:5])
-    for row in diagnostics[:3]:
-        query_seed_parts.extend(
-            [
-                str(row.get("candidate_id", "") or ""),
-                str(row.get("candidate_kind", "") or ""),
-                str(row.get("source_field", "") or ""),
-            ]
-        )
-    retrieval_query_seeds = [
-        seed
-        for seed in dict.fromkeys(part.strip() for part in query_seed_parts)
-        if seed
-    ][:10]
-    manifest_repair_target_identity_contract = (
-        dict(manifest.get("repair_target_identity_contract", {}) or {})
-        if isinstance(manifest.get("repair_target_identity_contract", {}), Mapping)
-        else {}
-    )
-    manifest_repair_target_identity_required = bool(
-        _bool_like(manifest.get("repair_target_identity_required", False))
-        or _bool_like(
-            manifest_repair_target_identity_contract.get("required", False)
-        )
-        or str(manifest.get("task_id", "") or "").startswith(
-            "formalize-lean-repair:"
-        )
-    )
-    if manifest_repair_target_identity_required:
-        repair_target_identity_bindings = [
-            dict(row)
-            for row in manifest_repair_target_identity_contract.get("bindings", [])
-            or []
-            if isinstance(row, Mapping)
-        ]
-    else:
-        repair_target_identity_bindings = [
-            repair_target_identity_binding_from_diagnostic(row)
-            for row in diagnostics[:3]
-            if str(row.get("candidate_id", "") or "")
-        ]
-    context = {
-        "revision_interface": (
-            "The model receives the complete current artifact, raw verifier and "
-            "proof-state observations, and model-selected environment search. It "
-            "authors a complete replacement candidate or a typed blocker; the "
-            "runtime does not patch or choose the correction."
-        ),
-        "candidate_artifact_paths": [
-            str(row.get("artifact_path", "") or "")
-            for row in diagnostics
-            if str(row.get("artifact_path", "") or "")
-        ],
-        "proof_state_artifact_paths": [
-            str(row.get("proof_state_artifact_path", "") or "")
-            for row in diagnostics
-            if str(row.get("proof_state_artifact_path", "") or "")
-        ],
-        "candidate_rerun_specs": [
-            {
-                "candidate_id": str(row.get("candidate_id", "") or ""),
-                "artifact_path": str(row.get("artifact_path", "") or ""),
-                "kernel_check_artifact_path": str(
-                    row.get("kernel_check_artifact_path", "")
-                    or row.get("artifact_path", "")
-                    or ""
-                ),
-                "proof_state_artifact_path": str(
-                    row.get("proof_state_artifact_path", "") or ""
-                ),
-                "target_lean_file": str(row.get("target_lean_file", "") or ""),
-                "target_lean_line": int(row.get("target_lean_line", 0) or 0),
-                "target_lean_column": int(
-                    row.get("target_lean_column", 0) or 0
-                ),
-                "target_lean_declaration": str(
-                    row.get("target_lean_declaration", "") or ""
-                ),
-                "source_hash": str(row.get("source_hash", "") or ""),
-                "target_ids": list(row.get("target_ids", []) or []),
-                "target_theorem_goal_ids": list(
-                    row.get("target_theorem_goal_ids", []) or []
-                ),
-                "target_theorem_name": str(
-                    row.get("target_theorem_name", "") or ""
-                ),
-                "source_theorem_target_provenance": dict(
-                    row.get("source_theorem_target_provenance", {}) or {}
-                )
-                if isinstance(
-                    row.get("source_theorem_target_provenance", {}), Mapping
-                )
-                else {},
-                **repair_target_identity_binding_from_diagnostic(row),
-                "local_lean_command": list(
-                    row.get("local_lean_command", []) or []
-                ),
-                "local_lean_project": str(
-                    row.get("local_lean_project", "") or ""
-                ),
-                "local_lean_timeout": int(
-                    row.get("local_lean_timeout", 0) or 0
-                ),
-                "local_lean_skipped_reason": str(
-                    row.get("local_lean_skipped_reason", "") or ""
-                ),
-            }
-            for row in diagnostics[:3]
-            if str(row.get("candidate_id", "") or "")
-        ],
-        "verifier_feedback_sources": [
-            "runtime_precheck",
-            "local_lean_stdout_stderr",
-            "local_lean_command_project_timeout",
-            "candidate_diagnostics",
-            "immutable_repair_target_identity",
-            "live_proof_state_request",
-            "project_local_proof_state_artifact",
-        ],
-        "repair_target_identity_contract": {
-            "schema_version": RUNTIME_SCHEMA_VERSION,
-            "contract_kind": "immutable_parent_candidate_target_identity",
-            "required": True,
-            "bindings": repair_target_identity_bindings,
-            "binding_policy": (
-                "Each repaired candidate must remain bound to exactly one parent "
-                "candidate and emit that parent's expected target declaration. "
-                "A compiled helper remains candidate-only evidence."
-            ),
-            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-        },
-        "retrieval_query_seeds": retrieval_query_seeds,
-        "live_proof_state_requests": live_proof_state_requests[:3],
-        "n_live_proof_state_requests": len(live_proof_state_requests),
-        "diagnostic_classes": diagnostic_classes,
-        "unknown_identifiers": unknown_identifiers,
-        "available_runtime_tools": [
-            "local_lean",
-            "lean_lsp_mcp_when_configured",
-            "formal_source_retrieval",
-            "proof_search",
-            "proof_bank_memory",
-        ],
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-    }
-    exact_candidate_context = _formalizer_candidate_exact_proof_search_context(
-        manifest=manifest,
-        diagnostics=diagnostics,
-    )
-    if exact_candidate_context:
-        context.update(exact_candidate_context)
-    return _proofengineer_repair_context_with_formal_source_grounding(
-        context,
-        formal_source_retriever=formal_source_retriever,
-        unknown_identifiers=unknown_identifiers,
-        proof_state_feedback=diagnostics,
-    )
-
-
 def _formalizer_candidate_exact_proof_search_context(
     *,
     manifest: Mapping[str, Any],
     diagnostics: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
-    """Bind a failed exact Formalizer artifact to verifier-backed proof search.
+    """Bind a hash-verified complete candidate to downstream tool observations.
 
-    The declaration parser and proof-body splitter come from the exact-source
-    executor. This function only validates runtime lineage and assembles the
-    typed handoff; it does not encode Lean grammar or propose a proof strategy.
+    Lean owns declaration grammar and elaboration. This function checks only
+    artifact identity, immutable source hashes, and typed target lineage; it
+    neither parses proof bodies nor proposes a proof strategy.
     """
 
     question = (
@@ -33691,50 +30138,71 @@ def _formalizer_candidate_exact_proof_search_context(
             compiler_returncode = int(exit_status)
         except ValueError:
             compiler_returncode = -1
-        context = _external_exact_whole_proof_repair_context(
-            source=source,
-            target_declaration=target_declaration,
-            target_ids=target_ids,
-            candidate_artifact_path=artifact_path,
-            source_candidate_artifact_path=artifact_path_text,
-            proof_body_goal_excerpt=(),
-            proof_body_attempt_summaries=(
-                (
-                    "Formalizer candidate local Lean exit status="
-                    + (exit_status or "unavailable")
-                ),
+        target_statement = str(
+            diagnostic.get("target_theorem_statement", "") or source
+        )
+        lineage_payload = {
+            "source_work_order_id": source_work_order_id,
+            "execution_queue_id": execution_queue_id,
+            "lineage_candidate_artifact_path": artifact_path_text,
+            "lineage_candidate_artifact_hash": expected_source_hash,
+            "target_declaration_source_hash": expected_source_hash,
+            "target_theorem_statement_hash": (
+                _external_exact_target_statement_hash(target_statement)
             ),
-            semantic_alignment_constraints=string_tuple(
-                provenance.get("semantic_alignment_constraints", [])
+            "target_theorem_statement_hash_algorithm": (
+                EXACT_TARGET_STATEMENT_HASH_ALGORITHM
             ),
-            semantic_alignment_blockers=string_tuple(
-                provenance.get("semantic_alignment_blockers", [])
-            ),
-            source_theorem_target_known=target_known is True,
-            source_theorem_target_identity_status=(
+            "expected_target_lean_declaration": expected_declaration,
+            "target_lean_declaration": target_declaration,
+            "target_ids": list(target_ids),
+        }
+        context = {
+            "context_kind": "model_owned_complete_lean_candidate",
+            "target_lean_declaration": target_declaration,
+            "target_ids": list(target_ids),
+            "source_theorem_target_known": target_known is True,
+            "source_theorem_target_identity_status": (
                 "SOURCE_THEOREM_TARGET_KNOWN"
                 if target_known is True
                 else "GENERATED_FORMAL_TARGET_PENDING_SEMANTIC_REVIEW"
             ),
-            source_theorem_target_provenance=provenance,
-            expected_target_lean_declaration=expected_declaration,
-            source_work_order_id=source_work_order_id,
-            execution_queue_id=execution_queue_id,
-            signature_probe_artifact_path=artifact_path_text,
-            target_identity_status="TARGET_DECLARATION_MATCHED",
-            target_identity_errors=identity_errors,
-            target_identity_source=(
+            "source_theorem_target_provenance": provenance,
+            **lineage_payload,
+            "source_lineage_id": _external_exact_source_lineage_id(
+                lineage_payload
+            ),
+            "target_identity_status": "TARGET_DECLARATION_MATCHED",
+            "target_identity_errors": list(identity_errors),
+            "target_identity_source": (
                 "runtime_formalizer_candidate_artifact_and_target_binding"
             ),
-            source_theorem_kernel_evidence_eligible=False,
-            compiler_diagnostics=compiler_diagnostics,
-            compiler_returncode=compiler_returncode,
-            compiler_checked=_bool_like(
-                diagnostic.get("local_lean_attempted", False)
+            "source_theorem_kernel_evidence_eligible": False,
+            "candidate_artifact_path": artifact_path_text,
+            "source_candidate_artifact_path": artifact_path_text,
+            "candidate_source": source,
+            "target_theorem_statement": target_statement,
+            "semantic_alignment_constraints": list(
+                string_tuple(
+                    provenance.get("semantic_alignment_constraints", [])
+                )
             ),
-        )
-        if not context:
-            continue
+            "semantic_alignment_blockers": list(
+                string_tuple(provenance.get("semantic_alignment_blockers", []))
+            ),
+            "compiler_feedback": {
+                "provider": "configured_local_lean_or_lsp",
+                "checked": _bool_like(
+                    diagnostic.get("local_lean_attempted", False)
+                ),
+                "returncode": compiler_returncode,
+                "diagnostics": list(compiler_diagnostics),
+                "candidate_artifact_hash": expected_source_hash,
+            },
+            "proof_evidence_status": (
+                "MODEL_OWNED_COMPLETE_LEAN_CANDIDATE_NOT_PROOF_EVIDENCE"
+            ),
+        }
         return {
             **context,
             "formal_target_role": formal_target_role,
@@ -33752,10 +30220,6 @@ def _formalizer_candidate_exact_proof_search_context(
                 "A Formalizer-generated declaration requires independent semantic "
                 "faithfulness review before it can be promoted as the source theorem."
             ],
-            "proof_search_role": (
-                "Verifier-backed whole-proof proposal and compiler-feedback search; "
-                "not source-theorem proof evidence."
-            ),
         }
     return {}
 
@@ -33791,6 +30255,15 @@ def _formalizer_compiled_exact_candidate_semantic_review_feedback(
     )
     if not context:
         return None
+    for runtime_authored_strategy_field in (
+        "owner_subsystem",
+        "repair_scope",
+        "required_behavior",
+        "acceptance_gate",
+        "proof_body_generation_contract",
+        "proof_search_role",
+    ):
+        context.pop(runtime_authored_strategy_field, None)
     context["external_proof_search_dispatch_eligible"] = False
     context["external_proof_search_dispatch_blockers"] = [
         "The exact candidate compiles, but independent whole-target semantic "
@@ -33803,7 +30276,6 @@ def _formalizer_compiled_exact_candidate_semantic_review_feedback(
             "formal_target_semantic_review_required_before_proof_search"
         ),
         "source_manifest_id": str(manifest.get("manifest_id", "") or ""),
-        "repair_owner_agent": "FormalTargetSemanticReviewer",
         "proofengineer_repair_context": context,
         "required_review": (
             "Independently compare the exact theorem statement and full Lean "
@@ -33815,55 +30287,6 @@ def _formalizer_compiled_exact_candidate_semantic_review_feedback(
         ),
         "proof_evidence_boundary": FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
     }
-
-
-def _proofengineer_repair_context_with_route_feedback(
-    context: Mapping[str, Any],
-    *,
-    formal_blocker_resource_requests: Sequence[Mapping[str, Any]] = (),
-    source_theorem_proof_body_adapter_feedback: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Mirror typed proof-route blockers into the ProofEngineer repair packet."""
-
-    payload = dict(context) if isinstance(context, Mapping) else {}
-    requests = [
-        dict(row)
-        for row in formal_blocker_resource_requests
-        if isinstance(row, Mapping)
-    ]
-    if requests:
-        payload["formal_blocker_resource_requests"] = requests[:12]
-        payload["n_formal_blocker_resource_requests"] = len(requests)
-    adapter_feedback = (
-        dict(source_theorem_proof_body_adapter_feedback)
-        if isinstance(source_theorem_proof_body_adapter_feedback, Mapping)
-        else {}
-    )
-    if adapter_feedback:
-        adapter_diagnostics = [
-            dict(row)
-            for row in adapter_feedback.get("diagnostics", []) or []
-            if isinstance(row, Mapping)
-        ]
-        if adapter_diagnostics:
-            adapter_feedback["diagnostics"] = adapter_diagnostics[:3]
-        payload["source_theorem_proof_body_adapter_feedback"] = adapter_feedback
-
-    extra_sources: list[str] = []
-    if requests:
-        extra_sources.append("formal_blocker_resource_requests")
-    if adapter_feedback:
-        extra_sources.append("source_theorem_proof_body_adapter_feedback")
-    if extra_sources:
-        verifier_sources = [
-            str(value).strip()
-            for value in payload.get("verifier_feedback_sources", []) or []
-            if str(value).strip()
-        ]
-        verifier_sources.extend(extra_sources)
-        payload["verifier_feedback_sources"] = list(dict.fromkeys(verifier_sources))
-
-    return payload
 
 
 def _formalizer_environment_feedback_with_formal_source_grounding(
@@ -33878,9 +30301,6 @@ def _formalizer_environment_feedback_with_formal_source_grounding(
         _formalizer_environment_feedback_with_refreshed_validation_feedback(
             payload
         )
-    )
-    payload = _formalizer_environment_feedback_with_refreshed_repair_contract(
-        payload
     )
     repair_context = (
         payload.get("proofengineer_repair_context", {})
@@ -33905,20 +30325,10 @@ def _formalizer_environment_feedback_with_formal_source_grounding(
         payload["proofengineer_repair_context"] = repair_context
     if not repair_context:
         return payload
-    local_lean_repair_contract = (
-        payload.get("local_lean_repair_contract", {})
-        if isinstance(payload.get("local_lean_repair_contract", {}), Mapping)
-        else {}
-    )
     payload["proofengineer_repair_context"] = (
         _proofengineer_repair_context_with_formal_source_grounding(
             repair_context,
             formal_source_retriever=formal_source_retriever,
-            unknown_identifiers=local_lean_repair_contract.get(
-                "unknown_identifiers",
-                [],
-            ),
-            proof_state_feedback=payload.get("candidate_diagnostics", []),
         )
     )
     return payload
@@ -34008,51 +30418,6 @@ def _feedback_text_values(value: Any) -> list[str]:
     return [text] if text.strip() else []
 
 
-def _formalizer_environment_feedback_with_refreshed_repair_contract(
-    feedback: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    """Refresh stale carried repair contracts from exact candidate diagnostics."""
-
-    payload = dict(feedback) if isinstance(feedback, Mapping) else {}
-    diagnostics = [
-        dict(row)
-        for row in payload.get("candidate_diagnostics", []) or []
-        if isinstance(row, Mapping)
-    ]
-    if not diagnostics:
-        return payload
-    derived_contract = _formalizer_local_lean_repair_contract_from_diagnostics(
-        diagnostics
-    )
-    if not derived_contract:
-        return payload
-    existing_contract = (
-        payload.get("local_lean_repair_contract", {})
-        if isinstance(payload.get("local_lean_repair_contract", {}), Mapping)
-        else {}
-    )
-    merged_contract = _formalizer_merge_local_lean_repair_contracts(
-        existing_contract,
-        derived_contract,
-    )
-    if merged_contract:
-        payload["local_lean_repair_contract"] = merged_contract
-    if isinstance(payload.get("proofengineer_repair_context", {}), Mapping):
-        context = dict(payload.get("proofengineer_repair_context", {}) or {})
-        if merged_contract.get("diagnostic_classes"):
-            context["diagnostic_classes"] = list(
-                merged_contract.get("diagnostic_classes", []) or []
-            )
-        if merged_contract.get("unknown_identifiers"):
-            context["unknown_identifiers"] = list(
-                merged_contract.get("unknown_identifiers", []) or []
-            )
-        payload["proofengineer_repair_context"] = context
-    if bool(payload.get("repeated_formalizer_lean_candidate_failure", False)):
-        _enrich_repeated_formalizer_lean_candidate_feedback(payload)
-    return payload
-
-
 def _formalizer_environment_feedback_formal_source_grounding_summary(
     feedback: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
@@ -34117,32 +30482,14 @@ def _proofengineer_repair_context_with_formal_source_grounding(
     context: Mapping[str, Any],
     *,
     formal_source_retriever: Any | None = None,
-    unknown_identifiers: Sequence[Any] = (),
-    proof_state_feedback: Any = None,
 ) -> dict[str, Any]:
-    """Ground a repair context in formal-source hits without treating hits as proof."""
+    """Run model/task-selected formal-source queries without treating hits as proof."""
 
     payload = dict(context) if isinstance(context, Mapping) else {}
     query_seeds = [
         str(seed).strip()
         for seed in payload.get("retrieval_query_seeds", []) or []
         if str(seed).strip()
-    ]
-    retrieval_context = dict(payload)
-    if proof_state_feedback not in (None, "", [], {}):
-        retrieval_context["candidate_diagnostics"] = proof_state_feedback
-    proof_state_query_seeds, _proof_state_query_roles = (
-        proof_state_retrieval_query_parts(retrieval_context)
-    )
-    proof_state_query_seeds = [
-        seed for seed in proof_state_query_seeds if seed not in query_seeds
-    ]
-    unknowns = [
-        str(value).strip()
-        for value in unknown_identifiers
-        or payload.get("unknown_identifiers", [])
-        or []
-        if str(value).strip()
     ]
     source_scope_ids = _proofengineer_formal_source_scope_ids(payload)
     if (
@@ -34171,14 +30518,10 @@ def _proofengineer_repair_context_with_formal_source_grounding(
         "initial_formalization_context"
         if str(payload.get("context_kind", "") or "")
         == "task_bound_formal_source_grounding"
-        and not proof_state_query_seeds
-        and not unknowns
-        else "repair_context_seed"
+        else "model_or_task_selected_query"
     )
     query_rows = _proofengineer_formal_source_query_rows(
-        proof_state_query_seeds=proof_state_query_seeds,
         query_seeds=query_seeds,
-        unknown_identifiers=unknowns,
         semantic_query_role=semantic_query_role,
     )
     existing_groups = [
@@ -34212,9 +30555,7 @@ def _proofengineer_repair_context_with_formal_source_grounding(
         return attach_ai4slt_proof_state_trace_rag(payload)
     groups = _proofengineer_formal_source_grounding_hit_groups(
         formal_source_retriever,
-        proof_state_query_seeds=proof_state_query_seeds,
         query_seeds=query_seeds,
-        unknown_identifiers=unknowns,
         source_scope_ids=source_scope_ids,
         semantic_query_role=semantic_query_role,
     )
@@ -34236,18 +30577,6 @@ def _proofengineer_repair_context_with_formal_source_grounding(
         if any(group.get("hits") for group in groups)
         else "retrieval_attempted_no_hits"
     )
-    if unknowns:
-        trailing_fields["unknown_identifier_grounding_requests"] = [
-            {
-                "unknown_identifier": value,
-                "required_action": (
-                    "Do not reuse this unknown identifier. Replace it only with a "
-                    "retrieved or otherwise verified local declaration, prove the "
-                    "needed fact from known primitives, or emit a FORMAL_GAP."
-                ),
-            }
-            for value in unknowns[:5]
-        ]
     grounded = _proofengineer_repair_context_ordered_with_formal_source_grounding(
         payload,
         immediate_fields={"formal_source_grounding_hits": groups},
@@ -34289,17 +30618,13 @@ def _proofengineer_formal_source_grounding_hit_groups(
     formal_source_retriever: Any,
     *,
     query_seeds: Sequence[str],
-    unknown_identifiers: Sequence[str],
-    proof_state_query_seeds: Sequence[str] = (),
     source_scope_ids: Sequence[str] = (),
-    semantic_query_role: str = "repair_context_seed",
+    semantic_query_role: str = "model_or_task_selected_query",
     k: int = 2,
     max_groups: int = 3,
 ) -> list[dict[str, Any]]:
     query_rows = _proofengineer_formal_source_query_rows(
-        proof_state_query_seeds=proof_state_query_seeds,
         query_seeds=query_seeds,
-        unknown_identifiers=unknown_identifiers,
         semantic_query_role=semantic_query_role,
     )
     groups: list[dict[str, Any]] = []
@@ -34399,48 +30724,21 @@ def _proofengineer_formal_source_grounding_hit_groups(
 
 def _proofengineer_formal_source_query_rows(
     *,
-    proof_state_query_seeds: Sequence[str],
     query_seeds: Sequence[str],
-    unknown_identifiers: Sequence[str],
-    semantic_query_role: str = "repair_context_seed",
+    semantic_query_role: str = "model_or_task_selected_query",
 ) -> list[dict[str, str]]:
-    """Prioritize one live state, one API diagnostic, and one semantic query."""
+    """Preserve model/task-selected query strings and their order exactly."""
 
-    proof_state_rows = [
-        {
-            "query": str(seed).strip(),
-            "query_role": "live_proof_state_or_diagnostic",
-            "unknown_identifier": "",
-        }
-        for seed in proof_state_query_seeds
-        if str(seed).strip()
-    ]
-    unknown_rows = [
-        {
-            "query": f"{str(identifier).strip()} Lean declaration identifier",
-            "query_role": "unknown_identifier_api_repair",
-            "unknown_identifier": str(identifier).strip(),
-        }
-        for identifier in unknown_identifiers
-        if str(identifier).strip()
-    ]
-    semantic_rows = [
+    rows = [
         {
             "query": str(seed).strip(),
             "query_role": str(semantic_query_role).strip()
-            or "repair_context_seed",
+            or "model_or_task_selected_query",
             "unknown_identifier": "",
         }
         for seed in query_seeds
         if str(seed).strip()
     ]
-    rows: list[dict[str, str]] = []
-    buckets = (proof_state_rows, unknown_rows, semantic_rows)
-    for bucket in buckets:
-        if bucket:
-            rows.append(bucket[0])
-    for bucket in buckets:
-        rows.extend(bucket[1:])
     unique_rows: list[dict[str, str]] = []
     seen_queries: set[str] = set()
     for row in rows:
@@ -34730,16 +31028,14 @@ def _formalizer_lean_candidate_live_prover_inspection_feedback(
             "candidate_artifact_paths": [
                 row["proof_state_artifact_path"] for row in diagnostics
             ],
-            "proof_state_workflow": {
-                "style": "lean_dojo_reprover_compatible",
-                "preferred_tool_order": (
-                    "lean_diagnostic_messages",
-                    "lean_goal",
-                    "lean_state_search",
-                    "lean_multi_attempt",
-                    "local_lean_or_axle_rerun",
-                ),
-            },
+            "available_observation_types": (
+                "lean_diagnostic_messages",
+                "lean_goal",
+                "lean_state_search",
+                "lean_multi_attempt",
+                "local_lean_or_axle_rerun",
+            ),
+            "model_selects_tool_order": True,
             "boundary": PROOF_STATE_FEEDBACK_BOUNDARY,
         },
         "proof_evidence_status": (
@@ -34749,20 +31045,20 @@ def _formalizer_lean_candidate_live_prover_inspection_feedback(
     }
 
 
-def _formalizer_local_lean_repair_contract_from_diagnostics(
+def _formalizer_local_lean_observation_from_diagnostics(
     diagnostics: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Carry failed Lean tool observations without deriving a repair strategy."""
+    """Carry failed Lean tool observations without deriving a source strategy."""
 
-    repair_diagnostics = [
+    failed_diagnostics = [
         dict(row)
         for row in diagnostics
-        if _formalizer_diagnostic_row_requires_repair(row)
+        if _formalizer_diagnostic_row_requires_feedback(row)
     ]
-    if not repair_diagnostics:
+    if not failed_diagnostics:
         return {}
     diagnostic_classes: list[str] = []
-    for row in repair_diagnostics:
+    for row in failed_diagnostics:
         for key in ("local_lean_diagnostic_classes", "diagnostic_classes"):
             for value in row.get(key, []) or []:
                 text = str(value).strip()
@@ -34779,14 +31075,14 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
             if text and text not in diagnostic_classes:
                 diagnostic_classes.append(text)
     return formalizer_tool_observation_envelope(
-        repair_diagnostics,
+        failed_diagnostics,
         tool_name="lean",
         producer="configured_local_lean_or_lsp",
         diagnostic_classes=diagnostic_classes,
     )
 
 
-def _formalizer_diagnostic_row_requires_repair(row: Mapping[str, Any]) -> bool:
+def _formalizer_diagnostic_row_requires_feedback(row: Mapping[str, Any]) -> bool:
     """Return true when a diagnostic row represents failed verifier/precheck work."""
 
     precheck_status = str(row.get("precheck_status", "") or "").strip()
@@ -34804,59 +31100,6 @@ def _formalizer_diagnostic_row_requires_repair(row: Mapping[str, Any]) -> bool:
     return False
 
 
-def _formalizer_merge_local_lean_repair_contracts(
-    primary: Mapping[str, Any] | None,
-    derived: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    """Merge only typed observations and provider-supplied diagnostic classes."""
-
-    contracts = [
-        contract
-        for contract in (primary, derived)
-        if isinstance(contract, Mapping) and contract
-    ]
-    if not contracts:
-        return {}
-    observations: list[dict[str, Any]] = []
-    diagnostic_classes: list[str] = []
-    for contract in contracts:
-        for row in contract.get("observations", []) or []:
-            if isinstance(row, Mapping):
-                observations.append(dict(row))
-        for value in contract.get("diagnostic_classes", []) or []:
-            text = str(value).strip()
-            if text and text not in diagnostic_classes:
-                diagnostic_classes.append(text)
-    if observations:
-        return formalizer_tool_observation_envelope(
-            observations,
-            tool_name="lean",
-            producer="configured_local_lean_or_lsp",
-            diagnostic_classes=diagnostic_classes,
-        )
-
-    cleaned = without_legacy_python_lean_strategy_fields(contracts[-1])
-    return {
-        key: deepcopy(value)
-        for key, value in cleaned.items()
-        if key
-        in {
-            "schema_version",
-            "artifact_kind",
-            "observation_id",
-            "producer",
-            "tool_name",
-            "observations",
-            "diagnostic_classes",
-            "diagnostic_classes_source",
-            "model_owned_next_action",
-            "runtime_selected_repair",
-            "repair_authority",
-            "boundary",
-        }
-    }
-
-
 def _formalizer_declared_lean_imports(row: Mapping[str, Any]) -> list[str]:
     raw_imports = row.get("lean_imports", row.get("target_imports", []))
     if not isinstance(raw_imports, list | tuple):
@@ -34868,35 +31111,6 @@ def _formalizer_declared_lean_imports(row: Mapping[str, Any]) -> list[str]:
             if str(value).strip()
         )
     )
-
-
-def _formalizer_candidate_source_with_declared_imports(
-    source: str,
-    declared_imports: Sequence[str],
-) -> str:
-    statement = str(source or "").strip()
-    if not statement:
-        return ""
-    existing_imports = {
-        line.strip()
-        for line in statement.splitlines()
-        if line.strip().startswith("import ")
-    }
-    import_lines: list[str] = []
-    for raw_import in declared_imports:
-        import_name = str(raw_import or "").strip()
-        if not import_name:
-            continue
-        import_line = (
-            import_name
-            if import_name.startswith("import ")
-            else f"import {import_name}"
-        )
-        if import_line not in existing_imports and import_line not in import_lines:
-            import_lines.append(import_line)
-    if not import_lines:
-        return statement
-    return "\n".join([*import_lines, "", statement])
 
 
 def _formalizer_lean_candidate_sources(
@@ -35216,11 +31430,9 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
             }
         groups = _proofengineer_formal_source_grounding_hit_groups(
             formal_source_retriever,
-            proof_state_query_seeds=(),
             query_seeds=(query,),
-            unknown_identifiers=(),
             source_scope_ids=source_scope_ids,
-            semantic_query_role="model_selected_lean_repair_query",
+            semantic_query_role="model_selected_lean_query",
             k=k,
             max_groups=1,
         )
@@ -35338,8 +31550,7 @@ def _critic_packet_validation_failure_bundle(
     algorithm_manifest: Mapping[str, Any],
     formalization_manifest: Mapping[str, Any],
     agenda: Sequence[Mapping[str, Any]],
-    deterministic_learning_rows: Sequence[Mapping[str, Any]],
-    deterministic_repair_feedback: Mapping[str, Any],
+    runtime_observations: Mapping[str, Any],
     exc: PacketValidationError,
 ) -> tuple[str, dict[str, Any], dict[str, Any], EnvironmentObservation, EvidenceLedgerEntry]:
     validation_errors = [str(error) for error in exc.errors if str(error)]
@@ -35349,23 +31560,27 @@ def _critic_packet_validation_failure_bundle(
             [task.task_id, exc.validation_label, validation_errors, exc.history]
         )[:20]
     )
-    compact_agenda = [
-        _compact_agenda_item(row) for row in agenda if isinstance(row, Mapping)
-    ][:8]
-    deterministic_learning_summary = [
-        {
-            "learning_task": str(row.get("learning_task", "") or ""),
-            "target_behavior": str(row.get("target_behavior", "") or "")[:500],
-        }
-        for row in deterministic_learning_rows
-        if isinstance(row, Mapping)
-    ][:6]
-    deterministic_repair_feedback_payload = (
-        dict(deterministic_repair_feedback)
-        if isinstance(deterministic_repair_feedback, Mapping)
+    rejected_candidate = (
+        dict(exc.last_invalid_packet)
+        if isinstance(exc.last_invalid_packet, Mapping)
         else {}
     )
-    repair_feedback = {
+    input_snapshot = {
+        "retrieval_manifest": dict(retrieval_manifest),
+        "theory_packet": dict(theory_packet),
+        "simulation_manifest": dict(simulation_manifest),
+        "algorithm_manifest": dict(algorithm_manifest),
+        "formalization_manifest": dict(formalization_manifest),
+        "critic_agenda": [
+            dict(row) for row in agenda if isinstance(row, Mapping)
+        ],
+        "runtime_observations": (
+            dict(runtime_observations)
+            if isinstance(runtime_observations, Mapping)
+            else {}
+        ),
+    }
+    feedback = {
         "feedback_type": "critic_packet_validation_feedback",
         "feedback_source": "CriticEvaluator",
         "failure_classification": "critic_packet_validation_failed",
@@ -35373,48 +31588,16 @@ def _critic_packet_validation_failure_bundle(
         "validation_errors": validation_errors,
         "attempts": exc.attempts,
         "last_attempt_summary": exc.history[-1] if exc.history else {},
-        "deterministic_next_action_agenda": compact_agenda,
-        "deterministic_repair_feedback": deterministic_repair_feedback_payload,
-        "proof_evidence_status": "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-    }
-    learning_row = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "question_id": question.id,
-        "question_title": question.title,
-        "theory_packet_id": str(theory_packet.get("packet_id", "")),
-        "simulation_manifest_id": str(simulation_manifest.get("manifest_id", "")),
-        "algorithm_sandbox_manifest_id": str(
-            algorithm_manifest.get("manifest_id", "")
-        ),
-        "formalization_manifest_id": str(
-            formalization_manifest.get("manifest_id", "")
-        ),
-        "learning_task": "critic_packet_validation_feedback",
-        "input_summary": {
-            "trigger": "CRITIC_PACKET_VALIDATION_FAILED",
-            "failed_subsystem": "CriticEvaluator",
-            "failure_classification": "critic_packet_validation_failed",
-            "validation_label": exc.validation_label,
-            "validation_errors": validation_errors,
-            "attempts": exc.attempts,
-            "last_attempt_summary": exc.history[-1] if exc.history else {},
-            "deterministic_agenda_ids": [
-                str(row.get("id", "") or "")
-                for row in agenda
-                if isinstance(row, Mapping)
-            ],
+        "rejected_candidate": rejected_candidate,
+        "critic_input_snapshot": input_snapshot,
+        "regeneration_contract": {
+            "same_model": True,
+            "full_packet_required": True,
+            "runtime_edits_candidate": False,
         },
-        "target_behavior": (
-            "Continue deterministic CriticEvaluator routing while requiring any "
-            "LLM CriticEvaluator proposal to remain non-authoritative audit text "
-            "with proof completion claims removed."
+        "proof_evidence_status": (
+            "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
         ),
-        "acceptance_gate": (
-            "CriticEvaluator packet passes local validation; theorem proof status "
-            "still requires explicit local Lean/AXLE/kernel verification records."
-        ),
-        "proof_evidence_status": "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
     failure_artifact = {
@@ -35424,33 +31607,21 @@ def _critic_packet_validation_failure_bundle(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "question": _question_to_payload(question),
         "task_id": task.task_id,
-        "retrieval_memory_manifest_id": str(
-            retrieval_manifest.get("manifest_id", "")
-        ),
-        "theory_packet_id": str(theory_packet.get("packet_id", "")),
-        "simulation_manifest_id": str(simulation_manifest.get("manifest_id", "")),
-        "algorithm_sandbox_manifest_id": str(
-            algorithm_manifest.get("manifest_id", "")
-        ),
-        "formalization_manifest_id": str(
-            formalization_manifest.get("manifest_id", "")
-        ),
         "validation_label": exc.validation_label,
         "failure_classification": "critic_packet_validation_failed",
         "validation_errors": validation_errors,
         "llm_json_repair_history": exc.history,
-        "deterministic_next_action_agenda": compact_agenda,
-        "deterministic_learning_rows": deterministic_learning_summary,
-        "deterministic_repair_feedback": deterministic_repair_feedback_payload,
-        "learning_rows": [learning_row],
-        "recommended_next_action": learning_row["target_behavior"],
-        "proof_evidence_status": "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
+        "rejected_candidate": rejected_candidate,
+        "critic_input_snapshot": input_snapshot,
+        "learning_rows": [],
+        "proof_evidence_status": (
+            "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+        ),
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         "boundary": (
-            "This artifact records a local validator failure from an LLM "
-            "CriticEvaluator proposal. The proposal is discarded as proof "
-            "evidence; deterministic runtime agenda and kernel gates remain the "
-            "authority for routing and proof status."
+            "This artifact records a rejected CriticEvaluator model packet and "
+            "the exact validator observations. The same model must regenerate a "
+            "complete packet; runtime does not edit it or choose a worker."
         ),
     }
     observation = EnvironmentObservation(
@@ -35481,7 +31652,7 @@ def _critic_packet_validation_failure_bundle(
             ),
         },
     )
-    return failure_id, failure_artifact, repair_feedback, observation, evidence
+    return failure_id, failure_artifact, feedback, observation, evidence
 
 
 def _critic_feedback_has_formalizer_packet_validation_escalation(
@@ -39536,6 +35707,9 @@ class CriticEvaluatorRuntimeSubsystem:
         context = dict(task.inputs.get("architect_context", {}) or {})
         critic_control = _architect_control_payload(context, "CriticEvaluator")
         retrieval_manifest = _latest_artifact(blackboard, "retrieval_memory_manifest:")
+        retrieval_manifest_id = str(
+            retrieval_manifest.get("manifest_id", "") or ""
+        )
         requested_theory_packet_id = str(task.inputs.get("theory_packet_id", "") or "")
         if requested_theory_packet_id:
             raw_theory_packet = blackboard.artifacts.get(requested_theory_packet_id, {})
@@ -39741,25 +35915,35 @@ class CriticEvaluatorRuntimeSubsystem:
             and not should_repair
             and formal_proof_work_pending
         )
-        repair_feedback = _critic_repair_feedback(
-            question=question,
-            critic_round=critic_round,
-            max_critic_repair_rounds=max_critic_repair_rounds,
-            retrieval_manifest=retrieval_manifest,
-            theory_packet=theory_packet,
-            simulation_manifest=simulation_manifest,
-            algorithm_manifest=algorithm_manifest,
-            formalization_manifest=formalization_manifest,
-            agenda=agenda,
+        formalization_counts = (
+            dict(formalization_manifest.get("counts", {}))
+            if isinstance(formalization_manifest.get("counts", {}), Mapping)
+            else {}
         )
-        gap_planner_feedback = {
-            "feedback_type": (
-                "formalizer_packet_validation_gap_planner_handoff"
-            ),
+        critic_runtime_observations = {
+            "feedback_type": "critic_runtime_observations",
             "feedback_source": "CriticEvaluator",
-            "failure_classification": (
-                "critic_requested_formalization_gap_planner_execution"
+            "question_id": question.id,
+            "critic_round": critic_round,
+            "max_critic_rounds": max_critic_repair_rounds,
+            "retrieval_memory_manifest_id": retrieval_manifest_id,
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+            "formalization_manifest_id": formalization_manifest_id,
+            "formalization_counts": formalization_counts,
+            "proof_state_feedback_manifest_id": str(
+                formalization_manifest.get(
+                    "proof_state_feedback_manifest_id", ""
+                )
+                or ""
             ),
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        }
+        formalizer_escalation_observations = {
+            "feedback_type": "formalizer_packet_validation_observations",
+            "feedback_source": "CriticEvaluator",
             "packet_validation_escalation": (
                 dict(critic_environment_feedback.get("packet_validation_escalation", {}))
                 if isinstance(
@@ -39777,19 +35961,7 @@ class CriticEvaluatorRuntimeSubsystem:
                 for row in gap_planner_bridge_rows
                 if str(row.get("bridge_id", "") or "").strip()
             ],
-            "target_behavior": (
-                "Execute the runtime FormalizationGapPlanner offline replay and "
-                "prompt-staging smoke path before requesting another Formalizer "
-                "packet for the repeated validation failure."
-            ),
-            "acceptance_gate": (
-                "runtime FormalizationGapPlanner materializes standalone seeds, "
-                "target intake, execution-plan handoffs, and offline prompt smoke "
-                "without invoking live Claude or claiming proof evidence"
-            ),
-            "proof_evidence_status": (
-                "CRITIC_REQUESTED_GAP_PLANNER_EXECUTION_NOT_PROOF_EVIDENCE"
-            ),
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
             "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         }
         proposal_packet: dict[str, Any] | None = None
@@ -39828,8 +36000,7 @@ class CriticEvaluatorRuntimeSubsystem:
                     algorithm_manifest=algorithm_manifest,
                     formalization_manifest=formalization_manifest,
                     agenda=agenda,
-                    deterministic_learning_rows=learning_rows,
-                    deterministic_repair_feedback=repair_feedback,
+                    runtime_observations=critic_runtime_observations,
                     exc=exc,
                 )
                 produced_artifacts[proposal_validation_failure_id] = (
@@ -39881,13 +36052,20 @@ class CriticEvaluatorRuntimeSubsystem:
                         "full_frontier_theorem_proved": False,
                     },
                 )
+        architect_replan_required = bool(
+            (
+                formal_debt_blocks_research_acceptance
+                and formal_proof_work_pending
+            )
+            or should_repair
+            or should_route_to_gap_planner
+            or should_route_to_formalizer
+        )
         evidence_contract_decision = _critic_evidence_contract_decision(
             critic_control=critic_control,
             formalization_manifest=formalization_manifest,
             should_repair=bool(
-                should_repair
-                or should_route_to_gap_planner
-                or should_route_to_formalizer
+                architect_replan_required
                 or proposal_validation_failure_feedback is not None
             ),
         )
@@ -39914,13 +36092,17 @@ class CriticEvaluatorRuntimeSubsystem:
             "critic_repair_round": critic_round,
             "max_critic_repair_rounds": max_critic_repair_rounds,
             "runtime_reroute_decision": {
-                "reroute_to_theory_developer": should_repair,
-                "reroute_to_formalization_gap_planner": (
-                    should_route_to_gap_planner
-                ),
-                "reroute_to_formalizer_proofengineer": (
-                    should_route_to_formalizer
-                ),
+                "routing_authority": "ArchitectCoordinator_model_packet",
+                "architect_replan_required": architect_replan_required,
+                "legacy_owner_routes_disabled": True,
+                "reroute_to_theory_developer": False,
+                "reroute_to_formalization_gap_planner": False,
+                "reroute_to_formalizer_proofengineer": False,
+                "observed_conditions": {
+                    "theory_revision_candidate": should_repair,
+                    "gap_planner_candidate": should_route_to_gap_planner,
+                    "formalizer_candidate": should_route_to_formalizer,
+                },
                 "formal_verification_policy": formal_verification_policy,
                 "formal_verification_policy_explicit": bool(
                     explicit_formal_verification_policy
@@ -39932,33 +36114,18 @@ class CriticEvaluatorRuntimeSubsystem:
                     formalizer_packet_validation_escalation_active
                 ),
                 "reason": (
-                    "repeated Formalizer packet-validation escalation has a "
-                    "runtime gap-planner bridge; routing to FormalizationGapPlanner "
-                    "for offline replay and prompt staging before any new "
-                    "Formalizer packet"
-                    if should_route_to_gap_planner
-                    else
-                    "repeated Formalizer packet-validation escalation recorded; "
-                    "deterministic agenda remains the authority and immediate "
-                    "Formalizer reroute is suppressed"
-                    if formalizer_packet_validation_escalation_active
-                    else
-                    "formal/proof feedback requires another theory-discovery pass"
-                    if should_repair
-                    else
-                    "formal proof work remains recorded as non-blocking debt under "
-                    f"the {formal_verification_policy} policy"
-                    if formal_debt_deferred_nonblocking
-                    else
-                    "critic repair budget exhausted; unresolved formal/proof work remains pending"
-                    if should_route_to_formalizer
-                    else "critic repair budget exhausted or no theory-level repair trigger"
+                    "Critic observations require a new model-owned orchestration "
+                    "decision; runtime records candidate conditions but selects no "
+                    "worker."
+                    if architect_replan_required
+                    else "No new Architect model decision is required by the current "
+                    "Critic evidence gate."
                 ),
                 "environment_feedback": (
-                    gap_planner_feedback
+                    formalizer_escalation_observations
                     if should_route_to_gap_planner
                     else
-                    repair_feedback
+                    critic_runtime_observations
                     if should_repair or should_route_to_formalizer
                     else {}
                 ),
@@ -40005,19 +36172,20 @@ class CriticEvaluatorRuntimeSubsystem:
                 summary=(
                     f"agenda_items={len(agenda)} learning_rows={len(learning_rows)} "
                     f"critic_repair_round={critic_round}/{max_critic_repair_rounds} "
-                    f"reroute_to_theory={should_repair}"
+                    f"architect_replan_required={architect_replan_required}"
                 ),
                 payload={
                     **manifest["counts"],
                     "critic_repair_round": critic_round,
                     "max_critic_repair_rounds": max_critic_repair_rounds,
-                    "reroute_to_theory_developer": should_repair,
-                    "reroute_to_formalization_gap_planner": (
-                        should_route_to_gap_planner
-                    ),
-                    "reroute_to_formalizer_proofengineer": (
-                        should_route_to_formalizer
-                    ),
+                    "routing_authority": "ArchitectCoordinator_model_packet",
+                    "architect_replan_required": architect_replan_required,
+                    "legacy_owner_routes_disabled": True,
+                    "observed_conditions": {
+                        "theory_revision_candidate": should_repair,
+                        "gap_planner_candidate": should_route_to_gap_planner,
+                        "formalizer_candidate": should_route_to_formalizer,
+                    },
                     "formal_verification_policy": formal_verification_policy,
                     "formal_verification_policy_explicit": bool(
                         explicit_formal_verification_policy
@@ -40034,10 +36202,63 @@ class CriticEvaluatorRuntimeSubsystem:
                 },
             )
         )
-        if should_route_to_gap_planner:
-            gap_planner_context = dict(context)
-            gap_planner_context["environment_feedback"] = gap_planner_feedback
-            gap_planner_context["runtime_feedback_loop"] = {
+        if architect_replan_required and proposal_validation_failure_feedback is None:
+            runtime_observations = {
+                "theory_revision_candidate": should_repair,
+                "gap_planner_candidate": should_route_to_gap_planner,
+                "formalizer_candidate": should_route_to_formalizer,
+                "formal_proof_work_pending": formal_proof_work_pending,
+                "formal_debt_blocks_research_acceptance": (
+                    formal_debt_blocks_research_acceptance
+                ),
+                "formal_debt_deferred_nonblocking": (
+                    formal_debt_deferred_nonblocking
+                ),
+                "formalizer_packet_validation_escalation_active": (
+                    formalizer_packet_validation_escalation_active
+                ),
+            }
+            replan_feedback = {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "RuntimeCriticArchitectReplanObservations",
+                "feedback_type": "critic_architect_replan_observations",
+                "critic_evaluator_manifest_id": manifest_id,
+                "critic_model_packet": (
+                    dict(proposal_packet) if proposal_packet is not None else {}
+                ),
+                "critic_model_packet_id": (
+                    str(proposal_packet.get("packet_id", "") or "")
+                    if proposal_packet is not None
+                    else ""
+                ),
+                "runtime_observations": runtime_observations,
+                "critic_environment_observations": {
+                    "critic_feedback": dict(critic_runtime_observations),
+                    "formalizer_escalation_feedback": (
+                        dict(formalizer_escalation_observations)
+                        if should_route_to_gap_planner
+                        else {}
+                    ),
+                },
+                "artifact_snapshots": {
+                    "retrieval_manifest": dict(retrieval_manifest),
+                    "theory_packet": dict(theory_packet),
+                    "simulation_manifest": dict(simulation_manifest),
+                    "algorithm_manifest": dict(algorithm_manifest),
+                    "formalization_manifest": dict(formalization_manifest),
+                },
+                "evidence_contract_decision": dict(evidence_contract_decision),
+                "routing_authority": "ArchitectCoordinator_model_packet",
+                "runtime_selected_owner": False,
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+            replan_context = dict(context)
+            replan_context["environment_feedback"] = replan_feedback
+            replan_context["critic_architect_replan_observations"] = (
+                replan_feedback
+            )
+            replan_context["runtime_feedback_loop"] = {
                 **(
                     dict(context.get("runtime_feedback_loop", {}))
                     if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
@@ -40047,187 +36268,41 @@ class CriticEvaluatorRuntimeSubsystem:
                 "critic_repair_round": critic_round,
                 "max_critic_repair_rounds": max_critic_repair_rounds,
                 "critic_evaluator_manifest_id": manifest_id,
-                "handoff": "formalization_gap_planner_after_packet_validation_loop",
+                "handoff": "critic_observations_to_architect_model",
+                "runtime_selected_owner": False,
             }
-            return AgentStepResult(
-                status="REVISE",
-                rationale=(
-                    "CriticEvaluator found a repeated Formalizer packet-validation "
-                    "loop with replayable gap-planner bridge artifacts; routing to "
-                    "FormalizationGapPlanner for offline replay and prompt staging "
-                    "before any new Formalizer packet."
-                ),
-                produced_artifacts=produced_artifacts,
-                observations=tuple(observations),
-                evidence_entries=tuple(
-                    row
-                    for row in (
-                        proposal_evidence,
-                        proposal_validation_failure_evidence,
-                        evidence,
-                    )
-                    if row is not None
-                ),
-                next_task=AgentTask(
-                    task_id=(
-                        f"gap-planner-handoff:{question.id}:"
-                        f"{stable_hash([manifest_id, gap_planner_feedback])[:8]}"
-                    ),
-                    owner_subsystem="FormalizationGapPlanner",
-                    objective=(
-                        "Execute the runtime formalization-gap planner handoff "
-                        "for a repeated Formalizer packet-validation blocker."
-                    ),
-                    inputs={
-                        "question": _question_to_payload(question),
-                        "architect_context": gap_planner_context,
-                        "environment_feedback": gap_planner_feedback,
-                        "formalization_manifest_id": formalization_manifest_id,
-                        "theory_packet_id": theory_packet_id,
-                        "simulation_manifest_id": simulation_manifest_id,
-                        "algorithm_sandbox_manifest_id": algorithm_manifest_id,
-                    },
-                    allowed_tools=(
-                        "formalization_gap_planner",
-                        "formal_source_retriever",
-                        "evidence_ledger",
-                    ),
-                    expected_artifacts=(
-                        "runtime_formalization_gap_planner_execution_manifest",
-                        "runtime_formalization_gap_planner_handoffs",
-                    ),
-                    acceptance_gate=gap_planner_feedback["acceptance_gate"],
-                    stop_condition=(
-                        "offline gap-planner replay and prompt-staging smoke "
-                        "completed or a typed handoff blocker recorded"
-                    ),
-                ),
-                failure_classification=(
-                    "critic_requested_formalization_gap_planner_execution"
-                ),
-            )
-        if should_repair:
-            revision_context = dict(context)
-            revision_context["environment_feedback"] = repair_feedback
-            revision_context["previous_theory_packet_id"] = str(theory_packet.get("packet_id", ""))
-            revision_context["runtime_feedback_loop"] = {
-                "source_subsystem": "CriticEvaluator",
-                "critic_repair_round": critic_round + 1,
-                "max_critic_repair_rounds": max_critic_repair_rounds,
-                "critic_evaluator_manifest_id": manifest_id,
-            }
-            return AgentStepResult(
-                status="REVISE",
-                rationale=(
-                    "CriticEvaluator found formal/proof feedback that should revise "
-                    "the theory proposal before stopping the runtime loop."
-                ),
-                produced_artifacts=produced_artifacts,
-                observations=tuple(observations),
-                evidence_entries=tuple(
-                    row
-                    for row in (
-                        proposal_evidence,
-                        proposal_validation_failure_evidence,
-                        evidence,
-                    )
-                    if row is not None
-                ),
-                next_task=AgentTask(
-                    task_id=f"theory-critic-revise:{question.id}:{stable_hash([manifest_id, critic_round])[:8]}",
-                    owner_subsystem="TheoryDeveloper",
-                    objective=(
-                        "Revise the statistical theory/procedure/proof plan using CriticEvaluator "
-                        "formal-gap and proof-state feedback."
-                    ),
-                    inputs={
-                        "question": _question_to_payload(question),
-                        "architect_context": revision_context,
-                        "environment_feedback": repair_feedback,
-                    },
-                    allowed_tools=("model_backend", "rag_memory", "evidence_ledger"),
-                    expected_artifacts=("critic_revised_theory_derivation_packet",),
-                    acceptance_gate=(
-                        "revised theory packet addresses critic formal/proof feedback "
-                        "without promoting non-kernel evidence"
-                    ),
-                    stop_condition="revised theory packet routed through simulation/formalization gates",
-                ),
-                failure_classification="critic_requested_theory_revision",
-            )
-        if should_route_to_formalizer:
-            formalizer_repair_feedback = dict(repair_feedback)
-            formalizer_repair_feedback.update(
-                {
-                    "feedback_type": (
-                        "critic_formalizer_proofengineer_repair_feedback"
-                    ),
-                    "failure_classification": (
-                        "critic_requested_formalizer_proofengineer_repair"
-                    ),
-                    "previous_failure_classification": str(
-                        repair_feedback.get("failure_classification", "")
-                        or ""
-                    ),
-                    "repair_owner_agent": "Formalizer/ProofEngineer/LeanProver",
-                    "proof_repair_required": True,
-                    "reuse_critic_agenda_as_formalizer_work_orders": True,
-                }
-            )
-            formalizer_context = dict(context)
-            formalizer_context["environment_feedback"] = formalizer_repair_feedback
-            formalizer_context["previous_theory_packet_id"] = str(
-                theory_packet.get("packet_id", "")
-            )
-            formalizer_context["runtime_feedback_loop"] = {
-                "source_subsystem": "CriticEvaluator",
-                "critic_repair_round": critic_round,
-                "max_critic_repair_rounds": max_critic_repair_rounds,
-                "critic_evaluator_manifest_id": manifest_id,
-                "handoff": "formalizer_proofengineer_after_critic_budget",
-            }
-            formalizer_task = _formalization_task(
-                question=question,
-                packet_id=str(theory_packet.get("packet_id", "")),
-                simulation_manifest_id=str(
-                    simulation_manifest.get("manifest_id", "")
-                ),
-                algorithm_sandbox_manifest_id=str(
-                    algorithm_manifest.get("manifest_id", "")
-                ),
-                architect_context=formalizer_context,
-            )
-            formalizer_inputs = dict(formalizer_task.inputs)
-            formalizer_inputs["environment_feedback"] = formalizer_repair_feedback
-            formalizer_task = replace(
-                formalizer_task,
+            next_task = AgentTask(
                 task_id=(
-                    f"formalize-critic-repair:{question.id}:"
-                    f"{stable_hash([manifest_id, critic_round, 'formalizer'])[:8]}"
+                    f"architect-critic-replan:{question.id}:"
+                    f"{stable_hash([manifest_id, replan_feedback])[:8]}"
                 ),
+                owner_subsystem="ArchitectCoordinator",
                 objective=(
-                    "Repair the Formalizer/ProofEngineer target using "
-                    "CriticEvaluator formal-gap and proof-state feedback after "
-                    "the theory repair budget is exhausted."
+                    "Choose the next evidence-producing worker from the complete "
+                    "Critic model packet and exact runtime observations without "
+                    "weakening evidence gates."
                 ),
-                inputs=formalizer_inputs,
+                inputs={
+                    "question": _question_to_payload(question),
+                    "architect_context": replan_context,
+                    "environment_feedback": replan_feedback,
+                },
+                allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
+                expected_artifacts=("architect_coordinator_proposal",),
                 acceptance_gate=(
-                    "Formalizer/ProofEngineer records a non-vacuous source-to-bridge "
-                    "premise derivation candidate, exact semantic repair target, or "
-                    "explicit formal blocker; only local Lean/AXLE kernel verification "
-                    "can promote proof evidence."
+                    "a validated Architect model packet selects the next worker or "
+                    "records a terminal blocker while preserving all evidence gates"
                 ),
                 stop_condition=(
-                    "formal proof-repair work is recorded and routed through the "
-                    "kernel-evidence gates"
+                    "Architect model selects the next worker or records a blocker"
                 ),
             )
             return AgentStepResult(
-                status="REVISE",
+                status="REROUTE",
                 rationale=(
-                    "CriticEvaluator found unresolved formal/proof work after the "
-                    "theory repair budget was exhausted; routing to "
-                    "Formalizer/ProofEngineer instead of accepting open gaps."
+                    "CriticEvaluator recorded unresolved observations and returned "
+                    "the complete artifact lineage to ArchitectCoordinator; runtime "
+                    "did not select a repair owner."
                 ),
                 produced_artifacts=produced_artifacts,
                 observations=tuple(observations),
@@ -40235,15 +36310,12 @@ class CriticEvaluatorRuntimeSubsystem:
                     row
                     for row in (
                         proposal_evidence,
-                        proposal_validation_failure_evidence,
                         evidence,
                     )
                     if row is not None
                 ),
-                next_task=formalizer_task,
-                failure_classification=(
-                    "critic_requested_formalizer_proofengineer_repair"
-                ),
+                next_task=next_task,
+                failure_classification="critic_requested_architect_model_replan",
             )
         if proposal_validation_failure_feedback is not None:
             critic_repair_context = dict(context)
@@ -40285,24 +36357,23 @@ class CriticEvaluatorRuntimeSubsystem:
                 ),
                 next_task=AgentTask(
                     task_id=(
-                        f"critic-repair:{question.id}:"
+                        f"critic-regenerate:{question.id}:"
                         f"{stable_hash([proposal_validation_failure_id, next_inputs])[:8]}"
                     ),
                     owner_subsystem="CriticEvaluator",
                     objective=(
-                        "Repair the CriticEvaluator audit packet using local "
+                        "Regenerate the complete CriticEvaluator packet using local "
                         "validator feedback while preserving evidence boundaries."
                     ),
                     inputs=next_inputs,
                     allowed_tools=task.allowed_tools,
                     expected_artifacts=task.expected_artifacts,
                     acceptance_gate=(
-                        "repaired CriticEvaluator packet passes local validation "
+                        "regenerated CriticEvaluator packet passes local validation "
                         "and does not claim theorem proof without kernel evidence"
                     ),
                     stop_condition=(
-                        "repaired critic audit packet or deterministic proof-repair "
-                        "handoff recorded"
+                        "regenerated critic audit packet or explicit blocker recorded"
                     ),
                 ),
                 failure_classification="critic_packet_validation_failed",
@@ -40629,9 +36700,6 @@ def run_research_agent_runtime(
                 theory_developer=theory_developer,
                 n_runs=config.n_runs,
                 seed=config.seed,
-                max_generated_code_semantic_review_upstream_theory_revisions=(
-                    config.generated_code_semantic_review_max_upstream_theory_revisions
-                ),
             ),
             "SimulationEvaluator": SimulationEvaluatorRuntimeSubsystem(
                 proposal_agent=simulation_engineer,
@@ -58554,12 +54622,6 @@ def _runtime_llm_topology(
     evaluation_claude_model = str(evaluation_claude_model or "").strip()
     if evaluation_claude_model_tier:
         for row in agents:
-            providers = {
-                str(row.get("provider_name", "") or "").strip().lower(),
-                str(row.get("backend_provider_name", "") or "").strip().lower(),
-            }
-            if "anthropic" not in providers:
-                continue
             row["production_expected_model_tier"] = str(
                 row.get("expected_model_tier", "") or ""
             )
@@ -60725,10 +56787,10 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             or input_summary.get("missing_artifact_id", "")
             or ""
         ).strip()
-        repair_owner = str(
+        producer_subsystem = str(
             row.get("next_owner_subsystem", "")
-            or row.get("repair_owner_agent", "")
-            or input_summary.get("repair_owner_agent", "")
+            or row.get("producer_subsystem", "")
+            or input_summary.get("producer_subsystem", "")
             or ""
         ).strip()
         return (
@@ -60737,7 +56799,7 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             + ":"
             + missing_artifact_id
             + ":"
-            + repair_owner
+            + producer_subsystem
             + ":"
             + work_order_id
         )
@@ -61358,7 +57420,7 @@ def _runtime_artifacts_with_generated_sandbox_live_provenance(
                 proposal_id_keys=("llm_algorithm_engineer_proposal_id",),
                 prototype_key="prototypes",
                 generated_executor="generated_python_sandbox",
-                missing_statuses={"GENERATED_CODE_REQUIRED_BUT_MISSING"},
+                missing_statuses={"MODEL_CODE_REQUIRED_BUT_MISSING"},
             )
         elif kind == "RuntimeSimulationManifest":
             enriched[artifact_id] = _generated_sandbox_manifest_with_live_provenance(
@@ -62259,1237 +58321,6 @@ def _formalization_manifest_with_runtime_memory_summary(
         **runtime_summary,
     }
     return merged_manifest
-
-
-def _critic_source_to_bridge_premise_derivation_feedback(
-    formalization_manifest: Mapping[str, Any],
-) -> dict[str, Any]:
-    if not isinstance(formalization_manifest, Mapping):
-        return {}
-    proof_bank_memory_summary = (
-        formalization_manifest.get("proof_bank_runtime_memory_summary", {})
-        if isinstance(
-            formalization_manifest.get("proof_bank_runtime_memory_summary", {}),
-            Mapping,
-        )
-        else {}
-    )
-    if not proof_bank_memory_summary:
-        return {}
-    diagnostics = [
-        row
-        for row in proof_bank_memory_summary.get(
-            "source_to_bridge_premise_derivation_diagnostics", []
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    pending_premise_names = [
-        str(value).strip()
-        for value in proof_bank_memory_summary.get(
-            "source_to_bridge_premise_derivation_pending_premise_names", []
-        )
-        or []
-        if str(value).strip()
-    ]
-    derivation_required = bool(
-        proof_bank_memory_summary.get(
-            "source_to_bridge_premise_derivation_required", False
-        )
-        or diagnostics
-        or pending_premise_names
-    )
-    if not derivation_required:
-        return {}
-
-    compact_keys = (
-        "target_theorem_name",
-        "target_lean_declaration",
-        "trigger",
-        "failure_classification",
-        "runtime_queue_status",
-        "premise_name",
-        "premise_names",
-        "premise_target_status",
-        "premise_target_type",
-        "premise_derivation_gap_kind",
-        "premise_derivation_gap_summary",
-        "premise_candidate_evidence_eligible",
-        "premise_candidate_references_semantic_anchor",
-        "premise_candidate_declaration_name",
-        "source_to_bridge_premise_candidate_declaration_name",
-        "premise_candidate_artifact_path",
-        "source_to_bridge_premise_candidate_artifact_path",
-        "premise_derivation_candidate_skeleton_lean_source_excerpt",
-        "premise_candidate_skeleton_lean_source_excerpt",
-        "missing_premise_semantic_anchor_binder_names",
-        "required_semantic_anchor_reference_names",
-        "premise_semantic_anchor_binder_names",
-        "premise_semantic_anchor_binders",
-        "semantic_anchor_reference_gate",
-        "source_to_bridge_premise_derivation_candidate_request_id",
-        "source_to_bridge_premise_derivation_candidate_request",
-        "source_to_bridge_grouped_premise_derivation_candidate_request_id",
-        "source_to_bridge_grouped_premise_derivation_candidate_request",
-        "recommended_repair_tasks",
-        "proof_evidence_status",
-    )
-    required_anchor_keys = (
-        "required_semantic_anchor_reference_names",
-        "premise_semantic_anchor_binder_names",
-    )
-
-    def string_values(row: Mapping[str, Any], *keys: str) -> list[str]:
-        values: list[str] = []
-        sources: list[Mapping[str, Any]] = [row]
-        for source in tuple(sources):
-            candidate_request = source.get(
-                "source_to_bridge_premise_derivation_candidate_request",
-                {},
-            )
-            if isinstance(candidate_request, Mapping):
-                sources.append(candidate_request)
-            grouped_candidate_request = source.get(
-                "source_to_bridge_grouped_premise_derivation_candidate_request",
-                {},
-            )
-            if isinstance(grouped_candidate_request, Mapping):
-                sources.append(grouped_candidate_request)
-        for source in sources:
-            for key in keys:
-                raw = source.get(key)
-                candidates = raw if isinstance(raw, list | tuple | set) else [raw]
-                for value in candidates:
-                    if isinstance(value, Mapping):
-                        text = str(value.get("name", "") or "").strip()
-                    else:
-                        text = str(value or "").strip()
-                    if text:
-                        values.append(text)
-        return list(dict.fromkeys(values))
-
-    request_by_premise_name: dict[str, dict[str, Any]] = {}
-    for request_key in (
-        "source_to_bridge_metadata_authoring_candidate_requests",
-        "source_to_bridge_metadata_authoring_request_shells",
-    ):
-        for request_row in proof_bank_memory_summary.get(request_key, []) or []:
-            if not isinstance(request_row, Mapping):
-                continue
-            request_payload = (
-                request_row.get(
-                    "source_to_bridge_premise_derivation_candidate_request",
-                    {},
-                )
-                if isinstance(
-                    request_row.get(
-                        "source_to_bridge_premise_derivation_candidate_request",
-                        {},
-                    ),
-                    Mapping,
-                )
-                else {}
-            )
-            names = string_values(request_row, "premise_name", "premise_names")
-            if isinstance(request_payload, Mapping):
-                names.extend(
-                    string_values(request_payload, "premise_name", "premise_names")
-                )
-            for name in dict.fromkeys(names):
-                request_by_premise_name.setdefault(name, dict(request_row))
-
-    compact_diagnostics: list[dict[str, Any]] = []
-    missing_anchor_references: list[str] = []
-    for row in diagnostics[:4]:
-        row_for_strings = dict(row)
-        matched_request_row: Mapping[str, Any] = {}
-        for premise_name in string_values(row, "premise_name", "premise_names"):
-            matched_request_row = request_by_premise_name.get(premise_name, {})
-            if matched_request_row:
-                break
-        matched_request_payload = (
-            matched_request_row.get(
-                "source_to_bridge_premise_derivation_candidate_request",
-                {},
-            )
-            if isinstance(
-                matched_request_row.get(
-                    "source_to_bridge_premise_derivation_candidate_request",
-                    {},
-                ),
-                Mapping,
-            )
-            else {}
-        )
-        if matched_request_payload and not isinstance(
-            row_for_strings.get(
-                "source_to_bridge_premise_derivation_candidate_request",
-                {},
-            ),
-            Mapping,
-        ):
-            row_for_strings["source_to_bridge_premise_derivation_candidate_request"] = (
-                dict(matched_request_payload)
-            )
-        elif matched_request_payload and not row_for_strings.get(
-            "source_to_bridge_premise_derivation_candidate_request"
-        ):
-            row_for_strings["source_to_bridge_premise_derivation_candidate_request"] = (
-                dict(matched_request_payload)
-            )
-        request_payload_raw = row_for_strings.get(
-            "source_to_bridge_premise_derivation_candidate_request",
-            {},
-        )
-        request_payload = (
-            dict(request_payload_raw)
-            if isinstance(request_payload_raw, Mapping)
-            else {}
-        )
-        premise_names = string_values(row_for_strings, "premise_name", "premise_names")
-        premise_name = premise_names[0] if premise_names else ""
-        target_theorem_name = str(
-            row.get("target_theorem_name", "")
-            or request_payload.get("target_theorem_name", "")
-            or ""
-        ).strip()
-        target_lean_declaration = str(
-            row.get("target_lean_declaration", "")
-            or request_payload.get("target_lean_declaration", "")
-            or target_theorem_name
-            or ""
-        ).strip()
-        if request_payload:
-            _runtime_set_text_if_missing(request_payload, "premise_name", premise_name)
-            _runtime_set_text_if_missing(
-                request_payload,
-                "target_theorem_name",
-                target_theorem_name,
-            )
-            _runtime_set_text_if_missing(
-                request_payload,
-                "target_lean_declaration",
-                target_lean_declaration,
-            )
-        premise_candidate_declaration_name = str(
-            row.get("premise_candidate_declaration_name", "")
-            or row.get("source_to_bridge_premise_candidate_declaration_name", "")
-            or request_payload.get("premise_candidate_declaration_name", "")
-            or request_payload.get(
-                "source_to_bridge_premise_candidate_declaration_name",
-                "",
-            )
-            or ""
-        ).strip()
-        if not premise_candidate_declaration_name:
-            premise_candidate_declaration_name = (
-                stb_metadata.default_premise_candidate_declaration_name(
-                    {
-                        "target_lean_declaration": target_lean_declaration,
-                        "target_theorem_name": target_theorem_name,
-                        "premise_name": premise_name,
-                    }
-                )
-            )
-        if premise_candidate_declaration_name:
-            row_for_strings["premise_candidate_declaration_name"] = (
-                premise_candidate_declaration_name
-            )
-            row_for_strings[
-                "source_to_bridge_premise_candidate_declaration_name"
-            ] = premise_candidate_declaration_name
-            if request_payload:
-                _runtime_set_text_if_missing(
-                    request_payload,
-                    "premise_candidate_declaration_name",
-                    premise_candidate_declaration_name,
-                )
-                _runtime_set_text_if_missing(
-                    request_payload,
-                    "source_to_bridge_premise_candidate_declaration_name",
-                    premise_candidate_declaration_name,
-                )
-                row_for_strings[
-                    "source_to_bridge_premise_derivation_candidate_request"
-                ] = request_payload
-        compact = {
-            key: row[key]
-            for key in compact_keys
-            if key in row and row.get(key) not in (None, "", [], {})
-        }
-        if premise_candidate_declaration_name:
-            compact["premise_candidate_declaration_name"] = (
-                premise_candidate_declaration_name
-            )
-            compact["source_to_bridge_premise_candidate_declaration_name"] = (
-                premise_candidate_declaration_name
-            )
-        _runtime_set_text_if_missing(compact, "premise_name", premise_name)
-        _runtime_set_text_if_missing(
-            compact,
-            "target_theorem_name",
-            target_theorem_name,
-        )
-        _runtime_set_text_if_missing(
-            compact,
-            "target_lean_declaration",
-            target_lean_declaration,
-        )
-        if matched_request_payload:
-            compact.setdefault(
-                "source_to_bridge_premise_derivation_candidate_request",
-                request_payload or dict(matched_request_payload),
-            )
-            request_id = str(
-                matched_request_row.get(
-                    "source_to_bridge_premise_derivation_candidate_request_id",
-                    "",
-                )
-                or matched_request_payload.get("candidate_request_id", "")
-                or matched_request_row.get("candidate_request_id", "")
-                or ""
-            ).strip()
-            if request_id:
-                compact.setdefault(
-                    "source_to_bridge_premise_derivation_candidate_request_id",
-                    request_id,
-                )
-        elif request_payload:
-            compact["source_to_bridge_premise_derivation_candidate_request"] = (
-                request_payload
-            )
-        required_anchors = string_values(row_for_strings, *required_anchor_keys)
-        if required_anchors:
-            compact["required_semantic_anchor_reference_names"] = required_anchors
-        failure_text = " ".join(
-            str(row.get(key, "") or "")
-            for key in (
-                "failure_classification",
-                "premise_derivation_gap_kind",
-                "premise_derivation_gap_summary",
-            )
-        ).lower()
-        gate_text = str(row.get("semantic_anchor_reference_gate", "") or "").lower()
-        row_missing_anchors = string_values(
-            row_for_strings,
-            "missing_premise_semantic_anchor_binder_names",
-        )
-        if row_missing_anchors:
-            missing_anchor_references.extend(row_missing_anchors)
-        elif (
-            "missing_semantic_anchor" in failure_text
-            or "semantic_anchor_reference" in failure_text
-            or "semantic_anchor_reference" in gate_text
-        ):
-            missing_anchor_references.extend(required_anchors)
-        if compact:
-            compact_diagnostics.append(compact)
-
-    missing_anchor_references = list(dict.fromkeys(missing_anchor_references))
-    return {
-        "feedback_kind": "critic_source_to_bridge_premise_derivation_feedback",
-        "source": "proof_bank_runtime_memory_summary",
-        "source_to_bridge_premise_derivation_required": derivation_required,
-        "pending_premise_names": list(dict.fromkeys(pending_premise_names)),
-        "diagnostics": compact_diagnostics,
-        "missing_semantic_anchor_references": missing_anchor_references,
-        "required_behavior": (
-            "Emit non-vacuous source_to_bridge_premise_derivation_candidates that "
-            "copy candidate request metadata, derive the concrete bridge premise "
-            "from source assumptions, and reference required semantic anchors in "
-            "the Lean proof body outside comments; otherwise report the exact "
-            "semantic primitive or dependency blocker as FORMAL_GAP."
-        ),
-        "acceptance_gate": (
-            "local Lean/AXLE verifies the exact source-to-bridge premise derivation "
-            "before the row can count as proof evidence"
-        ),
-        "proof_evidence_status": (
-            "CRITIC_SOURCE_TO_BRIDGE_PREMISE_FEEDBACK_NOT_PROOF_EVIDENCE"
-        ),
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-    }
-
-
-def _critic_source_theorem_proof_body_adapter_feedback(
-    formalization_manifest: Mapping[str, Any],
-) -> dict[str, Any]:
-    """Compact factual source-theorem adapter observations for model revision."""
-
-    if not isinstance(formalization_manifest, Mapping):
-        return {}
-    proof_bank_summary = (
-        formalization_manifest.get("proof_bank_runtime_memory_summary", {})
-        if isinstance(
-            formalization_manifest.get("proof_bank_runtime_memory_summary", {}),
-            Mapping,
-        )
-        else {}
-    )
-    if not proof_bank_summary:
-        return {}
-    diagnostics: list[dict[str, Any]] = []
-    for row in (
-        proof_bank_summary.get("source_theorem_proof_body_adapter_diagnostics", [])
-        or []
-    )[:5]:
-        if not isinstance(row, Mapping):
-            continue
-        compact: dict[str, Any] = {
-            "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
-            "failure_classification": str(
-                row.get("failure_classification", "") or ""
-            ),
-            "runtime_queue_status": str(row.get("runtime_queue_status", "") or ""),
-            "adapter_kernel_verified": _bool_like(
-                row.get("adapter_kernel_verified", False)
-            ),
-            "adapter_candidate_requires_unproven_bridge_premises": bool(
-                row.get(
-                    "adapter_candidate_requires_unproven_bridge_premises",
-                    False,
-                )
-            ),
-            "adapter_candidate_artifact_path": str(
-                row.get("adapter_candidate_artifact_path", "") or ""
-            ),
-            "adapter_declaration_name": str(
-                row.get("adapter_declaration_name", "") or ""
-            ),
-            "adapter_candidate_imports": [
-                str(value)
-                for value in row.get("adapter_candidate_imports", []) or []
-                if str(value).strip()
-            ][:8],
-            "unavailable_import": str(row.get("unavailable_import", "") or ""),
-            "proof_body_goal_excerpt": list(
-                row.get("proof_body_goal_excerpt", []) or []
-            )[:5],
-            "unproven_bridge_premise_names": [
-                str(value)
-                for value in row.get("unproven_bridge_premise_names", []) or []
-                if str(value).strip()
-            ][:8],
-            "diagnostics": [
-                str(value)
-                for value in row.get("diagnostics", []) or []
-                if str(value).strip()
-            ][:5],
-            "proof_body_adapter_required_reasons": [
-                str(value)
-                for value in row.get("proof_body_adapter_required_reasons", []) or []
-                if str(value).strip()
-            ][:5],
-        }
-        compact = {
-            key: value
-            for key, value in compact.items()
-            if value not in ("", [], {}, None)
-        }
-        if compact:
-            diagnostics.append(compact)
-    adapter_required = _bool_like(
-        proof_bank_summary.get("source_theorem_proof_body_adapter_required", False)
-    )
-    adapter_feedback_available = _bool_like(
-        proof_bank_summary.get(
-            "source_theorem_proof_body_adapter_feedback_available",
-            False,
-        )
-    )
-    adapter_kernel_verified = _bool_like(
-        proof_bank_summary.get(
-            "source_theorem_proof_body_adapter_kernel_verified",
-            False,
-        )
-    )
-    if not (adapter_required or adapter_feedback_available or diagnostics):
-        return {}
-    target_names = [
-        str(value).strip()
-        for value in proof_bank_summary.get(
-            "source_theorem_proof_body_adapter_target_names",
-            [],
-        )
-        or proof_bank_summary.get(
-            "source_theorem_proof_body_adapter_feedback_target_names",
-            [],
-        )
-        or []
-        if str(value).strip()
-    ]
-    pending_bridge_premise_names = [
-        str(value).strip()
-        for value in proof_bank_summary.get(
-            "source_theorem_proof_body_adapter_unproven_bridge_premise_names",
-            [],
-        )
-        or []
-        if str(value).strip()
-    ]
-    return {
-        "feedback_kind": "critic_source_theorem_proof_body_adapter_feedback",
-        "source": "proof_bank_runtime_memory_summary",
-        "source_theorem_proof_body_adapter_required": adapter_required,
-        "source_theorem_proof_body_adapter_feedback_available": (
-            adapter_feedback_available
-        ),
-        "adapter_kernel_verified": adapter_kernel_verified,
-        "target_names": list(dict.fromkeys(target_names)),
-        "diagnostics": diagnostics,
-        "unproven_bridge_premise_names": list(
-            dict.fromkeys(pending_bridge_premise_names)
-        ),
-        "source_to_bridge_premise_derivation_all_required_verified": _bool_like(
-            proof_bank_summary.get(
-                "source_to_bridge_premise_derivation_all_required_verified",
-                False,
-            )
-        ),
-        "kernel_verified_source_theorem_proof_body_adapter_ids": list(
-            proof_bank_summary.get(
-                "kernel_verified_source_theorem_proof_body_adapter_ids",
-                [],
-            )
-            or []
-        )[:5],
-        "verified_source_theorem_proof_body_adapter_artifact_paths": list(
-            proof_bank_summary.get(
-                "verified_source_theorem_proof_body_adapter_artifact_paths",
-                [],
-            )
-            or []
-        )[:5],
-        "verified_source_theorem_proof_body_adapter_declarations": list(
-            proof_bank_summary.get(
-                "verified_source_theorem_proof_body_adapter_declarations",
-                [],
-            )
-            or []
-        )[:5],
-        "acceptance_gate": (
-            "local Lean/AXLE verifies the exact source theorem after consuming any "
-            "verified adapter; adapter verification alone is not full theorem proof"
-        ),
-        "proof_evidence_status": (
-            "CRITIC_SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK_NOT_PROOF_EVIDENCE"
-        ),
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-    }
-
-
-_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE = (
-    "source_theorem_exact_semantic_definition_repair"
-)
-_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS = (
-    "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW"
-)
-_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES = frozenset(
-    {
-        "source_theorem_semantic_alignment_unreviewed",
-        "proof_body_reached_semantic_alignment_unreviewed",
-        "semantic_definition_review_blocked",
-        "typechecked_exact_semantic_definition_semantic_review_missing",
-        "typechecked_exact_semantic_definition_candidate_review_required",
-        "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate",
-        "exact_semantic_definition_authoring_required",
-    }
-)
-_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS = frozenset(
-    {
-        "EXACT_SOURCE_SEMANTIC_ALIGNMENT_REVIEW_REQUIRED",
-        "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED",
-        "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE",
-        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED",
-        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_VERIFIER_GATE_REQUIRED",
-        "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_RETRY",
-    }
-)
-_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_GATES = frozenset(
-    {
-        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
-        "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED",
-    }
-)
-_SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_TYPECHECKED_STATUSES = frozenset(
-    {
-        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF",
-        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED",
-        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
-        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
-        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED",
-    }
-)
-_SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_STATUSES = frozenset(
-    {
-        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW",
-        "PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW",
-        "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE",
-        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
-        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
-    }
-)
-
-
-def _critic_source_theorem_exact_semantic_definition_repair_feedback(
-    formalization_manifest: Mapping[str, Any],
-) -> dict[str, Any]:
-    """Compact exact semantic-definition repair feedback for the next agent."""
-
-    if not isinstance(formalization_manifest, Mapping):
-        return {}
-    proof_bank_summary = (
-        formalization_manifest.get("proof_bank_runtime_memory_summary", {})
-        if isinstance(
-            formalization_manifest.get("proof_bank_runtime_memory_summary", {}),
-            Mapping,
-        )
-        else {}
-    )
-    if not proof_bank_summary:
-        return {}
-    target_mode = str(
-        proof_bank_summary.get("recommended_formalizer_target_mode", "") or ""
-    ).strip()
-    repair_required = bool(
-        proof_bank_summary.get(
-            "source_theorem_exact_semantic_definition_repair_required",
-            False,
-        )
-        or target_mode == _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE
-    )
-    if not repair_required:
-        return {}
-    raw_diagnostics = [
-        row
-        for row in proof_bank_summary.get(
-            "source_theorem_exact_candidate_repair_diagnostics",
-            [],
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-
-    def is_semantic_repair_row(row: Mapping[str, Any]) -> bool:
-        failure = str(row.get("failure_classification", "") or "")
-        trigger = str(row.get("trigger", "") or "")
-        gate = str(row.get("proof_body_gate_status", "") or "")
-        runtime_queue_status = str(row.get("runtime_queue_status", "") or "")
-        return bool(
-            failure in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES
-            or trigger in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS
-            or gate in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_GATES
-            or runtime_queue_status
-            == _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS
-            or row.get("semantic_alignment_blockers")
-            or row.get("semantic_definition_risks")
-        )
-
-    failure_classifications = [
-        str(value).strip()
-        for value in proof_bank_summary.get(
-            "source_theorem_exact_candidate_failure_classifications",
-            [],
-        )
-        or []
-        if str(value).strip()
-    ]
-    triggers = [
-        str(value).strip()
-        for value in proof_bank_summary.get(
-            "source_theorem_exact_candidate_repair_triggers",
-            [],
-        )
-        or []
-        if str(value).strip()
-    ]
-    target_names = [
-        str(value).strip()
-        for value in (
-            proof_bank_summary.get("source_theorem_exact_candidate_repair_target_names", [])
-            or proof_bank_summary.get(
-                "source_theorem_exact_proof_body_repair_target_names",
-                [],
-            )
-            or []
-        )
-        if str(value).strip()
-    ]
-    semantic_rows = [row for row in raw_diagnostics if is_semantic_repair_row(row)]
-    placeholder_symbols = [
-        str(value).strip()
-        for value in proof_bank_summary.get(
-            "source_theorem_exact_candidate_repair_placeholder_symbols",
-            [],
-        )
-        or []
-        if str(value).strip()
-    ]
-    typechecked_candidates = [
-        dict(row)
-        for row in proof_bank_summary.get(
-            "source_theorem_exact_semantic_definition_typechecked_candidates",
-            [],
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    target_ids: list[str] = []
-
-    def add_target_ids(values: Any) -> None:
-        for value in _str_tuple(values):
-            text = str(value or "").strip()
-            if text:
-                target_ids.append(text)
-
-    for key in (
-        "remaining_theorem_goal_ids",
-        "source_theorem_exact_candidate_repair_target_ids",
-        "target_ids",
-        "target_theorem_goal_ids",
-    ):
-        add_target_ids(proof_bank_summary.get(key, []))
-    for row in formalization_manifest.get("deterministic_theorem_goals", []) or []:
-        if isinstance(row, Mapping):
-            add_target_ids(row.get("id", ""))
-    for row in [*raw_diagnostics, *typechecked_candidates]:
-        add_target_ids(
-            _runtime_exact_semantic_definition_target_ids(
-                row,
-                target_theorem_name="",
-            )
-        )
-    if not target_ids:
-        add_target_ids(target_names)
-    target_ids = list(dict.fromkeys(target_ids))
-    for row in raw_diagnostics:
-        symbol = str(row.get("placeholder_symbol", "") or "").strip()
-        if symbol:
-            placeholder_symbols.append(symbol)
-    for row in typechecked_candidates:
-        symbol = str(row.get("placeholder_symbol", "") or "").strip()
-        if symbol:
-            placeholder_symbols.append(symbol)
-    placeholder_symbols = list(dict.fromkeys(placeholder_symbols))
-
-    def row_target(row: Mapping[str, Any]) -> str:
-        return (
-            str(row.get("target_theorem_name", "") or "").strip()
-            or (target_names[0] if target_names else "")
-        )
-
-    def row_key(row: Mapping[str, Any]) -> tuple[str, str]:
-        return (
-            row_target(row),
-            str(row.get("placeholder_symbol", "") or "").strip(),
-        )
-
-    def merge_typechecked_candidate(
-        row: dict[str, Any],
-        candidate: Mapping[str, Any],
-    ) -> None:
-        candidate_target = row_target(candidate)
-        candidate_symbol = str(candidate.get("placeholder_symbol", "") or "").strip()
-        if candidate_target and not str(
-            row.get("target_theorem_name", "") or ""
-        ).strip():
-            row["target_theorem_name"] = candidate_target
-        if candidate_symbol and not str(
-            row.get("placeholder_symbol", "") or ""
-        ).strip():
-            row["placeholder_symbol"] = candidate_symbol
-        scalar_keys = (
-            "definition_only_candidate_artifact_path",
-            "candidate_artifact_path",
-            "semantic_definition_typecheck_evidence_status",
-        )
-        for key in scalar_keys:
-            value = str(candidate.get(key, "") or "").strip()
-            if value and not str(row.get(key, "") or "").strip():
-                row[key] = value
-        for key in ("local_definition_lean_checked", "local_definition_lean_compiled"):
-            if candidate.get(key) is not None:
-                row[key] = bool(row.get(key, False) or candidate.get(key, False))
-        status = str(
-            candidate.get("semantic_definition_typecheck_evidence_status", "") or ""
-        ).strip()
-        if (
-            status in _SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_TYPECHECKED_STATUSES
-            and not str(row.get("runtime_queue_status", "") or "").strip()
-        ):
-            row["runtime_queue_status"] = (
-                "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
-            )
-        if not str(row.get("failure_classification", "") or "").strip():
-            row["failure_classification"] = (
-                "typechecked_exact_semantic_definition_candidate_review_required"
-            )
-        row.setdefault(
-            "definition_candidate_review_mode",
-            "typechecked_candidate_semantic_review_required",
-        )
-        row.setdefault("source_theorem_kernel_evidence_eligible", False)
-        row["source_theorem_exact_semantic_definition_typechecked_candidate"] = {
-            key: value
-            for key, value in candidate.items()
-            if value not in (None, "", [], {})
-        }
-
-    semantic_review_failure = next(
-        (
-            value
-            for value in failure_classifications
-            if value in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES
-        ),
-        "",
-    )
-    semantic_review_trigger = next(
-        (
-            value
-            for value in triggers
-            if value in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS
-        ),
-        "",
-    )
-    if semantic_rows:
-        selected_rows = semantic_rows
-    elif semantic_review_failure or semantic_review_trigger:
-        selected_rows = [
-            {
-                "target_theorem_name": target_names[0] if target_names else "",
-                "trigger": semantic_review_trigger
-                or "EXACT_SOURCE_SEMANTIC_ALIGNMENT_REVIEW_REQUIRED",
-                "failure_classification": semantic_review_failure
-                or "source_theorem_exact_semantic_definition_repair_required",
-                "runtime_queue_status": (
-                    _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS
-                ),
-                "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
-                "source_theorem_kernel_evidence_eligible": False,
-                "adapter_kernel_verified": _bool_like(
-                    proof_bank_summary.get(
-                        "source_theorem_proof_body_adapter_kernel_verified",
-                        False,
-                    )
-                ),
-                "kernel_verified_source_theorem_proof_body_adapter_ids": list(
-                    proof_bank_summary.get(
-                        "kernel_verified_source_theorem_proof_body_adapter_ids",
-                        [],
-                    )
-                    or []
-                )[:5],
-                "recommended_repair_tasks": [
-                    "review or kernel-verify exact semantic definitions before retrying the exact proof body",
-                    "preserve verified adapter rows as context only until the source theorem itself passes local Lean/AXLE",
-                ],
-            }
-        ]
-    else:
-        selected_rows = raw_diagnostics[:3]
-    keyed_rows: dict[tuple[str, str], dict[str, Any]] = {}
-    unkeyed_rows: list[dict[str, Any]] = []
-    for row in selected_rows:
-        compactable = dict(row)
-        key = row_key(compactable)
-        if key[0] and key[1]:
-            keyed_rows.setdefault(key, compactable)
-        else:
-            unkeyed_rows.append(compactable)
-    for candidate in typechecked_candidates:
-        key = row_key(candidate)
-        if not key[0] or not key[1]:
-            continue
-        row = keyed_rows.setdefault(
-            key,
-            {
-                "target_theorem_name": key[0],
-                "placeholder_symbol": key[1],
-                "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_CANDIDATE_REVIEW",
-                "failure_classification": (
-                    "typechecked_exact_semantic_definition_candidate_review_required"
-                ),
-                "runtime_queue_status": (
-                    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
-                ),
-                "proof_body_gate_status": (
-                    "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
-                ),
-                "source_theorem_kernel_evidence_eligible": False,
-            },
-        )
-        merge_typechecked_candidate(row, candidate)
-    default_target = target_names[0] if target_names else ""
-    for symbol in placeholder_symbols:
-        if not default_target:
-            continue
-        key = (default_target, symbol)
-        keyed_rows.setdefault(
-            key,
-            {
-                "target_theorem_name": default_target,
-                "placeholder_symbol": symbol,
-                "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_REQUIRED",
-                "failure_classification": (
-                    "source_theorem_exact_semantic_definition_repair_required"
-                ),
-                "runtime_queue_status": (
-                    _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS
-                ),
-                "proof_body_gate_status": (
-                    "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
-                ),
-                "source_theorem_kernel_evidence_eligible": False,
-                "recommended_repair_tasks": [
-                    "retrieve, review, or formalize the exact semantic definition for this placeholder before retrying proof-body tactics"
-                ],
-            },
-        )
-    selected_rows = [*keyed_rows.values(), *unkeyed_rows]
-    compact_keys = (
-        "target_theorem_name",
-        "target_ids",
-        "target_theorem_goal_ids",
-        "placeholder_symbol",
-        "trigger",
-        "failure_classification",
-        "runtime_queue_status",
-        "candidate_artifact_path",
-        "candidate_source_file",
-        "definition_only_candidate_artifact_path",
-        "definition_candidate_review_mode",
-        "semantic_definition_typecheck_evidence_status",
-        "local_definition_lean_checked",
-        "local_definition_lean_compiled",
-        "proof_body_gate_status",
-        "proof_body_goal_reached",
-        "source_theorem_kernel_evidence_eligible",
-        "source_theorem_target_identity_status",
-        "adapter_kernel_verified",
-        "kernel_verified_source_theorem_proof_body_adapter_ids",
-        "verified_source_theorem_proof_body_adapter_artifact_paths",
-        "verified_source_theorem_proof_body_adapter_declarations",
-        "semantic_alignment_constraints",
-        "semantic_alignment_blockers",
-        "semantic_definition_risks",
-        "environment_repair_status",
-        "candidate_lean_project_hint",
-        "candidate_source_file",
-        "unavailable_module_prefix",
-        "dependency_fetch_required",
-        "ready_to_rerun_lean_repair",
-        "recommended_commands",
-        "recommended_next_action",
-        "local_lean_diagnostics",
-        "local_lean_diagnostic_source_excerpts",
-        "source_environment_repair_task_id",
-        "recommended_repair_tasks",
-        "diagnostics",
-        "source_theorem_exact_semantic_definition_typechecked_candidate",
-    )
-    diagnostics: list[dict[str, Any]] = []
-    for row in selected_rows[:8]:
-        compact: dict[str, Any] = {
-            key: row[key]
-            for key in compact_keys
-            if key in row and row.get(key) not in (None, "", [], {})
-        }
-        compact_target_ids = _runtime_exact_semantic_definition_target_ids(
-            row,
-            target_theorem_name="",
-        )
-        if not compact_target_ids:
-            compact_target_ids = list(target_ids)
-        if compact_target_ids:
-            compact["target_ids"] = list(dict.fromkeys(compact_target_ids))
-        if compact:
-            diagnostics.append(compact)
-    proof_body_gate_statuses = list(
-        dict.fromkeys(
-            str(row.get("proof_body_gate_status", "") or "").strip()
-            for row in diagnostics
-            if str(row.get("proof_body_gate_status", "") or "").strip()
-        )
-    )
-    runtime_queue_statuses = list(
-        dict.fromkeys(
-            str(row.get("runtime_queue_status", "") or "").strip()
-            for row in diagnostics
-            if str(row.get("runtime_queue_status", "") or "").strip()
-        )
-    )
-    return {
-        "feedback_kind": (
-            "critic_source_theorem_exact_semantic_definition_repair_feedback"
-        ),
-        "source": "proof_bank_runtime_memory_summary",
-        "source_theorem_exact_semantic_definition_repair_required": True,
-        "recommended_formalizer_target_mode": target_mode,
-        "recommended_source_theorem_integration_action": str(
-            proof_bank_summary.get(
-                "recommended_source_theorem_integration_action",
-                "",
-            )
-            or ""
-        ),
-        "target_names": list(dict.fromkeys(target_names)),
-        "failure_classifications": list(dict.fromkeys(failure_classifications)),
-        "triggers": list(dict.fromkeys(triggers)),
-        "target_ids": list(dict.fromkeys(target_ids)),
-        "proof_body_gate_statuses": proof_body_gate_statuses,
-        "runtime_queue_statuses": runtime_queue_statuses,
-        "source_theorem_ready_for_exact_proof_body": _bool_like(
-            proof_bank_summary.get("source_theorem_ready_for_exact_proof_body", False)
-        ),
-        "source_theorem_proof_body_adapter_kernel_verified": _bool_like(
-            proof_bank_summary.get(
-                "source_theorem_proof_body_adapter_kernel_verified",
-                False,
-            )
-        ),
-        "kernel_verified_source_theorem_proof_body_adapter_ids": list(
-            proof_bank_summary.get(
-                "kernel_verified_source_theorem_proof_body_adapter_ids",
-                [],
-            )
-            or []
-        )[:5],
-        "diagnostics": diagnostics,
-        "required_behavior": (
-            "Review, retrieve, import, or formalize the exact source-theorem semantic "
-            "definitions before spending proof-body budget. A kernel-verified "
-            "source-to-bridge adapter is routing context only; do not claim source "
-            "theorem proof until the exact theorem is checked by local Lean/AXLE."
-        ),
-        "acceptance_gate": (
-            "proof_bank_runtime_memory_summary records reviewed or kernel-verified "
-            "exact semantic definitions, then the exact source theorem proof-body "
-            "executor reruns and local Lean/AXLE verifies the intended declaration"
-        ),
-        "proof_evidence_status": (
-            "CRITIC_EXACT_SEMANTIC_DEFINITION_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE"
-        ),
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-    }
-
-
-def _critic_semantic_anchor_blocker_feedback(
-    formal_blocker_resource_requests: Sequence[Mapping[str, Any]],
-) -> dict[str, Any]:
-    blockers: list[dict[str, Any]] = []
-    anchors: list[str] = []
-    for row in formal_blocker_resource_requests:
-        if not isinstance(row, Mapping):
-            continue
-        blocker_kind = str(row.get("blocker_kind", "") or "")
-        blocker = str(row.get("blocker", "") or "")
-        haystack = f"{blocker_kind} {blocker}".lower()
-        if not (
-            "semantic_anchor" in haystack
-            or "semantic anchor" in haystack
-            or "anchor binder" in haystack
-        ):
-            continue
-        blockers.append(
-            {
-                "request_id": str(row.get("request_id", "") or ""),
-                "source": str(row.get("source", "") or ""),
-                "blocker_kind": blocker_kind,
-                "blocker": blocker,
-                "next_owner": str(row.get("next_owner", "") or ""),
-                "proof_evidence_status": str(
-                    row.get("proof_evidence_status", "") or ""
-                ),
-            }
-        )
-        for match in re.finditer(
-            r"(?:anchor binder|semantic anchor(?: reference)?(?: binder)?)\s+"
-            r"`?([A-Za-z_][A-Za-z0-9_']*)`?",
-            blocker,
-        ):
-            anchors.append(match.group(1))
-        for quoted in re.findall(r"`([A-Za-z_][A-Za-z0-9_']*)`", blocker):
-            anchors.append(quoted)
-    ignored_anchor_tokens = {
-        "a",
-        "an",
-        "binder",
-        "binders",
-        "name",
-        "names",
-        "reference",
-        "references",
-        "the",
-    }
-    anchors = list(
-        dict.fromkeys(
-            anchor
-            for anchor in anchors
-            if anchor and anchor.lower() not in ignored_anchor_tokens
-        )
-    )
-    if not blockers and not anchors:
-        return {}
-    return {
-        "semantic_alignment_blockers": blockers,
-        "missing_semantic_anchor_references": anchors,
-        "proof_evidence_status": (
-            "CRITIC_SEMANTIC_ANCHOR_BLOCKER_FEEDBACK_NOT_PROOF_EVIDENCE"
-        ),
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-    }
-
-
-def _critic_repair_feedback(
-    *,
-    question: OpenResearchQuestion,
-    critic_round: int,
-    max_critic_repair_rounds: int,
-    retrieval_manifest: Mapping[str, Any],
-    theory_packet: Mapping[str, Any],
-    simulation_manifest: Mapping[str, Any],
-    algorithm_manifest: Mapping[str, Any],
-    formalization_manifest: Mapping[str, Any],
-    agenda: list[dict[str, Any]],
-) -> dict[str, Any]:
-    formal_counts = formalization_manifest.get("counts", {}) if isinstance(formalization_manifest, Mapping) else {}
-    formalizer_local_lean_contract = (
-        _critic_local_lean_repair_contract_from_formalization_manifest(
-            formalization_manifest
-        )
-    )
-    formalizer_candidate_diagnostics = (
-        _critic_candidate_diagnostics_from_formalization_manifest(
-            formalization_manifest
-        )
-    )
-    formal_blocker_resource_requests = _critic_formal_blocker_resource_requests(
-        formalization_manifest=formalization_manifest,
-        agenda=agenda,
-    )
-    source_to_bridge_premise_feedback = (
-        _critic_source_to_bridge_premise_derivation_feedback(
-            formalization_manifest
-        )
-    )
-    source_theorem_proof_body_adapter_feedback = (
-        _critic_source_theorem_proof_body_adapter_feedback(
-            formalization_manifest
-        )
-    )
-    exact_semantic_definition_repair_feedback = (
-        _critic_source_theorem_exact_semantic_definition_repair_feedback(
-            formalization_manifest
-        )
-    )
-    if source_theorem_proof_body_adapter_feedback:
-        formal_blocker_resource_requests = _merge_formal_blocker_resource_requests(
-            _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_feedback(
-                source_theorem_proof_body_adapter_feedback
-            ),
-            formal_blocker_resource_requests,
-        )
-    if exact_semantic_definition_repair_feedback:
-        formal_blocker_resource_requests = _merge_formal_blocker_resource_requests(
-            _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feedback(
-                exact_semantic_definition_repair_feedback
-            ),
-            formal_blocker_resource_requests,
-        )
-    semantic_anchor_blocker_feedback = _critic_semantic_anchor_blocker_feedback(
-        formal_blocker_resource_requests
-    )
-    if source_to_bridge_premise_feedback and semantic_anchor_blocker_feedback:
-        source_to_bridge_premise_feedback = dict(source_to_bridge_premise_feedback)
-        blockers = semantic_anchor_blocker_feedback.get(
-            "semantic_alignment_blockers", []
-        )
-        if blockers:
-            source_to_bridge_premise_feedback["semantic_alignment_blockers"] = (
-                blockers
-            )
-        merged_anchor_references = list(
-            dict.fromkeys(
-                [
-                    *(
-                        source_to_bridge_premise_feedback.get(
-                            "missing_semantic_anchor_references", []
-                        )
-                        or []
-                    ),
-                    *(
-                        semantic_anchor_blocker_feedback.get(
-                            "missing_semantic_anchor_references", []
-                        )
-                        or []
-                    ),
-                ]
-            )
-        )
-        source_to_bridge_premise_feedback[
-            "missing_semantic_anchor_references"
-        ] = merged_anchor_references
-    feedback = {
-        "feedback_source": "CriticEvaluator",
-        "failure_classification": "critic_requested_theory_revision",
-        "question_id": question.id,
-        "critic_repair_round": critic_round,
-        "next_critic_repair_round": critic_round + 1,
-        "max_critic_repair_rounds": max_critic_repair_rounds,
-        "theory_packet_id": str(theory_packet.get("packet_id", "")),
-        "retrieval_memory_manifest_id": str(retrieval_manifest.get("manifest_id", "")),
-        "simulation_manifest_id": str(simulation_manifest.get("manifest_id", "")),
-        "algorithm_sandbox_manifest_id": str(algorithm_manifest.get("manifest_id", "")),
-        "formalization_manifest_id": str(formalization_manifest.get("manifest_id", "")),
-        "formalization_counts": dict(formal_counts) if isinstance(formal_counts, Mapping) else {},
-        "high_priority_agenda": [
-            _compact_agenda_item(row)
-            for row in agenda
-            if str(row.get("priority", "")).lower() == "high"
-        ],
-        "formal_subclaim_feedback": [
-            _compact_formal_subclaim_feedback(row)
-            for row in formalization_manifest.get("formal_subclaims", [])[:8]
-            if isinstance(row, Mapping)
-        ],
-        "proof_state_feedback_manifest_id": str(
-            formalization_manifest.get("proof_state_feedback_manifest_id", "")
-        ),
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-    }
-    if formal_blocker_resource_requests:
-        feedback["formal_blocker_resource_requests"] = formal_blocker_resource_requests
-    if semantic_anchor_blocker_feedback:
-        feedback["semantic_anchor_blocker_feedback"] = semantic_anchor_blocker_feedback
-    if source_to_bridge_premise_feedback:
-        feedback["source_to_bridge_premise_derivation_feedback"] = (
-            source_to_bridge_premise_feedback
-        )
-        diagnostics = source_to_bridge_premise_feedback.get("diagnostics", [])
-        if diagnostics:
-            feedback["source_to_bridge_premise_derivation_diagnostics"] = diagnostics
-        missing_anchor_references = source_to_bridge_premise_feedback.get(
-            "missing_semantic_anchor_references", []
-        )
-        if missing_anchor_references:
-            feedback["missing_semantic_anchor_references"] = missing_anchor_references
-    elif semantic_anchor_blocker_feedback.get("missing_semantic_anchor_references"):
-        feedback["missing_semantic_anchor_references"] = (
-            semantic_anchor_blocker_feedback["missing_semantic_anchor_references"]
-        )
-    if formalizer_local_lean_contract:
-        feedback["local_lean_repair_contract"] = formalizer_local_lean_contract
-    if formalizer_candidate_diagnostics:
-        feedback["candidate_diagnostics"] = formalizer_candidate_diagnostics
-    if source_theorem_proof_body_adapter_feedback:
-        feedback["source_theorem_proof_body_adapter_feedback"] = (
-            source_theorem_proof_body_adapter_feedback
-        )
-    if exact_semantic_definition_repair_feedback:
-        feedback["source_theorem_exact_semantic_definition_repair_feedback"] = (
-            exact_semantic_definition_repair_feedback
-        )
-    return feedback
 
 
 def _critic_formal_blocker_resource_requests(
@@ -64422,50 +59253,6 @@ def _merge_formal_blocker_resource_requests(
             if len(merged) >= FORMAL_BLOCKER_RESOURCE_REQUEST_LIMIT:
                 return _dedupe_exact_semantic_formal_blocker_resource_requests(merged)
     return _dedupe_exact_semantic_formal_blocker_resource_requests(merged)
-
-
-def _critic_candidate_diagnostics_from_formalization_manifest(
-    formalization_manifest: Mapping[str, Any],
-) -> list[dict[str, Any]]:
-    diagnostics: list[dict[str, Any]] = []
-    if not isinstance(formalization_manifest, Mapping):
-        return diagnostics
-    formal_subclaims = formalization_manifest.get("formal_subclaims", []) or []
-    if not isinstance(formal_subclaims, list | tuple):
-        return diagnostics
-    for row in formal_subclaims[:8]:
-        if not isinstance(row, Mapping):
-            continue
-        errors = [str(error) for error in row.get("errors", []) or [] if str(error)]
-        if not errors:
-            continue
-        diagnostics.append(
-            {
-                "candidate_id": str(row.get("id", "") or ""),
-                "candidate_kind": str(row.get("claim_type", "") or ""),
-                "source_field": "formal_subclaims",
-                "precheck_status": str(row.get("status", "") or ""),
-                "precheck_errors": [],
-                "local_lean_attempted": True,
-                "local_lean_compiled": _bool_like(
-                    row.get("kernel_verified", False)
-                ),
-                "local_lean_exit_status": (
-                    "0" if _bool_like(row.get("kernel_verified", False)) else "1"
-                ),
-                "local_lean_stdout_excerpt": "\n".join(errors[:3]),
-            }
-        )
-    return diagnostics
-
-
-def _critic_local_lean_repair_contract_from_formalization_manifest(
-    formalization_manifest: Mapping[str, Any],
-) -> dict[str, Any]:
-    diagnostics = _critic_candidate_diagnostics_from_formalization_manifest(
-        formalization_manifest
-    )
-    return _formalizer_local_lean_repair_contract_from_diagnostics(diagnostics)
 
 
 def _compact_agenda_item(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -65686,10 +60473,16 @@ def _runtime_simulation_evaluator_generated_code_repair_yield_after_attempts(
     )
 
 
-def _runtime_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts(
+def _runtime_formalizer_lean_candidate_revision_max_attempts(
     context: Mapping[str, Any],
     environment_feedback: Mapping[str, Any] | None = None,
 ) -> int:
+    configured = _runtime_positive_int_from_contract_sources(
+        (context, environment_feedback),
+        key="capability_eval_formalizer_lean_candidate_revision_max_attempts",
+    )
+    if configured > 0:
+        return configured
     return _runtime_positive_int_from_contract_sources(
         (context, environment_feedback),
         key=(
@@ -65933,99 +60726,17 @@ def _runtime_generated_simulation_required_before_formalization(
     algorithm_sandbox_manifest_id: str = "",
     algorithm_sandbox_manifest_hash: str = "",
 ) -> bool:
-    semantic_replan = context.get(
-        "runtime_generated_code_semantic_review_replan",
-        {},
-    )
-    pending_dependency_verification = context.get(
-        GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY,
-        {},
-    )
-    pending_dependency_verification = (
-        pending_dependency_verification
-        if isinstance(pending_dependency_verification, Mapping)
-        else {}
-    )
-    dependency_descendant_rerun_required = bool(
-        (
-            isinstance(semantic_replan, Mapping)
-            and semantic_replan.get("repair_scope")
-            == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
-            and _canonical_architect_subsystem(
-                semantic_replan.get("repair_target_subsystem")
-            )
-            == "AlgorithmEngineer"
-            and _canonical_architect_subsystem(
-                semantic_replan.get("source_subsystem")
-            )
-            == "SimulationEvaluator"
-            and str(
-                semantic_replan.get(
-                    "repair_target_source_manifest_id",
-                    "",
-                )
-                or ""
-            )
-            and str(
-                semantic_replan.get(
-                    "repair_target_source_manifest_id",
-                    "",
-                )
-                or ""
-            )
-            != algorithm_sandbox_manifest_id
-            and str(algorithm_sandbox_manifest_id or "")
-            and str(algorithm_sandbox_manifest_hash or "")
-        )
-        or (
-            pending_dependency_verification.get("pending_mode")
-            == GENERATED_CODE_SEMANTIC_REVIEW_DEPENDENCY_VERIFICATION_MODE
-            and _canonical_architect_subsystem(
-                pending_dependency_verification.get("source_subsystem")
-            )
-            == "SimulationEvaluator"
-            and str(
-                pending_dependency_verification.get(
-                    "accepted_upstream_dependency_manifest_id",
-                    "",
-                )
-                or ""
-            )
-            == str(algorithm_sandbox_manifest_id or "")
-            and str(
-                pending_dependency_verification.get(
-                    "accepted_upstream_dependency_manifest_hash",
-                    "",
-                )
-                or ""
-            )
-            == str(algorithm_sandbox_manifest_hash or "")
-            and str(algorithm_sandbox_manifest_id or "")
-            and str(algorithm_sandbox_manifest_hash or "")
-        )
-    )
-    if not (
-        dependency_descendant_rerun_required
-        or _runtime_requires_generated_simulation_code(
-            context,
-            environment_feedback,
-        )
+    if not _runtime_requires_generated_simulation_code(
+        context,
+        environment_feedback,
     ):
         return False
     return not _runtime_generated_simulation_sandbox_passed_observed(
         blackboard,
         question_id=question.id,
         theory_packet_id=theory_packet_id,
-        algorithm_sandbox_manifest_id=(
-            algorithm_sandbox_manifest_id
-            if dependency_descendant_rerun_required
-            else ""
-        ),
-        algorithm_sandbox_manifest_hash=(
-            algorithm_sandbox_manifest_hash
-            if dependency_descendant_rerun_required
-            else ""
-        ),
+        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+        algorithm_sandbox_manifest_hash=algorithm_sandbox_manifest_hash,
     )
 
 
@@ -66092,28 +60803,7 @@ def _generated_simulation_required_before_formalization_task(
             algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
         )
     )
-    pending_source_feedback = (
-        _architect_selected_worker_environment_feedback(
-            selected={"selected_subsystem": "SimulationEvaluator"},
-            architect_context=architect_context,
-        )
-    )
     feedback = dict(capability_feedback)
-    if (
-        pending_source_feedback.get("feedback_type")
-        == "generated_code_semantic_review_pending_source_repair_feedback"
-    ):
-        feedback = {
-            **capability_feedback,
-            **pending_source_feedback,
-            "generated_simulation_capability_feedback": capability_feedback,
-            "runtime_requested_evidence_contract": dict(
-                capability_feedback.get(
-                    "runtime_requested_evidence_contract", {}
-                )
-                or {}
-            ),
-        }
     context = dict(architect_context)
     context = _runtime_context_with_environment_feedback_contract(
         context,
@@ -66208,70 +60898,6 @@ def _algorithm_code_draft_for_estimator(
         if str(row.get("estimator_id", "")) == estimator_id:
             return dict(row)
     return {}
-
-
-def _registered_algorithm_template_hint(
-    *,
-    proposal_target: Mapping[str, Any],
-    spec: Mapping[str, Any],
-    question: OpenResearchQuestion,
-) -> str:
-    explicit = str(proposal_target.get("registered_template_hint", "") or "").strip()
-    return registered_algorithm_template_hint_from_context(
-        explicit_template_hint=explicit,
-        text_parts=(
-            explicit,
-            spec.get("id", ""),
-            spec.get("name", ""),
-            spec.get("algorithm_sketch", ""),
-            spec.get("formula", ""),
-            question.id,
-            question.title,
-            question.description,
-            " ".join(question.tags),
-        ),
-    )
-
-
-def _registered_algorithm_template_runner_by_executor(
-    executor: str,
-) -> Callable[..., tuple[dict[str, Any], ToolCallRecord]] | None:
-    runners: dict[str, Callable[..., tuple[dict[str, Any], ToolCallRecord]]] = {
-        "registered_crossfit_aipw_template": _run_crossfit_aipw_prototype,
-        "registered_split_conformal_interval_template": (
-            _run_split_conformal_interval_prototype
-        ),
-    }
-    return runners.get(str(executor or "").strip())
-
-
-def _run_registered_algorithm_template_prototype(
-    *,
-    template_hint: str,
-    sandbox_dir: Path,
-    estimator_id: str,
-    spec: Mapping[str, Any],
-    n_runs: int,
-    seed: int,
-    timeout_s: int,
-) -> tuple[dict[str, Any], ToolCallRecord] | None:
-    template_row = registered_algorithm_template_row(template_hint)
-    executor = str(template_row.get("executor", "") or "").strip()
-    runner = _registered_algorithm_template_runner_by_executor(executor)
-    if runner is None:
-        return None
-    prototype, tool_call = runner(
-        sandbox_dir=sandbox_dir,
-        estimator_id=estimator_id,
-        spec=spec,
-        n_runs=n_runs,
-        seed=seed,
-        timeout_s=timeout_s,
-    )
-    prototype.setdefault("registered_template_hint", template_hint)
-    prototype.setdefault("registered_template_executor", executor)
-    prototype.setdefault("executor", executor)
-    return prototype, tool_call
 
 
 def _formalization_manifest_source_to_bridge_metadata_blocker(
@@ -66519,6 +61145,59 @@ def _source_to_bridge_metadata_blocker_agenda_item(
             "source-theorem proof."
         ),
     }
+
+
+_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE = (
+    "source_theorem_exact_semantic_definition_repair"
+)
+_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_QUEUE_STATUS = (
+    "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW"
+)
+_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES = frozenset(
+    {
+        "source_theorem_semantic_alignment_unreviewed",
+        "proof_body_reached_semantic_alignment_unreviewed",
+        "semantic_definition_review_blocked",
+        "typechecked_exact_semantic_definition_semantic_review_missing",
+        "typechecked_exact_semantic_definition_candidate_review_required",
+        "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate",
+        "exact_semantic_definition_authoring_required",
+    }
+)
+_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS = frozenset(
+    {
+        "EXACT_SOURCE_SEMANTIC_ALIGNMENT_REVIEW_REQUIRED",
+        "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_VERIFIER_GATE_REQUIRED",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_RETRY",
+    }
+)
+_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_GATES = frozenset(
+    {
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
+        "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED",
+    }
+)
+_SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_TYPECHECKED_STATUSES = frozenset(
+    {
+        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF",
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_REVIEW_REQUIRED",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
+        "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED",
+    }
+)
+_SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_STATUSES = frozenset(
+    {
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW",
+        "PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW",
+        "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
+    }
+)
 
 
 def _source_theorem_exact_semantic_definition_repair_agenda_item(
@@ -72892,13 +67571,13 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
                 or ""
             )[:500],
         }
-        repair_contract = _formalizer_local_lean_repair_contract_from_diagnostics(
+        local_observation = _formalizer_local_lean_observation_from_diagnostics(
             [diagnostics]
         )
-        if repair_contract:
-            diagnostics["local_lean_repair_contract"] = repair_contract
+        if local_observation:
+            diagnostics["local_lean_observation"] = local_observation
             diagnostics["local_lean_diagnostic_classes"] = list(
-                repair_contract.get("diagnostic_classes", []) or []
+                local_observation.get("diagnostic_classes", []) or []
             )
         feedback_rows.append(diagnostics)
     return tuple(feedback_rows)
@@ -87213,7 +81892,7 @@ def _algorithm_sandbox_feedback_learning_rows(
     failure_statuses = {
         "FAILED",
         "FAILED_METRIC_GATE",
-        "GENERATED_CODE_REQUIRED_BUT_MISSING",
+        "MODEL_CODE_REQUIRED_BUT_MISSING",
         "REJECTED_UNSAFE_GENERATED_CODE",
         "UNSUPPORTED_SANDBOX_TEMPLATE",
     }
@@ -96064,7 +90743,7 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
         ):
             if bool_key in task:
                 task[bool_key] = _bool_like(task.get(bool_key))
-        rows.append(task)
+        rows.append(coding_agent_observations_only(task))
     return rows
 
 
@@ -101052,7 +95731,7 @@ def _generated_python_repair_sequence_breakdown(
         manifests,
         prototype_key="prototypes",
         generated_executor="generated_python_sandbox",
-        missing_statuses={"GENERATED_CODE_REQUIRED_BUT_MISSING"},
+        missing_statuses={"MODEL_CODE_REQUIRED_BUT_MISSING"},
         live_generated_only=live_generated_only,
     )
 
@@ -101214,7 +95893,7 @@ def _generated_sandbox_repair_sequence_breakdown(
                     in {
                         "FAILED",
                         "FAILED_METRIC_GATE",
-                        "GENERATED_CODE_REQUIRED_BUT_MISSING",
+                        "MODEL_CODE_REQUIRED_BUT_MISSING",
                         "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING",
                         "REJECTED_UNSAFE_GENERATED_CODE",
                     }
@@ -104518,593 +99197,46 @@ def _formalization_task(
     )
 
 
-def _algorithm_engineer_repair_budget_yield_to_formalization_task(
+def _formalizer_lean_candidate_revision_budget_architect_replan_task(
     *,
-    question: OpenResearchQuestion,
-    theory_packet_id: str,
-    simulation_manifest_id: str,
-    algorithm_sandbox_manifest_id: str,
-    architect_context: Mapping[str, Any],
-    algorithm_feedback: Mapping[str, Any],
-    failure_classification: str,
-    repair_attempts_used: int,
-    yield_after_attempts: int,
-) -> AgentTask:
-    feedback = {
-        "feedback_type": "algorithm_engineer_repair_budget_yield_feedback",
-        "source_feedback_type": str(algorithm_feedback.get("feedback_type", "")),
-        "failure_classification": failure_classification,
-        "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
-        "algorithm_repair_attempts_used": int(repair_attempts_used),
-        "algorithm_repair_yield_after_attempts": int(yield_after_attempts),
-        "algorithm_sandbox_feedback": dict(algorithm_feedback),
-        "target_behavior": (
-            "Run formalization/proof-gap evaluation with the algorithm blocker "
-            "still open, so proof-state and Lean feedback are not starved by a "
-            "bounded generated-code repair loop."
-        ),
-        "acceptance_gate": (
-            "FormalizationEvaluator records formal targets, proof-state or Lean "
-            "feedback, and open gaps without treating the failed algorithm "
-            "sandbox manifest as passing implementation evidence."
-        ),
-        "runtime_requested_evidence_contract": {
-            "capability_eval_requires_generated_algorithm_code": True,
-            "capability_eval_algorithm_engineer_generated_code_repair_yield_after_attempts": int(
-                yield_after_attempts
-            ),
-        },
-        "proof_evidence_status": "ALGORITHM_REPAIR_YIELD_NOT_PROOF_EVIDENCE",
-        "execution_evidence_status": (
-            "ALGORITHM_REPAIR_YIELD_DOES_NOT_SATISFY_GENERATED_CODE_GATE"
-        ),
-        "boundary": (
-            "This handoff is scheduling and diagnostic feedback only. It does "
-            "not prove a theorem, validate the failed generated algorithm, or "
-            "close any formal gap."
-        ),
-    }
-    context = dict(architect_context)
-    context["previous_algorithm_sandbox_manifest_id"] = algorithm_sandbox_manifest_id
-    context["environment_feedback"] = feedback
-    context["runtime_feedback_loop"] = {
-        **(
-            dict(context.get("runtime_feedback_loop", {}))
-            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
-            else {}
-        ),
-        "source_subsystem": "AlgorithmEngineer",
-        "handoff": "algorithm_engineer_repair_budget_yield_to_formalization",
-        "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
-        "algorithm_engineer_generated_code_repair_attempts_used": int(
-            repair_attempts_used
-        ),
-        "algorithm_engineer_generated_code_repair_yield_after_attempts": int(
-            yield_after_attempts
-        ),
-    }
-    context = _runtime_context_with_environment_feedback_contract(
-        context,
-        feedback,
-        subsystem="FormalizationEvaluator",
-    )
-    task = _formalization_task(
-        question=question,
-        packet_id=theory_packet_id,
-        simulation_manifest_id=simulation_manifest_id,
-        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
-        architect_context=context,
-    )
-    inputs = dict(task.inputs)
-    inputs["environment_feedback"] = feedback
-    return replace(
-        task,
-        task_id=(
-            f"formalize-algorithm-yield:{question.id}:"
-            f"{stable_hash([algorithm_sandbox_manifest_id, repair_attempts_used])[:8]}"
-        ),
-        objective=(
-            "Run formalization/proof feedback after the bounded AlgorithmEngineer "
-            "generated-code repair budget is exhausted."
-        ),
-        inputs=inputs,
-        acceptance_gate=feedback["acceptance_gate"],
-        stop_condition=(
-            "formalization/proof feedback recorded with the algorithm blocker "
-            "kept open"
-        ),
-    )
-
-
-def _simulation_evaluator_repair_budget_yield_to_formalization_task(
-    *,
-    question: OpenResearchQuestion,
-    theory_packet_id: str,
-    simulation_manifest_id: str,
-    algorithm_sandbox_manifest_id: str,
-    architect_context: Mapping[str, Any],
-    simulation_feedback: Mapping[str, Any],
-    failure_classification: str,
-    repair_attempts_used: int,
-    yield_after_attempts: int,
-) -> AgentTask:
-    feedback = {
-        "feedback_type": "simulation_evaluator_repair_budget_yield_feedback",
-        "source_feedback_type": str(simulation_feedback.get("feedback_type", "")),
-        "failure_classification": failure_classification,
-        "simulation_manifest_id": simulation_manifest_id,
-        "simulation_repair_attempts_used": int(repair_attempts_used),
-        "simulation_repair_yield_after_attempts": int(yield_after_attempts),
-        "generated_simulation_feedback": dict(simulation_feedback),
-        "target_behavior": (
-            "Run formalization/proof-gap evaluation with the generated simulation "
-            "blocker still open, so proof-state, formal-gap planner, and Lean "
-            "feedback are not starved by a bounded simulation-code repair loop."
-        ),
-        "acceptance_gate": (
-            "FormalizationEvaluator records formal targets, proof-state or Lean "
-            "feedback, and open gaps without treating the failed generated "
-            "simulation manifest as passing simulation evidence."
-        ),
-        "runtime_requested_evidence_contract": {
-            "capability_eval_requires_generated_simulation_code": True,
-            "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": int(
-                yield_after_attempts
-            ),
-        },
-        "proof_evidence_status": "SIMULATION_REPAIR_YIELD_NOT_PROOF_EVIDENCE",
-        "execution_evidence_status": (
-            "SIMULATION_REPAIR_YIELD_DOES_NOT_SATISFY_GENERATED_SIMULATION_GATE"
-        ),
-        "boundary": (
-            "This handoff is scheduling and diagnostic feedback only. It does "
-            "not prove a theorem, validate the failed generated simulation, or "
-            "close any formal gap."
-        ),
-    }
-    context = dict(architect_context)
-    context["previous_simulation_manifest_id"] = simulation_manifest_id
-    context["environment_feedback"] = feedback
-    context["runtime_feedback_loop"] = {
-        **(
-            dict(context.get("runtime_feedback_loop", {}))
-            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
-            else {}
-        ),
-        "source_subsystem": "SimulationEvaluator",
-        "handoff": "simulation_evaluator_repair_budget_yield_to_formalization",
-        "simulation_manifest_id": simulation_manifest_id,
-        "simulation_evaluator_generated_code_repair_attempts_used": int(
-            repair_attempts_used
-        ),
-        "simulation_evaluator_generated_code_repair_yield_after_attempts": int(
-            yield_after_attempts
-        ),
-    }
-    context = _runtime_context_with_environment_feedback_contract(
-        context,
-        feedback,
-        subsystem="FormalizationEvaluator",
-    )
-    task = _formalization_task(
-        question=question,
-        packet_id=theory_packet_id,
-        simulation_manifest_id=simulation_manifest_id,
-        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
-        architect_context=context,
-    )
-    inputs = dict(task.inputs)
-    inputs["environment_feedback"] = feedback
-    return replace(
-        task,
-        task_id=(
-            f"formalize-simulation-yield:{question.id}:"
-            f"{stable_hash([simulation_manifest_id, repair_attempts_used])[:8]}"
-        ),
-        objective=(
-            "Run formalization/proof feedback after the bounded "
-            "SimulationEvaluator generated-code repair budget is exhausted."
-        ),
-        inputs=inputs,
-        acceptance_gate=feedback["acceptance_gate"],
-        stop_condition=(
-            "formalization/proof feedback recorded with the generated simulation "
-            "blocker kept open"
-        ),
-    )
-
-
-def _simulation_evaluator_repair_budget_yield_to_algorithm_task(
-    *,
-    question: OpenResearchQuestion,
-    theory_packet_id: str,
-    simulation_manifest_id: str,
-    implementation_gaps: Sequence[Mapping[str, Any]],
-    architect_context: Mapping[str, Any],
-    simulation_feedback: Mapping[str, Any],
-    failure_classification: str,
-    repair_attempts_used: int,
-    yield_after_attempts: int,
-    n_runs: int,
-    seed: int,
-) -> AgentTask:
-    gap_rows = [dict(row) for row in implementation_gaps]
-    feedback = {
-        "feedback_type": "simulation_evaluator_repair_budget_algorithm_handoff",
-        "source_feedback_type": str(simulation_feedback.get("feedback_type", "")),
-        "failure_classification": failure_classification,
-        "simulation_manifest_id": simulation_manifest_id,
-        "simulation_repair_attempts_used": int(repair_attempts_used),
-        "simulation_repair_yield_after_attempts": int(yield_after_attempts),
-        "generated_simulation_feedback": dict(simulation_feedback),
-        "implementation_gaps": gap_rows,
-        "target_behavior": (
-            "Implement and execute every open estimator gap while preserving the "
-            "failed generated-simulation diagnostics. AlgorithmEngineer must produce "
-            "a theory-faithful executable artifact; the SimulationEngineer-owned "
-            "empirical blocker remains open for later replanning."
-        ),
-        "acceptance_gate": (
-            "AlgorithmEngineer emits one generated sandbox draft for every canonical "
-            "implementation-gap id, AgentRuntime records bounded execution, and an "
-            "independent semantic review is required before downstream acceptance."
-        ),
-        "runtime_requested_evidence_contract": {
-            "capability_eval_requires_generated_algorithm_code": True,
-            "capability_eval_requires_generated_simulation_code": True,
-            "capability_eval_requires_typed_metric_contracts": True,
-            "generated_metric_contract_policy": "typed_artifact_bound_required",
-            "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": int(
-                yield_after_attempts
-            ),
-        },
-        "proof_evidence_status": "SIMULATION_REPAIR_YIELD_NOT_PROOF_EVIDENCE",
-        "execution_evidence_status": (
-            "SIMULATION_REPAIR_YIELD_DOES_NOT_SATISFY_GENERATED_SIMULATION_GATE"
-        ),
-        "boundary": (
-            "This is a scheduling and diagnostic handoff. It does not validate "
-            "the failed simulation, prove a theorem, or turn generated algorithm "
-            "sandbox output into production evidence."
-        ),
-    }
-    context = dict(architect_context)
-    context["previous_simulation_manifest_id"] = simulation_manifest_id
-    context["environment_feedback"] = feedback
-    context["runtime_feedback_loop"] = {
-        **(
-            dict(context.get("runtime_feedback_loop", {}))
-            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
-            else {}
-        ),
-        "source_subsystem": "SimulationEvaluator",
-        "handoff": "simulation_evaluator_repair_budget_yield_to_algorithm",
-        "simulation_manifest_id": simulation_manifest_id,
-        "simulation_evaluator_generated_code_repair_attempts_used": int(
-            repair_attempts_used
-        ),
-        "simulation_evaluator_generated_code_repair_yield_after_attempts": int(
-            yield_after_attempts
-        ),
-    }
-    context = _runtime_context_with_environment_feedback_contract(
-        context,
-        feedback,
-        subsystem="AlgorithmEngineer",
-    )
-    return AgentTask(
-        task_id=(
-            f"algorithm-simulation-yield:{question.id}:"
-            f"{stable_hash([simulation_manifest_id, gap_rows, repair_attempts_used])[:8]}"
-        ),
-        owner_subsystem="AlgorithmEngineer",
-        objective=(
-            "Run the open implementation work after the bounded generated-"
-            "simulation repair budget is exhausted, without closing the "
-            "simulation blocker."
-        ),
-        inputs={
-            "question": _question_to_payload(question),
-            "theory_packet_id": theory_packet_id,
-            "simulation_manifest_id": simulation_manifest_id,
-            "implementation_gaps": gap_rows,
-            "n_runs": int(n_runs),
-            "seed": int(seed),
-            "architect_context": context,
-            "environment_feedback": feedback,
-        },
-        allowed_tools=("python", "filesystem_sandbox"),
-        expected_artifacts=_architect_expected_artifacts(
-            context,
-            "AlgorithmEngineer",
-            ("algorithm_sandbox_manifest",),
-        ),
-        acceptance_gate=feedback["acceptance_gate"],
-        stop_condition=(
-            "algorithm sandbox feedback recorded with the generated simulation "
-            "blocker kept open"
-        ),
-    )
-
-
-def _simulation_estimator_abi_repair_task(
-    *,
-    question: OpenResearchQuestion,
-    theory_packet_id: str,
-    simulation_manifest_id: str,
-    implementation_gaps: Sequence[Mapping[str, Any]],
-    architect_context: Mapping[str, Any],
-    simulation_feedback: Mapping[str, Any],
-    n_runs: int,
-    seed: int,
-    repair_attempts_used: int = 0,
-    yield_after_attempts: int = 0,
-) -> AgentTask:
-    gap_rows = [dict(row) for row in implementation_gaps]
-    binding_errors = [
-        str(error)
-        for row in simulation_feedback.get("generated_simulation_prototypes", []) or []
-        if isinstance(row, Mapping)
-        for error in row.get("estimator_binding_errors", []) or []
-        if str(error).strip()
-    ]
-    feedback = {
-        "feedback_type": "accepted_algorithm_estimator_abi_feedback",
-        "failure_classification": "accepted_algorithm_estimator_abi_failed",
-        "simulation_manifest_id": simulation_manifest_id,
-        "implementation_gaps": gap_rows,
-        "validation_errors": list(dict.fromkeys(binding_errors)),
-        "target_component": "algorithm",
-        "runtime_requested_evidence_contract": {
-            "capability_eval_requires_generated_algorithm_code": True,
-            "capability_eval_requires_generated_simulation_code": True,
-        },
-        "proof_evidence_status": "ESTIMATOR_ABI_FEEDBACK_NOT_PROOF_EVIDENCE",
-        "boundary": (
-            "This is typed implementation-interface feedback. It neither validates "
-            "the DGP nor establishes statistical or theorem correctness."
-        ),
-    }
-    context = dict(architect_context)
-    context["previous_simulation_manifest_id"] = simulation_manifest_id
-    context["environment_feedback"] = feedback
-    context["runtime_feedback_loop"] = {
-        **(
-            dict(context.get("runtime_feedback_loop", {}))
-            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
-            else {}
-        ),
-        "source_subsystem": "SimulationEvaluator",
-        "handoff": "accepted_algorithm_estimator_abi_regeneration",
-        "simulation_manifest_id": simulation_manifest_id,
-        "simulation_evaluator_generated_code_repair_attempts_used": (
-            max(0, int(repair_attempts_used or 0)) + 1
-        ),
-        "simulation_evaluator_generated_code_repair_yield_after_attempts": max(
-            0,
-            int(yield_after_attempts or 0),
-        ),
-    }
-    context = _runtime_context_with_environment_feedback_contract(
-        context,
-        feedback,
-        subsystem="AlgorithmEngineer",
-    )
-    return AgentTask(
-        task_id=(
-            f"algorithm-estimator-abi:{question.id}:"
-            f"{stable_hash([simulation_manifest_id, binding_errors])[:8]}"
-        ),
-        owner_subsystem="AlgorithmEngineer",
-        objective=(
-            "Regenerate the exact algorithm artifact after its mechanical "
-            "confirmatory DGP interface check failed."
-        ),
-        inputs={
-            "question": _question_to_payload(question),
-            "theory_packet_id": theory_packet_id,
-            "simulation_manifest_id": simulation_manifest_id,
-            "implementation_gaps": gap_rows,
-            "n_runs": int(n_runs),
-            "seed": int(seed),
-            "architect_context": context,
-            "environment_feedback": feedback,
-        },
-        allowed_tools=("model_backend", "python", "filesystem_sandbox"),
-        expected_artifacts=_architect_expected_artifacts(
-            context,
-            "AlgorithmEngineer",
-            ("algorithm_sandbox_manifest",),
-        ),
-        acceptance_gate=(
-            "a fresh exact algorithm source implements run_estimator(request), "
-            "executes in the sandbox, passes independent semantic review, and is "
-            "rehydrated as a new hash-bound handoff"
-        ),
-        stop_condition="fresh accepted estimator ABI handoff recorded",
-    )
-
-
-def _simulation_estimator_runtime_repair_task(
-    *,
-    question: OpenResearchQuestion,
-    theory_packet_id: str,
-    simulation_manifest_id: str,
-    implementation_gaps: Sequence[Mapping[str, Any]],
-    architect_context: Mapping[str, Any],
-    simulation_feedback: Mapping[str, Any],
-    n_runs: int,
-    seed: int,
-    repair_attempts_used: int = 0,
-    yield_after_attempts: int = 0,
-) -> AgentTask:
-    gap_rows = [dict(row) for row in implementation_gaps]
-    failure_ids = list(
-        dict.fromkeys(
-            str(estimator_id or "").strip()
-            for row in simulation_feedback.get(
-                "generated_simulation_prototypes", []
-            )
-            or []
-            if isinstance(row, Mapping)
-            for estimator_id in row.get("estimator_runtime_failure_ids", []) or []
-            if str(estimator_id or "").strip()
-        )
-    )
-    runtime_errors = list(
-        dict.fromkeys(
-            str(error)
-            for row in simulation_feedback.get(
-                "generated_simulation_prototypes", []
-            )
-            or []
-            if isinstance(row, Mapping)
-            for error in row.get("estimator_runtime_errors", []) or []
-            if str(error).strip()
-        )
-    )
-    feedback = {
-        "feedback_type": "accepted_algorithm_estimator_runtime_feedback",
-        "failure_classification": "accepted_algorithm_estimator_runtime_failed",
-        "simulation_manifest_id": simulation_manifest_id,
-        "implementation_gaps": gap_rows,
-        "failed_estimator_ids": failure_ids,
-        "runtime_errors": runtime_errors,
-        "target_component": "algorithm",
-        "runtime_requested_evidence_contract": {
-            "capability_eval_requires_generated_algorithm_code": True,
-            "capability_eval_requires_generated_simulation_code": True,
-        },
-        "proof_evidence_status": (
-            "ESTIMATOR_RUNTIME_FEEDBACK_NOT_PROOF_EVIDENCE"
-        ),
-        "boundary": (
-            "This is typed runtime feedback about an accepted implementation. It "
-            "does not validate the DGP, empirical metric, statistical claim, or "
-            "theorem."
-        ),
-    }
-    context = dict(architect_context)
-    context["previous_simulation_manifest_id"] = simulation_manifest_id
-    context["environment_feedback"] = feedback
-    context["runtime_feedback_loop"] = {
-        **(
-            dict(context.get("runtime_feedback_loop", {}))
-            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
-            else {}
-        ),
-        "source_subsystem": "SimulationEvaluator",
-        "handoff": "accepted_algorithm_estimator_runtime_regeneration",
-        "simulation_manifest_id": simulation_manifest_id,
-        "failed_estimator_ids": failure_ids,
-        "simulation_evaluator_generated_code_repair_attempts_used": (
-            max(0, int(repair_attempts_used or 0)) + 1
-        ),
-        "simulation_evaluator_generated_code_repair_yield_after_attempts": max(
-            0,
-            int(yield_after_attempts or 0),
-        ),
-    }
-    context = _runtime_context_with_environment_feedback_contract(
-        context,
-        feedback,
-        subsystem="AlgorithmEngineer",
-    )
-    return AgentTask(
-        task_id=(
-            f"algorithm-estimator-runtime:{question.id}:"
-            f"{stable_hash([simulation_manifest_id, failure_ids, runtime_errors])[:8]}"
-        ),
-        owner_subsystem="AlgorithmEngineer",
-        objective=(
-            "Regenerate the accepted algorithm implementation after its hash-bound "
-            "confirmatory DGP execution failed."
-        ),
-        inputs={
-            "question": _question_to_payload(question),
-            "theory_packet_id": theory_packet_id,
-            "simulation_manifest_id": simulation_manifest_id,
-            "implementation_gaps": gap_rows,
-            "n_runs": int(n_runs),
-            "seed": int(seed),
-            "architect_context": context,
-            "environment_feedback": feedback,
-        },
-        allowed_tools=("model_backend", "python", "filesystem_sandbox"),
-        expected_artifacts=_architect_expected_artifacts(
-            context,
-            "AlgorithmEngineer",
-            ("algorithm_sandbox_manifest",),
-        ),
-        acceptance_gate=(
-            "fresh exact algorithm source executes with finite JSON-compatible "
-            "output, passes independent semantic review, and is rehydrated as a "
-            "new hash-bound handoff"
-        ),
-        stop_condition="fresh accepted estimator runtime handoff recorded",
-    )
-
-
-def _formalizer_lean_candidate_repair_budget_yield_to_gap_planner_task(
-    *,
+    task: AgentTask,
     question: OpenResearchQuestion,
     theory_packet_id: str,
     formalization_manifest_id: str,
-    gap_planner_bridge_id: str,
     architect_context: Mapping[str, Any],
     lean_candidate_repair_feedback: Mapping[str, Any],
-    source_task_inputs: Mapping[str, Any],
     source_subsystem: str,
-    repair_attempts_used: int,
-    yield_after_attempts: int,
+    revision_attempts_used: int,
+    revision_max_attempts: int,
 ) -> AgentTask:
     feedback = {
-        "feedback_type": (
-            "formalizer_lean_candidate_repair_budget_gap_planner_handoff"
-        ),
+        "feedback_type": "formalizer_lean_candidate_revision_budget_feedback",
         "source_feedback_type": str(
             lean_candidate_repair_feedback.get("feedback_type", "")
         ),
         "failure_classification": (
-            "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+            "formalizer_lean_candidate_revision_budget_architect_replan"
         ),
         "source_failure_classification": str(
             lean_candidate_repair_feedback.get("failure_classification", "")
         ),
         "formalization_manifest_id": formalization_manifest_id,
-        "formalization_gap_planner_bridge_ids": [gap_planner_bridge_id],
         "source_manifest_id": str(
             lean_candidate_repair_feedback.get("source_manifest_id", "") or ""
         ),
-        "formalizer_lean_repair_attempts_used": int(repair_attempts_used),
-        "formalizer_lean_repair_yield_to_gap_planner_after_attempts": int(
-            yield_after_attempts
-        ),
-        "lean_candidate_repair_feedback": dict(lean_candidate_repair_feedback),
-        "target_behavior": (
-            "Execute FormalizationGapPlanner on the current formal-gap bridge "
-            "after the bounded Formalizer/ProofEngineer Lean-candidate repair "
-            "budget is exhausted, so live route-planner and target-prover "
-            "feedback are not starved by repeated Lean repair turns."
-        ),
-        "acceptance_gate": (
-            "FormalizationGapPlanner records executable handoff context and, "
-            "when enabled, bounded live route-planner feedback without treating "
-            "failed Lean candidates or route plans as theorem proof evidence."
-        ),
-        "runtime_requested_evidence_contract": {
-            "capability_eval_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts": int(
-                yield_after_attempts
-            ),
-        },
+        "revision_attempts_used": int(revision_attempts_used),
+        "revision_max_attempts": int(revision_max_attempts),
+        "lean_candidate_observations": dict(lean_candidate_repair_feedback),
+        "model_owned_source_revision": True,
+        "runtime_selected_source_edit": False,
         "proof_evidence_status": (
-            "FORMALIZER_LEAN_REPAIR_GAP_PLANNER_YIELD_NOT_PROOF_EVIDENCE"
+            "FORMALIZER_LEAN_REVISION_BUDGET_REPLAN_NOT_PROOF_EVIDENCE"
         ),
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         "boundary": (
-            "This handoff is scheduling and diagnostic feedback only. It does "
-            "not prove a theorem, validate the failed Lean candidate, or close "
-            "any formal gap."
+            "This handoff carries the complete current candidate observations for "
+            "orchestration only. ArchitectCoordinator may select the next owner but "
+            "cannot edit Lean, validate the candidate, or close a formal gap."
         ),
     }
     context = dict(architect_context)
@@ -105116,26 +99248,25 @@ def _formalizer_lean_candidate_repair_budget_yield_to_gap_planner_task(
             else {}
         ),
         "source_subsystem": source_subsystem,
-        "handoff": "formalizer_lean_candidate_repair_budget_yield_to_gap_planner",
+        "handoff": "formalizer_lean_candidate_revision_budget_architect_replan",
         "formalization_manifest_id": formalization_manifest_id,
-        "formalization_gap_planner_bridge_id": gap_planner_bridge_id,
-        "formalizer_lean_repair_attempts_used": int(repair_attempts_used),
-        "formalizer_lean_repair_yield_to_gap_planner_after_attempts": int(
-            yield_after_attempts
-        ),
+        "revision_attempts_used": int(revision_attempts_used),
+        "revision_max_attempts": int(revision_max_attempts),
     }
     return AgentTask(
         task_id=(
-            f"gap-planner-handoff:{question.id}:"
-            f"{stable_hash([formalization_manifest_id, gap_planner_bridge_id, repair_attempts_used])[:8]}"
+            f"architect-formal-replan:{question.id}:"
+            f"{stable_hash([task.task_id, formalization_manifest_id, revision_attempts_used])[:8]}"
         ),
-        owner_subsystem="FormalizationGapPlanner",
+        owner_subsystem="ArchitectCoordinator",
         objective=(
-            "Execute runtime FormalizationGapPlanner after the bounded "
-            "Formalizer/ProofEngineer Lean-candidate repair budget is exhausted."
+            "Select the next typed owner after the same ProofEngineer exhausted its "
+            "bounded direct full-source Lean revision budget. Use the exact source, "
+            "compiler/proof-state observations, and retrieval context; do not author "
+            "a source patch or treat planning text as proof."
         ),
         inputs={
-            **dict(source_task_inputs),
+            **dict(task.inputs),
             "question": _question_to_payload(question),
             "architect_context": context,
             "environment_feedback": feedback,
@@ -105143,19 +99274,17 @@ def _formalizer_lean_candidate_repair_budget_yield_to_gap_planner_task(
             "theory_packet_id": theory_packet_id,
         },
         allowed_tools=(
-            "formalization_gap_planner",
-            "formal_source_retriever",
-            "evidence_ledger",
             "model_backend",
+            "blackboard",
+            "evidence_ledger",
         ),
-        expected_artifacts=(
-            "runtime_formalization_gap_planner_execution_manifest",
-            "runtime_formalization_gap_planner_handoffs",
+        expected_artifacts=("architect_coordinator_proposal",),
+        acceptance_gate=(
+            "validated Architect proposal routes the unchanged blocker and exact "
+            "observations to an evidence-producing owner or records a typed blocker"
         ),
-        acceptance_gate=feedback["acceptance_gate"],
         stop_condition=(
-            "offline gap-planner replay, prompt staging, or bounded live route "
-            "planning completed with proof boundary preserved"
+            "next owner or explicit blocker selected with the proof boundary preserved"
         ),
     )
 
@@ -105817,72 +99946,9 @@ def _generated_sandbox_metric_gate_result(
                 )
             ),
         )
-        errors = list(
-            _str_tuple(evaluation.get("required_failure_errors", []))
-        )
-        errors.extend(
-            _generated_sandbox_code_quality_gate_errors(
-                code=code,
-                context=metric_context,
-            )
-        )
+        errors = list(_str_tuple(evaluation.get("required_failure_errors", [])))
         return sorted(set(errors)), evaluation, "typed_artifact_bound"
-    return (
-        _generated_sandbox_code_quality_gate_errors(
-            code=code,
-            context=metric_context,
-        ),
-        {},
-        "execution_only_no_typed_contract",
-    )
-
-
-def _generated_sandbox_code_quality_gate_errors(
-    *,
-    code: str,
-    context: Mapping[str, Any],
-) -> list[str]:
-    if not code.strip() or not _generated_sandbox_is_capability_eval(context):
-        return []
-    try:
-        tree = ast.parse(code)
-    except SyntaxError:
-        return []
-    run_sandbox = next(
-        (
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.FunctionDef) and node.name == "run_sandbox"
-        ),
-        None,
-    )
-    if run_sandbox is None:
-        return []
-    loaded_names = {
-        node.id
-        for node in ast.walk(run_sandbox)
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-    }
-    errors: list[str] = []
-    if "seed" not in loaded_names:
-        errors.append(
-            "capability_eval generated sandbox must use the seed argument to produce reproducible randomized or resampled stress cases"
-        )
-    if "replicates" not in loaded_names:
-        errors.append(
-            "capability_eval generated sandbox must use the replicates argument to scale local stress-test work"
-        )
-    return errors
-
-
-def _generated_sandbox_is_capability_eval(context: Mapping[str, Any]) -> bool:
-    if not isinstance(context, Mapping):
-        return False
-    try:
-        text = json.dumps(context, default=str).lower()
-    except Exception:
-        text = str(context).lower()
-    return "capability_eval" in text or "capability eval" in text
+    return [], {}, "execution_only_no_typed_contract"
 
 
 def _estimator_spec(packet: Any, estimator_id: str) -> dict[str, Any]:
@@ -106822,393 +100888,6 @@ def main() -> None:
     serialized = json.dumps(payload, indent=2, sort_keys=True)
     with open(args.out, "w", encoding="utf-8") as handle:
         handle.write(serialized)
-    print(json.dumps(payload, sort_keys=True))
-
-
-if __name__ == "__main__":
-    main()
-'''
-
-
-def _run_crossfit_aipw_prototype(
-    *,
-    sandbox_dir: Path,
-    estimator_id: str,
-    spec: Mapping[str, Any],
-    n_runs: int,
-    seed: int,
-    timeout_s: int,
-) -> tuple[dict[str, Any], ToolCallRecord]:
-    script_path = sandbox_dir / f"{_safe_identifier(estimator_id)}_prototype.py"
-    result_path = sandbox_dir / f"{_safe_identifier(estimator_id)}_result.json"
-    script = _crossfit_aipw_prototype_script()
-    script_path.write_text(script, encoding="utf-8")
-    replicates = max(10, min(int(n_runs), 80))
-    cmd = [
-        sys.executable,
-        str(script_path.resolve()),
-        "--out",
-        str(result_path.resolve()),
-        "--replicates",
-        str(replicates),
-        "--seed",
-        str(seed),
-    ]
-    try:
-        completed = subprocess.run(
-            cmd,
-            cwd=str(sandbox_dir),
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-        )
-        returncode = int(completed.returncode)
-        stdout = completed.stdout.strip()
-        stderr = completed.stderr.strip()
-    except subprocess.TimeoutExpired as exc:
-        returncode = 124
-        stdout = str(exc.stdout or "").strip()
-        stderr = f"timeout after {timeout_s}s: {exc.stderr or ''}".strip()
-    metrics: dict[str, Any] = {}
-    if result_path.exists():
-        try:
-            metrics = json.loads(result_path.read_text(encoding="utf-8"))
-        except Exception as exc:  # pragma: no cover - defensive artifact parsing
-            metrics = {"parse_error": repr(exc)}
-    smoke_passed = (
-        returncode == 0
-        and bool(metrics)
-        and float(metrics.get("n_failed", 1.0)) == 0.0
-        and 0.0 <= float(metrics.get("coverage_95", -1.0)) <= 1.0
-    )
-    boundary = (
-        "Sandbox prototype execution checks implementation plausibility and "
-        "finite metrics only. It is not a registered production algorithm and "
-        "not theorem proof evidence."
-    )
-    prototype = {
-        "estimator_id": estimator_id,
-        "prototype_status": "EXECUTED" if returncode == 0 else "FAILED",
-        "spec": dict(spec),
-        "script_path": str(script_path),
-        "result_path": str(result_path),
-        "script_hash": stable_hash(script),
-        "returncode": returncode,
-        "metrics": metrics,
-        "smoke_passed": smoke_passed,
-        "promotion_ready": False,
-        "boundary": boundary,
-    }
-    tool_call = ToolCallRecord(
-        tool_name="python.crossfit_aipw_sandbox",
-        inputs={"replicates": replicates, "seed": seed, "script_path": str(script_path)},
-        output_paths=(str(result_path),),
-        input_hash=stable_hash({"script": script, "replicates": replicates, "seed": seed}),
-        output_hash=stable_hash(metrics) if metrics else "",
-        exit_status=str(returncode),
-        stdout_summary=stdout[:500],
-        stderr_summary=stderr[:500],
-        safety_boundary=boundary,
-    )
-    return prototype, tool_call
-
-
-def _crossfit_aipw_prototype_script() -> str:
-    return r'''from __future__ import annotations
-
-import argparse
-import json
-import math
-
-import numpy as np
-
-
-def _ridge_fit(x, y, ridge=1e-3):
-    x_aug = np.column_stack([np.ones(x.shape[0]), x])
-    gram = x_aug.T @ x_aug + ridge * np.eye(x_aug.shape[1])
-    return np.linalg.solve(gram, x_aug.T @ y)
-
-
-def _ridge_predict(beta, x):
-    return np.column_stack([np.ones(x.shape[0]), x]) @ beta
-
-
-def _one_run(rng, n=300, p=5):
-    x = rng.normal(size=(n, p))
-    logits = 0.35 * x[:, 0] - 0.25 * x[:, 1]
-    e_true = 1.0 / (1.0 + np.exp(-logits))
-    a = rng.binomial(1, e_true)
-    tau = 1.0
-    base = 0.5 * x[:, 0] + 0.25 * x[:, 1] ** 2 - 0.2 * x[:, 2]
-    y = base + tau * a + rng.normal(scale=1.0, size=n)
-    fold = rng.permutation(n) % 2
-    scores = np.zeros(n)
-    failed = 0
-    for k in (0, 1):
-        train = fold != k
-        test = fold == k
-        x_train = x[train]
-        a_train = a[train]
-        y_train = y[train]
-        try:
-            beta_e = _ridge_fit(x_train, a_train, ridge=1e-2)
-            e_hat = np.clip(_ridge_predict(beta_e, x[test]), 0.05, 0.95)
-            beta_0 = _ridge_fit(x_train[a_train == 0], y_train[a_train == 0], ridge=1e-2)
-            beta_1 = _ridge_fit(x_train[a_train == 1], y_train[a_train == 1], ridge=1e-2)
-            m0 = _ridge_predict(beta_0, x[test])
-            m1 = _ridge_predict(beta_1, x[test])
-            y_test = y[test]
-            a_test = a[test]
-            scores[test] = m1 - m0 + a_test / e_hat * (y_test - m1) - (1 - a_test) / (1 - e_hat) * (y_test - m0)
-        except Exception:
-            failed += int(np.sum(test))
-            scores[test] = np.nan
-    if np.any(~np.isfinite(scores)):
-        return math.nan, math.nan, 0, failed + int(np.sum(~np.isfinite(scores)))
-    psi_hat = float(np.mean(scores))
-    se = float(np.std(scores, ddof=1) / math.sqrt(n))
-    covered = int(abs(psi_hat - tau) <= 1.96 * se) if se > 0.0 and math.isfinite(se) else 0
-    return psi_hat, se, covered, failed
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--out", required=True)
-    parser.add_argument("--replicates", type=int, default=40)
-    parser.add_argument("--seed", type=int, default=20260528)
-    args = parser.parse_args()
-    rng = np.random.default_rng(args.seed)
-    estimates = []
-    ses = []
-    covered = []
-    n_failed = 0
-    for _ in range(args.replicates):
-        estimate, se, hit, failed = _one_run(rng)
-        if failed or not math.isfinite(estimate) or not math.isfinite(se):
-            n_failed += 1
-            continue
-        estimates.append(estimate)
-        ses.append(se)
-        covered.append(hit)
-    estimates_arr = np.asarray(estimates, dtype=float)
-    ses_arr = np.asarray(ses, dtype=float)
-    if estimates_arr.size == 0:
-        payload = {"n_runs": args.replicates, "n_failed": args.replicates, "status": "all_failed"}
-    else:
-        bias = float(np.mean(estimates_arr - 1.0))
-        payload = {
-            "status": "ok",
-            "n_runs": args.replicates,
-            "n_success": int(estimates_arr.size),
-            "n_failed": int(n_failed),
-            "bias": bias,
-            "rmse": float(np.sqrt(np.mean((estimates_arr - 1.0) ** 2))),
-            "coverage_95": float(np.mean(covered)),
-            "mean_se": float(np.mean(ses_arr)),
-            "empirical_sd": float(np.std(estimates_arr, ddof=1)) if estimates_arr.size > 1 else 0.0,
-        }
-    with open(args.out, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
-    print(json.dumps(payload, sort_keys=True))
-
-
-if __name__ == "__main__":
-    main()
-'''
-
-
-def _run_split_conformal_interval_prototype(
-    *,
-    sandbox_dir: Path,
-    estimator_id: str,
-    spec: Mapping[str, Any],
-    n_runs: int,
-    seed: int,
-    timeout_s: int,
-) -> tuple[dict[str, Any], ToolCallRecord]:
-    script_path = sandbox_dir / f"{_safe_identifier(estimator_id)}_split_conformal_template.py"
-    result_path = sandbox_dir / f"{_safe_identifier(estimator_id)}_split_conformal_result.json"
-    script = _split_conformal_interval_prototype_script()
-    script_path.write_text(script, encoding="utf-8")
-    replicates = max(10, min(int(n_runs), 100))
-    cmd = [
-        sys.executable,
-        str(script_path.resolve()),
-        "--out",
-        str(result_path.resolve()),
-        "--replicates",
-        str(replicates),
-        "--seed",
-        str(seed),
-    ]
-    try:
-        completed = subprocess.run(
-            cmd,
-            cwd=str(sandbox_dir),
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-        )
-        returncode = int(completed.returncode)
-        stdout = completed.stdout.strip()
-        stderr = completed.stderr.strip()
-    except subprocess.TimeoutExpired as exc:
-        returncode = 124
-        stdout = str(exc.stdout or "").strip()
-        stderr = f"timeout after {timeout_s}s: {exc.stderr or ''}".strip()
-    metrics: dict[str, Any] = {}
-    if result_path.exists():
-        try:
-            metrics = json.loads(result_path.read_text(encoding="utf-8"))
-        except Exception as exc:  # pragma: no cover - defensive artifact parsing
-            metrics = {"parse_error": repr(exc)}
-    smoke_passed = (
-        returncode == 0
-        and bool(metrics)
-        and float(metrics.get("n_failed", 1.0)) == 0.0
-        and 0.0 <= float(metrics.get("coverage_90", -1.0)) <= 1.0
-        and float(metrics.get("mean_interval_width", 0.0)) > 0.0
-    )
-    boundary = (
-        "Trusted split-conformal sandbox execution checks implementation plausibility "
-        "and empirical coverage metrics only. It is not production registration and "
-        "not theorem proof evidence."
-    )
-    prototype = {
-        "estimator_id": estimator_id,
-        "prototype_status": "EXECUTED" if returncode == 0 else "FAILED",
-        "executor": "registered_split_conformal_interval_template",
-        "spec": dict(spec),
-        "script_path": str(script_path),
-        "result_path": str(result_path),
-        "script_hash": stable_hash(script),
-        "returncode": returncode,
-        "metrics": metrics,
-        "smoke_passed": smoke_passed,
-        "promotion_ready": False,
-        "boundary": boundary,
-    }
-    tool_call = ToolCallRecord(
-        tool_name="python.split_conformal_interval_sandbox",
-        inputs={"replicates": replicates, "seed": seed, "script_path": str(script_path)},
-        output_paths=(str(result_path),),
-        input_hash=stable_hash({"script": script, "replicates": replicates, "seed": seed}),
-        output_hash=stable_hash(metrics) if metrics else "",
-        exit_status=str(returncode),
-        stdout_summary=stdout[:500],
-        stderr_summary=stderr[:500],
-        safety_boundary=boundary,
-    )
-    return prototype, tool_call
-
-
-def _split_conformal_interval_prototype_script() -> str:
-    return r'''from __future__ import annotations
-
-import argparse
-import json
-import math
-
-import numpy as np
-
-
-def _ridge_fit(x, y, ridge=1e-3):
-    x_aug = np.column_stack([np.ones(x.shape[0]), x])
-    gram = x_aug.T @ x_aug + ridge * np.eye(x_aug.shape[1])
-    return np.linalg.solve(gram, x_aug.T @ y)
-
-
-def _ridge_predict(beta, x):
-    return np.column_stack([np.ones(x.shape[0]), x]) @ beta
-
-
-def _response(x, beta, rng, *, heavy_tail=False, nonlinear=False):
-    signal = x @ beta
-    if nonlinear:
-        signal = signal + 0.5 * np.sin(x[:, 0]) - 0.25 * x[:, 1] * x[:, 2]
-    if heavy_tail:
-        noise = rng.standard_t(df=3, size=x.shape[0])
-    else:
-        noise = rng.normal(scale=1.0, size=x.shape[0])
-    return signal + noise
-
-
-def _one_run(rng, *, alpha=0.1, n_train=120, n_cal=80, n_test=120, d=5, mode="linear"):
-    n_total = n_train + n_cal + n_test
-    x = rng.normal(size=(n_total, d))
-    beta = rng.normal(size=d)
-    y = _response(
-        x,
-        beta,
-        rng,
-        heavy_tail=(mode == "heavy_tail"),
-        nonlinear=(mode == "nonlinear"),
-    )
-    x_train = x[:n_train]
-    y_train = y[:n_train]
-    x_cal = x[n_train:n_train + n_cal]
-    y_cal = y[n_train:n_train + n_cal]
-    x_test = x[n_train + n_cal:]
-    y_test = y[n_train + n_cal:]
-    beta_hat = _ridge_fit(x_train, y_train)
-    cal_pred = _ridge_predict(beta_hat, x_cal)
-    scores = np.abs(y_cal - cal_pred)
-    if np.any(~np.isfinite(scores)):
-        return math.nan, math.nan, math.nan, 1
-    order = int(math.ceil((1.0 - alpha) * (n_cal + 1))) - 1
-    order = max(0, min(order, n_cal - 1))
-    q = float(np.sort(scores)[order])
-    test_pred = _ridge_predict(beta_hat, x_test)
-    covered = np.abs(y_test - test_pred) <= q
-    return float(np.mean(covered)), float(2.0 * q), q, 0
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--out", required=True)
-    parser.add_argument("--replicates", type=int, default=40)
-    parser.add_argument("--seed", type=int, default=20260607)
-    args = parser.parse_args()
-    rng = np.random.default_rng(args.seed)
-    modes = ("linear", "nonlinear", "heavy_tail")
-    coverages = []
-    widths = []
-    quantiles = []
-    by_mode = {mode: [] for mode in modes}
-    n_failed = 0
-    for idx in range(args.replicates):
-        mode = modes[idx % len(modes)]
-        coverage, width, q, failed = _one_run(rng, mode=mode)
-        if failed or not (math.isfinite(coverage) and math.isfinite(width) and math.isfinite(q)):
-            n_failed += 1
-            continue
-        coverages.append(coverage)
-        widths.append(width)
-        quantiles.append(q)
-        by_mode[mode].append(coverage)
-    if not coverages:
-        payload = {"status": "all_failed", "n_runs": args.replicates, "n_failed": args.replicates}
-    else:
-        payload = {
-            "status": "ok",
-            "alpha": 0.1,
-            "nominal_coverage": 0.9,
-            "n_runs": args.replicates,
-            "n_success": len(coverages),
-            "n_failed": n_failed,
-            "coverage_90": float(np.mean(coverages)),
-            "coverage_sd": float(np.std(np.asarray(coverages), ddof=1)) if len(coverages) > 1 else 0.0,
-            "mean_interval_width": float(np.mean(widths)),
-            "mean_calibration_quantile": float(np.mean(quantiles)),
-            "coverage_by_mode": {
-                mode: float(np.mean(values)) if values else math.nan
-                for mode, values in by_mode.items()
-            },
-        }
-    with open(args.out, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
     print(json.dumps(payload, sort_keys=True))
 
 

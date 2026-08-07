@@ -324,7 +324,6 @@ def test_proofengineer_recovers_source_scope_from_target_provenance() -> None:
     groups = _proofengineer_formal_source_grounding_hit_groups(
         retriever,
         query_seeds=("integral monotonicity",),
-        unknown_identifiers=(),
         source_scope_ids=scope_ids,
     )
     assert groups[0]["source_scope_ids"] == [
@@ -470,7 +469,6 @@ def test_composite_runtime_preserves_three_book_dependency_context() -> None:
     groups = _proofengineer_formal_source_grounding_hit_groups(
         retriever,
         query_seeds=("localized least squares master error bound",),
-        unknown_identifiers=(),
         source_scope_ids=(source_id,),
         k=2,
         max_groups=1,
@@ -570,7 +568,6 @@ def test_runtime_filters_source_scope_when_retriever_has_no_scoped_api() -> None
     groups = _proofengineer_formal_source_grounding_hit_groups(
         UnscopedRetriever(),
         query_seeds=("target",),
-        unknown_identifiers=(),
         source_scope_ids=("source_library",),
         k=2,
         max_groups=1,

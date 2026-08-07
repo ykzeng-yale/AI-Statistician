@@ -2,19 +2,20 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
-from ai_statistician.architect_coordinator_llm import (
-    _required_architect_plan_subsystems,
-)
-from ai_statistician.fingerprint import stable_hash
 from ai_statistician.exact_source_theorem_proof_body_executor import (
     EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
     exact_target_statement_hash,
 )
+from ai_statistician.fingerprint import stable_hash
+from ai_statistician.formal_target_semantic_review_runtime import (
+    FormalTargetSemanticReviewerRuntimeSubsystem,
+    _runtime_formal_target_semantic_review_dispatch,
+)
 from ai_statistician.formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS,
-    FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA,
     FormalTargetSemanticReviewerConfig,
     LLMFormalTargetSemanticReviewerAgent,
     build_formal_target_semantic_review_prompt,
@@ -22,26 +23,12 @@ from ai_statistician.formal_target_semantic_reviewer_llm import (
 )
 from ai_statistician.formalizer_llm import (
     FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
-    build_formalizer_prompt,
 )
 from ai_statistician.model_backend import (
-    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     StaticJSONGeneratorBackend,
 )
-from ai_statistician.research_agent_runtime import (
-    FormalTargetSemanticReviewerRuntimeSubsystem,
-    _formalizer_compiled_exact_candidate_semantic_review_feedback,
-    _runtime_external_proof_search_request,
-    _runtime_formal_target_semantic_review_dispatch,
-)
 from ai_statistician.research_schema import OpenResearchQuestion
-from ai_statistician.research_agent_runtime_audit import (
-    _audit_result_path,
-    _runtime_capability_scorecard,
-)
-from ai_statistician.theory_revision_lineage import (
-    THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
-)
 
 
 def _question() -> OpenResearchQuestion:
@@ -49,106 +36,91 @@ def _question() -> OpenResearchQuestion:
         id="generic-formal-target-review",
         title="Review an exact formal theorem target",
         description=(
-            "Determine whether a generated exact theorem preserves the supplied "
+            "Determine whether a generated theorem preserves the supplied "
             "mathematical claim and assumptions."
         ),
         tags=("formalization", "semantic-review"),
     )
 
 
-def _review_response(verdict: str) -> dict[str, object]:
-    rows = [
+def _review_response(*, accepted: bool) -> dict[str, Any]:
+    dimensions = [
         {
             "dimension": dimension,
             "status": "PASS",
             "rationale": f"The exact target preserves {dimension}.",
-            "evidence_refs": [f"exact_formal_target.{dimension}"],
+            "evidence_refs": [f"/exact_formal_target/{dimension}"],
         }
         for dimension in FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS
     ]
-    findings: list[dict[str, object]] = []
-    instructions: list[str] = []
-    repair_scope = "none"
-    blocking_reason = ""
-    if verdict != "ACCEPT":
-        repair_scope = (
-            "upstream_theory" if verdict == "BLOCK" else "formal_target"
+    findings: list[dict[str, Any]] = []
+    if not accepted:
+        dimensions[3]["status"] = "FAIL"
+        dimensions[3]["rationale"] = (
+            "The supplied target is not justified by the derivation."
         )
-        rows[3]["status"] = "FAIL" if verdict == "REVISE" else "UNCERTAIN"
-        rows[3]["rationale"] = (
-            "The current target is not supported by the supplied derivation."
-        )
-        findings = [
+        findings.append(
             {
                 "severity": "high",
                 "category": "mathematical_target_drift",
                 "summary": "The target does not establish the requested claim.",
-                "required_change": "Regenerate a faithful exact theorem statement.",
-                "repair_scope": repair_scope,
-                "evidence_refs": ["theory_derivation_packet", "exact_formal_target"],
+                "observed_behavior": "The conclusion proves only a weaker claim.",
+                "expected_behavior": (
+                    "The conclusion must match the bound theorem card."
+                ),
+                "evidence_refs": [
+                    "/theory_derivation_packet",
+                    "/exact_formal_target",
+                ],
             }
-        ]
-        instructions = ["Preserve the exact assumptions, quantifiers, and conclusion."]
-    if verdict == "BLOCK":
-        blocking_reason = "The current derivation does not support a coherent target."
-    return {
-        "dimension_reviews": rows,
-        "findings": findings,
-        "repair_scope": repair_scope,
-        "repair_instructions": instructions,
-        "blocking_reason": blocking_reason,
-    }
+        )
+    return {"dimension_reviews": dimensions, "findings": findings}
 
 
 def _reviewer(
-    verdict: str,
     *,
-    model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-    response_overrides: dict[str, object] | None = None,
+    accepted: bool,
+    response: dict[str, Any] | None = None,
 ) -> LLMFormalTargetSemanticReviewerAgent:
-    response = _review_response(verdict)
-    response.update(response_overrides or {})
     return LLMFormalTargetSemanticReviewerAgent(
-        provider=StaticJSONGeneratorBackend(response),
+        provider=StaticJSONGeneratorBackend(
+            response if response is not None else _review_response(accepted=accepted)
+        ),
         config=FormalTargetSemanticReviewerConfig(
             provider_name="static",
-            model=f"static-{model_tier}-formal-target-reviewer",
-            model_tier=model_tier,
-            max_repair_attempts=0,
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
         ),
     )
 
 
 def _runtime_fixture(
     tmp_path: Path,
-    verdict: str,
     *,
+    accepted: bool,
+    response: dict[str, Any] | None = None,
     target_hash_algorithm: str = EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
-    reviewer_model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-    reviewer_response_overrides: dict[str, object] | None = None,
-    max_revisions: int = 2,
     revision_count: int = 0,
-    proposal_packet_kind: str = "FormalizerProofEngineerProposalPacket",
-):
+    max_revisions: int = 2,
+) -> tuple[
+    FormalTargetSemanticReviewerRuntimeSubsystem,
+    AgentTask,
+    BlackboardState,
+    Path,
+]:
     question = _question()
     source = (
         "import Mathlib\n\n"
-        "theorem exact_source\n"
-        "    (p : Prop)\n"
-        "    (hp : p) :\n"
-        "    p := by\n"
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
         "  exact hp\n"
     )
-    target_statement = (
-        "theorem exact_source\n"
-        "    (p : Prop)\n"
-        "    (hp : p) :\n"
-        "    p"
-    )
+    target_statement = "theorem exact_source (p : Prop) (hp : p) : p"
     source_hash = stable_hash(source)
     target_hash = exact_target_statement_hash(target_statement)
     artifact_path = tmp_path / "exact_source.lean"
     artifact_path.write_text(source, encoding="utf-8")
+
     theory_packet = {
         "artifact_kind": "TheoryDerivationPacket",
         "packet_id": "theory:generic-formal-target-review",
@@ -167,32 +139,23 @@ def _runtime_fixture(
         "theorem_cards": [
             {
                 "id": "theorem:exact_source",
-                "informal_statement": "A supplied proposition follows from its proof.",
+                "informal_statement": "A proposition follows from its proof.",
                 "assumptions_used": ["hp : p"],
                 "conclusion": "p",
             }
         ],
     }
     proposal_packet = {
-        "artifact_kind": proposal_packet_kind,
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
         "packet_id": "formalizer:generic-formal-target-review",
         "source_agent": "LLMFormalizerProofEngineerAgent",
-        "model": "source-haiku-model",
-        "model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        "model": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        "model_tier": "haiku",
         "formal_targets": [
             {
                 "id": "exact_source",
-                "formal_target_role": (
-                    FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
-                ),
+                "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
                 "lean_statement_sketch": source,
-                "source_theorem_target_provenance": {
-                    "source_theorem_goal_id": "theorem:exact_source",
-                    "source_theorem_target_known": True,
-                },
-                "semantic_alignment_constraints": [
-                    "preserve the supplied hypothesis and conclusion"
-                ],
             }
         ],
     }
@@ -204,9 +167,7 @@ def _runtime_fixture(
             {
                 "candidate_id": "exact_source",
                 "source_field": "formal_targets",
-                "formal_target_role": (
-                    FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
-                ),
+                "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
                 "artifact_path": str(artifact_path),
                 "source_hash": source_hash,
                 "target_lean_declaration": "exact_source",
@@ -215,16 +176,6 @@ def _runtime_fixture(
                 "local_lean_compiled": False,
                 "local_lean_exit_status": "1",
                 "local_lean_stderr": "unsolved goals",
-                "source_theorem_candidate_evidence_eligible": True,
-                "diagnostic_helper_not_source_theorem": False,
-                "support_candidate_not_source_theorem": False,
-                "source_theorem_target_known": False,
-                "source_theorem_target_provenance": {
-                    "source_theorem_target_known": False,
-                    "source_theorem_question_id": question.id,
-                    "source_theorem_goal_id": "exact_source",
-                    "target_lean_declaration": "exact_source",
-                },
             }
         ],
     }
@@ -234,7 +185,7 @@ def _runtime_fixture(
         "description": question.description,
         "tags": list(question.tags),
     }
-    repair_task = AgentTask(
+    source_task = AgentTask(
         task_id="formalize:generic-formal-target-review",
         owner_subsystem="FormalizationEvaluator",
         objective="Generate an exact formal target.",
@@ -249,7 +200,7 @@ def _runtime_fixture(
             },
         },
     )
-    repair_context = {
+    target_context = {
         "formalizer_candidate_exact_search_eligible": True,
         "external_proof_search_dispatch_eligible": False,
         "formalizer_candidate_semantic_review_status": (
@@ -261,41 +212,34 @@ def _runtime_fixture(
         "target_lean_declaration": "exact_source",
         "target_theorem_statement": target_statement,
         "target_theorem_statement_hash": target_hash,
-        "target_theorem_statement_hash_algorithm": (
-            target_hash_algorithm
-        ),
+        "target_theorem_statement_hash_algorithm": target_hash_algorithm,
         "target_ids": ["exact_source"],
         "source_theorem_target_provenance": {
             "source_theorem_target_known": False
         },
-        "semantic_alignment_constraints": [
-            "preserve the supplied hypothesis and conclusion"
-        ],
-        "semantic_alignment_blockers": [],
-        "source_theorem_kernel_evidence_eligible": False,
     }
-    repair_feedback = {
+    candidate_feedback = {
         "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
-        "proofengineer_repair_context": repair_context,
+        "proofengineer_repair_context": target_context,
     }
     deferred_task = AgentTask(
-        task_id="formalize-lean-repair:generic-formal-target-review",
+        task_id="formalize-lean-revision:generic-formal-target-review",
         owner_subsystem="ProofEngineer",
-        objective="Search the accepted exact target.",
+        objective="Continue model-owned proof search for the accepted target.",
         inputs={
-            **repair_task.inputs,
-            "environment_feedback": repair_feedback,
+            **source_task.inputs,
+            "environment_feedback": candidate_feedback,
         },
     )
     dispatch = _runtime_formal_target_semantic_review_dispatch(
-        task=repair_task,
+        task=source_task,
         question=question,
         source_subsystem="FormalizationEvaluator",
         candidate_materialization=candidate_materialization,
         theory_packet=theory_packet,
         proposal_packet=proposal_packet,
-        repair_feedback=repair_feedback,
-        architect_context=repair_task.inputs["architect_context"],
+        candidate_feedback=candidate_feedback,
+        architect_context=source_task.inputs["architect_context"],
         deferred_next_task=deferred_task,
         max_revisions=max_revisions,
     )
@@ -310,20 +254,22 @@ def _runtime_fixture(
         }
     )
     subsystem = FormalTargetSemanticReviewerRuntimeSubsystem(
-        reviewer=_reviewer(
-            verdict,
-            model_tier=reviewer_model_tier,
-            response_overrides=reviewer_response_overrides,
-        ),
+        reviewer=_reviewer(accepted=accepted, response=response),
         max_revisions=max_revisions,
     )
     return subsystem, dispatch["next_task"], blackboard, artifact_path
 
 
-def test_formal_target_semantic_review_accepts_before_typed_prover_search(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, "ACCEPT")
+def _artifact_of_kind(result: Any, artifact_kind: str) -> dict[str, Any]:
+    return next(
+        dict(row)
+        for row in result.produced_artifacts.values()
+        if isinstance(row, dict) and row.get("artifact_kind") == artifact_kind
+    )
+
+
+def test_accept_is_the_only_path_to_model_owned_lean_generation(tmp_path: Path) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accepted=True)
 
     result = subsystem.run(task, blackboard)
 
@@ -331,420 +277,105 @@ def test_formal_target_semantic_review_accepts_before_typed_prover_search(
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "ProofEngineer"
     feedback = result.next_task.inputs["environment_feedback"]
-    context = feedback["proofengineer_repair_context"]
-    assert context["external_proof_search_dispatch_eligible"] is True
-    assert context["source_theorem_target_known"] is True
-    assert context["source_theorem_target_identity_status"] == (
-        "CURRENT_THEORY_TARGET_INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED"
-    )
-    assert context["source_theorem_target_provenance"][
-        "source_theorem_target_known"
-    ] is True
-    assert context["source_theorem_kernel_evidence_eligible"] is True
-    assert context["formalizer_candidate_semantic_review_status"] == (
-        "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"
-    )
-    question = _question()
-    request = _runtime_external_proof_search_request(
-        task=result.next_task,
-        question=question,
-        environment_feedback=feedback,
-    )
-    assert request["target_lean_declaration"] == "exact_source"
-    review_lineage = request["formal_target_semantic_review"]
-    assert review_lineage["status"] == (
-        "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"
-    )
-    assert review_lineage["candidate_source_hash"] == (
-        context["lineage_candidate_artifact_hash"]
-    )
-    assert review_lineage["target_theorem_statement_hash"] == (
-        context["target_theorem_statement_hash"]
-    )
-    review_materialization = next(
-        artifact
-        for artifact in result.produced_artifacts.values()
-        if artifact.get("artifact_kind")
-        == "RuntimeFormalTargetSemanticReviewMaterialization"
-    )
-    bound_target = review_materialization["review_material"][
-        "bound_target_contract"
-    ]
-    assert bound_target["candidate_id"] == "exact_source"
-    assert bound_target["proposal_target"]["id"] == "exact_source"
-    assert bound_target["source_theorem_goal_id"] == "theorem:exact_source"
-    assert bound_target["theory_theorem_card"]["id"] == "theorem:exact_source"
-    assert all(row.payload["kernel_verified"] is False for row in result.evidence_entries)
-
-
-def test_formal_target_capability_eval_rejects_non_evaluation_reviewer_tier(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(
-        tmp_path,
-        "ACCEPT",
-        reviewer_model_tier="sonnet",
-    )
-
-    result = subsystem.run(task, blackboard)
-
-    assert result.status == "BLOCKED"
-    assert result.failure_classification == (
-        "formal_target_semantic_review_verdict_invalid"
-    )
-    assert result.observations
-    assert LIVE_EVALUATION_CLAUDE_MODEL_TIER in result.observations[0].summary
-
-
-def test_formal_target_review_accepts_hash_bound_repair_packet_kind(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(
-        tmp_path,
-        "ACCEPT",
-        proposal_packet_kind="FormalizerProofEngineerPacket",
-    )
-
-    result = subsystem.run(task, blackboard)
-
-    assert result.status == "REROUTE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "ProofEngineer"
-
-
-def test_formal_target_semantic_review_rejects_target_and_disables_prover(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, "REVISE")
-
-    result = subsystem.run(task, blackboard)
-
-    assert result.status == "REVISE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
-    feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["overall_verdict"] == "REVISE"
-    assert feedback["repair_scope"] == "formal_target"
-    assert feedback["repair_scopes"] == ["formal_target"]
-    assert feedback["active_repair_findings"]
-    assert feedback["deferred_repair_findings"] == []
+    assert feedback["external_proof_search_dispatch_eligible"] is False
+    assert feedback["model_owned_complete_source_tool_loop_eligible"] is True
     assert feedback["proofengineer_repair_context"][
         "external_proof_search_dispatch_eligible"
     ] is False
-    assert feedback["repair_instructions"]
-    handoff = result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
-        "direct_repair_handoff_contract"
-    ]
-    assert handoff["architect_pre_authorized"] is True
-    assert handoff["source_reviewer_subsystem"] == (
-        "FormalTargetSemanticReviewer"
-    )
-    assert handoff["target_repair_subsystem"] == "FormalizationEvaluator"
-    assert handoff["feedback_artifact_id"] == feedback[
-        "semantic_review_packet_id"
-    ]
-    assert handoff["target_task_id"] == result.next_task.task_id
+    assert feedback["proofengineer_repair_context"][
+        "model_owned_complete_source_tool_loop_eligible"
+    ] is True
+    packet = _artifact_of_kind(result, "FormalTargetSemanticReviewPacket")
+    assert packet["model"] == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
+    assert packet["model_tier"] == "haiku"
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["kernel_verified"] is False
+    assert validate_formal_target_semantic_review_packet(packet) == []
 
 
-def test_formal_target_review_derives_owner_from_finding_scopes(
+def test_rejection_routes_observations_to_architect_not_a_repair_owner(
     tmp_path: Path,
 ) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(
-        tmp_path,
-        "REVISE",
-        reviewer_response_overrides={
-            "overall_verdict": "ACCEPT",
-            "repair_owner": "Formalizer",
-            "repair_scope": "upstream_theory",
-        },
-    )
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accepted=False)
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "REVISE"
+    assert result.status == "REROUTE"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
-    review_packet = next(
-        artifact
-        for artifact in result.produced_artifacts.values()
-        if artifact.get("artifact_kind")
-        == "FormalTargetSemanticReviewPacket"
-    )
-    assert review_packet["model_requested_overall_verdict"] == "ACCEPT"
-    assert review_packet["model_requested_repair_owner"] == "Formalizer"
-    assert review_packet["model_requested_repair_scope"] == "upstream_theory"
-    assert review_packet["overall_verdict"] == "REVISE"
-    assert review_packet["repair_scope"] == "formal_target"
-    assert review_packet["repair_scopes"] == ["formal_target"]
-    assert review_packet["repair_owner"] == "FormalizationEvaluator"
-    assert validate_formal_target_semantic_review_packet(review_packet) == []
-
-
-def test_formal_target_review_preserves_mixed_repair_frontier(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(
-        tmp_path,
-        "REVISE",
-        reviewer_response_overrides={
-            "findings": [
-                {
-                    "severity": "critical",
-                    "category": "missing_theory_premise",
-                    "summary": "The derivation omits a premise needed by the target.",
-                    "required_change": "Add the missing premise to the theory packet.",
-                    "repair_scope": "upstream_theory",
-                    "evidence_refs": ["theory_derivation_packet.assumption_ledger"],
-                },
-                {
-                    "severity": "high",
-                    "category": "vacuous_target",
-                    "summary": "The current target assumes its own conclusion.",
-                    "required_change": "Regenerate the exact formal target.",
-                    "repair_scope": "formal_target",
-                    "evidence_refs": ["exact_formal_target"],
-                },
-            ],
-            "repair_scope": "formal_target",
-            "blocking_reason": "The missing premise must be resolved first.",
-        },
-    )
-
-    result = subsystem.run(task, blackboard)
-
-    assert result.status == "REVISE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
     feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["repair_scope"] == "upstream_theory"
-    assert feedback["repair_scopes"] == [
-        "upstream_theory",
-        "formal_target",
+    assert feedback["external_proof_search_dispatch_eligible"] is False
+    assert feedback["runtime_selected_owner"] is False
+    assert feedback["routing_authority"] == "ArchitectCoordinator_model_packet"
+    serialized = json.dumps(feedback, sort_keys=True)
+    for forbidden in (
+        "repair_scope",
+        "repair_owner",
+        "repair_plan",
+        "repair_instructions",
+        "required_change",
+        "suggested_fix",
+    ):
+        assert forbidden not in serialized
+    replan = result.next_task.inputs["architect_context"][
+        "formal_target_semantic_review_replan"
     ]
-    assert feedback["active_repair_scopes"] == ["upstream_theory"]
-    assert feedback["repair_instructions"] == [
-        "Add the missing premise to the theory packet."
-    ]
-    assert [
-        row["repair_scope"] for row in feedback["active_repair_findings"]
-    ] == ["upstream_theory"]
-    assert [
-        row["repair_scope"] for row in feedback["deferred_repair_findings"]
-    ] == ["formal_target"]
-    review_packet = next(
-        artifact
-        for artifact in result.produced_artifacts.values()
-        if artifact.get("artifact_kind")
-        == "FormalTargetSemanticReviewPacket"
-    )
-    assert review_packet["model_requested_repair_scope"] == "formal_target"
-    assert review_packet["repair_scope"] == "upstream_theory"
-    assert review_packet["repair_scopes"] == [
-        "upstream_theory",
-        "formal_target",
-    ]
+    assert replan["runtime_selected_owner"] is False
+    assert replan["revision_budget"] == {
+        "revisions_used": 0,
+        "max_revisions": 2,
+        "revision_available": True,
+    }
 
 
-def test_formal_target_invalid_scope_preserves_typed_failure_lineage(
+def test_rejection_after_local_budget_still_uses_architect_for_cross_lane_choice(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(
         tmp_path,
-        "REVISE",
-        reviewer_response_overrides={
-            "findings": [
-                {
-                    "severity": "high",
-                    "category": "mathematical_target_drift",
-                    "summary": "The target does not establish the requested claim.",
-                    "required_change": "Regenerate a faithful exact theorem statement.",
-                    "repair_scope": "none",
-                    "evidence_refs": [
-                        "theory_derivation_packet",
-                        "exact_formal_target",
-                    ],
-                }
-            ],
-            "repair_scope": "none",
-        },
+        accepted=False,
+        revision_count=2,
+        max_revisions=2,
     )
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "BLOCKED"
-    assert result.failure_classification == (
-        "formal_target_semantic_review_packet_invalid"
-    )
-    failure = next(
-        artifact
-        for artifact in result.produced_artifacts.values()
-        if artifact.get("artifact_kind")
-        == "RuntimeFormalTargetSemanticReviewValidationFailure"
-    )
-    assert failure["validation_attempts"] == 1
-    assert failure["llm_json_repair_history"]
-    assert failure["last_invalid_packet_available"] is True
-    assert failure["external_proof_search_dispatch_eligible"] is False
-    assert failure["kernel_verified"] is False
-    assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
-
-
-def test_formal_target_semantic_review_blocks_back_to_theory_developer(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, "BLOCK")
-
-    result = subsystem.run(task, blackboard)
-
-    assert result.status == "REVISE"
+    assert result.status == "REROUTE"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "TheoryDeveloper"
-    assert result.next_task.inputs["environment_feedback"]["blocking_reason"]
-    previous_theory_packet_id = result.next_task.inputs[
-        "previous_theory_packet_id"
-    ]
-    previous_theory_packet_hash = result.next_task.inputs[
-        "previous_theory_packet_hash"
-    ]
-    assert previous_theory_packet_id == "theory:generic-formal-target-review"
-    assert previous_theory_packet_hash == stable_hash(
-        blackboard.artifacts[previous_theory_packet_id]
-    )
-    assert result.next_task.inputs["architect_context"][
-        "previous_theory_packet_id"
-    ] == previous_theory_packet_id
-    assert result.next_task.inputs["architect_context"][
-        "previous_theory_packet_hash"
-    ] == previous_theory_packet_hash
-    assert result.next_task.inputs["architect_context"][
-        "formal_target_semantic_review_revision_count"
-    ] == 1
-    revision_binding = result.next_task.inputs["architect_context"][
-        THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
-    ]
-    assert revision_binding["revision_source"] == (
-        "formal_target_semantic_review"
-    )
-    assert revision_binding["source_theory_packet_id"] == (
-        previous_theory_packet_id
-    )
-    assert revision_binding["source_theory_packet_hash"] == (
-        previous_theory_packet_hash
-    )
-    assert revision_binding["source_review_packet_id"]
-    assert revision_binding["source_review_execution_id"]
-    assert revision_binding["execution_results_observed"] is True
-    assert revision_binding["theory_material"]["artifact_kind"] == (
-        "RuntimeTheorySemanticMaterial"
-    )
-    handoff = result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
-        "direct_repair_handoff_contract"
-    ]
-    assert handoff["target_repair_subsystem"] == "TheoryDeveloper"
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    budget = result.next_task.inputs["architect_context"][
+        "formal_target_semantic_review_replan"
+    ]["revision_budget"]
+    assert budget["revision_available"] is False
 
 
-def test_formal_target_theory_handoff_routes_only_active_scope(
+def test_invalid_observation_packet_fails_closed_without_owner_fallback(
     tmp_path: Path,
 ) -> None:
+    response = _review_response(accepted=False)
+    response["findings"][0].pop("expected_behavior")
     subsystem, task, blackboard, _ = _runtime_fixture(
         tmp_path,
-        "BLOCK",
-        reviewer_response_overrides={
-            "findings": [
-                {
-                    "severity": "high",
-                    "category": "unsupported_theory_claim",
-                    "summary": "The derivation omits a required mathematical premise.",
-                    "required_change": "Revise the theory and its dependents.",
-                    "repair_scope": "upstream_theory",
-                    "evidence_refs": ["theory_derivation_packet"],
-                },
-                {
-                    "severity": "high",
-                    "category": "formal_target_shape",
-                    "summary": "The generated declaration has the wrong binder shape.",
-                    "required_change": "Regenerate the exact formal target.",
-                    "repair_scope": "formal_target",
-                    "evidence_refs": ["exact_formal_target"],
-                },
-            ],
-        },
-    )
-
-    result = subsystem.run(task, blackboard)
-
-    assert result.status == "REVISE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "TheoryDeveloper"
-    feedback = result.next_task.inputs["environment_feedback"]
-    assert [row["repair_scope"] for row in feedback["findings"]] == [
-        "upstream_theory"
-    ]
-    assert feedback["active_repair_scopes"] == ["upstream_theory"]
-    assert feedback["repair_instructions"] == [
-        "Revise the theory and its dependents."
-    ]
-    assert [
-        row["repair_scope"] for row in feedback["deferred_repair_findings"]
-    ] == ["formal_target"]
-    binding = result.next_task.inputs["architect_context"][
-        THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
-    ]
-    assert binding["feedback_id"] == feedback["feedback_id"]
-    assert [
-        row["repair_scope"]
-        for row in binding["source_feedback"]["findings"]
-    ] == ["upstream_theory"]
-
-
-def test_formal_target_revision_budget_survives_theory_replans(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(
-        tmp_path,
-        "BLOCK",
-        max_revisions=1,
-        revision_count=1,
+        accepted=False,
+        response=response,
     )
 
     result = subsystem.run(task, blackboard)
 
     assert result.status == "BLOCKED"
     assert result.next_task is None
-    assert result.failure_classification == (
-        "formal_target_semantic_review_revision_budget_exhausted"
+    failure = _artifact_of_kind(
+        result, "RuntimeFormalTargetSemanticReviewValidationFailure"
     )
+    assert failure["llm_packet_regeneration_history"]
+    assert "repair_owner" not in json.dumps(failure, sort_keys=True)
 
 
-def test_formal_target_semantic_review_fails_closed_on_source_hash_drift(
-    tmp_path: Path,
-) -> None:
+def test_source_hash_drift_is_rejected_before_model_review(tmp_path: Path) -> None:
     subsystem, task, blackboard, artifact_path = _runtime_fixture(
-        tmp_path, "ACCEPT"
+        tmp_path, accepted=True
     )
-    artifact_path.write_text("theorem changed : True := by trivial\n", encoding="utf-8")
-
-    result = subsystem.run(task, blackboard)
-
-    assert result.status == "BLOCKED"
-    assert result.failure_classification == "formal_target_semantic_review_input_invalid"
-    assert not result.tool_calls
-
-
-def test_required_review_dispatch_fails_closed_on_target_hash_contract_drift(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(
-        tmp_path,
-        "ACCEPT",
-        target_hash_algorithm="legacy_raw_statement_hash",
-    )
-    work_order = blackboard.artifacts[str(task.inputs["work_order_id"])]
-
-    assert work_order["dispatch_status"] == "BLOCKED"
-    assert work_order["dispatch_validation_errors"] == [
-        "target_theorem_statement_hash_algorithm mismatch"
-    ]
+    artifact_path.write_text("import Mathlib\nexample : True := by trivial\n")
 
     result = subsystem.run(task, blackboard)
 
@@ -755,277 +386,15 @@ def test_required_review_dispatch_fails_closed_on_target_hash_contract_drift(
     assert not result.tool_calls
 
 
-def test_accepted_formal_target_review_cannot_be_replayed_after_source_drift(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, artifact_path = _runtime_fixture(
-        tmp_path, "ACCEPT"
-    )
-    result = subsystem.run(task, blackboard)
-    assert result.next_task is not None
-    feedback = result.next_task.inputs["environment_feedback"]
-    artifact_path.write_text(
-        "theorem exact_source : True := by trivial\n",
-        encoding="utf-8",
-    )
-
-    request = _runtime_external_proof_search_request(
-        task=result.next_task,
-        question=_question(),
-        environment_feedback=feedback,
-    )
-
-    assert request == {}
-
-
-def test_formal_target_semantic_review_prompt_is_domain_general() -> None:
+def test_prompt_requests_observations_and_forbids_runtime_repair_planning() -> None:
     prompt = build_formal_target_semantic_review_prompt(
         question=_question(),
-        review_material={"exact_formal_target": {"target_theorem_statement": "p -> p"}},
+        review_material={"exact_formal_target": {"source": "theorem t : True"}},
     )
 
-    assert "Do not invent task-family rules" in prompt
-    assert "do not propose tactics" in prompt
-    assert "Do not require one candidate to restate every theorem goal" in prompt
-    assert "separate candidates" in prompt
-    assert "Review only the single candidate and theorem card" in prompt
-    assert "Do not use upstream_theory merely because" in prompt
-    assert "AgentRuntime derives" in prompt
-    assert "This review is never proof evidence" in prompt
-    assert "repair_scope" not in FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA[
-        "properties"
-    ]
-    finding_schema = FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA[
-        "properties"
-    ]["findings"]["items"]
-    assert "repair_scope" in finding_schema["required"]
-    assert "repair_scope" in finding_schema["properties"]
-    assert "overall_verdict" not in FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA[
-        "properties"
-    ]
-    assert "repair_owner" not in FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA[
-        "properties"
-    ]
-
-
-def test_formalizer_prompt_preserves_independent_target_review_reasoning() -> None:
-    rationale = (
-        "The emitted theorem makes the desired conclusion an input hypothesis, so "
-        "its proof is circular even though the declaration is syntactically valid."
-    )
-    required_change = (
-        "Remove the conclusion-shaped hypothesis and derive the conclusion from the "
-        "registered assumptions and the exact equation-chain anchors."
-    )
-    question = _question()
-    prompt = build_formalizer_prompt(
-        question=question,
-        theory_packet={
-            "packet_id": "theory:semantic-feedback",
-            "theorem_cards": [
-                {
-                    "id": "target-theorem",
-                    "claim": "the registered assumptions imply the stated limit law",
-                    "assumptions": ["registered source assumption"],
-                }
-            ],
-            "theory_derivation_packet": {
-                "derivation_steps": [
-                    {
-                        "id": "source-step",
-                        "claim": "derive the target from the source assumption",
-                    }
-                ],
-                "assumption_ledger": [
-                    {
-                        "assumption": "registered source assumption",
-                        "role": "source premise",
-                    }
-                ],
-                "formalization_handoff": {
-                    "source_theorem_target": "target-theorem",
-                    "candidate_lean_targets": ["theorem target_theorem ..."],
-                },
-            },
-        },
-        simulation_manifest={"manifest_id": "simulation:test"},
-        algorithm_manifest={"manifest_id": "algorithm:test"},
-        registered_problem={"question_id": question.id},
-        theorem_goals=[
-            {
-                "id": "target-theorem",
-                "claim": "registered assumptions imply the stated limit law",
-            }
-        ],
-        proof_bank_obligation_catalog=[],
-        proof_bank_runtime_memory_summary={},
-        environment_feedback={
-            "feedback_type": "formal_target_semantic_review_feedback",
-            "feedback_source": "FormalTargetSemanticReviewer",
-            "semantic_review_execution_id": "formal-review-execution:test",
-            "semantic_review_packet_id": "formal-review-packet:test",
-            "candidate_materialization_id": "candidate-materialization:test",
-            "candidate_id": "target-theorem",
-            "candidate_source_hash": "source-hash",
-            "overall_verdict": "REVISE",
-            "repair_owner_agent": "FormalizationEvaluator",
-            "dimension_reviews": [
-                {
-                    "dimension": "non_vacuity_and_assumption_discipline",
-                    "status": "FAIL",
-                    "rationale": rationale,
-                    "evidence_refs": ["exact_formal_target"],
-                }
-            ],
-            "findings": [
-                {
-                    "severity": "high",
-                    "category": "circular_target",
-                    "summary": "The conclusion is assumed.",
-                    "required_change": required_change,
-                    "evidence_refs": ["exact_formal_target", "theory_packet"],
-                }
-            ],
-            "repair_instructions": [required_change],
-            "blocking_reason": "Current target is vacuous.",
-            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-        },
-    )
-
-    assert "formal_target_semantic_review" in prompt
-    assert rationale in prompt
-    assert required_change not in prompt
-    assert "repair_instructions" not in prompt
-    assert "Treat prior runtime memory and environment feedback as observations" in prompt
-    assert "Choose and author every definition" in prompt
-    assert "Generate a complete replacement packet or candidate" in prompt
-    assert "task_bound_formal_target_contract" in prompt
-
-
-def test_formal_target_review_validator_rejects_failed_dimension_acceptance() -> None:
-    packet = {
-        **_review_response("REVISE"),
-        "overall_verdict": "ACCEPT",
-        "proof_evidence_status": "FORMAL_TARGET_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE",
-        "kernel_verified": False,
-        "source_subsystem": "FormalizationEvaluator",
-        "work_order_id": "work-order",
-        "work_order_hash": "work-order-hash",
-        "candidate_materialization_id": "materialization",
-        "candidate_materialization_hash": "materialization-hash",
-        "theory_packet_id": "theory",
-        "theory_packet_hash": "theory-hash",
-        "proposal_packet_id": "proposal",
-        "proposal_packet_hash": "proposal-hash",
-        "candidate_id": "candidate",
-        "candidate_source_hash": "source-hash",
-        "target_theorem_statement_hash": "target-hash",
-        "target_theorem_statement_hash_algorithm": (
-            EXACT_TARGET_STATEMENT_HASH_ALGORITHM
-        ),
-        "review_input_fingerprint": "input-hash",
-    }
-
-    errors = validate_formal_target_semantic_review_packet(packet)
-
-    assert (
-        "overall_verdict must be derived from the dimension reviews, findings, "
-        "and repair_scope"
-    ) in errors
-
-
-def test_already_compiling_exact_target_still_requires_semantic_review(
-    tmp_path: Path,
-) -> None:
-    _, _, blackboard, _ = _runtime_fixture(tmp_path, "ACCEPT")
-    materialization = next(
-        row
-        for row in blackboard.artifacts.values()
-        if row.get("artifact_kind")
-        == "RuntimeFormalizerLeanCandidateMaterialization"
-    )
-    candidate_row = materialization["candidate_rows"][0]
-    candidate_row["local_lean_compiled"] = True
-    candidate_row["local_lean_exit_status"] = "0"
-
-    feedback = _formalizer_compiled_exact_candidate_semantic_review_feedback(
-        materialization
-    )
-
-    assert feedback is not None
-    context = feedback["proofengineer_repair_context"]
-    assert context["formalizer_candidate_exact_search_eligible"] is True
-    assert context["external_proof_search_dispatch_eligible"] is False
-    assert context["external_proof_search_dispatch_blockers"]
-    assert context["source_theorem_kernel_evidence_eligible"] is False
-
-
-def test_capability_architect_plan_requires_formal_target_reviewer() -> None:
-    required = _required_architect_plan_subsystems(
-        {
-            "evaluation_mode": "capability_eval",
-            "capability_eval_requires_formalizer_lean_candidate": True,
-            "capability_eval_requires_formal_target_semantic_review": True,
-            "formal_verification_policy": "required",
-        }
-    )
-
-    assert "FormalizationEvaluator" in required
-    assert "FormalTargetSemanticReviewer" in required
-    assert "ProofEngineer" in required
-
-
-def test_capability_scorecard_requires_independent_formal_target_review() -> None:
-    scorecard = _runtime_capability_scorecard(
-        {
-            "n_formal_target_semantic_review_work_orders": 1,
-            "n_formal_target_semantic_review_executions": 1,
-            "n_formal_target_semantic_review_accepted": 1,
-            "n_formal_target_semantic_review_independent_evaluation_model": 1,
-        }
-    )
-    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
-
-    assert rows["formal_target_semantic_review_executed"]["passed"] is True
-    assert rows["formal_target_semantic_review_accepted"]["passed"] is True
-    assert rows[
-        "formal_target_semantic_review_independent_evaluation_model"
-    ]["passed"] is True
-
-
-def test_runtime_audit_recomputes_formal_target_review_lineage(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, "ACCEPT")
-    result = subsystem.run(task, blackboard)
-    result_path = tmp_path / "formal-target-review-runtime-result.json"
-    result_path.write_text(
-        json.dumps(
-            {
-                "status": "BLOCKED",
-                "blackboard": {
-                    "artifacts": {
-                        **blackboard.artifacts,
-                        **result.produced_artifacts,
-                    }
-                },
-                "traces": [],
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    audit_row = _audit_result_path(result_path)
-
-    assert audit_row.n_formal_target_semantic_review_work_orders == 1
-    assert audit_row.n_formal_target_semantic_review_executions == 1
-    assert audit_row.n_formal_target_semantic_review_accepted == 1
-    assert (
-        audit_row.n_formal_target_semantic_review_independent_evaluation_model
-        == 1
-    )
-    assert not [
-        error
-        for error in audit_row.errors
-        if "formal-target review" in error
-    ]
+    assert "observed_behavior" in prompt
+    assert "expected_behavior" in prompt
+    assert "ArchitectCoordinator decides what acts next" in prompt
+    assert "Do not write Lean" in prompt
+    assert "repair_scope" not in prompt
+    assert "repair_owner" not in prompt

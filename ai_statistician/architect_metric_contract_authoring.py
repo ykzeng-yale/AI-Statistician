@@ -561,11 +561,21 @@ def _metric_authoring_model_requirement_schema(
             "metric_value_kind": {
                 "type": "string",
                 "enum": list(GENERATED_METRIC_VALUE_KINDS),
+                "description": (
+                    "Use numeric for a measured scalar and boolean only for an "
+                    "intrinsically boolean predicate. Boolean rows use operator == "
+                    "and omit threshold/tolerance gate_fields because the runtime "
+                    "materializes the canonical truth comparison."
+                ),
             },
             "measurement_protocol": {"type": "string", "minLength": 1},
             "operator": {
                 "type": "string",
                 "enum": list(GENERATED_METRIC_CONTRACT_OPERATORS),
+                "description": (
+                    "Boolean rows must use ==. Numeric rows use the comparison "
+                    "authorized by their cited acceptance source."
+                ),
             },
             "aggregation": {
                 "type": "string",
@@ -577,8 +587,12 @@ def _metric_authoring_model_requirement_schema(
                 "maxItems": len(GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS),
                 "items": gate_authority,
                 "description": (
-                    "Each active substantive number appears exactly once together "
-                    "with the model-selected authority that owns it."
+                    "Each active substantive model-authored number appears exactly "
+                    "once with its authority. Numeric rows include threshold, or "
+                    "lower then upper for between, plus any active tolerance/quorum "
+                    "field. Boolean rows omit threshold and tolerance; the runtime "
+                    "materializes == 1 with zero tolerance. Boolean rows include only "
+                    "a quorum field when their aggregation requires one."
                 ),
             },
         },
@@ -589,7 +603,10 @@ def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
     return {
         "requirement_id": "stable unique acceptance-gate id",
         "metric_semantics": "one independently compared returned quantity",
-        "metric_value_kind": "numeric|boolean",
+        "metric_value_kind": (
+            "numeric, or boolean only for an intrinsic predicate; boolean uses "
+            "operator == and no threshold/tolerance gate_fields"
+        ),
         "measurement_protocol": "exact pre-execution measurement procedure",
         "operator": "<=|<|>=|>|==|between",
         "aggregation": (
@@ -607,7 +624,7 @@ def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
             {
                 "field": (
                     "threshold|lower|upper|tolerance|minimum_pass_count|"
-                    "minimum_pass_fraction"
+                    "minimum_pass_fraction; omit threshold/tolerance for boolean"
                 ),
                 "value": "the substantive numeric value, stated exactly once",
                 "authority_kind": (
@@ -734,11 +751,25 @@ def _materialize_metric_authoring_model_requirement(
         expected_fields = []
         if requirement["operator"] != "==":
             errors.append(f"{prefix}.boolean metric requires operator ==")
+        runtime_truth_fields = [
+            field
+            for field in observed_fields
+            if field in {"threshold", "tolerance"}
+        ]
+        if runtime_truth_fields:
+            errors.append(
+                f"{prefix}.boolean metric gate_fields must omit runtime-owned "
+                f"truth fields {runtime_truth_fields!r}; use operator == and let "
+                "AgentRuntime materialize threshold=1 and tolerance=0"
+            )
     elif requirement["operator"] == "between":
         expected_fields = ["lower", "upper"]
     else:
         expected_fields = ["threshold"]
-    if "tolerance" in observed_fields:
+    if (
+        requirement["metric_value_kind"] != "boolean"
+        and "tolerance" in observed_fields
+    ):
         expected_fields.append("tolerance")
     if requirement["aggregation"] == "at_least_count":
         expected_fields.append("minimum_pass_count")
@@ -1719,7 +1750,12 @@ def author_reviewed_architect_metric_requirements(
             (
                 "Author the complete measurement semantics, operator, aggregation, "
                 "active gate_fields, numeric values, source anchors, and rationales. "
-                "AgentRuntime only expands those choices into the evaluator ABI."
+                "For numeric rows, gate_fields contain the active comparison and "
+                "optional quorum numbers. For intrinsically boolean rows, use "
+                "operator == and omit threshold/tolerance gate_fields; AgentRuntime "
+                "materializes the canonical == 1 truth comparison with zero "
+                "tolerance. AgentRuntime only expands those choices into the "
+                "evaluator ABI; it does not select their statistical semantics."
             ),
             (
                 "Copy every source anchor exactly from acceptance_authority_catalog. "
@@ -2420,7 +2456,7 @@ def author_reviewed_architect_metric_requirements(
             metadata={
                 "revision_index": revision_index,
                 "model_tier": config.model_tier,
-                "max_packet_repair_attempts": config.max_repair_attempts,
+                "max_packet_regeneration_attempts": config.max_repair_attempts,
                 "active_prior_finding_count": len(active_finding_ids),
             },
         ):
