@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
 
@@ -17,6 +18,8 @@ from ai_statistician.architect_coordinator_llm import (
 from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
+    _preflight_calculation_source,
+    _search_preflight_sources,
     architect_theory_execution_preflight_json_schema,
     build_architect_theory_execution_preflight_material,
     build_architect_theory_execution_preflight_prompt,
@@ -330,6 +333,15 @@ def _payload(*, accept: bool) -> dict[str, object]:
                     else "The source merely asserts eventual occurrence and does not "
                     "connect the stopped finite observation to the claimed ideal risk."
                 ),
+                "identity_check_case": "A finite two-observation input with one event.",
+                "identity_check_recomputation": (
+                    "From the primitive first-event definition, the returned index is "
+                    "the position of the event, with a typed censored output if absent."
+                ),
+                "identity_check_candidate_output": (
+                    "The declared candidate returns that same index or censored output."
+                ),
+                "independent_identity_check_consistent": accept,
                 "procedure_identity_declared_valid": accept,
                 "theorem_applications_declared_valid": accept,
                 "ideal_to_executable_mapping_declared": accept,
@@ -420,7 +432,9 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
 
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
-    assert packet["source_grounding_transport"] == "client_tool_source_query_v3"
+    assert packet["source_grounding_transport"] == (
+        "client_tool_source_query_and_calculation_v4"
+    )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
     assert packet["client_tool_loop_tool_calls"] == 2
@@ -438,16 +452,189 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert backend.requests[0].model == TEST_HAIKU_MODEL
     assert [tool.name for tool in backend.requests[0].tools] == [
         "search_preflight_sources",
+        "run_preflight_calculation",
         "submit_theory_preflight_review",
     ]
     assert backend.requests[0].tools[0].strict is False
-    assert backend.requests[0].tools[1].strict is True
+    assert backend.requests[0].tools[1].strict is False
+    assert backend.requests[0].tools[2].strict is True
     assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert backend.requests[0].disable_parallel_tool_use is True
     first_result = json.loads(
         backend.requests[1].messages[-1]["content"][0]["content"]
     )
     assert first_result["hits"][0]["source_ref"] == "S1H1"
+
+
+def test_preflight_executes_model_authored_calculation_without_interpreting_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class CalculationBackend(_PreflightToolBackend):
+        def __init__(self) -> None:
+            super().__init__(accept=True)
+            self.calculation_result = {}
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "search-1",
+                        "search_preflight_sources",
+                        {
+                            "query": "finite input censored outcome",
+                            "source_scope": "theory",
+                            "k": 4,
+                        },
+                    )
+                )
+            result = json.loads(
+                request.messages[-1]["content"][0]["content"]
+            )
+            if turn == 2:
+                self.hit_id = result["hits"][0]["source_hit_id"]
+                self.source_ref = result["hits"][0]["source_ref"]
+                return _tool_response(
+                    ClientToolCall(
+                        "calculate-1",
+                        "run_preflight_calculation",
+                        {
+                            "python_source": (
+                                "return {'primitive': 2.0, 'candidate': 3.0}\n"
+                            ),
+                            "dependencies": [],
+                        },
+                    )
+                )
+            self.calculation_result = result
+            return _tool_response(
+                ClientToolCall(
+                    "submit-3",
+                    "submit_theory_preflight_review",
+                    self._submission(source_ref=self.source_ref),
+                )
+            )
+
+    def fake_execute_scientific_sandbox(**kwargs):
+        return SimpleNamespace(
+            code_hash=stable_hash(kwargs["code"]),
+            dependencies=(),
+            status="EXECUTED",
+            execution_attempted=True,
+            returncode=0,
+            metrics={"primitive": 2.0, "candidate": 3.0},
+            errors=(),
+            stdout_summary="",
+            stderr_summary="",
+            backend="pyodide",
+            isolation_provider="test_secret_free_wasm",
+        )
+
+    monkeypatch.setattr(
+        "ai_statistician.architect_theory_execution_preflight."
+        "execute_scientific_sandbox",
+        fake_execute_scientific_sandbox,
+    )
+    backend = CalculationBackend()
+
+    packet = _tool_review(backend)
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["preflight_calculation_count"] == 1
+    assert packet["preflight_calculation_budget"] == 3
+    observation = packet["preflight_calculation_observations"][0]
+    assert observation["metrics"] == {"primitive": 2.0, "candidate": 3.0}
+    assert observation["execution_status"] == "EXECUTED"
+    assert observation["abi_envelope_added"] is True
+    assert observation["model_authored_python_source"] == (
+        "return {'primitive': 2.0, 'candidate': 3.0}\n"
+    )
+    assert observation["executed_python_source"].startswith(
+        "def run_sandbox(seed, replicates):\n"
+    )
+    assert "model_authored_python_source" not in backend.calculation_result
+    assert "executed_python_source" not in backend.calculation_result
+    assert observation["boundary"].endswith(
+        "does not interpret it, repair theory, or treat it as proof."
+    )
+    assert backend.calculation_result["metrics"] == observation["metrics"]
+    assert packet["runtime_selected_review_semantics"] is False
+
+
+def test_preflight_calculation_abi_accepts_full_source_or_function_body() -> None:
+    full_source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'value': float(seed + replicates)}\n"
+    )
+    function_body = "return {'value': float(seed + replicates)}\n"
+
+    preserved, preserved_added = _preflight_calculation_source(full_source)
+    wrapped, wrapped_added = _preflight_calculation_source(function_body)
+
+    assert preserved == full_source
+    assert preserved_added is False
+    assert wrapped_added is True
+    assert wrapped == (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'value': float(seed + replicates)}\n\n"
+    )
+
+
+def test_preflight_cannot_treat_failed_calculation_as_observed_support() -> None:
+    packet = _tool_review(_PreflightToolBackend(accept=True))
+    failed_source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    raise RuntimeError('failed calculation')\n"
+    )
+    failed_core = {
+        "calculation_index": 1,
+        "code_hash": stable_hash(failed_source),
+        "abi_envelope_added": False,
+        "model_authored_python_source": failed_source,
+        "executed_python_source": failed_source,
+        "dependencies": [],
+        "execution_status": "FAILED",
+        "execution_attempted": True,
+        "returncode": 1,
+        "metrics": {},
+        "errors": ["model-authored calculation failed"],
+        "stdout_summary": "",
+        "stderr_summary": "traceback",
+        "backend": "pyodide",
+        "isolation_provider": "test_secret_free_wasm",
+    }
+    failed_observation = {
+        "observation_id": (
+            "preflight_calculation_observation:"
+            + stable_hash(failed_core)[:20]
+        ),
+        **failed_core,
+        "boundary": "failed execution is not semantic authority",
+    }
+    packet["preflight_calculation_observations"] = [failed_observation]
+    packet["preflight_calculation_observations_fingerprint"] = stable_hash(
+        [failed_observation]
+    )
+    packet["preflight_calculation_count"] = 1
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+    )
+
+    errors = validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=material,
+    )
+
+    assert (
+        "preflight calculation attempts produced no successful execution"
+        in errors
+    )
 
 
 def test_preflight_canonicalizes_prior_finding_source_ref_before_binding() -> None:
@@ -792,10 +979,12 @@ def test_preflight_recovers_from_rejected_final_submission() -> None:
 
     assert len(backend.requests) == 5
     assert [tool.name for tool in backend.requests[3].tools] == [
-        "submit_theory_preflight_review"
+        "run_preflight_calculation",
+        "submit_theory_preflight_review",
     ]
     assert [tool.name for tool in backend.requests[4].tools] == [
-        "submit_theory_preflight_review"
+        "run_preflight_calculation",
+        "submit_theory_preflight_review",
     ]
     assert backend.requests[4].metadata[
         "client_tool_loop_max_terminal_recovery_turns"
@@ -955,6 +1144,60 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     ) == []
 
 
+def test_preflight_source_search_exposes_late_theory_entries() -> None:
+    theory_material = _theory_material()
+    derivation = theory_material["theory_semantic_material"][
+        "theory_derivation_packet"
+    ]
+    derivation["derivation_steps"] = [
+        {
+            "id": f"claim_{index + 1}",
+            "claim": f"Generic derivation claim {index + 1}",
+            "equation_or_argument": (
+                "late_entry_visibility_marker"
+                if index == 11
+                else f"argument {index + 1}"
+            ),
+        }
+        for index in range(12)
+    ]
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=theory_material,
+        upstream_research_contract={"simulation_targets": ["evaluate risk"]},
+    )
+
+    derivation_anchor = next(
+        row
+        for row in material["anchor_catalog"]
+        if row["anchor_id"] == "theory.derivation_steps"
+    )
+    observation = _search_preflight_sources(
+        material=material,
+        source_retriever=None,
+        query="late_entry_visibility_marker",
+        source_scope="theory",
+        k=3,
+        search_index=1,
+    )
+    prompt = build_architect_theory_execution_preflight_prompt(material)
+    prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
+    derivation_inventory = next(
+        row
+        for row in prompt_payload["source_material"]["anchor_inventory"]
+        if row["anchor_id"] == "theory.derivation_steps"
+    )
+
+    assert len(derivation_anchor["content"]) == 12
+    assert "late_entry_visibility_marker" not in prompt
+    assert derivation_inventory["item_count"] == 12
+    assert derivation_inventory["item_ids"][-1] == "claim_12"
+    assert observation["hits"][0]["location"] == "theory.derivation_steps/11"
+    assert observation["hits"][0]["content"]["equation_or_argument"] == (
+        "late_entry_visibility_marker"
+    )
+
+
 def test_preflight_full_regeneration_returns_raw_validation_feedback() -> None:
     initial_payload = _payload(accept=False)
     primitive_index = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS.index(
@@ -1040,6 +1283,10 @@ def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> No
 
     assert estimator_schema["required"] == [
         "audit_rationale",
+        "identity_check_case",
+        "identity_check_recomputation",
+        "identity_check_candidate_output",
+        "independent_identity_check_consistent",
         "procedure_identity_declared_valid",
         "theorem_applications_declared_valid",
         "ideal_to_executable_mapping_declared",
@@ -1053,6 +1300,28 @@ def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> No
         estimator_schema["required"]
     )
     assert estimator_schema["properties"]["audit_rationale"]["maxLength"] == 720
+
+
+def test_preflight_cannot_accept_a_failed_independent_identity_check() -> None:
+    packet, _backend = _review(accept=True)
+    packet["estimator_execution_checks"][0][
+        "independent_identity_check_consistent"
+    ] = False
+    packet["estimator_execution_checks"][0]["status"] = "FAIL"
+    packet["overall_verdict"] = "REVISE"
+
+    errors = validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=build_architect_theory_execution_preflight_material(
+            question=_question(),
+            theory_protocol_material=_theory_material(),
+            upstream_research_contract={
+                "simulation_targets": ["evaluate the declared risk"]
+            },
+        ),
+    )
+
+    assert any("needs at least one finding" in error for error in errors)
 
 
 def test_preflight_cannot_accept_an_unestablished_procedure_identity() -> None:
@@ -1370,6 +1639,20 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     prior_review_definition = backend.requests[0].schema["$defs"][
         "prior_finding_review"
     ]
+    prompt_payload = json.loads(
+        backend.requests[0].user_prompt.split("\n\n", 1)[1]
+    )
+    prior_slot = prompt_payload["ordered_review_slots"][
+        "prior_finding_reviews"
+    ][0]
+    assert prior_slot["finding_id"] == prior_finding_ids[0]
+    assert prior_slot["prior_obligation"]["summary"] == (
+        prior_ledger[0]["finding"]["summary"]
+    )
+    assert prior_slot["prior_obligation"]["observed_behavior"] == (
+        prior_ledger[0]["finding"]["observed_behavior"]
+    )
+    assert prior_slot["observation_time"] == "earlier_rejected_theory_packet"
     assert "finding_id" not in prior_review_definition["properties"]
     assert "current_finding" not in prior_review_definition["properties"]
     finding_definition = backend.requests[0].schema["$defs"]["finding"]

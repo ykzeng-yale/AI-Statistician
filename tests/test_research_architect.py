@@ -1061,7 +1061,11 @@ def test_theory_revision_regenerates_complete_packet_with_raw_feedback() -> None
     assert prompt["revision_mode"] == "complete_theory_packet_regeneration"
     assert prompt["parent_core_packet"] == revision_inputs["base_core_payload"]
     assert prompt["reviewer_feedback"] == context["environment_feedback"]
-    assert "never a patch" in " ".join(prompt["instructions"])
+    revision_instructions = " ".join(prompt["instructions"])
+    assert "never a patch" in revision_instructions
+    assert "not an inventory-preservation requirement" in revision_instructions
+    assert "smallest coherent set of procedures" in revision_instructions
+    assert "rejected_alternatives" in revision_instructions
     retry_prompt = json.loads(retry_request.user_prompt.split("\n\n", 1)[1])
     assert any(
         "estimand" in error for error in retry_prompt["local_validation_errors"]

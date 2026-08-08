@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import ast
 import json
 import re
 from copy import deepcopy
 from datetime import datetime, timezone
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from textwrap import indent
 from typing import Any, Mapping, Sequence
 
 from .client_tool_loop import (
@@ -36,10 +40,14 @@ from .metric_protocol_finding_ledger import (
     update_metric_protocol_finding_ledger,
 )
 from .research_schema import OpenResearchQuestion
+from .scientific_sandbox import (
+    PYTHON_SCIENTIFIC_DEPENDENCIES,
+    execute_scientific_sandbox,
+)
 
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 9
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 13
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 10
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 14
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -48,6 +56,10 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "guarantee_transport_and_measurement_identifiability",
 )
 _ESTIMATOR_DECLARATION_REQUIREMENTS = (
+    (
+        "independent_identity_check_consistent",
+        "consistent independent primitive-identity check",
+    ),
     (
         "procedure_identity_declared_valid",
         "established procedure identity",
@@ -73,10 +85,11 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_source_query_v3"
+    "client_tool_source_query_and_calculation_v4"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_CALCULATIONS = 3
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 8
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TERMINAL_RECOVERY_TURNS = 1
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS = 2
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_BOUNDARY = (
@@ -104,6 +117,16 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "its claimed invariant or guarantee, including normalization and sample-size "
         "scale for every executable output. Do not validate an identity by restating "
         "a theorem card, sanity check, named theorem, or the estimator's own formula."
+    ),
+    (
+        "Make the recomputation auditable in the estimator's ordered output row. "
+        "Choose one nontrivial admitted input or regime, evaluate the primitive "
+        "definition there including support, measure normalization, and weights, then "
+        "evaluate the candidate executable formula on the same case and compare them. "
+        "Choose a discriminating case where omitted support, weights, normalization, "
+        "or data dependence would change the result; avoid symmetry points where "
+        "different definitions coincide. Initialization values, source-authored sanity "
+        "checks, and formula restatements are not independent identity checks."
     ),
     (
         "Audit data dependence and operator closure explicitly. If a parameter, "
@@ -206,9 +229,11 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "slots supplied by ordered_review_slots. AgentRuntime owns and binds their "
         "identities; do not copy identity strings into output rows. Mark a prior "
         "finding RESOLVED_BY_CURRENT_THEORY only when current source anchors show the "
-        "required change; otherwise mark it UNRESOLVED. AgentRuntime carries an "
-        "unresolved prior finding forward unchanged, so do not restate it in findings. "
-        "Use findings only for genuinely new defects."
+        "required change; otherwise mark it UNRESOLVED. Each prior_obligation records "
+        "a review of an earlier rejected theory packet: its observed_behavior is not a "
+        "claim about the current packet. Reinspect the current anchors before deciding. "
+        "AgentRuntime carries an unresolved prior finding forward unchanged, so do not "
+        "restate it in findings. Use findings only for genuinely new defects."
     ),
 )
 
@@ -252,6 +277,25 @@ def _compact_value(
     if isinstance(value, str):
         return value if len(value) <= text_limit else value[: text_limit - 3] + "..."
     return value
+
+
+def _compact_anchor_content(value: Any) -> Any:
+    if isinstance(value, (list, tuple)):
+        return [
+            _compact_value(
+                child,
+                max_depth=7,
+                list_limit=16,
+                text_limit=1600,
+            )
+            for child in value
+        ]
+    return _compact_value(
+        value,
+        max_depth=7,
+        list_limit=16,
+        text_limit=1600,
+    )
 
 
 def _project_estimator_specs(value: Any) -> tuple[list[dict[str, Any]], list[str]]:
@@ -429,11 +473,7 @@ def build_architect_theory_execution_preflight_material(
         {
             "anchor_id": anchor_id,
             "artifact_role": artifact_role,
-            "content": (
-                content
-                if anchor_id == "theory.estimator_specs"
-                else _compact_value(content)
-            ),
+            "content": _compact_anchor_content(content),
         }
         for anchor_id, artifact_role, content in sections
     ]
@@ -640,6 +680,10 @@ def architect_theory_execution_preflight_json_schema(
                     "additionalProperties": False,
                     "required": [
                         "audit_rationale",
+                        "identity_check_case",
+                        "identity_check_recomputation",
+                        "identity_check_candidate_output",
+                        "independent_identity_check_consistent",
                         "procedure_identity_declared_valid",
                         "theorem_applications_declared_valid",
                         "ideal_to_executable_mapping_declared",
@@ -661,6 +705,44 @@ def architect_theory_execution_preflight_json_schema(
                                 "typed bounded outcomes; and guarantee transport. Recompute "
                                 "rather than restating source prose. Put each blocking defect "
                                 "in findings instead of duplicating it here."
+                            ),
+                        },
+                        "identity_check_case": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 280,
+                            "description": (
+                                "One nontrivial admitted input or regime used for the "
+                                "independent check. It must discriminate the primitive "
+                                "definition from a candidate with omitted support, "
+                                "weights, normalization, or data dependence; avoid "
+                                "initialization and symmetry-only cases."
+                            ),
+                        },
+                        "identity_check_recomputation": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 520,
+                            "description": (
+                                "Compute the expected quantity from primitive definitions "
+                                "on identity_check_case, including the declared support, "
+                                "measure normalization, weights, and data dependence."
+                            ),
+                        },
+                        "identity_check_candidate_output": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 360,
+                            "description": (
+                                "Evaluate the source candidate's executable formula on "
+                                "the same identity_check_case."
+                            ),
+                        },
+                        "independent_identity_check_consistent": {
+                            "type": "boolean",
+                            "description": (
+                                "True only when the independent primitive recomputation "
+                                "and candidate output agree on the same nontrivial case."
                             ),
                         },
                         "procedure_identity_declared_valid": {
@@ -749,11 +831,80 @@ def architect_theory_execution_preflight_json_schema(
 def build_architect_theory_execution_preflight_prompt(
     material: Mapping[str, Any],
 ) -> str:
+    anchor_catalog = [
+        dict(row)
+        for row in material.get("anchor_catalog", []) or []
+        if isinstance(row, Mapping)
+    ]
+    anchor_by_id = {
+        str(row.get("anchor_id", "") or ""): row
+        for row in anchor_catalog
+        if str(row.get("anchor_id", "") or "").strip()
+    }
+
+    def anchor_inventory_row(anchor: Mapping[str, Any]) -> dict[str, Any]:
+        content = anchor.get("content")
+        items = list(content) if isinstance(content, (list, tuple)) else []
+        item_ids: list[str] = []
+        for index, item in enumerate(items):
+            if isinstance(item, Mapping):
+                item_id = str(
+                    item.get("preflight_estimator_id", "")
+                    or item.get("id", "")
+                    or item.get("step_id", "")
+                    or item.get("name", "")
+                    or f"item_{index}"
+                ).strip()
+            else:
+                item_id = f"item_{index}"
+            item_ids.append(item_id or f"item_{index}")
+        row = {
+            "anchor_id": str(anchor.get("anchor_id", "") or ""),
+            "artifact_role": str(anchor.get("artifact_role", "") or ""),
+            "container": (
+                "sequence"
+                if isinstance(content, (list, tuple))
+                else "mapping"
+                if isinstance(content, Mapping)
+                else type(content).__name__
+            ),
+        }
+        if isinstance(content, (list, tuple)):
+            row["item_count"] = len(items)
+            row["item_ids"] = item_ids
+        elif isinstance(content, Mapping):
+            row["field_names"] = [str(key) for key in content]
+        return row
+
     source_material = {
         key: value
         for key, value in material.items()
-        if key not in {"prior_finding_ledger", "retrieval_context"}
+        if key
+        not in {
+            "active_prior_finding_ids",
+            "active_prior_finding_ledger",
+            "anchor_catalog",
+            "prior_finding_ledger",
+            "retrieval_context",
+        }
     }
+    source_material["research_question"] = _compact_value(
+        anchor_by_id.get("question", {}).get("content", {}),
+        max_depth=5,
+        list_limit=16,
+        text_limit=800,
+    )
+    source_material["upstream_research_contract"] = _compact_value(
+        anchor_by_id.get("architect.upstream_research_contract", {}).get(
+            "content", {}
+        ),
+        max_depth=5,
+        list_limit=16,
+        text_limit=800,
+    )
+    source_material["anchor_inventory"] = [
+        anchor_inventory_row(anchor) for anchor in anchor_catalog
+    ]
     retrieval_context = material.get("retrieval_context", {})
     retrieval_context = (
         retrieval_context if isinstance(retrieval_context, Mapping) else {}
@@ -763,6 +914,36 @@ def build_architect_theory_execution_preflight_prompt(
         for row in retrieval_context.get("formal_source_hits", []) or []
         if isinstance(row, Mapping)
     ]
+    active_prior_rows = {
+        str(row.get("finding_id", "") or "").strip(): dict(row)
+        for row in material.get("active_prior_finding_ledger", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("finding_id", "") or "").strip()
+    }
+
+    def prior_review_slot(index: int, finding_id: Any) -> dict[str, Any]:
+        canonical_id = str(finding_id)
+        finding_row = active_prior_rows.get(canonical_id, {})
+        finding = finding_row.get("finding", {})
+        finding = dict(finding) if isinstance(finding, Mapping) else {}
+        return {
+            "output_index": index,
+            "finding_id": canonical_id,
+            "prior_obligation": {
+                key: deepcopy(finding[key])
+                for key in (
+                    "severity",
+                    "category",
+                    "summary",
+                    "observed_behavior",
+                    "expected_behavior",
+                    "evidence_refs",
+                )
+                if key in finding
+            },
+            "observation_time": "earlier_rejected_theory_packet",
+        }
+
     payload = {
         "task": (
             "Decide whether this theory handoff is mathematically coherent and "
@@ -791,10 +972,7 @@ def build_architect_theory_execution_preflight_prompt(
                 )
             ],
             "prior_finding_reviews": [
-                {
-                    "output_index": index,
-                    "finding_id": str(finding_id),
-                }
+                prior_review_slot(index, finding_id)
                 for index, finding_id in enumerate(
                     material.get("active_prior_finding_ids", []) or []
                 )
@@ -880,6 +1058,26 @@ def _preflight_source_tokens(value: Any) -> set[str]:
     }
 
 
+def _preflight_calculation_source(value: Any) -> tuple[str, bool]:
+    source = str(value or "")
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        tree = None
+    if tree is not None and any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "run_sandbox"
+        for node in tree.body
+    ):
+        return source, False
+    return (
+        "def run_sandbox(seed, replicates):\n"
+        + indent(source, "    ")
+        + "\n",
+        True,
+    )
+
+
 def _preflight_source_row(
     *,
     source_kind: str,
@@ -888,6 +1086,9 @@ def _preflight_source_row(
     location: str,
     content: Any,
     provenance: Any = None,
+    content_max_depth: int = 4,
+    content_list_limit: int = 6,
+    content_text_limit: int = 420,
 ) -> dict[str, Any]:
     row = {
         "source_kind": str(source_kind),
@@ -896,9 +1097,9 @@ def _preflight_source_row(
         "location": str(location)[:500],
         "content": _compact_value(
             content,
-            max_depth=4,
-            list_limit=6,
-            text_limit=420,
+            max_depth=content_max_depth,
+            list_limit=content_list_limit,
+            text_limit=content_text_limit,
         ),
         "provenance": _compact_value(
             provenance or {},
@@ -977,23 +1178,43 @@ def _preflight_source_catalog(material: Mapping[str, Any]) -> list[dict[str, Any
         anchor_id = str(anchor.get("anchor_id", "") or "").strip()
         if not anchor_id:
             continue
-        rows.append(
-            _preflight_source_row(
-                source_kind="theory_anchor",
-                source_identity=anchor_id,
-                title=str(anchor.get("artifact_role", "") or anchor_id),
-                location=anchor_id,
-                content=anchor.get("content"),
-                provenance={
-                    "source_theory_packet_id": material.get(
-                        "source_theory_packet_id", ""
-                    ),
-                    "source_theory_packet_hash": material.get(
-                        "source_theory_packet_hash", ""
-                    ),
-                },
+        content = anchor.get("content")
+        is_collection = isinstance(content, (list, tuple))
+        anchor_item_count = len(content) if is_collection else 1
+        content_items = list(content) if is_collection and content else [content]
+        for item_index, item in enumerate(content_items):
+            is_indexed_item = is_collection and anchor_item_count > 0
+            source_identity = (
+                f"{anchor_id}[{item_index}]" if is_indexed_item else anchor_id
             )
-        )
+            location = (
+                f"{anchor_id}/{item_index}" if is_indexed_item else anchor_id
+            )
+            rows.append(
+                _preflight_source_row(
+                    source_kind="theory_anchor",
+                    source_identity=source_identity,
+                    title=str(anchor.get("artifact_role", "") or anchor_id),
+                    location=location,
+                    content=item,
+                    provenance={
+                        "anchor_id": anchor_id,
+                        "anchor_item_index": (
+                            item_index if is_indexed_item else None
+                        ),
+                        "anchor_item_count": anchor_item_count,
+                        "source_theory_packet_id": material.get(
+                            "source_theory_packet_id", ""
+                        ),
+                        "source_theory_packet_hash": material.get(
+                            "source_theory_packet_hash", ""
+                        ),
+                    },
+                    content_max_depth=7,
+                    content_list_limit=16,
+                    content_text_limit=1600,
+                )
+            )
 
     retrieval = material.get("retrieval_context", {})
     retrieval = retrieval if isinstance(retrieval, Mapping) else {}
@@ -1330,6 +1551,81 @@ def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
         expected_fingerprint
     ):
         errors.append("preflight source observation fingerprint mismatch")
+    calculation_observations = [
+        dict(row)
+        for row in packet.get("preflight_calculation_observations", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if int(packet.get("preflight_calculation_count", 0) or 0) != len(
+        calculation_observations
+    ):
+        errors.append("preflight calculation count mismatch")
+    if len(calculation_observations) > (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_CALCULATIONS
+    ):
+        errors.append("preflight calculation budget exceeded")
+    if calculation_observations and not any(
+        observation.get("execution_status") == "EXECUTED"
+        and observation.get("execution_attempted") is True
+        and observation.get("returncode") == 0
+        for observation in calculation_observations
+    ):
+        errors.append(
+            "preflight calculation attempts produced no successful execution"
+        )
+    for observation in calculation_observations:
+        core = {
+            key: observation.get(key)
+            for key in (
+                "calculation_index",
+                "code_hash",
+                "abi_envelope_added",
+                "model_authored_python_source",
+                "executed_python_source",
+                "dependencies",
+                "execution_status",
+                "execution_attempted",
+                "returncode",
+                "metrics",
+                "errors",
+                "stdout_summary",
+                "stderr_summary",
+                "backend",
+                "isolation_provider",
+            )
+        }
+        expected_id = (
+            "preflight_calculation_observation:"
+            + stable_hash(core)[:20]
+        )
+        if observation.get("observation_id") != expected_id:
+            errors.append("preflight calculation observation identity mismatch")
+        model_source = str(
+            observation.get("model_authored_python_source", "") or ""
+        )
+        executed_source = str(
+            observation.get("executed_python_source", "") or ""
+        )
+        expected_source, expected_abi_added = _preflight_calculation_source(
+            model_source
+        )
+        if (
+            not model_source
+            or executed_source != expected_source
+            or observation.get("abi_envelope_added") is not expected_abi_added
+            or observation.get("code_hash") != stable_hash(executed_source)
+        ):
+            errors.append("preflight calculation source lineage mismatch")
+        if observation.get("execution_status") == "EXECUTED" and (
+            observation.get("execution_attempted") is not True
+            or observation.get("returncode") != 0
+        ):
+            errors.append("successful preflight calculation evidence is inconsistent")
+    expected_calculation_fingerprint = stable_hash(calculation_observations)
+    if str(
+        packet.get("preflight_calculation_observations_fingerprint", "") or ""
+    ) != expected_calculation_fingerprint:
+        errors.append("preflight calculation observation fingerprint mismatch")
     return errors
 
 
@@ -1422,7 +1718,8 @@ def _derived_consistency_warnings(packet: Mapping[str, Any]) -> list[dict[str, s
     invalid_identity_ids = [
         str(row.get("estimator_id", "") or "")
         for row in estimator_rows
-        if row.get("procedure_identity_declared_valid") is not True
+        if row.get("independent_identity_check_consistent") is not True
+        or row.get("procedure_identity_declared_valid") is not True
         or row.get("theorem_applications_declared_valid") is not True
     ]
     if invalid_identity_ids and str(
@@ -2254,8 +2551,10 @@ statistical theory is mathematically coherent and can be represented by a finite
 typed experiment. This is an execution-admissibility gate, not theorem peer review or
 formal proof closure. Be adversarial about executable semantics, DGP alignment,
 normalization, and measurement, but do not block execution solely because a theorem
-proof is incomplete or an explicitly excluded regime is not robust. Do not write code,
-use observed results, invent task-family rules, or claim proof evidence.
+proof is incomplete or an explicitly excluded regime is not robust. Do not write
+implementation code or use observed research results. You may author isolated numerical
+check code only through the supplied calculation tool. Do not invent task-family rules
+or claim proof evidence.
 """
 
 
@@ -2308,6 +2607,40 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             },
         ),
         ClientToolDefinition(
+            name="run_preflight_calculation",
+            description=(
+                "Execute one model-authored Python numerical check in the existing "
+                "secret-free scientific WebAssembly sandbox. Supply either complete "
+                "Python source defining run_sandbox(seed, replicates), or only that "
+                "function's body. The function must return a JSON-finite dict comparing "
+                "a primitive definition with its candidate formula on the same finite "
+                "case. Runtime uses Python AST only to detect an existing top-level ABI "
+                "and adds the fixed function envelope when absent; it does not alter the "
+                "model-authored body, interpret results, repair theory, or provide proof "
+                "evidence."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["python_source", "dependencies"],
+                "properties": {
+                    "python_source": {
+                        "type": "string",
+                        "minLength": 20,
+                        "maxLength": 7600,
+                    },
+                    "dependencies": {
+                        "type": "array",
+                        "maxItems": 3,
+                        "items": {
+                            "type": "string",
+                            "enum": list(PYTHON_SCIENTIFIC_DEPENDENCIES),
+                        },
+                    },
+                },
+            },
+        ),
+        ClientToolDefinition(
             name="submit_theory_preflight_review",
             description=(
                 "Submit the complete preflight review after source search. Every "
@@ -2326,6 +2659,11 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "source_ref handles; runtime binds them to exact source identities. You own each "
         "statistical judgment and each search query. Runtime retrieval ranking, "
         "source identity checks, and packet validation do not choose semantics. "
+        "When a finite numerical case can test an estimator identity, normalization, "
+        "integral, sum, or approximation, use run_preflight_calculation and inspect "
+        "its returned metrics before marking the independent identity check consistent. "
+        "Author the complete check yourself and compare primitive and candidate values; "
+        "the sandbox output is empirical calculation feedback, not semantic authority. "
         "Keep the two citation namespaces distinct: evidence_refs uses only exact "
         "theory anchor IDs allowed by the submit schema, while source_evidence_refs "
         "uses only S...H... handles returned by search_preflight_sources. "
@@ -2337,10 +2675,16 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "observations": [],
         "observation_ids": set(),
         "source_ref_by_hit_id": {},
+        "calculations": 0,
+        "calculation_observations": [],
+        "calculation_observation_ids": set(),
     }
 
     def source_grounding_payload(**loop_metadata: Any) -> dict[str, Any]:
         observations = deepcopy(list(state["observations"]))
+        calculation_observations = deepcopy(
+            list(state["calculation_observations"])
+        )
         return {
             "source_grounding_required": True,
             "source_grounding_transport": (
@@ -2353,6 +2697,14 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             "preflight_source_search_count": int(state["searches"]),
             "preflight_source_search_budget": (
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+            ),
+            "preflight_calculation_observations": calculation_observations,
+            "preflight_calculation_observations_fingerprint": stable_hash(
+                calculation_observations
+            ),
+            "preflight_calculation_count": int(state["calculations"]),
+            "preflight_calculation_budget": (
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_CALCULATIONS
             ),
             "runtime_selected_review_semantics": False,
             **loop_metadata,
@@ -2443,6 +2795,113 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                     "remaining_searches": (
                         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
                         - state["searches"]
+                    ),
+                },
+                state_changed=True,
+                observation_key=observation_id,
+            )
+
+        if call.name == "run_preflight_calculation":
+            if state["searches"] < 1:
+                raise ClientToolInputError(
+                    "search_preflight_sources must run before calculation"
+                )
+            if state["calculations"] >= (
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_CALCULATIONS
+            ):
+                raise ClientToolInputError(
+                    "preflight calculation budget exhausted"
+                )
+            python_source = str(tool_input.get("python_source", "") or "")
+            dependencies = tool_input.get("dependencies", [])
+            if not 20 <= len(python_source) <= 7600:
+                raise ClientToolInputError(
+                    "calculation python_source length must be between 20 and 7600 "
+                    "characters"
+                )
+            if not isinstance(dependencies, list):
+                raise ClientToolInputError("dependencies must be an array")
+            normalized_dependencies = [
+                str(value or "").strip().lower()
+                for value in dependencies
+                if str(value or "").strip()
+            ]
+            if len(normalized_dependencies) > 3 or any(
+                value not in PYTHON_SCIENTIFIC_DEPENDENCIES
+                for value in normalized_dependencies
+            ):
+                raise ClientToolInputError(
+                    "calculation dependencies are unsupported"
+                )
+            code, abi_envelope_added = _preflight_calculation_source(
+                python_source
+            )
+            calculation_index = int(state["calculations"]) + 1
+            with TemporaryDirectory(
+                prefix="ai-statistician-preflight-calculation-"
+            ) as temp_dir:
+                execution = execute_scientific_sandbox(
+                    sandbox_dir=Path(temp_dir),
+                    artifact_id=(
+                        f"preflight-calculation:{question.id}:"
+                        f"{calculation_index}"
+                    ),
+                    language="python",
+                    code=code,
+                    dependencies=normalized_dependencies,
+                    seed=0,
+                    replicates=1,
+                    timeout_s=30,
+                    max_output_bytes=1024 * 1024,
+                )
+            observation_core = {
+                "calculation_index": calculation_index,
+                "code_hash": execution.code_hash,
+                "abi_envelope_added": abi_envelope_added,
+                "model_authored_python_source": python_source,
+                "executed_python_source": code,
+                "dependencies": list(execution.dependencies),
+                "execution_status": execution.status,
+                "execution_attempted": execution.execution_attempted,
+                "returncode": execution.returncode,
+                "metrics": deepcopy(dict(execution.metrics)),
+                "errors": [str(value)[:1200] for value in execution.errors[:8]],
+                "stdout_summary": str(execution.stdout_summary or "")[:2000],
+                "stderr_summary": str(execution.stderr_summary or "")[:2000],
+                "backend": execution.backend,
+                "isolation_provider": execution.isolation_provider,
+            }
+            observation_id = (
+                "preflight_calculation_observation:"
+                + stable_hash(observation_core)[:20]
+            )
+            observation = {
+                "observation_id": observation_id,
+                **observation_core,
+                "boundary": (
+                    "This is execution feedback from model-authored calculation code. "
+                    "Runtime does not interpret it, repair theory, or treat it as proof."
+                ),
+            }
+            state["calculations"] += 1
+            if observation_id not in state["calculation_observation_ids"]:
+                state["calculation_observation_ids"].add(observation_id)
+                state["calculation_observations"].append(observation)
+            return ClientToolExecutionResult(
+                content={
+                    "ok": execution.status == "EXECUTED",
+                    **{
+                        key: value
+                        for key, value in observation.items()
+                        if key
+                        not in {
+                            "model_authored_python_source",
+                            "executed_python_source",
+                        }
+                    },
+                    "remaining_calculations": (
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_CALCULATIONS
+                        - state["calculations"]
                     ),
                 },
                 state_changed=True,
@@ -2564,11 +3023,22 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         _turn_index: int,
         available_tools: tuple[ClientToolDefinition, ...],
     ) -> tuple[ClientToolDefinition, ...]:
-        if int(state["searches"]) < (
-            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-        ):
-            return available_tools
-        return tuple(tool for tool in available_tools if tool.terminal)
+        selected: list[ClientToolDefinition] = []
+        for tool in available_tools:
+            if (
+                tool.name == "search_preflight_sources"
+                and int(state["searches"])
+                >= ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+            ):
+                continue
+            if (
+                tool.name == "run_preflight_calculation"
+                and int(state["calculations"])
+                >= ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_CALCULATIONS
+            ):
+                continue
+            selected.append(tool)
+        return tuple(selected)
 
     try:
         loop = run_bounded_client_tool_loop(

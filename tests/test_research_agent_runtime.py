@@ -21654,6 +21654,14 @@ def _accepted_theory_execution_preflight_payload(request) -> dict[str, object]:
                     "theorem is invoked, and the total finite interface returns the same "
                     "declared object without changing its guarantee."
                 ),
+                "identity_check_case": "A nontrivial admitted finite input.",
+                "identity_check_recomputation": (
+                    "The primitive definition returns the declared finite object."
+                ),
+                "identity_check_candidate_output": (
+                    "The executable candidate returns the same finite object."
+                ),
+                "independent_identity_check_consistent": True,
                 "procedure_identity_declared_valid": True,
                 "theorem_applications_declared_valid": True,
                 "ideal_to_executable_mapping_declared": True,

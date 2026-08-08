@@ -2481,6 +2481,18 @@ def _full_theory_revision_prompt(
             "Return one complete replacement core theory packet, never a patch, path edit, or repair envelope.",
             "Re-derive the packet as a coherent whole from the question, parent packet, and exact reviewer feedback.",
             "Use your own mathematical judgment. Reviewer proposed changes are diagnostic candidates, not an answer key.",
+            (
+                "Treat the parent packet as candidate context, not an inventory-"
+                "preservation requirement. Preserve the question and Architect research "
+                "contract, but remove nonessential or defective candidate procedures "
+                "when doing so leaves a complete coherent design; record discarded "
+                "candidates in rejected_alternatives."
+            ),
+            (
+                "Prefer the smallest coherent set of procedures that fully covers the "
+                "research contract. Do not multiply execution or proof obligations "
+                "merely because the parent packet listed alternatives."
+            ),
             "Address every routed blocking finding and propagate each chosen resolution through all dependent definitions, equations, assumptions, estimators, theorem cards, simulations, and formalization requests.",
             "Keep a concern open when it cannot be resolved honestly; do not claim execution, observed simulation results, Lean proof, or kernel verification.",
             "Return only JSON matching required_output_contract. AgentRuntime owns identity, budgets, validation, lineage, and evidence boundaries; an independent reviewer decides acceptance.",
