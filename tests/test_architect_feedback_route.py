@@ -101,6 +101,25 @@ class _RouteBackend:
         )
 
 
+class _RouteSequenceBackend(_RouteBackend):
+    def __init__(self, payloads: list[dict[str, object]]) -> None:
+        super().__init__({})
+        self.payloads = list(payloads)
+
+    def generate(self, request):  # type: ignore[no-untyped-def]
+        self.requests.append(request)
+        payload = self.payloads.pop(0)
+        return GeneratorResponse(
+            text=json.dumps(payload),
+            provider="anthropic",
+            model=EXACT_HAIKU_MODEL,
+            metadata={
+                "provider_structured_output_requested": bool(request.schema),
+                "provider_structured_output_applied": bool(request.schema),
+            },
+        )
+
+
 def test_architect_feedback_route_is_small_same_model_decision() -> None:
     backend = _RouteBackend(
         {
@@ -191,7 +210,7 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     assert "Never propose a new repair, patch, correction, or adapter agent" in (
         request.user_prompt
     )
-    assert "automatic same-producer retry budget" in request.user_prompt
+    assert "unavailable_for_unchanged_exhausted_lineage" in request.user_prompt
     assert "statistically non-diagnostic result does not" in (
         request.user_prompt
     )
@@ -203,6 +222,79 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     )
     assert "SUPERSEDED_BY_SUBSEQUENT_CANDIDATE_REVIEW" in request.user_prompt
     assert "prompt-budget-exhausted" not in request.user_prompt
+    assert "historical_context" not in request.user_prompt
+
+
+def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer() -> None:
+    feedback = {
+        "feedback_id": "feedback:unchanged-candidate",
+        "feedback_type": "generated_simulation_sandbox_execution_feedback",
+        "failure_classification": "generated_simulation_sandbox_metric_gate_failed",
+        "parent_source": "def run_sandbox(seed, replicates):\n    return {}\n",
+        "runtime_errors": ["metric_path /estimate resolved no values"],
+    }
+    context = {
+        "candidate_lineage_budget": {
+            "artifact_kind": "RuntimeCandidateLineageBudget",
+            "feedback_id": feedback["feedback_id"],
+            "failure_classification": feedback["failure_classification"],
+            "source_subsystem": "SimulationEvaluator",
+            "attempts_used": 2,
+            "max_attempts": 2,
+            "budget_exhausted": True,
+        }
+    }
+    prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context=context,
+        environment_feedback=feedback,
+    )
+    prompt_payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    assert "SimulationEvaluator" not in prompt_payload[
+        "available_route_subsystems"
+    ]
+    assert prompt_payload["unavailable_for_unchanged_exhausted_lineage"] == [
+        "SimulationEvaluator"
+    ]
+    assert prompt_payload["active_runtime_context"]["candidate_lineage_budget"][
+        "budget_exhausted"
+    ] is True
+
+    backend = _RouteSequenceBackend(
+        [
+            {
+                "decision": "ROUTE",
+                "selected_subsystem": "SimulationEvaluator",
+                "objective": "Try the unchanged candidate lineage again.",
+                "rationale": "The prior implementation failed.",
+            },
+            {
+                "decision": "ROUTE",
+                "selected_subsystem": "TheoryDeveloper",
+                "objective": "Reassess the assumptions using the empirical observations.",
+                "rationale": "A new upstream artifact is needed before more code generation.",
+            },
+        ]
+    )
+    packet = LLMArchitectCoordinatorAgent(
+        provider=backend,
+        config=ArchitectCoordinatorConfig(
+            provider_name="anthropic",
+            model=EXACT_HAIKU_MODEL,
+            model_tier="haiku",
+            max_repair_attempts=1,
+        ),
+    ).route_environment_feedback(
+        question=_question(),
+        architect_context=context,
+        environment_feedback=feedback,
+    )
+
+    assert packet["selected_subsystem"] == "TheoryDeveloper"
+    assert len(backend.requests) == 2
+    assert "SimulationEvaluator" not in backend.requests[0].metadata[
+        "available_route_subsystems"
+    ]
 
 
 def test_runtime_honors_model_owned_route_and_binds_full_feedback() -> None:

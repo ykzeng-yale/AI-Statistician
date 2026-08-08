@@ -15,71 +15,28 @@ SimulatorDesigner, PaperTheoryExtractor, RAG/SearchMemory, and Critic/Evaluator
 subsystems are built. It should not be mistaken for the final autonomous
 statistical research environment.
 
-The live LLM default is Anthropic Claude API, with a hard Sonnet ceiling:
-Sonnet serves Architect, TheoryDeveloper, independent semantic-review agents,
-SimulationEngineer, AlgorithmEngineer, Formalizer, and substantive formalization
-route planning; Haiku serves lower-cost intake, bounded triage, and the broad
-end-of-loop Critic packet. Runtime topology
-validation records provider/model provenance and
-rejects recognized Anthropic family mismatches, so a Haiku-designated helper does
-not silently run on Sonnet. The topology manifest also records the request-time
-resolved Claude model map for Haiku/Sonnet and fails the same tier-policy/collapse audit
-used by `ai_statistician doctor`, even when only a subset of LLM agents is
-enabled. LLM worker configs carry a `model_tier` and may leave `model` empty;
-the concrete provider model is resolved when a request is built, so
-tier-specific environment overrides apply to direct worker construction as well
-as CLI-created agents. As of the 2026-08-02 Anthropic Models overview and Model
-IDs/versioning source check, the pinned live Claude API IDs are Haiku
-`claude-haiku-4-5-20251001` and Sonnet `claude-sonnet-5`. The configurable
-catalog contains only those two allowed tiers; it stores no higher-tier model
-ID. Any other Claude family or tier fails before an Anthropic client is
-constructed. The
-policy also records official API aliases by tier, but
-runtime calls use those pinned API IDs; in particular, Haiku stays on
-`claude-haiku-4-5-20251001` rather than the shorter `claude-haiku-4-5` alias.
-Claude 4.6+ dateless IDs are treated as pinned snapshots, not evergreen aliases.
-Opus remains only a prohibited input label used by the pre-client policy gate;
-it has no configured model ID or runtime route. Use
-`AI_STATISTICIAN_CLAUDE_HAIKU_MODEL` and
-`AI_STATISTICIAN_CLAUDE_SONNET_MODEL` for live tier-specific overrides. Leave
-`AI_STATISTICIAN_LLM_MODEL` unset in normal Anthropic runs; the global override
-is treated as a Sonnet-tier compatibility default and must not collapse
-cost-aware Haiku/Sonnet routing. If `AI_STATISTICIAN_LLM_PROVIDER` is set to an
-unsupported or agent-style provider such as `codex_exec`, runtime defaults stay
-on Anthropic and `ai_statistician doctor` emits a provider-override warning
-instead of silently treating the agent as a pure generator; generic global model
-overrides such as `AI_STATISTICIAN_LLM_MODEL=gpt-*` are ignored for that
-fallback so they cannot be sent to the Anthropic API by accident.
-Formalization gap planner auto-tiering records source-theorem/proof-body
-feedback counts in each request's model-tier decision evidence; semantic
-primitive gaps, exact proof-body execution failures, and formal-environment
-blockers are Sonnet triggers, while small source-backed reuse/wrapper routes
-without residuals or feedback can remain on Haiku.
-`ai_statistician doctor` and runtime topology
-manifests separately report same-tier freshness warnings when a resolved Claude
-tier does not match the current source-checked API ID, so stale Sonnet/Haiku
-aliases stay visible without being confused with cross-tier routing failures.
-The formalization gap planner's auto route
-tier uses the same split: small source-backed reuse/wrapper triage stays on
-Haiku, while target-intake rows with missing proof sources, library-search
-requirements, proof-state probes, complex theorem shape, many generic
-`formal_library_grounding_queries`, or large theorem context are upgraded to
-Sonnet. When a live Anthropic Haiku route-plan response fails local response
-validation and a repair attempt remains, the repair request escalates to Sonnet
-and records the requested/effective tiers in generator metadata and the repair
-ledger. The planner also writes a model-tier decision ledger JSONL that binds
-each request to selected/effective tier, resolved model, decision basis,
-source-feedback counts, provider-failure status, and Haiku-to-Sonnet repair
-escalation evidence, so cost-control claims can be evaluated without parsing
-raw model completions. Shared generator metadata also preserves compact provider
-stop reasons, incomplete-response details, and token usage, so failed live JSON
-packets can be repaired and benchmarked without treating provider internals as
-proof evidence. Interactive route-replan rows now also surface the LLM
-route-planner request/response/decision-ledger schemas plus prompt-only and
-explicit live Anthropic `--model-tier auto` commands even when a handoff
-manifest is older or manually authored. That makes prover residual feedback
-feed back into source-grounded route synthesis before the system exports a new
-target-prover replay path.
+The live default is Anthropic Claude API with a hard Sonnet ceiling. Opus has no
+configured model ID or runtime route and is rejected before client creation.
+Frozen tests and evaluations use exactly `claude-haiku-4-5-20251001` for every
+live model call; they do not auto-upgrade after validation or execution failure.
+Production may assign Haiku or Sonnet by subsystem and records the resolved
+provider, model, and tier on every request. `ai_statistician doctor` and runtime
+topology validation reject family/tier mismatches and accidental tier collapse.
+Tier overrides are `AI_STATISTICIAN_CLAUDE_HAIKU_MODEL` and
+`AI_STATISTICIAN_CLAUDE_SONNET_MODEL`; the global
+`AI_STATISTICIAN_LLM_MODEL` must not collapse cost-aware Haiku/Sonnet routing.
+
+The generic structured-output helper historically calls its retry count
+`max_repair_attempts`. It is not a source or semantic repair engine. The same
+model receives the original request, its complete rejected response, and raw
+schema errors, then regenerates the complete object. For Python, R, and Lean
+candidates, the same producer likewise receives complete hash-bound source and
+raw tool observations and authors the next complete candidate. The harness may
+execute, validate, hash, budget, and record evidence; it may not synthesize an
+edit, choose a theorem-family fix, or supply grammar and tactic recipes.
+Architect feedback routing receives raw observations and only allowlisted
+control-plane state (artifact identities, progress, phase, and lineage budget).
+Legacy runtime-authored replan prose is not forwarded as model guidance.
 
 The canonical product loop is deliberately small:
 
@@ -96,14 +53,25 @@ The canonical product loop is deliberately small:
 4. Architect freezes the smallest sufficient confirmatory experiment protocol
    after the algorithm artifact exists but before confirmatory results exist.
 5. SimulationEngineer designs DGPs and stress tests around the accepted algorithm
-   artifact; fresh execution and independent review route defects to the code,
-   theory, DGP, or protocol owner.
+   artifact. Fresh execution supplies observations; after the producer's bounded
+   regeneration budget, the Architect model chooses the next existing evidence
+   owner. Runtime does not classify the substantive defect.
 6. Formalizer/ProofEngineer and formal RAG progress in parallel under claim-level
    required/optional/advisory policy. Only Lean/AXLE/kernel evidence proves a
    theorem, and an open formal gap does not stop unrelated research work.
 7. AgentRuntime owns typed transport, execution, hashes, budgets, permissions,
    scheduling, and evidence labels. It does not own statistical formulas,
    expected answers, task-family thresholds, Lean grammar, or tactics.
+
+This boundary follows the simple environment-feedback loop advocated in
+[Anthropic's agent guidance](https://www.anthropic.com/engineering/building-effective-agents),
+the concise execution observations of the
+[SWE-agent ACI](https://github.com/SWE-agent/SWE-agent/blob/main/docs/background/aci.md),
+and LeanDojo's proof-state/tactic interaction model. Formal proving should expose
+the current goal, retrieved accessible premises, tactic execution, and Lean
+diagnostics to the prover model; it should not add a runtime-authored tactic or
+grammar repair engine. [ReProver](https://github.com/lean-dojo/reprover) remains
+a provider/search implementation reference, while local Lean remains authority.
 
 The execution-admissibility reviewer implements step 2 through the shared
 provider-neutral client-tool loop, not through a second scheduler or a Python
@@ -215,18 +183,23 @@ AgentRuntime / Blackboard
 
 The generated-code semantic reviewer is a typed AgentRuntime child, not a
 post-runtime audit and not a collection of Python/statistical special cases.
-After a Sonnet coding agent emits an algorithm or simulation and the runtime
-executes it, the runtime records an immutable work order binding the full source
-hash, result hash, actual seed and replicate arguments, TheoryDeveloper packet,
-coding-agent proposal, and Architect-frozen empirical requirements. A separate
-Sonnet reviewer agent independently reviews question alignment, assumption alignment, frozen-protocol
-alignment, execution-argument alignment, experiment non-vacuity/identifiability,
-and metric semantics. `REVISE` findings return to the originating coding agent
-and require fresh code plus a fresh sandbox run. `ACCEPT` resumes the deferred
-task. Runtime validators check only the typed verdict, identities, hashes,
-lineage, and reviewer independence; they contain no theorem-family formula,
-metric threshold, expected answer, or Lean grammar. The result remains
-empirical/implementation review evidence, never theorem proof evidence.
+Execution, validator, safety, or empirical-gate failure returns the complete
+candidate and raw observations directly to the same coding model for bounded
+full-candidate regeneration; it does not create a reviewer detour. Only a
+candidate that satisfies its current execution and metric gates creates an
+immutable review work order binding the full source hash, result hash, actual
+seed and replicate arguments, TheoryDeveloper packet, coding-agent proposal,
+and Architect-authored interface contract. The independent reviewer sees source,
+arguments, result schema, and semantic context, but not realized metric values,
+thresholds, or pass/fail outcomes. `REVISE` findings return to the originating
+coding agent and require fresh code plus a fresh sandbox run. `ACCEPT` resumes
+the deferred task. Runtime validators check only the typed verdict, identities,
+hashes, lineage, budgets, and reviewer independence; they contain no
+theorem-family formula, metric threshold, expected answer, source edit, or Lean
+grammar. Exact outcomes remain in the immutable audit material and empirical
+evaluator. The review remains empirical/implementation review evidence, never
+theorem proof evidence. Evaluation invokes exact Haiku; production may use
+Haiku or Sonnet.
 
 Generated code has one typed execution contract with two profiles. Existing
 Python drafts default to `stdlib` and retain the conservative
@@ -235,7 +208,7 @@ Python drafts default to `stdlib` and retain the conservative
 That profile reuses Pyodide for NumPy, SciPy, pandas, scikit-learn, and
 statsmodels, and WebR for base R and its bundled statistical packages. Both run
 under the same AgentRuntime execution, content-hashed artifact lineage,
-independent semantic review, and repair loop. Only SimulationEngineer owns the
+independent semantic review, and model-owned regeneration loop. Only SimulationEngineer owns the
 confirmatory DGP performance metric contract; AlgorithmEngineer owns executable
 implementation fidelity and smoke diagnostics.
 The outer macOS sandbox denies network, process forking, and non-runtime process
@@ -247,20 +220,21 @@ closed. This is a coding environment capability, not a second orchestration
 plane and not proof evidence.
 
 Capability evaluation also separates metric-protocol authorship from protocol
-acceptance. The Sonnet Architect metric planner proposes a complete typed
+acceptance. The Architect metric planner proposes a complete typed
 requirement set after TheoryDeveloper has named the procedure, estimand,
 assumptions, pivots, and experimental regime and AlgorithmEngineer has produced
 an independently reviewed implementation, but before any confirmatory simulation
-result exists. The runtime records an explicit
+result exists. Evaluation uses exact Haiku; production may use Haiku or Sonnet.
+The runtime records an explicit
 `theory_prerequisite_pending -> theory_informed_authoring_required ->
 preexecution_review_accepted` phase transition and does not authorize
-confirmatory simulation in either pending phase. A separate Sonnet agent invocation checks
+confirmatory simulation in either pending phase. A separate model invocation checks
 question/estimand alignment, identifiability, mathematical and numeric
 consistency, finite-sample attainability, exact evaluator semantics, and
 cross-requirement consistency. Every accepted claim review must reconstruct
 normalization and sample-size order from cited theory/protocol primitives;
 unresolved assumptions or conflicting orders force `REVISE` instead of being
-erased by packet repair. For a rejected candidate, a second Sonnet agent
+erased by packet regeneration. For a rejected candidate, an independent model
 independently decides which immutable artifact must change. It sees the source
 theory, metric candidate, and substantive findings, but not the reviewer's
 scope label or global repair instruction. A metric-only decision returns to the
@@ -310,7 +284,7 @@ They are packet-completeness bounds, not a definition of research quality or a
 claim that five to eight steps are mathematically sufficient. Independent
 review remains the authority, and a later artifact-backed theory workspace may
 expand beyond this handoff packet when the derivation requires it.
-Both compact discovery and serious capability/upstream-revision turns use Sonnet,
+All evaluation turns use exact Haiku. Production may select Haiku or Sonnet,
 with the serious workspace receiving a separate configuration and at least an
 8000-token output budget. Runtime topology resolves and checks the actual model
 ID and contextual tier before any agent runs. Workspace depth comes from context,

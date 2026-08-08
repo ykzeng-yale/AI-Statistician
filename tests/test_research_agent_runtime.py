@@ -21973,7 +21973,7 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
     )
 
 
-def test_rejected_generated_code_returns_directly_to_same_producer(
+def test_semantically_rejected_accepted_candidate_returns_to_same_producer(
     tmp_path: Path,
 ) -> None:
     question = OpenResearchQuestion(
@@ -22006,8 +22006,8 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
     prototype = {
         "estimator_id": "candidate",
         "executor": "generated_python_sandbox",
-        "prototype_status": "FAILED_METRIC_GATE",
-        "smoke_passed": False,
+        "prototype_status": "EXECUTED",
+        "smoke_passed": True,
         "execution_smoke_passed": True,
         "script_path": str(script_path),
         "script_hash": runtime_module.stable_hash(source),
@@ -22016,8 +22016,7 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
         "metrics": result_payload,
         "runtime_seed": 7,
         "runtime_replicates": 9,
-        "metric_contract_evaluation": {"all_required_passed": False},
-        "metric_gate_errors": ["declared estimand gate failed"],
+        "metric_contract_evaluation": {"all_required_passed": True},
         "source_llm_proposal_id": proposal["packet_id"],
     }
     prototype["prototype_artifact_id"] = (
@@ -22030,19 +22029,6 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
         "prototypes": [prototype],
         "empirical_evaluation_phase": "confirmatory",
         "confirmatory_empirical_evidence_eligible": True,
-    }
-    failure_classification = "generated_algorithm_sandbox_metric_gate_failed"
-    metric_failure_feedback = {
-        "feedback_id": _generated_sandbox_feedback_id(
-            feedback_type="algorithm_sandbox_execution_feedback",
-            source_manifest_id=manifest["manifest_id"],
-            failure_classification=failure_classification,
-            prototype_rows=[prototype],
-        ),
-        "feedback_type": "algorithm_sandbox_execution_feedback",
-        "algorithm_sandbox_manifest_id": manifest["manifest_id"],
-        "failure_classification": failure_classification,
-        "prototypes": [prototype],
     }
     source_task = AgentTask(
         task_id="algorithm:direct-regeneration",
@@ -22088,14 +22074,11 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
         architect_context=source_task.inputs["architect_context"],
         deferred_next_task=deferred_task,
         max_revisions=1,
-        metric_failure_feedback=metric_failure_feedback,
     )
     assert dispatch is not None
     work_order = dispatch["work_order"]
     work_order_id = dispatch["work_order_id"]
-    assert work_order["source_execution_feedback"]["feedback_id"] == (
-        metric_failure_feedback["feedback_id"]
-    )
+    assert "source_execution_feedback" not in work_order
     review_response = {
         "prior_finding_reviews": [],
         "dimension_reviews": {
@@ -22155,12 +22138,7 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
     assert "runtime_architect_operation" not in review_result.next_task.inputs
     feedback = review_result.next_task.inputs["environment_feedback"]
     assert feedback["overall_verdict"] == "REVISE"
-    assert feedback["source_execution_feedback"]["feedback_id"] == (
-        metric_failure_feedback["feedback_id"]
-    )
-    assert feedback["source_execution_feedback"]["prototypes"][0][
-        "prototype_artifact_id"
-    ] == prototype["prototype_artifact_id"]
+    assert "source_execution_feedback" not in feedback
     assert "source_execution_diagnostic" not in feedback
     assert feedback["observation_status"] == "CURRENT_ACTIVE_OBSERVATION"
     assert feedback["superseded_observations"][-1][
@@ -47329,7 +47307,7 @@ def test_algorithm_engineer_ignores_self_authored_statistical_gate(
     assert result.next_task.owner_subsystem == "FormalizationEvaluator"
 
 
-def test_agent_runtime_repairs_generated_algorithm_execution_failure(
+def test_agent_runtime_regenerates_algorithm_after_execution_failure(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -47431,6 +47409,7 @@ def test_agent_runtime_repairs_generated_algorithm_execution_failure(
                 seed=20260623,
                 proposal_agent=proposal_agent,
                 timeout_s=20,
+                semantic_reviewer_available=True,
             )
         },
     )
@@ -47511,7 +47490,9 @@ def test_agent_runtime_repairs_generated_algorithm_execution_failure(
     assert result.traces[0].next_task.owner_subsystem == "AlgorithmEngineer"
     assert result.traces[1].status == "REROUTE"
     assert result.traces[1].next_task is not None
-    assert result.traces[1].next_task.owner_subsystem == "FormalizationEvaluator"
+    assert result.traces[1].next_task.owner_subsystem == (
+        "GeneratedCodeSemanticReviewer"
+    )
 
     algorithm_manifests = [
         artifact
@@ -47529,8 +47510,10 @@ def test_agent_runtime_repairs_generated_algorithm_execution_failure(
         manifest for manifest in algorithm_manifests if manifest["n_passed"] == 1
     )
     assert failed_manifest["prototypes"][0]["prototype_status"] == "FAILED"
+    assert failed_manifest["generated_code_semantic_review_pending"] is False
     assert failed_manifest["prototypes"][0]["executor"] == "generated_python_sandbox"
     assert passed_manifest["prototypes"][0]["prototype_status"] == "EXECUTED"
+    assert passed_manifest["generated_code_semantic_review_pending"] is True
     assert passed_manifest["prototypes"][0]["executor"] == "generated_python_sandbox"
     algorithm_lineage = passed_manifest["prototypes"][0]["repair_lineage"]
     assert algorithm_lineage["parent_manifest_id"] == failed_manifest["manifest_id"]
@@ -47754,7 +47737,7 @@ def test_algorithm_engineer_regenerates_instead_of_refreshing_legacy_metric_gate
     )
 
 
-def test_agent_runtime_blocks_exhausted_code_local_algorithm_regeneration(
+def test_agent_runtime_routes_exhausted_algorithm_lineage_to_architect(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -47848,7 +47831,7 @@ def test_agent_runtime_blocks_exhausted_code_local_algorithm_regeneration(
     initial_task = AgentTask(
         task_id="algorithm:integrated-generated-yield",
         owner_subsystem="AlgorithmEngineer",
-        objective="Yield unresolved generated-code repair diagnostics to formalization.",
+        objective="Route an exhausted generated-code lineage using raw diagnostics.",
         inputs={
             "question": {
                 "id": question.id,
@@ -47880,7 +47863,7 @@ def test_agent_runtime_blocks_exhausted_code_local_algorithm_regeneration(
 
     result = runtime.run(initial_task, max_iterations=3)
 
-    assert result.status == "BLOCKED", [
+    assert result.status == "ACCEPTED", [
         (
             trace.subsystem,
             trace.status,
@@ -47896,15 +47879,23 @@ def test_agent_runtime_blocks_exhausted_code_local_algorithm_regeneration(
     assert result.traces[0].status == "REVISE"
     assert result.traces[0].next_task is not None
     assert result.traces[0].next_task.owner_subsystem == "AlgorithmEngineer"
-    assert result.traces[1].status == "BLOCKED"
-    assert result.traces[1].next_task is None
-    assert len(result.traces) == 2
-    assert len(architect.tasks) == 0
+    assert result.traces[1].status == "REROUTE"
+    assert result.traces[1].next_task is not None
+    assert result.traces[1].next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.traces[2].subsystem == "ArchitectCoordinator"
+    assert len(result.traces) == 3
+    assert len(architect.tasks) == 1
     assert all(trace.subsystem != "TheoryDeveloper" for trace in result.traces)
     assert result.traces[1].failure_classification == (
-        "generated_algorithm_sandbox_execution_failed_"
-        "candidate_regeneration_budget_exhausted"
+        "generated_algorithm_sandbox_execution_failed"
     )
+    budget = architect.tasks[0].inputs["architect_context"][
+        "candidate_lineage_budget"
+    ]
+    assert budget["source_subsystem"] == "AlgorithmEngineer"
+    assert budget["attempts_used"] == 1
+    assert budget["max_attempts"] == 1
+    assert budget["budget_exhausted"] is True
 
 
 def test_algorithm_success_routes_to_required_generated_simulation_before_formalization(
@@ -48696,17 +48687,24 @@ def test_simulation_evaluator_returns_execution_exception_to_same_agent(
 
     exhausted = subsystem.run(result.next_task, blackboard)
 
-    assert exhausted.status == "BLOCKED"
-    assert exhausted.next_task is None
+    assert exhausted.status == "REROUTE"
+    assert exhausted.next_task is not None
+    assert exhausted.next_task.owner_subsystem == "ArchitectCoordinator"
     assert exhausted.failure_classification == (
-        "generated_simulation_sandbox_execution_failed_"
-        "candidate_regeneration_budget_exhausted"
+        "generated_simulation_sandbox_execution_failed"
     )
     assert any(
         observation.observation_type
-        == "simulation_candidate_regeneration_budget_exhausted"
+        == "simulation_candidate_lineage_architect_replan"
         for observation in exhausted.observations
     )
+    budget = exhausted.next_task.inputs["architect_context"][
+        "candidate_lineage_budget"
+    ]
+    assert budget["source_subsystem"] == "SimulationEvaluator"
+    assert budget["attempts_used"] == 1
+    assert budget["max_attempts"] == 1
+    assert budget["budget_exhausted"] is True
 
 
 def test_simulation_runtime_enforces_generated_code_required_from_learning_memory(
@@ -48981,7 +48979,7 @@ def test_simulation_evaluator_executes_safe_generated_simulation_code(tmp_path: 
     assert summary["simulation"]["n_generated_simulation_sandbox_passed"] == 1
 
 
-def test_agent_runtime_repairs_generated_simulation_metric_gate_failure(
+def test_agent_runtime_regenerates_simulation_after_metric_gate_failure(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -49266,7 +49264,7 @@ def test_agent_runtime_repairs_generated_simulation_metric_gate_failure(
     )
 
 
-def test_exhausted_simulation_review_defers_to_architect(
+def test_exhausted_simulation_metric_gate_routes_directly_to_architect(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(
@@ -49377,22 +49375,20 @@ def test_exhausted_simulation_review_defers_to_architect(
     )
 
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == (
-        "GeneratedCodeSemanticReviewer"
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert not any(
+        isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewWorkOrder"
+        for artifact in result.produced_artifacts.values()
     )
-    work_order = next(
+    manifest = next(
         artifact
         for artifact in result.produced_artifacts.values()
         if isinstance(artifact, dict)
-        and artifact.get("artifact_kind")
-        == "RuntimeGeneratedCodeSemanticReviewWorkOrder"
+        and artifact.get("artifact_kind") == "RuntimeSimulationManifest"
     )
-    assert work_order["deferred_next_task"]["owner_subsystem"] == (
-        "ArchitectCoordinator"
-    )
-    assert work_order["review_accepted_next_task"]["owner_subsystem"] == (
-        "ArchitectCoordinator"
-    )
+    assert manifest["generated_code_semantic_review_pending"] is False
 
 
 def test_agent_runtime_routes_exhausted_simulation_metric_gate_to_architect(
@@ -49566,21 +49562,18 @@ def test_agent_runtime_routes_exhausted_simulation_metric_gate_to_architect(
     assert feedback["failure_classification"] == (
         "generated_simulation_sandbox_metric_gate_failed"
     )
-    replan = replan_task.inputs["architect_context"][
-        "runtime_metric_gate_replan"
+    budget = replan_task.inputs["architect_context"][
+        "candidate_lineage_budget"
     ]
-    assert replan["source_subsystem"] == "SimulationEvaluator"
-    assert "deferred_next_owner_subsystem" not in replan
-    assert replan["candidate_revision_budget"]["budget_exhausted"] is True
-    assert replan["candidate_revision_budget"]["attempts_used"] == 1
-    assert replan["metric_evaluations"]
-    assert replan["metric_evaluations"][0]["passed"] is False
-    assert "Do not weaken, delete, or post-hoc reinterpret" in (
-        replan["gate_revision_policy"]
-    )
-    assert replan["proof_evidence_status"] == (
-        "CODING_AGENT_METRIC_GATE_REPLAN_NOT_PROOF_EVIDENCE"
-    )
+    assert budget["source_subsystem"] == "SimulationEvaluator"
+    assert budget["budget_exhausted"] is True
+    assert budget["attempts_used"] == 1
+    assert budget["max_attempts"] == 1
+    evaluations = feedback["generated_simulation_prototypes"][0][
+        "metric_contract_evaluation"
+    ]["evaluations"]
+    assert evaluations
+    assert evaluations[0]["passed"] is False
 
 
 def test_architect_selection_ignores_legacy_fixed_metric_detour() -> None:
@@ -49800,12 +49793,17 @@ def test_exhausted_simulation_metric_gate_replan_does_not_fix_algorithm_route(
     assert feedback["failure_classification"] == (
         "generated_simulation_sandbox_metric_gate_failed"
     )
-    replan = replan_task.inputs["architect_context"][
-        "runtime_metric_gate_replan"
+    budget = replan_task.inputs["architect_context"][
+        "candidate_lineage_budget"
     ]
-    assert "deferred_next_owner_subsystem" not in replan
-    assert replan["metric_evaluations"][0]["passed"] is False
-    assert replan["pending_artifact_ids"]["theory_packet_id"] == theory_packet_id
+    assert budget["source_subsystem"] == "SimulationEvaluator"
+    assert budget["budget_exhausted"] is True
+    assert feedback["generated_simulation_prototypes"][0][
+        "metric_contract_evaluation"
+    ]["evaluations"][0]["passed"] is False
+    assert replan_task.inputs["architect_context"]["theory_packet_id"] == (
+        theory_packet_id
+    )
 
 
 def test_generated_simulation_sandbox_accepts_nested_coverage_metrics() -> None:
@@ -50603,6 +50601,7 @@ def test_generated_simulation_sandbox_requires_explicit_metric_path(
     subsystem = SimulationEvaluatorRuntimeSubsystem(
         proposal_agent=HiddenCoverageSimulationEngineer(),
         sandbox_root=tmp_path / "generated_simulation_sandbox",
+        semantic_reviewer_available=True,
     )
     task = AgentTask(
         task_id="simulation:hidden-coverage",
@@ -50631,10 +50630,19 @@ def test_generated_simulation_sandbox_requires_explicit_metric_path(
     prototype = manifest["generated_simulation_sandbox_prototypes"][0]
 
     assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "SimulationEvaluator"
+    assert not any(
+        isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewWorkOrder"
+        for artifact in result.produced_artifacts.values()
+    )
     assert result.failure_classification == "generated_simulation_sandbox_metric_gate_failed"
     assert manifest["n_generated_simulation_sandbox_executed"] == 1
     assert manifest["n_generated_simulation_sandbox_passed"] == 0
     assert manifest["n_generated_simulation_sandbox_metric_gate_failed"] == 1
+    assert manifest["generated_code_semantic_review_pending"] is False
     assert prototype["prototype_status"] == "FAILED_METRIC_GATE"
     assert "required-result-path" in prototype["metric_gate_errors"][0]
     assert "resolved no values" in prototype["metric_gate_errors"][0]
@@ -50764,7 +50772,7 @@ def test_generated_sandbox_repair_sequence_counts_require_explicit_artifact_line
     )
 
 
-def test_generated_simulation_repair_preserves_execution_and_review_lineage() -> None:
+def test_generated_simulation_regeneration_preserves_execution_and_review_lineage() -> None:
     failed_row = {
         "executor": "generated_simulation_sandbox",
         "simulation_id": "sim",

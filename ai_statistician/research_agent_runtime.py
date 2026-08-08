@@ -11800,7 +11800,7 @@ class TheoryDeveloperRuntimeSubsystem:
             packet = dict(packet)
             packet.setdefault("parent_theory_packet_id", prior_theory_packet_id)
             packet["runtime_revision_artifact"] = True
-            context = _runtime_context_with_reset_empirical_source_repair_attempts(
+            context = _runtime_context_with_reset_candidate_regenerations(
                 context
             )
         context["theory_packet_id"] = packet_id
@@ -13071,70 +13071,6 @@ def _runtime_generated_code_semantic_review_rows(
     return rows
 
 
-def _runtime_generated_code_candidate_revision_budget_state(
-    *,
-    source_subsystem: str,
-    source_task: AgentTask,
-) -> dict[str, Any]:
-    """Expose the source model's bounded full-candidate regeneration count."""
-
-    context = source_task.inputs.get("architect_context", {})
-    context = dict(context) if isinstance(context, Mapping) else {}
-    feedback = source_task.inputs.get("environment_feedback", {})
-    feedback = dict(feedback) if isinstance(feedback, Mapping) else {}
-    theory_packet_id = str(
-        source_task.inputs.get("theory_packet_id", "")
-        or _architect_context_theory_packet_id(context)
-        or ""
-    )
-    if source_subsystem == "SimulationEvaluator":
-        yield_after_attempts = (
-            _runtime_simulation_evaluator_generated_code_repair_yield_after_attempts(
-                context,
-                feedback,
-            )
-        )
-        attempts_used = (
-            _runtime_simulation_evaluator_generated_code_repair_attempts_used(
-                context,
-                theory_packet_id=theory_packet_id,
-            )
-        )
-    elif source_subsystem == "AlgorithmEngineer":
-        yield_after_attempts = (
-            _runtime_algorithm_engineer_generated_code_repair_yield_after_attempts(
-                context,
-                feedback,
-            )
-        )
-        attempts_used = (
-            _runtime_algorithm_engineer_generated_code_repair_attempts_used(
-                context,
-                theory_packet_id=theory_packet_id,
-            )
-        )
-    else:
-        yield_after_attempts = 0
-        attempts_used = 0
-    return {
-        "source_subsystem": source_subsystem,
-        "theory_packet_id": theory_packet_id,
-        "attempts_used": max(0, int(attempts_used or 0)),
-        "yield_after_attempts": max(
-            0,
-            int(yield_after_attempts or 0),
-        ),
-        "budget_exhausted": bool(
-            int(yield_after_attempts or 0) > 0
-            and int(attempts_used or 0) >= int(yield_after_attempts or 0)
-        ),
-        "authority": "runtime_candidate_revision_budget",
-        "proof_evidence_status": (
-            "CANDIDATE_REVISION_BUDGET_STATE_NOT_PROOF_EVIDENCE"
-        ),
-    }
-
-
 def _runtime_generated_code_semantic_review_dispatch(
     *,
     task: AgentTask,
@@ -13146,7 +13082,6 @@ def _runtime_generated_code_semantic_review_dispatch(
     architect_context: Mapping[str, Any],
     deferred_next_task: AgentTask,
     max_revisions: int,
-    metric_failure_feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     review_rows = _runtime_generated_code_semantic_review_rows(
         source_manifest,
@@ -13217,33 +13152,6 @@ def _runtime_generated_code_semantic_review_dispatch(
             ),
         )
     )
-    has_required_metric_failure = any(
-        isinstance(row.get("metric_contract_evaluation", {}), Mapping)
-        and row.get("metric_contract_evaluation", {}).get("all_required_passed")
-        is False
-        for row in review_rows
-    )
-    expected_metric_failure_classification = {
-        "AlgorithmEngineer": "generated_algorithm_sandbox_metric_gate_failed",
-        "SimulationEvaluator": "generated_simulation_sandbox_metric_gate_failed",
-    }.get(source_subsystem, "")
-    trusted_metric_failure_feedback = (
-        dict(metric_failure_feedback)
-        if isinstance(metric_failure_feedback, Mapping)
-        and has_required_metric_failure
-        and str(metric_failure_feedback.get("failure_classification", "") or "")
-        == expected_metric_failure_classification
-        else {}
-    )
-    accepted_next_task = deferred_next_task
-    if trusted_metric_failure_feedback:
-        accepted_next_task = _coding_agent_metric_gate_architect_task(
-            task=task,
-            question=question,
-            context=architect_context,
-            metric_feedback=trusted_metric_failure_feedback,
-            source_manifest_id=manifest_id,
-        )
     work_order_id = "generated_code_semantic_review_work_order:" + stable_hash(
         [task.task_id, manifest_id, reviewed_artifacts, review_revision_count]
     )[:20]
@@ -13266,13 +13174,6 @@ def _runtime_generated_code_semantic_review_dispatch(
         "source_model": str(proposal.get("model", "") or ""),
         "source_model_tier": str(proposal.get("model_tier", "") or ""),
         "reviewed_artifacts": reviewed_artifacts,
-        "source_execution_feedback": (
-            _generated_sandbox_execution_feedback_snapshot(
-                trusted_metric_failure_feedback
-            )
-            if trusted_metric_failure_feedback
-            else {}
-        ),
         "architect_evidence_contract": (
             dict(evidence_contract) if isinstance(evidence_contract, Mapping) else {}
         ),
@@ -13289,7 +13190,7 @@ def _runtime_generated_code_semantic_review_dispatch(
         ),
         "source_task": asdict(task),
         "deferred_next_task": asdict(deferred_next_task),
-        "review_accepted_next_task": asdict(accepted_next_task),
+        "review_accepted_next_task": asdict(deferred_next_task),
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
         ),
@@ -13308,8 +13209,8 @@ def _runtime_generated_code_semantic_review_dispatch(
             "and theory derivation without treating the run as confirmatory evidence."
             if not confirmatory_empirical_evidence_eligible
             else "Independently review the statistical and experimental semantics of "
-            "the exact generated code, actual runtime arguments, returned metrics, "
-            "theory derivation, and Architect-frozen measurement protocol."
+            "the exact generated code, actual runtime arguments, result schema, "
+            "theory derivation, and Architect-authored interface contract."
         ),
         inputs={
             "question": _question_to_payload(question),
@@ -16019,6 +15920,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             ),
             "generated_code_semantic_review_pending": bool(
                 self.semantic_reviewer_available
+                and not generated_simulation_revision_required
                 and any(
                     row.get("smoke_passed") is True
                     or row.get("execution_smoke_passed") is True
@@ -16156,7 +16058,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                 "architect_acceptance_gate": simulation_control.get("acceptance_gate", ""),
             },
         )
-        semantic_review_deferred_next_task: AgentTask | None = None
         if generated_simulation_revision_required:
             generated_simulation_failure_classification = (
                 "accepted_algorithm_estimator_abi_failed"
@@ -16181,22 +16082,22 @@ class SimulationEvaluatorRuntimeSubsystem:
                 failure_classification=generated_simulation_failure_classification,
             )
             yield_after_attempts = (
-                _runtime_simulation_evaluator_generated_code_repair_yield_after_attempts(
+                _runtime_simulation_evaluator_candidate_regeneration_limit(
                     effective_context,
                     feedback,
                 )
             )
-            repair_attempts_used = (
-                _runtime_simulation_evaluator_generated_code_repair_attempts_used(
+            regeneration_attempts_used = (
+                _runtime_simulation_evaluator_candidate_regenerations_used(
                     effective_context,
                     theory_packet_id=packet_id,
                 )
             )
-            repair_budget_exhausted = bool(
+            regeneration_budget_exhausted = bool(
                 yield_after_attempts > 0
-                and repair_attempts_used >= yield_after_attempts
+                and regeneration_attempts_used >= yield_after_attempts
             )
-            if repair_budget_exhausted:
+            if regeneration_budget_exhausted:
                 deferred_metric_protocol_payload = task.inputs.get(
                     "deferred_metric_protocol_task", {}
                 )
@@ -16231,11 +16132,8 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "non-confirmatory diagnostics remain visible while the existing "
                         "Architect metric-protocol gate resumes."
                     )
-                elif (
-                    generated_simulation_failure_classification
-                    == "generated_simulation_sandbox_metric_gate_failed"
-                ):
-                    next_task = _coding_agent_metric_gate_architect_task(
+                else:
+                    next_task = _coding_agent_revision_budget_architect_task(
                         task=task,
                         question=question,
                         context={
@@ -16243,72 +16141,19 @@ class SimulationEvaluatorRuntimeSubsystem:
                             "theory_packet_id": packet_id,
                             "simulation_manifest_id": manifest_id,
                         },
-                        metric_feedback=feedback,
-                        source_manifest_id=manifest_id,
+                        revision_feedback=feedback,
+                        source_artifact_id=manifest_id,
+                        revision_attempts_used=regeneration_attempts_used,
+                        revision_max_attempts=yield_after_attempts,
                     )
-                    semantic_review_deferred_next_task = next_task
                     yield_observation_type = (
-                        "simulation_metric_gate_architect_replan"
+                        "simulation_candidate_lineage_architect_replan"
                     )
                     yield_summary = (
-                        "SimulationEvaluator exhausted its local metric revision "
-                        "budget; exact empirical failures are routed to "
-                        "ArchitectCoordinator to choose theory, measurement, or "
-                        "implementation work without weakening the frozen gate."
-                    )
-                else:
-                    observations.append(
-                        EnvironmentObservation(
-                            observation_type=(
-                                "simulation_candidate_regeneration_budget_exhausted"
-                            ),
-                            summary=(
-                                "SimulationEvaluator exhausted its bounded complete-"
-                                "candidate regeneration budget on a code-local failure."
-                            ),
-                            payload={
-                                "simulation_manifest_id": manifest_id,
-                                "failure_classification": (
-                                    generated_simulation_failure_classification
-                                ),
-                                "revision_attempts_used": repair_attempts_used,
-                                "revision_max_attempts": yield_after_attempts,
-                                "complete_parent_source_supplied": all(
-                                    row.get("parent_source_complete") is True
-                                    for row in feedback.get(
-                                        "generated_simulation_prototypes", []
-                                    )
-                                    if isinstance(row, Mapping)
-                                ),
-                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                            },
-                        )
-                    )
-                    return AgentStepResult(
-                        status="BLOCKED",
-                        rationale=(
-                            "The same SimulationEvaluator model received the complete "
-                            "candidate and raw diagnostics for every bounded "
-                            "regeneration attempt, but no executable candidate was "
-                            "produced. Runtime records the producer-local blocker "
-                            "without inventing a patch or rerouting a code error into "
-                            "theory work."
-                        ),
-                        produced_artifacts=produced_artifacts,
-                        observations=tuple(observations),
-                        tool_calls=(
-                            *registered_simulator_tool_calls,
-                            *generated_simulation_tool_calls,
-                        ),
-                        evidence_entries=tuple(
-                            row
-                            for row in (proposal_evidence, evidence)
-                            if row is not None
-                        ),
-                        failure_classification=(
-                            generated_simulation_failure_classification
-                            + "_candidate_regeneration_budget_exhausted"
-                        ),
+                        "SimulationEvaluator exhausted its bounded complete-candidate "
+                        "regeneration budget; the exact candidate and observations "
+                        "are routed to ArchitectCoordinator without runtime diagnosis "
+                        "or source edits."
                     )
                 observations.append(
                     EnvironmentObservation(
@@ -16319,7 +16164,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                             "failure_classification": (
                                 generated_simulation_failure_classification
                             ),
-                            "revision_attempts_used": repair_attempts_used,
+                            "revision_attempts_used": regeneration_attempts_used,
                             "revision_max_attempts": yield_after_attempts,
                             "next_owner_subsystem": next_task.owner_subsystem,
                             "n_open_implementation_gaps": len(
@@ -16355,7 +16200,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "handoff": "simulation_evaluator_generated_code_repair",
                     "simulation_manifest_id": manifest_id,
                     "simulation_evaluator_generated_code_repair_attempts_used": (
-                        repair_attempts_used + 1
+                        regeneration_attempts_used + 1
                     ),
                     "simulation_evaluator_generated_code_repair_theory_packet_id": (
                         packet_id
@@ -16421,55 +16266,10 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "stress-test evidence; routing diagnostics back to "
                     "SimulatorEngineer."
                 )
-            semantic_review_evidence: EvidenceLedgerEntry | None = None
-            if self.semantic_reviewer_available:
-                semantic_review_dispatch = (
-                    _runtime_generated_code_semantic_review_dispatch(
-                        task=task,
-                        question=question,
-                        source_subsystem="SimulationEvaluator",
-                        source_manifest=manifest,
-                        theory_packet=(
-                            packet if isinstance(packet, Mapping) else {}
-                        ),
-                        proposal_packet=proposal_packet,
-                        architect_context=effective_context,
-                        deferred_next_task=(
-                            semantic_review_deferred_next_task or next_task
-                        ),
-                        max_revisions=self.semantic_review_max_revisions,
-                        metric_failure_feedback=(
-                            feedback
-                            if generated_simulation_failure_classification
-                            == "generated_simulation_sandbox_metric_gate_failed"
-                            else None
-                        ),
-                    )
-                )
-                if semantic_review_dispatch is not None:
-                    work_order_id = str(
-                        semantic_review_dispatch["work_order_id"]
-                    )
-                    produced_artifacts[work_order_id] = (
-                        semantic_review_dispatch["work_order"]
-                    )
-                    observations.append(semantic_review_dispatch["observation"])
-                    semantic_review_evidence = semantic_review_dispatch["evidence"]
-                    next_task = semantic_review_dispatch["next_task"]
-                    simulation_rationale = (
-                        "Generated simulation code executed but did not satisfy all "
-                        "gates; the exact source, runtime result, theory packet, and "
-                        "frozen protocol are routed to independent semantic review "
-                        "before complete model regeneration or architectural replanning."
-                    )
             return AgentStepResult(
                 status=(
                     "REROUTE"
-                    if next_task.owner_subsystem
-                    in {
-                        "ArchitectCoordinator",
-                        GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
-                    }
+                    if next_task.owner_subsystem == "ArchitectCoordinator"
                     else "REVISE"
                 ),
                 rationale=simulation_rationale,
@@ -16484,7 +16284,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                     for row in (
                         proposal_evidence,
                         evidence,
-                        semantic_review_evidence,
                     )
                     if row is not None
                 ),
@@ -17245,6 +17044,10 @@ class AlgorithmEngineerRuntimeSubsystem:
                 )
             )
         )
+        manifest["generated_code_semantic_review_pending"] = bool(
+            manifest.get("generated_code_semantic_review_pending")
+            and not revision_required
+        )
         revision_failure_classification = (
             "generated_algorithm_sandbox_metric_gate_failed"
             if int(manifest.get("n_metric_gate_failed", 0) or 0) > 0
@@ -17270,110 +17073,62 @@ class AlgorithmEngineerRuntimeSubsystem:
                 failure_classification=revision_failure_classification,
             )
             yield_after_attempts = (
-                _runtime_algorithm_engineer_generated_code_repair_yield_after_attempts(
+                _runtime_algorithm_engineer_candidate_regeneration_limit(
                     effective_context,
                     feedback,
                 )
             )
-            repair_attempts_used = (
-                _runtime_algorithm_engineer_generated_code_repair_attempts_used(
+            regeneration_attempts_used = (
+                _runtime_algorithm_engineer_candidate_regenerations_used(
                     effective_context,
                     theory_packet_id=packet_id,
                 )
             )
-            local_repair_budget_exhausted = bool(
+            regeneration_budget_exhausted = bool(
                 requires_generated_algorithm_code
                 and yield_after_attempts > 0
-                and repair_attempts_used >= yield_after_attempts
+                and regeneration_attempts_used >= yield_after_attempts
             )
-            if local_repair_budget_exhausted:
-                if (
-                    revision_failure_classification
-                    == "generated_algorithm_sandbox_metric_gate_failed"
-                ):
-                    next_task = _coding_agent_metric_gate_architect_task(
-                        task=task,
-                        question=question,
-                        context={
-                            **effective_context,
-                            "theory_packet_id": packet_id,
-                            "simulation_manifest_id": simulation_manifest_id,
+            if regeneration_budget_exhausted:
+                next_task = _coding_agent_revision_budget_architect_task(
+                    task=task,
+                    question=question,
+                    context={
+                        **effective_context,
+                        "theory_packet_id": packet_id,
+                        "simulation_manifest_id": simulation_manifest_id,
+                        "algorithm_sandbox_manifest_id": manifest_id,
+                    },
+                    revision_feedback=feedback,
+                    source_artifact_id=manifest_id,
+                    revision_attempts_used=regeneration_attempts_used,
+                    revision_max_attempts=yield_after_attempts,
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "algorithm_candidate_lineage_architect_replan"
+                        ),
+                        summary=(
+                            "AlgorithmEngineer exhausted its bounded complete-candidate "
+                            "regeneration budget; the exact candidate and observations "
+                            "are routed to ArchitectCoordinator without runtime "
+                            "diagnosis or source edits."
+                        ),
+                        payload={
                             "algorithm_sandbox_manifest_id": manifest_id,
+                            "failure_classification": revision_failure_classification,
+                            "revision_attempts_used": regeneration_attempts_used,
+                            "revision_max_attempts": yield_after_attempts,
+                            "complete_parent_source_supplied": all(
+                                row.get("parent_source_complete") is True
+                                for row in feedback.get("prototypes", [])
+                                if isinstance(row, Mapping)
+                            ),
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                         },
-                        metric_feedback=feedback,
-                        source_manifest_id=manifest_id,
                     )
-                    observations.append(
-                        EnvironmentObservation(
-                            observation_type=(
-                                "algorithm_metric_gate_architect_replan"
-                            ),
-                            summary=(
-                                "AlgorithmEngineer exhausted its local candidate "
-                                "budget on an empirical gate; exact observations are "
-                                "routed to ArchitectCoordinator for cross-owner "
-                                "diagnosis without weakening the gate."
-                            ),
-                            payload={
-                                "algorithm_sandbox_manifest_id": manifest_id,
-                                "failure_classification": (
-                                    revision_failure_classification
-                                ),
-                                "revision_attempts_used": repair_attempts_used,
-                                "revision_max_attempts": yield_after_attempts,
-                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                            },
-                        )
-                    )
-                else:
-                    observations.append(
-                        EnvironmentObservation(
-                            observation_type=(
-                                "algorithm_candidate_regeneration_budget_exhausted"
-                            ),
-                            summary=(
-                                "AlgorithmEngineer exhausted its bounded complete-"
-                                "candidate regeneration budget on a code-local failure."
-                            ),
-                            payload={
-                                "algorithm_sandbox_manifest_id": manifest_id,
-                                "failure_classification": (
-                                    revision_failure_classification
-                                ),
-                                "revision_attempts_used": repair_attempts_used,
-                                "revision_max_attempts": yield_after_attempts,
-                                "complete_parent_source_supplied": all(
-                                    row.get("parent_source_complete") is True
-                                    for row in feedback.get("prototypes", [])
-                                    if isinstance(row, Mapping)
-                                ),
-                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                            },
-                        )
-                    )
-                    return AgentStepResult(
-                        status="BLOCKED",
-                        rationale=(
-                            "The same AlgorithmEngineer model received the complete "
-                            "candidate and raw diagnostics for every bounded "
-                            "regeneration attempt, but no executable candidate was "
-                            "produced. Runtime records the producer-local blocker "
-                            "without inventing a patch or rerouting a code error into "
-                            "theory work."
-                        ),
-                        produced_artifacts=produced_artifacts,
-                        observations=tuple(observations),
-                        tool_calls=tuple(tool_calls),
-                        evidence_entries=tuple(
-                            row
-                            for row in (proposal_evidence, evidence)
-                            if row is not None
-                        ),
-                        failure_classification=(
-                            revision_failure_classification
-                            + "_candidate_regeneration_budget_exhausted"
-                        ),
-                    )
+                )
             else:
                 revision_context = dict(effective_context)
                 revision_context["previous_algorithm_sandbox_manifest_id"] = (
@@ -17392,7 +17147,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                     "handoff": "algorithm_engineer_generated_code_repair",
                     "algorithm_sandbox_manifest_id": manifest_id,
                     "algorithm_engineer_generated_code_repair_attempts_used": (
-                        repair_attempts_used + 1
+                        regeneration_attempts_used + 1
                     ),
                     "algorithm_engineer_generated_code_repair_theory_packet_id": (
                         packet_id
@@ -17540,7 +17295,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                     "pre_metric_implementation_semantic_reviewer_unavailable"
                 ),
             )
-        if self.semantic_reviewer_available:
+        if self.semantic_reviewer_available and not revision_required:
             semantic_review_dispatch = _runtime_generated_code_semantic_review_dispatch(
                 task=task,
                 question=question,
@@ -17551,13 +17306,6 @@ class AlgorithmEngineerRuntimeSubsystem:
                 architect_context=effective_context,
                 deferred_next_task=next_task,
                 max_revisions=self.semantic_review_max_revisions,
-                metric_failure_feedback=(
-                    feedback
-                    if revision_required
-                    and revision_failure_classification
-                    == "generated_algorithm_sandbox_metric_gate_failed"
-                    else None
-                ),
             )
             if semantic_review_dispatch is not None:
                 work_order_id = str(semantic_review_dispatch["work_order_id"])
@@ -17637,18 +17385,11 @@ class AlgorithmEngineerRuntimeSubsystem:
             if row is not None
         ]
         if revision_required:
-            if next_task.owner_subsystem == GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM:
+            if next_task.owner_subsystem == "ArchitectCoordinator":
                 algorithm_rationale = (
-                    "Generated algorithm code executed but did not satisfy all gates; "
-                    "the exact source, runtime result, theory packet, and frozen "
-                    "protocol are routed to independent semantic review before complete "
-                    "model regeneration or architectural replanning."
-                )
-            elif next_task.owner_subsystem == "ArchitectCoordinator":
-                algorithm_rationale = (
-                    "AlgorithmEngineer repeatedly missed an independent "
-                    "empirical gate; exact evaluations are routed to "
-                    "ArchitectCoordinator for cross-subsystem diagnosis."
+                    "AlgorithmEngineer exhausted its complete-candidate regeneration "
+                    "budget; the exact candidate and raw observations are routed to "
+                    "ArchitectCoordinator without runtime diagnosis."
                 )
             else:
                 algorithm_rationale = (
@@ -17872,16 +17613,35 @@ def _coding_agent_revision_budget_architect_task(
 ) -> AgentTask:
     replan_context = dict(context)
     replan_context["environment_feedback"] = dict(revision_feedback)
+    failure_classification = str(
+        revision_feedback.get("failure_classification", "") or ""
+    )
+    candidate_lineage_budget = {
+        "artifact_kind": "RuntimeCandidateLineageBudget",
+        "source_subsystem": task.owner_subsystem,
+        "source_artifact_id": source_artifact_id,
+        "feedback_id": str(revision_feedback.get("feedback_id", "") or ""),
+        "failure_classification": failure_classification,
+        "attempts_used": int(revision_attempts_used),
+        "max_attempts": int(revision_max_attempts),
+        "budget_exhausted": bool(
+            revision_max_attempts > 0
+            and revision_attempts_used >= revision_max_attempts
+        ),
+        "authority": "runtime_lineage_budget_only",
+        "proof_evidence_status": "CANDIDATE_LINEAGE_BUDGET_NOT_PROOF_EVIDENCE",
+    }
+    replan_context["candidate_lineage_budget"] = candidate_lineage_budget
     replan_context["runtime_coding_agent_revision_budget_replan"] = {
         "artifact_kind": "RuntimeCodingAgentRevisionBudgetReplanContext",
         "source_task_id": task.task_id,
         "source_subsystem": task.owner_subsystem,
         "source_artifact_id": source_artifact_id,
-        "failure_classification": str(
-            revision_feedback.get("failure_classification", "") or ""
-        ),
+        "feedback_id": candidate_lineage_budget["feedback_id"],
+        "failure_classification": failure_classification,
         "revision_attempts_used": int(revision_attempts_used),
         "revision_max_attempts": int(revision_max_attempts),
+        "candidate_lineage_budget": candidate_lineage_budget,
         "implementation_gaps": [
             dict(row)
             for row in task.inputs.get("implementation_gaps", []) or []
@@ -17921,120 +17681,6 @@ def _coding_agent_revision_budget_architect_task(
         ),
         stop_condition=(
             "amended route selects a theory, code, interface, or environment owner"
-        ),
-    )
-
-
-def _coding_agent_metric_gate_architect_task(
-    *,
-    task: AgentTask,
-    question: OpenResearchQuestion,
-    context: Mapping[str, Any],
-    metric_feedback: Mapping[str, Any],
-    source_manifest_id: str,
-) -> AgentTask:
-    """Route an independently reviewed empirical failure without gate weakening."""
-
-    replan_context = dict(context)
-    replan_context["environment_feedback"] = dict(metric_feedback)
-    candidate_revision_budget = (
-        _runtime_generated_code_candidate_revision_budget_state(
-        source_subsystem=task.owner_subsystem,
-        source_task=task,
-        )
-    )
-    prototype_rows = [
-        dict(row)
-        for key in (
-            "generated_simulation_prototypes",
-            "generated_algorithm_prototypes",
-            "prototypes",
-        )
-        for row in metric_feedback.get(key, []) or []
-        if isinstance(row, Mapping)
-    ]
-    metric_evaluations = [
-        dict(evaluation)
-        for row in prototype_rows
-        for evaluation in (
-            row.get("metric_contract_evaluation", {}).get("evaluations", [])
-            if isinstance(row.get("metric_contract_evaluation", {}), Mapping)
-            else []
-        )
-        if isinstance(evaluation, Mapping)
-    ]
-    replan_context["runtime_metric_gate_replan"] = {
-        "artifact_kind": "RuntimeCodingAgentMetricGateReplanContext",
-        "source_task_id": task.task_id,
-        "source_subsystem": task.owner_subsystem,
-        "source_manifest_id": source_manifest_id,
-        "failure_classification": str(
-            metric_feedback.get("failure_classification", "") or ""
-        ),
-        "feedback_id": str(metric_feedback.get("feedback_id", "") or ""),
-        "metric_evaluations": metric_evaluations,
-        "candidate_revision_budget": candidate_revision_budget,
-        "pending_artifact_ids": {
-            str(key): str(value)
-            for key, value in {
-                **{
-                    key: value
-                    for key, value in task.inputs.items()
-                    if str(key).endswith("_id")
-                },
-                **{
-                    key: value
-                    for key, value in context.items()
-                    if str(key).endswith("_id")
-                },
-            }.items()
-            if str(value).strip()
-        },
-        "gate_revision_policy": (
-            "Do not weaken, delete, or post-hoc reinterpret an Architect-authored "
-            "requirement to pass the current artifact. Route theory, DGP, "
-            "measurement, or implementation repair. If the frozen requirement "
-            "itself is malformed, record EVALUATION_PROTOCOL_REVISION_REQUIRED "
-            "and require a fresh candidate run; the current artifact remains "
-            "failed."
-        ),
-        "routing_contract": (
-            "ArchitectCoordinator must select the next evidence-producing "
-            "subsystem from the exact empirical diagnostics. Continuing another "
-            "lane is allowed, but the unresolved metric blocker must remain "
-            "visible and cannot be converted into proof or acceptance evidence."
-        ),
-        "proof_evidence_status": (
-            "CODING_AGENT_METRIC_GATE_REPLAN_NOT_PROOF_EVIDENCE"
-        ),
-    }
-    return AgentTask(
-        task_id=(
-            f"architect-metric-replan:{question.id}:"
-            f"{stable_hash([task.task_id, source_manifest_id, metric_feedback])[:8]}"
-        ),
-        owner_subsystem="ArchitectCoordinator",
-        objective=(
-            "Diagnose generated-code empirical gate failures across "
-            "theory, measurement protocol, simulation design, and implementation; "
-            "choose the next typed worker without weakening frozen evidence gates."
-        ),
-        inputs={
-            "question": _question_to_payload(question),
-            "architect_context": replan_context,
-            "environment_feedback": dict(metric_feedback),
-            "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
-        },
-        allowed_tools=("model_backend", "evidence_ledger"),
-        expected_artifacts=("architect_feedback_route_decision",),
-        acceptance_gate=(
-            "validated Architect proposal routes an evidence-producing repair or "
-            "records a fresh-run protocol blocker while preserving original "
-            "requirement fingerprints"
-        ),
-        stop_condition=(
-            "next subsystem selected, unresolved metric blocker retained, and no "
-            "current failed artifact promoted"
         ),
     )
 
@@ -61012,7 +60658,7 @@ def _runtime_positive_int_from_contract_sources(
     return 0
 
 
-def _runtime_algorithm_engineer_generated_code_repair_yield_after_attempts(
+def _runtime_algorithm_engineer_candidate_regeneration_limit(
     context: Mapping[str, Any],
     environment_feedback: Mapping[str, Any] | None = None,
 ) -> int:
@@ -61025,7 +60671,7 @@ def _runtime_algorithm_engineer_generated_code_repair_yield_after_attempts(
     )
 
 
-def _runtime_simulation_evaluator_generated_code_repair_yield_after_attempts(
+def _runtime_simulation_evaluator_candidate_regeneration_limit(
     context: Mapping[str, Any],
     environment_feedback: Mapping[str, Any] | None = None,
 ) -> int:
@@ -61057,7 +60703,7 @@ def _runtime_formalizer_lean_candidate_revision_max_attempts(
     )
 
 
-def _runtime_context_with_reset_empirical_source_repair_attempts(
+def _runtime_context_with_reset_candidate_regenerations(
     context: Mapping[str, Any],
 ) -> dict[str, Any]:
     updated = dict(context)
@@ -61078,7 +60724,7 @@ def _runtime_context_with_reset_empirical_source_repair_attempts(
     return updated
 
 
-def _runtime_algorithm_engineer_generated_code_repair_attempts_used(
+def _runtime_algorithm_engineer_candidate_regenerations_used(
     context: Mapping[str, Any],
     *,
     theory_packet_id: str = "",
@@ -61086,7 +60732,7 @@ def _runtime_algorithm_engineer_generated_code_repair_attempts_used(
     loop = context.get("runtime_feedback_loop", {})
     if not isinstance(loop, Mapping):
         return 0
-    repair_theory_packet_id = str(
+    regeneration_theory_packet_id = str(
         loop.get(
             "algorithm_engineer_generated_code_repair_theory_packet_id",
             "",
@@ -61095,8 +60741,8 @@ def _runtime_algorithm_engineer_generated_code_repair_attempts_used(
     )
     if (
         theory_packet_id
-        and repair_theory_packet_id
-        and repair_theory_packet_id != theory_packet_id
+        and regeneration_theory_packet_id
+        and regeneration_theory_packet_id != theory_packet_id
     ):
         return 0
     for key in (
@@ -61110,7 +60756,7 @@ def _runtime_algorithm_engineer_generated_code_repair_attempts_used(
     return 0
 
 
-def _runtime_simulation_evaluator_generated_code_repair_attempts_used(
+def _runtime_simulation_evaluator_candidate_regenerations_used(
     context: Mapping[str, Any],
     *,
     theory_packet_id: str = "",
@@ -61118,7 +60764,7 @@ def _runtime_simulation_evaluator_generated_code_repair_attempts_used(
     loop = context.get("runtime_feedback_loop", {})
     if not isinstance(loop, Mapping):
         return 0
-    repair_theory_packet_id = str(
+    regeneration_theory_packet_id = str(
         loop.get(
             "simulation_evaluator_generated_code_repair_theory_packet_id",
             "",
@@ -61127,8 +60773,8 @@ def _runtime_simulation_evaluator_generated_code_repair_attempts_used(
     )
     if (
         theory_packet_id
-        and repair_theory_packet_id
-        and repair_theory_packet_id != theory_packet_id
+        and regeneration_theory_packet_id
+        and regeneration_theory_packet_id != theory_packet_id
     ):
         return 0
     for key in (

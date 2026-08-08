@@ -1,11 +1,11 @@
 {
   "schema_version": 3,
-  "updated_at": "2026-08-08T20:19:09Z",
+  "updated_at": "2026-08-08T21:10:55Z",
   "role": "main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "main_objective": "Build and honestly evaluate one general, LLM-driven statistical research loop that derives theory, generates and executes scientific code, uses task-bound formal RAG, iterates against real environment feedback, and closes exact intended Lean theorems across unrelated task families.",
-  "current_lane": "Keep candidate revision model-owned and enforce a result-blind input boundary between code-semantic review and empirical gate evaluation.",
+  "current_lane": "Keep candidate regeneration model-owned while thinning the harness to execution observations, lineage budgets, independent acceptance review, and kernel authority.",
   "canonical_agent_feedback_contract": {
     "producer_ownership": "The same AlgorithmEngineer, SimulationEngineer, TheoryDeveloper, or Formalizer that authored a rejected candidate receives the complete parent candidate, raw validator or execution errors, exact environment observations, and immutable lineage.",
     "revision_action": "The producer regenerates a complete new candidate. Runtime never patches source, chooses a mathematical fix, supplies Lean grammar or tactic recipes, or substitutes a hidden repair agent.",
@@ -19,6 +19,9 @@
     ],
     "lean_aci": "replace_lean_source, search_formal_environment, check_lean_source, and submit_compiled_source are model-controlled tools. The runtime stores and checks exact model-authored source; it does not edit Lean.",
     "structured_output_regeneration": "The historically named llm_json_repair helper is a same-model generation loop, not a repair tool: it sends the original request, complete previous response, and raw validator errors back to the producer and validates the complete regenerated object. It performs no local semantic repair.",
+    "failed_candidate_path": "A validator, safety, execution, or metric failure returns directly to the same producing model with the complete candidate and raw observations. It does not detour through GeneratedCodeSemanticReviewer. Independent semantic review is an acceptance boundary for candidates that pass their current execution and metric gates.",
+    "exhausted_lineage_path": "When the unchanged candidate lineage reaches its configured regeneration budget, that producer is omitted only from the immediate Architect route. The Architect model may select any remaining existing evidence producer or record a blocker; a materially new parent artifact starts a fresh lineage.",
+    "architect_routing_input": "Architect sees raw current/superseded observations plus an allowlisted control-plane projection: artifact IDs and hashes, progress, evaluation phase, feedback-loop counts, and candidate-lineage budget. Legacy runtime replan prose and owner recommendations are not model input.",
     "forbidden_model_context": "Runtime-authored fix recipes, repair-owner recommendations, tool-order recipes, theorem-family patches, and Lean syntax or tactic recipes are stripped from model-facing observations."
   },
   "legacy_repair_policy": {
@@ -26,13 +29,15 @@
     "scope": "Historical *_repair_executor, *_repair_eval, replay-patch, and post-runtime formal modules remain legacy calibration or migration code, not production research authority.",
     "fresh_protocol_gate": "The frozen cross-family full-live CLI rejects deterministic exact-semantic Lean repair executors and attached coding/Formalizer repair evals.",
     "v292_observation": "No deterministic correction executor, attached repair eval, or legacy post-runtime formal fallback ran. The live path executed model-authored code and simulation, but did not reach Formalizer or Lean closure.",
+    "v293_observation": "The partial fresh run used exact Haiku and produced three distinct complete simulation-source hashes, confirming model-owned regeneration. It also exposed a redundant failed-candidate reviewer detour and repeated same-producer Architect routing; the run was intentionally stopped at iteration 22 before completion so API budget was not spent evaluating obsolete control flow.",
     "cleanup_direction": "Do not add another repair abstraction. Continue retiring legacy production reachability as typed same-agent ACI paths replace it."
   },
   "live_anthropic_model_policy": {
     "tests_and_evaluations": "claude-haiku-4-5-20251001 exactly",
     "production_maximum_tier": "sonnet",
     "opus_allowed": false,
-    "v292_topology": "9/9 enabled LLM agents used Anthropic claude-haiku-4-5-20251001; llm_topology_policy_status=OK. No Sonnet or Opus model was used."
+    "v292_topology": "9/9 enabled LLM agents used Anthropic claude-haiku-4-5-20251001; llm_topology_policy_status=OK. No Sonnet or Opus model was used.",
+    "current_live_route_probe": "Exact claude-haiku-4-5-20251001 selected AlgorithmEngineer rather than the exhausted SimulationEvaluator for a domain-neutral unchanged-lineage packet, using only raw observations plus allowlisted control-plane state and 0 structured-output regeneration attempts."
   },
   "current_readiness": {
     "ready_for_full_ai_statistician": false,
@@ -74,6 +79,15 @@
     },
     "interpretation": "The run proves that general model-authored coding and simulation execute, but it still closes 0/2 exact theorems. The observed semantic-review ownership error is being corrected generically; it is not permission to patch survival or sequential answers."
   },
+  "latest_partial_live_diagnostic": {
+    "run": "runs/main_worker_cross_family_development_20260808_v293_result_blind_semantic_review_exact_haiku",
+    "scope": "Partial fresh development run from baedd323; intentionally interrupted and not completion evidence.",
+    "model": "claude-haiku-4-5-20251001",
+    "observed": "Survival reached TheoryDeveloper, AlgorithmEngineer, accepted generated-code semantic review, metric authoring, and repeated generated SimulationEvaluator executions. Three complete simulation candidates had distinct source SHA-256 hashes.",
+    "design_failure": "Failed simulation candidates repeatedly passed through semantic review and Architect routing before another producer turn; Architect could immediately select the same exhausted source lineage.",
+    "correction": "Failed candidates now return directly to their producer, accepted candidates retain independent semantic review, and one generic candidate-lineage budget replaces the metric-specific replan and runtime-owned code-versus-theory decision.",
+    "completion_claim": false
+  },
   "formal_rag_foundation": {
     "active_project": "ykzeng-yale/EmpericalProcessLEAN at afe250da47daabbf6c97cad1b5a3e9c88abe2f4c",
     "statistical_foundation": "Pinned stat-lib/statlib is a direct dependency and import-closure corpus; StatInference remains the downstream research incubator.",
@@ -82,17 +96,17 @@
   },
   "proof_boundary": "Theory, simulation, code execution, reviewer acceptance, RAG hits, pseudo-formal blocks, external source compilation, and support-lemma compilation are not proof of the intended theorem. Only exact active-project Lean/kernel verification can close a theorem.",
   "next_main_worker_actions": [
+    "Run a fresh exact-Haiku development panel from the simplified failed-candidate path and measure LLM calls, repeated finding fingerprints, candidate lineages, and exact theorem closure.",
     "Remove unbound post-runtime agenda rows when no single question or theorem target exists.",
-    "Keep reviewer findings observational; let Architect choose cross-owner routing and let the owning producer regenerate the full candidate.",
-    "Reduce the central runtime and legacy post-processing surface instead of adding repair middleware.",
-    "Improve the theory workspace and feedback context generically, then rerun the frozen development panel with exact Haiku.",
+    "Retire legacy repair calibration and patch executors from canonical reachability as same-agent ACI paths replace them; do not add another repair middleware layer.",
+    "Improve the theory and proof-state workspaces only from cross-task live evidence, then require source-theorem kernel closure.",
     "Do not inspect or tune against held-out PCA or extremes until both development tasks reach exact theorem kernel closure."
   ],
   "verification": {
-    "base_commit": "8cf73f0b",
-    "base_change": "Generated-code semantic review and empirical outcome evaluation have separate model-facing authority; same-producer full regeneration remains the only source-revision mechanism.",
-    "base_regression": "117 focused tests passed with 1 skipped, multiple selected central AgentRuntime groups passed, py_compile passed, and git diff --check passed.",
-    "current_cleanup": "99 focused test invocations passed across result-blind prompt projection, immutable exact-result retention, same-producer regeneration, semantic review, metric review, research-eval mode, scientific sandbox, and AgentRuntime routing. The exact-Haiku diagnostic A/B replay also passed after projection."
+    "base_commit": "baedd323",
+    "base_change": "Generated-code semantic review is result-blind while immutable audit and empirical evaluation retain exact outcomes.",
+    "base_regression": "The baedd323 result-blind boundary passed 97 broad focused tests plus separate discovery tests, py_compile, JSON validation, and diff checks.",
+    "current_cleanup": "59 broad generated-code/reviewer/Architect tests, 15 focused direct-path/route tests, and 17 Haiku/Sonnet-ceiling/Opus-rejection tests passed. py_compile, JSON validation, and git diff checks passed. A real exact-Haiku domain-neutral route probe selected AlgorithmEngineer from raw evidence instead of the exhausted SimulationEvaluator, with zero structured-output regeneration attempts."
   },
   "history_policy": "This file contains current coordination state only. Superseded audits, runs, and validation logs remain in Git history and immutable run manifests."
 }

@@ -499,6 +499,10 @@ class LLMArchitectCoordinatorAgent:
             model_tier=self.config.model_tier,
         )
         feedback_fingerprint = stable_hash(dict(environment_feedback))
+        available_route_subsystems = _architect_feedback_route_subsystems(
+            architect_context=architect_context,
+            environment_feedback=environment_feedback,
+        )
         request = GeneratorRequest(
             system_prompt=ARCHITECT_COORDINATOR_SYSTEM_PROMPT,
             user_prompt=build_architect_feedback_route_prompt(
@@ -519,6 +523,7 @@ class LLMArchitectCoordinatorAgent:
                 "resolved_model": request_model,
                 "provider_structured_output": True,
                 "environment_feedback_fingerprint": feedback_fingerprint,
+                "available_route_subsystems": list(available_route_subsystems),
             },
         )
 
@@ -576,7 +581,10 @@ class LLMArchitectCoordinatorAgent:
                 request=request,
                 extract_payload=_extract_json_object,
                 build_packet=build_packet,
-                validate_packet=validate_architect_feedback_route_packet,
+                validate_packet=lambda packet: validate_architect_feedback_route_packet(
+                    packet,
+                    available_subsystems=available_route_subsystems,
+                ),
                 validation_label="LLM Architect feedback-route packet",
                 max_repair_attempts=self.config.max_repair_attempts,
             )
@@ -596,18 +604,29 @@ def build_architect_feedback_route_prompt(
         str(key): value
         for key, value in architect_context.items()
         if (
-            "replan" in str(key).lower()
-            or str(key).endswith("_id")
+            str(key).endswith("_id")
             or str(key).endswith("_hash")
             or str(key)
             in {
                 "runtime_evaluation_mode",
                 "empirical_evaluation_phase",
+                "candidate_lineage_budget",
                 "runtime_feedback_loop",
                 "runtime_progress_snapshot",
             }
         )
     }
+    active_runtime_context = architect_observations_without_runtime_routing(
+        active_runtime_context
+    )
+    available_route_subsystems = _architect_feedback_route_subsystems(
+        architect_context=architect_context,
+        environment_feedback=environment_feedback,
+    )
+    unavailable_route_subsystems = sorted(
+        set(ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS)
+        - set(available_route_subsystems)
+    )
     payload = {
         "question": {
             "id": question.id,
@@ -615,7 +634,10 @@ def build_architect_feedback_route_prompt(
             "description": question.description,
             "tags": list(question.tags),
         },
-        "available_route_subsystems": list(ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS),
+        "available_route_subsystems": list(available_route_subsystems),
+        "unavailable_for_unchanged_exhausted_lineage": (
+            unavailable_route_subsystems
+        ),
         "current_validated_plan": {
             key: deepcopy(runtime_plan.get(key))
             for key in (
@@ -638,7 +660,8 @@ def build_architect_feedback_route_prompt(
             "runtime_does_not_select_owner": True,
             "runtime_does_not_author_source_changes": True,
             "selected_worker_receives_complete_feedback": True,
-            "automatic_retry_budget_does_not_disable_existing_producer": True,
+            "exhausted_unchanged_producer_is_temporarily_unavailable": True,
+            "materially_new_parent_artifact_starts_a_new_candidate_lineage": True,
             "block_only_when_no_existing_subsystem_can_produce_next_evidence": True,
             "new_repair_patch_or_adapter_subsystem_forbidden": True,
             "implementation_revision_owner_is_existing_source_producer": True,
@@ -666,6 +689,9 @@ def build_architect_feedback_route_prompt(
     bounded_payload = {
         "question": payload["question"],
         "available_route_subsystems": payload["available_route_subsystems"],
+        "unavailable_for_unchanged_exhausted_lineage": payload[
+            "unavailable_for_unchanged_exhausted_lineage"
+        ],
         "environment_observations": _bounded_architect_route_prompt_value(
             payload["environment_observations"],
             max_chars=64_000,
@@ -697,10 +723,12 @@ def build_architect_feedback_route_prompt(
         "Treat the top-level observation marked CURRENT_ACTIVE_OBSERVATION as the current "
         "blocker. Superseded observations are complete attempt history: use them to avoid "
         "repeating failed work, but never route on an old error unless the current artifact "
-        "re-observes it. An exhausted "
-        "automatic same-producer retry budget ends only automatic repetition; it does "
-        "not make the existing producer unavailable to an Architect-authored, materially "
-        "reframed objective. Never propose a new repair, patch, correction, or adapter "
+        "re-observes it. A producer listed in "
+        "unavailable_for_unchanged_exhausted_lineage has exhausted its candidate budget "
+        "for this exact observation and cannot be selected in this route. It becomes "
+        "eligible again only on a later route bound to a materially new parent artifact "
+        "and feedback identity. Never propose a new repair, "
+        "patch, correction, or adapter "
         "agent: implementation revision belongs to the existing source producer, while "
         "theory, measurement, simulation design, and environment defects belong to their "
         "existing agents. Route missing mathematical assumptions, definitions, or "
@@ -721,6 +749,8 @@ def build_architect_feedback_route_prompt(
 
 def validate_architect_feedback_route_packet(
     packet: Mapping[str, Any],
+    *,
+    available_subsystems: tuple[str, ...] = ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS,
 ) -> list[str]:
     errors: list[str] = []
     decision = str(packet.get("decision", "") or "").strip()
@@ -732,7 +762,7 @@ def validate_architect_feedback_route_packet(
     if not rationale:
         errors.append("rationale must be nonempty")
     if decision == "ROUTE":
-        if selected not in ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS:
+        if selected not in available_subsystems:
             errors.append("ROUTE requires one available selected_subsystem")
         if not objective:
             errors.append("ROUTE requires a nonempty objective")
@@ -746,6 +776,52 @@ def validate_architect_feedback_route_packet(
     if not str(packet.get("environment_feedback_fingerprint", "") or ""):
         errors.append("environment_feedback_fingerprint must be nonempty")
     return errors
+
+
+def _architect_feedback_route_subsystems(
+    *,
+    architect_context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Apply only lineage budgets to the model's route choices."""
+
+    budget = architect_context.get("candidate_lineage_budget", {})
+    if not isinstance(budget, Mapping):
+        return ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS
+    feedback_id = str(environment_feedback.get("feedback_id", "") or "")
+    failure = str(
+        environment_feedback.get("failure_classification", "") or ""
+    )
+    budget_feedback_id = str(budget.get("feedback_id", "") or "")
+    same_observation = bool(
+        (feedback_id and budget_feedback_id == feedback_id)
+        or (
+            not budget_feedback_id
+            and failure
+            == str(budget.get("failure_classification", "") or "")
+        )
+    )
+    attempts_used = _architect_gap_int(
+        budget.get("attempts_used", 0), fallback=0
+    )
+    max_attempts = _architect_gap_int(
+        budget.get("max_attempts", 0), fallback=0
+    )
+    exhausted = bool(
+        budget.get("budget_exhausted") is True
+        or (max_attempts > 0 and attempts_used >= max_attempts)
+    )
+    exhausted_source = (
+        str(budget.get("source_subsystem", "") or "")
+        if same_observation and exhausted
+        else ""
+    )
+
+    return tuple(
+        subsystem
+        for subsystem in ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS
+        if subsystem != exhausted_source
+    )
 
 
 def _bounded_architect_route_prompt_value(
