@@ -39,7 +39,7 @@ from .research_schema import OpenResearchQuestion
 
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 8
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 11
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 12
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -812,7 +812,12 @@ def build_architect_theory_execution_preflight_prompt(
         },
         "verdict_policy": (
             "Do not return an overall verdict. AgentRuntime derives it from the "
-            "complete dimension, estimator, and finding rows."
+            "complete dimension, estimator, and finding rows. A blocking finding, "
+            "including an UNRESOLVED prior finding, requires at least one FAIL or "
+            "UNCERTAIN dimension or estimator row. If every execution review row "
+            "is PASS, return no new findings and mark every prior finding "
+            "RESOLVED_BY_CURRENT_THEORY. Do not carry downstream proof obligations "
+            "as execution blockers."
         ),
     }
     return "Review the following typed packet. Return JSON only.\n\n" + json.dumps(
@@ -1352,24 +1357,26 @@ def _canonical_preflight_source_refs(
     return canonical
 
 
-def _derived_verdict(packet: Mapping[str, Any]) -> str:
+def _all_execution_review_rows_pass(packet: Mapping[str, Any]) -> bool:
     dimension_rows = packet.get("dimension_reviews", [])
     estimator_rows = packet.get("estimator_execution_checks", [])
-    prior_finding_reviews = packet.get("prior_finding_reviews", [])
-    all_pass = bool(dimension_rows) and all(
+    return bool(dimension_rows) and bool(estimator_rows) and all(
         isinstance(row, Mapping)
         and str(row.get("status", "") or "").strip().upper() == "PASS"
         for row in dimension_rows
-    )
-    all_estimators_pass = all(
+    ) and all(
         isinstance(row, Mapping)
         and str(row.get("status", "") or "").strip().upper() == "PASS"
         and all(
             row.get(field) is True
             for field, _description in _ESTIMATOR_DECLARATION_REQUIREMENTS
         )
-        for row in estimator_rows or []
+        for row in estimator_rows
     )
+
+
+def _derived_verdict(packet: Mapping[str, Any]) -> str:
+    prior_finding_reviews = packet.get("prior_finding_reviews", [])
     all_prior_findings_resolved = all(
         isinstance(row, Mapping)
         and str(row.get("status", "") or "").strip().upper()
@@ -1378,8 +1385,7 @@ def _derived_verdict(packet: Mapping[str, Any]) -> str:
     )
     return (
         "ACCEPT"
-        if all_pass
-        and all_estimators_pass
+        if _all_execution_review_rows_pass(packet)
         and all_prior_findings_resolved
         and not packet.get("findings", [])
         else "REVISE"
@@ -2186,6 +2192,14 @@ def validate_architect_theory_execution_preflight_packet(
         )
     if any(row.get("repair_scope") != "upstream_theory" for row in findings):
         errors.append("theory execution preflight findings must route upstream theory")
+    if findings and _all_execution_review_rows_pass(packet):
+        errors.append(
+            "blocking theory execution preflight findings contradict the all-PASS "
+            "dimension and estimator rows; submit a complete self-consistent review "
+            "with at least one FAIL or UNCERTAIN execution row, or remove new "
+            "findings and mark prior findings RESOLVED_BY_CURRENT_THEORY. Downstream "
+            "proof obligations are not execution blockers"
+        )
     expected_verdict = _derived_verdict(packet)
     if packet.get("overall_verdict") != expected_verdict:
         errors.append("theory execution preflight overall verdict is not runtime-derived")

@@ -19,9 +19,12 @@ def test_author_feedback_keeps_evidence_but_drops_repair_recipe() -> None:
         "repair_target_subsystem": "AlgorithmEngineer",
         "findings": [
             {
+                "finding_id": "finding:wrong-sign",
                 "severity": "critical",
                 "category": "metric_semantics",
                 "summary": "The executed statistic has the wrong sign.",
+                "observed_behavior": "The execution returned 2.0.",
+                "expected_behavior": "The declared statistic returns -2.0.",
                 "required_change": "Negate the statistic on line 12.",
                 "repair_scope": "source_code",
                 "evidence_refs": ["result#/observed_statistic"],
@@ -48,9 +51,12 @@ def test_author_feedback_keeps_evidence_but_drops_repair_recipe() -> None:
     assert projected["candidate_source_hash"] == "sha256:source"
     assert projected["findings"] == [
         {
+            "finding_id": "finding:wrong-sign",
             "severity": "critical",
             "category": "metric_semantics",
             "summary": "The executed statistic has the wrong sign.",
+            "observed_behavior": "The execution returned 2.0.",
+            "expected_behavior": "The declared statistic returns -2.0.",
             "evidence_refs": ["result#/observed_statistic"],
         }
     ]

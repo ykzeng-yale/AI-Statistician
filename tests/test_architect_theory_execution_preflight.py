@@ -623,6 +623,65 @@ def test_preflight_client_tool_loop_returns_unknown_ref_error_for_model_repair()
     ]
 
 
+def test_preflight_client_tool_loop_returns_all_pass_finding_conflict_to_model() -> None:
+    class AllPassFindingBackend(_PreflightToolBackend):
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "search-1",
+                        "search_preflight_sources",
+                        {
+                            "query": "finite input censored outcome",
+                            "source_scope": "theory",
+                            "k": 4,
+                        },
+                    )
+                )
+            result = json.loads(request.messages[-1]["content"][0]["content"])
+            if result.get("hits"):
+                self.hit_id = result["hits"][0]["source_hit_id"]
+                self.source_ref = result["hits"][0]["source_ref"]
+            if turn == 2:
+                payload = _payload(accept=True)
+                payload["findings"] = deepcopy(_payload(accept=False)["findings"])
+                payload["findings"][0]["source_evidence_refs"] = [self.source_ref]
+                return _tool_response(
+                    ClientToolCall(
+                        "submit-inconsistent",
+                        "submit_theory_preflight_review",
+                        payload,
+                    )
+                )
+            assert result["error"] == "preflight_submission_rejected"
+            assert any(
+                "contradict the all-PASS" in error
+                for error in result["validation_errors"]
+            )
+            return _tool_response(
+                ClientToolCall(
+                    "submit-consistent",
+                    "submit_theory_preflight_review",
+                    _payload(accept=True),
+                )
+            )
+
+    backend = AllPassFindingBackend(accept=True)
+
+    packet = _tool_review(backend)
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["findings"] == []
+    assert len(backend.requests) == 3
+    assert {request.model for request in backend.requests} == {TEST_HAIKU_MODEL}
+    rejected = packet["client_tool_loop_history"][1]["tool_calls"][0]
+    assert rejected["name"] == "submit_theory_preflight_review"
+    assert rejected["is_error"] is True
+    assert "contradict the all-PASS" in rejected["result_excerpt"]
+
+
 def test_preflight_repairs_swapped_citation_namespaces_from_structured_feedback() -> None:
     class SwappedCitationBackend(_PreflightToolBackend):
         def generate_client_tool_turn(self, request):
@@ -1172,6 +1231,63 @@ def test_preflight_downgrades_inconsistent_estimator_pass_without_retry() -> Non
         packet,
         material=material,
     ) == []
+
+
+def test_preflight_regenerates_all_pass_finding_conflict_with_same_model() -> None:
+    class AllPassFindingBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+            self.regeneration_payload = {}
+
+        def generate(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                payload = _payload(accept=True)
+                payload["findings"] = deepcopy(_payload(accept=False)["findings"])
+            else:
+                self.regeneration_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                payload = _payload(accept=True)
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "provider_structured_output_requested": True,
+                    "provider_structured_output_applied": True,
+                },
+            )
+
+    backend = AllPassFindingBackend()
+
+    packet = review_architect_theory_execution_preflight(
+        provider=backend,
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+        model=TEST_HAIKU_MODEL,
+        model_tier="haiku",
+        max_tokens=7000,
+        temperature=0.0,
+        provider_name="anthropic",
+        max_repair_attempts=1,
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["findings"] == []
+    assert packet["llm_json_repair_attempts"] == 1
+    assert len(backend.requests) == 2
+    assert {request.model for request in backend.requests} == {TEST_HAIKU_MODEL}
+    assert any(
+        "contradict the all-PASS" in error
+        for error in backend.regeneration_payload["local_validation_errors"]
+    )
 
 
 def test_preflight_routes_semantic_mismatch_to_upstream_theory() -> None:

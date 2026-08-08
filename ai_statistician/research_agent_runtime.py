@@ -81,7 +81,7 @@ from .generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
     GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
     advance_generated_code_semantic_review_lineage_budget,
-    build_generated_code_semantic_review_architect_replan_task,
+    build_generated_code_semantic_review_producer_revision_task,
     record_generated_code_semantic_review_lineage_action,
 )
 from .generated_code_semantic_review_scope import (
@@ -10634,6 +10634,68 @@ def _architect_terminal_acceptance_review_policy(
     )
 
 
+def _lineage_bound_semantic_review_return_to_source_producer(
+    *,
+    task: AgentTask,
+    subsystem_name: str,
+    next_task: AgentTask,
+    blackboard: BlackboardState,
+) -> bool:
+    """Recognize a reviewer backedge to the exact immutable source producer."""
+
+    if (
+        subsystem_name != GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        or next_task.owner_subsystem
+        not in GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_SUBSYSTEMS
+    ):
+        return False
+    work_order_id = str(task.inputs.get("work_order_id", "") or "")
+    work_order = blackboard.artifacts.get(work_order_id, {})
+    if not isinstance(work_order, Mapping) or not work_order:
+        return False
+    if (
+        work_order.get("artifact_kind")
+        != "RuntimeGeneratedCodeSemanticReviewWorkOrder"
+        or stable_hash(work_order)
+        != str(task.inputs.get("work_order_hash", "") or "")
+        or str(work_order.get("source_subsystem", "") or "")
+        != next_task.owner_subsystem
+    ):
+        return False
+    source_task = work_order.get("source_task", {})
+    if not isinstance(source_task, Mapping) or (
+        str(source_task.get("task_id", "") or "")
+        != str(work_order.get("source_task_id", "") or "")
+        or str(source_task.get("owner_subsystem", "") or "")
+        != next_task.owner_subsystem
+    ):
+        return False
+    feedback = next_task.inputs.get("environment_feedback", {})
+    if not isinstance(feedback, Mapping) or (
+        feedback.get("feedback_type")
+        != "generated_code_semantic_review_feedback"
+        or str(feedback.get("source_subsystem", "") or "")
+        != next_task.owner_subsystem
+        or not str(
+            feedback.get("semantic_review_execution_id", "") or ""
+        )
+        or not str(feedback.get("semantic_review_packet_id", "") or "")
+        or not str(feedback.get("semantic_review_packet_hash", "") or "")
+    ):
+        return False
+    try:
+        revision_count = int(
+            next_task.inputs.get(
+                "generated_code_semantic_review_revision_count", 0
+            )
+            or 0
+        )
+        prior_count = int(work_order.get("review_revision_count", 0) or 0)
+    except (TypeError, ValueError):
+        return False
+    return revision_count == prior_count + 1
+
+
 def _architect_plan_guard_handoff_policy(
     *,
     iteration: int,
@@ -10655,6 +10717,13 @@ def _architect_plan_guard_handoff_policy(
     if next_task.owner_subsystem == "ArchitectCoordinator":
         return result
     if next_task.owner_subsystem == subsystem_name:
+        return result
+    if _lineage_bound_semantic_review_return_to_source_producer(
+        task=task,
+        subsystem_name=subsystem_name,
+        next_task=next_task,
+        blackboard=blackboard,
+    ):
         return result
     inputs = next_task.inputs if isinstance(next_task.inputs, Mapping) else {}
     architect_context = (
@@ -14056,7 +14125,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 for row in reviewed_source_artifacts
             ],
             "source_lineage_fingerprint": stable_hash(source_lineage),
-            "routing_authority_on_revise": "ArchitectCoordinator_model_packet",
+            "routing_authority_on_revise": (
+                "immutable_source_producer_lineage"
+            ),
             "runtime_selected_owner": False,
             "reviewer_packet_accepted": reviewer_verdict == "ACCEPT",
             "semantic_review_accepted": verdict == "ACCEPT",
@@ -14105,7 +14176,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "reviewer_overall_verdict": reviewer_verdict,
             "overall_verdict": verdict,
             "workflow_verdict": verdict,
-            "routing_authority": "ArchitectCoordinator_model_packet",
+            "routing_authority": "immutable_source_producer_lineage",
             "runtime_selected_owner": False,
             "empirical_evaluation_phase": empirical_evaluation_phase,
             "confirmatory_empirical_evidence_eligible": (
@@ -14161,8 +14232,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             )
             lineage_budget_summary = {
                 **dict(lineage_budget_state.get("row", {})),
-                "architect_replan_available": bool(
-                    lineage_budget_state.get("architect_replan_available")
+                "candidate_regeneration_available": bool(
+                    lineage_budget_state.get(
+                        "candidate_regeneration_available"
+                    )
                 ),
                 "lineage_budget_exhausted": bool(
                     lineage_budget_state.get("lineage_budget_exhausted")
@@ -14334,31 +14407,34 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             )
             failure_classification = ""
         else:
-            prior_feedback: dict[str, Any] = {}
-            for task_payload in (source_task_payload, deferred_task_payload):
-                task_inputs = (
-                    task_payload.get("inputs", {})
-                    if isinstance(task_payload.get("inputs", {}), Mapping)
-                    else {}
-                )
-                task_feedback = task_inputs.get("environment_feedback", {})
-                if isinstance(task_feedback, Mapping):
-                    prior_feedback.update(dict(task_feedback))
-            escalation_classification = (
-                "generated_code_semantic_review_requires_architect_replan"
+            source_task_inputs = (
+                source_task_payload.get("inputs", {})
+                if isinstance(source_task_payload.get("inputs", {}), Mapping)
+                else {}
             )
-            escalation_feedback = architect_observations_without_runtime_routing({
+            source_task_feedback = source_task_inputs.get(
+                "environment_feedback", {}
+            )
+            prior_feedback = (
+                dict(source_task_feedback)
+                if isinstance(source_task_feedback, Mapping)
+                else {}
+            )
+            revision_classification = (
+                "generated_code_semantic_review_requires_source_regeneration"
+            )
+            revision_feedback = {
                 **_generated_code_review_feedback_with_source_execution_snapshot(
                     prior_feedback=prior_feedback,
                     review_feedback=feedback,
                 ),
-                "failure_classification": escalation_classification,
+                "failure_classification": revision_classification,
                 "semantic_review_revision_budget": {
                     "revisions_used": revision_count,
                     "max_revisions": max_revisions,
                     "source_artifact_remains_unaccepted": True,
                 },
-            })
+            }
             if lineage_budget_state.get("lineage_budget_exhausted") is True:
                 lineage_ledger = (
                     record_generated_code_semantic_review_lineage_action(
@@ -14376,8 +14452,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 status = "BLOCKED"
                 rationale = (
                     "The generated-code semantic review exhausted its global "
-                    "model-replan budget. The rejected artifact and observations "
-                    "remain recorded without a runtime-authored source change."
+                    "producer-regeneration budget. The rejected artifact and "
+                    "observations remain recorded without a runtime-authored "
+                    "source change."
                 )
                 failure_classification = (
                     "generated_code_semantic_review_lineage_budget_exhausted"
@@ -14386,32 +14463,31 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 lineage_ledger = (
                     record_generated_code_semantic_review_lineage_action(
                         lineage_budget_state,
-                        action="architect_replan",
+                        action="producer_regeneration",
                     )
                 )
                 execution_manifest["semantic_review_lineage_budget"][
                     "selected_action"
-                ] = "architect_replan"
-                next_task = (
-                    build_generated_code_semantic_review_architect_replan_task(
-                        question=question,
-                        review_task_id=task.task_id,
-                        work_order=work_order,
-                        escalation_feedback=escalation_feedback,
-                        review_packet_id=review_packet_id,
-                        review_execution_id=execution_id,
-                        revision_count=revision_count,
-                        max_revisions=max_revisions,
-                        lineage_ledger=lineage_ledger,
-                    )
+                ] = "producer_regeneration"
+                next_task = build_generated_code_semantic_review_producer_revision_task(
+                    question=question,
+                    review_task_id=task.task_id,
+                    work_order=work_order,
+                    review_feedback=revision_feedback,
+                    review_packet_id=review_packet_id,
+                    review_execution_id=execution_id,
+                    revision_count=revision_count,
+                    max_revisions=max_revisions,
+                    lineage_ledger=lineage_ledger,
                 )
-                status = "REROUTE"
+                status = "REVISE"
                 rationale = (
                     "Independent semantic review rejected the exact executed artifact. "
-                    "Complete source, execution evidence, and observations are routed "
-                    "to ArchitectCoordinator, whose model selects the next subsystem."
+                    "The complete source, execution evidence, and observations are "
+                    "returned directly to the same source producer for one full "
+                    "candidate regeneration."
                 )
-                failure_classification = escalation_classification
+                failure_classification = revision_classification
 
         evidence = EvidenceLedgerEntry(
             evidence_id="evidence:" + stable_hash([task.task_id, execution_id])[:20],
@@ -14435,7 +14511,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 ),
                 "overall_verdict": verdict,
                 "routing_authority_on_revise": (
-                    "ArchitectCoordinator_model_packet"
+                    "immutable_source_producer_lineage"
                 ),
                 "runtime_selected_owner": False,
                 "empirical_evaluation_phase": empirical_evaluation_phase,

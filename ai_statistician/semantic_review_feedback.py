@@ -217,9 +217,12 @@ def compact_semantic_review_feedback(
     findings = _compact_mapping_rows(
         feedback.get("findings", []),
         keys=(
+            "finding_id",
             "severity",
             "category",
             "summary",
+            "observed_behavior",
+            "expected_behavior",
             "evidence_refs",
         ),
         max_rows=max_rows,
@@ -266,7 +269,6 @@ def compact_semantic_review_feedback(
         "reviewed_source_artifacts": _compact_reviewed_source_artifacts(
             feedback.get("reviewed_source_artifacts", []),
             max_rows=max_rows,
-            max_source_chars=40000,
             max_text_chars=max_text_chars,
         ),
         "source_lineage": _compact_source_lineage(
@@ -294,7 +296,6 @@ def _compact_reviewed_source_artifacts(
     value: Any,
     *,
     max_rows: int,
-    max_source_chars: int,
     max_text_chars: int,
 ) -> list[dict[str, Any]]:
     if not isinstance(value, list | tuple):
@@ -306,16 +307,10 @@ def _compact_reviewed_source_artifacts(
         source_code = str(raw_row.get("exact_source_code", "") or "")
         source_complete = bool(
             raw_row.get("exact_source_code_complete", False)
-            and len(source_code) <= max_source_chars
         )
         exact_result = raw_row.get("exact_result", {})
         compact_result = (
-            {
-                str(key): child
-                if isinstance(child, bool | int | float) or child is None
-                else _bounded_text(child, max_text_chars)
-                for key, child in list(exact_result.items())[:24]
-            }
+            deepcopy(dict(exact_result))
             if isinstance(exact_result, Mapping)
             else {}
         )
@@ -329,7 +324,7 @@ def _compact_reviewed_source_artifacts(
                     raw_row.get("exact_source_hash", ""),
                     max_text_chars,
                 ),
-                "exact_source_code": source_code[:max_source_chars],
+                "exact_source_code": source_code,
                 "exact_source_code_complete": source_complete,
                 "exact_result": compact_result,
                 "exact_result_hash": _bounded_text(

@@ -21811,6 +21811,208 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
     )
 
 
+def test_rejected_generated_code_returns_directly_to_same_producer(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="direct_producer_regeneration",
+        title="Direct producer regeneration",
+        description="Regenerate one executed candidate from exact review feedback.",
+        tags=("domain-neutral",),
+    )
+    theory_packet = _targetable_theory_packet_fixture(
+        "theory_derivation:direct-producer-regeneration"
+    )
+    theory_packet_id = str(theory_packet["packet_id"])
+    source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'estimate': 1.0, 'replicates': int(replicates)}\n"
+    )
+    result_payload = {"estimate": 1.0, "replicates": 9}
+    script_path = tmp_path / "candidate.py"
+    result_path = tmp_path / "candidate_result.json"
+    script_path.write_text(source, encoding="utf-8")
+    result_path.write_text(json.dumps(result_payload), encoding="utf-8")
+    proposal = {
+        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "packet_id": "algorithm_engineer_proposal:direct-regeneration",
+        "source_agent": "LLMAlgorithmEngineerAgent",
+        "model": LIVE_EVALUATION_CLAUDE_MODEL,
+        "model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        "implementation_targets": [{"estimator_id": "candidate"}],
+    }
+    manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": "algorithm_sandbox_manifest:direct-regeneration",
+        "theory_packet_id": theory_packet_id,
+        "prototypes": [
+            {
+                "estimator_id": "candidate",
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+                "script_path": str(script_path),
+                "script_hash": runtime_module.stable_hash(source),
+                "result_path": str(result_path),
+                "result_hash": runtime_module.stable_hash(result_payload),
+                "metrics": result_payload,
+                "runtime_seed": 7,
+                "runtime_replicates": 9,
+            }
+        ],
+        "empirical_evaluation_phase": "confirmatory",
+        "confirmatory_empirical_evidence_eligible": True,
+    }
+    source_task = AgentTask(
+        task_id="algorithm:direct-regeneration",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Generate and execute one complete candidate.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "environment_feedback": {
+                "source_execution_diagnostic": "original producer observation"
+            },
+            "architect_context": {
+                "architect_runtime_plan": {
+                    "subsystem_execution_plan": [
+                        {"subsystem": "GeneratedCodeSemanticReviewer"}
+                    ],
+                    "evidence_contract": {},
+                }
+            },
+        },
+        allowed_tools=("model_backend", "python_sandbox"),
+        expected_artifacts=("algorithm_sandbox_manifest",),
+    )
+    deferred_task = AgentTask(
+        task_id="formalize:direct-regeneration",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Continue only after implementation acceptance.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "environment_feedback": {
+                "deferred_task_instruction": "must not reach source regeneration"
+            },
+            "architect_context": source_task.inputs["architect_context"],
+        },
+    )
+    dispatch = runtime_module._runtime_generated_code_semantic_review_dispatch(
+        task=source_task,
+        question=question,
+        source_subsystem="AlgorithmEngineer",
+        source_manifest=manifest,
+        theory_packet=theory_packet,
+        proposal_packet=proposal,
+        architect_context=source_task.inputs["architect_context"],
+        deferred_next_task=deferred_task,
+        max_revisions=1,
+    )
+    assert dispatch is not None
+    work_order = dispatch["work_order"]
+    work_order_id = dispatch["work_order_id"]
+    review_response = {
+        "prior_finding_reviews": [],
+        "dimension_reviews": {
+            dimension: {
+                "status": (
+                    "UNCERTAIN"
+                    if dimension == "metric_semantics_alignment"
+                    else "PASS"
+                ),
+                "rationale": "The exact execution exposes the stated observation.",
+                "evidence_refs": ["/exact_executed_artifacts"],
+            }
+            for dimension in GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
+        },
+        "findings": [
+            {
+                "severity": "high",
+                "category": "candidate_behavior",
+                "summary": "The executed candidate returns the wrong estimand.",
+                "observed_behavior": "The exact result reports estimate 1.0.",
+                "expected_behavior": "The declared estimand is returned exactly.",
+                "evidence_refs": [
+                    "/exact_executed_artifacts/0/exact_result/estimate"
+                ],
+            }
+        ],
+    }
+    reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticArchitectLLMProvider(review_response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        ),
+    )
+    blackboard = BlackboardState(
+        project_id="direct-producer-regeneration",
+        artifacts={
+            theory_packet_id: theory_packet,
+            proposal["packet_id"]: proposal,
+            manifest["manifest_id"]: manifest,
+            work_order_id: work_order,
+        },
+    )
+
+    review_result = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=reviewer,
+        max_revisions=1,
+    ).run(dispatch["next_task"], blackboard)
+
+    assert review_result.status == "REVISE"
+    assert review_result.next_task is not None
+    assert review_result.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert "runtime_architect_operation" not in review_result.next_task.inputs
+    feedback = review_result.next_task.inputs["environment_feedback"]
+    assert feedback["overall_verdict"] == "REVISE"
+    assert feedback["source_execution_diagnostic"] == (
+        "original producer observation"
+    )
+    assert "deferred_task_instruction" not in feedback
+    assert feedback["findings"][0]["observed_behavior"].endswith("1.0.")
+    assert feedback["reviewed_source_artifacts"][0][
+        "exact_source_code"
+    ] == source
+    assert feedback["reviewed_source_artifacts"][0][
+        "exact_result"
+    ] == result_payload
+    producer_prompt = build_algorithm_engineer_prompt(
+        question=question,
+        theory_packet=theory_packet,
+        simulation_manifest={},
+        implementation_gaps=[{"estimator_id": "candidate"}],
+        environment_feedback=feedback,
+    )
+    producer_payload = json.loads(producer_prompt.rsplit("\n\n", 1)[1])
+    producer_review = producer_payload["runtime_environment_feedback"][
+        "generated_code_semantic_review"
+    ]
+    assert producer_review["reviewed_source_artifacts"][0][
+        "exact_source_code"
+    ] == source
+    assert producer_review["reviewed_source_artifacts"][0][
+        "exact_result"
+    ] == result_payload
+    assert producer_review["findings"][0]["observed_behavior"].endswith(
+        "1.0."
+    )
+    assert producer_review["findings"][0]["expected_behavior"].endswith(
+        "exactly."
+    )
+    assert review_result.next_task.inputs[
+        "generated_code_semantic_review_revision_count"
+    ] == 1
+    guarded = _architect_plan_guard_handoff_policy(
+        iteration=2,
+        task=dispatch["next_task"],
+        subsystem_name="GeneratedCodeSemanticReviewer",
+        result=review_result,
+        blackboard=blackboard,
+    )
+    assert guarded is review_result
+
+
 def test_pre_metric_implementation_does_not_release_without_independent_reviewer(
     tmp_path: Path,
 ) -> None:
@@ -35227,7 +35429,9 @@ def test_failed_formalizer_exact_candidate_requires_review_before_typed_prover(
 
     assert feedback is not None
     context = feedback["proofengineer_repair_context"]
-    assert context["context_kind"] == "model_owned_complete_lean_candidate"
+    assert context["context_kind"] == (
+        "model_owned_complete_lean_revision_observations"
+    )
     assert context["target_lean_declaration"] == "exact_source"
     assert context["target_theorem_statement"] == candidate.read_text(
         encoding="utf-8"
@@ -75440,7 +75644,7 @@ def test_formalization_capability_eval_does_not_replace_live_formalizer_with_det
     ] is False
 
 
-def test_runtime_optional_theorem_closure_legacy_bridge_stays_disabled(
+def test_runtime_optional_theorem_closure_runs_only_as_typed_worker(
     tmp_path: Path,
 ) -> None:
     out_dir = tmp_path / "runtime"
@@ -75502,19 +75706,19 @@ def test_runtime_optional_theorem_closure_legacy_bridge_stays_disabled(
 
     assert manifest["n_runtime_theorem_reduction_closure_work_orders"] == 1
     assert manifest["theorem_closure_proofengineer_bridge_requested"] is True
-    assert manifest["theorem_closure_proofengineer_bridge_ran"] is False
-    assert manifest["theorem_closure_proofengineer_bridge_skipped_reason"] == (
-        "legacy_post_runtime_execution_disabled"
-    )
+    assert manifest["theorem_closure_proofengineer_bridge_ran"] is True
+    assert manifest["theorem_closure_proofengineer_bridge_skipped_reason"] == ""
     assert manifest["theorem_closure_proofengineer_bridge_runtime_learning_ready"] is False
     assert manifest["theorem_closure_proofengineer_bridge_n_kernel_verified"] == 0
-    assert manifest["theorem_closure_proofengineer_bridge_proof_evidence_status"] == ""
+    assert manifest["theorem_closure_proofengineer_bridge_proof_evidence_status"] == (
+        "THEOREM_REDUCTION_CLOSURE_EXECUTION_NOT_PROOF_EVIDENCE"
+    )
     assert manifest["n_kernel_verified_subclaims"] == 0
     assert manifest["theorem_closure_proofengineer_execution_mode"] == (
-        "post_runtime_projection_only"
+        "agent_runtime_typed_worker"
     )
-    assert manifest["n_theorem_closure_agent_runtime_work_orders"] == 0
-    assert manifest["n_theorem_closure_agent_runtime_executions"] == 0
+    assert manifest["n_theorem_closure_agent_runtime_work_orders"] == 1
+    assert manifest["n_theorem_closure_agent_runtime_executions"] == 1
     assert manifest["n_theorem_closure_agent_runtime_pending_work_orders"] == 0
     assert manifest["theorem_closure_legacy_post_runtime_fallback_used"] is False
     assert "typed, budgeted, Architect-visible AgentRuntime" in manifest[
@@ -75524,34 +75728,38 @@ def test_runtime_optional_theorem_closure_legacy_bridge_stays_disabled(
         "theorem_closure_proofengineer_bridge_boundary"
     ]
 
-    assert (
-        "runtime_theorem_reduction_closure_proofengineer_bridge_manifest"
-        not in manifest["artifacts"]
-    )
-    assert (
-        "runtime_theorem_reduction_closure_proofengineer_learning_rows_jsonl"
-        not in manifest["artifacts"]
-    )
+    assert Path(
+        manifest["artifacts"][
+            "runtime_theorem_reduction_closure_proofengineer_bridge_manifest"
+        ]
+    ).exists()
+    assert Path(
+        manifest["artifacts"][
+            "runtime_theorem_reduction_closure_proofengineer_learning_rows_jsonl"
+        ]
+    ).exists()
     result_payload = json.loads(
         Path(manifest["artifacts"]["per_question_results"][0]).read_text(
             encoding="utf-8"
         )
     )
     trace_subsystems = [row["subsystem"] for row in result_payload["traces"]]
-    assert trace_subsystems == [
-        "RetrievalMemory",
-        "TheoryDeveloper",
-        "SimulationEvaluator",
-        "AlgorithmEngineer",
-        "FormalizationEvaluator",
-        "ArchitectCoordinator",
-    ]
-    assert not any(
-        artifact.get("artifact_kind")
-        == runtime_module.THEOREM_REDUCTION_CLOSURE_RUNTIME_EXECUTION_KIND
+    assert "TheoremReductionClosureProofEngineer" in trace_subsystems
+    assert trace_subsystems.index("TheoremReductionClosureProofEngineer") > (
+        trace_subsystems.index("FormalizationEvaluator")
+    )
+    typed_executions = [
+        artifact
         for artifact in result_payload["blackboard"]["artifacts"].values()
         if isinstance(artifact, dict)
-    )
+        and artifact.get("artifact_kind")
+        == runtime_module.THEOREM_REDUCTION_CLOSURE_RUNTIME_EXECUTION_KIND
+    ]
+    assert len(typed_executions) == 1
+    assert typed_executions[0]["runtime_owned_execution"] is True
+    assert typed_executions[0]["candidate_bytes_preserved"] is True
+    assert typed_executions[0]["runtime_generated_lean"] is False
+    assert typed_executions[0]["n_kernel_verified"] == 0
 
 
 def test_full_runtime_executes_exact_source_child_without_post_runtime_fallback(

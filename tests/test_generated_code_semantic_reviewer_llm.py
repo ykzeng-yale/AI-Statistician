@@ -9,7 +9,7 @@ from ai_statistician.fingerprint import stable_hash
 from ai_statistician.generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
     advance_generated_code_semantic_review_lineage_budget,
-    build_generated_code_semantic_review_architect_replan_task,
+    build_generated_code_semantic_review_producer_revision_task,
     record_generated_code_semantic_review_lineage_action,
 )
 from ai_statistician.generated_code_semantic_reviewer_llm import (
@@ -252,8 +252,8 @@ def test_reviewer_accepts_without_selecting_a_repair_owner() -> None:
     )
 
     assert packet["overall_verdict"] == "ACCEPT"
-    assert packet["routing_authority"] == "ArchitectCoordinator_model_packet"
-    assert packet["runtime_selected_owner"] is False
+    assert "routing_authority" not in packet
+    assert "runtime_selected_owner" not in packet
     assert not _contains_key(
         packet,
         {"repair_scope", "repair_owner", "repair_plan", "repair_instructions"},
@@ -573,7 +573,7 @@ def test_prior_scope_error_can_be_retracted_by_the_independent_reviewer() -> Non
     ) == []
 
 
-def test_lineage_budget_bounds_architect_replans_without_owner_mapping() -> None:
+def test_lineage_budget_bounds_source_producer_regenerations() -> None:
     work_order = {
         "question_id": "semantic-review-test",
         "theory_packet_id": "theory:1",
@@ -605,7 +605,7 @@ def test_lineage_budget_bounds_architect_replans_without_owner_mapping() -> None
     )
     ledger = record_generated_code_semantic_review_lineage_action(
         first,
-        action="architect_replan",
+        action="producer_regeneration",
     )
     second = advance_generated_code_semantic_review_lineage_budget(
         architect_context={
@@ -616,13 +616,14 @@ def test_lineage_budget_bounds_architect_replans_without_owner_mapping() -> None
         max_local_revisions=1,
     )
 
-    assert first["architect_replan_available"] is True
+    assert first["candidate_regeneration_available"] is True
     assert second["lineage_budget_exhausted"] is True
+    assert second["row"]["source_candidate_regeneration_count"] == 1
     assert "repair_scope" not in first["row"]
     assert "repair_owner" not in first["row"]
 
 
-def test_replan_task_gives_observations_to_architect_only() -> None:
+def test_revision_task_returns_complete_observations_to_source_producer() -> None:
     source_task = {
         "task_id": "simulation-task:1",
         "owner_subsystem": "SimulationEvaluator",
@@ -650,13 +651,30 @@ def test_replan_task_gives_observations_to_architect_only() -> None:
     }
     feedback = {
         "feedback_type": "generated_code_semantic_review_feedback",
+        "source_subsystem": "SimulationEvaluator",
+        "semantic_review_execution_id": "review-execution:1",
+        "semantic_review_packet_id": "review:1",
         "semantic_review_packet_hash": "review-hash",
         "findings": [
             {
+                "finding_id": "finding:1",
                 "summary": "Observed result is semantically inconsistent.",
                 "observed_behavior": "Observed A.",
                 "expected_behavior": "Expected B.",
                 "evidence_refs": ["/exact_executed_artifacts/0/exact_result"],
+            }
+        ],
+        "reviewed_source_artifacts": [
+            {
+                "artifact_id": "simulation:1",
+                "exact_source_hash": "source-hash",
+                "exact_source_code": (
+                    "def run_sandbox(seed, replicates):\n"
+                    "    return {'estimate': 0.0}\n"
+                ),
+                "exact_source_code_complete": True,
+                "exact_result": {"estimate": 0.0},
+                "exact_result_hash": "result-hash",
             }
         ],
         "source_lineage": {"theory_packet_hash": "theory-hash"},
@@ -664,26 +682,32 @@ def test_replan_task_gives_observations_to_architect_only() -> None:
         "repair_plan": [{"step": "hidden runtime plan"}],
     }
 
-    task = build_generated_code_semantic_review_architect_replan_task(
+    task = build_generated_code_semantic_review_producer_revision_task(
         question=_question(),
         review_task_id="review-task:1",
         work_order=work_order,
-        escalation_feedback=feedback,
+        review_feedback=feedback,
         review_packet_id="review:1",
         review_execution_id="review-execution:1",
         revision_count=0,
         max_revisions=1,
     )
 
-    assert task.owner_subsystem == "ArchitectCoordinator"
-    assert task.inputs["runtime_architect_operation"] == (
-        "environment_feedback_route"
-    )
+    assert task.owner_subsystem == "SimulationEvaluator"
+    assert "runtime_architect_operation" not in task.inputs
     assert task.inputs["environment_feedback"]["findings"]
+    reviewed = task.inputs["environment_feedback"][
+        "reviewed_source_artifacts"
+    ][0]
+    assert reviewed["exact_source_code"].endswith(
+        "return {'estimate': 0.0}\n"
+    )
+    assert reviewed["exact_result"] == {"estimate": 0.0}
+    assert task.inputs["generated_code_semantic_review_revision_count"] == 1
     replan = task.inputs["architect_context"][
         "runtime_generated_code_semantic_review_replan"
     ]
     assert "repair_owner" not in replan
     assert "repair_plan" not in replan
-    assert replan["routing_authority"] == "ArchitectCoordinator_model_packet"
+    assert replan["routing_authority"] == "immutable_source_producer_lineage"
     assert replan["runtime_selected_owner"] is False

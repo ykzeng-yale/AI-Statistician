@@ -13236,13 +13236,27 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
                 errors.append(
                     f"semantic review execution {id_field} hash mismatch: {execution_id}"
                 )
+        materialization = artifacts.get(
+            str(execution.get("materialization_id", "") or ""),
+            {},
+        )
+        review_material = (
+            materialization.get("review_material", {})
+            if isinstance(materialization, Mapping)
+            else {}
+        )
         review_packet = artifacts.get(
             str(execution.get("review_packet_id", "") or ""),
             {},
         )
         if isinstance(review_packet, Mapping):
             for packet_error in validate_generated_code_semantic_review_packet(
-                review_packet
+                review_packet,
+                review_material=(
+                    review_material
+                    if isinstance(review_material, Mapping)
+                    else {}
+                ),
             ):
                 errors.append(
                     f"semantic review packet invalid for {execution_id}: "
@@ -13291,10 +13305,6 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
                 errors.append(
                     f"semantic review execution verdict mismatch: {execution_id}"
                 )
-        materialization = artifacts.get(
-            str(execution.get("materialization_id", "") or ""),
-            {},
-        )
         if isinstance(materialization, Mapping):
             material_fingerprint = stable_hash(
                 materialization.get("review_material", {})

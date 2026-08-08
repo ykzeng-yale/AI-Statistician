@@ -804,8 +804,6 @@ def _normalize_generated_code_semantic_review_packet(
         "proof_evidence_status": GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE,
         "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
         "kernel_verified": False,
-        "routing_authority": "ArchitectCoordinator_model_packet",
-        "runtime_selected_owner": False,
     }
     for field in (
         "work_order_id",
@@ -995,10 +993,6 @@ def validate_generated_code_semantic_review_packet(
         errors.append("generated-code semantic review proof boundary is invalid")
     if packet.get("kernel_verified") is not False:
         errors.append("generated-code semantic review cannot be kernel verified")
-    if packet.get("routing_authority") != "ArchitectCoordinator_model_packet":
-        errors.append("ArchitectCoordinator must remain routing authority")
-    if packet.get("runtime_selected_owner") is not False:
-        errors.append("runtime may not select a semantic-review repair owner")
     ledger = packet.get("cumulative_finding_ledger", [])
     if packet.get("cumulative_finding_ledger_fingerprint") != metric_protocol_finding_ledger_fingerprint(
         ledger if isinstance(ledger, list) else []

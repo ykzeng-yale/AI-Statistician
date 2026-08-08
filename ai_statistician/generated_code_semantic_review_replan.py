@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any, Mapping
 
 from .agent_runtime import AgentTask
-from .architect_coordinator_llm import ARCHITECT_FEEDBACK_ROUTE_OPERATION
 from .fingerprint import stable_hash
 from .research_schema import OpenResearchQuestion
-from .semantic_review_feedback import architect_observations_without_runtime_routing
+from .semantic_review_feedback import coding_agent_observations_only
 
 
 GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM = "GeneratedCodeSemanticReviewer"
@@ -23,7 +23,7 @@ def advance_generated_code_semantic_review_lineage_budget(
     max_local_revisions: int,
     prior_local_revisions: int = 0,
 ) -> dict[str, Any]:
-    """Bound repeated Architect replans for one reviewed source lineage."""
+    """Bound repeated producer regenerations for one reviewed source lineage."""
 
     finding_signature = {
         "failed_dimensions": sorted(
@@ -66,10 +66,10 @@ def advance_generated_code_semantic_review_lineage_budget(
         if isinstance(value, Mapping)
     }
     prior = dict(ledger.get(lineage_key, {}))
-    migrated_replans = (
+    migrated_regenerations = (
         max(0, int(prior_local_revisions or 0)) if not ledger else 0
     )
-    max_architect_replans = max(0, int(max_local_revisions or 0))
+    max_candidate_regenerations = max(0, int(max_local_revisions or 0))
     row = {
         "lineage_key": lineage_key,
         "source_lineage_key": source_lineage_key,
@@ -79,11 +79,11 @@ def advance_generated_code_semantic_review_lineage_budget(
         "source_subsystem": source_lineage_identity[2],
         "finding_fingerprint": finding_fingerprint,
         "rejection_count": int(prior.get("rejection_count", 0) or 0) + 1,
-        "architect_replan_count": max(
-            int(prior.get("architect_replan_count", 0) or 0),
-            migrated_replans,
+        "candidate_regeneration_count": max(
+            int(prior.get("candidate_regeneration_count", 0) or 0),
+            migrated_regenerations,
         ),
-        "max_architect_replans": max_architect_replans,
+        "max_candidate_regenerations": max_candidate_regenerations,
         "last_action": str(prior.get("last_action", "") or ""),
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_BUDGET_NOT_PROOF_EVIDENCE"
@@ -95,11 +95,11 @@ def advance_generated_code_semantic_review_lineage_budget(
         for candidate in ledger.values()
         if _source_lineage_identity(candidate) == source_lineage_identity
     ]
-    source_replan_count = sum(
-        max(0, int(candidate.get("architect_replan_count", 0) or 0))
+    source_regeneration_count = sum(
+        max(0, int(candidate.get("candidate_regeneration_count", 0) or 0))
         for candidate in source_rows
     )
-    row["source_architect_replan_count"] = source_replan_count
+    row["source_candidate_regeneration_count"] = source_regeneration_count
     row["source_rejection_count"] = sum(
         max(0, int(candidate.get("rejection_count", 0) or 0))
         for candidate in source_rows
@@ -107,14 +107,16 @@ def advance_generated_code_semantic_review_lineage_budget(
     row["finding_seen_in_source_lineage"] = bool(prior)
     if len(ledger) > 32:
         ledger = dict(list(ledger.items())[-32:])
-    architect_replan_available = source_replan_count < max_architect_replans
+    candidate_regeneration_available = (
+        source_regeneration_count < max_candidate_regenerations
+    )
     return {
         "lineage_key": lineage_key,
         "source_lineage_key": source_lineage_key,
         "row": row,
         "ledger": ledger,
-        "architect_replan_available": architect_replan_available,
-        "lineage_budget_exhausted": not architect_replan_available,
+        "candidate_regeneration_available": candidate_regeneration_available,
+        "lineage_budget_exhausted": not candidate_regeneration_available,
     }
 
 
@@ -133,39 +135,41 @@ def record_generated_code_semantic_review_lineage_action(
     }
     lineage_key = str(budget_state.get("lineage_key", "") or "")
     row = dict(ledger.get(lineage_key, budget_state.get("row", {})))
-    if action == "architect_replan":
-        row["architect_replan_count"] = int(
-            row.get("architect_replan_count", 0) or 0
+    if action == "producer_regeneration":
+        row["candidate_regeneration_count"] = int(
+            row.get("candidate_regeneration_count", 0) or 0
         ) + 1
     row["last_action"] = str(action)
     ledger[lineage_key] = row
     return ledger
 
 
-def build_generated_code_semantic_review_architect_replan_task(
+def build_generated_code_semantic_review_producer_revision_task(
     *,
     question: OpenResearchQuestion,
     review_task_id: str,
     work_order: Mapping[str, Any],
-    escalation_feedback: Mapping[str, Any],
+    review_feedback: Mapping[str, Any],
     review_packet_id: str,
     review_execution_id: str,
     revision_count: int,
     max_revisions: int,
     lineage_ledger: Mapping[str, Any] | None = None,
 ) -> AgentTask:
-    """Give evidence to Architect without inferring an owner or edit."""
+    """Return complete review feedback to the immutable source producer."""
 
-    observations = architect_observations_without_runtime_routing(
-        escalation_feedback
-    )
+    observations = coding_agent_observations_only(review_feedback)
     source_task = _mapping(work_order.get("source_task"))
-    deferred_task = _mapping(work_order.get("deferred_next_task"))
     source_inputs = _mapping(source_task.get("inputs"))
-    deferred_inputs = _mapping(deferred_task.get("inputs"))
+    source_subsystem = str(work_order.get("source_subsystem", "") or "")
+    if not source_subsystem or str(
+        source_task.get("owner_subsystem", "") or ""
+    ) != source_subsystem:
+        raise ValueError(
+            "semantic-review producer revision requires an immutable source owner"
+        )
     replan_context = {
         **_mapping(source_inputs.get("architect_context")),
-        **_mapping(deferred_inputs.get("architect_context")),
         "environment_feedback": dict(observations),
     }
     if isinstance(lineage_ledger, Mapping):
@@ -177,7 +181,9 @@ def build_generated_code_semantic_review_architect_replan_task(
 
     source_lineage = _mapping(observations.get("source_lineage"))
     replan = {
-        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+        "artifact_kind": (
+            "RuntimeGeneratedCodeSemanticReviewProducerRevisionContext"
+        ),
         "question_id": question.id,
         "source_review_task_id": review_task_id,
         "source_task_id": str(work_order.get("source_task_id", "") or ""),
@@ -205,53 +211,62 @@ def build_generated_code_semantic_review_architect_replan_task(
             or work_order.get("theory_packet_hash", "")
             or ""
         ),
-        "semantic_review_replan_budget": {
-            "replans_used": max(0, int(revision_count or 0)),
-            "max_replans": max(0, int(max_revisions or 0)),
+        "semantic_review_revision_budget": {
+            "candidate_regenerations_used": max(
+                0, int(revision_count or 0)
+            ),
+            "max_candidate_regenerations": max(
+                0, int(max_revisions or 0)
+            ),
         },
-        "routing_authority": "ArchitectCoordinator_model_packet",
+        "routing_authority": "immutable_source_producer_lineage",
         "runtime_selected_owner": False,
+        "complete_candidate_regeneration_required": True,
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_REPLAN_NOT_PROOF_EVIDENCE"
         ),
     }
-    replan["replan_id"] = (
-        "generated_code_semantic_review_replan:"
+    replan["revision_context_id"] = (
+        "generated_code_semantic_review_revision_context:"
         + stable_hash(replan)[:20]
     )
     replan_context["runtime_generated_code_semantic_review_replan"] = replan
     task_id = (
-        f"semantic-review-architect-replan:{question.id}:"
-        f"{stable_hash([review_execution_id, replan['replan_id']])[:8]}"
+        f"semantic-review-producer-regenerate:{question.id}:"
+        f"{stable_hash([review_execution_id, replan['revision_context_id']])[:8]}"
+    )
+    revision_inputs = deepcopy(source_inputs)
+    revision_inputs["question"] = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+    revision_inputs["architect_context"] = replan_context
+    revision_inputs["environment_feedback"] = dict(observations)
+    revision_inputs["generated_code_semantic_review_revision_count"] = (
+        max(0, int(revision_count or 0)) + 1
     )
     return AgentTask(
         task_id=task_id,
-        owner_subsystem="ArchitectCoordinator",
+        owner_subsystem=source_subsystem,
         objective=(
-            "Choose the next evidence-producing subsystem from the independent "
-            "semantic observations and immutable artifact lineage."
+            "Regenerate one complete candidate from the exact rejected candidate, "
+            "execution result, and independent semantic-review observations."
         ),
-        inputs={
-            "question": {
-                "id": question.id,
-                "title": question.title,
-                "description": question.description,
-                "tags": list(question.tags),
-            },
-            "architect_context": replan_context,
-            "environment_feedback": dict(observations),
-            "generated_code_semantic_review_revision_count": revision_count,
-            "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
-        },
-        allowed_tools=("model_backend", "evidence_ledger"),
-        expected_artifacts=("architect_feedback_route_decision",),
+        inputs=revision_inputs,
+        allowed_tools=tuple(source_task.get("allowed_tools", []) or []),
+        budget=deepcopy(_mapping(source_task.get("budget"))),
+        expected_artifacts=tuple(
+            source_task.get("expected_artifacts", []) or []
+        ),
         acceptance_gate=(
-            "validated Architect proposal selects the next subsystem while "
-            "preserving rejected artifact lineage and the global replan budget"
+            "a fresh complete model-generated candidate executes and passes a new "
+            "independent semantic review"
         ),
         stop_condition=(
-            "one model-owned route is selected or the blocker is recorded without "
-            "promoting a rejected artifact"
+            "the source producer emits a complete replacement candidate or the "
+            "bounded lineage records a blocker"
         ),
     )
 

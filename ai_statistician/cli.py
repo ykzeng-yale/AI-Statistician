@@ -2722,8 +2722,10 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             or input_summary.get("missing_artifact_id", "")
             or ""
         ).strip()
-        repair_owner = str(
+        producer_subsystem = str(
             row.get("next_owner_subsystem", "")
+            or row.get("producer_subsystem", "")
+            or input_summary.get("producer_subsystem", "")
             or row.get("repair_owner_agent", "")
             or input_summary.get("repair_owner_agent", "")
             or ""
@@ -2734,7 +2736,7 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             + ":"
             + missing_artifact_id
             + ":"
-            + repair_owner
+            + producer_subsystem
             + ":"
             + work_order_id
         )
