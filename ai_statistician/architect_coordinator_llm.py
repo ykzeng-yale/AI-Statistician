@@ -739,6 +739,11 @@ def build_architect_feedback_route_prompt(
         "worker is unavailable; the selected worker receives the complete feedback. "
         "Route from direct evidence; a statistically non-diagnostic result does not "
         "justify source or theory revision, and a frozen gate cannot change post hoc. "
+        "If the observation shows that a frozen measurement protocol is semantically "
+        "inconsistent with its upstream artifact, preserve the failed result and route "
+        "for a new upstream artifact. Only a later, independently authored and reviewed "
+        "protocol on that materially new lineage may replace the old protocol; never ask "
+        "a worker to edit the currently frozen gate. "
         "Choose BLOCK only when no listed existing subsystem can produce the next "
         "required evidence. If your rationale can name an available subsystem and a "
         "concrete action it can take, choose ROUTE to that subsystem instead of BLOCK. "
@@ -788,7 +793,11 @@ def _architect_feedback_route_subsystems(
     budget = architect_context.get("candidate_lineage_budget", {})
     if not isinstance(budget, Mapping):
         return ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS
-    feedback_id = str(environment_feedback.get("feedback_id", "") or "")
+    feedback_id = str(
+        environment_feedback.get("active_observation_id", "")
+        or environment_feedback.get("feedback_id", "")
+        or ""
+    )
     failure = str(
         environment_feedback.get("failure_classification", "") or ""
     )

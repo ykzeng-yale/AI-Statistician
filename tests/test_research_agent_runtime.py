@@ -4220,6 +4220,7 @@ def test_critic_does_not_select_gap_planner_from_packet_escalation() -> None:
                 }
             },
             "environment_feedback": {
+                "feedback_id": "formalizer-feedback:packet-escalation",
                 "failure_classification": (
                     "formalizer_repeated_syntax_packet_validation_escalated"
                 ),
@@ -4261,6 +4262,12 @@ def test_critic_does_not_select_gap_planner_from_packet_escalation() -> None:
     assert feedback["feedback_type"] == "critic_architect_replan_observations"
     assert feedback["feedback_id"].startswith(
         "critic_architect_replan_feedback:"
+    )
+    assert feedback["active_observation_id"] == (
+        "formalizer-feedback:packet-escalation"
+    )
+    assert feedback["failure_classification"] == (
+        "formalizer_repeated_syntax_packet_validation_escalated"
     )
     assert feedback["question_id"] == question.id
     assert feedback["source_theory_packet_id"] == theory_packet_id

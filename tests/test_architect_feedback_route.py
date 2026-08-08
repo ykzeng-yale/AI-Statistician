@@ -214,6 +214,9 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     assert "statistically non-diagnostic result does not" in (
         request.user_prompt
     )
+    assert "never ask a worker to edit the currently frozen gate" in (
+        request.user_prompt
+    )
     assert "Superseded observations are complete attempt history" in (
         request.user_prompt
     )
@@ -259,6 +262,26 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
     assert prompt_payload["active_runtime_context"]["candidate_lineage_budget"][
         "budget_exhausted"
     ] is True
+
+    critic_wrapped_feedback = {
+        "feedback_id": "critic-wrapper:new-envelope",
+        "active_observation_id": feedback["feedback_id"],
+        "feedback_type": "critic_architect_replan_observations",
+        "failure_classification": feedback["failure_classification"],
+        "current_environment_observation": feedback,
+    }
+    wrapped_prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context=context,
+        environment_feedback=critic_wrapped_feedback,
+    )
+    wrapped_payload = json.loads(wrapped_prompt.rsplit("\n\n", 1)[1])
+    assert "SimulationEvaluator" not in wrapped_payload[
+        "available_route_subsystems"
+    ]
+    assert wrapped_payload["unavailable_for_unchanged_exhausted_lineage"] == [
+        "SimulationEvaluator"
+    ]
 
     backend = _RouteSequenceBackend(
         [

@@ -36416,6 +36416,21 @@ class CriticEvaluatorRuntimeSubsystem:
                 "schema_version": RUNTIME_SCHEMA_VERSION,
                 "artifact_kind": "RuntimeCriticArchitectReplanObservations",
                 "feedback_type": "critic_architect_replan_observations",
+                "active_observation_id": str(
+                    critic_environment_feedback.get(
+                        "active_observation_id",
+                        "",
+                    )
+                    or critic_environment_feedback.get("feedback_id", "")
+                    or ""
+                ),
+                "failure_classification": str(
+                    critic_environment_feedback.get(
+                        "failure_classification",
+                        "",
+                    )
+                    or ""
+                ),
                 "question_id": question.id,
                 "source_theory_packet_id": str(
                     theory_packet.get("packet_id", "")
