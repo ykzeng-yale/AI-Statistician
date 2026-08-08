@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from .agent_runtime import AgentTask
+from .architect_coordinator_llm import ARCHITECT_FEEDBACK_ROUTE_OPERATION
 from .fingerprint import stable_hash
 from .research_schema import OpenResearchQuestion
 from .semantic_review_feedback import architect_observations_without_runtime_routing
@@ -240,9 +241,10 @@ def build_generated_code_semantic_review_architect_replan_task(
             "architect_context": replan_context,
             "environment_feedback": dict(observations),
             "generated_code_semantic_review_revision_count": revision_count,
+            "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
         },
         allowed_tools=("model_backend", "evidence_ledger"),
-        expected_artifacts=("architect_coordinator_proposal",),
+        expected_artifacts=("architect_feedback_route_decision",),
         acceptance_gate=(
             "validated Architect proposal selects the next subsystem while "
             "preserving rejected artifact lineage and the global replan budget"

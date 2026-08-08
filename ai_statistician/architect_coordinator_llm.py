@@ -78,6 +78,39 @@ ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "FormalizationGapPlanner",
     "CriticEvaluator",
 )
+ARCHITECT_FEEDBACK_ROUTE_OPERATION = "environment_feedback_route"
+ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS = (
+    "RetrievalMemory",
+    "TheoryDeveloper",
+    "SimulationEvaluator",
+    "AlgorithmEngineer",
+    "FormalizationEvaluator",
+    "FormalizationGapPlanner",
+    "ProofEngineer",
+)
+ARCHITECT_FEEDBACK_ROUTE_NOT_EVIDENCE = (
+    "LLM_ARCHITECT_FEEDBACK_ROUTE_NOT_PROOF_OR_EXECUTION_EVIDENCE"
+)
+ARCHITECT_FEEDBACK_ROUTE_JSON_SCHEMA: dict[str, Any] = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "decision",
+        "selected_subsystem",
+        "objective",
+        "rationale",
+    ],
+    "properties": {
+        "decision": {"type": "string", "enum": ["ROUTE", "BLOCK"]},
+        "selected_subsystem": {
+            "type": "string",
+            "enum": [*ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS, "NONE"],
+        },
+        "objective": {"type": "string"},
+        "rationale": {"type": "string"},
+    },
+}
 RESEARCH_EVALUATION_MODES = frozenset({"research_eval", "capability_eval"})
 RESEARCH_EVAL_FORBIDDEN_FORMAL_SUBSYSTEMS = frozenset(
     {
@@ -445,6 +478,291 @@ class LLMArchitectCoordinatorAgent:
                 validation_label="LLM ArchitectCoordinator packet",
                 max_repair_attempts=self.config.max_repair_attempts,
             )
+
+    def route_environment_feedback(
+        self,
+        *,
+        question: OpenResearchQuestion,
+        architect_context: Mapping[str, Any],
+        environment_feedback: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Choose one next owner without regenerating the research plan.
+
+        This is the same Architect model and provider used by ``propose``. The
+        runtime supplies observations and validates identity/budget boundaries;
+        it never infers an owner or authors a candidate fix.
+        """
+
+        request_model = resolve_generator_model(
+            provider_name=self.config.provider_name,
+            requested_model=self.config.model,
+            model_tier=self.config.model_tier,
+        )
+        feedback_fingerprint = stable_hash(dict(environment_feedback))
+        request = GeneratorRequest(
+            system_prompt=ARCHITECT_COORDINATOR_SYSTEM_PROMPT,
+            user_prompt=build_architect_feedback_route_prompt(
+                question=question,
+                architect_context=architect_context,
+                environment_feedback=environment_feedback,
+            ),
+            model=request_model,
+            max_tokens=min(max(512, int(self.config.max_tokens or 0)), 2000),
+            temperature=self.config.temperature,
+            schema=ARCHITECT_FEEDBACK_ROUTE_JSON_SCHEMA,
+            metadata={
+                "subsystem": "ArchitectCoordinator",
+                "agent": "LLMArchitectCoordinatorAgent",
+                "operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
+                "provider_name": self.config.provider_name,
+                "model_tier": self.config.model_tier,
+                "resolved_model": request_model,
+                "provider_structured_output": True,
+                "environment_feedback_fingerprint": feedback_fingerprint,
+            },
+        )
+
+        def build_packet(
+            payload: Mapping[str, Any],
+            response: Any,
+            raw_text: str,
+        ) -> dict[str, Any]:
+            normalized = {
+                "schema_version": ARCHITECT_COORDINATOR_SCHEMA_VERSION,
+                "artifact_kind": "ArchitectFeedbackRouteDecision",
+                "question_id": question.id,
+                "decision": str(payload.get("decision", "") or "").strip(),
+                "selected_subsystem": str(
+                    payload.get("selected_subsystem", "") or ""
+                ).strip(),
+                "objective": str(payload.get("objective", "") or "").strip(),
+                "rationale": str(payload.get("rationale", "") or "").strip(),
+                "model": response.model or request_model,
+                "model_tier": self.config.model_tier,
+                "provider": self.config.provider_name or response.provider,
+                "backend_provider": response.provider,
+                "source_agent": "LLMArchitectCoordinatorAgent",
+                "operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
+                "environment_feedback_fingerprint": feedback_fingerprint,
+                "raw_response": raw_text,
+                "proof_evidence_status": ARCHITECT_FEEDBACK_ROUTE_NOT_EVIDENCE,
+                "evidence_boundary": ARCHITECT_COORDINATOR_BOUNDARY,
+            }
+            normalized["route_decision_id"] = (
+                "architect_feedback_route:"
+                + stable_hash(
+                    {
+                        "question_id": question.id,
+                        "feedback_fingerprint": feedback_fingerprint,
+                        "decision": normalized["decision"],
+                        "selected_subsystem": normalized["selected_subsystem"],
+                        "objective": normalized["objective"],
+                        "rationale": normalized["rationale"],
+                    }
+                )[:20]
+            )
+            return normalized
+
+        with agent_runtime_substage(
+            "architect_feedback_route",
+            metadata={
+                "model_tier": self.config.model_tier,
+                "max_packet_regeneration_attempts": self.config.max_repair_attempts,
+                "full_research_plan_regeneration": False,
+            },
+        ):
+            return generate_validated_json_packet(
+                provider=self.provider,
+                request=request,
+                extract_payload=_extract_json_object,
+                build_packet=build_packet,
+                validate_packet=validate_architect_feedback_route_packet,
+                validation_label="LLM Architect feedback-route packet",
+                max_repair_attempts=self.config.max_repair_attempts,
+            )
+
+
+def build_architect_feedback_route_prompt(
+    *,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any],
+) -> str:
+    """Build a bounded routing prompt; the selected worker gets full feedback."""
+
+    runtime_plan = architect_context.get("architect_runtime_plan", {})
+    runtime_plan = runtime_plan if isinstance(runtime_plan, Mapping) else {}
+    active_runtime_context = {
+        str(key): value
+        for key, value in architect_context.items()
+        if (
+            "replan" in str(key).lower()
+            or str(key).endswith("_id")
+            or str(key).endswith("_hash")
+            or str(key)
+            in {
+                "runtime_evaluation_mode",
+                "empirical_evaluation_phase",
+                "runtime_feedback_loop",
+            }
+        )
+    }
+    payload = {
+        "question": {
+            "id": question.id,
+            "title": question.title,
+            "description": question.description,
+            "tags": list(question.tags),
+        },
+        "available_route_subsystems": list(ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS),
+        "current_validated_plan": {
+            key: deepcopy(runtime_plan.get(key))
+            for key in (
+                "problem_analysis",
+                "subsystem_execution_plan",
+                "next_actions",
+                "evidence_gates",
+                "risk_register",
+                "evidence_contract",
+            )
+            if key in runtime_plan
+        },
+        "active_runtime_context": active_runtime_context,
+        "environment_observations": architect_observations_without_runtime_routing(
+            environment_feedback
+        ),
+        "environment_feedback_fingerprint": stable_hash(dict(environment_feedback)),
+        "routing_contract": {
+            "content_owner": "ArchitectCoordinator model",
+            "runtime_does_not_select_owner": True,
+            "runtime_does_not_author_source_changes": True,
+            "selected_worker_receives_complete_feedback": True,
+            "failed_artifacts_remain_failed": True,
+            "immutable_evidence_gates_cannot_be_weakened": True,
+        },
+        "required_output": {
+            "decision": "ROUTE or BLOCK",
+            "selected_subsystem": (
+                "one available_route_subsystems value for ROUTE; NONE for BLOCK"
+            ),
+            "objective": "one concrete next evidence-producing objective",
+            "rationale": (
+                "why this owner is appropriate, or the exact blocking condition"
+            ),
+        },
+    }
+    bounded_payload = _bounded_architect_route_prompt_value(payload)
+    return (
+        "Review the current environment observations as the existing AI Statistician "
+        "ArchitectCoordinator. Choose only the next evidence-producing owner; do not "
+        "regenerate the full research plan and do not prescribe source edits. The "
+        "selected worker will receive the complete candidate and exact diagnostics. "
+        "Return ONLY one JSON object matching required_output.\n\n"
+        + json.dumps(bounded_payload, separators=(",", ":"), default=str)
+    )
+
+
+def validate_architect_feedback_route_packet(
+    packet: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    decision = str(packet.get("decision", "") or "").strip()
+    selected = str(packet.get("selected_subsystem", "") or "").strip()
+    objective = str(packet.get("objective", "") or "").strip()
+    rationale = str(packet.get("rationale", "") or "").strip()
+    if decision not in {"ROUTE", "BLOCK"}:
+        errors.append("decision must be ROUTE or BLOCK")
+    if not rationale:
+        errors.append("rationale must be nonempty")
+    if decision == "ROUTE":
+        if selected not in ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS:
+            errors.append("ROUTE requires one available selected_subsystem")
+        if not objective:
+            errors.append("ROUTE requires a nonempty objective")
+    elif decision == "BLOCK":
+        if selected != "NONE":
+            errors.append("BLOCK requires selected_subsystem NONE")
+        if objective:
+            errors.append("BLOCK must leave objective empty")
+    if str(packet.get("operation", "") or "") != ARCHITECT_FEEDBACK_ROUTE_OPERATION:
+        errors.append("operation must identify the Architect feedback route")
+    if not str(packet.get("environment_feedback_fingerprint", "") or ""):
+        errors.append("environment_feedback_fingerprint must be nonempty")
+    return errors
+
+
+def _bounded_architect_route_prompt_value(
+    value: Any,
+    *,
+    depth: int = 0,
+) -> Any:
+    """Bound transport size without interpreting diagnostics or choosing a route."""
+
+    return _bounded_architect_route_prompt_value_with_budget(
+        value,
+        depth=depth,
+        remaining=[24000],
+    )
+
+
+def _bounded_architect_route_prompt_value_with_budget(
+    value: Any,
+    *,
+    depth: int,
+    remaining: list[int],
+) -> Any:
+    if remaining[0] <= 0:
+        return "[prompt-budget-exhausted]"
+
+    if depth >= 7:
+        remaining[0] -= 15
+        return "[depth-limited]"
+    if isinstance(value, Mapping):
+        rows = list(value.items())
+        bounded: dict[str, Any] = {}
+        for key, child in rows[:48]:
+            if remaining[0] <= 0:
+                break
+            key_text = str(key)
+            remaining[0] -= len(key_text)
+            bounded[key_text] = _bounded_architect_route_prompt_value_with_budget(
+                child,
+                depth=depth + 1,
+                remaining=remaining,
+            )
+        if len(rows) > 48:
+            bounded["_omitted_mapping_items"] = len(rows) - 48
+        return bounded
+    if isinstance(value, (list, tuple)):
+        rows = list(value)
+        bounded_rows: list[Any] = []
+        for child in rows[:24]:
+            if remaining[0] <= 0:
+                break
+            bounded_rows.append(
+                _bounded_architect_route_prompt_value_with_budget(
+                    child,
+                    depth=depth + 1,
+                    remaining=remaining,
+                )
+            )
+        if len(rows) > 24:
+            bounded_rows.append({"_omitted_sequence_items": len(rows) - 24})
+        return bounded_rows
+    if isinstance(value, str):
+        text = value if len(value) <= 1600 else value[:1597] + "..."
+        allowed = max(0, min(len(text), remaining[0]))
+        remaining[0] -= allowed
+        if allowed < len(text):
+            return text[: max(0, allowed - 3)] + "..." if allowed >= 3 else ""
+        return text
+    if isinstance(value, (int, float, bool)) or value is None:
+        remaining[0] -= len(str(value))
+        return value
+    text = str(value)[:1600]
+    allowed = max(0, min(len(text), remaining[0]))
+    remaining[0] -= allowed
+    return text[:allowed]
 
 
 def architect_validated_plan_reuse_metadata(

@@ -47251,6 +47251,9 @@ def test_agent_runtime_yields_exhausted_algorithm_regeneration_to_architect(
     assert len(architect.tasks) == 1
     assert all(trace.subsystem != "TheoryDeveloper" for trace in result.traces)
     feedback = architect.tasks[0].inputs["environment_feedback"]
+    assert architect.tasks[0].inputs["runtime_architect_operation"] == (
+        "environment_feedback_route"
+    )
     assert feedback["failure_classification"] == (
         "generated_algorithm_sandbox_execution_failed"
     )
@@ -48889,6 +48892,9 @@ def test_agent_runtime_routes_exhausted_simulation_metric_gate_to_architect(
     assert len(architect.tasks) == 1
 
     replan_task = architect.tasks[0]
+    assert replan_task.inputs["runtime_architect_operation"] == (
+        "environment_feedback_route"
+    )
     feedback = replan_task.inputs["environment_feedback"]
     assert feedback["feedback_type"] == (
         "generated_simulation_sandbox_execution_feedback"

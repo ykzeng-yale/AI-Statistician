@@ -30,6 +30,7 @@ from .agent_runtime import (
 from .architect_coordinator_llm import (
     ARCHITECT_COORDINATOR_BOUNDARY,
     ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE,
+    ARCHITECT_FEEDBACK_ROUTE_OPERATION,
     LLMArchitectCoordinatorAgent,
     architect_validated_plan_reuse_metadata,
     architect_capability_gap_routing_agenda,
@@ -8209,6 +8210,169 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 runtime_config=self.runtime_config,
                 blackboard=blackboard,
             )
+        if architect_operation == ARCHITECT_FEEDBACK_ROUTE_OPERATION:
+            environment_feedback = task.inputs.get("environment_feedback", {})
+            if not isinstance(environment_feedback, Mapping) or not environment_feedback:
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "ArchitectCoordinator feedback routing requires immutable "
+                        "environment observations before a model call."
+                    ),
+                    observations=(
+                        EnvironmentObservation(
+                            observation_type="architect_feedback_route_input_rejected",
+                            summary="environment_feedback is missing or empty",
+                            payload={
+                                "model_call_authorized": False,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        ),
+                    ),
+                    failure_classification="architect_feedback_route_input_invalid",
+                )
+            try:
+                route_packet = self.coordinator.route_environment_feedback(
+                    question=question,
+                    architect_context=context,
+                    environment_feedback=environment_feedback,
+                )
+            except PacketValidationError as exc:
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "The Architect model did not produce a valid compact feedback "
+                        "route after complete-packet regeneration."
+                    ),
+                    observations=(
+                        EnvironmentObservation(
+                            observation_type="architect_feedback_route_validation_failed",
+                            summary="; ".join(exc.errors)[:500],
+                            payload={
+                                "validation_errors": list(exc.errors),
+                                "generation_history": list(exc.history),
+                                "environment_feedback_fingerprint": stable_hash(
+                                    dict(environment_feedback)
+                                ),
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        ),
+                    ),
+                    failure_classification=(
+                        "architect_feedback_route_packet_validation_failed"
+                    ),
+                )
+            feedback_fingerprint = stable_hash(dict(environment_feedback))
+            if str(
+                route_packet.get("environment_feedback_fingerprint", "") or ""
+            ) != feedback_fingerprint:
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "Architect feedback-route identity did not match the current "
+                        "immutable environment observations."
+                    ),
+                    failure_classification="architect_feedback_route_lineage_mismatch",
+                )
+            decision_id = str(
+                route_packet.get("route_decision_id", "") or ""
+            ).strip()
+            route_artifact = deepcopy(dict(route_packet))
+            route_evidence = EvidenceLedgerEntry(
+                evidence_id=(
+                    "evidence:" + stable_hash([task.task_id, decision_id])[:20]
+                ),
+                task_id=task.task_id,
+                artifact_id=decision_id,
+                evidence_type="llm_architect_feedback_route",
+                status=(
+                    "MODEL_RECORDED_TYPED_BLOCKER"
+                    if route_packet.get("decision") == "BLOCK"
+                    else "MODEL_ROUTE_RECORDED_REQUIRES_RUNTIME_EXECUTION"
+                ),
+                boundary=ARCHITECT_COORDINATOR_BOUNDARY,
+                payload={
+                    "runtime_executed": False,
+                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                },
+            )
+            if route_packet.get("decision") == "BLOCK":
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=str(route_packet.get("rationale", "") or ""),
+                    produced_artifacts={decision_id: route_artifact},
+                    observations=(
+                        EnvironmentObservation(
+                            observation_type="architect_feedback_route_blocked",
+                            summary=str(route_packet.get("rationale", "") or "")[:500],
+                            payload={
+                                "route_decision_id": decision_id,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        ),
+                    ),
+                    evidence_entries=(route_evidence,),
+                    failure_classification="architect_feedback_route_blocked",
+                )
+
+            context["architect_feedback_route_decision"] = route_artifact
+            context["environment_feedback"] = deepcopy(dict(environment_feedback))
+            runtime_plan = _architect_runtime_plan(context)
+            selected_subsystem = str(
+                route_packet.get("selected_subsystem", "") or ""
+            ).strip()
+            routing_decision = _architect_initial_routing_decision(
+                question=question,
+                packet={
+                    "packet_id": decision_id,
+                    "evidence_contract": deepcopy(
+                        runtime_plan.get("evidence_contract", {})
+                    ),
+                    "subsystem_execution_plan": deepcopy(
+                        runtime_plan.get("subsystem_execution_plan", [])
+                    ),
+                    "next_actions": [
+                        {
+                            "owner_agent": selected_subsystem,
+                            "action": str(route_packet.get("objective", "") or ""),
+                            "acceptance_gate": _architect_acceptance_gate(
+                                context,
+                                selected_subsystem,
+                                "new environment evidence or a typed blocker is recorded",
+                            ),
+                        }
+                    ],
+                },
+                architect_context=context,
+                packet_id=decision_id,
+                runtime_config=self.runtime_config,
+                blackboard=blackboard,
+            )
+            next_task = routing_decision["task"]
+            return AgentStepResult(
+                status="REROUTE",
+                rationale=str(route_packet.get("rationale", "") or ""),
+                produced_artifacts={decision_id: route_artifact},
+                observations=(
+                    EnvironmentObservation(
+                        observation_type="llm_architect_feedback_route",
+                        summary=(
+                            f"Architect model requested {selected_subsystem}; "
+                            f"prerequisite checks selected {next_task.owner_subsystem}."
+                        ),
+                        payload={
+                            "route_decision_id": decision_id,
+                            "model_requested_subsystem": selected_subsystem,
+                            "selected_subsystem": next_task.owner_subsystem,
+                            "full_research_plan_regenerated": False,
+                            "runtime_authored_candidate_fix": False,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    ),
+                ),
+                evidence_entries=(route_evidence,),
+                next_task=next_task,
+            )
         protocol_revision_result = (
             _architect_post_result_metric_protocol_revision_result(
                 task=task,
@@ -9188,11 +9352,22 @@ def _architect_selected_worker_environment_feedback(
     if isinstance(explicit_feedback, Mapping) and explicit_feedback:
         return dict(explicit_feedback)
 
+    feedback = architect_context.get("environment_feedback", {})
+    feedback_route = architect_context.get("architect_feedback_route_decision", {})
+    if (
+        isinstance(feedback, Mapping)
+        and feedback
+        and isinstance(feedback_route, Mapping)
+        and feedback_route.get("decision") == "ROUTE"
+        and str(feedback_route.get("environment_feedback_fingerprint", "") or "")
+        == stable_hash(dict(feedback))
+    ):
+        return dict(feedback)
+
     replan = architect_context.get(
         "runtime_generated_code_semantic_review_replan",
         {},
     )
-    feedback = architect_context.get("environment_feedback", {})
     feedback_packet_id = (
         str(feedback.get("semantic_review_packet_id", "") or "")
         if isinstance(feedback, Mapping)
@@ -10638,6 +10813,15 @@ def _architect_initial_objective(
     subsystem: str,
     default: str,
 ) -> str:
+    feedback_route = context.get("architect_feedback_route_decision", {})
+    if (
+        isinstance(feedback_route, Mapping)
+        and feedback_route.get("decision") == "ROUTE"
+        and str(feedback_route.get("selected_subsystem", "") or "") == subsystem
+    ):
+        routed_objective = str(feedback_route.get("objective", "") or "").strip()
+        if routed_objective:
+            return routed_objective
     row = _architect_subsystem_plan(context, subsystem)
     objective = str(row.get("objective", "") or "").strip()
     return objective or default
@@ -17168,9 +17352,10 @@ def _coding_agent_revision_budget_architect_task(
             "question": _question_to_payload(question),
             "architect_context": replan_context,
             "environment_feedback": dict(revision_feedback),
+            "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
         },
         allowed_tools=("model_backend", "evidence_ledger"),
-        expected_artifacts=("architect_coordinator_proposal",),
+        expected_artifacts=("architect_feedback_route_decision",),
         acceptance_gate=(
             "validated Architect proposal routes to an evidence-producing owner or "
             "records a typed blocker without weakening execution gates"
@@ -17279,9 +17464,10 @@ def _coding_agent_metric_gate_architect_task(
             "question": _question_to_payload(question),
             "architect_context": replan_context,
             "environment_feedback": dict(metric_feedback),
+            "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
         },
         allowed_tools=("model_backend", "evidence_ledger"),
-        expected_artifacts=("architect_coordinator_proposal",),
+        expected_artifacts=("architect_feedback_route_decision",),
         acceptance_gate=(
             "validated Architect proposal routes an evidence-producing repair or "
             "records a fresh-run protocol blocker while preserving original "

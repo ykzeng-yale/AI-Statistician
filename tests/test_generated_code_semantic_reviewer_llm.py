@@ -676,6 +676,9 @@ def test_replan_task_gives_observations_to_architect_only() -> None:
     )
 
     assert task.owner_subsystem == "ArchitectCoordinator"
+    assert task.inputs["runtime_architect_operation"] == (
+        "environment_feedback_route"
+    )
     assert task.inputs["environment_feedback"]["findings"]
     replan = task.inputs["architect_context"][
         "runtime_generated_code_semantic_review_replan"
