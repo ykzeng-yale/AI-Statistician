@@ -2445,13 +2445,14 @@ def test_research_loop_uses_llm_theory_developer_repair_handler() -> None:
                     out_dir=out_dir,
                 )
             },
-            enable_default_theory_developer=False,
         ).iterate(question, max_rounds=2)
     )
 
     assert result["status"] == "CONVERGED_MONITOR_READY"
     assert result["honesty_boundary"]["executes_registered_live_repair_handlers"]
-    assert not result["honesty_boundary"]["executes_default_theory_developer_revision_handler"]
+    assert "executes_default_theory_developer_revision_handler" not in result[
+        "honesty_boundary"
+    ]
     action = result["rounds"][0]["actions"][0]
     assert action["execution_status"] == "EXECUTED_LLM_THEORY_DEVELOPER_REPAIR"
     assert action["live_repair_handler"] == "LLMTheoryDeveloperRepairHandler"

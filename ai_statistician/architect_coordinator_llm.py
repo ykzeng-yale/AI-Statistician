@@ -638,6 +638,9 @@ def build_architect_feedback_route_prompt(
             "runtime_does_not_select_owner": True,
             "runtime_does_not_author_source_changes": True,
             "selected_worker_receives_complete_feedback": True,
+            "automatic_retry_budget_does_not_disable_existing_producer": True,
+            "new_repair_patch_or_adapter_subsystem_forbidden": True,
+            "implementation_revision_owner_is_existing_source_producer": True,
             "runtime_progress_snapshot_is_authoritative_for_availability": True,
             "current_validated_plan_is_prior_intent_not_missing_work": True,
             "completed_stage_restart_requires_observed_staleness_or_incompatibility": (
@@ -657,7 +660,27 @@ def build_architect_feedback_route_prompt(
             ),
         },
     }
-    bounded_payload = _bounded_architect_route_prompt_value(payload)
+    bounded_payload = {
+        "question": payload["question"],
+        "available_route_subsystems": payload["available_route_subsystems"],
+        "environment_observations": _bounded_architect_route_prompt_value(
+            payload["environment_observations"],
+            max_chars=64_000,
+        ),
+        "current_validated_plan": _bounded_architect_route_prompt_value(
+            payload["current_validated_plan"],
+            max_chars=12_000,
+        ),
+        "active_runtime_context": _bounded_architect_route_prompt_value(
+            payload["active_runtime_context"],
+            max_chars=12_000,
+        ),
+        "environment_feedback_fingerprint": payload[
+            "environment_feedback_fingerprint"
+        ],
+        "routing_contract": payload["routing_contract"],
+        "required_output": payload["required_output"],
+    }
     return (
         "Review the current environment observations as the existing AI Statistician "
         "ArchitectCoordinator. Choose only the next evidence-producing owner; do not "
@@ -667,7 +690,14 @@ def build_architect_feedback_route_prompt(
         "steps are still missing. Treat runtime_progress_snapshot as authoritative for "
         "artifact availability and recent execution. Do not restart a completed stage "
         "unless the environment observations identify its current artifact as stale, "
-        "incompatible, or insufficient for the concrete next objective. "
+        "incompatible, or insufficient for the concrete next objective. An exhausted "
+        "automatic same-producer retry budget ends only automatic repetition; it does "
+        "not make the existing producer unavailable to an Architect-authored, materially "
+        "reframed objective. Never propose a new repair, patch, correction, or adapter "
+        "agent: implementation revision belongs to the existing source producer, while "
+        "theory, measurement, simulation design, and environment defects belong to their "
+        "existing agents. A truncated routing view is not evidence that an artifact or "
+        "worker is unavailable; the selected worker receives the complete feedback. "
         "Return ONLY one JSON object matching required_output.\n\n"
         + json.dumps(bounded_payload, separators=(",", ":"), default=str)
     )
@@ -706,13 +736,14 @@ def _bounded_architect_route_prompt_value(
     value: Any,
     *,
     depth: int = 0,
+    max_chars: int = 24_000,
 ) -> Any:
     """Bound transport size without interpreting diagnostics or choosing a route."""
 
     return _bounded_architect_route_prompt_value_with_budget(
         value,
         depth=depth,
-        remaining=[24000],
+        remaining=[max(1, int(max_chars))],
     )
 
 
@@ -723,7 +754,7 @@ def _bounded_architect_route_prompt_value_with_budget(
     remaining: list[int],
 ) -> Any:
     if remaining[0] <= 0:
-        return "[prompt-budget-exhausted]"
+        return "[routing-view-truncated; selected worker receives complete artifact]"
 
     if depth >= 7:
         remaining[0] -= 15

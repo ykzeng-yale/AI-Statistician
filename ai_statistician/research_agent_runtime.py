@@ -99820,69 +99820,10 @@ def _algorithm_sandbox_revision_feedback(
     prototypes = [
         row for row in manifest.get("prototypes", []) or [] if isinstance(row, Mapping)
     ]
-    compact_prototypes: list[dict[str, Any]] = []
-    for row in prototypes[:5]:
-        safety_errors = list(_str_tuple(row.get("safety_errors", [])))
-        script_hash = _generated_sandbox_prototype_script_hash(row)
-        parent_source = _generated_python_sandbox_parent_source(row)
-        parent_source_hash = stable_hash(parent_source) if parent_source else ""
-        compact_prototypes.append(
-            {
-                "estimator_id": str(row.get("estimator_id", "") or ""),
-                "prototype_artifact_id": _generated_sandbox_prototype_artifact_id(
-                    row
-                ),
-                "script_hash": script_hash,
-                "parent_source": parent_source,
-                "parent_source_hash": parent_source_hash,
-                "parent_source_complete": bool(
-                    parent_source
-                    and script_hash
-                    and parent_source_hash == script_hash
-                ),
-                "prototype_status": str(row.get("prototype_status", "") or ""),
-                "executor": str(row.get("executor", "") or ""),
-                "smoke_passed": row.get("smoke_passed"),
-                "execution_smoke_passed": row.get("execution_smoke_passed"),
-                "execution_attempted": row.get("execution_attempted"),
-                "returncode": row.get("returncode"),
-                "metric_gate_errors": list(
-                    _str_tuple(row.get("metric_gate_errors", []))
-                ),
-                "safety_errors": safety_errors,
-                "runtime_errors": list(
-                    _str_tuple(row.get("runtime_errors", []))
-                ),
-                "metrics": _compact_generated_sandbox_metrics(
-                    row.get("metrics", {})
-                ),
-                "metric_gate_targets": _compact_generated_sandbox_metrics(
-                    row.get("metric_gate_targets", {})
-                ),
-                "metric_gate_policy_mode": str(
-                    row.get("metric_gate_policy_mode", "") or ""
-                ),
-                "metric_contract_set_id": str(
-                    row.get("metric_contract_set_id", "") or ""
-                ),
-                "metric_contracts": _compact_generated_metric_contracts(
-                    row.get("metric_contracts", [])
-                ),
-                "metric_contract_evaluation": (
-                    _compact_generated_metric_contract_evaluation(
-                        row.get("metric_contract_evaluation", {})
-                    )
-                ),
-                "script_path": str(row.get("script_path", "") or ""),
-                "code_excerpt": _generated_python_sandbox_code_excerpt(row),
-                "stdout_summary": str(row.get("stdout_summary", "") or ""),
-                "stderr_summary": str(row.get("stderr_summary", "") or ""),
-                "result_parse_error": str(
-                    row.get("result_parse_error", "") or ""
-                ),
-                "reason": str(row.get("reason", "") or ""),
-            }
-        )
+    observed_prototypes = [
+        _complete_generated_sandbox_prototype_observation(row)
+        for row in prototypes
+    ]
     feedback_type = "algorithm_sandbox_execution_feedback"
     source_manifest_id = str(manifest.get("manifest_id", "") or "")
     feedback_id = _generated_sandbox_feedback_id(
@@ -99891,30 +99832,18 @@ def _algorithm_sandbox_revision_feedback(
         failure_classification=failure_classification,
         prototype_rows=prototypes,
     )
-    return {
-        "feedback_id": feedback_id,
-        "feedback_type": feedback_type,
-        "algorithm_sandbox_manifest_id": source_manifest_id,
-        "failure_classification": failure_classification,
-        "n_prototypes": int(manifest.get("n_prototypes", 0) or 0),
-        "n_executed": int(manifest.get("n_executed", 0) or 0),
-        "n_passed": int(manifest.get("n_passed", 0) or 0),
-        "n_metric_gate_failed": int(manifest.get("n_metric_gate_failed", 0) or 0),
-        "n_generated_code_executed": int(
-            manifest.get("n_generated_code_executed", 0) or 0
-        ),
-        "n_generated_code_execution_attempted": int(
-            manifest.get("n_generated_code_execution_attempted", 0) or 0
-        ),
-        "n_generated_code_execution_failed": int(
-            manifest.get("n_generated_code_execution_failed", 0) or 0
-        ),
-        "n_unsafe_generated_code_rejected": int(
-            manifest.get("n_unsafe_generated_code_rejected", 0) or 0
-        ),
-        "prototypes": compact_prototypes,
-        "boundary": boundary,
-    }
+    feedback = deepcopy(dict(manifest))
+    feedback.update(
+        {
+            "feedback_id": feedback_id,
+            "feedback_type": feedback_type,
+            "algorithm_sandbox_manifest_id": source_manifest_id,
+            "failure_classification": failure_classification,
+            "prototypes": observed_prototypes,
+            "boundary": boundary,
+        }
+    )
+    return feedback
 
 
 def _simulation_code_drafts(proposal_packet: Mapping[str, Any] | None) -> list[dict[str, Any]]:
@@ -99923,67 +99852,6 @@ def _simulation_code_drafts(proposal_packet: Mapping[str, Any] | None) -> list[d
     return [
         dict(row)
         for row in proposal_packet.get("simulation_code_drafts", []) or []
-        if isinstance(row, Mapping)
-    ]
-
-
-def _compact_generated_sandbox_metrics(
-    value: Any,
-    *,
-    limit: int = 8,
-    text_limit: int = 160,
-) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    compact: dict[str, Any] = {}
-    for index, (key, row_value) in enumerate(value.items()):
-        if index >= limit:
-            break
-        metric_key = str(key)
-        if isinstance(row_value, bool) or row_value is None:
-            compact[metric_key] = row_value
-        elif isinstance(row_value, int):
-            compact[metric_key] = row_value
-        elif isinstance(row_value, float):
-            compact[metric_key] = row_value if math.isfinite(row_value) else str(row_value)
-        elif isinstance(row_value, str):
-            compact[metric_key] = row_value[:text_limit]
-        else:
-            compact[metric_key] = str(row_value)[:text_limit]
-    return compact
-
-
-def _compact_generated_metric_contracts(
-    value: Any,
-    *,
-    limit: int = 6,
-) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    keys = (
-        "contract_id",
-        "requirement_id",
-        "artifact_id",
-        "metric_path",
-        "metric_semantics",
-        "measurement_protocol",
-        "operator",
-        "threshold",
-        "lower",
-        "upper",
-        "tolerance",
-        "aggregation",
-        "minimum_pass_count",
-        "minimum_pass_fraction",
-        "required",
-        "source_anchors",
-        "authority_requirement_fingerprint",
-        "authority_requirement_set_id",
-        "authority_source_subsystem",
-    )
-    return [
-        {key: row.get(key) for key in keys if key in row}
-        for row in value[:limit]
         if isinstance(row, Mapping)
     ]
 
@@ -99999,88 +99867,6 @@ def _generated_metric_contract_evaluation_count(
         return max(0, int(evaluation.get(key, 0) or 0))
     except (TypeError, ValueError):
         return 0
-
-
-def _compact_generated_metric_contract_evaluation(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    evaluation_rows = value.get("evaluations", [])
-    if not isinstance(evaluation_rows, list):
-        evaluation_rows = []
-    return {
-        "artifact_id": str(value.get("artifact_id", "") or ""),
-        "metric_contract_set_id": str(
-            value.get("metric_contract_set_id", "") or ""
-        ),
-        "metric_requirement_set_id": str(
-            value.get("metric_requirement_set_id", "") or ""
-        ),
-        "metric_requirement_authority_enforced": value.get(
-            "metric_requirement_authority_enforced"
-        ),
-        "metric_requirement_authority_validated": value.get(
-            "metric_requirement_authority_validated"
-        ),
-        "metric_contract_schema_valid": value.get("metric_contract_schema_valid"),
-        "n_contracts": int(value.get("n_contracts", 0) or 0),
-        "n_passed": int(value.get("n_passed", 0) or 0),
-        "n_failed": int(value.get("n_failed", 0) or 0),
-        "all_required_passed": value.get("all_required_passed"),
-        "required_failure_errors": list(
-            _str_tuple(value.get("required_failure_errors", []))
-        )[:6],
-        "evaluations": [
-            {
-                key: row.get(key)
-                for key in (
-                    "contract_id",
-                    "requirement_id",
-                    "artifact_id",
-                    "metric_path",
-                    "operator",
-                    "aggregation",
-                    "required",
-                    "n_resolved_values",
-                    "resolved_values_preview",
-                    "aggregate_value",
-                    "n_comparisons_passed",
-                    "n_comparisons",
-                    "passed",
-                    "errors",
-                    "source_anchors",
-                    "authority_requirement_fingerprint",
-                    "authority_requirement_set_id",
-                )
-                if key in row
-            }
-            for row in evaluation_rows[:6]
-            if isinstance(row, Mapping)
-        ],
-        "proof_evidence_status": str(
-            value.get("proof_evidence_status", "") or ""
-        ),
-        "boundary": str(value.get("boundary", "") or "")[:360],
-    }
-
-
-def _generated_python_sandbox_code_excerpt(
-    row: Mapping[str, Any],
-    *,
-    limit: int = 1200,
-) -> str:
-    inline = str(row.get("code_excerpt", "") or "")
-    if inline:
-        return inline[:limit]
-    script_path = str(row.get("script_path", "") or "")
-    if not script_path:
-        return ""
-    try:
-        path = Path(script_path)
-        if path.exists() and path.is_file():
-            return path.read_text(encoding="utf-8")[:limit]
-    except OSError:
-        return ""
-    return ""
 
 
 def _generated_python_sandbox_parent_source(
@@ -100100,6 +99886,31 @@ def _generated_python_sandbox_parent_source(
     return str(row.get("code_excerpt", "") or "")
 
 
+def _complete_generated_sandbox_prototype_observation(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Attach complete source lineage without interpreting the required revision."""
+
+    observation = deepcopy(dict(row))
+    script_hash = _generated_sandbox_prototype_script_hash(row)
+    parent_source = _generated_python_sandbox_parent_source(row)
+    parent_source_hash = stable_hash(parent_source) if parent_source else ""
+    observation.update(
+        {
+            "prototype_artifact_id": _generated_sandbox_prototype_artifact_id(row),
+            "script_hash": script_hash,
+            "parent_source": parent_source,
+            "parent_source_hash": parent_source_hash,
+            "parent_source_complete": bool(
+                parent_source
+                and script_hash
+                and parent_source_hash == script_hash
+            ),
+        }
+    )
+    return observation
+
+
 def _generated_simulation_revision_feedback(
     *,
     manifest: Mapping[str, Any],
@@ -100111,106 +99922,10 @@ def _generated_simulation_revision_feedback(
         for row in manifest.get("generated_simulation_sandbox_prototypes", []) or []
         if isinstance(row, Mapping)
     ]
-    compact_prototypes: list[dict[str, Any]] = []
-    for row in prototypes[:5]:
-        safety_errors = list(_str_tuple(row.get("safety_errors", [])))
-        script_hash = _generated_sandbox_prototype_script_hash(row)
-        parent_source = _generated_python_sandbox_parent_source(row)
-        parent_source_hash = stable_hash(parent_source) if parent_source else ""
-        compact_prototypes.append(
-            {
-                "simulation_id": str(row.get("simulation_id", "") or ""),
-                "prototype_artifact_id": _generated_sandbox_prototype_artifact_id(
-                    row
-                ),
-                "script_hash": script_hash,
-                "parent_source": parent_source,
-                "parent_source_hash": parent_source_hash,
-                "parent_source_complete": bool(
-                    parent_source
-                    and script_hash
-                    and parent_source_hash == script_hash
-                ),
-                "prototype_status": str(row.get("prototype_status", "") or ""),
-                "executor": str(row.get("executor", "") or ""),
-                "smoke_passed": row.get("smoke_passed"),
-                "execution_smoke_passed": row.get("execution_smoke_passed"),
-                "execution_attempted": row.get("execution_attempted"),
-                "returncode": row.get("returncode"),
-                "metric_gate_errors": list(
-                    _str_tuple(row.get("metric_gate_errors", []))
-                ),
-                "safety_errors": safety_errors,
-                "runtime_errors": list(
-                    _str_tuple(row.get("runtime_errors", []))
-                ),
-                "estimator_binding_errors": list(
-                    _str_tuple(row.get("estimator_binding_errors", []))
-                ),
-                "required_estimator_ids": list(
-                    _str_tuple(row.get("required_estimator_ids", []))
-                ),
-                "estimator_runtime_failure_ids": list(
-                    _str_tuple(row.get("estimator_runtime_failure_ids", []))
-                ),
-                "estimator_runtime_errors": list(
-                    _str_tuple(row.get("estimator_runtime_errors", []))
-                ),
-                "available_upstream_estimator_ids": list(
-                    _str_tuple(
-                        row.get("available_upstream_estimator_ids", [])
-                    )
-                ),
-                "estimator_invocation_counts": (
-                    {
-                        str(key): max(0, int(value or 0))
-                        for key, value in row.get(
-                            "estimator_invocation_counts", {}
-                        ).items()
-                    }
-                    if isinstance(
-                        row.get("estimator_invocation_counts", {}), Mapping
-                    )
-                    else {}
-                ),
-                "mechanical_estimator_invocation_verified": row.get(
-                    "mechanical_estimator_invocation_verified"
-                ),
-                "metrics": _compact_generated_sandbox_metrics(
-                    row.get("metrics", {})
-                ),
-                "metric_gate_targets": _compact_generated_sandbox_metrics(
-                    row.get("metric_gate_targets", {})
-                ),
-                "metric_gate_policy_mode": str(
-                    row.get("metric_gate_policy_mode", "") or ""
-                ),
-                "metric_contract_set_id": str(
-                    row.get("metric_contract_set_id", "") or ""
-                ),
-                "metric_contracts": _compact_generated_metric_contracts(
-                    row.get("metric_contracts", [])
-                ),
-                "metric_contract_evaluation": (
-                    _compact_generated_metric_contract_evaluation(
-                        row.get("metric_contract_evaluation", {})
-                    )
-                ),
-                "script_path": str(row.get("script_path", "") or ""),
-                "code_excerpt": _generated_python_sandbox_code_excerpt(row),
-                "stdout_summary": str(row.get("stdout_summary", "") or ""),
-                "stderr_summary": str(row.get("stderr_summary", "") or ""),
-                "result_parse_error": str(
-                    row.get("result_parse_error", "") or ""
-                ),
-                "resource_limits": (
-                    dict(row.get("resource_limits", {}))
-                    if isinstance(row.get("resource_limits", {}), Mapping)
-                    else {}
-                ),
-                "reason": str(row.get("reason", "") or ""),
-            }
-        )
+    observed_prototypes = [
+        _complete_generated_sandbox_prototype_observation(row)
+        for row in prototypes
+    ]
     feedback_type = "generated_simulation_sandbox_execution_feedback"
     source_manifest_id = str(manifest.get("manifest_id", "") or "")
     feedback_id = _generated_sandbox_feedback_id(
@@ -100219,48 +99934,19 @@ def _generated_simulation_revision_feedback(
         failure_classification=failure_classification,
         prototype_rows=prototypes,
     )
-    return {
-        "feedback_id": feedback_id,
-        "feedback_type": feedback_type,
-        "simulation_manifest_id": source_manifest_id,
-        "empirical_evaluation_phase": str(
-            manifest.get("empirical_evaluation_phase", "") or ""
-        ),
-        "confirmatory_empirical_evidence_eligible": bool(
-            manifest.get("confirmatory_empirical_evidence_eligible", True)
-        ),
-        "failure_classification": failure_classification,
-        "n_generated_simulation_sandbox_prototypes": int(
-            manifest.get("n_generated_simulation_sandbox_prototypes", 0) or 0
-        ),
-        "n_generated_simulation_sandbox_executed": int(
-            manifest.get("n_generated_simulation_sandbox_executed", 0) or 0
-        ),
-        "n_generated_simulation_sandbox_execution_attempted": int(
-            manifest.get(
-                "n_generated_simulation_sandbox_execution_attempted", 0
-            )
-            or 0
-        ),
-        "n_generated_simulation_sandbox_execution_failed": int(
-            manifest.get("n_generated_simulation_sandbox_execution_failed", 0)
-            or 0
-        ),
-        "n_generated_simulation_sandbox_passed": int(
-            manifest.get("n_generated_simulation_sandbox_passed", 0) or 0
-        ),
-        "n_generated_simulation_sandbox_metric_gate_failed": int(
-            manifest.get("n_generated_simulation_sandbox_metric_gate_failed", 0) or 0
-        ),
-        "n_generated_simulation_estimator_runtime_failed": int(
-            manifest.get("n_generated_simulation_estimator_runtime_failed", 0) or 0
-        ),
-        "n_unsafe_generated_simulation_code_rejected": int(
-            manifest.get("n_unsafe_generated_simulation_code_rejected", 0) or 0
-        ),
-        "generated_simulation_prototypes": compact_prototypes,
-        "boundary": boundary,
-    }
+    feedback = deepcopy(dict(manifest))
+    feedback.pop("generated_simulation_sandbox_prototypes", None)
+    feedback.update(
+        {
+            "feedback_id": feedback_id,
+            "feedback_type": feedback_type,
+            "simulation_manifest_id": source_manifest_id,
+            "failure_classification": failure_classification,
+            "generated_simulation_prototypes": observed_prototypes,
+            "boundary": boundary,
+        }
+    )
+    return feedback
 
 
 def _run_generated_simulation_sandbox(

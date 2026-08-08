@@ -274,7 +274,6 @@ from ai_statistician.system import AIStatisticianSystem
 from ai_statistician.system import write_run_manifest, write_trace
 from ai_statistician.system_audit import SystemAuditConfig, load_audit_questions, run_system_audit
 from ai_statistician.theorem_composition_export import export_theorem_composition_packets
-from ai_statistician.theory_developer import DefaultTheoryDeveloper
 from ai_statistician.theory_proposal import MockTheoryProposer, TheoryProposal
 from ai_statistician.trace_audit import audit_run_traces
 from ai_statistician.verifier import CachingProofVerifier, LocalLeanProofVerifier, MockProofVerifier
@@ -22091,22 +22090,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["has_live_revision_loop"])
         self.assertTrue(payload["has_registered_live_repair_handler_interface"])
         self.assertTrue(payload["all_release_scaffold_components_present"])
-        default_loop = ResearchLoopCoordinator()
-        self.assertFalse(default_loop.enable_default_theory_developer)
-        self.assertFalse(default_loop.enable_default_algorithm_engineer)
-
         statuses = {row["component"]: row["status"] for row in payload["components"]}
         self.assertEqual(statuses["feedback_router"], "ACHIEVED")
         self.assertEqual(statuses["live_revision_loop"], "PARTIAL")
         self.assertEqual(statuses["llm_theory_developer"], "PARTIAL")
         live_loop = next(row for row in payload["components"] if row["component"] == "live_revision_loop")
-        self.assertTrue(any("DefaultProofEngineer" in item for item in live_loop["evidence"]))
-        self.assertTrue(any("DefaultTheoryDeveloper" in item for item in live_loop["evidence"]))
+        self.assertFalse(any("DefaultProofEngineer" in item for item in live_loop["evidence"]))
+        self.assertFalse(any("DefaultTheoryDeveloper" in item for item in live_loop["evidence"]))
         route_by_trigger = {row["trigger"]: row for row in payload["feedback_routes"]}
         self.assertEqual(route_by_trigger["THEORY_OR_PROCEDURE_ISSUE"]["owner_agent"], "theory_developer")
         self.assertEqual(
             route_by_trigger["THEORY_OR_PROCEDURE_ISSUE"]["live_execution_status"],
-            "REQUIRES_REGISTERED_MODEL_HANDLER_OR_EXPLICIT_LEGACY_BASELINE",
+            "REQUIRES_REGISTERED_MODEL_HANDLER",
         )
         self.assertEqual(
             route_by_trigger["IMPLEMENTATION_OR_NUMERICAL_ISSUE"]["owner_agent"],
@@ -22114,16 +22109,16 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(
             route_by_trigger["IMPLEMENTATION_OR_NUMERICAL_ISSUE"]["live_execution_status"],
-            "REQUIRES_REGISTERED_MODEL_HANDLER_OR_EXPLICIT_LEGACY_BASELINE",
+            "REQUIRES_REGISTERED_MODEL_HANDLER",
         )
-        self.assertTrue(any("DefaultAlgorithmEngineer" in item for item in live_loop["evidence"]))
+        self.assertFalse(any("DefaultAlgorithmEngineer" in item for item in live_loop["evidence"]))
         self.assertEqual(
             route_by_trigger["FORMAL_GAP"]["live_execution_status"],
-            "EXECUTABLE_DEFAULT_PROOF_BANK_BRIDGE_OR_RETRIEVAL_REVIEW",
+            "REQUIRES_REGISTERED_MODEL_HANDLER_OR_RETRIEVAL_REVIEW",
         )
         self.assertEqual(
             route_by_trigger["FAILED_PROOF_OBLIGATION"]["live_execution_status"],
-            "EXECUTABLE_DEFAULT_REGISTERED_OBLIGATION_REPAIR_OR_REGISTERED_HANDLER",
+            "REQUIRES_REGISTERED_MODEL_HANDLER",
         )
         self.assertTrue(Path("runs/test_architecture_audit/architecture_audit_manifest.json").exists())
         self.assertTrue(Path("runs/test_architecture_audit/architecture_audit.md").exists())
@@ -22223,138 +22218,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             result["rounds"][1]["actions"][0]["execution_status"],
             "EXECUTED_MONITOR",
         )
-
-    def test_research_loop_default_theory_developer_proposes_scoped_revision(self) -> None:
-        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
-        problem = ProblemFormalizer().formalize(question)
-        procedure, theorem_goal = TheoryPlanner().plan(problem)
-        bad_sim = ResearchSimulator(n_runs=25, seed=11).run(problem, procedure)[0]
-        bad_sim.passed = False
-        bad_sim.diagnosis.status = "THEORY_OR_PROCEDURE_ISSUE"
-        bad_sim.diagnosis.escalate_to = "theory_developer"
-        bad_sim.diagnosis.failed_diagnostics = ("coverage",)
-        bad_sim.diagnosis.rationale = "test forces theory revision"
-
-        first = ResearchReport(
-            question=question,
-            problem=problem,
-            procedures=procedure,
-            knowledge=[],
-            paper_sources=[],
-            formal_subclaims=[],
-            simulations=[bad_sim],
-            theorem_goals=theorem_goal,
-            theory_plan={
-                "next_iteration_agenda": {
-                    "items": [
-                        {
-                            "id": "simulation:theory",
-                            "owner_agent": "theory_developer",
-                            "trigger": "THEORY_OR_PROCEDURE_ISSUE",
-                            "action": "revise_estimator_or_theorem_acceptance_rule",
-                            "evidence": "coverage below threshold",
-                            "failed_diagnostics": ["coverage"],
-                            "target_procedure": procedure[0].id,
-                        }
-                    ]
-                }
-            },
-            status="SIMULATION_FLAGGED_WITH_FORMAL_GAPS",
-        )
-        second = ResearchReport(
-            question=question,
-            problem=problem,
-            procedures=procedure,
-            knowledge=[],
-            paper_sources=[],
-            formal_subclaims=[],
-            simulations=[],
-            theorem_goals=theorem_goal,
-            theory_plan={
-                "next_iteration_agenda": {
-                    "items": [
-                        {
-                            "id": "monitor:test",
-                            "owner_agent": "research_coordinator",
-                            "trigger": "NO_BLOCKING_GAPS_OR_FAILED_SIMULATIONS",
-                            "action": "archive_trace_or_expand_benchmark_stress_tests",
-                            "evidence": "test monitor after applied theory revision",
-                        }
-                    ]
-                }
-            },
-            status="RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
-        )
-        reports = [first, second]
-
-        class FakeLab:
-            def __init__(self, report):
-                self.report = report
-
-            async def run(self, question):
-                return self.report
-
-        def factory(n_runs, seed):
-            return FakeLab(reports.pop(0))
-
-        result = asyncio.run(
-            ResearchLoopCoordinator(
-                n_runs=25,
-                seed=11,
-                lab_factory=factory,
-                enable_default_theory_developer=True,
-            ).iterate(
-                question,
-                max_rounds=2,
-            )
-        )
-        self.assertEqual(result["status"], "CONVERGED_MONITOR_READY")
-        self.assertTrue(result["honesty_boundary"]["executes_default_theory_developer_revision_handler"])
-        self.assertEqual(result["n_theory_revisions"], 1)
-        action = result["rounds"][0]["actions"][0]
-        self.assertEqual(action["execution_status"], "EXECUTED_SCOPED_THEORY_REVISION_PROPOSAL")
-        self.assertTrue(action["repair_contract_ok"])
-        self.assertEqual(action["live_repair_handler"], "DefaultTheoryDeveloper")
-        self.assertTrue(action["rerun_requested"])
-        self.assertIn("coverage", action["repair_artifact"]["failure_class"])
-        self.assertIn("revised_theorem_goals", action["repair_artifact"])
-        self.assertEqual(result["rounds"][1]["actions"][0]["execution_status"], "EXECUTED_MONITOR")
-        task = action["repair_task"]
-        self.assertEqual(task["owner_agent"], "theory_developer")
-        self.assertEqual(task["task_type"], "theory_revision_from_simulation_failure")
-        self.assertIn("revised_theorem_goals", task["output_contract"]["required_fields"])
-        self.assertTrue(any("simulation" in item for item in task["acceptance_criteria"]))
-
-    def test_default_theory_developer_handles_selection_failures(self) -> None:
-        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
-        problem = ProblemFormalizer().formalize(question)
-        procedures, theorem_goals = TheoryPlanner().plan(problem)
-        report = ResearchReport(
-            question=question,
-            problem=problem,
-            procedures=procedures,
-            knowledge=[],
-            paper_sources=[],
-            formal_subclaims=[],
-            simulations=[],
-            theorem_goals=theorem_goals,
-            theory_plan={"next_iteration_agenda": {"items": []}},
-            status="SIMULATION_FLAGGED_WITH_FORMAL_GAPS",
-        )
-        artifact = DefaultTheoryDeveloper().repair_theory_issue(
-            {
-                "owner_agent": "theory_developer",
-                "trigger": "THEORY_OR_PROCEDURE_ISSUE",
-                "failed_diagnostics": ["selection_accuracy"],
-                "target_procedure": procedures[0].id,
-            },
-            report,
-        )
-        self.assertIsNotNone(artifact)
-        repair = artifact["repair_artifact"]
-        self.assertEqual(repair["failure_class"], "selection_or_screening_failure")
-        self.assertIn("screening_selection_accuracy_under_signal_separation", repair["revised_theorem_goals"])
-        self.assertIn("selection_accuracy_lower_bound_from_support_events", repair["next_formal_obligations"])
 
     def test_theory_revision_overlay_enters_lab_theorem_roadmap(self) -> None:
         question = load_open_research_questions(Path("examples/research_questions.json"))[0]
@@ -22587,327 +22450,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertFalse(action["repair_contract_ok"])
         self.assertTrue(any("revised_procedure" in err for err in action["repair_contract_errors"]))
 
-    def test_research_loop_default_algorithm_engineer_proposes_scoped_repair(self) -> None:
-        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
-        problem = ProblemFormalizer().formalize(question)
-        procedure, theorem_goal = TheoryPlanner().plan(problem)
-        procedure = attach_research_algorithm_metadata(procedure)
-        bad_sim = ResearchSimulator(n_runs=25, seed=16).run(problem, procedure)[0]
-        bad_sim.passed = False
-        bad_sim.metrics["n_runs"] = 25.0
-        bad_sim.metrics["n_failed"] = 10.0
-        bad_sim.diagnosis.status = "IMPLEMENTATION_OR_NUMERICAL_ISSUE"
-        bad_sim.diagnosis.escalate_to = "algorithm_engineer"
-        bad_sim.diagnosis.failed_diagnostics = ("n_failed",)
-        bad_sim.diagnosis.rationale = "test forces algorithm repair"
-
-        report = ResearchReport(
-            question=question,
-            problem=problem,
-            procedures=procedure,
-            knowledge=[],
-            paper_sources=[],
-            formal_subclaims=[],
-            simulations=[bad_sim],
-            theorem_goals=theorem_goal,
-            theory_plan={
-                "next_iteration_agenda": {
-                    "items": [
-                        {
-                            "id": "simulation:algorithm",
-                            "owner_agent": "algorithm_engineer",
-                            "trigger": "IMPLEMENTATION_OR_NUMERICAL_ISSUE",
-                            "action": "repair_algorithm_implementation_or_numerical_stability",
-                            "evidence": "too many failed replicates",
-                            "failed_diagnostics": ["n_failed"],
-                            "target_procedure": procedure[0].id,
-                        }
-                    ]
-                }
-            },
-            status="SIMULATION_FLAGGED_WITH_FORMAL_GAPS",
-        )
-
-        class FakeLab:
-            async def run(self, question):
-                return report
-
-        result = asyncio.run(
-            ResearchLoopCoordinator(
-                n_runs=25,
-                seed=16,
-                lab_factory=lambda _n, _s: FakeLab(),
-                enable_default_algorithm_engineer=True,
-            ).iterate(
-                question,
-                max_rounds=2,
-            )
-        )
-        self.assertEqual(result["status"], "ALGORITHM_REPAIR_PROPOSED")
-        self.assertTrue(result["honesty_boundary"]["executes_default_algorithm_engineer_repair_handler"])
-        action = result["rounds"][0]["actions"][0]
-        self.assertEqual(action["execution_status"], "EXECUTED_SCOPED_ALGORITHM_REPAIR_PROPOSAL")
-        self.assertEqual(action["live_repair_handler"], "DefaultAlgorithmEngineer")
-        self.assertTrue(action["repair_contract_ok"])
-        self.assertFalse(action["rerun_requested"])
-        artifact = action["repair_artifact"]
-        self.assertEqual(artifact["target_procedure"], procedure[0].id)
-        self.assertEqual(len(artifact["implementation_hash"]), 64)
-        self.assertEqual(artifact["rerun_metrics"]["n_failed_target"], 0.0)
-        self.assertIn("patch_summary", artifact)
-
-    def test_research_loop_default_proof_engineer_bridges_formal_gap(self) -> None:
-        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
-        problem = ProblemFormalizer().formalize(question)
-        procedure, theorem_goal = TheoryPlanner().plan(problem)
-        gap = FormalSubclaim(
-            id="gap:aipw_double_robustness",
-            title="AIPW double robustness conditional residual bridge",
-            status="FORMAL_GAP",
-            claim="conditional mean residual zero should cancel AIPW augmentation terms",
-            claim_type="theory_gap",
-            gap_reason="conditional_mean_residual_zero is not fully formalized",
-            lean_statement="-- FORMAL_GAP conditional_mean_residual_zero",
-        )
-        report = ResearchReport(
-            question=question,
-            problem=problem,
-            procedures=procedure,
-            knowledge=[],
-            paper_sources=[],
-            formal_subclaims=[gap],
-            simulations=[],
-            theorem_goals=theorem_goal,
-            theory_plan={
-                "next_iteration_agenda": {
-                    "items": [
-                        {
-                            "id": "formal_gap:gap:aipw_double_robustness",
-                            "owner_agent": "formal_verifier",
-                            "trigger": "FORMAL_GAP",
-                            "priority": "high",
-                            "action": "retrieve_or_build_missing_lean_primitives",
-                            "evidence": "conditional_mean_residual_zero is needed",
-                            "required_primitives": ["conditional_mean_residual_zero"],
-                            "target_theorem_goal": "aipw_double_robustness",
-                        }
-                    ]
-                }
-            },
-            status="RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
-        )
-
-        second = ResearchReport(
-            question=question,
-            problem=problem,
-            procedures=procedure,
-            knowledge=[],
-            paper_sources=[],
-            formal_subclaims=[gap],
-            simulations=[],
-            theorem_goals=theorem_goal,
-            theory_plan={
-                "next_iteration_agenda": {
-                    "items": [
-                        {
-                            "id": "monitor:proof_bridge",
-                            "owner_agent": "research_coordinator",
-                            "trigger": "NO_BLOCKING_GAPS_OR_FAILED_SIMULATIONS",
-                            "action": "archive_trace_or_expand_benchmark_stress_tests",
-                            "evidence": "proof bridge revision was available for the next round",
-                        }
-                    ]
-                }
-            },
-            status="RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
-        )
-        reports = [report, second]
-
-        class FakeLab:
-            def __init__(self, report):
-                self.report = report
-
-            async def run(self, question):
-                return self.report
-
-        class KernelVerifiedMockProofVerifier(MockProofVerifier):
-            async def verify(self, obligation, proof_body, retrieval_hits):
-                check = await super().verify(obligation, proof_body, retrieval_hits)
-                return ProofCheck(
-                    obligation_id=check.obligation_id,
-                    ok=check.ok,
-                    proof_body=check.proof_body,
-                    verifier="kernel-verified-mock",
-                    verification_strength="mock_kernel_verified_for_loop_routing",
-                    kernel_verified=check.ok,
-                    elapsed_ms=check.elapsed_ms,
-                    errors=check.errors,
-                    retrieval_hits=check.retrieval_hits,
-                )
-
-        result = asyncio.run(
-            ResearchLoopCoordinator(
-                proof_verifier=KernelVerifiedMockProofVerifier(),
-                n_runs=25,
-                seed=17,
-                lab_factory=lambda _n, _s: FakeLab(reports.pop(0)),
-                enable_default_proof_engineer=True,
-            ).iterate(
-                question,
-                max_rounds=2,
-            )
-        )
-        self.assertEqual(result["status"], "CONVERGED_MONITOR_READY")
-        self.assertEqual(result["n_theory_revisions"], 1)
-        self.assertTrue(result["honesty_boundary"]["executes_default_proof_engineer_bridge_handler"])
-        action = result["rounds"][0]["actions"][0]
-        self.assertEqual(action["execution_status"], "EXECUTED_PROOF_BANK_BRIDGE_REPAIR")
-        self.assertTrue(action["repair_contract_ok"])
-        self.assertEqual(
-            action["repair_artifact"]["proof_obligation_id"],
-            "conditional_mean_residual_zero",
-        )
-        self.assertIn("lean_statement", action["repair_artifact"])
-        self.assertEqual(
-            action["repair_artifact"]["selected_bridge_obligation_id"],
-            action["repair_artifact"]["proof_obligation_id"],
-        )
-        self.assertTrue(action["repair_artifact"]["ranked_bridge_obligations"])
-        self.assertTrue(action["repair_artifact"]["bridge_chain_order"])
-        self.assertTrue(action["repair_artifact"]["bridge_chain"])
-        self.assertTrue(action["repair_artifact"]["remaining_frontier_interface"])
-        self.assertIn("not a proof of the full frontier theorem", action["repair_artifact"]["proof_evidence_boundary"])
-        self.assertTrue(action["rerun_requested"])
-        self.assertEqual(action["repair_task"]["task_type"], "proof_bank_expansion_from_formal_gap")
-        bridge_revision = result["theory_revisions"][0]["repair_artifact"]
-        self.assertEqual(bridge_revision["revision_kind"], "proof_bridge_integration")
-        self.assertFalse(bridge_revision["full_theorem_proved"])
-        self.assertEqual(result["rounds"][1]["actions"][0]["execution_status"], "EXECUTED_MONITOR")
-
-    def test_research_loop_default_proof_engineer_repairs_failed_registered_obligation(self) -> None:
-        question = load_open_research_questions(Path("examples/research_questions.json"))[0]
-        problem = ProblemFormalizer().formalize(question)
-        procedure, theorem_goal = TheoryPlanner().plan(problem)
-        obligation = get_obligation("prob_measure_univ")
-        failed = FormalSubclaim(
-            id=f"{question.id}:{obligation.id}",
-            title=obligation.title,
-            status="FAILED",
-            claim=obligation.english,
-            claim_type="lean_obligation",
-            proof_obligation_id=obligation.id,
-            lean_statement=obligation.formal_statement,
-            formalization_status="verification_failed",
-            verifier="test-verifier",
-            verification_strength="test_failed_first_attempt",
-            kernel_verified=False,
-            errors=["test simulates stale failed proof body"],
-            proof_dependencies=obligation.expected_lemmas,
-        )
-        first = ResearchReport(
-            question=question,
-            problem=problem,
-            procedures=procedure,
-            knowledge=[],
-            paper_sources=[],
-            formal_subclaims=[failed],
-            simulations=[],
-            theorem_goals=theorem_goal,
-            theory_plan={
-                "next_iteration_agenda": {
-                    "items": [
-                        {
-                            "id": f"failed_obligation:{obligation.id}",
-                            "owner_agent": "formal_verifier",
-                            "trigger": "FAILED_PROOF_OBLIGATION",
-                            "priority": "high",
-                            "action": "repair_axiom_verified_proof_or_downgrade_to_gap",
-                            "evidence": "test simulates stale failed proof body",
-                            "required_primitives": list(obligation.expected_lemmas),
-                            "target_theorem_goal": obligation.id,
-                        }
-                    ]
-                }
-            },
-            status="FORMAL_BLOCKED",
-        )
-        second = ResearchReport(
-            question=question,
-            problem=problem,
-            procedures=procedure,
-            knowledge=[],
-            paper_sources=[],
-            formal_subclaims=[],
-            simulations=[],
-            theorem_goals=theorem_goal,
-            theory_plan={
-                "next_iteration_agenda": {
-                    "items": [
-                        {
-                            "id": "monitor:failed-proof-repaired",
-                            "owner_agent": "research_coordinator",
-                            "trigger": "NO_BLOCKING_GAPS_OR_FAILED_SIMULATIONS",
-                            "action": "archive_trace_or_expand_benchmark_stress_tests",
-                            "evidence": "registered proof obligation repair was available for the next round",
-                        }
-                    ]
-                }
-            },
-            status="RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
-        )
-        reports = [first, second]
-
-        class FakeLab:
-            def __init__(self, report):
-                self.report = report
-
-            async def run(self, question):
-                return self.report
-
-        class KernelVerifiedMockProofVerifier(MockProofVerifier):
-            async def verify(self, obligation, proof_body, retrieval_hits):
-                check = await super().verify(obligation, proof_body, retrieval_hits)
-                return ProofCheck(
-                    obligation_id=check.obligation_id,
-                    ok=check.ok,
-                    proof_body=check.proof_body,
-                    verifier="kernel-verified-mock",
-                    verification_strength="mock_kernel_verified_for_failed_obligation_repair",
-                    kernel_verified=check.ok,
-                    elapsed_ms=check.elapsed_ms,
-                    errors=check.errors,
-                    retrieval_hits=check.retrieval_hits,
-                )
-
-        result = asyncio.run(
-            ResearchLoopCoordinator(
-                proof_verifier=KernelVerifiedMockProofVerifier(),
-                n_runs=10,
-                seed=20260601,
-                lab_factory=lambda _n, _s: FakeLab(reports.pop(0)),
-                enable_default_proof_engineer=True,
-            ).iterate(
-                question,
-                max_rounds=2,
-            )
-        )
-        self.assertEqual(result["status"], "CONVERGED_MONITOR_READY")
-        action = result["rounds"][0]["actions"][0]
-        self.assertEqual(action["execution_status"], "EXECUTED_FAILED_PROOF_OBLIGATION_REPAIR")
-        self.assertTrue(action["repair_contract_ok"])
-        self.assertTrue(action["rerun_requested"])
-        self.assertEqual(action["live_repair_handler"], "DefaultProofEngineer")
-        self.assertEqual(action["live_repair_task_type"], "lean_proof_repair_from_axle_error")
-        artifact = action["repair_artifact"]
-        self.assertEqual(artifact["proof_obligation_id"], "prob_measure_univ")
-        self.assertEqual(artifact["repaired_proof_body"], obligation.proof_body)
-        self.assertTrue(artifact["kernel_verified"])
-        self.assertIn("repaired_proof_body", artifact)
-        self.assertIn("error_analysis", artifact)
-        self.assertIn("proof_dependencies", artifact)
-        self.assertEqual(action["repair_task"]["task_type"], "lean_proof_repair_from_axle_error")
-        self.assertEqual(result["rounds"][1]["actions"][0]["execution_status"], "EXECUTED_MONITOR")
-
     def test_proof_bridge_revision_overlay_updates_existing_theorem_goal(self) -> None:
         question = load_open_research_questions(Path("examples/research_questions.json"))[0]
         revision = {
@@ -22946,37 +22488,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "aipw_score_expectation_target_of_zero_aug",
             roadmap["aipw_double_robustness"]["proof_obligations"],
         )
-
-    def test_research_loop_benchmark_exports_live_repair_artifacts(self) -> None:
-        async def run():
-            questions = load_open_research_questions(Path("examples/research_questions.json"))[:1]
-            return await run_research_loop_benchmark(
-                questions,
-                Path("runs/test_research_loop_live_repair_artifacts"),
-                proof_verifier=MockProofVerifier(),
-                enable_default_proof_engineer=True,
-                config=LoopConfig(max_rounds=2, n_runs=25, seed=20260528),
-            )
-
-        from ai_statistician.research_loop import LoopConfig, run_research_loop_benchmark
-
-        payload = asyncio.run(run())
-        self.assertTrue(payload["all_loop_traces_written"])
-        self.assertTrue(payload["all_repair_tasks_exported"])
-        self.assertTrue(payload["all_live_repair_artifacts_exported"])
-        self.assertGreater(payload["n_live_repair_artifacts"], 0)
-        self.assertEqual(
-            payload["live_repair_artifacts_contract_ok"],
-            payload["n_live_repair_artifacts"],
-        )
-        self.assertIn("DefaultProofEngineer", payload["live_repair_artifacts_by_handler"])
-        artifact_path = Path(payload["live_repair_artifacts_jsonl"])
-        self.assertTrue(artifact_path.exists())
-        rows = [json.loads(line) for line in artifact_path.read_text(encoding="utf-8").splitlines()]
-        self.assertEqual(len(rows), payload["n_live_repair_artifacts"])
-        self.assertTrue(rows[0]["repair_contract_ok"])
-        self.assertIn("repair_artifact", rows[0])
-        self.assertIn("proof_obligation_id", rows[0]["repair_artifact"])
 
     def test_research_loop_repair_audit_exports_sft_examples(self) -> None:
         loop_dir = Path("runs/test_research_loop_repair_audit_input")
@@ -23057,7 +22568,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "trigger": "FORMAL_GAP",
             "execution_status": "EXECUTED_PROOF_BANK_BRIDGE_REPAIR",
             "task_type": "proof_bank_expansion_from_formal_gap",
-            "live_repair_handler": "DefaultProofEngineer",
+            "live_repair_handler": "ModelProofEngineer",
             "repair_contract_ok": True,
             "repair_contract_errors": [],
             "rerun_requested": False,
@@ -23096,7 +22607,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["n_ok"], 1)
         self.assertEqual(payload["n_kernel_verified"], 1)
         self.assertEqual(payload["n_sft_examples"], 1)
-        self.assertEqual(payload["by_handler"]["DefaultProofEngineer"], 1)
+        self.assertEqual(payload["by_handler"]["ModelProofEngineer"], 1)
         self.assertTrue(Path(payload["train_jsonl"]).exists())
         rows = [
             json.loads(line)
@@ -28360,11 +27871,11 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["evaluation_benchmark_guidance_report"]).exists())
 
 
-def test_legacy_research_loop_does_not_enable_static_proof_engineer_by_default() -> None:
+def test_research_loop_has_no_deterministic_proof_fallback() -> None:
     coordinator = ResearchLoopCoordinator()
 
-    assert coordinator.enable_default_proof_engineer is False
-    assert coordinator.default_proof_engineer is None
+    assert not hasattr(coordinator, "enable_default_proof_engineer")
+    assert not hasattr(coordinator, "default_proof_engineer")
 
 
 if __name__ == "__main__":

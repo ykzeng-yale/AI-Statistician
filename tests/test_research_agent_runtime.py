@@ -21988,9 +21988,7 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
         environment_feedback=feedback,
     )
     producer_payload = json.loads(producer_prompt.rsplit("\n\n", 1)[1])
-    producer_review = producer_payload["runtime_environment_feedback"][
-        "generated_code_semantic_review"
-    ]
+    producer_review = producer_payload["runtime_environment_feedback"]
     assert producer_review["reviewed_source_artifacts"][0][
         "exact_source_code"
     ] == source
@@ -45013,18 +45011,11 @@ def test_algorithm_engineer_prompt_includes_raw_sandbox_feedback() -> None:
                 "reason": "No registered executable adapter.",
             }
         ],
-        environment_feedback={
-            "feedback_type": "algorithm_sandbox_execution_feedback",
-            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:bad",
-            "failure_classification": "algorithm_sandbox_no_executable_prototype",
-            "target_behavior": "PYTHON_RUNTIME_PRESCRIPTIVE_EDIT_DO_NOT_EXPOSE",
-            "recommended_capability_eval_command": (
-                "PYTHON_RUNTIME_COMMAND_DO_NOT_EXPOSE"
-            ),
-            "algorithm_repair_sequences": [
-                "PYTHON_RUNTIME_REPAIR_SEQUENCE_DO_NOT_EXPOSE"
-            ],
-            "prototypes": [
+            environment_feedback={
+                "feedback_type": "algorithm_sandbox_execution_feedback",
+                "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:bad",
+                "failure_classification": "algorithm_sandbox_no_executable_prototype",
+                "prototypes": [
                 {
                     "estimator_id": "custom",
                     "prototype_status": "REJECTED_UNSAFE_GENERATED_CODE",
@@ -45037,11 +45028,10 @@ def test_algorithm_engineer_prompt_includes_raw_sandbox_feedback() -> None:
                         "from statistics import mean, stdev\n"
                         "def run_sandbox(seed, replicates):\n"
                         "    return {'m': mean([1, 2]), 's': stdev([1, 2])}"
-                    ),
-                }
-            ],
-            "required_repair": "produce safe run_sandbox code",
-        },
+                        ),
+                    }
+                ],
+            },
     )
 
     assert "runtime_environment_feedback" in prompt
@@ -45050,10 +45040,6 @@ def test_algorithm_engineer_prompt_includes_raw_sandbox_feedback() -> None:
     assert "forbidden generated-code call: mean" in prompt
     assert "forbidden_generated_code_calls" not in prompt
     assert "from statistics import mean, stdev" in prompt
-    assert "produce safe run_sandbox code" not in prompt
-    assert "PYTHON_RUNTIME_PRESCRIPTIVE_EDIT_DO_NOT_EXPOSE" not in prompt
-    assert "PYTHON_RUNTIME_COMMAND_DO_NOT_EXPOSE" not in prompt
-    assert "PYTHON_RUNTIME_REPAIR_SEQUENCE_DO_NOT_EXPOSE" not in prompt
     assert "Capability-eval mode is active" in prompt
     assert "for every ID in canonical_implementation_gap_ids" in prompt
     assert '"canonical_implementation_gap_ids":["custom"]' in prompt
@@ -45096,20 +45082,11 @@ def test_algorithm_engineer_prompt_consumes_estimator_runtime_feedback() -> None
                 "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
             }
         ],
-        environment_feedback={
-            "feedback_type": "accepted_algorithm_estimator_runtime_feedback",
-            "failed_estimator_ids": ["custom"],
-            "runtime_errors": [runtime_error],
-            "repair_scope": "source_code",
-            "repair_owner_agent": "PRESCRIPTIVE_OWNER_DO_NOT_EXPOSE",
-            "repair_plan": [
-                {"instruction": "PRESCRIPTIVE_PLAN_DO_NOT_EXPOSE"}
-            ],
-            "required_change": "PRESCRIPTIVE_CHANGE_DO_NOT_EXPOSE",
-            "source_repair_contract": {
-                "repair_target_subsystem": "PRESCRIPTIVE_TARGET_DO_NOT_EXPOSE"
+            environment_feedback={
+                "feedback_type": "accepted_algorithm_estimator_runtime_feedback",
+                "failed_estimator_ids": ["custom"],
+                "runtime_errors": [runtime_error],
             },
-        },
     )
 
     assert "exact validator, execution, or independent-review observations" in prompt
@@ -45117,10 +45094,6 @@ def test_algorithm_engineer_prompt_consumes_estimator_runtime_feedback() -> None
     assert "EXACT_MIDDLE_OBSERVATION" in prompt
     assert "TRACE_END" in prompt
     assert "You choose and author every source change" in prompt
-    assert "PRESCRIPTIVE_OWNER_DO_NOT_EXPOSE" not in prompt
-    assert "PRESCRIPTIVE_PLAN_DO_NOT_EXPOSE" not in prompt
-    assert "PRESCRIPTIVE_CHANGE_DO_NOT_EXPOSE" not in prompt
-    assert "PRESCRIPTIVE_TARGET_DO_NOT_EXPOSE" not in prompt
 
 
 def test_estimator_runtime_failure_preserves_raw_observation_without_recipe() -> None:
@@ -45222,8 +45195,8 @@ def test_algorithm_engineer_prompt_does_not_own_simulation_metric_gate() -> None
     assert "generated_algorithm_sandbox_metric_gate_failed" in prompt
     assert "FAILED_METRIC_GATE" in prompt
     assert "empirical_coverage is degenerate zero coverage" in prompt
-    assert '"empirical_coverage":"0.0"' in prompt
-    assert '"target_coverage":"0.9"' in prompt
+    assert '"empirical_coverage":0.0' in prompt
+    assert '"target_coverage":0.9' in prompt
     assert "def run_sandbox(seed: int, replicates: int) -> dict" in prompt
     assert "Set metric_contracts to an empty array" in prompt
     assert "downstream SimulationEngineer owns DGP-based statistical evaluation" in prompt
@@ -45999,16 +45972,8 @@ def test_simulation_engineer_prompt_includes_generated_code_repair_feedback() ->
                     ],
                     "safety_errors": ["can import only math/statistics"],
                 }
-            ],
-            "required_repair": "produce safe run_sandbox code",
-            "repair_plan": [
-                {"instruction": "SIMULATION_PLAN_DO_NOT_EXPOSE"}
-            ],
-            "repair_owner_agent": "SIMULATION_OWNER_DO_NOT_EXPOSE",
-            "source_repair_contract": {
-                "repair_target_subsystem": "SIMULATION_TARGET_DO_NOT_EXPOSE"
+                ],
             },
-        },
     )
 
     assert "runtime_environment_feedback" in prompt
@@ -46018,7 +45983,7 @@ def test_simulation_engineer_prompt_includes_generated_code_repair_feedback() ->
     assert '"prototype_status":"FAILED"' in prompt
     assert "can import only math/statistics" in prompt
     assert "bound estimator source was not invoked: EST2" in prompt
-    assert '"EST2":"0"' in prompt
+    assert '"EST2":0' in prompt
     assert "FULL_EXECUTION_PARENT_SOURCE_TAIL" in prompt
     assert parent_source_hash in prompt
     assert '"timeout_seconds":60' in prompt
@@ -46030,10 +45995,6 @@ def test_simulation_engineer_prompt_includes_generated_code_repair_feedback() ->
     assert "sum(values) / len(values)" not in prompt
     assert "regenerate the complete source from the exact observations" in prompt
     assert "AgentRuntime must not edit the source or select a canned fix" in prompt
-    assert "produce safe run_sandbox code" not in prompt
-    assert "SIMULATION_PLAN_DO_NOT_EXPOSE" not in prompt
-    assert "SIMULATION_OWNER_DO_NOT_EXPOSE" not in prompt
-    assert "SIMULATION_TARGET_DO_NOT_EXPOSE" not in prompt
 
 
 def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> None:
@@ -46093,8 +46054,8 @@ def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> No
     assert "generated_simulation_sandbox_metric_gate_failed" in prompt
     assert "FAILED_METRIC_GATE" in prompt
     assert "mean_coverage is degenerate zero coverage" in prompt
-    assert '"mean_coverage":"0.0"' in prompt
-    assert '"target_coverage":"0.9"' in prompt
+    assert '"mean_coverage":0.0' in prompt
+    assert '"target_coverage":0.9' in prompt
     assert "def run_sandbox(seed: int, replicates: int) -> dict" in prompt
     assert "exact validator, execution, or independent-review observations" in prompt
     assert "You choose and author every source change" in prompt
@@ -50116,6 +50077,74 @@ def test_rejected_long_generated_source_is_complete_in_model_feedback(
     assert row["parent_source_hash"] == runtime_module.stable_hash(parent_source)
     assert row["parent_source_complete"] is True
     assert row["parent_source"].endswith("# EXACT_PARENT_SOURCE_TAIL\n")
+
+
+def test_generated_code_feedback_preserves_every_runtime_observation() -> None:
+    prototypes = []
+    for index in range(7):
+        source = (
+            f"# candidate {index}\n"
+            "def run_sandbox(seed, replicates):\n"
+            f"    return {{'candidate': {index}}}\n"
+        )
+        contracts = [
+            {"contract_id": f"contract-{index}-{contract_index}", "custom": "exact"}
+            for contract_index in range(9)
+        ]
+        evaluations = [
+            {"contract_id": row["contract_id"], "raw_observation": "x" * 800}
+            for row in contracts
+        ]
+        prototypes.append(
+            {
+                "estimator_id": f"EST_{index}",
+                "simulation_id": f"SIM_{index}",
+                "source_code": source,
+                "script_hash": runtime_module.stable_hash(source),
+                "stdout_summary": f"stdout-{index}-" + ("o" * 5000),
+                "stderr_summary": f"stderr-{index}-" + ("e" * 5000),
+                "metrics": {f"metric_{metric_index}": metric_index for metric_index in range(12)},
+                "metric_contracts": contracts,
+                "metric_contract_evaluation": {"evaluations": evaluations},
+                "custom_executor_observation": {"index": index, "kept": True},
+            }
+        )
+
+    algorithm_feedback = _algorithm_sandbox_revision_feedback(
+        manifest={
+            "manifest_id": "algorithm_sandbox_manifest:complete-observations",
+            "prototypes": prototypes,
+            "custom_manifest_observation": "kept exactly",
+        },
+        boundary="execution observations are not proof evidence",
+    )
+    simulation_feedback = _generated_simulation_revision_feedback(
+        manifest={
+            "manifest_id": "simulation_manifest:complete-observations",
+            "generated_simulation_sandbox_prototypes": prototypes,
+            "custom_manifest_observation": "kept exactly",
+        },
+        boundary="execution observations are not proof evidence",
+    )
+
+    for feedback, key in (
+        (algorithm_feedback, "prototypes"),
+        (simulation_feedback, "generated_simulation_prototypes"),
+    ):
+        assert len(feedback[key]) == 7
+        assert feedback["custom_manifest_observation"] == "kept exactly"
+        assert feedback[key][6]["metrics"] == prototypes[6]["metrics"]
+        assert feedback[key][6]["metric_contracts"] == prototypes[6]["metric_contracts"]
+        assert feedback[key][6]["metric_contract_evaluation"] == prototypes[6][
+            "metric_contract_evaluation"
+        ]
+        assert feedback[key][6]["stdout_summary"] == prototypes[6]["stdout_summary"]
+        assert feedback[key][6]["stderr_summary"] == prototypes[6]["stderr_summary"]
+        assert feedback[key][6]["parent_source"] == prototypes[6]["source_code"]
+        assert feedback[key][6]["custom_executor_observation"] == {
+            "index": 6,
+            "kept": True,
+        }
 
 
 def test_generated_simulation_sandbox_rejects_degenerate_coverage_metric(

@@ -73,6 +73,12 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
         "feedback_type": "generated_code_execution_feedback",
         "parent_source": "x" * 100_000,
         "runtime_errors": ["NameError: estimate is not defined"],
+        "findings": [
+            {
+                "finding_id": "finding:route-owner",
+                "summary": "The stochastic diagnostic may not identify a code defect.",
+            }
+        ],
     }
 
     packet = agent.route_environment_feedback(
@@ -97,6 +103,9 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
                 "recent_handoffs": [],
                 "active_blockers": [],
             },
+            "runtime_coding_agent_revision_budget_replan": {
+                "historical_context": "y" * 100_000,
+            },
         },
         environment_feedback=feedback,
     )
@@ -109,11 +118,20 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     assert request.metadata["operation"] == ARCHITECT_FEEDBACK_ROUTE_OPERATION
     assert request.schema == ARCHITECT_FEEDBACK_ROUTE_JSON_SCHEMA
     assert request.max_tokens == 2000
-    assert len(request.user_prompt) < 35_000
+    assert len(request.user_prompt) < 100_000
     assert "regenerate the full research plan" in request.user_prompt
     assert "runtime_progress_snapshot" in request.user_prompt
     assert "retrieval_memory_manifest:existing" in request.user_prompt
     assert "prior intent" in request.user_prompt
+    assert "NameError: estimate is not defined" in request.user_prompt
+    assert "The stochastic diagnostic may not identify a code defect" in (
+        request.user_prompt
+    )
+    assert "Never propose a new repair, patch, correction, or adapter agent" in (
+        request.user_prompt
+    )
+    assert "automatic same-producer retry budget" in request.user_prompt
+    assert "prompt-budget-exhausted" not in request.user_prompt
 
 
 def test_runtime_binds_full_feedback_after_model_owned_route() -> None:

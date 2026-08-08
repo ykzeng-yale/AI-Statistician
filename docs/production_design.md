@@ -408,41 +408,21 @@ The first live loop over this scaffold is `ResearchLoopCoordinator.iterate()`.
 It executes the agenda routes that are safe today: Monte Carlo precision
 failures trigger a larger-budget rerun, monitor-only traces terminate cleanly,
 formal gaps are reviewed against attached local Lean/source hits, and simulation
-theory/procedure failures can be converted into scoped revision artifacts. There
-is a narrow default `DefaultProofEngineer`: for a `FORMAL_GAP`, it can select
-an already registered proof-bank bridge, verify that bridge with the configured
-verifier, and emit a contract-complete repair artifact for downstream theory
-plan promotion. When the bridge is kernel verified, the coordinator now requests
-a bounded rerun and carries a `proof_bridge_integration` theory revision into
-the next round. `AIStatisticalTheoryLab` applies that revision by attaching the
-verified proof obligation to the matching theorem goal and procedure roadmap.
-The theorem status remains `FORMAL_GAP`; the bridge is a verified dependency,
-not a proof of the full frontier theorem. There is also a conservative
-`DefaultTheoryDeveloper`: for a `THEORY_OR_PROCEDURE_ISSUE`, it turns failed
-simulation diagnostics such as coverage or bias into a concrete revised
-procedure/theorem/assumption artifact. This is not yet free-form theory
-invention. When the artifact satisfies its contract, the coordinator carries it
-as revision state into the next round, where `AIStatisticalTheoryLab` applies it
-as a safe overlay before retrieval, proof, and simulation: it may rename and
-annotate the candidate procedure and add new theorem goals/formal gaps, but it
-does not change the vetted algorithm implementation. A conservative
-`DefaultAlgorithmEngineer` handles `IMPLEMENTATION_OR_NUMERICAL_ISSUE` by
-emitting a repair artifact with the current implementation hash, reproduction
-test context, finite-metric/numerical-guard patch summary, and rerun metric
-targets. This is a repair contract, not arbitrary generated code execution. The
-coordinator also has a
-registered live-repair handler interface: a
-TheoryDeveloper, ProofEngineer, AlgorithmEngineer, or simulator-extension agent
-can be plugged in for a trigger such as `THEORY_OR_PROCEDURE_ISSUE`; if it
-returns a contract-complete repair artifact and requests a rerun, the
+theory/procedure failures can be delegated to a registered model agent. The
+coordinator has no deterministic diagnosis-to-fix fallback: it does not infer a
+statistical correction, select a numerical guard, author a Lean bridge, or patch
+source. Its registered handler interface lets a TheoryDeveloper, ProofEngineer,
+AlgorithmEngineer, or simulator-extension agent handle a trigger such as
+`THEORY_OR_PROCEDURE_ISSUE`; if it
+returns a contract-complete model revision and requests a rerun, the
 coordinator executes the next round inside the same bounded loop. The contract
-is trigger-specific: theory repairs must include revised procedures/theorem
-goals/assumption deltas/expected simulation deltas; proof repairs must include
+is trigger-specific: theory revisions must include revised procedures/theorem
+goals/assumption deltas/expected simulation deltas; proof revisions must include
 AXLE-verifiable proof fields and cannot request a rerun unless
 `kernel_verified=true`. Routes that need substantive new proof search,
-sandboxed code patching, or simulator construction still stop honestly with
+sandboxed code generation, or simulator construction still stop honestly with
 `REQUIRES_PROOF_ENGINEER` or `REQUIRES_SIMULATOR_EXTENSION`, or with a scoped
-repair proposal, unless a stronger handler is registered.
+revision request, unless a stronger handler is registered.
 
 Current release-style evidence for this bounded loop is split intentionally:
 `proof-audit --local-lean` verifies the registered proof bank at `112/112`, while
@@ -852,18 +832,16 @@ threshold relaxation to masquerade as validation.
 Current honest boundary: `TheoryPlanner` already emits informal derivation text
 and theorem roadmaps, `FormalSubclaimProver` already performs real AXLE/Lean
 verification for registered proof-bank obligations, `ResearchSimulator` already
-diagnoses failures, and `ResearchLoopCoordinator` now executes the scoped
-actions above, including `DefaultProofEngineer`,
-`DefaultTheoryDeveloper`, `DefaultAlgorithmEngineer`, and registered live repair
-handlers when supplied. The
-missing architecture piece is default substantive autonomous *solution* of
-repairs: an LLM TheoryDeveloper that can invent and justify new estimator
+diagnoses failures, and `ResearchLoopCoordinator` can invoke registered model
+handlers when supplied. The hard-coded `DefaultTheoryDeveloper`,
+`DefaultAlgorithmEngineer`, and `DefaultProofEngineer` baselines have been
+removed from executable product paths. The missing architecture piece is
+substantive autonomous solution by an LLM TheoryDeveloper that can invent and justify new estimator
 families rather than only applying scoped overlays, a ProofEngineer that proves
 new Lean obligations rather than only bridge-selecting from the proof bank, and
-an isolated AlgorithmEngineer worker that applies real code patches and reruns
-finite simulation diagnostics from simulator evidence. The current algorithm
-repair lane reaches non-mutating sandbox apply and current-registry rerun
-artifacts; it intentionally stops before production mutation.
+an isolated AlgorithmEngineer worker that regenerates complete source from exact
+sandbox/reviewer observations and reruns finite simulation diagnostics. Runtime
+owns execution and evidence gates, not source edits.
 
 The CLI entry point is:
 

@@ -6,7 +6,6 @@ from typing import Any, Mapping
 from .agent_runtime import AgentTask
 from .fingerprint import stable_hash
 from .research_schema import OpenResearchQuestion
-from .semantic_review_feedback import coding_agent_observations_only
 
 
 GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM = "GeneratedCodeSemanticReviewer"
@@ -158,7 +157,7 @@ def build_generated_code_semantic_review_producer_revision_task(
 ) -> AgentTask:
     """Return complete review feedback to the immutable source producer."""
 
-    observations = coding_agent_observations_only(review_feedback)
+    observations = deepcopy(dict(review_feedback))
     source_task = _mapping(work_order.get("source_task"))
     source_inputs = _mapping(source_task.get("inputs"))
     source_subsystem = str(work_order.get("source_subsystem", "") or "")

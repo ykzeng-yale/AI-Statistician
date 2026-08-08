@@ -1844,7 +1844,6 @@ async def run_research_system_audit(
         formal_source_retriever=formal_source_retriever,
         formal_source_index_path=formal_source_index_path,
         config=LoopConfig(max_rounds=2, n_runs=config.n_runs, seed=config.seed),
-        enable_default_proof_engineer=True,
     )
     stage_start = _record_stage(stage_timings, "research_loop", stage_start)
 

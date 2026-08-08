@@ -11217,16 +11217,6 @@ async def _research_loop(args: argparse.Namespace) -> int:
         ),
         lean_rag_db_path=Path(args.lean_rag_db) if args.lean_rag_db else None,
         repair_handlers=repair_handlers,
-        enable_default_theory_developer=getattr(
-            args,
-            "enable_legacy_deterministic_theory_baseline",
-            False,
-        ),
-        enable_default_algorithm_engineer=getattr(
-            args,
-            "enable_legacy_deterministic_algorithm_baseline",
-            False,
-        ),
         config=LoopConfig(
             max_rounds=args.max_rounds,
             n_runs=args.runs,
@@ -20751,22 +20741,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_loop.add_argument("--llm-theory-max-tokens", type=int, default=9000)
     research_loop.add_argument("--llm-theory-temperature", type=float, default=0.2)
-    research_loop.add_argument(
-        "--enable-legacy-deterministic-theory-baseline",
-        action="store_true",
-        help=(
-            "explicitly enable the hand-authored DefaultTheoryDeveloper calibration "
-            "baseline; never used as a production fallback"
-        ),
-    )
-    research_loop.add_argument(
-        "--enable-legacy-deterministic-algorithm-baseline",
-        action="store_true",
-        help=(
-            "explicitly enable the hand-authored DefaultAlgorithmEngineer calibration "
-            "baseline; never used as a production fallback"
-        ),
-    )
     research_loop.add_argument(
         "--formal-source-backend",
         choices=("sqlite", "memory"),

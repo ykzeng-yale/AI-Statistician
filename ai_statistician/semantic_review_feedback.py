@@ -113,6 +113,8 @@ def model_observations_without_repair_recipes(
                     "_repair_placeholder_symbols",
                     "_repair_required",
                     "_repair_rule",
+                    "_repair_sequence",
+                    "_repair_sequences",
                     "_repair_target_names",
                     "_repair_triggers",
                     "_recipe",

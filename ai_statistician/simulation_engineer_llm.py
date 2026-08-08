@@ -17,7 +17,6 @@ from .generated_metric_contract import (
     generated_metric_contract_set_id,
     generated_metric_evaluation_semantics_contract,
     generated_metric_requirement_authority_policy_from_context,
-    generated_metric_requirements_for_subsystem,
     generated_metric_requirement_set_id,
     generated_metric_requirements_from_context,
     materialize_generated_metric_contract_bindings,
@@ -26,10 +25,6 @@ from .generated_metric_contract import (
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
-from .semantic_review_feedback import (
-    coding_agent_observations_only,
-    compact_semantic_review_feedback,
-)
 from .scientific_sandbox import (
     generated_code_draft_json_schema,
     generated_code_execution_contract_errors,
@@ -244,7 +239,7 @@ def build_simulation_engineer_prompt(
     seed: int,
     environment_feedback: Mapping[str, Any] | None = None,
 ) -> str:
-    compact_environment_feedback = _compact_simulation_environment_feedback(
+    compact_environment_feedback = _simulation_environment_observations(
         environment_feedback or {}
     )
     runtime_execution_contract = _compact_simulation_runtime_execution_contract(
@@ -527,229 +522,14 @@ def _compact_theory_packet_for_simulation(theory_packet: Mapping[str, Any]) -> d
     }
 
 
-def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dict[str, Any]:
+def _simulation_environment_observations(
+    feedback: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return the complete environment packet to the source-producing model."""
+
     if not isinstance(feedback, Mapping):
         return {}
-    rejected_candidate = feedback.get("rejected_candidate", {})
-    prototype_rows = feedback.get("generated_simulation_prototypes", [])
-    if not isinstance(prototype_rows, list):
-        prototype_rows = []
-    theory_alignment_feedback = _compact_theory_trace_downstream_alignment_feedback(
-        feedback
-    )
-    projected = {
-        "empirical_evaluation_phase": _feedback_empirical_evaluation_phase(
-            feedback
-        ),
-        "architect_evidence_contract": _compact_architect_evidence_contract(
-            feedback.get("architect_evidence_contract", {}),
-            target_subsystem="SimulationEngineer",
-        ),
-        "runtime_requested_evidence_contract": _compact_architect_evidence_contract(
-            feedback.get("runtime_requested_evidence_contract", {}),
-            target_subsystem="SimulationEngineer",
-        ),
-        "architect_recommended_research_path": _truncate_text(
-            feedback.get("architect_recommended_research_path", ""),
-            limit=120,
-        ),
-        "architect_formal_verification_policy": _truncate_text(
-            feedback.get("architect_formal_verification_policy", ""),
-            limit=120,
-        ),
-        "architect_subsystem_acceptance_gate": _truncate_text(
-            feedback.get("architect_subsystem_acceptance_gate", ""),
-            limit=240,
-        ),
-        "feedback_type": _truncate_text(feedback.get("feedback_type", ""), limit=180),
-        "capability_id": _truncate_text(feedback.get("capability_id", ""), limit=180),
-        "target_component": _truncate_text(
-            feedback.get("target_component", ""),
-            limit=80,
-        ),
-        "success_metric": _truncate_text(feedback.get("success_metric", ""), limit=240),
-        "blocker": _truncate_text(feedback.get("blocker", ""), limit=240),
-        "evidence": _truncate_text(feedback.get("evidence", ""), limit=240),
-        "component_eval": _truncate_text(feedback.get("component_eval", ""), limit=180),
-        "component_eval_manifest_path": _truncate_text(
-            feedback.get("component_eval_manifest_path", ""),
-            limit=240,
-        ),
-        "live_generator": feedback.get("live_generator"),
-        "static_or_fixture_only": feedback.get("static_or_fixture_only"),
-        "capability_evidence_ok": feedback.get("capability_evidence_ok"),
-        "algorithm_capability_evidence_ok": feedback.get(
-            "algorithm_capability_evidence_ok"
-        ),
-        "simulation_capability_evidence_ok": feedback.get(
-            "simulation_capability_evidence_ok"
-        ),
-        "capability_evidence_scope": _truncate_text(
-            feedback.get("capability_evidence_scope", ""),
-            limit=180,
-        ),
-        "proof_evidence_status": _truncate_text(
-            feedback.get("proof_evidence_status", ""),
-            limit=180,
-        ),
-        "proof_evidence_boundary": _truncate_text(
-            feedback.get("proof_evidence_boundary", ""),
-            limit=240,
-        ),
-        "failure_classification": _truncate_text(
-            feedback.get("failure_classification", ""),
-            limit=180,
-        ),
-        "validation_label": _truncate_text(
-            feedback.get("validation_label", ""),
-            limit=180,
-        ),
-        "validation_errors": [
-            str(value)
-            for value in feedback.get("validation_errors", []) or []
-        ],
-        "rejected_candidate": (
-            deepcopy(dict(rejected_candidate))
-            if isinstance(rejected_candidate, Mapping)
-            else {}
-        ),
-        "rejected_candidate_fingerprint": _truncate_text(
-            feedback.get("rejected_candidate_fingerprint", ""),
-            limit=120,
-        ),
-        "validation_error_fingerprint": _truncate_text(
-            feedback.get("validation_error_fingerprint", ""),
-            limit=120,
-        ),
-        "same_error_runtime_round": feedback.get("same_error_runtime_round"),
-        "packet_validation_replan_after_attempts": feedback.get(
-            "packet_validation_replan_after_attempts"
-        ),
-        "packet_validation_replan_required": feedback.get(
-            "packet_validation_replan_required"
-        ),
-        "packet_validation_source_retry_escalated": feedback.get(
-            "packet_validation_source_retry_escalated"
-        ),
-        "lineage_packet_validation_round": feedback.get(
-            "lineage_packet_validation_round"
-        ),
-        "packet_validation_max_lineage_failures": feedback.get(
-            "packet_validation_max_lineage_failures"
-        ),
-        "runtime_execution_contract": (
-            _compact_simulation_runtime_execution_contract(
-                feedback.get("runtime_execution_contract", {})
-            )
-        ),
-        "theory_trace_downstream_alignment_feedback": theory_alignment_feedback,
-        "generated_code_semantic_review": compact_semantic_review_feedback(
-            feedback,
-            expected_feedback_type="generated_code_semantic_review_feedback",
-        ),
-        "upstream_algorithm_handoff": _compact_upstream_algorithm_handoff(
-            feedback.get("upstream_algorithm_handoff", {})
-            or _mapping(feedback.get("architect_context", {})).get(
-                "upstream_algorithm_handoff", {}
-            )
-        ),
-        "simulation_manifest_id": _truncate_text(
-            feedback.get("simulation_manifest_id", ""),
-            limit=180,
-        ),
-        "generated_simulation_prototypes": [
-            {
-                "simulation_id": _truncate_text(row.get("simulation_id", ""), limit=120),
-                "prototype_status": _truncate_text(
-                    row.get("prototype_status", ""),
-                    limit=160,
-                ),
-                "executor": _truncate_text(row.get("executor", ""), limit=160),
-                "script_hash": _truncate_text(
-                    row.get("script_hash", ""), limit=120
-                ),
-                "parent_source_hash": _truncate_text(
-                    row.get("parent_source_hash", ""), limit=120
-                ),
-                "parent_source_complete": row.get("parent_source_complete"),
-                "parent_source": str(row.get("parent_source", "") or ""),
-                "smoke_passed": row.get("smoke_passed"),
-                "execution_smoke_passed": row.get("execution_smoke_passed"),
-                "execution_attempted": row.get("execution_attempted"),
-                "returncode": row.get("returncode"),
-                "required_estimator_ids": _compact_string_list(
-                    row.get("required_estimator_ids", []),
-                    limit=12,
-                    char_limit=180,
-                ),
-                "available_upstream_estimator_ids": _compact_string_list(
-                    row.get("available_upstream_estimator_ids", []),
-                    limit=12,
-                    char_limit=180,
-                ),
-                "estimator_invocation_counts": _compact_mapping(
-                    row.get("estimator_invocation_counts", {}),
-                    limit=12,
-                ),
-                "mechanical_estimator_invocation_verified": row.get(
-                    "mechanical_estimator_invocation_verified"
-                ),
-                "metric_gate_errors": list(row.get("metric_gate_errors", []) or []),
-                "safety_errors": list(row.get("safety_errors", []) or []),
-                "runtime_errors": list(row.get("runtime_errors", []) or []),
-                "estimator_binding_errors": list(
-                    row.get("estimator_binding_errors", []) or []
-                ),
-                "estimator_runtime_failure_ids": _compact_string_list(
-                    row.get("estimator_runtime_failure_ids", []),
-                    limit=8,
-                    char_limit=180,
-                ),
-                "estimator_runtime_errors": list(
-                    row.get("estimator_runtime_errors", []) or []
-                ),
-                "metrics": _compact_mapping(row.get("metrics", {}), limit=6),
-                "metric_gate_targets": _compact_mapping(
-                    row.get("metric_gate_targets", {}),
-                    limit=4,
-                ),
-                "metric_gate_policy_mode": _truncate_text(
-                    row.get("metric_gate_policy_mode", ""),
-                    limit=80,
-                ),
-                "metric_contract_set_id": _truncate_text(
-                    row.get("metric_contract_set_id", ""),
-                    limit=120,
-                ),
-                "metric_contracts": [
-                    dict(contract)
-                    for contract in _first_mapping_rows(
-                        row.get("metric_contracts", []),
-                        limit=4,
-                    )
-                ],
-                "metric_contract_evaluation": _compact_mapping(
-                    row.get("metric_contract_evaluation", {}),
-                    limit=8,
-                ),
-                "code_excerpt": str(row.get("code_excerpt", "") or ""),
-                "stdout_summary": str(row.get("stdout_summary", "") or ""),
-                "stderr_summary": str(row.get("stderr_summary", "") or ""),
-                "result_parse_error": str(
-                    row.get("result_parse_error", "") or ""
-                ),
-                "resource_limits": _compact_mapping(
-                    row.get("resource_limits", {}),
-                    limit=12,
-                ),
-                "reason": _truncate_text(row.get("reason", ""), limit=500),
-            }
-            for row in prototype_rows
-            if isinstance(row, Mapping)
-        ],
-        "boundary": _truncate_text(feedback.get("boundary", ""), limit=240),
-    }
-    return coding_agent_observations_only(projected)
+    return deepcopy(dict(feedback))
 
 
 def _compact_simulation_runtime_execution_contract(value: Any) -> dict[str, Any]:
@@ -793,121 +573,6 @@ def _feedback_empirical_evaluation_phase(feedback: Mapping[str, Any]) -> str:
         if phase:
             return phase
     return ""
-
-
-def _compact_theory_trace_downstream_alignment_feedback(
-    feedback: Mapping[str, Any],
-) -> dict[str, Any]:
-    if not isinstance(feedback, Mapping):
-        return {}
-    if str(feedback.get("feedback_type", "") or "") == (
-        "theory_trace_downstream_alignment_feedback"
-    ):
-        source: Mapping[str, Any] = feedback
-    else:
-        nested = feedback.get("theory_trace_downstream_alignment_feedback", {})
-        source = nested if isinstance(nested, Mapping) else {}
-    if not source:
-        return {}
-    input_summary = (
-        source.get("input_summary", {})
-        if isinstance(source.get("input_summary", {}), Mapping)
-        else {}
-    )
-    contract = (
-        source.get("theory_trace_downstream_alignment_contract", {})
-        if isinstance(
-            source.get("theory_trace_downstream_alignment_contract", {}),
-            Mapping,
-        )
-        else {}
-    )
-    return {
-        "feedback_type": "theory_trace_downstream_alignment_feedback",
-        "trigger": _truncate_text(
-            input_summary.get("trigger", "")
-            or contract.get("trigger", "")
-            or "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING",
-            limit=140,
-        ),
-        "target_consumer_subsystem": _truncate_text(
-            source.get("target_consumer_subsystem", "")
-            or input_summary.get("target_consumer_subsystem", "")
-            or contract.get("target_consumer_subsystem", ""),
-            limit=120,
-        ),
-        "failure_classifications": _compact_string_list(
-            source.get(
-                "failure_classifications",
-                input_summary.get(
-                    "failure_classifications",
-                    contract.get("failure_classifications", []),
-                ),
-            ),
-            limit=4,
-            char_limit=180,
-        ),
-        "target_ids": _compact_string_list(
-            source.get(
-                "target_ids",
-                input_summary.get("target_ids", contract.get("target_ids", [])),
-            ),
-            limit=5,
-            char_limit=160,
-        ),
-        "acceptance_gate": _truncate_text(
-            source.get("acceptance_gate", "") or contract.get("acceptance_gate", ""),
-            limit=360,
-        ),
-        "proof_evidence_status": _truncate_text(
-            source.get("proof_evidence_status", "")
-            or contract.get("proof_evidence_status", ""),
-            limit=180,
-        ),
-        "boundary": _truncate_text(source.get("boundary", ""), limit=240),
-    }
-
-
-def _compact_architect_evidence_contract(
-    value: Any,
-    *,
-    target_subsystem: str,
-) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    keys = (
-        "formal_verification_policy",
-        "recommended_research_path",
-        "formal_required_for_final",
-        "formal_targets",
-        "simulation_targets",
-        "acceptance_modes",
-        "disclosure_requirements",
-        "evaluation_mode",
-        "capability_eval_requires_generated_algorithm_code",
-        "capability_eval_requires_generated_simulation_code",
-        "capability_eval_requires_typed_metric_contracts",
-        "generated_metric_contract_policy",
-        "generated_metric_requirement_authority_policy",
-        "empirical_metric_requirements",
-    )
-    compact: dict[str, Any] = {}
-    for key in keys:
-        if key not in value:
-            continue
-        row = value.get(key)
-        if key == "empirical_metric_requirements" and isinstance(row, list):
-            compact[key] = generated_metric_requirements_for_subsystem(
-                row,
-                target_subsystem=target_subsystem,
-            )[:8]
-        elif isinstance(row, list):
-            compact[key] = _compact_string_list(row, limit=3, char_limit=180)
-        elif isinstance(row, bool):
-            compact[key] = row
-        else:
-            compact[key] = _truncate_text(row, limit=180)
-    return compact
 
 
 def _first_mapping_rows(value: Any, *, limit: int) -> list[Mapping[str, Any]]:

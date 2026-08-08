@@ -9,12 +9,9 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .fingerprint import stable_hash
-from .algorithm_engineer import DefaultAlgorithmEngineer
 from .formal_source_index import build_formal_source_search_backend
-from .proof_engineer import DefaultProofEngineer
 from .research_lab import AIStatisticalTheoryLab
 from .research_schema import OpenResearchQuestion, ResearchReport
-from .theory_developer import DefaultTheoryDeveloper
 from .verifier import ProofVerifier
 
 
@@ -49,9 +46,9 @@ class ResearchLoopCoordinator:
     This is the first live-loop layer over ``AIStatisticalTheoryLab``. It does
     not claim to solve arbitrary theory repair yet. Instead it executes the
     agenda routes that are currently safe to automate and records when a route
-    needs a stronger TheoryDeveloper, ProofEngineer, AlgorithmEngineer, or
-    simulator-extension model. Deterministic legacy handlers are opt-in
-    calibration baselines; they are never production fallbacks.
+    needs a TheoryDeveloper, ProofEngineer, AlgorithmEngineer, or simulator
+    model. Candidate revision is delegated to registered model agents; this
+    coordinator contains no deterministic diagnosis-to-fix fallback.
     """
 
     def __init__(
@@ -63,9 +60,6 @@ class ResearchLoopCoordinator:
         seed: int = 20260528,
         lab_factory: LabFactory | None = None,
         repair_handlers: dict[str, LiveRepairHandler] | None = None,
-        enable_default_proof_engineer: bool = False,
-        enable_default_theory_developer: bool = False,
-        enable_default_algorithm_engineer: bool = False,
     ) -> None:
         self.proof_verifier = proof_verifier
         self.formal_source_retriever = formal_source_retriever
@@ -73,16 +67,6 @@ class ResearchLoopCoordinator:
         self.seed = seed
         self.lab_factory = lab_factory
         self.repair_handlers = dict(repair_handlers or {})
-        self.enable_default_proof_engineer = enable_default_proof_engineer
-        self.enable_default_theory_developer = enable_default_theory_developer
-        self.enable_default_algorithm_engineer = enable_default_algorithm_engineer
-        self.default_proof_engineer = (
-            DefaultProofEngineer(self.proof_verifier) if enable_default_proof_engineer else None
-        )
-        self.default_theory_developer = DefaultTheoryDeveloper() if enable_default_theory_developer else None
-        self.default_algorithm_engineer = (
-            DefaultAlgorithmEngineer() if enable_default_algorithm_engineer else None
-        )
 
     async def iterate(
         self,
@@ -143,9 +127,6 @@ class ResearchLoopCoordinator:
             "honesty_boundary": {
                 "executes_feedback_agenda": True,
                 "executes_registered_live_repair_handlers": bool(self.repair_handlers),
-                "executes_default_proof_engineer_bridge_handler": self.enable_default_proof_engineer,
-                "executes_default_theory_developer_revision_handler": self.enable_default_theory_developer,
-                "executes_default_algorithm_engineer_repair_handler": self.enable_default_algorithm_engineer,
                 "free_form_theory_revision": False,
                 "arbitrary_lean_proof_search": False,
                 "arbitrary_algorithm_generation": False,
@@ -195,47 +176,6 @@ class ResearchLoopCoordinator:
         live_result = await self._try_live_repair_handler(item, report, base)
         if live_result is not None:
             return live_result
-        if trigger == "FORMAL_GAP" and self.default_proof_engineer is not None:
-            default_result = await self.default_proof_engineer.repair_formal_gap(item, report)
-            if default_result is not None:
-                default_action = self._contract_checked_live_result(
-                    default_result,
-                    trigger=trigger,
-                    base=base,
-                    handler_name="DefaultProofEngineer",
-                )
-                if (
-                    default_action.get("execution_status") == "EXECUTED_PROOF_BANK_BRIDGE_REPAIR"
-                    and default_action.get("repair_contract_ok") is True
-                    and (
-                        default_action.get("kernel_verified") is True
-                        or default_action.get("repair_artifact", {}).get("kernel_verified") is True
-                    )
-                ):
-                    default_action["rerun_requested"] = True
-                default_action.setdefault(
-                    "repair_task",
-                    _repair_task(
-                        report=report,
-                        item=item,
-                        task_type="proof_bank_expansion_from_formal_gap",
-                        prompt=(
-                            "Review the DefaultProofEngineer bridge artifact and promote it into the "
-                            "smallest reusable Lean theorem or theory-plan obligation that reduces this FORMAL_GAP."
-                        ),
-                        acceptance_criteria=(
-                            "bridge artifact is AXLE verify_proof checked when kernel verification is required",
-                            "the theory plan records the proof-bank bridge as a reusable dependency",
-                            "the frontier theorem still retains explicit gaps for primitives not covered by the bridge",
-                        ),
-                        context={
-                            "target_theorem_goal": item.get("target_theorem_goal", ""),
-                            "required_primitives": item.get("required_primitives", []),
-                            "default_proof_engineer_status": default_action.get("execution_status", ""),
-                        },
-                    ),
-                )
-                return default_action
         if trigger == "FORMAL_GAP":
             target = str(item.get("target_theorem_goal", ""))
             matching_gap = next((row for row in report.formal_subclaims if row.id.endswith(target)), None)
@@ -274,38 +214,6 @@ class ResearchLoopCoordinator:
                 ),
             }
         if trigger == "FAILED_PROOF_OBLIGATION":
-            if self.default_proof_engineer is not None:
-                default_result = await self.default_proof_engineer.repair_failed_obligation(item, report)
-                if default_result is not None:
-                    default_action = self._contract_checked_live_result(
-                        default_result,
-                        trigger=trigger,
-                        base=base,
-                        handler_name="DefaultProofEngineer",
-                    )
-                    default_action.setdefault(
-                        "repair_task",
-                        _repair_task(
-                            report=report,
-                            item=item,
-                            task_type="lean_proof_repair_from_axle_error",
-                            prompt=(
-                                "Review the DefaultProofEngineer repaired proof body and promote it into "
-                                "the proof bank only if AXLE/Lean kernel verification remains green."
-                            ),
-                            acceptance_criteria=(
-                                "repaired proof passes AXLE verify_proof",
-                                "no sorry/admit/axiom/unsafe placeholder is introduced",
-                                "proof dependencies are recorded for proof-bank audit",
-                            ),
-                            context={
-                                "proof_obligation_id": item.get("target_theorem_goal", ""),
-                                "required_primitives": item.get("required_primitives", []),
-                                "default_proof_engineer_status": default_action.get("execution_status", ""),
-                            },
-                        ),
-                    )
-                    return default_action
             return {
                 **base,
                 "execution_status": "REQUIRES_PROOF_ENGINEER",
@@ -327,41 +235,6 @@ class ResearchLoopCoordinator:
                 ),
             }
         if trigger == "THEORY_OR_PROCEDURE_ISSUE":
-            if self.default_theory_developer is not None:
-                default_result = self.default_theory_developer.repair_theory_issue(item, report)
-                if default_result is not None:
-                    default_action = self._contract_checked_live_result(
-                        default_result,
-                        trigger=trigger,
-                        base=base,
-                        handler_name="DefaultTheoryDeveloper",
-                    )
-                    default_action.setdefault(
-                        "repair_task",
-                        _repair_task(
-                            report=report,
-                            item=item,
-                            task_type="theory_revision_from_simulation_failure",
-                            prompt=(
-                                "Review the DefaultTheoryDeveloper scoped revision artifact and apply it "
-                                "to the TheoryPlanner/algorithm registry before requesting a rerun."
-                            ),
-                            acceptance_criteria=(
-                                "revised theorem statement explains the failed diagnostics",
-                                "revised procedure has a registered or sandboxable algorithm path",
-                                "simulation diagnostics are expected to pass under the declared DGP/stress tests",
-                                "new assumptions are explicit and not silently stronger than the input problem",
-                            ),
-                            context={
-                                "target_procedure": item.get("target_procedure", ""),
-                                "failed_diagnostics": item.get("failed_diagnostics", []),
-                                "failed_stress_tests": item.get("failed_stress_tests", []),
-                                "metric_evidence_keys": item.get("metric_evidence_keys", []),
-                                "default_theory_developer_status": default_action.get("execution_status", ""),
-                            },
-                        ),
-                    )
-                    return default_action
             return {
                 **base,
                 "execution_status": "REQUIRES_THEORY_DEVELOPER",
@@ -390,38 +263,6 @@ class ResearchLoopCoordinator:
                 ),
             }
         if trigger == "IMPLEMENTATION_OR_NUMERICAL_ISSUE":
-            if self.default_algorithm_engineer is not None:
-                default_result = self.default_algorithm_engineer.repair_algorithm_issue(item, report)
-                if default_result is not None:
-                    default_action = self._contract_checked_live_result(
-                        default_result,
-                        trigger=trigger,
-                        base=base,
-                        handler_name="DefaultAlgorithmEngineer",
-                    )
-                    default_action.setdefault(
-                        "repair_task",
-                        _repair_task(
-                            report=report,
-                            item=item,
-                            task_type="algorithm_repair_from_numerical_failure",
-                            prompt=(
-                                "Review the DefaultAlgorithmEngineer scoped repair artifact and convert it "
-                                "into a vetted implementation patch before requesting a rerun."
-                            ),
-                            acceptance_criteria=(
-                                "implementation hash changes or numerical guard is justified",
-                                "property/simulation test reproduces the old failure before repair",
-                                "rerun has finite metrics and fewer failed replicates",
-                            ),
-                            context={
-                                "target_procedure": item.get("target_procedure", ""),
-                                "failed_diagnostics": item.get("failed_diagnostics", []),
-                                "default_algorithm_engineer_status": default_action.get("execution_status", ""),
-                            },
-                        ),
-                    )
-                    return default_action
             return {
                 **base,
                 "execution_status": "REQUIRES_ALGORITHM_ENGINEER",
@@ -556,9 +397,6 @@ async def run_research_loop_benchmark(
     formal_source_index_path: Path | None = None,
     lean_rag_db_path: Path | None = None,
     repair_handlers: dict[str, LiveRepairHandler] | None = None,
-    enable_default_proof_engineer: bool = False,
-    enable_default_theory_developer: bool = False,
-    enable_default_algorithm_engineer: bool = False,
     config: LoopConfig = LoopConfig(),
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -573,9 +411,6 @@ async def run_research_loop_benchmark(
         n_runs=config.n_runs,
         seed=config.seed,
         repair_handlers=repair_handlers,
-        enable_default_proof_engineer=enable_default_proof_engineer,
-        enable_default_theory_developer=enable_default_theory_developer,
-        enable_default_algorithm_engineer=enable_default_algorithm_engineer,
     )
     results = [
         await coordinator.iterate(
