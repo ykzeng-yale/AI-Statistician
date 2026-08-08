@@ -5,6 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
+from ai_statistician.architect_coordinator_llm import (
+    ARCHITECT_FEEDBACK_ROUTE_OPERATION,
+)
 from ai_statistician.exact_source_theorem_proof_body_executor import (
     EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
     exact_target_statement_hash,
@@ -323,6 +326,12 @@ def test_rejection_routes_observations_to_architect_not_a_repair_owner(
     assert result.status == "REROUTE"
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.inputs["runtime_architect_operation"] == (
+        ARCHITECT_FEEDBACK_ROUTE_OPERATION
+    )
+    assert result.next_task.expected_artifacts == (
+        "architect_feedback_route_decision",
+    )
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["external_proof_search_dispatch_eligible"] is False
     assert feedback["runtime_selected_owner"] is False

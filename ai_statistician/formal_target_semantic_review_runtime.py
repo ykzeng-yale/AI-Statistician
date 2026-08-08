@@ -13,6 +13,7 @@ from .agent_runtime import (
     EvidenceLedgerEntry,
     ToolCallRecord,
 )
+from .architect_coordinator_llm import ARCHITECT_FEEDBACK_ROUTE_OPERATION
 from .fingerprint import stable_hash
 from .exact_source_theorem_proof_body_executor import (
     EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
@@ -1153,9 +1154,12 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                     "architect_context": architect_context,
                     "environment_feedback": dict(feedback),
                     "formal_target_semantic_review_revision_count": revision_count,
+                    "runtime_architect_operation": (
+                        ARCHITECT_FEEDBACK_ROUTE_OPERATION
+                    ),
                 },
                 allowed_tools=("model_backend", "evidence_ledger"),
-                expected_artifacts=("architect_coordinator_proposal",),
+                expected_artifacts=("architect_feedback_route_decision",),
                 acceptance_gate=(
                     "validated Architect proposal selects one next subsystem while "
                     "preserving rejected target lineage and revision budgets"
