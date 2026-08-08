@@ -36064,7 +36064,7 @@ class CriticEvaluatorRuntimeSubsystem:
             and bool(gap_planner_bridge_rows)
             and _critic_agenda_has_formalization_gap_planner_handoff(agenda)
         )
-        should_repair_candidate = _critic_should_reroute_to_theory(
+        architect_replan_candidate = _critic_requires_architect_replan(
             agenda=agenda,
             formalization_manifest=formalization_manifest,
             critic_round=critic_round,
@@ -36075,7 +36075,9 @@ class CriticEvaluatorRuntimeSubsystem:
                 else "required"
             ),
         )
-        should_repair = should_repair_candidate and not should_route_to_gap_planner
+        architect_replan_from_observations = bool(
+            architect_replan_candidate and not should_route_to_gap_planner
+        )
         formal_proof_work_pending = _critic_should_route_to_formalizer_proofengineer(
             agenda=agenda,
             formalization_manifest=formalization_manifest,
@@ -36088,7 +36090,7 @@ class CriticEvaluatorRuntimeSubsystem:
             formal_debt_blocks_research_acceptance
             and not formalizer_packet_validation_escalation_active
             and not should_route_to_gap_planner
-            and not should_repair
+            and not architect_replan_from_observations
             and formal_proof_work_pending
         )
         formalization_counts = (
@@ -36156,8 +36158,6 @@ class CriticEvaluatorRuntimeSubsystem:
                     simulation_manifest=simulation_manifest,
                     algorithm_manifest=algorithm_manifest,
                     formalization_manifest=formalization_manifest,
-                    deterministic_agenda=agenda,
-                    deterministic_learning_rows=learning_rows,
                     environment_feedback=critic_environment_feedback,
                 )
             except PacketValidationError as exc:
@@ -36185,6 +36185,12 @@ class CriticEvaluatorRuntimeSubsystem:
                 observations.append(failure_observation)
             if proposal_packet is not None:
                 proposal_id = str(proposal_packet["packet_id"])
+                observation_assessment = proposal_packet.get(
+                    "current_observation_assessment",
+                    {},
+                )
+                if not isinstance(observation_assessment, Mapping):
+                    observation_assessment = {}
                 produced_artifacts[proposal_id] = proposal_packet
                 observations.append(
                     EnvironmentObservation(
@@ -36199,8 +36205,11 @@ class CriticEvaluatorRuntimeSubsystem:
                                 proposal_packet.get("evidence_boundary_audit", [])
                                 or []
                             ),
-                            "n_reroute_recommendations": len(
-                                proposal_packet.get("reroute_recommendations", [])
+                            "n_causal_hypotheses": len(
+                                observation_assessment.get(
+                                    "causal_hypotheses",
+                                    [],
+                                )
                                 or []
                             ),
                             "proof_evidence_status": (
@@ -36233,14 +36242,14 @@ class CriticEvaluatorRuntimeSubsystem:
                 formal_debt_blocks_research_acceptance
                 and formal_proof_work_pending
             )
-            or should_repair
+            or architect_replan_from_observations
             or should_route_to_gap_planner
             or should_route_to_formalizer
         )
         evidence_contract_decision = _critic_evidence_contract_decision(
             critic_control=critic_control,
             formalization_manifest=formalization_manifest,
-            should_repair=bool(
+            revision_required=bool(
                 architect_replan_required
                 or proposal_validation_failure_feedback is not None
             ),
@@ -36275,7 +36284,9 @@ class CriticEvaluatorRuntimeSubsystem:
                 "reroute_to_formalization_gap_planner": False,
                 "reroute_to_formalizer_proofengineer": False,
                 "observed_conditions": {
-                    "theory_revision_candidate": should_repair,
+                    "cross_subsystem_replan_candidate": (
+                        architect_replan_from_observations
+                    ),
                     "gap_planner_candidate": should_route_to_gap_planner,
                     "formalizer_candidate": should_route_to_formalizer,
                 },
@@ -36302,7 +36313,10 @@ class CriticEvaluatorRuntimeSubsystem:
                     if should_route_to_gap_planner
                     else
                     critic_runtime_observations
-                    if should_repair or should_route_to_formalizer
+                    if (
+                        architect_replan_from_observations
+                        or should_route_to_formalizer
+                    )
                     else {}
                 ),
             },
@@ -36358,7 +36372,9 @@ class CriticEvaluatorRuntimeSubsystem:
                     "architect_replan_required": architect_replan_required,
                     "legacy_owner_routes_disabled": True,
                     "observed_conditions": {
-                        "theory_revision_candidate": should_repair,
+                        "cross_subsystem_replan_candidate": (
+                            architect_replan_from_observations
+                        ),
                         "gap_planner_candidate": should_route_to_gap_planner,
                         "formalizer_candidate": should_route_to_formalizer,
                     },
@@ -36380,7 +36396,9 @@ class CriticEvaluatorRuntimeSubsystem:
         )
         if architect_replan_required and proposal_validation_failure_feedback is None:
             runtime_observations = {
-                "theory_revision_candidate": should_repair,
+                "cross_subsystem_replan_candidate": (
+                    architect_replan_from_observations
+                ),
                 "gap_planner_candidate": should_route_to_gap_planner,
                 "formalizer_candidate": should_route_to_formalizer,
                 "formal_proof_work_pending": formal_proof_work_pending,
@@ -36408,6 +36426,9 @@ class CriticEvaluatorRuntimeSubsystem:
                     stable_hash(dict(theory_packet)) if theory_packet else ""
                 ),
                 "critic_evaluator_manifest_id": manifest_id,
+                "current_environment_observation": dict(
+                    critic_environment_feedback
+                ),
                 "critic_model_packet": (
                     dict(proposal_packet) if proposal_packet is not None else {}
                 ),
@@ -58295,7 +58316,7 @@ def _effective_critic_repair_rounds(
     return max(0, min(configured, architect_max))
 
 
-def _critic_should_reroute_to_theory(
+def _critic_requires_architect_replan(
     *,
     agenda: list[dict[str, Any]],
     formalization_manifest: Mapping[str, Any],
@@ -58319,7 +58340,7 @@ def _critic_should_reroute_to_theory(
             return True
     for row in agenda:
         agenda_id = str(row.get("id", ""))
-        if agenda_id.startswith("simulation:theory_revision"):
+        if agenda_id.startswith("simulation:diagnostic_failure"):
             return True
         if formal_required and agenda_id.startswith(("formal_gap:", "proof_feedback:")):
             return True
@@ -58330,7 +58351,7 @@ def _critic_evidence_contract_decision(
     *,
     critic_control: Mapping[str, Any],
     formalization_manifest: Mapping[str, Any],
-    should_repair: bool,
+    revision_required: bool,
 ) -> dict[str, Any]:
     """Classify terminal critic status under the Architect evidence contract."""
 
@@ -58364,7 +58385,7 @@ def _critic_evidence_contract_decision(
     formal_satisfied = bool(
         formal_gaps <= 0 and (full_theorem_proved or kernel_verified > 0)
     )
-    if should_repair:
+    if revision_required:
         final_status = "REROUTE_REQUIRED_BEFORE_FINAL"
         runtime_status = "REVISE"
         failure_classification = ""
@@ -62049,11 +62070,18 @@ def _critic_next_action_agenda(
     if isinstance(simulation_manifest, Mapping) and simulation_manifest.get("simulation_passed") is not True:
         agenda.append(
             {
-                "id": "simulation:theory_revision",
-                "owner_subsystem": "TheoryDeveloper",
+                "id": "simulation:diagnostic_failure",
+                "owner_subsystem": "ArchitectCoordinator",
                 "trigger": "SIMULATION_DIAGNOSTIC_FAILURE",
-                "action": "revise theorem/procedure using failed simulation diagnostics",
-                "acceptance_gate": "rerun simulation passes or blocker is classified",
+                "action": (
+                    "inspect the exact failed simulation observation and choose an "
+                    "existing evidence-producing agent without presuming whether the "
+                    "cause is theory, implementation, measurement, or experiment design"
+                ),
+                "acceptance_gate": (
+                    "the next model-owned artifact addresses the observed failure, or "
+                    "the blocker is classified with direct evidence"
+                ),
                 "priority": "high",
                 "boundary": SIMULATION_NOT_PROOF_BOUNDARY,
             }
@@ -78959,7 +78987,7 @@ def _runtime_next_action_agenda_specificity_rank(row: Mapping[str, Any]) -> int:
         return 6
     if "target_prover_replay_route_revision" in combined:
         return 7
-    if row_id == "simulation:theory_revision":
+    if row_id == "simulation:diagnostic_failure":
         return 10
     if row_id == "proof_feedback:kernel_rerun":
         return 20

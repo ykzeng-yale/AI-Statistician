@@ -776,54 +776,35 @@ def _formalizer_response() -> dict[str, Any]:
 
 def _critic_response() -> dict[str, Any]:
     return {
+        "current_observation_assessment": {
+            "observed_failure": "formalization manifest contains open gaps",
+            "evidence_refs": ["formalization_manifest.counts.formal_gap"],
+            "causal_hypotheses": [
+                {
+                    "hypothesis": "the available proof rows have not passed local Lean",
+                    "supporting_evidence": ["kernel_verified=0"],
+                    "contradicting_evidence": [],
+                    "uncertainty": "the exact remaining goal is not present",
+                }
+            ],
+            "independent_missing_evidence": [],
+        },
         "evidence_boundary_audit": [
             {
                 "artifact_id": "formalization_manifest",
                 "evidence_type": "formalization_proof_feedback",
                 "boundary_ok": True,
-                "risk": "proved rows are non-kernel unless local Lean rerun records evidence",
-                "required_followup": "run kernel rerun queue before proof claims",
-            }
-        ],
-        "reroute_recommendations": [
-            {
-                "owner_subsystem": "Formalizer/LeanProver",
-                "trigger": "FORMAL_GAP",
-                "action": "expand proof-bank primitives",
-                "priority": "high",
-                "acceptance_gate": "local Lean verifies promoted obligations",
+                "observed_claim": "the current rows are non-kernel proof feedback",
+                "authority_boundary": "only local Lean can establish proof evidence",
+                "boundary_observation": "the current labels preserve that distinction",
             }
         ],
         "critic_findings": [
             {
                 "critic": "evidence_boundary_critic",
                 "finding": "Open formal gaps require a kernel-checked follow-up.",
-                "reroute_if_confirmed": "Formalizer/LeanProver",
-            }
-        ],
-        "learning_updates": [
-            {
-                "learning_task": "proof_boundary_preservation",
-                "input_signal": "formalization counts include gaps",
-                "target_behavior": "route to kernel rerun instead of claiming proof",
-                "negative_example": "treating static proof-bank rows as theorem proof",
-            }
-        ],
-        "benchmark_expansion_plan": [
-            {
-                "benchmark_item": "hard-mode AIPW theorem discovery",
-                "capability_target": "discover theorem then preserve proof gaps",
-                "success_evidence": "separate discovery, simulation, and kernel counts",
-            }
-        ],
-        "kernel_evidence_requirements": [
-            "AXLE/local Lean verification of each promoted obligation"
-        ],
-        "next_actions": [
-            {
-                "owner_agent": "Formalizer/LeanProver",
-                "action": "run kernel proof smoke on representative rows",
-                "acceptance_gate": "kernel_verified count comes from local Lean",
+                "evidence_refs": ["formalization_manifest.counts.formal_gap"],
+                "uncertainty": "exact proof state unavailable",
             }
         ],
     }

@@ -28519,110 +28519,84 @@ def test_formalizer_capability_eval_validator_defers_domain_alignment_to_reviewe
     assert errors == []
 
 
-def test_critic_evaluator_prompt_compacts_trace_context() -> None:
+def test_critic_evaluator_prompt_preserves_exact_observation_without_route_priming() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
-    long_text = "long_critic_context_" + ("q" * 5000)
+    parent_source = (
+        "def run_sandbox(seed, replicates, estimators):\n"
+        "    return {'martingale_property_error': 0.10576067550055734}\n"
+    )
+    metric_error = (
+        "metric contract MC-Martingale failed: "
+        "path=/martingale_property_error observed=0.10576067550055734"
+    )
     prompt = build_critic_evaluator_prompt(
         question=question,
-        retrieval_manifest={"manifest_id": "retrieval:test", "boundary": long_text},
-        theory_packet={"packet_id": "theory:test", "unused_large_field": long_text},
-        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
-        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1, "n_passed": 1},
+        retrieval_manifest={"manifest_id": "retrieval:test"},
+        theory_packet={"packet_id": "theory:test"},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": False},
+        algorithm_manifest={
+            "manifest_id": "algorithm:test",
+            "n_executed": 1,
+            "n_passed": 1,
+            "prototypes": [
+                {
+                    "estimator_id": "EST1",
+                    "source_code": "def run_estimator(request): return request",
+                }
+            ],
+        },
         formalization_manifest={
             "manifest_id": "formalization:test",
-            "counts": {"kernel_verified": 0, "formal_gap": 1},
-            "proof_evidence_status": "FORMAL_GAPS_REMAIN",
-            "runtime_architect_control": {
-                "evidence_contract": {
-                    "formal_verification_policy": "required",
-                    "recommended_research_path": "proof_first",
-                    "formal_required_for_final": True,
-                },
-                "acceptance_gate": "source theorem kernel proof required",
-            },
-            "huge_trace": long_text,
+            "counts": {"kernel_verified": 0, "formal_gap": 0},
+            "proof_evidence_status": "NOT_RUN",
         },
-        deterministic_agenda=[
-            {
-                "id": f"agenda_{idx}",
-                "owner_subsystem": "TheoryDeveloper",
-                "trigger": long_text,
-                "action": long_text,
-                "acceptance_gate": long_text,
-                "priority": "high",
-                "unused_large_field": long_text,
-            }
-            for idx in range(8)
-        ],
-        deterministic_learning_rows=[
-            {
-                "learning_task": "source_to_bridge_premise_derivation_feedback",
-                "input_signal": "{ω | rank ω ∈ BadRanks}ᶜ ⊆ covered",
-                "target_behavior": "route semantic premise repair upstream",
-            },
-            {
-                "learning_task": "source_to_bridge_premise_semantic_repair_feedback",
-                "target_theorem_name": "split_conformal_coverage",
-                "premise_name": "hRank",
-                "premise_target_status": "ADAPTER_PREMISE_TARGET_EXTRACTED",
-                "premise_target_type": (
-                    "∀ r ∈ BadRanks, P {ω | rank ω = r} ≤ α r"
-                ),
-                "premise_derivation_gap_kind": (
-                    "concrete_premise_target_lacks_nonvacuous_derivation_candidate"
-                ),
-                "input_summary": {
-                    "trigger": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
-                    "premise_name": "hRank",
-                    "premise_target_type": (
-                        "∀ r ∈ BadRanks, P {ω | rank ω = r} ≤ α r"
-                    ),
+        environment_feedback={
+            "feedback_type": "generated_simulation_sandbox_execution_feedback",
+            "failure_classification": "generated_simulation_sandbox_metric_gate_failed",
+            "generated_simulation_prototypes": [
+                {
+                    "parent_source": parent_source,
+                    "parent_source_hash": "source-hash",
+                    "parent_source_complete": True,
+                    "metric_gate_errors": [metric_error],
+                    "metric_observation": {
+                        "n_contracts": 6,
+                        "n_passed": 5,
+                        "n_failed": 1,
+                        "failed_metric_contracts": [
+                            {
+                                "contract_id": "MC-Martingale",
+                                "measurement_protocol": (
+                                    "estimate conditional mean increments, not the "
+                                    "mean final e-value"
+                                ),
+                            }
+                        ],
+                    },
                 },
-                "target_behavior": "route semantic premise repair upstream",
-            },
-            {
-                "learning_task": "source_theorem_truth_table_feedback",
-                "target_theorem_name": "split_conformal_coverage",
-                "input_summary": {
-                    "trigger": "RUNTIME_EVIDENCE_TRUTH_TABLE",
-                    "source_theorem_kernel_verified": False,
-                    "proof_body_goal_reached": True,
-                    "failure_classification": (
-                        "proof_body_verified_adapter_context_insufficient"
-                    ),
-                },
-                "target_behavior": "route exact source theorem blocker",
-            },
-        ]
-        + [
-            {
-                "learning_task": f"learn_{idx}",
-                "input_signal": long_text,
-                "target_behavior": long_text,
-                "unused_large_field": long_text,
-            }
-            for idx in range(8)
-        ],
+            ],
+        },
     )
 
-    assert "q" * 5000 not in prompt
-    assert "unused_large_field" not in prompt
-    assert '"agenda_0"' in prompt
-    assert '"agenda_4"' not in prompt
-    assert "{ω | rank ω ∈ BadRanks}ᶜ ⊆ covered" in prompt
-    assert "source_to_bridge_premise_semantic_repair_feedback" in prompt
-    assert "hRank" in prompt
-    assert "∀ r ∈ BadRanks, P {ω | rank ω = r} ≤ α r" in prompt
-    assert "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP" in prompt
-    assert "source_theorem_truth_table_feedback" in prompt
-    assert "RUNTIME_EVIDENCE_TRUTH_TABLE" in prompt
-    assert "source_theorem_kernel_verified=false" in prompt
-    assert "Do not summarize that state as accepted theorem proof" in prompt
+    prompt_payload = json.loads(prompt[prompt.index('{"question"') :])
+    current_observation = prompt_payload["current_environment_observation"]
+    prototype = current_observation["generated_simulation_prototypes"][0]
+    assert prototype["parent_source"] == parent_source
+    assert prototype["metric_gate_errors"] == [metric_error]
+    assert prototype["metric_observation"]["failed_metric_contracts"][0][
+        "measurement_protocol"
+    ] == "estimate conditional mean increments, not the mean final e-value"
+    assert prompt_payload["current_artifact_context"]["algorithm_manifest"][
+        "prototypes"
+    ][0]["source_code"] == "def run_estimator(request): return request"
+    assert '"current_environment_observation"' in prompt
+    assert '"deterministic_next_action_agenda"' not in prompt
+    assert '"deterministic_learning_rows"' not in prompt
+    assert "cannot cause an earlier program" in prompt
+    assert "not itself an evidence-boundary violation" in prompt
+    assert "labels and claims respect its authority boundary" in prompt
+    assert "ArchitectCoordinator model alone makes the routing decision" in prompt
     assert "Include only required fields" in prompt
-    assert '"learning_updates"' not in prompt
-    assert '"recommended_research_path":"proof_first"' in prompt
-    assert "source theorem kernel proof required" in prompt
-    assert '"benchmark_expansion_plan"' not in prompt
     assert len(prompt) < 18000
 
 
@@ -28838,7 +28812,7 @@ def test_critic_evidence_contract_blocks_required_formal_verification_with_gaps(
             "counts": {"formal_gap": 2, "kernel_verified": 0},
             "full_frontier_theorem_proved": False,
         },
-        should_repair=False,
+        revision_required=False,
     )
 
     assert decision["runtime_status"] == "BLOCKED"
@@ -28847,7 +28821,7 @@ def test_critic_evidence_contract_blocks_required_formal_verification_with_gaps(
     assert decision["formal_satisfied"] is False
 
 
-def test_critic_formal_reroute_respects_policy_and_keeps_simulation_blocking() -> None:
+def test_critic_replan_respects_policy_and_keeps_simulation_blocking() -> None:
     formalization_manifest = {
         "counts": {
             "formal_gap": 1,
@@ -28858,22 +28832,22 @@ def test_critic_formal_reroute_respects_policy_and_keeps_simulation_blocking() -
     }
     formal_agenda = [{"id": "formal_gap:theorem_reduction_closure"}]
 
-    assert runtime_module._critic_should_reroute_to_theory(
+    assert runtime_module._critic_requires_architect_replan(
         agenda=formal_agenda,
         formalization_manifest=formalization_manifest,
         critic_round=0,
         max_critic_repair_rounds=1,
         formal_verification_policy="required",
     ) is True
-    assert runtime_module._critic_should_reroute_to_theory(
+    assert runtime_module._critic_requires_architect_replan(
         agenda=formal_agenda,
         formalization_manifest=formalization_manifest,
         critic_round=0,
         max_critic_repair_rounds=1,
         formal_verification_policy="optional",
     ) is False
-    assert runtime_module._critic_should_reroute_to_theory(
-        agenda=[{"id": "simulation:theory_revision"}],
+    assert runtime_module._critic_requires_architect_replan(
+        agenda=[{"id": "simulation:diagnostic_failure"}],
         formalization_manifest=formalization_manifest,
         critic_round=0,
         max_critic_repair_rounds=1,
@@ -49611,8 +49585,8 @@ def test_agent_runtime_routes_exhausted_simulation_metric_gate_to_architect(
     assert budget["attempts_used"] == 1
     assert budget["max_attempts"] == 1
     evaluations = feedback["generated_simulation_prototypes"][0][
-        "metric_contract_evaluation"
-    ]["evaluations"]
+        "metric_observation"
+    ]["failed_evaluations"]
     assert evaluations
     assert evaluations[0]["passed"] is False
 
@@ -80712,55 +80686,43 @@ def _formalizer_sample_response() -> dict[str, object]:
 
 def _critic_sample_response() -> dict[str, object]:
     return {
+        "current_observation_assessment": {
+            "observed_failure": (
+                "formalization manifest contains non-kernel proof rows and open gaps"
+            ),
+            "evidence_refs": [
+                "formalization_manifest.counts.kernel_verified",
+                "formalization_manifest.counts.formal_gap",
+            ],
+            "causal_hypotheses": [
+                {
+                    "hypothesis": (
+                        "the available formal artifacts have not passed the local "
+                        "Lean kernel gate"
+                    ),
+                    "supporting_evidence": ["kernel_verified=0"],
+                    "contradicting_evidence": [],
+                    "uncertainty": "the exact remaining Lean goal is not present",
+                }
+            ],
+            "independent_missing_evidence": [],
+        },
         "evidence_boundary_audit": [
             {
                 "artifact_id": "formalization_manifest",
                 "evidence_type": "formalization_proof_feedback",
                 "boundary_ok": True,
-                "risk": "proved rows are non-kernel unless local Lean/AXLE rerun records kernel evidence",
-                "required_followup": "run kernel rerun queue before claiming theorem proof evidence",
+                "observed_claim": "the current rows are non-kernel proof feedback",
+                "authority_boundary": "only local Lean/AXLE can establish proof evidence",
+                "boundary_observation": "the current labels preserve that distinction",
             }
-        ],
-        "reroute_recommendations": [
-            {
-                "owner_subsystem": "Formalizer/LeanProver",
-                "trigger": "FORMAL_GAP",
-                "action": "expand proof-bank primitives for conditional exchangeability and Slutsky bridge",
-                "priority": "high",
-                "acceptance_gate": "local Lean or AXLE kernel verifies promoted obligations",
-            }
-        ],
-        "learning_updates": [
-            {
-                "learning_task": "proof_boundary_preservation",
-                "input_signal": "formalization counts include proved rows but kernel_verified is zero",
-                "target_behavior": "route to kernel rerun instead of claiming verified theorem evidence",
-                "negative_example": "treating static proof-bank rows as source theorem proof",
-            }
-        ],
-        "benchmark_expansion_plan": [
-            {
-                "benchmark_item": "hard-mode AIPW theorem discovery with hidden estimand/procedure",
-                "capability_target": "discover theorem then preserve proof gaps",
-                "success_evidence": "separate discovery accuracy, simulation evidence, and kernel proof counts",
-            }
-        ],
-        "kernel_evidence_requirements": [
-            "AXLE/local Lean verification of each promoted formal obligation",
-            "separate source theorem semantic alignment review",
         ],
         "critic_findings": [
             {
                 "critic": "evidence_boundary_critic",
                 "finding": "The runtime correctly separates LLM proposals from executable and proof evidence.",
-                "reroute_if_confirmed": "CriticEvaluator",
-            }
-        ],
-        "next_actions": [
-            {
-                "owner_agent": "Formalizer/LeanProver",
-                "action": "run kernel proof smoke on representative proof-bank rows",
-                "acceptance_gate": "kernel_verified count comes from AXLE/local Lean",
+                "evidence_refs": ["proof_evidence_status"],
+                "uncertainty": "none",
             }
         ],
     }
