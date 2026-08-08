@@ -639,6 +639,7 @@ def build_architect_feedback_route_prompt(
             "runtime_does_not_author_source_changes": True,
             "selected_worker_receives_complete_feedback": True,
             "automatic_retry_budget_does_not_disable_existing_producer": True,
+            "block_only_when_no_existing_subsystem_can_produce_next_evidence": True,
             "new_repair_patch_or_adapter_subsystem_forbidden": True,
             "implementation_revision_owner_is_existing_source_producer": True,
             "runtime_progress_snapshot_is_authoritative_for_availability": True,
@@ -702,8 +703,15 @@ def build_architect_feedback_route_prompt(
         "reframed objective. Never propose a new repair, patch, correction, or adapter "
         "agent: implementation revision belongs to the existing source producer, while "
         "theory, measurement, simulation design, and environment defects belong to their "
-        "existing agents. A truncated routing view is not evidence that an artifact or "
+        "existing agents. Route missing mathematical assumptions, definitions, or "
+        "derivations to TheoryDeveloper. Route to ProofEngineer only when the target "
+        "and premises are mathematically specified and the remaining blocker is Lean "
+        "formalization or proof; Lean must not substitute for an upstream theory "
+        "revision. A truncated routing view is not evidence that an artifact or "
         "worker is unavailable; the selected worker receives the complete feedback. "
+        "Choose BLOCK only when no listed existing subsystem can produce the next "
+        "required evidence. If your rationale can name an available subsystem and a "
+        "concrete action it can take, choose ROUTE to that subsystem instead of BLOCK. "
         "Return ONLY one JSON object matching required_output.\n\n"
         + json.dumps(bounded_payload, separators=(",", ":"), default=str)
     )

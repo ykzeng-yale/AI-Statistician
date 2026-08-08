@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import ast
 import json
 import math
 import os
@@ -11648,12 +11647,32 @@ class TheoryDeveloperRuntimeSubsystem:
                 revision_binding
             )
         elif (
-            isinstance(routed_environment_feedback, Mapping)
-            and routed_environment_feedback
-            and routed_environment_feedback.get(
-                "model_route_required_for_cross_owner_revision"
+            (
+                isinstance(
+                    context.get("architect_feedback_route_decision", {}),
+                    Mapping,
+                )
+                and context.get("architect_feedback_route_decision", {}).get(
+                    "artifact_kind"
+                )
+                == "ArchitectFeedbackRouteDecision"
+                and context.get("architect_feedback_route_decision", {}).get(
+                    "decision"
+                )
+                == "ROUTE"
+                and context.get("architect_feedback_route_decision", {}).get(
+                    "selected_subsystem"
+                )
+                == "TheoryDeveloper"
             )
-            is True
+            or (
+                isinstance(routed_environment_feedback, Mapping)
+                and routed_environment_feedback
+                and routed_environment_feedback.get(
+                    "model_route_required_for_cross_owner_revision"
+                )
+                is True
+            )
         ):
             revision_binding, binding_errors = (
                 build_architect_routed_theory_revision_binding(
@@ -13245,6 +13264,13 @@ def _runtime_generated_code_semantic_review_dispatch(
         "source_model": str(proposal.get("model", "") or ""),
         "source_model_tier": str(proposal.get("model_tier", "") or ""),
         "reviewed_artifacts": reviewed_artifacts,
+        "source_execution_feedback": (
+            _generated_sandbox_execution_feedback_snapshot(
+                trusted_metric_failure_feedback
+            )
+            if trusted_metric_failure_feedback
+            else {}
+        ),
         "architect_evidence_contract": (
             dict(evidence_contract) if isinstance(evidence_contract, Mapping) else {}
         ),
@@ -14496,7 +14522,15 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         )
         lineage_budget_state: dict[str, Any] = {}
         if verdict == "REVISE":
-            task_context = task.inputs.get("architect_context", {})
+            source_task_inputs_for_budget = (
+                source_task_payload.get("inputs", {})
+                if isinstance(source_task_payload.get("inputs", {}), Mapping)
+                else {}
+            )
+            task_context = source_task_inputs_for_budget.get(
+                "architect_context",
+                {},
+            )
             routing_bound_review_packet = {
                 **dict(review_packet),
                 "findings": routed_findings,
@@ -14697,11 +14731,22 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             source_task_feedback = source_task_inputs.get(
                 "environment_feedback", {}
             )
+            source_execution_feedback = work_order.get(
+                "source_execution_feedback",
+                {},
+            )
             prior_feedback = (
                 dict(source_task_feedback)
                 if isinstance(source_task_feedback, Mapping)
                 else {}
             )
+            if (
+                isinstance(source_execution_feedback, Mapping)
+                and source_execution_feedback
+            ):
+                prior_feedback["source_execution_feedback"] = dict(
+                    source_execution_feedback
+                )
             revision_classification = (
                 "generated_code_semantic_review_requires_source_regeneration"
             )
@@ -16210,27 +16255,58 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "implementation work without weakening the frozen gate."
                     )
                 else:
-                    next_task = _coding_agent_revision_budget_architect_task(
-                        task=task,
-                        question=question,
-                        context={
-                            **effective_context,
-                            "theory_packet_id": packet_id,
-                            "simulation_manifest_id": manifest_id,
-                        },
-                        revision_feedback=feedback,
-                        source_artifact_id=manifest_id,
-                        revision_attempts_used=repair_attempts_used,
-                        revision_max_attempts=yield_after_attempts,
+                    observations.append(
+                        EnvironmentObservation(
+                            observation_type=(
+                                "simulation_candidate_regeneration_budget_exhausted"
+                            ),
+                            summary=(
+                                "SimulationEvaluator exhausted its bounded complete-"
+                                "candidate regeneration budget on a code-local failure."
+                            ),
+                            payload={
+                                "simulation_manifest_id": manifest_id,
+                                "failure_classification": (
+                                    generated_simulation_failure_classification
+                                ),
+                                "revision_attempts_used": repair_attempts_used,
+                                "revision_max_attempts": yield_after_attempts,
+                                "complete_parent_source_supplied": all(
+                                    row.get("parent_source_complete") is True
+                                    for row in feedback.get(
+                                        "generated_simulation_prototypes", []
+                                    )
+                                    if isinstance(row, Mapping)
+                                ),
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        )
                     )
-                    yield_observation_type = (
-                        "simulation_revision_budget_architect_replan"
-                    )
-                    yield_summary = (
-                        "SimulationEvaluator exhausted its bounded same-agent "
-                        "revision budget; the complete candidate observations are "
-                        "routed to ArchitectCoordinator without a fixed subsystem "
-                        "backedge."
+                    return AgentStepResult(
+                        status="BLOCKED",
+                        rationale=(
+                            "The same SimulationEvaluator model received the complete "
+                            "candidate and raw diagnostics for every bounded "
+                            "regeneration attempt, but no executable candidate was "
+                            "produced. Runtime records the producer-local blocker "
+                            "without inventing a patch or rerouting a code error into "
+                            "theory work."
+                        ),
+                        produced_artifacts=produced_artifacts,
+                        observations=tuple(observations),
+                        tool_calls=(
+                            *registered_simulator_tool_calls,
+                            *generated_simulation_tool_calls,
+                        ),
+                        evidence_entries=tuple(
+                            row
+                            for row in (proposal_evidence, evidence)
+                            if row is not None
+                        ),
+                        failure_classification=(
+                            generated_simulation_failure_classification
+                            + "_candidate_regeneration_budget_exhausted"
+                        ),
                     )
                 observations.append(
                     EnvironmentObservation(
@@ -16294,6 +16370,16 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "empirical_evaluation_phase": empirical_evaluation_phase,
                     "n_runs": n_runs,
                     "seed": seed,
+                    "generated_code_semantic_review_revision_count": max(
+                        0,
+                        int(
+                            task.inputs.get(
+                                "generated_code_semantic_review_revision_count",
+                                0,
+                            )
+                            or 0
+                        ),
+                    ),
                 }
                 deferred_metric_protocol_payload = task.inputs.get(
                     "deferred_metric_protocol_task", {}
@@ -17199,42 +17285,93 @@ class AlgorithmEngineerRuntimeSubsystem:
                 and repair_attempts_used >= yield_after_attempts
             )
             if local_repair_budget_exhausted:
-                next_task = _coding_agent_revision_budget_architect_task(
-                    task=task,
-                    question=question,
-                    context={
-                        **effective_context,
-                        "theory_packet_id": packet_id,
-                        "simulation_manifest_id": simulation_manifest_id,
-                        "algorithm_sandbox_manifest_id": manifest_id,
-                    },
-                    revision_feedback=feedback,
-                    source_artifact_id=manifest_id,
-                    revision_attempts_used=repair_attempts_used,
-                    revision_max_attempts=yield_after_attempts,
-                )
-                observations.append(
-                    EnvironmentObservation(
-                        observation_type=(
-                            "algorithm_engineer_revision_budget_architect_replan"
-                        ),
-                        summary=(
-                            "AlgorithmEngineer exhausted its local generated-code "
-                            "revision budget; routing exact execution observations to "
-                            "ArchitectCoordinator for theory, implementation, or "
-                            "interface replanning."
-                        ),
-                        payload={
+                if (
+                    revision_failure_classification
+                    == "generated_algorithm_sandbox_metric_gate_failed"
+                ):
+                    next_task = _coding_agent_metric_gate_architect_task(
+                        task=task,
+                        question=question,
+                        context={
+                            **effective_context,
+                            "theory_packet_id": packet_id,
+                            "simulation_manifest_id": simulation_manifest_id,
                             "algorithm_sandbox_manifest_id": manifest_id,
-                            "failure_classification": (
-                                revision_failure_classification
-                            ),
-                            "revision_attempts_used": repair_attempts_used,
-                            "revision_max_attempts": yield_after_attempts,
-                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                         },
+                        metric_feedback=feedback,
+                        source_manifest_id=manifest_id,
                     )
-                )
+                    observations.append(
+                        EnvironmentObservation(
+                            observation_type=(
+                                "algorithm_metric_gate_architect_replan"
+                            ),
+                            summary=(
+                                "AlgorithmEngineer exhausted its local candidate "
+                                "budget on an empirical gate; exact observations are "
+                                "routed to ArchitectCoordinator for cross-owner "
+                                "diagnosis without weakening the gate."
+                            ),
+                            payload={
+                                "algorithm_sandbox_manifest_id": manifest_id,
+                                "failure_classification": (
+                                    revision_failure_classification
+                                ),
+                                "revision_attempts_used": repair_attempts_used,
+                                "revision_max_attempts": yield_after_attempts,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        )
+                    )
+                else:
+                    observations.append(
+                        EnvironmentObservation(
+                            observation_type=(
+                                "algorithm_candidate_regeneration_budget_exhausted"
+                            ),
+                            summary=(
+                                "AlgorithmEngineer exhausted its bounded complete-"
+                                "candidate regeneration budget on a code-local failure."
+                            ),
+                            payload={
+                                "algorithm_sandbox_manifest_id": manifest_id,
+                                "failure_classification": (
+                                    revision_failure_classification
+                                ),
+                                "revision_attempts_used": repair_attempts_used,
+                                "revision_max_attempts": yield_after_attempts,
+                                "complete_parent_source_supplied": all(
+                                    row.get("parent_source_complete") is True
+                                    for row in feedback.get("prototypes", [])
+                                    if isinstance(row, Mapping)
+                                ),
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        )
+                    )
+                    return AgentStepResult(
+                        status="BLOCKED",
+                        rationale=(
+                            "The same AlgorithmEngineer model received the complete "
+                            "candidate and raw diagnostics for every bounded "
+                            "regeneration attempt, but no executable candidate was "
+                            "produced. Runtime records the producer-local blocker "
+                            "without inventing a patch or rerouting a code error into "
+                            "theory work."
+                        ),
+                        produced_artifacts=produced_artifacts,
+                        observations=tuple(observations),
+                        tool_calls=tuple(tool_calls),
+                        evidence_entries=tuple(
+                            row
+                            for row in (proposal_evidence, evidence)
+                            if row is not None
+                        ),
+                        failure_classification=(
+                            revision_failure_classification
+                            + "_candidate_regeneration_budget_exhausted"
+                        ),
+                    )
             else:
                 revision_context = dict(effective_context)
                 revision_context["previous_algorithm_sandbox_manifest_id"] = (
@@ -17278,6 +17415,16 @@ class AlgorithmEngineerRuntimeSubsystem:
                         "seed": int(task.inputs.get("seed", self.seed) or self.seed),
                         "architect_context": revision_context,
                         "environment_feedback": feedback,
+                        "generated_code_semantic_review_revision_count": max(
+                            0,
+                            int(
+                                task.inputs.get(
+                                    "generated_code_semantic_review_revision_count",
+                                    0,
+                                )
+                                or 0
+                            ),
+                        ),
                         **(
                             {
                                 "empirical_evaluation_phase": (
@@ -17307,7 +17454,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                     acceptance_gate=_architect_acceptance_gate(
                         context,
                         "AlgorithmEngineer",
-                        "repaired sandbox prototype executes or a concrete unsupported-prototype blocker is recorded",
+                        "regenerated sandbox prototype executes or a concrete unsupported-prototype blocker is recorded",
                     ),
                     stop_condition="repaired algorithm sandbox feedback recorded",
                 )
@@ -99630,6 +99777,7 @@ def _formalizer_lean_candidate_revision_budget_architect_replan_task(
     revision_max_attempts: int,
 ) -> AgentTask:
     feedback = {
+        "question_id": question.id,
         "feedback_type": "formalizer_lean_candidate_revision_budget_feedback",
         "source_feedback_type": str(
             lean_candidate_revision_feedback.get("feedback_type", "")
@@ -99659,6 +99807,10 @@ def _formalizer_lean_candidate_revision_budget_architect_replan_task(
             "cannot edit Lean, validate the candidate, or close a formal gap."
         ),
     }
+    feedback["feedback_id"] = (
+        "formalizer_lean_candidate_revision_budget_feedback:"
+        + stable_hash(feedback)[:20]
+    )
     context = dict(architect_context)
     context["environment_feedback"] = feedback
     context["runtime_feedback_loop"] = {
@@ -100078,24 +100230,6 @@ def _generated_sandbox_diagnostic_excerpt(
     return str(value or "").strip()
 
 
-def _generated_python_sandbox_environment(sandbox_dir: Path) -> dict[str, str]:
-    """Return a deterministic subprocess environment with no inherited secrets."""
-
-    environment = {
-        "HOME": str(sandbox_dir),
-        "LANG": "C",
-        "LC_ALL": "C",
-        "PATH": os.defpath,
-        "PYTHONHASHSEED": "0",
-        "TMPDIR": str(sandbox_dir),
-    }
-    for key in ("SYSTEMROOT", "WINDIR"):
-        value = str(os.environ.get(key, "") or "").strip()
-        if value:
-            environment[key] = value
-    return environment
-
-
 def _run_generated_code_sandbox(
     *,
     sandbox_dir: Path,
@@ -100110,7 +100244,7 @@ def _run_generated_code_sandbox(
     estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
     additional_contract_errors: Sequence[str] = (),
 ) -> tuple[dict[str, Any], ToolCallRecord]:
-    """Dispatch one generated draft without creating a second evaluation path."""
+    """Execute every generated draft through one isolated runtime path."""
 
     normalized_draft = dict(code_draft)
     language = normalized_generated_code_language(normalized_draft.get("language"))
@@ -100134,23 +100268,6 @@ def _run_generated_code_sandbox(
             ]
         )
     )
-    if (
-        language == "python"
-        and profile == "stdlib"
-        and not contract_errors
-        and not estimator_bindings
-    ):
-        return _run_generated_python_sandbox(
-            sandbox_dir=sandbox_dir,
-            estimator_id=estimator_id,
-            spec=spec,
-            code_draft=normalized_draft,
-            validation_context=validation_context,
-            n_runs=n_runs,
-            seed=seed,
-            timeout_s=timeout_s,
-            metric_contracts=metric_contracts,
-        )
     return _run_generated_scientific_sandbox(
         sandbox_dir=sandbox_dir,
         estimator_id=estimator_id,
@@ -100468,7 +100585,7 @@ def _run_generated_scientific_sandbox(
             str(returncode)
             if execution is not None and execution.execution_attempted
             else "rejected"
-            if contract_errors
+            if prototype_status == "REJECTED_UNSAFE_GENERATED_CODE"
             else "blocked"
         ),
         stdout_summary=stdout_summary,
@@ -100476,418 +100593,6 @@ def _run_generated_scientific_sandbox(
         safety_boundary=boundary,
     )
     return prototype, tool_call
-
-
-def _run_generated_python_sandbox(
-    *,
-    sandbox_dir: Path,
-    estimator_id: str,
-    spec: Mapping[str, Any],
-    code_draft: Mapping[str, Any],
-    validation_context: Mapping[str, Any] | None = None,
-    n_runs: int,
-    seed: int,
-    timeout_s: int,
-    metric_contracts: Sequence[Mapping[str, Any]] = (),
-) -> tuple[dict[str, Any], ToolCallRecord]:
-    code = str(code_draft.get("code", "") or "")
-    validation_payload = dict(validation_context or {})
-    typed_metric_contracts = [dict(row) for row in metric_contracts]
-    metric_contract_set_id = generated_metric_contract_set_id(
-        typed_metric_contracts
-    )
-    metric_gate_policy_mode = (
-        "typed_artifact_bound"
-        if typed_metric_contracts
-        else "execution_only_no_typed_contract"
-    )
-    authoritative_metric_requirements = [
-        dict(row)
-        for row in validation_payload.get(
-            "authoritative_metric_requirements", []
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    metric_requirement_set_id = generated_metric_requirement_set_id(
-        authoritative_metric_requirements
-    )
-    metric_requirement_authority_policy = str(
-        validation_payload.get("metric_requirement_authority_policy", "") or ""
-    )
-    metric_requirement_authority_required = bool(
-        validation_payload.get("require_authoritative_metric_requirements", False)
-    )
-    script_path = sandbox_dir / f"{_safe_identifier(estimator_id)}_generated_draft.py"
-    runner_path = sandbox_dir / f"{_safe_identifier(estimator_id)}_generated_runner.py"
-    result_path = sandbox_dir / f"{_safe_identifier(estimator_id)}_generated_result.json"
-    safety_errors = _generated_python_sandbox_safety_errors(code)
-    boundary = (
-        "Generated Python sandbox drafts are untrusted LLM implementation proposals. "
-        "AgentRuntime executes only drafts that pass a conservative static guard in "
-        "a bounded subprocess. Passing sandbox metrics are implementation evidence, "
-        "not production registration and not theorem proof evidence."
-    )
-    if safety_errors:
-        prototype = {
-            "estimator_id": estimator_id,
-            "prototype_status": "REJECTED_UNSAFE_GENERATED_CODE",
-            "executor": "generated_python_sandbox",
-            "executor_profile": "stdlib",
-            "language": "python",
-            "dependencies": [],
-            "spec": dict(spec),
-            "script_path": "",
-            "result_path": "",
-            "script_hash": stable_hash(code),
-            "source_code": code,
-            "code_excerpt": code[:2000],
-            "runtime_seed": seed,
-            "runtime_replicates": generated_sandbox_runtime_replicates(n_runs),
-            "safety_errors": safety_errors,
-            "metrics": {},
-            "metric_contracts": typed_metric_contracts,
-            "metric_contract_set_id": metric_contract_set_id,
-            "metric_requirement_set_id": metric_requirement_set_id,
-            "metric_requirement_authority_policy": (
-                metric_requirement_authority_policy
-            ),
-            "metric_requirement_authority_required": (
-                metric_requirement_authority_required
-            ),
-            "metric_requirement_authority_validated": bool(
-                metric_requirement_authority_required
-                and typed_metric_contracts
-                and all(
-                    str(
-                        row.get("authority_requirement_fingerprint", "") or ""
-                    ).strip()
-                    for row in typed_metric_contracts
-                    if row.get("required") is True
-                )
-            ),
-            "metric_contract_evaluation": {},
-            "metric_contract_proof_evidence_status": (
-                GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
-            ),
-            "metric_contract_boundary": GENERATED_METRIC_CONTRACT_BOUNDARY,
-            "metric_gate_policy_mode": metric_gate_policy_mode,
-            "smoke_passed": False,
-            "promotion_ready": False,
-            "boundary": boundary,
-        }
-        tool_call = ToolCallRecord(
-            tool_name="python.generated_sandbox_precheck",
-            inputs={"seed": seed, "estimator_id": estimator_id},
-            input_hash=stable_hash({"code": code, "seed": seed}),
-            exit_status="rejected",
-            stdout_summary="generated Python draft rejected by static guard",
-            stderr_summary="; ".join(safety_errors),
-            safety_boundary=boundary,
-        )
-        return prototype, tool_call
-
-    sandbox_dir.mkdir(parents=True, exist_ok=True)
-    script_path.write_text(code, encoding="utf-8")
-    runner_path.write_text(_generated_python_sandbox_runner_script(), encoding="utf-8")
-    result_path.unlink(missing_ok=True)
-    replicates = generated_sandbox_runtime_replicates(n_runs)
-    cmd = [
-        sys.executable,
-        "-I",
-        str(runner_path.resolve()),
-        "--code",
-        str(script_path.resolve()),
-        "--out",
-        str(result_path.resolve()),
-        "--replicates",
-        str(replicates),
-        "--seed",
-        str(seed),
-    ]
-    sandbox_environment = _generated_python_sandbox_environment(sandbox_dir)
-    try:
-        completed = subprocess.run(
-            cmd,
-            cwd=str(sandbox_dir),
-            env=sandbox_environment,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-        )
-        returncode = int(completed.returncode)
-        stdout = completed.stdout.strip()
-        stderr = completed.stderr.strip()
-    except subprocess.TimeoutExpired as exc:
-        returncode = 124
-        stdout = str(exc.stdout or "").strip()
-        stderr = f"timeout after {timeout_s}s: {exc.stderr or ''}".strip()
-    stdout_summary = _generated_sandbox_diagnostic_excerpt(stdout)
-    stderr_summary = _generated_sandbox_diagnostic_excerpt(stderr)
-    metrics: dict[str, Any] = {}
-    result_parse_error = ""
-    if result_path.exists():
-        try:
-            metrics = json.loads(result_path.read_text(encoding="utf-8"))
-        except Exception as exc:  # pragma: no cover - defensive artifact parsing
-            result_parse_error = repr(exc)
-    execution_smoke_passed = (
-        returncode == 0
-        and bool(metrics)
-        and not bool(metrics.get("sandbox_failed", False))
-        and _metrics_are_finite(metrics)
-    )
-    metric_context = {
-        "estimator_id": estimator_id,
-        "metric_contract_artifact_id": estimator_id,
-        "typed_metric_contracts": typed_metric_contracts,
-        "runtime_replicates": replicates,
-        "spec": spec,
-        "code_draft": code_draft,
-        **validation_payload,
-    }
-    metric_gate_errors, metric_contract_evaluation, metric_gate_policy_mode = (
-        _generated_sandbox_metric_gate_result(
-            metrics,
-            context=metric_context,
-            code=code,
-        )
-        if execution_smoke_passed
-        else ([], {}, metric_gate_policy_mode)
-    )
-    metric_gate_targets: dict[str, Any] = {}
-    if typed_metric_contracts:
-        metric_gate_targets = {
-            "metric_contract_set_id": metric_contract_set_id,
-            "n_metric_contracts": len(typed_metric_contracts),
-            "runtime_replicates": replicates,
-        }
-    smoke_passed = execution_smoke_passed and not metric_gate_errors
-    prototype_status = "FAILED"
-    if execution_smoke_passed:
-        prototype_status = "FAILED_METRIC_GATE" if metric_gate_errors else "EXECUTED"
-    prototype = {
-        "estimator_id": estimator_id,
-        "prototype_status": prototype_status,
-        "executor": "generated_python_sandbox",
-        "executor_profile": "stdlib",
-        "language": "python",
-        "dependencies": [],
-        "spec": dict(spec),
-        "script_path": str(script_path),
-        "runner_path": str(runner_path),
-        "result_path": str(result_path),
-        "script_hash": stable_hash(code),
-        "source_code": code,
-        "code_excerpt": code[:2000],
-        "runtime_seed": seed,
-        "runtime_replicates": replicates,
-        "result_hash": stable_hash(metrics) if metrics else "",
-        "returncode": returncode,
-        "subprocess_environment_keys": sorted(sandbox_environment),
-        "stdout_summary": stdout_summary,
-        "stderr_summary": stderr_summary,
-        "result_parse_error": result_parse_error,
-        "safety_errors": [],
-        "metrics": metrics,
-        "metric_gate_targets": metric_gate_targets,
-        "metric_contracts": typed_metric_contracts,
-        "metric_contract_set_id": metric_contract_set_id,
-        "metric_requirement_set_id": metric_requirement_set_id,
-        "metric_requirement_authority_policy": (
-            metric_requirement_authority_policy
-        ),
-        "metric_requirement_authority_required": (
-            metric_requirement_authority_required
-        ),
-        "metric_requirement_authority_validated": bool(
-            metric_contract_evaluation.get(
-                "metric_requirement_authority_validated", False
-            )
-        ),
-        "metric_contract_evaluation": metric_contract_evaluation,
-        "metric_contract_proof_evidence_status": (
-            GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
-        ),
-        "metric_contract_boundary": GENERATED_METRIC_CONTRACT_BOUNDARY,
-        "metric_gate_policy_mode": metric_gate_policy_mode,
-        "execution_smoke_passed": execution_smoke_passed,
-        "metric_gate_errors": metric_gate_errors,
-        "smoke_passed": smoke_passed,
-        "promotion_ready": False,
-        "boundary": boundary,
-    }
-    tool_call = ToolCallRecord(
-        tool_name="python.generated_algorithm_sandbox",
-        inputs={
-            "replicates": replicates,
-            "seed": seed,
-            "script_path": str(script_path),
-            "entrypoint": "run_sandbox",
-        },
-        output_paths=(str(result_path),),
-        input_hash=stable_hash({"code": code, "replicates": replicates, "seed": seed}),
-        output_hash=stable_hash(metrics) if metrics else "",
-        exit_status=str(returncode),
-        stdout_summary=stdout_summary,
-        stderr_summary=stderr_summary,
-        safety_boundary=boundary,
-    )
-    return prototype, tool_call
-
-
-def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
-    errors: list[str] = []
-    if not code.strip():
-        return ["empty generated Python draft"]
-    if len(code) > 12000:
-        errors.append("generated Python draft exceeds 12000 characters")
-    try:
-        tree = ast.parse(code)
-    except SyntaxError as exc:
-        return [f"generated Python draft syntax error: {exc}"]
-    function_names = {
-        node.name
-        for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef)
-    }
-    allowed_modules = {"math", "statistics", "random"}
-    allowed_builtin_calls = {
-        "AssertionError",
-        "Exception",
-        "KeyError",
-        "RuntimeError",
-        "TypeError",
-        "ValueError",
-        "ZeroDivisionError",
-        "all",
-        "any",
-        "abs",
-        "bool",
-        "dict",
-        "enumerate",
-        "float",
-        "int",
-        "len",
-        "list",
-        "max",
-        "min",
-        "pow",
-        "range",
-        "round",
-        "set",
-        "sorted",
-        "str",
-        "sum",
-        "tuple",
-        "zip",
-    }
-    protected_bindings = allowed_builtin_calls | allowed_modules | function_names
-    reflective_method_names = {"format", "format_map"}
-    frame_reflection_attributes = {
-        "ag_frame",
-        "cr_frame",
-        "f_back",
-        "f_builtins",
-        "f_globals",
-        "f_locals",
-        "gi_frame",
-        "tb_frame",
-    }
-    if "run_sandbox" not in function_names:
-        errors.append("generated Python draft must define run_sandbox")
-    for function_name in sorted(function_names & (allowed_builtin_calls | allowed_modules)):
-        errors.append(
-            "generated Python draft cannot shadow protected sandbox binding: "
-            + function_name
-        )
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            imported = {alias.name for alias in node.names}
-            if imported - allowed_modules:
-                errors.append(
-                    "generated Python draft can import only math/statistics/random modules"
-                )
-            if any(alias.asname for alias in node.names):
-                errors.append(
-                    "generated Python draft must import allowed modules without aliases"
-                )
-        elif isinstance(node, ast.ImportFrom):
-            module = str(node.module or "").split(".", 1)[0]
-            if module not in allowed_modules:
-                errors.append(
-                    "generated Python draft can import only math/statistics/random modules"
-                )
-            else:
-                errors.append(
-                    "generated Python draft must use plain module imports "
-                    "(import math/statistics/random), not from-import helper aliases"
-                )
-        elif isinstance(
-            node,
-            (
-                ast.ClassDef,
-                ast.AsyncFunctionDef,
-                ast.With,
-                ast.AsyncWith,
-            ),
-        ):
-            errors.append(f"unsupported generated-code node: {node.__class__.__name__}")
-        elif isinstance(node, (ast.Global, ast.Nonlocal)):
-            errors.append("generated Python draft cannot use global/nonlocal")
-        elif isinstance(node, ast.arg) and node.arg in protected_bindings:
-            errors.append(
-                "generated Python draft cannot rebind protected sandbox binding: "
-                + node.arg
-            )
-        elif isinstance(node, ast.ExceptHandler):
-            if isinstance(node.name, str) and node.name in protected_bindings:
-                errors.append(
-                    "generated Python draft cannot rebind protected sandbox binding: "
-                    + node.name
-                )
-        elif isinstance(node, ast.Name):
-            if node.id.startswith("__") or node.id in {
-                "__builtins__",
-                "__loader__",
-                "__spec__",
-                "__file__",
-                "__name__",
-            }:
-                errors.append(f"forbidden generated-code name: {node.id}")
-            elif isinstance(node.ctx, ast.Store) and node.id in protected_bindings:
-                errors.append(
-                    "generated Python draft cannot rebind protected sandbox binding: "
-                    + node.id
-                )
-        elif isinstance(node, ast.Attribute):
-            if node.attr.startswith("_"):
-                errors.append(f"forbidden generated-code private attribute: {node.attr}")
-            elif node.attr in reflective_method_names:
-                errors.append(
-                    "forbidden generated-code reflective method: " + node.attr
-                )
-            elif node.attr in frame_reflection_attributes:
-                errors.append(
-                    "forbidden generated-code frame-reflection attribute: "
-                    + node.attr
-                )
-        elif isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name):
-                name = node.func.id
-                allowed_calls = allowed_builtin_calls | function_names
-                if name not in allowed_calls:
-                    errors.append(f"forbidden generated-code call: {name}")
-            elif isinstance(node.func, ast.Attribute):
-                if node.func.attr.startswith("_"):
-                    errors.append(
-                        "forbidden generated-code private method call: "
-                        f"{node.func.attr}"
-                    )
-            else:
-                errors.append("unsupported generated-code call form")
-    return sorted(set(errors))
 
 
 def _metrics_are_finite(metrics: Mapping[str, Any]) -> bool:
@@ -100911,96 +100616,6 @@ def _metrics_are_finite(metrics: Mapping[str, Any]) -> bool:
                 return False
             continue
     return True
-
-
-def _generated_python_sandbox_runner_script() -> str:
-    return r'''from __future__ import annotations
-
-import argparse
-import json
-import math
-import random
-import statistics
-
-
-def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
-    if level != 0:
-        raise ImportError("relative imports are disabled in generated sandbox")
-    root = str(name).split(".", 1)[0]
-    if root == "math":
-        return math
-    if root == "random":
-        return random
-    if root == "statistics":
-        return statistics
-    raise ImportError("generated sandbox allows only math/statistics/random imports")
-
-
-SAFE_BUILTINS = {
-    "AssertionError": AssertionError,
-    "Exception": Exception,
-    "KeyError": KeyError,
-    "RuntimeError": RuntimeError,
-    "TypeError": TypeError,
-    "ValueError": ValueError,
-    "ZeroDivisionError": ZeroDivisionError,
-    "all": all,
-    "any": any,
-    "abs": abs,
-    "bool": bool,
-    "dict": dict,
-    "enumerate": enumerate,
-    "float": float,
-    "int": int,
-    "len": len,
-    "list": list,
-    "max": max,
-    "min": min,
-    "pow": pow,
-    "range": range,
-    "round": round,
-    "set": set,
-    "sorted": sorted,
-    "str": str,
-    "sum": sum,
-    "tuple": tuple,
-    "zip": zip,
-    "__import__": _safe_import,
-}
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--code", required=True)
-    parser.add_argument("--out", required=True)
-    parser.add_argument("--replicates", type=int, required=True)
-    parser.add_argument("--seed", type=int, required=True)
-    args = parser.parse_args()
-    with open(args.code, "r", encoding="utf-8") as handle:
-        source = handle.read()
-    namespace = {
-        "__builtins__": SAFE_BUILTINS,
-        "math": math,
-        "random": random,
-        "statistics": statistics,
-    }
-    exec(compile(source, args.code, "exec"), namespace, namespace)
-    run_sandbox = namespace.get("run_sandbox")
-    if not callable(run_sandbox):
-        raise RuntimeError("generated draft did not define callable run_sandbox")
-    payload = run_sandbox(seed=args.seed, replicates=args.replicates)
-    if not isinstance(payload, dict):
-        raise RuntimeError("run_sandbox must return a dict")
-    payload.setdefault("sandbox_failed", False)
-    serialized = json.dumps(payload, indent=2, sort_keys=True)
-    with open(args.out, "w", encoding="utf-8") as handle:
-        handle.write(serialized)
-    print(json.dumps(payload, sort_keys=True))
-
-
-if __name__ == "__main__":
-    main()
-'''
 
 
 def _question_to_payload(question: OpenResearchQuestion) -> dict[str, Any]:

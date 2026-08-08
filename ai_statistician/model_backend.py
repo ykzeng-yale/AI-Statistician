@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import signal
 import threading
 import time
@@ -1377,12 +1378,20 @@ def _call_with_wall_clock_timeout(
     """
 
     timeout = _live_generator_timeout_seconds(timeout_s)
-    if (
-        threading.current_thread() is not threading.main_thread()
-        or not hasattr(signal, "setitimer")
-        or not hasattr(signal, "SIGALRM")
-    ):
-        return call()
+    if threading.current_thread() is not threading.main_thread():
+        return _call_with_worker_thread_wall_clock_timeout(
+            call,
+            timeout_s=timeout,
+            provider_name=provider_name,
+            model=model,
+        )
+    if not hasattr(signal, "setitimer") or not hasattr(signal, "SIGALRM"):
+        return _call_with_worker_thread_wall_clock_timeout(
+            call,
+            timeout_s=timeout,
+            provider_name=provider_name,
+            model=model,
+        )
 
     old_handler = signal.getsignal(signal.SIGALRM)
     old_timer = signal.getitimer(signal.ITIMER_REAL)
@@ -1409,6 +1418,50 @@ def _call_with_wall_clock_timeout(
             remaining = max(0.0, previous_delay - (time.monotonic() - started))
             if remaining > 0:
                 signal.setitimer(signal.ITIMER_REAL, remaining, previous_interval)
+
+
+def _call_with_worker_thread_wall_clock_timeout(
+    call: Callable[[], Any],
+    *,
+    timeout_s: float,
+    provider_name: str,
+    model: str,
+) -> Any:
+    """Apply the same hard deadline when signals are unavailable."""
+
+    outcome: queue.Queue[tuple[bool, Any]] = queue.Queue(maxsize=1)
+
+    def invoke() -> None:
+        try:
+            row = (True, call())
+        except BaseException as exc:
+            row = (False, exc)
+        try:
+            outcome.put_nowait(row)
+        except queue.Full:
+            pass
+
+    worker = threading.Thread(
+        target=invoke,
+        name="ai-statistician-provider-call",
+        daemon=True,
+    )
+    worker.start()
+    worker.join(timeout_s)
+    if worker.is_alive():
+        raise LiveGeneratorTimeoutError(
+            f"{provider_name} generator request for {model} exceeded "
+            f"wall-clock timeout {timeout_s:g}s"
+        )
+    try:
+        ok, value = outcome.get_nowait()
+    except queue.Empty as exc:
+        raise RuntimeError(
+            f"{provider_name} generator request for {model} ended without a result"
+        ) from exc
+    if ok:
+        return value
+    raise value
 
 
 def _live_generator_timeout_seconds(value: float | None = None) -> float:

@@ -14256,7 +14256,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
             )
             <= 0
         ):
-            args.algorithm_engineer_generated_code_repair_yield_after_attempts = 1
+            args.algorithm_engineer_generated_code_repair_yield_after_attempts = 2
         if (
             int(
                 getattr(
@@ -14268,7 +14268,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
             )
             <= 0
         ):
-            args.simulation_evaluator_generated_code_repair_yield_after_attempts = 1
+            args.simulation_evaluator_generated_code_repair_yield_after_attempts = 2
         args.generated_code_semantic_review_max_revisions = max(
             2,
             int(

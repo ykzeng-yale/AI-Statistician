@@ -50,6 +50,8 @@ def test_bridge_only_gap_planner_is_not_a_generic_feedback_owner() -> None:
     assert "FormalizationGapPlanner" not in route_payload[
         "available_route_subsystems"
     ]
+    assert "Route missing mathematical assumptions" in route_prompt
+    assert "Lean must not substitute" in route_prompt
     invalid_route = {
         "decision": "ROUTE",
         "selected_subsystem": "FormalizationGapPlanner",

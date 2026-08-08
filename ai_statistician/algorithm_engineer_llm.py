@@ -229,8 +229,9 @@ def build_algorithm_engineer_prompt(
             ),
             "execution_contract": scientific_sandbox_contract(),
             "runtime_policy": (
-                "AgentRuntime will statically inspect and execute safe drafts only "
-                "inside a bounded sandbox; unsafe or nonconforming drafts are rejected."
+                "AgentRuntime validates the execution contract and runs drafts only "
+                "inside a secret-free, network-denied, resource-bounded WebAssembly "
+                "sandbox; raw failures are returned unchanged."
             ),
             "forbidden_claims": [
                 "do not claim the draft was executed",
@@ -321,9 +322,10 @@ def build_algorithm_engineer_prompt(
         "model-authored draft from the supplied source and exact observations; do not repeat the same unsafe "
         "or non-executable code. "
         "For sandbox_code_drafts, obey the selected profile in "
-        "generated_code_sandbox_contract. The stdlib profile permits only its "
-        "listed pure-Python subset. The scientific_wasm profile permits only "
-        "declared pinned scientific packages or base R packages and forbids "
+        "generated_code_sandbox_contract. The stdlib profile means Python with no "
+        "third-party dependencies; it is not a reduced Python grammar. The "
+        "scientific_wasm profile permits declared pinned scientific packages or base "
+        "R packages. Both profiles forbid "
         "file/network/subprocess/host-bridge/reflection access. Prefer mature "
         "package APIs for numerical and statistical machinery. If the requested "
         "prototype cannot run under either profile, omit the draft and report the "

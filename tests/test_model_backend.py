@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import sys
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -901,6 +902,34 @@ def test_wall_clock_timeout_respects_shorter_nested_deadline() -> None:
         )
 
     assert time.monotonic() - started < 1.3
+
+
+def test_wall_clock_timeout_is_enforced_inside_worker_thread() -> None:
+    observed: list[BaseException] = []
+    elapsed: list[float] = []
+
+    def invoke() -> None:
+        started = time.monotonic()
+        try:
+            _call_with_wall_clock_timeout(
+                lambda: time.sleep(2.0),
+                timeout_s=1.0,
+                provider_name="anthropic",
+                model="slow-worker-model",
+            )
+        except BaseException as exc:
+            observed.append(exc)
+        elapsed.append(time.monotonic() - started)
+
+    worker = threading.Thread(target=invoke)
+    worker.start()
+    worker.join(1.8)
+
+    assert not worker.is_alive()
+    assert len(observed) == 1
+    assert isinstance(observed[0], LiveGeneratorTimeoutError)
+    assert "wall-clock timeout 1s" in str(observed[0])
+    assert elapsed and elapsed[0] < 1.7
 
 
 def test_anthropic_generator_backend_does_not_retry_non_transport_error(

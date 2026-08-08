@@ -1483,6 +1483,12 @@ def author_reviewed_architect_metric_requirements(
             acceptance_authority_catalog
         )
     )
+    if confirmatory_required_rows_only:
+        acceptance_authority_prompt_catalog = [
+            row
+            for row in acceptance_authority_prompt_catalog
+            if row.get("authority_kind") != "diagnostic_only"
+        ]
     acceptance_authority_anchor_ids = [
         str(row["anchor_id"])
         for row in acceptance_authority_prompt_catalog
@@ -1754,7 +1760,9 @@ def author_reviewed_architect_metric_requirements(
                 "For theory_derived or evaluation_mandated numeric fields, the cited "
                 "node must contain the exact value. For theory_parameter_instantiation, "
                 "cite both the symbolic theory node and the evaluation_design node "
-                "containing the exact instantiated value."
+                "containing the exact instantiated value. Diagnostic-only material is "
+                "excluded because this packet contains required confirmatory rows only; "
+                "omit any proposed row that has no exact eligible authority anchor."
             ),
             (
                 "When a necessary finite-sample decision is not fixed upstream, the "

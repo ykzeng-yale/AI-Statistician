@@ -293,7 +293,7 @@ from ai_statistician.research_agent_runtime import (
     _enrich_repeated_formalizer_lean_candidate_feedback,
     _llm_agent_topology_row,
     _algorithm_sandbox_revision_feedback,
-    _run_generated_python_sandbox,
+    _run_generated_code_sandbox,
     run_research_agent_runtime,
 )
 from ai_statistician.formal_verifier_agentic_proof_execution_materializer import (
@@ -2677,7 +2677,7 @@ def test_architect_routed_generated_code_observations_bind_exact_parent() -> Non
     assert resolution["revised_theory_packet_id"] == revised_id
 
 
-def test_architect_routed_formal_target_observations_use_shared_theory_binding() -> None:
+def test_architect_routed_observations_bind_context_parent_without_duplicate_feedback_fields() -> None:
     question = load_open_research_questions(
         Path("examples/research_questions.json")
     )[0]
@@ -2693,12 +2693,9 @@ def test_architect_routed_formal_target_observations_use_shared_theory_binding()
         "feedback_id": "formal-target-feedback:shared-binding",
         "feedback_type": "formal_target_semantic_review_feedback",
         "question_id": question.id,
-        "source_theory_packet_id": parent_id,
-        "source_theory_packet_hash": material["source_theory_packet_hash"],
         "semantic_review_packet_id": "formal-target-review:shared-binding",
         "semantic_review_execution_id": "formal-target-execution:shared-binding",
         "overall_verdict": "REVISE",
-        "model_route_required_for_cross_owner_revision": True,
         "execution_results_observed": False,
         "execution_authorized": False,
         "findings": [
@@ -22006,26 +22003,46 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
         "model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         "implementation_targets": [{"estimator_id": "candidate"}],
     }
+    prototype = {
+        "estimator_id": "candidate",
+        "executor": "generated_python_sandbox",
+        "prototype_status": "FAILED_METRIC_GATE",
+        "smoke_passed": False,
+        "execution_smoke_passed": True,
+        "script_path": str(script_path),
+        "script_hash": runtime_module.stable_hash(source),
+        "result_path": str(result_path),
+        "result_hash": runtime_module.stable_hash(result_payload),
+        "metrics": result_payload,
+        "runtime_seed": 7,
+        "runtime_replicates": 9,
+        "metric_contract_evaluation": {"all_required_passed": False},
+        "metric_gate_errors": ["declared estimand gate failed"],
+        "source_llm_proposal_id": proposal["packet_id"],
+    }
+    prototype["prototype_artifact_id"] = (
+        _generated_sandbox_prototype_artifact_id(prototype)
+    )
     manifest = {
         "artifact_kind": "RuntimeAlgorithmSandboxManifest",
         "manifest_id": "algorithm_sandbox_manifest:direct-regeneration",
         "theory_packet_id": theory_packet_id,
-        "prototypes": [
-            {
-                "estimator_id": "candidate",
-                "smoke_passed": True,
-                "execution_smoke_passed": True,
-                "script_path": str(script_path),
-                "script_hash": runtime_module.stable_hash(source),
-                "result_path": str(result_path),
-                "result_hash": runtime_module.stable_hash(result_payload),
-                "metrics": result_payload,
-                "runtime_seed": 7,
-                "runtime_replicates": 9,
-            }
-        ],
+        "prototypes": [prototype],
         "empirical_evaluation_phase": "confirmatory",
         "confirmatory_empirical_evidence_eligible": True,
+    }
+    failure_classification = "generated_algorithm_sandbox_metric_gate_failed"
+    metric_failure_feedback = {
+        "feedback_id": _generated_sandbox_feedback_id(
+            feedback_type="algorithm_sandbox_execution_feedback",
+            source_manifest_id=manifest["manifest_id"],
+            failure_classification=failure_classification,
+            prototype_rows=[prototype],
+        ),
+        "feedback_type": "algorithm_sandbox_execution_feedback",
+        "algorithm_sandbox_manifest_id": manifest["manifest_id"],
+        "failure_classification": failure_classification,
+        "prototypes": [prototype],
     }
     source_task = AgentTask(
         task_id="algorithm:direct-regeneration",
@@ -22071,10 +22088,14 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
         architect_context=source_task.inputs["architect_context"],
         deferred_next_task=deferred_task,
         max_revisions=1,
+        metric_failure_feedback=metric_failure_feedback,
     )
     assert dispatch is not None
     work_order = dispatch["work_order"]
     work_order_id = dispatch["work_order_id"]
+    assert work_order["source_execution_feedback"]["feedback_id"] == (
+        metric_failure_feedback["feedback_id"]
+    )
     review_response = {
         "prior_finding_reviews": [],
         "dimension_reviews": {
@@ -22134,6 +22155,12 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
     assert "runtime_architect_operation" not in review_result.next_task.inputs
     feedback = review_result.next_task.inputs["environment_feedback"]
     assert feedback["overall_verdict"] == "REVISE"
+    assert feedback["source_execution_feedback"]["feedback_id"] == (
+        metric_failure_feedback["feedback_id"]
+    )
+    assert feedback["source_execution_feedback"]["prototypes"][0][
+        "prototype_artifact_id"
+    ] == prototype["prototype_artifact_id"]
     assert "source_execution_diagnostic" not in feedback
     assert feedback["observation_status"] == "CURRENT_ACTIVE_OBSERVATION"
     assert feedback["superseded_observations"][-1][
@@ -22187,8 +22214,14 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
     assert guarded is review_result
 
     blackboard.artifacts.update(review_result.produced_artifacts)
+    reset_count_inputs = copy.deepcopy(review_result.next_task.inputs)
+    reset_count_inputs.pop("generated_code_semantic_review_revision_count", None)
+    source_task_after_intermediate_local_regeneration = replace(
+        review_result.next_task,
+        inputs=reset_count_inputs,
+    )
     second_dispatch = runtime_module._runtime_generated_code_semantic_review_dispatch(
-        task=review_result.next_task,
+        task=source_task_after_intermediate_local_regeneration,
         question=question,
         source_subsystem="AlgorithmEngineer",
         source_manifest=manifest,
@@ -22752,6 +22785,10 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     authority_anchor_ids = {
         row["anchor_id"] for row in authority_catalog
     }
+    assert all(
+        row["authority_kind"] != "diagnostic_only"
+        for row in authority_catalog
+    )
     assert "theory#/theorem_cards/0" in authority_anchor_ids
     assert "theory#/theorem_cards/0/conclusion" not in authority_anchor_ids
     requirement_item_schema = metric_request.schema["properties"][
@@ -22819,6 +22856,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "boolean rows, use operator ==" in hard_requirements
     assert "omit threshold/tolerance gate_fields" in hard_requirements
     assert "exact instantiated value" in hard_requirements
+    assert "omit any proposed row" in hard_requirements
     assert "architect_preregistered_design" in hard_requirements
     assert "Monte Carlo uncertainty" in hard_requirements
     assert "implementation handoff is only an invocation/output ABI" in (
@@ -43343,6 +43381,10 @@ def test_agent_runtime_routes_formalizer_revision_budget_to_architect(
         "algorithm_sandbox_manifest:test"
     )
     feedback = replan_task.inputs["environment_feedback"]
+    assert feedback["feedback_id"].startswith(
+        "formalizer_lean_candidate_revision_budget_feedback:"
+    )
+    assert feedback["question_id"] == question_payload["id"]
     assert feedback["feedback_type"] == (
         "formalizer_lean_candidate_revision_budget_feedback"
     )
@@ -43864,11 +43906,12 @@ def test_runtime_manifest_exposes_formalizer_local_lean_candidate_counts(
 
 
 def test_generated_algorithm_sandbox_rejects_unsafe_code(tmp_path: Path) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="unsafe_probe",
         spec={"id": "unsafe_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "import os\n"
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
@@ -43885,7 +43928,7 @@ def test_generated_algorithm_sandbox_rejects_unsafe_code(tmp_path: Path) -> None
     assert prototype["smoke_passed"] is False
     assert prototype["promotion_ready"] is False
     assert any(
-        "can import only math/statistics/random" in row
+        "forbidden in the isolated runtime: os" in row
         for row in prototype["safety_errors"]
     )
     assert all("forbidden generated-code token" not in row for row in prototype["safety_errors"])
@@ -43896,11 +43939,12 @@ def test_generated_algorithm_sandbox_rejects_unsafe_code(tmp_path: Path) -> None
 def test_generated_algorithm_sandbox_allows_standard_exception_constructors(
     tmp_path: Path,
 ) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="exception_validation_probe",
         spec={"id": "exception_validation_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    if replicates < 0:\n"
@@ -43922,11 +43966,12 @@ def test_generated_algorithm_sandbox_allows_standard_exception_constructors(
 def test_generated_algorithm_sandbox_rejects_file_io_and_private_attributes(
     tmp_path: Path,
 ) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="private_access_probe",
         spec={"id": "private_access_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    values = [seed, replicates]\n"
@@ -43940,35 +43985,13 @@ def test_generated_algorithm_sandbox_rejects_file_io_and_private_attributes(
     )
 
     assert prototype["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
-    assert "forbidden generated-code call: open" in prototype["safety_errors"]
-    assert any("private attribute: __class__" in row for row in prototype["safety_errors"])
-    assert tool_call.exit_status == "rejected"
-
-
-def test_generated_algorithm_sandbox_rejects_format_private_traversal(
-    tmp_path: Path,
-) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
-        sandbox_dir=tmp_path,
-        estimator_id="format_traversal_probe",
-        spec={"id": "format_traversal_probe"},
-        code_draft={
-            "code": (
-                "import random\n"
-                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
-                "    leaked = '{0.__init__.__globals__[_os].environ}'.format(random.Random)\n"
-                "    return {'leaked': leaked, 'sandbox_failed': False}\n"
-            )
-        },
-        n_runs=10,
-        seed=20260713,
-        timeout_s=5,
-    )
-
-    assert prototype["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
-    assert "forbidden generated-code reflective method: format" in prototype[
+    assert "generated scientific Python cannot call: open" in prototype[
         "safety_errors"
     ]
+    assert any(
+        "private attributes: __class__" in row
+        for row in prototype["safety_errors"]
+    )
     assert tool_call.exit_status == "rejected"
 
 
@@ -43976,11 +43999,12 @@ def test_generated_algorithm_sandbox_rejects_frame_and_callable_rebinding_escape
     tmp_path: Path,
 ) -> None:
     escape_path = tmp_path / "sandbox_escape_canary.txt"
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="frame_binding_escape_probe",
         spec={"id": "frame_binding_escape_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def helper(*args):\n"
                 "    return None\n"
@@ -43999,92 +44023,22 @@ def test_generated_algorithm_sandbox_rejects_frame_and_callable_rebinding_escape
 
     assert prototype["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
     assert any(
-        "frame-reflection attribute: gi_frame" in row
-        for row in prototype["safety_errors"]
-    )
-    assert any(
-        "cannot rebind protected sandbox binding: helper" in row
+        "runtime frame attributes: gi_frame" in row
         for row in prototype["safety_errors"]
     )
     assert not escape_path.exists()
     assert tool_call.exit_status == "rejected"
 
 
-def test_generated_algorithm_sandbox_rejects_safe_builtin_rebinding(
+def test_generated_algorithm_sandbox_allows_stdlib_from_imports(
     tmp_path: Path,
 ) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
-        sandbox_dir=tmp_path,
-        estimator_id="builtin_binding_escape_probe",
-        spec={"id": "builtin_binding_escape_probe"},
-        code_draft={
-            "code": (
-                "str = 1\n"
-                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
-                "    return {'value': str(seed), 'sandbox_failed': False}\n"
-            )
-        },
-        n_runs=10,
-        seed=20260713,
-        timeout_s=5,
-    )
-
-    assert prototype["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
-    assert "generated Python draft cannot rebind protected sandbox binding: str" in (
-        prototype["safety_errors"]
-    )
-    assert tool_call.exit_status == "rejected"
-
-
-def test_generated_algorithm_sandbox_does_not_inherit_provider_secrets(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured_environment: dict[str, str] = {}
-    real_run = runtime_module.subprocess.run
-
-    def recording_run(*args: object, **kwargs: object):
-        captured_environment.update(dict(kwargs.get("env", {}) or {}))
-        return real_run(*args, **kwargs)
-
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sandbox-provider-secret-canary")
-    monkeypatch.setenv("OPENAI_API_KEY", "sandbox-provider-secret-canary")
-    monkeypatch.setattr(runtime_module.subprocess, "run", recording_run)
-
-    prototype, tool_call = _run_generated_python_sandbox(
-        sandbox_dir=tmp_path,
-        estimator_id="environment_isolation_probe",
-        spec={"id": "environment_isolation_probe"},
-        code_draft={
-            "code": (
-                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
-                "    return {\n"
-                "        'sandbox_failed': False,\n"
-                "        'seed': int(seed),\n"
-                "        'replicates': int(replicates),\n"
-                "    }\n"
-            )
-        },
-        n_runs=10,
-        seed=20260713,
-        timeout_s=5,
-    )
-
-    assert prototype["prototype_status"] == "EXECUTED"
-    assert tool_call.exit_status == "0"
-    assert "ANTHROPIC_API_KEY" not in captured_environment
-    assert "OPENAI_API_KEY" not in captured_environment
-    assert set(prototype["subprocess_environment_keys"]) == set(captured_environment)
-
-
-def test_generated_algorithm_sandbox_rejects_from_import_helper_aliases(
-    tmp_path: Path,
-) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="statistics_alias_probe",
         spec={"id": "statistics_alias_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "from statistics import mean, stdev\n"
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
@@ -44101,47 +44055,19 @@ def test_generated_algorithm_sandbox_rejects_from_import_helper_aliases(
         timeout_s=5,
     )
 
-    assert tool_call.exit_status == "rejected"
-    assert prototype["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
-    assert any("from-import helper aliases" in row for row in prototype["safety_errors"])
-    assert "forbidden generated-code call: mean" in prototype["safety_errors"]
-    assert "forbidden generated-code call: stdev" in prototype["safety_errors"]
-
-    feedback = _algorithm_sandbox_revision_feedback(
-        manifest={
-            "manifest_id": "algorithm_sandbox_manifest:statistics_alias_probe",
-            "prototypes": [prototype],
-            "n_prototypes": 1,
-            "n_executed": 0,
-            "n_passed": 0,
-            "n_metric_gate_failed": 0,
-            "n_generated_code_executed": 0,
-            "n_unsafe_generated_code_rejected": 1,
-        },
-        boundary="algorithm sandbox is not proof evidence",
-        failure_classification="generated_algorithm_sandbox_required_not_executed",
-    )
-
-    assert "forbidden_generated_code_calls" not in feedback
-    assert "forbidden_generated_code_calls" not in feedback["prototypes"][0]
-    assert "forbidden generated-code call: mean" in feedback["prototypes"][0][
-        "safety_errors"
-    ]
-    assert "forbidden generated-code call: stdev" in feedback["prototypes"][0][
-        "safety_errors"
-    ]
-    assert "from statistics import mean, stdev" in feedback["prototypes"][0][
-        "code_excerpt"
-    ]
-    assert "required_repair" not in feedback
+    assert tool_call.exit_status == "0"
+    assert prototype["prototype_status"] == "EXECUTED"
+    assert prototype["metrics"]["mean_value"] == 2.0
+    assert prototype["safety_errors"] == []
 
 
 def test_generated_algorithm_sandbox_allows_math_import_and_append(tmp_path: Path) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="append_probe",
         spec={"id": "append_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "import math\n"
                 "import random\n"
@@ -44172,11 +44098,12 @@ def test_generated_algorithm_sandbox_allows_math_import_and_append(tmp_path: Pat
 
 
 def test_generated_algorithm_sandbox_allows_local_rng_shuffle(tmp_path: Path) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="rng_shuffle_probe",
         spec={"id": "rng_shuffle_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "import random\n"
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
@@ -44207,11 +44134,12 @@ def test_generated_algorithm_sandbox_allows_local_rng_shuffle(tmp_path: Path) ->
 def test_generated_algorithm_sandbox_allows_collection_predicates_and_extend(
     tmp_path: Path,
 ) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="collection_predicate_probe",
         spec={"id": "collection_predicate_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    n = max(5, int(replicates))\n"
@@ -44242,11 +44170,12 @@ def test_generated_algorithm_sandbox_allows_collection_predicates_and_extend(
 def test_generated_algorithm_sandbox_allows_public_local_collection_methods(
     tmp_path: Path,
 ) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="forbidden_method_probe",
         spec={"id": "forbidden_method_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    values = [int(seed), int(replicates)]\n"
@@ -44274,11 +44203,12 @@ def test_generated_algorithm_sandbox_allows_public_local_collection_methods(
 def test_generated_algorithm_sandbox_uses_ast_not_forbidden_substrings(
     tmp_path: Path,
 ) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="ratio_identifier_probe",
         spec={"id": "ratio_identifier_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    conservativeness_ratios = []\n"
@@ -44303,11 +44233,12 @@ def test_generated_algorithm_sandbox_uses_ast_not_forbidden_substrings(
 def test_generated_algorithm_execution_failure_preserves_final_exception(
     tmp_path: Path,
 ) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="json_key_probe",
         spec={"id": "json_key_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    return {\n"
@@ -44352,11 +44283,12 @@ def test_generated_algorithm_execution_failure_preserves_final_exception(
 
 
 def test_generated_algorithm_sandbox_allows_safe_zip_builtin(tmp_path: Path) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="zip_probe",
         spec={"id": "zip_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "import math\n"
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
@@ -44390,11 +44322,12 @@ def test_generated_algorithm_sandbox_allows_safe_zip_builtin(tmp_path: Path) -> 
 def test_generated_algorithm_sandbox_does_not_infer_gate_from_metric_name(
     tmp_path: Path,
 ) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="degenerate_algorithm_coverage",
         spec={"id": "degenerate_algorithm_coverage"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    return {\n"
@@ -44425,11 +44358,12 @@ def test_generated_algorithm_sandbox_does_not_infer_gate_from_metric_name(
 def test_generated_algorithm_sandbox_allows_local_helper_function(
     tmp_path: Path,
 ) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="helper_probe",
         spec={"id": "helper_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    def lcg_next(state: int) -> int:\n"
@@ -44463,7 +44397,7 @@ def test_generated_algorithm_sandbox_allows_local_helper_function(
 def test_generated_algorithm_sandbox_does_not_infer_gate_from_context_prose(
     tmp_path: Path,
 ) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="split_conformal_interval",
         spec={
@@ -44472,6 +44406,7 @@ def test_generated_algorithm_sandbox_does_not_infer_gate_from_context_prose(
             "validation_metrics": ["empirical coverage", "mean width"],
         },
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    return {\n"
@@ -44496,7 +44431,7 @@ def test_generated_algorithm_sandbox_does_not_infer_gate_from_context_prose(
 def test_generated_algorithm_sandbox_does_not_infer_numeric_target_from_context(
     tmp_path: Path,
 ) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="split_conformal_interval",
         spec={
@@ -44506,6 +44441,7 @@ def test_generated_algorithm_sandbox_does_not_infer_numeric_target_from_context(
             "target_coverage": 0.9,
         },
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    return {\n"
@@ -44532,7 +44468,7 @@ def test_generated_algorithm_sandbox_does_not_infer_numeric_target_from_context(
 def test_generated_algorithm_sandbox_does_not_parse_target_from_question_text(
     tmp_path: Path,
 ) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="aipw_crossfit",
         spec={
@@ -44540,6 +44476,7 @@ def test_generated_algorithm_sandbox_does_not_parse_target_from_question_text(
             "validation_metrics": ["coverage", "mean width"],
         },
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    n = max(5, int(replicates))\n"
@@ -44661,11 +44598,12 @@ def test_typed_generated_metric_contract_bypasses_legacy_domain_inference(
         "required": True,
         "source_anchors": ["architect:fdr-control"],
     }
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="bh_generated",
         spec={"id": "bh_generated"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    offset = (int(seed) % 2) * 0.0\n"
@@ -44730,11 +44668,12 @@ def test_typed_generated_metric_contract_failure_returns_exact_repair_feedback(
         "operator": "<=",
         "threshold": 0.05,
     }
-    prototype, _ = _run_generated_python_sandbox(
+    prototype, _ = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="bh_generated",
         spec={"id": "bh_generated"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    n = max(5, int(replicates))\n"
@@ -47267,7 +47206,7 @@ def test_algorithm_engineer_revises_after_nonexecutable_llm_code(tmp_path: Path)
     assert feedback["failure_classification"] == "algorithm_sandbox_no_executable_prototype"
     assert feedback["prototypes"][0]["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
     assert any(
-        "can import only math/statistics" in row
+        "forbidden in the isolated runtime: os" in row
         for row in feedback["prototypes"][0]["safety_errors"]
     )
 
@@ -47812,7 +47751,7 @@ def test_algorithm_engineer_regenerates_instead_of_refreshing_legacy_metric_gate
     )
 
 
-def test_agent_runtime_yields_exhausted_algorithm_regeneration_to_architect(
+def test_agent_runtime_blocks_exhausted_code_local_algorithm_regeneration(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -47938,7 +47877,7 @@ def test_agent_runtime_yields_exhausted_algorithm_regeneration_to_architect(
 
     result = runtime.run(initial_task, max_iterations=3)
 
-    assert result.status == "ACCEPTED", [
+    assert result.status == "BLOCKED", [
         (
             trace.subsystem,
             trace.status,
@@ -47954,18 +47893,14 @@ def test_agent_runtime_yields_exhausted_algorithm_regeneration_to_architect(
     assert result.traces[0].status == "REVISE"
     assert result.traces[0].next_task is not None
     assert result.traces[0].next_task.owner_subsystem == "AlgorithmEngineer"
-    assert result.traces[1].status == "REROUTE"
-    assert result.traces[1].next_task is not None
-    assert result.traces[1].next_task.owner_subsystem == "ArchitectCoordinator"
-    assert result.traces[2].subsystem == "ArchitectCoordinator"
-    assert len(architect.tasks) == 1
+    assert result.traces[1].status == "BLOCKED"
+    assert result.traces[1].next_task is None
+    assert len(result.traces) == 2
+    assert len(architect.tasks) == 0
     assert all(trace.subsystem != "TheoryDeveloper" for trace in result.traces)
-    feedback = architect.tasks[0].inputs["environment_feedback"]
-    assert architect.tasks[0].inputs["runtime_architect_operation"] == (
-        "environment_feedback_route"
-    )
-    assert feedback["failure_classification"] == (
-        "generated_algorithm_sandbox_execution_failed"
+    assert result.traces[1].failure_classification == (
+        "generated_algorithm_sandbox_execution_failed_"
+        "candidate_regeneration_budget_exhausted"
     )
 
 
@@ -48532,7 +48467,7 @@ def test_simulation_evaluator_revises_after_nonexecutable_generated_simulation_c
         == "REJECTED_UNSAFE_GENERATED_CODE"
     )
     assert any(
-        "can import only math/statistics" in row
+        "forbidden in the isolated runtime: os" in row
         for row in feedback["generated_simulation_prototypes"][0]["safety_errors"]
     )
 
@@ -48700,10 +48635,11 @@ def test_simulation_evaluator_returns_execution_exception_to_same_agent(
                 "proof_evidence_status": "NOT_PROOF_EVIDENCE",
             }
 
-    result = SimulationEvaluatorRuntimeSubsystem(
+    subsystem = SimulationEvaluatorRuntimeSubsystem(
         proposal_agent=NonSerializableSimulationEngineer(),
         sandbox_root=tmp_path / "generated_simulation_sandbox",
-    ).run(
+    )
+    result = subsystem.run(
         AgentTask(
             task_id="simulation:json-result-failure",
             owner_subsystem="SimulationEvaluator",
@@ -48721,6 +48657,7 @@ def test_simulation_evaluator_returns_execution_exception_to_same_agent(
                 "architect_context": {
                     "runtime_requested_evidence_contract": {
                         "capability_eval_requires_generated_simulation_code": True,
+                        "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": 1,
                     }
                 },
             },
@@ -48753,6 +48690,20 @@ def test_simulation_evaluator_returns_execution_exception_to_same_agent(
     assert "TypeError" in feedback["generated_simulation_prototypes"][0][
         "stderr_summary"
     ]
+
+    exhausted = subsystem.run(result.next_task, blackboard)
+
+    assert exhausted.status == "BLOCKED"
+    assert exhausted.next_task is None
+    assert exhausted.failure_classification == (
+        "generated_simulation_sandbox_execution_failed_"
+        "candidate_regeneration_budget_exhausted"
+    )
+    assert any(
+        observation.observation_type
+        == "simulation_candidate_regeneration_budget_exhausted"
+        for observation in exhausted.observations
+    )
 
 
 def test_simulation_runtime_enforces_generated_code_required_from_learning_memory(
@@ -50060,11 +50011,12 @@ def test_generated_algorithm_feedback_carries_typed_metric_contract(
         "operator": ">=",
         "threshold": 0.9,
     }
-    prototype, _tool_call = _run_generated_python_sandbox(
+    prototype, _tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="target_probe",
         spec={"id": "target_probe"},
         code_draft={
+            "entrypoint": "run_sandbox",
             "code": (
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    n = max(5, int(replicates))\n"
@@ -50139,7 +50091,7 @@ def test_generated_algorithm_feedback_carries_typed_metric_contract(
 def test_generated_python_sandbox_uses_execution_and_typed_contracts_not_ast_rules(
     tmp_path: Path,
 ) -> None:
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path / "sandbox",
         estimator_id="E1",
         spec={
@@ -50181,7 +50133,7 @@ def test_generated_python_sandbox_rejection_feedback_includes_code_excerpt(
         "    values = [1, 2, 3\n"
         "    return {'sandbox_failed': False, 'empirical_coverage': 1.0}\n"
     )
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=tmp_path / "sandbox",
         estimator_id="E1",
         spec={"id": "E1", "name": "generated syntax probe"},
@@ -50342,7 +50294,7 @@ def test_rejected_long_generated_source_is_complete_in_model_feedback(
         + "    return {'sandbox_failed': False}\n"
         + "# EXACT_PARENT_SOURCE_TAIL\n"
     )
-    prototype, _ = _run_generated_python_sandbox(
+    prototype, _ = _run_generated_code_sandbox(
         sandbox_dir=tmp_path / "sandbox",
         estimator_id="long_rejected_candidate",
         spec={"id": "long_rejected_candidate"},
@@ -98874,11 +98826,11 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.coding_agent_packet_validation_replan_after_attempts == 2
     assert (
         args.algorithm_engineer_generated_code_repair_yield_after_attempts
-        == 1
+        == 2
     )
     assert (
         args.simulation_evaluator_generated_code_repair_yield_after_attempts
-        == 1
+        == 2
     )
     assert args.generated_code_semantic_review_max_revisions == 2
     assert (

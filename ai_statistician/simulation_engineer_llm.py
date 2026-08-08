@@ -312,9 +312,9 @@ def build_simulation_engineer_prompt(
             ),
             "execution_contract": scientific_sandbox_contract(),
             "runtime_policy": (
-                "AgentRuntime will statically inspect and execute safe drafts "
-                "inside a bounded local sandbox. Failed or unsafe drafts are "
-                "returned as raw environment observations for model-authored revision."
+                "AgentRuntime validates the execution contract and runs drafts only "
+                "inside a secret-free, network-denied, resource-bounded WebAssembly "
+                "sandbox. Raw failures are returned for complete model regeneration."
             ),
         },
         "typed_metric_contract_schema": (

@@ -251,9 +251,13 @@ def scientific_python_safety_errors(
         tree = ast.parse(code)
     except SyntaxError as exc:
         return [f"generated scientific Python draft syntax error: {exc}"]
-    allowed_roots = {"math", "random", "statistics"}
+    declared_package_roots: set[str] = set()
     for dependency in dependencies:
-        allowed_roots.update(_PYTHON_PACKAGE_IMPORT_ROOTS.get(dependency, set()))
+        declared_package_roots.update(
+            _PYTHON_PACKAGE_IMPORT_ROOTS.get(dependency, set())
+        )
+    stdlib_roots = set(getattr(sys, "stdlib_module_names", ()))
+    stdlib_roots.add("__future__")
     forbidden_calls = {
         "__import__",
         "breakpoint",
@@ -285,6 +289,16 @@ def scientific_python_safety_errors(
         "subprocess",
         "sys",
     }
+    forbidden_runtime_attributes = {
+        "ag_frame",
+        "cr_frame",
+        "f_back",
+        "f_builtins",
+        "f_globals",
+        "f_locals",
+        "gi_frame",
+        "tb_frame",
+    }
     function_names = {
         node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
     }
@@ -298,24 +312,50 @@ def scientific_python_safety_errors(
         if isinstance(node, ast.Import):
             for alias in node.names:
                 root = alias.name.split(".", 1)[0]
-                if root not in allowed_roots or root in forbidden_roots:
+                if root in forbidden_roots:
                     errors.append(
-                        "generated scientific Python import is not declared: " + alias.name
+                        "generated scientific Python import is forbidden in the "
+                        "isolated runtime: "
+                        + alias.name
+                    )
+                elif root not in stdlib_roots and root not in declared_package_roots:
+                    errors.append(
+                        "generated scientific Python third-party import is not "
+                        "declared: "
+                        + alias.name
                     )
         elif isinstance(node, ast.ImportFrom):
             root = str(node.module or "").split(".", 1)[0]
-            if node.level or root not in allowed_roots or root in forbidden_roots:
+            if node.level:
                 errors.append(
-                    "generated scientific Python from-import is not declared: "
+                    "generated scientific Python relative import is forbidden: "
                     + str(node.module or "")
                 )
-        elif isinstance(node, (ast.Global, ast.Nonlocal)):
-            errors.append("generated scientific Python cannot use global/nonlocal")
+            elif root in forbidden_roots:
+                errors.append(
+                    "generated scientific Python from-import is forbidden in the "
+                    "isolated runtime: "
+                    + str(node.module or "")
+                )
+            elif root not in stdlib_roots and root not in declared_package_roots:
+                errors.append(
+                    "generated scientific Python third-party from-import is not "
+                    "declared: "
+                    + str(node.module or "")
+                )
         elif isinstance(node, ast.Name) and node.id.startswith("__"):
             errors.append("generated scientific Python cannot access dunder names")
         elif isinstance(node, ast.Attribute) and node.attr.startswith("_"):
             errors.append(
                 "generated scientific Python cannot access private attributes: "
+                + node.attr
+            )
+        elif (
+            isinstance(node, ast.Attribute)
+            and node.attr in forbidden_runtime_attributes
+        ):
+            errors.append(
+                "generated scientific Python cannot access runtime frame attributes: "
                 + node.attr
             )
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
@@ -335,7 +375,10 @@ def scientific_sandbox_contract(
             STDLIB_SANDBOX_PROFILE: {
                 "languages": ["python"],
                 "dependencies": [],
-                "boundary": "Existing pure-Python conservative AST sandbox.",
+                "boundary": (
+                    "Pure-Python code with no third-party dependencies executes in "
+                    "the same isolated WebAssembly runtime."
+                ),
             },
             SCIENTIFIC_WASM_SANDBOX_PROFILE: {
                 "languages": ["python", "r"],
@@ -363,7 +406,8 @@ def scientific_sandbox_contract(
         "selection_policy": (
             "Use scientific_wasm when mature numerical/statistical libraries or R "
             "materially improve fidelity. Declare only packages actually imported. "
-            "Use stdlib for genuinely small self-contained procedures."
+            "Use stdlib for genuinely small self-contained Python procedures; both "
+            "profiles execute under the same isolation boundary."
         ),
         "proof_evidence_status": "SCIENTIFIC_SANDBOX_CONTRACT_NOT_PROOF_EVIDENCE",
     }

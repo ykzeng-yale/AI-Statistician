@@ -105,8 +105,25 @@ def test_scientific_python_guard_requires_declared_packages_and_blocks_bridges()
         "import js\n\ndef run_sandbox(seed, replicates):\n    return {'n': replicates}",
         dependencies=[],
     )
-    assert "generated scientific Python import is not declared: numpy" in undeclared
-    assert "generated scientific Python import is not declared: js" in bridged
+    stdlib = scientific_python_safety_errors(
+        "import json\n"
+        "from collections import defaultdict\n"
+        "from typing import Any\n\n"
+        "def run_sandbox(seed, replicates):\n"
+        "    values: Any = defaultdict(int)\n"
+        "    values['n'] = replicates\n"
+        "    return json.loads(json.dumps(dict(values)))",
+        dependencies=[],
+    )
+    assert (
+        "generated scientific Python third-party import is not declared: numpy"
+        in undeclared
+    )
+    assert (
+        "generated scientific Python import is forbidden in the isolated runtime: js"
+        in bridged
+    )
+    assert stdlib == []
 
 
 def test_scientific_runtime_unavailable_fails_closed_without_execution(
