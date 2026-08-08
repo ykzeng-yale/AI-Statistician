@@ -604,6 +604,7 @@ def build_architect_feedback_route_prompt(
                 "runtime_evaluation_mode",
                 "empirical_evaluation_phase",
                 "runtime_feedback_loop",
+                "runtime_progress_snapshot",
             }
         )
     }
@@ -637,6 +638,11 @@ def build_architect_feedback_route_prompt(
             "runtime_does_not_select_owner": True,
             "runtime_does_not_author_source_changes": True,
             "selected_worker_receives_complete_feedback": True,
+            "runtime_progress_snapshot_is_authoritative_for_availability": True,
+            "current_validated_plan_is_prior_intent_not_missing_work": True,
+            "completed_stage_restart_requires_observed_staleness_or_incompatibility": (
+                True
+            ),
             "failed_artifacts_remain_failed": True,
             "immutable_evidence_gates_cannot_be_weakened": True,
         },
@@ -657,6 +663,11 @@ def build_architect_feedback_route_prompt(
         "ArchitectCoordinator. Choose only the next evidence-producing owner; do not "
         "regenerate the full research plan and do not prescribe source edits. The "
         "selected worker will receive the complete candidate and exact diagnostics. "
+        "Treat current_validated_plan as prior intent, not as evidence that its early "
+        "steps are still missing. Treat runtime_progress_snapshot as authoritative for "
+        "artifact availability and recent execution. Do not restart a completed stage "
+        "unless the environment observations identify its current artifact as stale, "
+        "incompatible, or insufficient for the concrete next objective. "
         "Return ONLY one JSON object matching required_output.\n\n"
         + json.dumps(bounded_payload, separators=(",", ":"), default=str)
     )

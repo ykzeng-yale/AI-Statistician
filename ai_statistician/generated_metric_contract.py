@@ -1408,10 +1408,45 @@ def validate_generated_metric_requirements(
                             == required_catalog_kind
                             for anchor_id in anchor_ids
                         ):
+                            cited_authority_kinds = [
+                                (
+                                    f"{anchor_id}="
+                                    f"{authority_kind_by_anchor_id.get(anchor_id, 'unknown')}"
+                                )
+                                for anchor_id in anchor_ids
+                            ]
+                            compatible_anchor_ids = [
+                                anchor_id
+                                for anchor_id, catalog_kind in (
+                                    authority_kind_by_anchor_id.items()
+                                )
+                                if catalog_kind == required_catalog_kind
+                            ]
+                            compatible_preview = compatible_anchor_ids[:12]
+                            compatibility_suffix = (
+                                f"; compatible {required_catalog_kind} catalog "
+                                f"anchors ({len(compatible_anchor_ids)} total): "
+                                + ", ".join(compatible_preview)
+                                + (
+                                    ", ..."
+                                    if len(compatible_anchor_ids)
+                                    > len(compatible_preview)
+                                    else ""
+                                )
+                                if compatible_anchor_ids
+                                else ""
+                            )
                             errors.append(
                                 generated_metric_numeric_authority_error(
                                     f"{prefix}.source_anchors must include an exact "
-                                    f"{required_catalog_kind} authority node"
+                                    f"{required_catalog_kind} authority node; cited "
+                                    "anchor authority kinds: "
+                                    + (
+                                        ", ".join(cited_authority_kinds)
+                                        if cited_authority_kinds
+                                        else "none"
+                                    )
+                                    + compatibility_suffix
                                 )
                             )
                 if (

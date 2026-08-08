@@ -22955,6 +22955,52 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         "architect_initial_routing"
     ]["requires_prerequisite_algorithm"] is False
 
+    post_implementation_routed = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=AcceptedCoordinator("RetrievalMemory"),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            n_runs=17,
+        ),
+    ).run(
+        AgentTask(
+            task_id="architect-metric-after-implementation:accepted",
+            owner_subsystem="ArchitectCoordinator",
+            objective=(
+                "Continue the accepted implementation into its reviewed metric "
+                "execution target."
+            ),
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": simulation_context,
+                "runtime_architect_operation": (
+                    runtime_module.RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+                ),
+            },
+        ),
+        accepted_handoff_blackboard,
+    )
+
+    assert post_implementation_routed.next_task is not None
+    assert (
+        post_implementation_routed.next_task.owner_subsystem
+        == "SimulationEvaluator"
+    )
+    continuation_record = post_implementation_routed.next_task.inputs[
+        "architect_context"
+    ]["architect_initial_routing"]
+    assert continuation_record["requested_subsystem"] == "SimulationEvaluator"
+    assert continuation_record["selected_subsystem"] == "SimulationEvaluator"
+    assert continuation_record["source"] == "accepted_metric_protocol_target"
+    assert "independently accepted metric protocol" in (
+        post_implementation_routed.rationale
+    )
+    assert "the model selected that worker" not in (
+        post_implementation_routed.rationale
+    )
+    assert post_implementation_routed.next_task.inputs[
+        "upstream_algorithm_handoff"
+    ] == accepted_handoff
+
 
 def test_metric_review_history_copies_response_identity_audits() -> None:
     source_row = {

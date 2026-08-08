@@ -87,7 +87,16 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
                         "acceptance_gate": "sandbox execution is recorded",
                     }
                 ],
-            }
+            },
+            "runtime_progress_snapshot": {
+                "available_artifact_ids": [
+                    "retrieval_memory_manifest:existing",
+                    "theory_derivation:current",
+                ],
+                "recent_task_ids": ["retrieve:done", "theory:done"],
+                "recent_handoffs": [],
+                "active_blockers": [],
+            },
         },
         environment_feedback=feedback,
     )
@@ -102,6 +111,9 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     assert request.max_tokens == 2000
     assert len(request.user_prompt) < 35_000
     assert "regenerate the full research plan" in request.user_prompt
+    assert "runtime_progress_snapshot" in request.user_prompt
+    assert "retrieval_memory_manifest:existing" in request.user_prompt
+    assert "prior intent" in request.user_prompt
 
 
 def test_runtime_binds_full_feedback_after_model_owned_route() -> None:
@@ -123,6 +135,12 @@ def test_runtime_binds_full_feedback_after_model_owned_route() -> None:
         def route_environment_feedback(self, **kwargs):  # type: ignore[no-untyped-def]
             self.route_calls += 1
             assert kwargs["environment_feedback"] == full_feedback
+            progress = kwargs["architect_context"]["runtime_progress_snapshot"]
+            assert theory_packet_id in progress["available_artifact_ids"]
+            assert simulation_manifest_id in progress["available_artifact_ids"]
+            assert progress["boundary"].startswith(
+                "This is an authoritative inventory"
+            )
             return {
                 "schema_version": 1,
                 "artifact_kind": "ArchitectFeedbackRouteDecision",

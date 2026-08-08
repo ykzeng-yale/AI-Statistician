@@ -1961,13 +1961,12 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     assert architect.metric_semantic_reviewer.source_retriever is (
         preflight_source_retriever
     )
-    assert (
-        _build_algorithm_engineer_agent_from_args(
-            runtime_args,
-            default_model=runtime_default_model,
-        ).config.model
-        == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    algorithm_engineer = _build_algorithm_engineer_agent_from_args(
+        runtime_args,
+        default_model=runtime_default_model,
     )
+    assert algorithm_engineer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    assert algorithm_engineer.config.max_repair_attempts == 0
     assert (
         _build_formalizer_agent_from_args(
             runtime_args,
@@ -1975,13 +1974,12 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         ).config.model
         == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     )
-    assert (
-        _build_simulation_engineer_agent_from_args(
-            runtime_args,
-            default_model=runtime_default_model,
-        ).config.model
-        == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    simulation_engineer = _build_simulation_engineer_agent_from_args(
+        runtime_args,
+        default_model=runtime_default_model,
     )
+    assert simulation_engineer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    assert simulation_engineer.config.max_repair_attempts == 0
     assert (
         _build_critic_evaluator_agent_from_args(
             runtime_args,
@@ -2078,7 +2076,9 @@ def test_live_evaluation_builders_are_pinned_to_current_haiku(
     assert all(agent is not None for agent in agents)
     assert all(agent.config.model_tier == "haiku" for agent in agents)
     assert all(agent.config.model == expected_model for agent in agents)
-    assert agents[5].config.max_repair_attempts == 2
+    assert agents[1].config.max_repair_attempts == 0
+    assert agents[2].config.max_repair_attempts == 0
+    assert agents[5].config.max_validation_retries == 2
     architect = agents[0]
     assert architect.metric_semantic_reviewer.config.model_tier == "haiku"
 

@@ -615,8 +615,8 @@ def architect_metric_semantic_review_validation_failure_result(
     return AgentStepResult(
         status="BLOCKED",
         rationale=(
-            "The independent theory/executability preflight exhausted bounded "
-            "client-tool repair; its exact lineage was preserved without "
+            "The independent theory/executability preflight exhausted its bounded "
+            "source-review turns; its exact lineage was preserved without "
             "authorizing implementation or simulation."
             if theory_preflight
             else (

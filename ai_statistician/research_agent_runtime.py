@@ -65,6 +65,7 @@ from .generated_metric_contract import (
     generated_metric_contracts_for_artifact,
     generated_metric_requirement_authority_policy_from_context,
     generated_metric_requirement_set_id,
+    generated_metric_requirement_target_namespace_contract,
     generated_metric_requirements_from_context,
     generated_sandbox_runtime_replicates,
     validate_generated_metric_contracts,
@@ -8099,6 +8100,39 @@ def _architect_post_implementation_metric_context(
     return proposal_context, interface_handoff, errors
 
 
+def _architect_feedback_runtime_progress_snapshot(
+    blackboard: BlackboardState,
+) -> dict[str, Any]:
+    """Expose current runtime state without interpreting or selecting a route."""
+
+    recent_handoffs = []
+    for handoff in blackboard.handoff_ledger[-16:]:
+        recent_handoffs.append(
+            {
+                "from_task_id": handoff.from_task_id,
+                "to_task_id": handoff.to_task_id,
+                "from_subsystem": handoff.from_subsystem,
+                "to_subsystem": handoff.to_subsystem,
+                "status": handoff.status,
+                "produced_artifact_ids": list(handoff.produced_artifact_ids),
+                "failure_classification": handoff.failure_classification,
+            }
+        )
+    return {
+        "schema_version": 1,
+        "project_id": blackboard.project_id,
+        "available_artifact_ids": list(blackboard.artifacts)[-24:],
+        "recent_task_ids": list(blackboard.task_history)[-24:],
+        "recent_handoffs": recent_handoffs,
+        "active_blockers": list(blackboard.active_blockers)[-12:],
+        "boundary": (
+            "This is an authoritative inventory of runtime availability and recent "
+            "execution state. It does not judge artifact quality, select a worker, "
+            "or authorize evidence promotion."
+        ),
+    }
+
+
 class ArchitectCoordinatorRuntimeSubsystem:
     name = "ArchitectCoordinator"
 
@@ -8232,9 +8266,13 @@ class ArchitectCoordinatorRuntimeSubsystem:
                     failure_classification="architect_feedback_route_input_invalid",
                 )
             try:
+                feedback_architect_context = dict(context)
+                feedback_architect_context["runtime_progress_snapshot"] = (
+                    _architect_feedback_runtime_progress_snapshot(blackboard)
+                )
                 route_packet = self.coordinator.route_environment_feedback(
                     question=question,
-                    architect_context=context,
+                    architect_context=feedback_architect_context,
                     environment_feedback=environment_feedback,
                 )
             except PacketValidationError as exc:
@@ -8594,6 +8632,57 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 "proof_evidence_status": ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE,
             },
         )
+        continuation_owner = ""
+        continuation_source = ""
+        if (
+            architect_operation
+            == RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+        ):
+            continuation_owner = _architect_metric_protocol_execution_owner(
+                packet
+            )
+            continuation_source = "accepted_metric_protocol_target"
+            if not continuation_owner:
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "The independently accepted metric protocol did not resolve "
+                        "to exactly one runtime execution owner from its declared "
+                        "target namespace."
+                    ),
+                    produced_artifacts={packet_id: packet},
+                    observations=(
+                        EnvironmentObservation(
+                            observation_type=(
+                                "accepted_metric_protocol_execution_owner_invalid"
+                            ),
+                            summary=(
+                                "validated metric targets do not resolve to one "
+                                "runtime execution owner"
+                            ),
+                            payload={
+                                "metric_requirement_set_id": str(
+                                    packet.get("evidence_contract", {}).get(
+                                        "empirical_metric_requirement_set_id",
+                                        "",
+                                    )
+                                    if isinstance(
+                                        packet.get("evidence_contract", {}),
+                                        Mapping,
+                                    )
+                                    else ""
+                                ),
+                                "model_call_completed": True,
+                                "runtime_authored_metric_target": False,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        ),
+                    ),
+                    evidence_entries=(evidence,),
+                    failure_classification=(
+                        "accepted_metric_protocol_execution_owner_invalid"
+                    ),
+                )
         routing_decision = _architect_initial_routing_decision(
             question=question,
             packet=packet,
@@ -8601,6 +8690,8 @@ class ArchitectCoordinatorRuntimeSubsystem:
             packet_id=packet_id,
             runtime_config=self.runtime_config,
             blackboard=blackboard,
+            requested_subsystem_override=continuation_owner,
+            routing_source_override=continuation_source,
         )
         context["architect_initial_routing"] = routing_decision["record"]
         next_task = routing_decision["task"]
@@ -9404,13 +9495,37 @@ def _architect_initial_routing_decision(
     packet_id: str,
     runtime_config: ResearchAgentRuntimeConfig,
     blackboard: BlackboardState,
+    requested_subsystem_override: str = "",
+    routing_source_override: str = "",
 ) -> dict[str, Any]:
-    selected = _architect_select_initial_subsystem(
-        packet=packet,
-        architect_context=architect_context,
-        blackboard=blackboard,
-        question_id=question.id,
+    requested_override = _canonical_architect_subsystem(
+        requested_subsystem_override
     )
+    if requested_override:
+        selected_subsystem = _architect_feasible_initial_subsystem(
+            requested_override,
+            architect_context=architect_context,
+            blackboard=blackboard,
+            question_id=question.id,
+        )
+        selected = {
+            "requested_subsystem": requested_override,
+            "selected_subsystem": selected_subsystem,
+            "source": (
+                str(routing_source_override or "").strip()
+                or "architect_runtime_continuation"
+            ),
+            "requires_prerequisite_theory": (
+                requested_override != selected_subsystem
+            ),
+        }
+    else:
+        selected = _architect_select_initial_subsystem(
+            packet=packet,
+            architect_context=architect_context,
+            blackboard=blackboard,
+            question_id=question.id,
+        )
     context = dict(architect_context)
     routed_environment_feedback = (
         _architect_selected_worker_environment_feedback(
@@ -9624,6 +9739,18 @@ def _architect_initial_routing_decision(
             context["environment_feedback"] = dict(feedback)
             inputs["environment_feedback"] = dict(feedback)
             inputs["architect_context"] = context
+        if selected.get("source") == "accepted_metric_protocol_target":
+            routing_rationale = (
+                "ArchitectCoordinator is routing directly to SimulationEvaluator "
+                "because the independently accepted metric protocol declares that "
+                "execution target and its required handoff artifacts exist."
+            )
+        else:
+            routing_rationale = (
+                "ArchitectCoordinator recorded a top-level execution plan and "
+                "is routing directly to SimulationEvaluator because the model "
+                "selected that worker and its required handoff artifacts exist."
+            )
         return {
             "task": AgentTask(
                 task_id=f"simulation:{question.id}:{stable_hash([packet_id, record])[:8]}",
@@ -9654,11 +9781,7 @@ def _architect_initial_routing_decision(
                 stop_condition="simulation diagnostics recorded for the next typed task",
             ),
             "record": record,
-            "rationale": (
-                "ArchitectCoordinator recorded a top-level execution plan and "
-                "is routing directly to SimulationEvaluator because the model "
-                "selected that worker and its required handoff artifacts exist."
-            ),
+            "rationale": routing_rationale,
         }
     if selected["selected_subsystem"] == "AlgorithmEngineer":
         feedback = routed_environment_feedback
@@ -10027,6 +10150,47 @@ def _architect_select_initial_subsystem(
         "source": "architect_packet",
         "requires_prerequisite_theory": requested != selected,
     }
+
+
+def _architect_metric_protocol_execution_owner(
+    packet: Mapping[str, Any],
+) -> str:
+    """Resolve a reviewed metric protocol's declared runtime execution owner."""
+
+    evidence_contract = packet.get("evidence_contract", {})
+    if not isinstance(evidence_contract, Mapping) or not (
+        evidence_contract.get("empirical_metric_protocol_phase")
+        == METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
+        and evidence_contract.get("metric_protocol_execution_authorized") is True
+    ):
+        return ""
+    requirements = evidence_contract.get("empirical_metric_requirements", [])
+    author_targets = list(
+        dict.fromkeys(
+            str(target).strip()
+            for row in requirements or []
+            if isinstance(row, Mapping) and row.get("required") is True
+            for target in row.get("target_subsystems", []) or []
+            if str(target).strip()
+        )
+    )
+    namespace = generated_metric_requirement_target_namespace_contract()
+    owner_by_author = namespace.get(
+        "runtime_execution_owner_by_author_subsystem", {}
+    )
+    owner_by_author = (
+        owner_by_author if isinstance(owner_by_author, Mapping) else {}
+    )
+    runtime_owners = list(
+        dict.fromkeys(
+            _canonical_architect_subsystem(owner_by_author.get(target, ""))
+            for target in author_targets
+            if _canonical_architect_subsystem(
+                owner_by_author.get(target, "")
+            )
+        )
+    )
+    return runtime_owners[0] if len(runtime_owners) == 1 else ""
 
 
 def _architect_packet_requested_subsystem(packet: Mapping[str, Any]) -> str:

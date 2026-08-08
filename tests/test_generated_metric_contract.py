@@ -229,6 +229,58 @@ def test_typed_boolean_metric_uses_runtime_truth_representation() -> None:
     )
 
 
+def test_authority_kind_mismatch_reports_exact_catalog_observations() -> None:
+    catalog = generated_metric_acceptance_authority_catalog(
+        question={
+            "title": "Generic finite experiment",
+            "description": "Evaluate stability at both requested boundaries.",
+        },
+        runtime_contract={
+            "simulation_targets": [
+                "Evaluate stability at both requested boundaries."
+            ]
+        },
+        theory_protocol_material={"theory_semantic_material": {}},
+    )
+    requirement = _requirement(
+        requirement_id="architect:boundary-stability",
+        metric_semantics="whether both requested boundary evaluations are stable",
+        metric_value_kind="boolean",
+        measurement_protocol="return one boolean after evaluating both boundaries",
+        operator="==",
+        threshold=1,
+        tolerance=0.0,
+        aggregation="all",
+        minimum_pass_count=None,
+        source_anchors=["runtime_contract#/simulation_targets/0"],
+        acceptance_authority_kind="evaluation_mandated",
+        gate_field_authority_mode="field_bound_v1",
+        gate_field_authorities=[],
+    )
+
+    errors = validate_generated_metric_requirements(
+        [requirement],
+        required_target_subsystems=("SimulationEngineer",),
+        expected_runtime_replicates=80,
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+        require_gate_field_authorities=True,
+    )
+
+    authority_error = next(
+        error
+        for error in errors
+        if error.startswith("[generated_metric_numeric_authority_missing]")
+    )
+    assert (
+        "runtime_contract#/simulation_targets/0=diagnostic_only"
+        in authority_error
+    )
+    assert "compatible evaluation_mandated catalog anchors" in authority_error
+    assert "question#/description" in authority_error
+    assert "repair" not in authority_error.lower()
+
+
 def test_boolean_truth_encoding_drops_redundant_field_authorities() -> None:
     requirement = materialize_generated_metric_gate_field_authorities(
         _requirement(
