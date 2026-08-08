@@ -648,6 +648,8 @@ def build_architect_feedback_route_prompt(
                 True
             ),
             "failed_artifacts_remain_failed": True,
+            "top_level_environment_observation_is_current": True,
+            "superseded_observations_are_history_not_active_failures": True,
             "immutable_evidence_gates_cannot_be_weakened": True,
         },
         "required_output": {
@@ -691,7 +693,11 @@ def build_architect_feedback_route_prompt(
         "steps are still missing. Treat runtime_progress_snapshot as authoritative for "
         "artifact availability and recent execution. Do not restart a completed stage "
         "unless the environment observations identify its current artifact as stale, "
-        "incompatible, or insufficient for the concrete next objective. An exhausted "
+        "incompatible, or insufficient for the concrete next objective. "
+        "Treat the top-level observation marked CURRENT_ACTIVE_OBSERVATION as the current "
+        "blocker. Superseded observations are complete attempt history: use them to avoid "
+        "repeating failed work, but never route on an old error unless the current artifact "
+        "re-observes it. An exhausted "
         "automatic same-producer retry budget ends only automatic repetition; it does "
         "not make the existing producer unavailable to an Architect-authored, materially "
         "reframed objective. Never propose a new repair, patch, correction, or adapter "

@@ -107,10 +107,11 @@ from .evaluation_protocol_revision import (
     architect_metric_semantic_review_validation_failure_result,
     architect_preexecution_metric_protocol_rejection_result,
     invalidate_metric_protocol_authorization,
-    metric_protocol_upstream_theory_revision_blocked_result,
-    metric_protocol_upstream_theory_revision_feedback_errors,
+    metric_protocol_preexecution_review_observation_blocked_result,
+    metric_protocol_preexecution_review_observation_errors,
 )
 from .metric_protocol_stage import (
+    METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
     METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
     METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING,
@@ -8394,6 +8395,9 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 packet_id=decision_id,
                 runtime_config=self.runtime_config,
                 blackboard=blackboard,
+                requested_subsystem_override=selected_subsystem,
+                routing_source_override="architect_feedback_route_model",
+                honor_requested_subsystem=True,
             )
             next_task = routing_decision["task"]
             return AgentStepResult(
@@ -8404,13 +8408,14 @@ class ArchitectCoordinatorRuntimeSubsystem:
                     EnvironmentObservation(
                         observation_type="llm_architect_feedback_route",
                         summary=(
-                            f"Architect model requested {selected_subsystem}; "
-                            f"prerequisite checks selected {next_task.owner_subsystem}."
+                            f"Architect model selected {selected_subsystem}; runtime "
+                            "materialized that exact existing-agent route."
                         ),
                         payload={
                             "route_decision_id": decision_id,
                             "model_requested_subsystem": selected_subsystem,
                             "selected_subsystem": next_task.owner_subsystem,
+                            "runtime_owner_override_applied": False,
                             "full_research_plan_regenerated": False,
                             "runtime_authored_candidate_fix": False,
                             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
@@ -9506,16 +9511,21 @@ def _architect_initial_routing_decision(
     blackboard: BlackboardState,
     requested_subsystem_override: str = "",
     routing_source_override: str = "",
+    honor_requested_subsystem: bool = False,
 ) -> dict[str, Any]:
     requested_override = _canonical_architect_subsystem(
         requested_subsystem_override
     )
     if requested_override:
-        selected_subsystem = _architect_feasible_initial_subsystem(
-            requested_override,
-            architect_context=architect_context,
-            blackboard=blackboard,
-            question_id=question.id,
+        selected_subsystem = (
+            requested_override
+            if honor_requested_subsystem
+            else _architect_feasible_initial_subsystem(
+                requested_override,
+                architect_context=architect_context,
+                blackboard=blackboard,
+                question_id=question.id,
+            )
         )
         selected = {
             "requested_subsystem": requested_override,
@@ -9527,6 +9537,7 @@ def _architect_initial_routing_decision(
             "requires_prerequisite_theory": (
                 requested_override != selected_subsystem
             ),
+            "model_route_honored_exactly": bool(honor_requested_subsystem),
         }
     else:
         selected = _architect_select_initial_subsystem(
@@ -9562,6 +9573,9 @@ def _architect_initial_routing_decision(
         ),
         "requires_prerequisite_algorithm": bool(
             selected.get("requires_prerequisite_algorithm", False)
+        ),
+        "model_route_honored_exactly": bool(
+            selected.get("model_route_honored_exactly", False)
         ),
         "boundary": (
             "Architect initial routing is orchestration control only. It does "
@@ -11551,7 +11565,7 @@ class TheoryDeveloperRuntimeSubsystem:
         if not (
             isinstance(metric_protocol_revision_feedback, Mapping)
             and metric_protocol_revision_feedback.get("artifact_kind")
-            == "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+            == METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND
         ):
             metric_protocol_revision_feedback = {}
         if metric_protocol_revision_feedback:
@@ -11565,7 +11579,7 @@ class TheoryDeveloperRuntimeSubsystem:
                 parent_theory_packet_id, {}
             )
             feedback_errors = (
-                metric_protocol_upstream_theory_revision_feedback_errors(
+                metric_protocol_preexecution_review_observation_errors(
                     metric_protocol_revision_feedback,
                     question_id=question.id,
                     parent_theory_packet=(
@@ -11576,7 +11590,7 @@ class TheoryDeveloperRuntimeSubsystem:
                 )
             )
             if feedback_errors:
-                return metric_protocol_upstream_theory_revision_blocked_result(
+                return metric_protocol_preexecution_review_observation_blocked_result(
                     task=task,
                     question=question,
                     feedback=metric_protocol_revision_feedback,
@@ -57531,15 +57545,47 @@ def _generated_code_review_feedback_with_source_execution_snapshot(
     prior_feedback: Mapping[str, Any] | None,
     review_feedback: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Merge review feedback while preserving its ID-bound execution parent."""
+    """Make the current review authoritative without discarding prior observations."""
 
-    prior = dict(prior_feedback) if isinstance(prior_feedback, Mapping) else {}
-    merged = {**prior, **dict(review_feedback)}
+    prior = deepcopy(dict(prior_feedback)) if isinstance(prior_feedback, Mapping) else {}
+    merged = deepcopy(dict(review_feedback))
+    merged["observation_status"] = "CURRENT_ACTIVE_OBSERVATION"
     source_execution_feedback = _generated_sandbox_execution_feedback_snapshot(
         prior
     )
     if source_execution_feedback:
         merged["source_execution_feedback"] = source_execution_feedback
+    if prior:
+        prior_history = prior.pop("superseded_observations", [])
+        prior.pop("observation_time_contract", None)
+        prior["observation_status"] = (
+            "SUPERSEDED_BY_SUBSEQUENT_CANDIDATE_REVIEW"
+        )
+        history = [
+            deepcopy(dict(row))
+            for row in prior_history
+            if isinstance(row, Mapping)
+        ]
+        history.append(
+            {
+                "observation_status": "SUPERSEDED_BY_SUBSEQUENT_CANDIDATE_REVIEW",
+                "superseded_feedback_id": str(prior.get("feedback_id", "") or ""),
+                "superseded_feedback_type": str(
+                    prior.get("feedback_type", "") or ""
+                ),
+                "superseded_failure_classification": str(
+                    prior.get("failure_classification", "") or ""
+                ),
+                "observation": prior,
+            }
+        )
+        merged["superseded_observations"] = history
+    merged["observation_time_contract"] = {
+        "top_level_observation_is_current": True,
+        "superseded_observations_are_historical_only": True,
+        "historical_error_is_not_an_active_blocker_unless_reobserved": True,
+        "complete_history_preserved": True,
+    }
     return merged
 
 

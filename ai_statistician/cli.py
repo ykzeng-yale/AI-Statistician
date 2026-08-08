@@ -1158,6 +1158,22 @@ def _cross_family_eval_protocol_selection(
         ("learning_memory_jsonl", "--learning-memory-jsonl"),
         ("capability_gap_routing_jsonl", "--capability-gap-routing-jsonl"),
         ("question_task_family", "--question-task-family"),
+        (
+            "source_theorem_exact_semantic_definition_lean_repair_executor",
+            "--source-theorem-exact-semantic-definition-lean-repair-executor",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor",
+            "--source-theorem-exact-semantic-definition-lean-environment-repair-executor",
+        ),
+        (
+            "run_coding_agent_generated_code_repair_eval",
+            "--run-coding-agent-generated-code-repair-eval",
+        ),
+        (
+            "run_formalizer_lean_candidate_repair_eval",
+            "--run-formalizer-lean-candidate-repair-eval",
+        ),
     )
     for field, flag in forbidden_inputs:
         if getattr(args, field, None):

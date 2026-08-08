@@ -292,7 +292,10 @@ def build_algorithm_engineer_prompt(
         "complete hash-bound parent_source is present, use that complete source as "
         "the current candidate. Regenerate the complete packet and complete source; "
         "preserve immutable identities and contracts. You choose and author every "
-        "source change; AgentRuntime does not propose edits. "
+        "source change; AgentRuntime does not propose edits. Treat the top-level "
+        "CURRENT_ACTIVE_OBSERVATION as the current failure. Superseded observations "
+        "are complete history for avoiding repeated failures, not active errors unless "
+        "the current candidate re-observes them. "
         if payload["runtime_environment_feedback"]
         else ""
     )

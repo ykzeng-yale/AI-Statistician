@@ -31,6 +31,9 @@ from .llm_json_repair import (
     extract_json_object,
     generate_validated_json_packet,
 )
+from .metric_protocol_stage import (
+    METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
+)
 from .research_schema import OpenResearchQuestion, ResearchReport
 from .semantic_review_feedback import model_observations_without_repair_recipes
 from .theory_revision_lineage import (
@@ -583,7 +586,7 @@ def _theory_developer_prompt_mode(
     if (
         isinstance(environment_feedback, Mapping)
         and environment_feedback.get("artifact_kind")
-        == "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+        == METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND
     ):
         return THEORY_PROMPT_MODE_SERIOUS_REVISION
     architect_plan = architect_context.get("architect_runtime_plan", {})
@@ -2249,14 +2252,14 @@ def _theory_developer_revision_binding_from_context(
         if not (
             isinstance(feedback, Mapping)
             and feedback.get("artifact_kind")
-            == "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+            == METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND
         ):
             raise PacketValidationError(
                 validation_label="TheoryDeveloper targeted revision inputs",
                 attempts=0,
                 errors=[
                     "revision feedback must be a parent-bound TheoryDeveloper "
-                    "revision binding or RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+                    "revision binding or pre-execution review observation"
                 ],
                 history=[],
             )

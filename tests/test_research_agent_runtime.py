@@ -2248,7 +2248,7 @@ def test_theory_developer_preserves_metric_protocol_revision_lineage() -> None:
             return json.loads(json.dumps(theory_packet))
 
     feedback = {
-        "artifact_kind": "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback",
+        "artifact_kind": "RuntimeMetricProtocolPreExecutionReviewObservation",
         "feedback_id": "metric-protocol-theory-feedback:1",
         "question_id": question.id,
         "source_theory_packet_id": "theory_derivation:metric-gate-original",
@@ -2258,24 +2258,23 @@ def test_theory_developer_preserves_metric_protocol_revision_lineage() -> None:
         "source_metric_protocol_rejection_manifest_id": (
             "metric-protocol-rejection:1"
         ),
-        "target_consumer_subsystem": "TheoryDeveloper",
         "upstream_theory_revision_count": 1,
         "max_upstream_theory_revisions": 2,
+        "architect_route_required": True,
+        "runtime_selected_owner": False,
         "execution_authorized": False,
         "proof_evidence_status": (
             "METRIC_PROTOCOL_UPSTREAM_THEORY_FEEDBACK_NOT_PROOF_EVIDENCE"
         ),
-        "recommended_repair_scope": "upstream_theory",
         "findings": [
             {
                 "severity": "high",
                 "category": "missing theory calibration",
                 "summary": "The theory DGP is incomplete.",
-                "required_change": "Derive the missing calibration.",
-                "repair_scope": "upstream_theory",
+                "observed_behavior": "The DGP calibration is missing.",
+                "expected_behavior": "The DGP calibration is derived and auditable.",
             }
         ],
-        "required_revision": "Revise the theory packet itself.",
         "acceptance_gate": "Fresh theory must pass independent metric review.",
     }
     revision_prompt = build_theory_developer_prompt(
@@ -2761,7 +2760,7 @@ def test_theory_validation_retry_preserves_metric_revision_feedback() -> None:
         "theory_derivation:metric-retry-child"
     )
     feedback = {
-        "artifact_kind": "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback",
+        "artifact_kind": "RuntimeMetricProtocolPreExecutionReviewObservation",
         "feedback_id": "metric-protocol-theory-feedback:retry",
         "question_id": question.id,
         "source_theory_packet_id": "theory_derivation:metric-retry-parent",
@@ -2771,28 +2770,24 @@ def test_theory_validation_retry_preserves_metric_revision_feedback() -> None:
         "source_metric_protocol_rejection_manifest_id": (
             "metric-protocol-rejection:retry"
         ),
-        "target_consumer_subsystem": "TheoryDeveloper",
         "upstream_theory_revision_count": 2,
         "max_upstream_theory_revisions": 2,
+        "architect_route_required": True,
+        "runtime_selected_owner": False,
         "execution_authorized": False,
         "proof_evidence_status": (
             "METRIC_PROTOCOL_UPSTREAM_THEORY_FEEDBACK_NOT_PROOF_EVIDENCE"
         ),
-        "recommended_repair_scope": "upstream_theory",
         "findings": [
             {
                 "finding_id": "metric-protocol-finding:retry",
                 "severity": "high",
                 "category": "missing finite-sample derivation",
                 "summary": "The current theory does not derive the calibration.",
-                "required_change": "Derive and audit the missing calibration.",
-                "repair_scope": "upstream_theory",
+                "observed_behavior": "The calibration has no finite-sample derivation.",
+                "expected_behavior": "The calibration follows from an audited derivation.",
             }
         ],
-        "repair_instructions": [
-            "Resolve the finite-sample derivation before metric authoring."
-        ],
-        "required_revision": "Revise the theory packet itself.",
         "acceptance_gate": "Fresh theory must pass independent metric review.",
     }
     architect_context = {
@@ -3355,7 +3350,7 @@ def test_theory_developer_fails_closed_before_model_on_invalid_revision_lineage(
             raise AssertionError("invalid revision lineage reached the model")
 
     feedback = {
-        "artifact_kind": "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback",
+        "artifact_kind": "RuntimeMetricProtocolPreExecutionReviewObservation",
         "feedback_id": "metric-protocol-theory-feedback:invalid-lineage",
         "question_id": question.id,
         "source_theory_packet_id": parent_packet_id,
@@ -3363,18 +3358,18 @@ def test_theory_developer_fails_closed_before_model_on_invalid_revision_lineage(
         "source_metric_protocol_rejection_manifest_id": (
             "metric-protocol-rejection:invalid-lineage"
         ),
-        "target_consumer_subsystem": "TheoryDeveloper",
-        "recommended_repair_scope": "upstream_theory",
         "upstream_theory_revision_count": 1,
         "max_upstream_theory_revisions": 2,
+        "architect_route_required": True,
+        "runtime_selected_owner": False,
         "execution_authorized": False,
         "findings": [
             {
                 "severity": "high",
                 "category": "upstream_semantic_gap",
                 "summary": "The parent theory requires revision.",
-                "required_change": "Revise the missing theory derivation.",
-                "repair_scope": "upstream_theory",
+                "observed_behavior": "The parent theory omits the derivation.",
+                "expected_behavior": "The parent-bound revision resolves the omission.",
             }
         ],
     }
@@ -3408,11 +3403,11 @@ def test_theory_developer_fails_closed_before_model_on_invalid_revision_lineage(
     assert result.status == "BLOCKED"
     assert result.next_task is None
     assert result.failure_classification == (
-        "metric_protocol_upstream_theory_revision_context_invalid"
+        "metric_protocol_preexecution_observation_invalid"
     )
     artifact = next(iter(result.produced_artifacts.values()))
     assert artifact["artifact_kind"] == (
-        "RuntimeMetricProtocolUpstreamTheoryRevisionBlocked"
+        "RuntimeMetricProtocolPreExecutionReviewObservationBlocked"
     )
     assert artifact["execution_authorized"] is False
     assert artifact["model_call_authorized"] is False
@@ -21979,9 +21974,14 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
     assert "runtime_architect_operation" not in review_result.next_task.inputs
     feedback = review_result.next_task.inputs["environment_feedback"]
     assert feedback["overall_verdict"] == "REVISE"
-    assert feedback["source_execution_diagnostic"] == (
-        "original producer observation"
-    )
+    assert "source_execution_diagnostic" not in feedback
+    assert feedback["observation_status"] == "CURRENT_ACTIVE_OBSERVATION"
+    assert feedback["superseded_observations"][-1][
+        "observation_status"
+    ] == "SUPERSEDED_BY_SUBSEQUENT_CANDIDATE_REVIEW"
+    assert feedback["superseded_observations"][-1]["observation"][
+        "source_execution_diagnostic"
+    ] == "original producer observation"
     assert "deferred_task_instruction" not in feedback
     assert feedback["findings"][0]["observed_behavior"].endswith("1.0.")
     assert feedback["reviewed_source_artifacts"][0][
@@ -21999,6 +21999,9 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
     )
     producer_payload = json.loads(producer_prompt.rsplit("\n\n", 1)[1])
     producer_review = producer_payload["runtime_environment_feedback"]
+    assert producer_review["superseded_observations"][-1]["observation"][
+        "source_execution_diagnostic"
+    ] == "original producer observation"
     assert producer_review["reviewed_source_artifacts"][0][
         "exact_source_code"
     ] == source
@@ -23233,7 +23236,7 @@ def test_architect_numeric_authority_failure_stays_candidate_owned() -> None:
     assert routed_contract["metric_protocol_execution_authorized"] is False
     assert all(
         artifact.get("artifact_kind")
-        != "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+        != "RuntimeMetricProtocolPreExecutionReviewObservation"
         for artifact in result.produced_artifacts.values()
     )
 
@@ -24272,12 +24275,21 @@ def test_architect_runtime_persists_preexecution_metric_review_rejection() -> No
         BlackboardState(project_id="metric-preexecution-rejection"),
     )
 
-    assert result.status == "BLOCKED"
-    assert result.next_task is None
-    assert result.failure_classification == (
-        "architect_metric_protocol_preexecution_rejected"
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.inputs["runtime_architect_operation"] == (
+        ARCHITECT_FEEDBACK_ROUTE_OPERATION
     )
-    manifest = next(iter(result.produced_artifacts.values()))
+    assert result.failure_classification == (
+        "architect_metric_protocol_feedback_route_requested"
+    )
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact["artifact_kind"]
+        == "RuntimeArchitectMetricProtocolPreExecutionRejection"
+    )
     assert manifest["artifact_kind"] == (
         "RuntimeArchitectMetricProtocolPreExecutionRejection"
     )
@@ -24287,10 +24299,12 @@ def test_architect_runtime_persists_preexecution_metric_review_rejection() -> No
     assert manifest["simulation_results_observed"] is False
     assert manifest["current_candidate_acceptance_eligible"] is False
     assert manifest["feedback_reusable_for_fresh_preexecution_authoring"] is True
+    assert manifest["architect_route_requested"] is True
+    assert manifest["runtime_selected_owner"] is False
     assert result.evidence_entries[0].payload["kernel_verified"] is False
 
 
-def test_architect_runtime_routes_upstream_metric_review_to_theory_developer() -> None:
+def test_architect_runtime_routes_preexecution_observations_to_architect_model() -> None:
     from ai_statistician.architect_metric_contract_authoring import (
         ArchitectMetricSemanticReviewRejected,
     )
@@ -24351,6 +24365,20 @@ def test_architect_runtime_routes_upstream_metric_review_to_theory_developer() -
                 source_theory_packet_hash="theory-hash",
             )
 
+        def route_environment_feedback(
+            self, *, environment_feedback: Mapping[str, Any], **_kwargs: Any
+        ) -> dict[str, Any]:
+            return {
+                "decision": "ROUTE",
+                "selected_subsystem": "TheoryDeveloper",
+                "objective": "Reconsider the theory from the current observations.",
+                "rationale": "The observed defect is in the current theory artifact.",
+                "environment_feedback_fingerprint": runtime_module.stable_hash(
+                    dict(environment_feedback)
+                ),
+                "route_decision_id": "architect_feedback_route:preexecution-test",
+            }
+
     result = ArchitectCoordinatorRuntimeSubsystem(
         coordinator=RejectingCoordinator(),  # type: ignore[arg-type]
         runtime_config=ResearchAgentRuntimeConfig(
@@ -24382,18 +24410,28 @@ def test_architect_runtime_routes_upstream_metric_review_to_theory_developer() -
 
     assert result.status == "REROUTE"
     assert result.failure_classification == (
-        "architect_metric_protocol_upstream_theory_revision_requested"
+        "architect_metric_protocol_feedback_route_requested"
     )
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.inputs["runtime_architect_operation"] == (
+        ARCHITECT_FEEDBACK_ROUTE_OPERATION
+    )
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["feedback_source"] == "ArchitectMetricSemanticReviewer"
-    assert feedback["recommended_repair_scope"] == "upstream_theory"
+    assert feedback["observation_status"] == "CURRENT_ACTIVE_OBSERVATION"
+    assert feedback["architect_route_required"] is True
+    assert feedback["runtime_selected_owner"] is False
     assert feedback["upstream_theory_revision_count"] == 1
-    assert feedback["findings"] == [history[0]["findings"][0]]
-    assert feedback["repair_instructions"] == [
-        "Derive the missing DGP calibration in TheoryDeveloper."
+    assert [row["summary"] for row in feedback["findings"]] == [
+        "The DGP is not fully specified by theory.",
+        "A metric row uses the wrong operator encoding.",
     ]
+    assert "recommended_repair_scope" not in feedback
+    assert "repair_instructions" not in feedback
+    assert "target_consumer_subsystem" not in feedback
+    assert "cumulative_finding_ledger" not in feedback
+    assert "prior_finding_resolution_summary" not in feedback
     assert feedback["execution_authorized"] is False
     produced_kinds = {
         artifact["artifact_kind"]
@@ -24401,7 +24439,7 @@ def test_architect_runtime_routes_upstream_metric_review_to_theory_developer() -
     }
     assert produced_kinds == {
         "RuntimeArchitectMetricProtocolPreExecutionRejection",
-        "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback",
+        "RuntimeMetricProtocolPreExecutionReviewObservation",
     }
     rejection = next(
         artifact
@@ -24409,8 +24447,30 @@ def test_architect_runtime_routes_upstream_metric_review_to_theory_developer() -
         if artifact["artifact_kind"]
         == "RuntimeArchitectMetricProtocolPreExecutionRejection"
     )
-    assert rejection["upstream_theory_revision_routed"] is True
+    assert rejection["upstream_theory_revision_routed"] is False
+    assert rejection["architect_route_requested"] is True
     assert rejection["execution_authorized"] is False
+
+    routed = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=RejectingCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            metric_protocol_max_upstream_theory_revisions=2,
+        ),
+    ).run(
+        result.next_task,
+        BlackboardState(
+            project_id="metric-preexecution-architect-route",
+            artifacts=dict(result.produced_artifacts),
+        ),
+    )
+    assert routed.status == "REROUTE"
+    assert routed.next_task is not None
+    assert routed.next_task.owner_subsystem == "TheoryDeveloper"
+    routed_feedback = routed.next_task.inputs["environment_feedback"]
+    assert routed_feedback == feedback
+    assert "repair_instructions" not in routed_feedback
+    assert "recommended_repair_scope" not in routed_feedback
 
     exhausted = ArchitectCoordinatorRuntimeSubsystem(
         coordinator=RejectingCoordinator(),  # type: ignore[arg-type]
@@ -45095,6 +45155,8 @@ def test_algorithm_engineer_prompt_includes_raw_sandbox_feedback() -> None:
     assert "for every ID in canonical_implementation_gap_ids" in prompt
     assert '"canonical_implementation_gap_ids":["custom"]' in prompt
     assert "You choose and author every source change" in prompt
+    assert "CURRENT_ACTIVE_OBSERVATION as the current failure" in prompt
+    assert "Superseded observations are complete history" in prompt
     assert "sum(values) / len(values)" not in prompt
     assert (
         "regenerate the complete model-authored draft from the supplied source and "
@@ -46043,6 +46105,8 @@ def test_simulation_engineer_prompt_includes_generated_code_repair_feedback() ->
     assert "exact validator, execution, or independent-review observations" in prompt
     assert "complete hash-bound parent_source" in prompt
     assert "You choose and author every source change" in prompt
+    assert "CURRENT_ACTIVE_OBSERVATION as the current failure" in prompt
+    assert "Superseded observations are complete history" in prompt
     assert "sum(values) / len(values)" not in prompt
     assert "regenerate the complete source from the exact observations" in prompt
     assert "AgentRuntime must not edit the source or select a canned fix" in prompt
@@ -50597,6 +50661,7 @@ def test_generated_simulation_repair_preserves_execution_and_review_lineage() ->
         "feedback_id": feedback_id,
         "feedback_type": feedback_type,
         "failure_classification": failure_classification,
+        "validation_errors": ["old packet validation failure"],
         "simulation_manifest_id": failed_manifest_id,
         "generated_simulation_prototypes": [failed_row],
     }
@@ -50613,6 +50678,21 @@ def test_generated_simulation_repair_preserves_execution_and_review_lineage() ->
             review_feedback=semantic_feedback,
         )
     )
+    assert merged_feedback["observation_status"] == "CURRENT_ACTIVE_OBSERVATION"
+    assert "failure_classification" not in merged_feedback
+    assert "validation_errors" not in merged_feedback
+    assert merged_feedback["superseded_observations"][-1]["observation"][
+        "failure_classification"
+    ] == failure_classification
+    assert merged_feedback["superseded_observations"][-1]["observation"][
+        "validation_errors"
+    ] == ["old packet validation failure"]
+    assert merged_feedback["observation_time_contract"] == {
+        "top_level_observation_is_current": True,
+        "superseded_observations_are_historical_only": True,
+        "historical_error_is_not_an_active_blocker_unless_reobserved": True,
+        "complete_history_preserved": True,
+    }
     passed_row = _annotate_generated_sandbox_prototype_provenance(
         passed_row,
         proposal_packet={

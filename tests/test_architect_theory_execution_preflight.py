@@ -11,6 +11,9 @@ from ai_statistician.architect_metric_contract_authoring import (
     ArchitectMetricSemanticReviewRejected,
     author_reviewed_architect_metric_requirements,
 )
+from ai_statistician.architect_coordinator_llm import (
+    ARCHITECT_FEEDBACK_ROUTE_OPERATION,
+)
 from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
@@ -1726,14 +1729,18 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
     )
     assert result.status == "REROUTE"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.inputs["runtime_architect_operation"] == (
+        ARCHITECT_FEEDBACK_ROUTE_OPERATION
+    )
     assert manifest["disposition"] == "THEORY_EXECUTION_PREFLIGHT_REJECTED"
     assert manifest["preexecution_review_stage"] == "theory_execution_preflight"
     assert manifest["generated_code_observed"] is False
     assert manifest["simulation_results_observed"] is False
     assert result.next_task.inputs["environment_feedback"]["trigger"] == (
-        "THEORY_EXECUTION_PREFLIGHT_REQUIRES_UPSTREAM_THEORY_REVISION"
+        "THEORY_EXECUTION_PREFLIGHT_REJECTED"
     )
+    assert result.next_task.inputs["environment_feedback"]["runtime_selected_owner"] is False
 
 
 def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -> None:
@@ -1791,15 +1798,16 @@ def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -
         max_upstream_theory_revisions=2,
     )
 
-    assert result.status == "REROUTE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
     assert result.failure_classification == (
-        "architect_metric_protocol_upstream_theory_revision_requested"
+        "architect_theory_execution_preflight_stalled"
     )
     manifest = next(iter(result.produced_artifacts.values()))
     assert manifest["preflight_revision_stalled"] is True
-    assert manifest["upstream_theory_revision_routed"] is True
+    assert manifest["upstream_theory_revision_routed"] is False
+    assert manifest["architect_route_requested"] is False
+    assert manifest["runtime_selected_owner"] is False
 
 
 def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
@@ -1887,13 +1895,14 @@ def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
         max_upstream_theory_revisions=2,
     )
 
-    assert result.status == "REROUTE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
     assert result.failure_classification == (
-        "architect_metric_protocol_upstream_theory_revision_requested"
+        "architect_theory_execution_preflight_stalled"
     )
     manifest = next(iter(result.produced_artifacts.values()))
     assert manifest["preflight_revision_progressed"] is False
     assert manifest["preflight_revision_stalled"] is True
-    assert manifest["upstream_theory_revision_routed"] is True
+    assert manifest["upstream_theory_revision_routed"] is False
+    assert manifest["architect_route_requested"] is False
+    assert manifest["runtime_selected_owner"] is False

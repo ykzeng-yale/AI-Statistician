@@ -434,22 +434,25 @@ def _metric_theory_revision_context(
         theory_packet_id=source_packet_id,
     )
     feedback = {
-        "artifact_kind": "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback",
+        "artifact_kind": "RuntimeMetricProtocolPreExecutionReviewObservation",
         "feedback_id": "metric-protocol-theory-feedback:targeted",
         "question_id": question.id,
         "source_theory_packet_id": source_packet_id,
         "source_theory_packet_hash": material["source_theory_packet_hash"],
-        "target_consumer_subsystem": "TheoryDeveloper",
+        "source_metric_protocol_rejection_manifest_id": "metric-rejection:targeted",
         "execution_authorized": False,
         "upstream_theory_revision_count": 1,
+        "max_upstream_theory_revisions": 2,
+        "architect_route_required": True,
+        "runtime_selected_owner": False,
         "findings": [
             {
                 "finding_id": "metric_protocol_finding:bounded-outcome",
                 "severity": "high",
                 "category": "assumption audit",
                 "summary": "The bounded-outcome premise is not explicit.",
-                "required_change": "Revise the theory semantics and direct dependents.",
-                "repair_scope": "upstream_theory",
+                "observed_behavior": "The premise is implicit in the current derivation.",
+                "expected_behavior": "The premise is explicit and referenced by dependents.",
             }
         ],
         "active_unresolved_finding_ids": [

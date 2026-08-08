@@ -71,8 +71,19 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     )
     feedback = {
         "feedback_type": "generated_code_execution_feedback",
+        "observation_status": "CURRENT_ACTIVE_OBSERVATION",
         "parent_source": "x" * 100_000,
         "runtime_errors": ["NameError: estimate is not defined"],
+        "superseded_observations": [
+            {
+                "observation_status": (
+                    "SUPERSEDED_BY_SUBSEQUENT_CANDIDATE_REVIEW"
+                ),
+                "observation": {
+                    "runtime_errors": ["SyntaxError: historical only"]
+                },
+            }
+        ],
         "findings": [
             {
                 "finding_id": "finding:route-owner",
@@ -131,12 +142,18 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
         request.user_prompt
     )
     assert "automatic same-producer retry budget" in request.user_prompt
+    assert "Superseded observations are complete attempt history" in (
+        request.user_prompt
+    )
+    assert "historical_error_is_not_an_active_blocker_unless_reobserved" not in (
+        request.user_prompt
+    )
+    assert "SUPERSEDED_BY_SUBSEQUENT_CANDIDATE_REVIEW" in request.user_prompt
     assert "prompt-budget-exhausted" not in request.user_prompt
 
 
-def test_runtime_binds_full_feedback_after_model_owned_route() -> None:
+def test_runtime_honors_model_owned_route_and_binds_full_feedback() -> None:
     question = _question()
-    theory_packet_id = "theory:generic"
     simulation_manifest_id = "simulation:generic"
     full_feedback = {
         "feedback_type": "generated_code_execution_feedback",
@@ -154,7 +171,6 @@ def test_runtime_binds_full_feedback_after_model_owned_route() -> None:
             self.route_calls += 1
             assert kwargs["environment_feedback"] == full_feedback
             progress = kwargs["architect_context"]["runtime_progress_snapshot"]
-            assert theory_packet_id in progress["available_artifact_ids"]
             assert simulation_manifest_id in progress["available_artifact_ids"]
             assert progress["boundary"].startswith(
                 "This is an authoritative inventory"
@@ -179,14 +195,7 @@ def test_runtime_binds_full_feedback_after_model_owned_route() -> None:
 
     coordinator = _Coordinator()
     context = {
-        "theory_packet_id": theory_packet_id,
         "simulation_manifest_id": simulation_manifest_id,
-        "implementation_gaps": [
-            {
-                "estimator_id": "new-estimator",
-                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
-            }
-        ],
         "architect_runtime_plan": {
             "evidence_contract": {},
             "subsystem_execution_plan": [
@@ -222,7 +231,6 @@ def test_runtime_binds_full_feedback_after_model_owned_route() -> None:
         BlackboardState(
             project_id="architect-feedback-route",
             artifacts={
-                theory_packet_id: {"packet_id": theory_packet_id},
                 simulation_manifest_id: {"manifest_id": simulation_manifest_id},
             },
         ),
@@ -233,9 +241,13 @@ def test_runtime_binds_full_feedback_after_model_owned_route() -> None:
     assert coordinator.plan_calls == 0
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert result.next_task.inputs["theory_packet_id"] == ""
     assert result.next_task.inputs["environment_feedback"] == full_feedback
     assert result.next_task.objective.startswith("Regenerate one complete candidate")
     observation = result.observations[0]
+    assert observation.payload["model_requested_subsystem"] == "AlgorithmEngineer"
+    assert observation.payload["selected_subsystem"] == "AlgorithmEngineer"
+    assert observation.payload["runtime_owner_override_applied"] is False
     assert observation.payload["full_research_plan_regenerated"] is False
     assert observation.payload["runtime_authored_candidate_fix"] is False
 

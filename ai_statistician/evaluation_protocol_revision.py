@@ -18,10 +18,11 @@ from .generated_metric_contract import (
     is_generated_metric_numeric_authority_error,
 )
 from .metric_protocol_stage import (
+    METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
 )
-from .architect_metric_semantic_reviewer_llm import (
-    ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY,
+from .architect_coordinator_llm import (
+    ARCHITECT_FEEDBACK_ROUTE_OPERATION,
 )
 from .research_schema import OpenResearchQuestion
 
@@ -57,7 +58,7 @@ def invalidate_metric_protocol_authorization(
     return context
 
 
-def metric_protocol_upstream_theory_revision_feedback_errors(
+def metric_protocol_preexecution_review_observation_errors(
     feedback: Mapping[str, Any],
     *,
     question_id: str,
@@ -65,15 +66,9 @@ def metric_protocol_upstream_theory_revision_feedback_errors(
 ) -> list[str]:
     errors: list[str] = []
     if feedback.get("artifact_kind") != (
-        "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+        METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND
     ):
-        errors.append("feedback artifact_kind is not upstream theory revision")
-    expected_repair_scope = ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
-    if feedback.get("recommended_repair_scope") != expected_repair_scope:
-        errors.append(
-            "feedback repair scope does not match its theory revision or "
-            "ownership-clarification route"
-        )
+        errors.append("feedback artifact_kind is not a pre-execution review observation")
     if str(feedback.get("question_id", "") or "") != str(question_id or ""):
         errors.append("feedback question_id does not match the runtime question")
     for field in (
@@ -84,10 +79,12 @@ def metric_protocol_upstream_theory_revision_feedback_errors(
     ):
         if not str(feedback.get(field, "") or "").strip():
             errors.append(f"feedback missing {field}")
-    if feedback.get("target_consumer_subsystem") != "TheoryDeveloper":
-        errors.append("feedback target consumer is not TheoryDeveloper")
     if feedback.get("execution_authorized") is not False:
         errors.append("feedback must keep generated execution unauthorized")
+    if feedback.get("architect_route_required") is not True:
+        errors.append("feedback must require an Architect model route")
+    if feedback.get("runtime_selected_owner") is not False:
+        errors.append("feedback must record that runtime did not select an owner")
 
     findings = feedback.get("findings", [])
     failed_response_identity_checks = feedback.get(
@@ -103,19 +100,12 @@ def metric_protocol_upstream_theory_revision_feedback_errors(
         findings = []
     if not findings and not failed_response_identity_checks:
         errors.append(
-            "feedback requires an owned upstream finding or a failed model audit"
+            "feedback requires an observed finding or a failed model audit"
         )
     if findings:
         for index, finding in enumerate(findings):
             if not isinstance(finding, Mapping):
                 errors.append(f"feedback finding {index} is not an object")
-                continue
-            if finding.get("repair_scope") != expected_repair_scope:
-                errors.append(
-                    f"feedback finding {index} does not match the routed scope"
-                )
-            if not str(finding.get("required_change", "") or "").strip():
-                errors.append(f"feedback finding {index} missing required_change")
     for index, check in enumerate(failed_response_identity_checks):
         if not isinstance(check, Mapping):
             errors.append(f"feedback response audit {index} is not an object")
@@ -162,7 +152,7 @@ def metric_protocol_upstream_theory_revision_feedback_errors(
     return list(dict.fromkeys(errors))
 
 
-def metric_protocol_upstream_theory_revision_blocked_result(
+def metric_protocol_preexecution_review_observation_blocked_result(
     *,
     task: AgentTask,
     question: OpenResearchQuestion,
@@ -170,12 +160,12 @@ def metric_protocol_upstream_theory_revision_blocked_result(
     validation_errors: list[str],
 ) -> AgentStepResult:
     errors = [str(value) for value in validation_errors if str(value).strip()]
-    artifact_id = "metric_protocol_theory_revision_blocked:" + stable_hash(
+    artifact_id = "metric_protocol_preexecution_observation_blocked:" + stable_hash(
         [question.id, task.task_id, feedback.get("feedback_id", ""), errors]
     )[:20]
     artifact = {
         "schema_version": EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION,
-        "artifact_kind": "RuntimeMetricProtocolUpstreamTheoryRevisionBlocked",
+        "artifact_kind": "RuntimeMetricProtocolPreExecutionReviewObservationBlocked",
         "artifact_id": artifact_id,
         "question_id": question.id,
         "task_id": task.task_id,
@@ -193,19 +183,19 @@ def metric_protocol_upstream_theory_revision_blocked_result(
         "execution_authorized": False,
         "model_call_authorized": False,
         "proof_evidence_status": (
-            "METRIC_PROTOCOL_THEORY_REVISION_CONTEXT_INVALID_NOT_PROOF_EVIDENCE"
+            "METRIC_PROTOCOL_PREEXECUTION_OBSERVATION_INVALID_NOT_PROOF_EVIDENCE"
         ),
         "boundary": (
-            "The runtime rejected incomplete or mismatched upstream theory-revision "
-            "lineage before calling the model. This is a control-plane blocker, not "
-            "generated execution, statistical acceptance, or theorem proof evidence."
+            "The runtime rejected incomplete or mismatched pre-execution observation "
+            "lineage before calling the selected model. This is a control-plane blocker, "
+            "not generated execution, statistical acceptance, or proof evidence."
         ),
     }
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, artifact_id])[:20],
         task_id=task.task_id,
         artifact_id=artifact_id,
-        evidence_type="metric_protocol_theory_revision_context_rejection",
+        evidence_type="metric_protocol_preexecution_observation_rejection",
         status="BLOCKED_BEFORE_THEORY_MODEL_CALL",
         boundary=str(artifact["boundary"]),
         payload={
@@ -218,14 +208,14 @@ def metric_protocol_upstream_theory_revision_blocked_result(
     return AgentStepResult(
         status="BLOCKED",
         rationale=(
-            "Upstream metric-review feedback could not be bound to its immutable "
-            "parent theory packet, so TheoryDeveloper was not called."
+            "The Architect-routed pre-execution observation could not be bound to its "
+            "immutable parent theory packet, so the selected model was not called."
         ),
         produced_artifacts={artifact_id: artifact},
         observations=(
             EnvironmentObservation(
-                observation_type="metric_protocol_theory_revision_context_invalid",
-                summary="upstream theory revision lineage failed closed",
+                observation_type="metric_protocol_preexecution_observation_invalid",
+                summary="pre-execution observation lineage failed closed",
                 payload={
                     "artifact_id": artifact_id,
                     "validation_errors": errors,
@@ -234,9 +224,7 @@ def metric_protocol_upstream_theory_revision_blocked_result(
             ),
         ),
         evidence_entries=(evidence,),
-        failure_classification=(
-            "metric_protocol_upstream_theory_revision_context_invalid"
-        ),
+        failure_classification="metric_protocol_preexecution_observation_invalid",
     )
 
 
@@ -689,9 +677,6 @@ def architect_preexecution_metric_protocol_rejection_result(
         for row in history
         if str(row.get("semantic_review_packet_id", "") or "").strip()
     ]
-    recommended_repair_scope = str(
-        final_review.get("recommended_repair_scope", "") or "metric_contract"
-    )
     metric_gate = context.get("architect_metric_protocol_gate", {})
     if not isinstance(metric_gate, Mapping):
         metric_gate = {}
@@ -723,10 +708,12 @@ def architect_preexecution_metric_protocol_rejection_result(
         or not prior_active_finding_ids
         or prior_finding_progress_made
     )
-    route_upstream_theory = bool(
-        recommended_repair_scope
-        == ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
-        and upstream_theory_revision_count < max_theory_revisions
+    architect_route_available = bool(
+        upstream_theory_revision_count < max_theory_revisions
+        and (
+            not theory_execution_preflight_rejected
+            or preflight_revision_progressed
+        )
     )
     failed_response_identity_checks = [
         dict(row)
@@ -783,7 +770,6 @@ def architect_preexecution_metric_protocol_rejection_result(
             theory_execution_preflight_rejected
             and not preflight_revision_progressed
         ),
-        "recommended_repair_scope": recommended_repair_scope,
         "source_theory_packet_id": source_theory_packet_id,
         "source_theory_packet_hash": source_theory_packet_hash,
         "final_overall_verdict": str(
@@ -795,11 +781,6 @@ def architect_preexecution_metric_protocol_rejection_result(
             if isinstance(row, Mapping)
         ],
         "failed_response_identity_checks": failed_response_identity_checks,
-        "final_repair_instructions": [
-            str(value)
-            for value in final_review.get("repair_instructions", []) or []
-            if str(value).strip()
-        ],
         "generated_code_observed": False,
         "simulation_results_observed": False,
         "current_candidate_acceptance_eligible": False,
@@ -808,7 +789,9 @@ def architect_preexecution_metric_protocol_rejection_result(
         "feedback_reusable_for_fresh_preexecution_authoring": True,
         "upstream_theory_revision_count": upstream_theory_revision_count,
         "max_upstream_theory_revisions": max_theory_revisions,
-        "upstream_theory_revision_routed": route_upstream_theory,
+        "upstream_theory_revision_routed": False,
+        "architect_route_requested": architect_route_available,
+        "runtime_selected_owner": False,
         "proof_evidence_status": (
             "METRIC_PROTOCOL_PREEXECUTION_REJECTION_NOT_PROOF_EVIDENCE"
         ),
@@ -845,88 +828,66 @@ def architect_preexecution_metric_protocol_rejection_result(
             "model turn on semantically unchanged feedback; no coding or simulation "
             "execution is authorized."
         )
-    if route_upstream_theory:
+    if architect_route_available:
         next_revision_count = upstream_theory_revision_count + 1
-        routed_finding_scope = (
-            ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
-        )
-        upstream_findings = [
-            dict(row)
+        observed_findings = [
+            {
+                key: deepcopy(row[key])
+                for key in (
+                    "finding_id",
+                    "severity",
+                    "category",
+                    "summary",
+                    "observed_behavior",
+                    "expected_behavior",
+                    "evidence_refs",
+                )
+                if key in row
+            }
             for row in final_review.get("findings", []) or []
             if isinstance(row, Mapping)
-            and row.get("repair_scope") == routed_finding_scope
         ]
-        if not upstream_findings:
-            upstream_findings = [
-                dict(row)
-                for row in final_review.get("findings", []) or []
-                if isinstance(row, Mapping)
-            ]
-        upstream_repair_instructions = list(
-            dict.fromkeys(
-                [
-                    *[
-                        str(row.get("required_change", "") or "").strip()
-                        for row in upstream_findings
-                        if str(row.get("required_change", "") or "").strip()
-                    ],
-                    *[
-                        str(value).strip()
-                        for row in failed_response_identity_checks
-                        for value in row.get("unresolved_conflicts", []) or []
-                        if str(value).strip()
-                    ],
-                ]
-            )
-        )
-        feedback_id = "metric_protocol_upstream_theory_feedback:" + stable_hash(
+        feedback_id = "metric_protocol_preexecution_observation:" + stable_hash(
             [
                 manifest_id,
                 next_revision_count,
-                upstream_findings,
+                observed_findings,
                 failed_response_identity_checks,
             ]
         )[:20]
         feedback = {
             "schema_version": EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION,
-            "artifact_kind": "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback",
+            "artifact_kind": METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
             "feedback_id": feedback_id,
             "feedback_source": "ArchitectMetricSemanticReviewer",
-            "feedback_type": "preexecution_metric_protocol_upstream_theory_revision",
+            "feedback_type": "preexecution_metric_protocol_review_observation",
+            "observation_status": "CURRENT_ACTIVE_OBSERVATION",
             "preexecution_review_stage": preexecution_review_stage,
             "trigger": (
-                "THEORY_EXECUTION_PREFLIGHT_REQUIRES_UPSTREAM_THEORY_REVISION"
+                "THEORY_EXECUTION_PREFLIGHT_REJECTED"
                 if theory_execution_preflight_rejected
-                else "METRIC_PROTOCOL_REVIEW_REQUIRES_UPSTREAM_THEORY_REVISION"
+                else "METRIC_PROTOCOL_PREEXECUTION_REVIEW_REJECTED"
             ),
             "failure_classification": (
-                "architect_metric_protocol_upstream_theory_revision_required"
+                "architect_metric_protocol_preexecution_review_rejected"
             ),
             "question_id": question.id,
             "source_task_id": task.task_id,
             "source_owner_subsystem": task.owner_subsystem,
-            "target_consumer_subsystem": "TheoryDeveloper",
             "source_metric_protocol_rejection_manifest_id": manifest_id,
             "source_theory_packet_id": source_theory_packet_id,
             "source_theory_packet_hash": source_theory_packet_hash,
-            "recommended_repair_scope": recommended_repair_scope,
             "upstream_theory_revision_count": next_revision_count,
             "max_upstream_theory_revisions": max_theory_revisions,
+            "architect_route_required": True,
+            "runtime_selected_owner": False,
             "dimension_reviews": [
                 dict(row)
                 for row in final_review.get("dimension_reviews", []) or []
                 if isinstance(row, Mapping)
             ],
-            "findings": upstream_findings,
+            "findings": observed_findings,
             "failed_response_identity_checks": failed_response_identity_checks,
-            "cumulative_finding_ledger": [
-                dict(row)
-                for row in final_review.get(
-                    "cumulative_finding_ledger", []
-                )
-                or []
-                if isinstance(row, Mapping)
-            ],
             "active_unresolved_finding_ids": [
                 str(value)
                 for value in final_review.get(
@@ -935,29 +896,25 @@ def architect_preexecution_metric_protocol_rejection_result(
                 or []
                 if str(value).strip()
             ],
-            "prior_finding_resolution_summary": (
-                prior_finding_resolution_summary
-            ),
-            "repair_instructions": upstream_repair_instructions,
-            "high_priority_agenda": [
-                *upstream_findings,
-                *failed_response_identity_checks,
-            ],
             "acceptance_gate": (
-                "A fresh structured TheoryDeveloper packet addresses every routed "
-                "upstream finding; a fresh metric candidate then receives independent "
-                "pre-execution review before any generated execution."
+                "The existing Architect model selects one existing subsystem or BLOCK; "
+                "any new candidate then receives fresh independent pre-execution review "
+                "before generated execution."
             ),
             "generated_code_observed": False,
             "simulation_results_observed": False,
             "execution_authorized": False,
             "proof_evidence_status": (
-                "METRIC_PROTOCOL_UPSTREAM_THEORY_FEEDBACK_NOT_PROOF_EVIDENCE"
+                "METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_NOT_PROOF_EVIDENCE"
             ),
+            "observation_time_contract": {
+                "top_level_observation_is_current": True,
+                "historical_error_is_not_an_active_blocker_unless_reobserved": True,
+            },
             "boundary": (
-                "This is pre-execution semantic feedback for LLM theory revision. "
-                "It is not generated execution, statistical acceptance, or theorem "
-                "proof evidence."
+                "This is current pre-execution semantic observation for an LLM Architect "
+                "routing decision. It contains no runtime-authored repair recipe or owner "
+                "selection and is not execution, statistical acceptance, or proof evidence."
             ),
         }
         produced_artifacts[feedback_id] = feedback
@@ -980,7 +937,7 @@ def architect_preexecution_metric_protocol_rejection_result(
             ),
             "upstream_theory_revision_count": next_revision_count,
             "max_upstream_theory_revisions": max_theory_revisions,
-            "required_disposition": "REVISED_THEORY_THEN_PREEXECUTION_REVIEW_ACCEPTED",
+            "required_disposition": "ARCHITECT_MODEL_ROUTE_THEN_FRESH_PREEXECUTION_REVIEW",
             "execution_authorized": False,
             "consumed": False,
             "proof_evidence_status": (
@@ -989,13 +946,13 @@ def architect_preexecution_metric_protocol_rejection_result(
         }
         next_task = AgentTask(
             task_id=(
-                f"theory-metric-protocol-revision:{question.id}:"
+                f"architect-feedback-route:{question.id}:"
                 f"{stable_hash([feedback_id, next_revision_count])[:8]}"
             ),
-            owner_subsystem="TheoryDeveloper",
+            owner_subsystem="ArchitectCoordinator",
             objective=(
-                "Clarify or revise the upstream statistical theory from independent "
-                "pre-execution metric-review feedback."
+                "Choose the next existing evidence-producing subsystem, or BLOCK, from "
+                "the current independent pre-execution observations."
             ),
             inputs={
                 "question": {
@@ -1006,24 +963,24 @@ def architect_preexecution_metric_protocol_rejection_result(
                 },
                 "architect_context": next_context,
                 "environment_feedback": feedback,
+                "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
+                "theory_packet_id": source_theory_packet_id,
             },
-            allowed_tools=("model_backend", "rag_memory", "evidence_ledger"),
-            expected_artifacts=("theory_derivation_packet",),
+            allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
+            expected_artifacts=("architect_feedback_route_decision",),
             acceptance_gate=str(feedback["acceptance_gate"]),
             stop_condition=(
-                "revised theory is independently re-reviewed through a fresh "
-                "pre-execution metric protocol"
+                "Architect model records one typed route to an existing subsystem or BLOCK"
             ),
         )
         status = "REROUTE"
         failure_classification = (
-            "architect_metric_protocol_upstream_theory_revision_requested"
+            "architect_metric_protocol_feedback_route_requested"
         )
         rationale = (
-            "Independent pre-execution review found an upstream theory defect. "
-            "The rejected metric lineage is preserved and the typed findings are "
-            "routed to TheoryDeveloper within the configured revision budget; no "
-            "coding or simulation execution is authorized."
+            "Independent pre-execution review rejected the current candidate. The "
+            "complete observed lineage is preserved for the existing Architect model "
+            "to select the next owner; runtime authored no repair or owner route."
         )
 
     evidence = EvidenceLedgerEntry(
@@ -1032,8 +989,8 @@ def architect_preexecution_metric_protocol_rejection_result(
         artifact_id=manifest_id,
         evidence_type="metric_protocol_preexecution_rejection",
         status=(
-            "PREEXECUTION_PROTOCOL_REJECTED_THEORY_REVISION_ROUTED"
-            if route_upstream_theory
+            "PREEXECUTION_PROTOCOL_REJECTED_ARCHITECT_ROUTE_REQUESTED"
+            if architect_route_available
             else "PREEXECUTION_PROTOCOL_REJECTED_NO_EXECUTION_AUTHORIZED"
         ),
         boundary=str(manifest["boundary"]),
