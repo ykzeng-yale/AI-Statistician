@@ -14603,22 +14603,71 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 lineage_ledger = (
                     record_generated_code_semantic_review_lineage_action(
                         lineage_budget_state,
-                        action="blocked",
+                        action="architect_replan",
                     )
                 )
                 execution_manifest["semantic_review_lineage_budget"][
                     "selected_action"
-                ] = "blocked"
+                ] = "architect_replan"
                 execution_manifest[
                     GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
                 ] = lineage_ledger
-                next_task = None
-                status = "BLOCKED"
+                source_task = _agent_task_from_runtime_payload(
+                    source_task_payload
+                )
+                source_context = source_task_inputs.get(
+                    "architect_context",
+                    {},
+                )
+                source_context = (
+                    dict(source_context)
+                    if isinstance(source_context, Mapping)
+                    else {}
+                )
+                source_context[
+                    GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
+                ] = lineage_ledger
+                architect_feedback = {
+                    **revision_feedback,
+                    "failure_classification": (
+                        "generated_code_semantic_review_lineage_budget_exhausted"
+                    ),
+                    "semantic_review_lineage_budget": lineage_budget_summary,
+                    "semantic_review_execution_id": execution_id,
+                    "semantic_review_packet_id": review_packet_id,
+                    "source_manifest_id": str(
+                        work_order.get("source_manifest_id", "") or ""
+                    ),
+                    "routing_authority_on_revise": (
+                        "architect_model_after_candidate_budget"
+                    ),
+                    "runtime_selected_source_edit": False,
+                    "model_owned_source_revision": True,
+                }
+                next_task = _coding_agent_revision_budget_architect_task(
+                    task=source_task,
+                    question=question,
+                    context=source_context,
+                    revision_feedback=architect_feedback,
+                    source_artifact_id=str(
+                        work_order.get("source_manifest_id", "") or ""
+                    ),
+                    revision_attempts_used=int(
+                        lineage_budget_summary.get(
+                            "source_candidate_regeneration_count",
+                            revision_count,
+                        )
+                        or 0
+                    ),
+                    revision_max_attempts=max_revisions,
+                )
+                status = "REROUTE"
                 rationale = (
                     "The generated-code semantic review exhausted its global "
-                    "producer-regeneration budget. The rejected artifact and "
-                    "observations remain recorded without a runtime-authored "
-                    "source change."
+                    "same-producer candidate-regeneration budget. The complete "
+                    "rejected artifact and exact observations are routed to the "
+                    "Architect model to select theory, interface, environment, or "
+                    "implementation work without a runtime-authored source change."
                 )
                 failure_classification = (
                     "generated_code_semantic_review_lineage_budget_exhausted"
@@ -14675,7 +14724,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 ),
                 "overall_verdict": verdict,
                 "routing_authority_on_revise": (
-                    "immutable_source_producer_lineage"
+                    "architect_model_after_candidate_budget"
+                    if lineage_budget_state.get("lineage_budget_exhausted") is True
+                    else "immutable_source_producer_lineage"
                 ),
                 "runtime_selected_owner": False,
                 "empirical_evaluation_phase": empirical_evaluation_phase,
@@ -16050,7 +16101,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                             "simulation_manifest_id": manifest_id,
                         },
                         revision_feedback=feedback,
-                        source_manifest_id=manifest_id,
+                        source_artifact_id=manifest_id,
                         revision_attempts_used=repair_attempts_used,
                         revision_max_attempts=yield_after_attempts,
                     )
@@ -17039,7 +17090,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                         "algorithm_sandbox_manifest_id": manifest_id,
                     },
                     revision_feedback=feedback,
-                    source_manifest_id=manifest_id,
+                    source_artifact_id=manifest_id,
                     revision_attempts_used=repair_attempts_used,
                     revision_max_attempts=yield_after_attempts,
                 )
@@ -17537,7 +17588,7 @@ def _coding_agent_packet_validation_state(
         "packet_validation_source_retry_escalated": (
             source_retry_escalated
         ),
-        "packet_validation_replan_required": False,
+        "packet_validation_replan_required": lineage_budget_exhausted,
     }
 
 
@@ -17547,7 +17598,7 @@ def _coding_agent_revision_budget_architect_task(
     question: OpenResearchQuestion,
     context: Mapping[str, Any],
     revision_feedback: Mapping[str, Any],
-    source_manifest_id: str,
+    source_artifact_id: str,
     revision_attempts_used: int,
     revision_max_attempts: int,
 ) -> AgentTask:
@@ -17557,7 +17608,7 @@ def _coding_agent_revision_budget_architect_task(
         "artifact_kind": "RuntimeCodingAgentRevisionBudgetReplanContext",
         "source_task_id": task.task_id,
         "source_subsystem": task.owner_subsystem,
-        "source_manifest_id": source_manifest_id,
+        "source_artifact_id": source_artifact_id,
         "failure_classification": str(
             revision_feedback.get("failure_classification", "") or ""
         ),
@@ -17581,7 +17632,7 @@ def _coding_agent_revision_budget_architect_task(
     return AgentTask(
         task_id=(
             f"architect-code-replan:{question.id}:"
-            f"{stable_hash([task.task_id, source_manifest_id, revision_feedback])[:8]}"
+            f"{stable_hash([task.task_id, source_artifact_id, revision_feedback])[:8]}"
         ),
         owner_subsystem="ArchitectCoordinator",
         objective=(
@@ -17858,11 +17909,28 @@ def _simulation_engineer_packet_validation_failure_result(
             "recorded"
         ),
     )
-    next_task = (
-        None
-        if validation_state["packet_validation_lineage_budget_exhausted"]
-        else same_owner_next_task
+    packet_budget_exhausted = bool(
+        validation_state["packet_validation_lineage_budget_exhausted"]
     )
+    if packet_budget_exhausted:
+        revision_context["runtime_feedback_loop"]["handoff"] = (
+            "simulation_engineer_packet_validation_budget_architect_replan"
+        )
+        next_task = _coding_agent_revision_budget_architect_task(
+            task=task,
+            question=question,
+            context=revision_context,
+            revision_feedback=repair_feedback,
+            source_artifact_id=failure_id,
+            revision_attempts_used=int(
+                validation_state["lineage_packet_validation_round"]
+            ),
+            revision_max_attempts=int(
+                validation_state["packet_validation_max_lineage_failures"]
+            ),
+        )
+    else:
+        next_task = same_owner_next_task
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
         task_id=task.task_id,
@@ -17883,21 +17951,22 @@ def _simulation_engineer_packet_validation_failure_result(
     )
     return AgentStepResult(
         status=(
-            "BLOCKED"
-            if validation_state["packet_validation_lineage_budget_exhausted"]
+            "REROUTE"
+            if packet_budget_exhausted
             else "REVISE"
         ),
         rationale=(
             "SimulationEngineer exhausted the persistent lineage-bound packet "
-            "validation budget; runtime recorded a typed blocker and stopped "
-            "before another model call or execution."
-            if validation_state["packet_validation_lineage_budget_exhausted"]
+            "validation budget; the complete rejected candidate and exact validator "
+            "observations are routed to the Architect model without a runtime-authored "
+            "candidate change."
+            if packet_budget_exhausted
             else "LLM SimulationEngineer packet repeatedly failed local validation; "
-            "the local packet-validator retained ownership in SimulationEvaluator "
-            "and escalated the exact lineage-bound feedback for a bounded source retry."
+            "the same SimulationEvaluator receives the exact lineage-bound feedback "
+            "for one bounded complete-candidate regeneration."
             if validation_state["packet_validation_source_retry_escalated"]
             else "LLM SimulationEngineer packet failed local validation; exact "
-            "validator feedback was recorded and routed back before execution."
+            "validator feedback was returned to the same producer before execution."
         ),
         produced_artifacts={failure_id: failure_artifact},
         observations=(
@@ -18077,11 +18146,28 @@ def _algorithm_engineer_packet_validation_failure_result(
             "regenerated algorithm packet or explicit implementation blocker recorded"
         ),
     )
-    next_task = (
-        None
-        if validation_state["packet_validation_lineage_budget_exhausted"]
-        else same_owner_next_task
+    packet_budget_exhausted = bool(
+        validation_state["packet_validation_lineage_budget_exhausted"]
     )
+    if packet_budget_exhausted:
+        revision_context["runtime_feedback_loop"]["handoff"] = (
+            "algorithm_engineer_packet_validation_budget_architect_replan"
+        )
+        next_task = _coding_agent_revision_budget_architect_task(
+            task=task,
+            question=question,
+            context=revision_context,
+            revision_feedback=repair_feedback,
+            source_artifact_id=failure_id,
+            revision_attempts_used=int(
+                validation_state["lineage_packet_validation_round"]
+            ),
+            revision_max_attempts=int(
+                validation_state["packet_validation_max_lineage_failures"]
+            ),
+        )
+    else:
+        next_task = same_owner_next_task
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
         task_id=task.task_id,
@@ -18102,21 +18188,22 @@ def _algorithm_engineer_packet_validation_failure_result(
     )
     return AgentStepResult(
         status=(
-            "BLOCKED"
-            if validation_state["packet_validation_lineage_budget_exhausted"]
+            "REROUTE"
+            if packet_budget_exhausted
             else "REVISE"
         ),
         rationale=(
             "AlgorithmEngineer exhausted the persistent lineage-bound packet "
-            "validation budget; runtime recorded a typed blocker and stopped "
-            "before another model call or execution."
-            if validation_state["packet_validation_lineage_budget_exhausted"]
+            "validation budget; the complete rejected candidate and exact validator "
+            "observations are routed to the Architect model without a runtime-authored "
+            "candidate change."
+            if packet_budget_exhausted
             else "LLM AlgorithmEngineer packet repeatedly failed local validation; "
-            "the local packet-validator retained ownership in AlgorithmEngineer "
-            "and escalated the exact lineage-bound feedback for a bounded source retry."
+            "the same AlgorithmEngineer receives the exact lineage-bound feedback "
+            "for one bounded complete-candidate regeneration."
             if validation_state["packet_validation_source_retry_escalated"]
             else "LLM AlgorithmEngineer packet failed local validation; structured "
-            "feedback was recorded and routed back to AlgorithmEngineer."
+            "feedback was returned to the same producer before execution."
         ),
         produced_artifacts={failure_id: failure_artifact},
         observations=(

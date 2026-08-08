@@ -21955,10 +21955,13 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
         },
     )
 
-    review_result = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
-        reviewer=reviewer,
-        max_revisions=1,
-    ).run(dispatch["next_task"], blackboard)
+    reviewer_subsystem = (
+        runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
+            reviewer=reviewer,
+            max_revisions=1,
+        )
+    )
+    review_result = reviewer_subsystem.run(dispatch["next_task"], blackboard)
 
     assert review_result.status == "REVISE"
     assert review_result.next_task is not None
@@ -22011,6 +22014,93 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
         blackboard=blackboard,
     )
     assert guarded is review_result
+
+    blackboard.artifacts.update(review_result.produced_artifacts)
+    second_dispatch = runtime_module._runtime_generated_code_semantic_review_dispatch(
+        task=review_result.next_task,
+        question=question,
+        source_subsystem="AlgorithmEngineer",
+        source_manifest=manifest,
+        theory_packet=theory_packet,
+        proposal_packet=proposal,
+        architect_context=review_result.next_task.inputs["architect_context"],
+        deferred_next_task=deferred_task,
+        max_revisions=1,
+    )
+    assert second_dispatch is not None
+    blackboard.artifacts[second_dispatch["work_order_id"]] = second_dispatch[
+        "work_order"
+    ]
+    second_review_response = {
+        **review_response,
+        "prior_finding_reviews": [
+            {
+                "finding_id": feedback["findings"][0]["finding_id"],
+                "status": "UNRESOLVED",
+                "rationale": "The regenerated artifact still exhibits the finding.",
+                "evidence_refs": [
+                    "/exact_executed_artifacts/0/exact_result/estimate"
+                ],
+            }
+        ],
+    }
+    second_reviewer_subsystem = (
+        runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
+            reviewer=LLMGeneratedCodeSemanticReviewerAgent(
+                provider=StaticArchitectLLMProvider(second_review_response),
+                config=GeneratedCodeSemanticReviewerConfig(
+                    provider_name="anthropic",
+                    model=LIVE_EVALUATION_CLAUDE_MODEL,
+                    model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+                ),
+            ),
+            max_revisions=1,
+        )
+    )
+
+    exhausted_result = second_reviewer_subsystem.run(
+        second_dispatch["next_task"],
+        blackboard,
+    )
+
+    assert exhausted_result.status == "REROUTE", (
+        exhausted_result.rationale,
+        exhausted_result.failure_classification,
+    )
+    assert exhausted_result.next_task is not None
+    assert exhausted_result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert exhausted_result.next_task.inputs["runtime_architect_operation"] == (
+        runtime_module.ARCHITECT_FEEDBACK_ROUTE_OPERATION
+    )
+    exhausted_feedback = exhausted_result.next_task.inputs[
+        "environment_feedback"
+    ]
+    assert exhausted_feedback["failure_classification"] == (
+        "generated_code_semantic_review_lineage_budget_exhausted"
+    )
+    assert exhausted_feedback["reviewed_source_artifacts"][0][
+        "exact_source_code"
+    ] == source
+    assert exhausted_feedback["reviewed_source_artifacts"][0][
+        "exact_result"
+    ] == result_payload
+    assert exhausted_feedback["runtime_selected_source_edit"] is False
+    assert exhausted_feedback["model_owned_source_revision"] is True
+    assert exhausted_feedback["routing_authority_on_revise"] == (
+        "architect_model_after_candidate_budget"
+    )
+    assert "required_change" not in exhausted_feedback
+    replan_context = exhausted_result.next_task.inputs["architect_context"][
+        "runtime_coding_agent_revision_budget_replan"
+    ]
+    assert replan_context["source_subsystem"] == "AlgorithmEngineer"
+    assert replan_context["source_artifact_id"] == manifest["manifest_id"]
+    lineage_rows = exhausted_result.next_task.inputs["architect_context"][
+        runtime_module.GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
+    ].values()
+    assert {row["last_action"] for row in lineage_rows} == {
+        "architect_replan"
+    }
 
 
 def test_pre_metric_implementation_does_not_release_without_independent_reviewer(
@@ -46268,6 +46358,115 @@ def test_coding_packet_validation_feedback_preserves_role_boundaries() -> None:
             "handoff"
         ]
         == "simulation_engineer_packet_validation_escalated_complete_regeneration"
+    )
+
+
+def test_coding_packet_regeneration_budget_routes_raw_evidence_to_architect() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[1]
+    rejected_candidate = {
+        "packet_id": "rejected:complete-candidate",
+        "source_tail_marker": "COMPLETE_CANDIDATE_TAIL",
+    }
+    validation_error = "generated code dependencies must be an array"
+    exc = PacketValidationError(
+        validation_label="LLM coding packet",
+        attempts=1,
+        errors=[validation_error],
+        history=[{"attempt_index": 0, "ok": False}],
+        last_invalid_packet=rejected_candidate,
+    )
+    question_payload = runtime_module._question_to_payload(question)
+
+    simulation_task = AgentTask(
+        task_id="simulation:packet-budget",
+        owner_subsystem="SimulationEvaluator",
+        objective="Generate a complete simulation candidate.",
+        inputs={
+            "question": question_payload,
+            "theory_packet_id": "theory:packet-budget",
+            "architect_context": {},
+        },
+        allowed_tools=("model_backend", "python_sandbox"),
+    )
+    simulation_result = (
+        runtime_module._simulation_engineer_packet_validation_failure_result(
+            task=simulation_task,
+            question=question,
+            theory_packet_id="theory:packet-budget",
+            context={},
+            exc=exc,
+            n_runs=8,
+            seed=17,
+            max_lineage_failures=1,
+        )
+    )
+
+    assert simulation_result.status == "REROUTE"
+    assert simulation_result.next_task is not None
+    assert simulation_result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert simulation_result.next_task.inputs["runtime_architect_operation"] == (
+        runtime_module.ARCHITECT_FEEDBACK_ROUTE_OPERATION
+    )
+    simulation_feedback = simulation_result.next_task.inputs[
+        "environment_feedback"
+    ]
+    assert simulation_feedback["rejected_candidate"] == rejected_candidate
+    assert simulation_feedback["validation_errors"] == [validation_error]
+    assert simulation_feedback["packet_validation_replan_required"] is True
+    assert "required_change" not in simulation_feedback
+    simulation_replan = simulation_result.next_task.inputs[
+        "architect_context"
+    ]["runtime_coding_agent_revision_budget_replan"]
+    assert simulation_replan["source_subsystem"] == "SimulationEvaluator"
+    assert simulation_replan["source_artifact_id"].startswith(
+        "simulation_engineer_validation_failure:"
+    )
+
+    algorithm_task = AgentTask(
+        task_id="algorithm:packet-budget",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Generate a complete algorithm candidate.",
+        inputs={
+            "question": question_payload,
+            "theory_packet_id": "theory:packet-budget",
+            "architect_context": {},
+        },
+        allowed_tools=("model_backend", "python_sandbox"),
+    )
+    algorithm_result = (
+        runtime_module._algorithm_engineer_packet_validation_failure_result(
+            task=algorithm_task,
+            question=question,
+            theory_packet_id="theory:packet-budget",
+            simulation_manifest_id="",
+            implementation_gaps=[],
+            context={},
+            exc=exc,
+            max_lineage_failures=1,
+        )
+    )
+
+    assert algorithm_result.status == "REROUTE"
+    assert algorithm_result.next_task is not None
+    assert algorithm_result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert algorithm_result.next_task.inputs["runtime_architect_operation"] == (
+        runtime_module.ARCHITECT_FEEDBACK_ROUTE_OPERATION
+    )
+    algorithm_feedback = algorithm_result.next_task.inputs[
+        "environment_feedback"
+    ]
+    assert algorithm_feedback["rejected_candidate"] == rejected_candidate
+    assert algorithm_feedback["validation_errors"] == [validation_error]
+    assert algorithm_feedback["packet_validation_replan_required"] is True
+    assert "required_change" not in algorithm_feedback
+    algorithm_replan = algorithm_result.next_task.inputs["architect_context"][
+        "runtime_coding_agent_revision_budget_replan"
+    ]
+    assert algorithm_replan["source_subsystem"] == "AlgorithmEngineer"
+    assert algorithm_replan["source_artifact_id"].startswith(
+        "algorithm_engineer_validation_failure:"
     )
 
 

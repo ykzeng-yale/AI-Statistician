@@ -438,7 +438,7 @@ def test_fresh_candidate_must_change_the_rejected_requirement_set() -> None:
     ) == []
 
 
-def test_packet_validation_budget_survives_theory_revision_and_stays_source_owned() -> None:
+def test_packet_validation_budget_survives_theory_revision_then_requires_architect() -> None:
     base_inputs = {
         "question": {"id": "generic_packet_budget"},
         "theory_packet_id": "theory:stable",
@@ -518,7 +518,7 @@ def test_packet_validation_budget_survives_theory_revision_and_stays_source_owne
     )
     assert third["lineage_packet_validation_round"] == 3
     assert third["packet_validation_lineage_budget_exhausted"] is True
-    assert third["packet_validation_replan_required"] is False
+    assert third["packet_validation_replan_required"] is True
     assert third["packet_validation_source_retry_escalated"] is False
     lineage_row = third["packet_validation_attempt_ledger"][
         third["packet_validation_lineage_key"]
