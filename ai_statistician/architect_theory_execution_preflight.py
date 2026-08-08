@@ -38,8 +38,8 @@ from .metric_protocol_finding_ledger import (
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 7
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 10
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 8
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 11
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -205,9 +205,9 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "slots supplied by ordered_review_slots. AgentRuntime owns and binds their "
         "identities; do not copy identity strings into output rows. Mark a prior "
         "finding RESOLVED_BY_CURRENT_THEORY only when current source anchors show the "
-        "required change and set current_finding=null; otherwise mark it UNRESOLVED "
-        "and place exactly one semantic continuation in current_finding. Do not "
-        "disguise a persistent defect as a newly worded finding."
+        "required change; otherwise mark it UNRESOLVED. AgentRuntime carries an "
+        "unresolved prior finding forward unchanged, so do not restate it in findings. "
+        "Use findings only for genuinely new defects."
     ),
 )
 
@@ -576,7 +576,6 @@ def architect_theory_execution_preflight_json_schema(
             "status",
             "rationale",
             "evidence_refs",
-            "current_finding",
         ],
         "properties": {
             "status": {
@@ -592,17 +591,6 @@ def architect_theory_execution_preflight_json_schema(
                 "maxLength": 280,
             },
             "evidence_refs": evidence_refs,
-            "current_finding": {
-                "description": (
-                    "Supply one semantic continuation for UNRESOLVED and null for "
-                    "RESOLVED_BY_CURRENT_THEORY. AgentRuntime binds the ordered slot "
-                    "to the prior and canonical finding identity."
-                ),
-                "anyOf": [
-                    {"$ref": "#/$defs/finding"},
-                    {"type": "null"},
-                ],
-            },
         },
     }
 
@@ -726,9 +714,9 @@ def architect_theory_execution_preflight_json_schema(
                 "maxItems": max(3, len(active_prior_finding_ids)),
                 "description": (
                     "Only genuinely new defects that block metric authoring or finite "
-                    "execution. Continue active prior defects only inside the ordered "
-                    "prior_finding_reviews current_finding field. Exclude downstream "
-                    "proof obligations and robustness outside the admitted DGP."
+                    "execution. AgentRuntime carries active prior defects from the "
+                    "ordered prior_finding_reviews status rows. Exclude downstream proof "
+                    "obligations and robustness outside the admitted DGP."
                 ),
                 "items": {"$ref": "#/$defs/finding"},
             },
@@ -857,6 +845,19 @@ def _architect_theory_execution_preflight_submit_schema(
         ),
     }
     finding_schema["required"].append("source_evidence_refs")
+    prior_review_schema = schema["$defs"].get("prior_finding_review")
+    if isinstance(prior_review_schema, dict):
+        prior_review_schema["properties"]["source_evidence_refs"] = deepcopy(
+            finding_schema["properties"]["source_evidence_refs"]
+        )
+        prior_review_schema["properties"]["source_evidence_refs"][
+            "description"
+        ] = (
+            "Short source_ref handles returned by search_preflight_sources that "
+            "support the current RESOLVED or UNRESOLVED judgment. Runtime resolves "
+            "them to immutable source_hit_id values."
+        )
+        prior_review_schema["required"].append("source_evidence_refs")
     return schema
 
 
@@ -1251,6 +1252,27 @@ def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
                     errors.append("preflight source_ref must be unique")
                 else:
                     source_refs[source_ref] = hit_id
+    for index, review in enumerate(
+        row
+        for row in packet.get("prior_finding_reviews", []) or []
+        if isinstance(row, Mapping)
+    ):
+        refs = [
+            str(value).strip()
+            for value in review.get("source_evidence_refs", []) or []
+            if str(value).strip()
+        ]
+        invalid_refs = [ref for ref in refs if ref not in hit_ids]
+        if not refs or invalid_refs:
+            errors.append(
+                f"prior_finding_reviews[{index}] must cite runtime-returned "
+                "source refs"
+                + (
+                    "; invalid refs: " + ", ".join(invalid_refs[:6])
+                    if invalid_refs
+                    else ""
+                )
+            )
     findings = [
         row
         for row in packet.get("findings", []) or []
@@ -1361,17 +1383,6 @@ def _derived_verdict(packet: Mapping[str, Any]) -> str:
         and all_prior_findings_resolved
         and not packet.get("findings", [])
         else "REVISE"
-    )
-
-
-def _derived_repair_instructions(packet: Mapping[str, Any]) -> list[str]:
-    return list(
-        dict.fromkeys(
-            str(row.get("required_change", "") or "").strip()
-            for row in packet.get("findings", []) or []
-            if isinstance(row, Mapping)
-            and str(row.get("required_change", "") or "").strip()
-        )
     )
 
 
@@ -1502,6 +1513,20 @@ def _ordered_review_slot_rows(
     return {}
 
 
+def _prior_finding_semantics(value: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: deepcopy(item)
+        for key, item in value.items()
+        if key
+        not in {
+            "finding_id",
+            "prior_finding_id",
+            "repair_scope",
+            "source_evidence_refs",
+        }
+    }
+
+
 def _normalize_packet(
     payload: Mapping[str, Any],
     *,
@@ -1558,6 +1583,12 @@ def _normalize_packet(
         body.get("prior_finding_reviews", {}),
         expected_count=len(active_prior_finding_ids),
     )
+    active_prior_rows_by_id = {
+        str(row.get("finding_id", "") or "").strip(): dict(row)
+        for row in material.get("active_prior_finding_ledger", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("finding_id", "") or "").strip()
+    }
     prior_finding_continuations: list[dict[str, Any]] = []
     normalized_prior_reviews: list[dict[str, Any]] = []
     for transport_index, raw_finding_id in enumerate(
@@ -1573,24 +1604,31 @@ def _normalize_packet(
                 else value
             )
             for key, value in raw_prior_finding_reviews[transport_index].items()
-            if key not in {"finding_id", "prior_finding_id"}
+            if key not in {"finding_id", "prior_finding_id", "current_finding"}
         }
-        raw_continuation = review.pop("current_finding", None)
-        normalized_prior_reviews.append({"finding_id": finding_id, **review})
-        if isinstance(raw_continuation, Mapping):
-            continuation = {
-                key: value
-                for key, value in dict(raw_continuation).items()
-                if key not in {"finding_id", "prior_finding_id", "repair_scope"}
-            }
-            prior_finding_continuations.append(
-                {
-                    **continuation,
-                    "prior_finding_id": finding_id,
-                    "finding_id": finding_id,
-                    "repair_scope": "upstream_theory",
-                }
+        if body.get("source_grounding_required") is True:
+            review["source_evidence_refs"] = _canonical_preflight_source_refs(
+                review.get("source_evidence_refs", []),
+                source_grounding=grounding,
             )
+        normalized_prior_reviews.append({"finding_id": finding_id, **review})
+        if review.get("status") == METRIC_PROTOCOL_FINDING_UNRESOLVED:
+            prior_row = active_prior_rows_by_id.get(finding_id, {})
+            prior_finding = prior_row.get("finding", {})
+            if isinstance(prior_finding, Mapping) and prior_finding:
+                continuation = deepcopy(dict(prior_finding))
+                continuation.update(
+                    {
+                        "prior_finding_id": finding_id,
+                        "finding_id": finding_id,
+                        "repair_scope": "upstream_theory",
+                    }
+                )
+                if body.get("source_grounding_required") is True:
+                    continuation["source_evidence_refs"] = list(
+                        review.get("source_evidence_refs", []) or []
+                    )
+                prior_finding_continuations.append(continuation)
     body["prior_finding_reviews"] = normalized_prior_reviews
     required_estimator_ids = list(
         material.get("required_estimator_ids", []) or []
@@ -1654,6 +1692,16 @@ def _normalize_packet(
                 preserve_existing_ids=False,
             )[0]
         normalized_findings.append(finding)
+    deduplicated_findings: list[dict[str, Any]] = []
+    seen_finding_ids: set[str] = set()
+    for finding in normalized_findings:
+        finding_id = str(finding.get("finding_id", "") or "").strip()
+        if finding_id and finding_id in seen_finding_ids:
+            continue
+        if finding_id:
+            seen_finding_ids.add(finding_id)
+        deduplicated_findings.append(finding)
+    normalized_findings = deduplicated_findings
     body["findings"] = normalized_findings
     if body.get("source_grounding_required") is True:
         for finding in normalized_findings:
@@ -1676,31 +1724,39 @@ def _normalize_packet(
         }
         for finding in normalized_findings
     ] if body.get("source_grounding_required") is True else []
-    body["runtime_prior_finding_identity_bindings"] = [
-        {
-            "transport_index": transport_index,
-            "prior_finding_id": finding_id,
-            "canonical_finding_id": finding_id,
-            "model_continuation_fingerprint": stable_hash(
-                {
-                    key: value
-                    for key, value in row.items()
-                    if key
-                    not in {
-                        "finding_id",
-                        "prior_finding_id",
-                        "repair_scope",
-                    }
-                }
+    body["runtime_prior_finding_identity_bindings"] = []
+    for transport_index, finding_id in enumerate(active_prior_finding_ids):
+        prior_row = active_prior_rows_by_id.get(str(finding_id), {})
+        prior_finding = prior_row.get("finding", {})
+        carried = next(
+            (
+                row
+                for row in normalized_findings
+                if str(row.get("prior_finding_id", "") or "").strip()
+                == str(finding_id)
             ),
-            "identity_source": "prior_finding_reviews_ordered_index",
-            "runtime_selected_semantics": False,
-        }
-        for transport_index, finding_id in enumerate(active_prior_finding_ids)
-        for row in normalized_findings
-        if str(row.get("prior_finding_id", "") or "").strip() == finding_id
-    ]
-    body["repair_instructions"] = _derived_repair_instructions(body)
+            None,
+        )
+        if not isinstance(prior_finding, Mapping) or not isinstance(
+            carried, Mapping
+        ):
+            continue
+        body["runtime_prior_finding_identity_bindings"].append(
+            {
+                "transport_index": transport_index,
+                "prior_finding_id": str(finding_id),
+                "canonical_finding_id": str(finding_id),
+                "prior_ledger_semantic_fingerprint": stable_hash(
+                    _prior_finding_semantics(prior_finding)
+                ),
+                "carried_semantic_fingerprint": stable_hash(
+                    _prior_finding_semantics(carried)
+                ),
+                "identity_source": "prior_finding_reviews_ordered_index",
+                "semantic_source": "active_prior_finding_ledger",
+                "runtime_selected_semantics": False,
+            }
+        )
     body["derived_consistency_warnings"] = _derived_consistency_warnings(body)
     body["overall_verdict"] = _derived_verdict(body)
     packet_id = "architect_theory_execution_preflight:" + stable_hash(
@@ -2047,31 +2103,53 @@ def validate_architect_theory_execution_preflight_packet(
         errors.append(
             "theory execution preflight finding ids must be nonempty and unique"
         )
-    expected_identity_bindings = [
-        {
-            "transport_index": transport_index,
-            "prior_finding_id": finding_id,
-            "canonical_finding_id": finding_id,
-            "model_continuation_fingerprint": stable_hash(
-                {
-                    key: value
-                    for key, value in row.items()
-                    if key
-                    not in {
-                        "finding_id",
-                        "prior_finding_id",
-                        "repair_scope",
-                    }
-                }
+    active_prior_rows_by_id = {
+        str(row.get("finding_id", "") or "").strip(): dict(row)
+        for row in material.get("active_prior_finding_ledger", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("finding_id", "") or "").strip()
+    }
+    expected_identity_bindings: list[dict[str, Any]] = []
+    for transport_index, finding_id in enumerate(expected_prior_finding_ids):
+        prior_finding = active_prior_rows_by_id.get(finding_id, {}).get(
+            "finding", {}
+        )
+        carried = next(
+            (
+                row
+                for row in findings
+                if str(row.get("prior_finding_id", "") or "").strip()
+                == finding_id
             ),
-            "identity_source": "prior_finding_reviews_ordered_index",
-            "runtime_selected_semantics": False,
-        }
-        for transport_index, finding_id in enumerate(expected_prior_finding_ids)
-        for row in findings
-        if str(row.get("prior_finding_id", "") or "").strip()
-        == finding_id
-    ]
+            None,
+        )
+        if not isinstance(prior_finding, Mapping) or not isinstance(
+            carried, Mapping
+        ):
+            continue
+        prior_semantics = _prior_finding_semantics(prior_finding)
+        carried_semantics = _prior_finding_semantics(carried)
+        if stable_hash(carried_semantics) != stable_hash(prior_semantics):
+            errors.append(
+                "runtime-carried prior finding semantics differ from the immutable "
+                f"ledger; finding_id={finding_id}"
+            )
+        expected_identity_bindings.append(
+            {
+                "transport_index": transport_index,
+                "prior_finding_id": finding_id,
+                "canonical_finding_id": finding_id,
+                "prior_ledger_semantic_fingerprint": stable_hash(
+                    prior_semantics
+                ),
+                "carried_semantic_fingerprint": stable_hash(
+                    carried_semantics
+                ),
+                "identity_source": "prior_finding_reviews_ordered_index",
+                "semantic_source": "active_prior_finding_ledger",
+                "runtime_selected_semantics": False,
+            }
+        )
     if packet.get("runtime_prior_finding_identity_bindings", []) != (
         expected_identity_bindings
     ):
@@ -2096,8 +2174,8 @@ def validate_architect_theory_execution_preflight_packet(
             resolved_with_continuation.append(finding_id)
     if unresolved_without_continuation:
         errors.append(
-            "each UNRESOLVED prior finding requires exactly one linked current "
-            "finding; finding_ids="
+            "runtime must carry each UNRESOLVED prior finding forward exactly once; "
+            "finding_ids="
             + json.dumps(unresolved_without_continuation)
         )
     if resolved_with_continuation:
@@ -2113,12 +2191,6 @@ def validate_architect_theory_execution_preflight_packet(
         errors.append("theory execution preflight overall verdict is not runtime-derived")
     if not required_estimator_ids and expected_verdict != "REVISE":
         errors.append("theory execution preflight cannot accept without an estimator")
-    repair_instructions = packet.get("repair_instructions", [])
-    expected_repair_instructions = _derived_repair_instructions(packet)
-    if repair_instructions != expected_repair_instructions:
-        errors.append(
-            "theory execution preflight repair instructions are not runtime-derived"
-        )
     if expected_verdict == "REVISE" and not findings:
         errors.append(
             "REVISE theory execution preflight needs at least one finding"
@@ -2246,8 +2318,8 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             name="submit_theory_preflight_review",
             description=(
                 "Submit the complete preflight review after source search. Every "
-                "finding, including a continued prior finding, must cite one or "
-                "more short source_ref handles returned in this loop."
+                "new finding and every prior-finding status judgment must cite one "
+                "or more short source_ref handles returned in this loop."
             ),
             input_schema=submit_schema,
             terminal=True,
@@ -2430,9 +2502,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                             "allowed_values": source_handles,
                         },
                     },
-                    "repair_instruction": (
-                        "Resubmit the complete typed review after correcting every "
-                        "listed field error. Do not swap the two citation namespaces."
+                    "regeneration_instruction": (
+                        "Submit a complete new typed review after using every listed "
+                        "validation observation. Do not swap the citation namespaces."
                     ),
                 }
                 return ClientToolExecutionResult(

@@ -145,9 +145,7 @@ class _PreflightToolBackend:
         for finding in payload["findings"]:
             finding["source_evidence_refs"] = [source_ref]
         for review in payload.get("prior_finding_reviews", []) or []:
-            current_finding = review.get("current_finding")
-            if isinstance(current_finding, dict):
-                current_finding["source_evidence_refs"] = [source_ref]
+            review["source_evidence_refs"] = [source_ref]
         return payload
 
     def generate_client_tool_turn(self, request):
@@ -449,14 +447,14 @@ def test_preflight_canonicalizes_prior_finding_source_ref_before_binding() -> No
     rejected, _backend = _review(accept=False)
     prior_ledger = rejected["cumulative_finding_ledger"]
     prior_finding_id = rejected["active_unresolved_finding_ids"][0]
+    prior_finding = prior_ledger[0]["finding"]
     payload = _payload(accept=False)
-    continuation = payload["findings"].pop()
+    payload["findings"] = []
     payload["prior_finding_reviews"] = [
         {
             "status": "UNRESOLVED",
             "rationale": "The revised source still leaves the finite branch undefined.",
             "evidence_refs": ["theory.estimator_specs"],
-            "current_finding": continuation,
         }
     ]
     backend = _PreflightToolBackend(accept=False, payload=payload)
@@ -466,14 +464,18 @@ def test_preflight_canonicalizes_prior_finding_source_ref_before_binding() -> No
     continued = packet["findings"][0]
     assert continued["finding_id"] == prior_finding_id
     assert continued["source_evidence_refs"] == [backend.hit_id]
-    assert packet["runtime_prior_finding_identity_bindings"][0][
-        "model_continuation_fingerprint"
-    ] == stable_hash(
-        {
-            key: value
-            for key, value in continued.items()
-            if key not in {"finding_id", "prior_finding_id", "repair_scope"}
-        }
+    for field in (
+        "severity",
+        "category",
+        "summary",
+        "required_change",
+        "evidence_refs",
+    ):
+        assert continued[field] == prior_finding[field]
+    binding = packet["runtime_prior_finding_identity_bindings"][0]
+    assert binding["semantic_source"] == "active_prior_finding_ledger"
+    assert binding["prior_ledger_semantic_fingerprint"] == (
+        binding["carried_semantic_fingerprint"]
     )
 
 
@@ -1150,9 +1152,6 @@ def test_preflight_downgrades_inconsistent_estimator_pass_without_retry() -> Non
     assert packet["findings"][0]["category"] == (
         "unestablished_theorem_hypothesis"
     )
-    assert packet["repair_instructions"] == [
-        packet["findings"][0]["required_change"]
-    ]
     assert packet["runtime_estimator_status_normalizations"] == [
         {
             "estimator_id": "generic_stream_method",
@@ -1199,7 +1198,6 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
                 "The current estimator interface now exposes the bounded outcome."
             ),
             "evidence_refs": ["theory.estimator_specs"],
-            "current_finding": None,
         }
     ]
     backend = _Backend(accepted_payload)
@@ -1233,10 +1231,7 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
         "prior_finding_review"
     ]
     assert "finding_id" not in prior_review_definition["properties"]
-    assert "current_finding" in prior_review_definition["required"]
-    assert prior_review_definition["properties"]["current_finding"]["anyOf"][
-        1
-    ] == {"type": "null"}
+    assert "current_finding" not in prior_review_definition["properties"]
     finding_definition = backend.requests[0].schema["$defs"]["finding"]
     assert "prior_finding_id" not in finding_definition["properties"]
     assert accepted["overall_verdict"] == "ACCEPT"
@@ -1259,11 +1254,8 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_index() -> None:
     rejected, _backend = _review(accept=False)
     prior_ledger = rejected["cumulative_finding_ledger"]
     prior_finding_id = rejected["active_unresolved_finding_ids"][0]
+    prior_finding = prior_ledger[0]["finding"]
     initial_payload = _payload(accept=False)
-    continuation = initial_payload["findings"].pop()
-    continuation["summary"] = (
-        "The revised finite interface still omits one declared outcome."
-    )
     initial_payload["findings"] = [
         {
             "severity": "medium",
@@ -1278,7 +1270,6 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_index() -> None:
             "status": "UNRESOLVED",
             "rationale": "The revised source still leaves the finite branch undefined.",
             "evidence_refs": ["theory.estimator_specs"],
-            "current_finding": continuation,
         }
     ]
     backend = _Backend(initial_payload)
@@ -1307,23 +1298,20 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_index() -> None:
         "prior_finding_reviews"
     ]["items"]
     assert prior_schema == {"$ref": "#/$defs/prior_finding_review"}
-    assert "current_finding" in backend.requests[0].schema["$defs"][
+    assert "current_finding" not in backend.requests[0].schema["$defs"][
         "prior_finding_review"
-    ]["required"]
+    ]["properties"]
     assert packet["findings"][0]["prior_finding_id"] == prior_finding_id
     assert packet["findings"][0]["finding_id"] == prior_finding_id
-    assert packet["findings"][0]["summary"] == continuation["summary"]
+    assert packet["findings"][0]["summary"] == prior_finding["summary"]
     assert packet["findings"][1].get("prior_finding_id", "") == ""
-    assert packet["runtime_prior_finding_identity_bindings"] == [
-        {
-            "transport_index": 0,
-            "prior_finding_id": prior_finding_id,
-            "canonical_finding_id": prior_finding_id,
-            "model_continuation_fingerprint": stable_hash(continuation),
-            "identity_source": "prior_finding_reviews_ordered_index",
-            "runtime_selected_semantics": False,
-        }
-    ]
+    binding = packet["runtime_prior_finding_identity_bindings"][0]
+    assert binding["prior_finding_id"] == prior_finding_id
+    assert binding["semantic_source"] == "active_prior_finding_ledger"
+    assert binding["prior_ledger_semantic_fingerprint"] == (
+        binding["carried_semantic_fingerprint"]
+    )
+    assert binding["runtime_selected_semantics"] is False
     assert packet["prior_finding_resolution_summary"][
         "still_unresolved_prior_finding_ids"
     ] == [prior_finding_id]
@@ -1401,55 +1389,36 @@ def test_preflight_prior_lineage_errors_name_expected_and_missing_ids() -> None:
     continuation_error = next(
         error
         for error in errors
-        if error.startswith("each UNRESOLVED prior finding")
+        if error.startswith("runtime must carry each UNRESOLVED prior finding")
     )
     assert json.dumps([prior_finding_id]) in continuation_error
 
 
-def test_preflight_repairs_missing_ordered_prior_continuation() -> None:
+def test_preflight_deduplicates_model_restatement_of_prior_finding() -> None:
     rejected, _backend = _review(accept=False)
     prior_ledger = rejected["cumulative_finding_ledger"]
     prior_finding_id = rejected["active_unresolved_finding_ids"][0]
     initial_payload = _payload(accept=False)
-    continuation = initial_payload["findings"].pop()
+    initial_payload["findings"] = [
+        {
+            field: deepcopy(prior_ledger[0]["finding"][field])
+            for field in (
+                "severity",
+                "category",
+                "summary",
+                "required_change",
+                "evidence_refs",
+            )
+        }
+    ]
     initial_payload["prior_finding_reviews"] = [
         {
             "status": "UNRESOLVED",
             "rationale": "The finite source branch remains undefined.",
             "evidence_refs": ["theory.estimator_specs"],
-            "current_finding": None,
         }
     ]
-
-    class MissingContinuationBackend:
-        provider_name = "anthropic"
-
-        def __init__(self) -> None:
-            self.requests = []
-            self.retry_payload = {}
-
-        def generate(self, request):
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                payload = initial_payload
-            else:
-                repair_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
-                self.retry_payload = repair_payload
-                payload = deepcopy(initial_payload)
-                payload["prior_finding_reviews"][0]["current_finding"] = (
-                    continuation
-                )
-            return GeneratorResponse(
-                text=json.dumps(payload),
-                provider="anthropic",
-                model=request.model,
-                metadata={
-                    "provider_structured_output_requested": True,
-                    "provider_structured_output_applied": True,
-                },
-            )
-
-    backend = MissingContinuationBackend()
+    backend = _Backend(initial_payload)
     packet = review_architect_theory_execution_preflight(
         provider=backend,
         question=_question(),
@@ -1467,19 +1436,23 @@ def test_preflight_repairs_missing_ordered_prior_continuation() -> None:
         prior_finding_ledger=prior_ledger,
     )
 
-    assert len(backend.requests) == 2
-    assert "subsystem_repair_context" not in backend.retry_payload
-    assert prior_finding_id in backend.retry_payload["original_request"]
-    assert backend.retry_payload["previous_candidate"]
+    assert len(backend.requests) == 1
+    assert "current_finding" not in backend.requests[0].schema["$defs"][
+        "prior_finding_review"
+    ]["properties"]
     assert packet["findings"][0]["prior_finding_id"] == prior_finding_id
     assert packet["findings"][0]["finding_id"] == prior_finding_id
+    assert packet["findings"][0]["summary"] == prior_ledger[0]["finding"][
+        "summary"
+    ]
+    assert len(packet["findings"]) == 1
     assert packet["runtime_prior_finding_identity_bindings"][0][
         "runtime_selected_semantics"
     ] is False
-    assert packet["llm_json_repair_attempts"] == 1
+    assert packet["llm_json_repair_attempts"] == 0
 
 
-def test_preflight_repairs_missing_ordered_prior_row_by_replacing_array() -> None:
+def test_preflight_regenerates_missing_ordered_prior_row() -> None:
     rejected, _backend = _review(accept=False)
     prior_ledger = rejected["cumulative_finding_ledger"]
     second_prior = deepcopy(prior_ledger[0])
@@ -1496,7 +1469,6 @@ def test_preflight_repairs_missing_ordered_prior_row_by_replacing_array() -> Non
             "status": "RESOLVED_BY_CURRENT_THEORY",
             "rationale": "The current theory now declares this executable outcome.",
             "evidence_refs": ["theory.estimator_specs"],
-            "current_finding": None,
         }
         for _finding_id in prior_finding_ids
     ]
@@ -1666,7 +1638,6 @@ def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -
                 "estimator_execution_checks"
             ],
             "findings": rejected_packet["findings"],
-            "repair_instructions": rejected_packet["repair_instructions"],
             "cumulative_finding_ledger": rejected_packet[
                 "cumulative_finding_ledger"
             ],
@@ -1760,7 +1731,6 @@ def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
                     "finding_id": new_finding_id,
                 },
             ],
-            "repair_instructions": rejected_packet["repair_instructions"],
             "cumulative_finding_ledger": rejected_packet[
                 "cumulative_finding_ledger"
             ],

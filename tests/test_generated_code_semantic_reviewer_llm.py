@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 
 import pytest
@@ -22,7 +23,10 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     validate_generated_code_semantic_review_packet,
 )
 from ai_statistician.llm_json_repair import PacketValidationError
-from ai_statistician.model_backend import StaticJSONGeneratorBackend
+from ai_statistician.model_backend import (
+    GeneratorResponse,
+    StaticJSONGeneratorBackend,
+)
 from ai_statistician.research_schema import OpenResearchQuestion
 
 
@@ -138,6 +142,14 @@ def test_prompt_is_observation_only_and_preserves_complete_source() -> None:
     assert "def run_sandbox" in prompt
     assert "Do not propose source edits" in prompt
     assert "ArchitectCoordinator decides what subsystem acts next" in prompt
+    assert "Monte Carlo uncertainty" in prompt
+    assert "all-PASS" not in prompt
+    assert "If every dimension is PASS, findings must be empty" in prompt
+    assert "RETRACTED_RUNTIME_CONTRACT_CONFLICT" in prompt
+    assert '"reviewer_scope_contract"' in prompt
+    assert "valid_evidence_refs" in prompt
+    assert "forms are also accepted" in prompt
+    assert "findings contains only genuinely new defects" in prompt
     assert "repair_scope" not in prompt
     assert "upstream_metric_contract" not in prompt
     assert len(prompt) < 20_000
@@ -177,6 +189,53 @@ def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:
         generated_code_semantic_review_json_schema(_review_material()),
         forbidden,
     )
+
+
+def test_anthropic_reviewer_uses_provider_native_structured_output() -> None:
+    response = {
+        "prior_finding_reviews": [],
+        "dimension_reviews": _dimension_rows(),
+        "findings": [],
+    }
+
+    class AnthropicBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "provider_structured_output_requested": True,
+                    "provider_structured_output_applied": True,
+                },
+            )
+
+    backend = AnthropicBackend()
+    agent = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+
+    packet = agent.review(
+        question=_question(),
+        review_material=_review_material(),
+        trusted_lineage=_trusted_lineage(),
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert backend.requests[0].model == "claude-haiku-4-5-20251001"
+    assert backend.requests[0].metadata["provider_structured_output"] is True
 
 
 def test_reviewer_accepts_without_selecting_a_repair_owner() -> None:
@@ -245,6 +304,34 @@ def test_reviewer_reports_evidence_bound_defect_without_source_edit() -> None:
     ) == []
 
 
+def test_all_pass_review_cannot_emit_blocking_findings() -> None:
+    response = {
+        "prior_finding_reviews": [],
+        "dimension_reviews": _dimension_rows(),
+        "findings": [
+            {
+                "severity": "medium",
+                "category": "empirical_precision",
+                "summary": "The realized estimate has wide uncertainty.",
+                "observed_behavior": "The finite run is noisy.",
+                "expected_behavior": "A later empirical evaluator should assess it.",
+                "evidence_refs": ["/exact_executed_artifacts"],
+            }
+        ],
+    }
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        _agent(response).review(
+            question=_question(),
+            review_material=_review_material(),
+            trusted_lineage=_trusted_lineage(),
+        )
+
+    assert "all-PASS semantic reviews must leave findings empty" in str(
+        exc_info.value
+    )
+
+
 def test_legacy_repair_fields_are_reduced_to_descriptive_observations() -> None:
     response = {
         "prior_finding_reviews": [],
@@ -306,6 +393,45 @@ def test_missing_evidence_pointer_fails_closed() -> None:
     assert "cites missing evidence ref" in str(exc_info.value)
 
 
+@pytest.mark.parametrize(
+    "evidence_ref",
+    (
+        "#/exact_executed_artifacts/0/exact_source_code",
+        "/review_material/exact_executed_artifacts/0/exact_source_code",
+    ),
+)
+def test_equivalent_evidence_pointer_namespaces_are_canonicalized(
+    evidence_ref: str,
+) -> None:
+    response = {
+        "prior_finding_reviews": [],
+        "dimension_reviews": {
+            dimension: {
+                **row,
+                "evidence_refs": [evidence_ref],
+            }
+            for dimension, row in _dimension_rows().items()
+        },
+        "findings": [],
+    }
+
+    packet = _agent(response).review(
+        question=_question(),
+        review_material=_review_material(),
+        trusted_lineage=_trusted_lineage(),
+    )
+
+    assert all(
+        row["evidence_refs"]
+        == ["/review_material/exact_executed_artifacts/0/exact_source_code"]
+        for row in packet["dimension_reviews"]
+    )
+    assert validate_generated_code_semantic_review_packet(
+        packet,
+        review_material=_review_material(),
+    ) == []
+
+
 def test_prior_findings_are_reviewed_by_identity_without_owner_state() -> None:
     material = _review_material()
     material["prior_semantic_observations"] = {
@@ -323,7 +449,6 @@ def test_prior_findings_are_reviewed_by_identity_without_owner_state() -> None:
     response = {
         "prior_finding_reviews": [
             {
-                "finding_id": "generated_code_semantic_finding:prior",
                 "status": "RESOLVED_BY_CURRENT_ARTIFACT",
                 "rationale": "The fresh source and result close the observation.",
                 "evidence_refs": [
@@ -342,6 +467,105 @@ def test_prior_findings_are_reviewed_by_identity_without_owner_state() -> None:
     )
 
     assert packet["overall_verdict"] == "ACCEPT"
+    assert "finding_id" not in generated_code_semantic_review_json_schema(
+        material
+    )["properties"]["prior_finding_reviews"]["items"]["properties"]
+    assert packet["prior_finding_reviews"][0]["finding_id"] == (
+        "generated_code_semantic_finding:prior"
+    )
+    assert packet["active_unresolved_finding_ids"] == []
+    assert validate_generated_code_semantic_review_packet(
+        packet,
+        review_material=material,
+    ) == []
+
+
+def test_unresolved_prior_finding_keeps_review_in_revise_without_restatement() -> None:
+    material = _review_material()
+    material["prior_semantic_observations"] = {
+        "active_prior_finding_ledger": [
+            {
+                "finding_id": "generated_code_semantic_finding:prior",
+                "status": "UNRESOLVED",
+                "finding": {
+                    "summary": "Prior semantic defect",
+                    "category": "prior",
+                },
+            }
+        ]
+    }
+    response = {
+        "prior_finding_reviews": [
+            {
+                "status": "UNRESOLVED",
+                "rationale": "The current artifact still exhibits the observation.",
+                "evidence_refs": [
+                    "/exact_executed_artifacts/0/exact_source_code"
+                ],
+            }
+        ],
+        "dimension_reviews": _dimension_rows(),
+        "findings": [],
+    }
+
+    packet = _agent(response).review(
+        question=_question(),
+        review_material=material,
+        trusted_lineage=_trusted_lineage(),
+    )
+
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["findings"] == []
+    assert packet["active_unresolved_finding_ids"] == [
+        "generated_code_semantic_finding:prior"
+    ]
+    assert validate_generated_code_semantic_review_packet(
+        packet,
+        review_material=material,
+    ) == []
+
+
+def test_prior_scope_error_can_be_retracted_by_the_independent_reviewer() -> None:
+    material = _review_material()
+    material["prior_semantic_observations"] = {
+        "active_prior_finding_ledger": [
+            {
+                "finding_id": "generated_code_semantic_finding:prior",
+                "status": "UNRESOLVED",
+                "finding": {
+                    "summary": "A realized empirical estimate is noisy.",
+                    "category": "empirical_precision",
+                },
+            }
+        ]
+    }
+    response = {
+        "prior_finding_reviews": [
+            {
+                "status": "RETRACTED_RUNTIME_CONTRACT_CONFLICT",
+                "rationale": (
+                    "The prior observation belongs to empirical evaluation, not "
+                    "code-semantic review."
+                ),
+                "evidence_refs": [
+                    "/reviewer_scope_contract/prior_finding_rule"
+                ],
+            }
+        ],
+        "dimension_reviews": _dimension_rows(),
+        "findings": [],
+    }
+
+    packet = _agent(response).review(
+        question=_question(),
+        review_material=material,
+        trusted_lineage=_trusted_lineage(),
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["prior_finding_reviews"][0]["status"] == (
+        "RETRACTED_RUNTIME_CONTRACT_CONFLICT"
+    )
     assert packet["active_unresolved_finding_ids"] == []
     assert validate_generated_code_semantic_review_packet(
         packet,

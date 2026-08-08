@@ -16924,6 +16924,15 @@ class AlgorithmEngineerRuntimeSubsystem:
                     "the capability-eval contract still requires generated "
                     "simulation sandbox evidence before formalization."
                 )
+            elif (
+                next_task.owner_subsystem
+                == GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+            ):
+                algorithm_rationale = (
+                    "AlgorithmEngineer executed the generated candidate and is routing "
+                    "its exact source, runtime arguments, and result to independent "
+                    "semantic review before any downstream acceptance."
+                )
             else:
                 algorithm_rationale = (
                     "AlgorithmEngineer recorded sandbox executable feedback for unregistered "
