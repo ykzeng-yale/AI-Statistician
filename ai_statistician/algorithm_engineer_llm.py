@@ -24,6 +24,7 @@ from .generated_metric_contract import (
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
+from .semantic_review_feedback import coding_agent_observations_only
 from .scientific_sandbox import (
     generated_code_draft_json_schema,
     generated_code_execution_contract_errors,
@@ -419,11 +420,22 @@ def _compact_simulation_manifest_for_algorithm(simulation_manifest: Mapping[str,
 def _algorithm_environment_observations(
     feedback: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Return the complete environment packet to the source-producing model."""
+    """Keep raw observations while withholding downstream acceptance gates."""
 
     if not isinstance(feedback, Mapping):
         return {}
-    return deepcopy(dict(feedback))
+    observations = coding_agent_observations_only(feedback)
+    for contract_key in (
+        "architect_evidence_contract",
+        "runtime_requested_evidence_contract",
+    ):
+        contract = observations.get(contract_key)
+        if not isinstance(contract, Mapping):
+            continue
+        projected_contract = dict(contract)
+        projected_contract.pop("empirical_metric_requirements", None)
+        observations[contract_key] = projected_contract
+    return observations
 
 
 def _compact_implementation_gaps(value: Any) -> list[dict[str, Any]]:

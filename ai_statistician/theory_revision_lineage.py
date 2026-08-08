@@ -83,138 +83,133 @@ def build_theory_developer_revision_binding(
     return body
 
 
-def build_architect_routed_generated_code_theory_revision_binding(
+def build_architect_routed_theory_revision_binding(
     *,
     architect_context: Mapping[str, Any],
     question_id: str,
     artifacts: Mapping[str, Any],
 ) -> tuple[dict[str, Any], list[str]]:
-    """Bind an Architect-selected TheoryDeveloper turn to exact review evidence."""
+    """Bind any Architect-routed observations to one immutable theory parent."""
 
     context = dict(architect_context)
-    replan = context.get("runtime_generated_code_semantic_review_replan", {})
-    replan = dict(replan) if isinstance(replan, Mapping) else {}
-    source_feedback = context.get(
-        "theory_developer_source_environment_feedback", {}
-    )
-    if not isinstance(source_feedback, Mapping) or not source_feedback:
-        source_feedback = context.get("environment_feedback", {})
-    feedback = dict(source_feedback) if isinstance(source_feedback, Mapping) else {}
-    architect_packet_id = str(
-        context.get("architect_coordinator_proposal_id", "") or ""
-    ).strip()
-    routing = context.get("architect_initial_routing", {})
-    routing = dict(routing) if isinstance(routing, Mapping) else {}
+    feedback = _mapping(context.get("theory_developer_source_environment_feedback"))
+    if not feedback:
+        feedback = _mapping(context.get("environment_feedback"))
+    route_packet = _mapping(context.get("architect_feedback_route_decision"))
+    routing = _mapping(context.get("architect_initial_routing"))
     errors: list[str] = []
-    if replan.get("artifact_kind") != (
-        "RuntimeGeneratedCodeSemanticReviewReplanContext"
-    ):
-        errors.append("post-execution theory revision has no typed replan context")
-    if str(replan.get("question_id", "") or "") != question_id:
-        errors.append("post-execution theory replan belongs to another question")
-    if feedback.get("feedback_type") != "generated_code_semantic_review_feedback":
-        errors.append("post-execution theory revision has the wrong feedback type")
 
-    review_packet_id = str(replan.get("review_packet_id", "") or "").strip()
-    review_execution_id = str(
-        replan.get("review_execution_id", "") or ""
+    if not feedback:
+        errors.append("model-routed theory revision has no environment observations")
+    if not str(feedback.get("feedback_id", "") or "").strip():
+        errors.append("model-routed theory revision feedback has no identity")
+    feedback_question_id = str(
+        feedback.get("question_id", "") or ""
     ).strip()
-    if not review_packet_id or review_packet_id != str(
-        feedback.get("semantic_review_packet_id", "") or ""
-    ).strip():
-        errors.append("post-execution review packet lineage does not match")
-    if not review_execution_id or review_execution_id != str(
-        feedback.get("semantic_review_execution_id", "") or ""
-    ).strip():
-        errors.append("post-execution review execution lineage does not match")
+    if feedback_question_id and feedback_question_id != question_id:
+        errors.append("model-routed theory revision feedback belongs to another question")
+    if feedback.get("overall_verdict") == "ACCEPT":
+        errors.append("accepted observations cannot request a theory revision")
+    if feedback.get("execution_authorized") is True:
+        errors.append("model-routed theory feedback cannot authorize execution")
 
-    if not architect_packet_id:
-        errors.append("post-execution theory revision has no Architect model packet")
+    route_id = ""
+    expected_routing_source = "architect_packet"
+    if route_packet:
+        route_id = str(route_packet.get("route_decision_id", "") or "").strip()
+        expected_routing_source = "architect_feedback_route_model"
+        if route_packet.get("artifact_kind") != "ArchitectFeedbackRouteDecision":
+            errors.append("model-routed theory revision has the wrong route artifact")
+        if route_packet.get("decision") != "ROUTE":
+            errors.append("model-routed theory revision has no Architect ROUTE decision")
+        if route_packet.get("selected_subsystem") != "TheoryDeveloper":
+            errors.append("Architect feedback route did not select TheoryDeveloper")
+        if str(
+            route_packet.get("environment_feedback_fingerprint", "") or ""
+        ) != stable_hash(feedback):
+            errors.append("Architect feedback route does not match observation bytes")
+    else:
+        route_id = str(
+            context.get("architect_coordinator_proposal_id", "") or ""
+        ).strip()
+        if not route_id:
+            errors.append("model-routed theory revision has no Architect model packet")
+
     if routing.get("artifact_kind") != "ArchitectInitialRoutingDecision":
-        errors.append("post-execution theory revision has no Architect routing record")
-    if str(routing.get("architect_packet_id", "") or "") != architect_packet_id:
+        errors.append("model-routed theory revision has no Architect routing record")
+    if str(routing.get("architect_packet_id", "") or "") != route_id:
         errors.append("Architect routing record does not match its model packet")
     if str(routing.get("question_id", "") or "") != question_id:
         errors.append("Architect routing record belongs to another question")
-    if routing.get("source") != "architect_packet":
-        errors.append("post-execution theory revision was not selected by the Architect model")
-    if routing.get("requested_subsystem") != "TheoryDeveloper":
-        errors.append("Architect model packet did not request TheoryDeveloper")
-    if routing.get("selected_subsystem") != "TheoryDeveloper":
-        errors.append("Architect model packet was not routed to TheoryDeveloper")
-    if str(routing.get("environment_feedback_execution_id", "") or "") != (
-        review_execution_id
-    ):
-        errors.append("Architect model route does not match the reviewed execution")
+    if routing.get("source") != expected_routing_source:
+        errors.append("theory revision was not selected by the Architect model")
+    if routing.get("requested_subsystem") != "TheoryDeveloper" or routing.get(
+        "selected_subsystem"
+    ) != "TheoryDeveloper":
+        errors.append("Architect model route did not select TheoryDeveloper")
     if str(routing.get("environment_feedback_hash", "") or "") != stable_hash(
         feedback
     ):
-        errors.append("Architect model route does not match the feedback bytes")
+        errors.append("Architect routing record does not match observation bytes")
 
-    parent_packet_id = str(replan.get("theory_packet_id", "") or "").strip()
-    current_packet_id = str(context.get("theory_packet_id", "") or "").strip()
-    if not parent_packet_id:
-        errors.append("post-execution theory replan has no parent theory packet id")
-    if parent_packet_id != current_packet_id:
-        errors.append("post-execution theory replan is not bound to current theory")
-
-    parent_packet = artifacts.get(parent_packet_id, {})
-    if not isinstance(parent_packet, Mapping) or not parent_packet:
-        errors.append("post-execution parent theory packet is absent from blackboard")
+    parent_packet_id = str(
+        context.get("theory_packet_id", "")
+        or feedback.get("source_theory_packet_id", "")
+        or ""
+    ).strip()
+    parent_packet = _mapping(artifacts.get(parent_packet_id))
+    if not parent_packet:
+        errors.append("model-routed parent theory packet is absent from blackboard")
         theory_material: dict[str, Any] = {}
     else:
         theory_material = build_theory_semantic_material(
             theory_packet=parent_packet,
             theory_packet_id=parent_packet_id,
         )
-    expected_parent_hash = str(
-        replan.get("theory_packet_hash", "") or ""
-    ).strip()
-    actual_parent_hash = str(
+    parent_packet_hash = str(
         theory_material.get("source_theory_packet_hash", "") or ""
     ).strip()
-    if not expected_parent_hash or expected_parent_hash != actual_parent_hash:
-        errors.append("post-execution parent theory hash does not match review lineage")
+    feedback_parent_id = str(
+        feedback.get("source_theory_packet_id", "") or ""
+    ).strip()
+    feedback_parent_hash = str(
+        feedback.get("source_theory_packet_hash", "") or ""
+    ).strip()
+    if feedback_parent_id and feedback_parent_id != parent_packet_id:
+        errors.append("routed observations name a different parent theory packet")
+    if feedback_parent_hash and feedback_parent_hash != parent_packet_hash:
+        errors.append("routed observations do not match parent theory bytes")
 
-    carried_material = context.get("architect_metric_protocol_theory_material", {})
-    carried_material = (
-        dict(carried_material) if isinstance(carried_material, Mapping) else {}
+    carried_material = _mapping(
+        context.get("architect_metric_protocol_theory_material")
     )
-    if str(carried_material.get("source_theory_packet_id", "") or "") != (
-        parent_packet_id
+    if carried_material and (
+        str(carried_material.get("source_theory_packet_id", "") or "").strip()
+        != parent_packet_id
+        or str(
+            carried_material.get("source_theory_packet_hash", "") or ""
+        ).strip()
+        != parent_packet_hash
     ):
-        errors.append("current theory handoff does not name the reviewed parent")
-    if str(carried_material.get("source_theory_packet_hash", "") or "") != (
-        actual_parent_hash
-    ):
-        errors.append("current theory handoff bytes do not match the reviewed parent")
+        errors.append("current theory handoff does not match parent theory bytes")
 
+    review_packet_id = str(
+        feedback.get("semantic_review_packet_id", "") or ""
+    ).strip()
+    review_execution_id = str(
+        feedback.get("semantic_review_execution_id", "") or ""
+    ).strip()
     binding = build_theory_developer_revision_binding(
-        revision_source="architect_routed_generated_code_observations",
+        revision_source="architect_routed_environment_observations",
         question_id=question_id,
         source_feedback=feedback,
         theory_material=theory_material,
         feedback_id=str(feedback.get("feedback_id", "") or ""),
-        upstream_theory_revision_count=max(
-            1,
-            int(
-                _mapping(replan.get("semantic_review_replan_budget")).get(
-                    "replans_used", 0
-                )
-                or 0
-            )
-            + 1,
+        upstream_theory_revision_count=1,
+        max_upstream_theory_revisions=1,
+        execution_results_observed=bool(
+            feedback.get("execution_results_observed", False)
         ),
-        max_upstream_theory_revisions=max(
-            1,
-            int(
-                _mapping(replan.get("semantic_review_replan_budget")).get(
-                    "max_replans", 0
-                )
-                or 0
-            ),
-        ),
-        execution_results_observed=True,
         source_review_packet_id=review_packet_id,
         source_review_execution_id=review_execution_id,
     )
@@ -227,25 +222,22 @@ def build_architect_routed_generated_code_theory_revision_binding(
     return binding, list(dict.fromkeys(errors))
 
 
-def consume_architect_routed_generated_code_theory_revision(
+def consume_architect_routed_theory_revision(
     *,
     architect_context: Mapping[str, Any],
     revision_binding: Mapping[str, Any],
     revised_theory_packet_id: str,
     revised_theory_packet_hash: str,
 ) -> dict[str, Any]:
-    """Retire reviewed descendants after the model selects a new theory packet."""
+    """Retire model-routed feedback after a fresh theory packet is produced."""
 
     context = dict(architect_context)
-    replan = context.get("runtime_generated_code_semantic_review_replan", {})
-    if not isinstance(replan, Mapping) or not replan:
-        return context
     parent_packet_id = str(
         revision_binding.get("source_theory_packet_id", "") or ""
     ).strip()
     if not (
         revision_binding.get("revision_source")
-        == "architect_routed_generated_code_observations"
+        == "architect_routed_environment_observations"
         and parent_packet_id
         and revised_theory_packet_id
         and revised_theory_packet_id != parent_packet_id
@@ -254,19 +246,23 @@ def consume_architect_routed_generated_code_theory_revision(
         return context
 
     resolution = {
-        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanResolution",
+        "artifact_kind": "RuntimeModelRoutedTheoryRevisionResolution",
         "resolution_status": "CONSUMED_BY_MODEL_ROUTED_THEORY_REVISION",
-        "question_id": str(replan.get("question_id", "") or ""),
-        "replan_id": str(replan.get("replan_id", "") or ""),
+        "question_id": str(revision_binding.get("question_id", "") or ""),
+        "source_feedback_id": str(
+            revision_binding.get("feedback_id", "") or ""
+        ),
+        "source_feedback_type": str(
+            _mapping(revision_binding.get("source_feedback")).get(
+                "feedback_type", ""
+            )
+            or ""
+        ),
         "source_review_execution_id": str(
-            replan.get("review_execution_id", "") or ""
+            revision_binding.get("source_review_execution_id", "") or ""
         ),
-        "source_review_packet_id": str(replan.get("review_packet_id", "") or ""),
-        "rejected_source_subsystem": str(
-            replan.get("source_subsystem", "") or ""
-        ),
-        "rejected_source_manifest_id": str(
-            replan.get("source_manifest_id", "") or ""
+        "source_review_packet_id": str(
+            revision_binding.get("source_review_packet_id", "") or ""
         ),
         "prior_theory_packet_id": parent_packet_id,
         "revised_theory_packet_id": revised_theory_packet_id,
@@ -276,21 +272,29 @@ def consume_architect_routed_generated_code_theory_revision(
         ),
         "next_subsystem_was_model_selected": True,
         "proof_evidence_status": (
-            "GENERATED_CODE_SEMANTIC_REVIEW_REPLAN_RESOLUTION_NOT_PROOF_EVIDENCE"
+            "MODEL_ROUTED_THEORY_REVISION_RESOLUTION_NOT_PROOF_EVIDENCE"
         ),
     }
     resolution["resolution_id"] = (
-        "generated_code_semantic_review_replan_resolution:"
+        "model_routed_theory_revision_resolution:"
         + stable_hash(resolution)[:20]
     )
-    context["runtime_generated_code_semantic_review_replan_resolution"] = resolution
-    context.pop("runtime_generated_code_semantic_review_replan", None)
-    context.pop("environment_feedback", None)
-    context.pop("runtime_feedback_loop", None)
-    context.pop("accepted_algorithm_handoff", None)
-    context.pop("accepted_implementation_interface_handoff", None)
-    context.pop("accepted_algorithm_semantic_review_materialization", None)
-    context.pop("simulation_generated_code_draft", None)
+    context["runtime_model_routed_theory_revision_resolution"] = resolution
+    for key in (
+        "environment_feedback",
+        "theory_developer_source_environment_feedback",
+        "runtime_feedback_loop",
+        "runtime_generated_code_semantic_review_replan",
+        "formal_target_semantic_review_replan",
+        "runtime_coding_agent_revision_budget_replan",
+        "runtime_metric_gate_replan",
+        "runtime_packet_validation_replan",
+        "accepted_algorithm_handoff",
+        "accepted_implementation_interface_handoff",
+        "accepted_algorithm_semantic_review_materialization",
+        "simulation_generated_code_draft",
+    ):
+        context.pop(key, None)
     context["previous_theory_packet_id"] = parent_packet_id
     context["theory_packet_id"] = revised_theory_packet_id
     return context

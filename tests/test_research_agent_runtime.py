@@ -1663,8 +1663,9 @@ def test_metric_acceptance_portfolio_omits_nonrequired_telemetry() -> None:
     ]
 def test_metric_authoring_compact_gate_fields_expand_to_evaluator_abi() -> None:
     anchor_id = "theory#/theorem_cards/0/conclusion"
+    design_anchor_id = "theory#/simulation_ademp_spec/stress_tests/0"
     schema = _metric_authoring_model_requirement_schema(
-        authority_anchor_ids=[anchor_id]
+        authority_anchor_ids=[anchor_id, design_anchor_id]
     )
     assert {
         "predicate_authority",
@@ -1700,7 +1701,7 @@ def test_metric_authoring_compact_gate_fields_expand_to_evaluator_abi() -> None:
                     "field": "threshold",
                     "value": 0.25,
                     "authority_kind": "architect_preregistered_design",
-                    "source_anchors": [anchor_id],
+                    "source_anchors": [design_anchor_id],
                     "rationale": (
                         "The pre-execution decision scale is fixed before runs."
                     ),
@@ -1724,7 +1725,7 @@ def test_metric_authoring_compact_gate_fields_expand_to_evaluator_abi() -> None:
         {
             "field": "threshold",
             "authority_kind": "architect_preregistered_design",
-            "source_anchors": [anchor_id],
+            "source_anchors": [anchor_id, design_anchor_id],
             "rationale": (
                 "The pre-execution decision scale is fixed before runs."
             ),
@@ -2420,6 +2421,7 @@ def test_revised_theory_invalidates_prior_metric_execution_authority() -> None:
     review_feedback = {
         "feedback_id": "generated_sandbox_feedback:invalidate-authority",
         "feedback_type": "generated_code_semantic_review_feedback",
+        "model_route_required_for_cross_owner_revision": True,
         "semantic_review_packet_id": review_packet_id,
         "semantic_review_execution_id": review_execution_id,
         "source_subsystem": "AlgorithmEngineer",
@@ -2503,7 +2505,7 @@ def test_revised_theory_invalidates_prior_metric_execution_authority() -> None:
     assert "environment_feedback" not in rebound
     assert "runtime_feedback_loop" not in rebound
     replan_resolution = rebound[
-        "runtime_generated_code_semantic_review_replan_resolution"
+        "runtime_model_routed_theory_revision_resolution"
     ]
     assert replan_resolution["resolution_status"] == (
         "CONSUMED_BY_MODEL_ROUTED_THEORY_REVISION"
@@ -2574,6 +2576,7 @@ def test_architect_routed_generated_code_observations_bind_exact_parent() -> Non
     feedback = {
         "feedback_id": "generated-code-feedback:theory-observation",
         "feedback_type": "generated_code_semantic_review_feedback",
+        "model_route_required_for_cross_owner_revision": True,
         "question_id": question.id,
         "semantic_review_packet_id": review_packet_id,
         "semantic_review_execution_id": review_execution_id,
@@ -2653,9 +2656,7 @@ def test_architect_routed_generated_code_observations_bind_exact_parent() -> Non
     binding = captured_context[
         runtime_module.THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
     ]
-    assert binding["revision_source"] == (
-        "architect_routed_generated_code_observations"
-    )
+    assert binding["revision_source"] == "architect_routed_environment_observations"
     assert binding["source_theory_packet_id"] == parent_id
     assert binding["source_theory_packet_hash"] == material[
         "source_theory_packet_hash"
@@ -2666,14 +2667,112 @@ def test_architect_routed_generated_code_observations_bind_exact_parent() -> Non
     assert result.next_task is not None
     routed_context = result.next_task.inputs["architect_context"]
     assert "runtime_generated_code_semantic_review_replan" not in routed_context
-    resolution = routed_context[
-        "runtime_generated_code_semantic_review_replan_resolution"
-    ]
+    resolution = routed_context["runtime_model_routed_theory_revision_resolution"]
     assert resolution["resolution_status"] == (
         "CONSUMED_BY_MODEL_ROUTED_THEORY_REVISION"
     )
-    assert resolution["rejected_source_manifest_id"] == "simulation:rejected"
+    assert resolution["source_feedback_id"] == feedback["feedback_id"]
+    assert resolution["source_feedback_type"] == feedback["feedback_type"]
     assert resolution["prior_theory_packet_id"] == parent_id
+    assert resolution["revised_theory_packet_id"] == revised_id
+
+
+def test_architect_routed_formal_target_observations_use_shared_theory_binding() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    parent_id = "theory_derivation:formal-target-parent"
+    revised_id = "theory_derivation:formal-target-revision"
+    parent = _targetable_theory_packet_fixture(parent_id)
+    revised = _structured_theory_packet_fixture(revised_id)
+    material = build_theory_informed_metric_protocol_material(
+        theory_packet=parent,
+        theory_packet_id=parent_id,
+    )
+    feedback = {
+        "feedback_id": "formal-target-feedback:shared-binding",
+        "feedback_type": "formal_target_semantic_review_feedback",
+        "question_id": question.id,
+        "source_theory_packet_id": parent_id,
+        "source_theory_packet_hash": material["source_theory_packet_hash"],
+        "semantic_review_packet_id": "formal-target-review:shared-binding",
+        "semantic_review_execution_id": "formal-target-execution:shared-binding",
+        "overall_verdict": "REVISE",
+        "model_route_required_for_cross_owner_revision": True,
+        "execution_results_observed": False,
+        "execution_authorized": False,
+        "findings": [
+            {
+                "severity": "high",
+                "summary": "The proposed theorem target does not match the theory claim.",
+            }
+        ],
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+    }
+    route_id = "architect-feedback-route:formal-target"
+    context = {
+        "theory_packet_id": parent_id,
+        "architect_metric_protocol_theory_material": material,
+        "environment_feedback": feedback,
+        "formal_target_semantic_review_replan": {
+            "review_execution_id": feedback["semantic_review_execution_id"],
+        },
+        "architect_feedback_route_decision": {
+            "artifact_kind": "ArchitectFeedbackRouteDecision",
+            "route_decision_id": route_id,
+            "decision": "ROUTE",
+            "selected_subsystem": "TheoryDeveloper",
+            "environment_feedback_fingerprint": runtime_module.stable_hash(feedback),
+        },
+        "architect_initial_routing": {
+            "artifact_kind": "ArchitectInitialRoutingDecision",
+            "question_id": question.id,
+            "architect_packet_id": route_id,
+            "source": "architect_feedback_route_model",
+            "requested_subsystem": "TheoryDeveloper",
+            "selected_subsystem": "TheoryDeveloper",
+            "environment_feedback_hash": runtime_module.stable_hash(feedback),
+        },
+    }
+    captured_context: dict[str, Any] = {}
+
+    class CapturingTheoryDeveloper:
+        def derive(self, *_args: object, **kwargs: object) -> dict[str, object]:
+            captured_context.update(kwargs.get("architect_context", {}))
+            return copy.deepcopy(revised)
+
+    result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=CapturingTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=11,
+        seed=20260808,
+    ).run(
+        AgentTask(
+            task_id="theory:formal-target-shared-binding",
+            owner_subsystem="TheoryDeveloper",
+            objective="Regenerate the complete theory packet from routed observations.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": context,
+            },
+        ),
+        BlackboardState(
+            project_id="formal-target-shared-binding",
+            artifacts={parent_id: parent},
+        ),
+    )
+
+    binding = captured_context[
+        runtime_module.THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
+    ]
+    assert binding["revision_source"] == "architect_routed_environment_observations"
+    assert binding["source_feedback"]["feedback_type"] == feedback["feedback_type"]
+    assert binding["source_theory_packet_id"] == parent_id
+    assert result.produced_artifacts[revised_id]["parent_theory_packet_id"] == parent_id
+    assert result.next_task is not None
+    next_context = result.next_task.inputs["architect_context"]
+    assert "formal_target_semantic_review_replan" not in next_context
+    resolution = next_context["runtime_model_routed_theory_revision_resolution"]
+    assert resolution["source_feedback_id"] == feedback["feedback_id"]
     assert resolution["revised_theory_packet_id"] == revised_id
 
 
@@ -2690,6 +2789,7 @@ def test_generated_code_theory_revision_requires_matching_architect_route() -> N
     feedback = {
         "feedback_id": "generated-code-feedback:model-route-required",
         "feedback_type": "generated_code_semantic_review_feedback",
+        "model_route_required_for_cross_owner_revision": True,
         "semantic_review_packet_id": "generated-review:model-route-required",
         "semantic_review_execution_id": "generated-execution:model-route-required",
         "source_theory_packet_id": parent_id,
@@ -2749,6 +2849,57 @@ def test_generated_code_theory_revision_requires_matching_architect_route() -> N
         "no Architect model packet" in error
         for error in artifact["validation_errors"]
     )
+
+
+def test_theory_route_does_not_infer_revision_from_unmarked_feedback() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    packet_id = "theory_derivation:ordinary-model-route"
+    packet = _structured_theory_packet_fixture(packet_id)
+    captured_context: dict[str, Any] = {}
+
+    class CapturingTheoryDeveloper:
+        def derive(self, *_args: object, **kwargs: object) -> dict[str, object]:
+            captured_context.update(kwargs.get("architect_context", {}))
+            return copy.deepcopy(packet)
+
+    context = {
+        "environment_feedback": {
+            "feedback_type": "ordinary_research_context",
+            "summary": "Background context for a fresh theory turn.",
+        },
+        "architect_initial_routing": {
+            "artifact_kind": "ArchitectInitialRoutingDecision",
+            "question_id": question.id,
+            "architect_packet_id": "architect:fresh-theory-route",
+            "source": "architect_packet",
+            "requested_subsystem": "TheoryDeveloper",
+            "selected_subsystem": "TheoryDeveloper",
+        },
+    }
+    result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=CapturingTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=11,
+        seed=20260808,
+    ).run(
+        AgentTask(
+            task_id="theory:ordinary-model-route",
+            owner_subsystem="TheoryDeveloper",
+            objective="Develop a fresh theory candidate.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": context,
+            },
+        ),
+        BlackboardState(project_id="ordinary-model-route"),
+    )
+
+    assert result.status != "BLOCKED"
+    assert runtime_module.THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY not in (
+        captured_context
+    )
+    assert packet_id in result.produced_artifacts
 
 
 def test_theory_validation_retry_preserves_metric_revision_feedback() -> None:
@@ -16363,6 +16514,7 @@ def test_formalizer_prompt_replays_formal_gap_planner_routing_memory() -> None:
 def test_formalizer_prompt_replays_same_turn_formal_gap_planner_agenda() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     environment_feedback = {
+        "local_lean_stderr": "type mismatch at exact target theorem",
         "high_priority_agenda": [
             {
                 "id": "formal_gap:gap_planner_handoff",
@@ -16456,6 +16608,7 @@ def test_formalizer_prompt_replays_same_turn_formal_gap_planner_agenda() -> None
     assert "runtime_formalization_gap_planner_bridge:same_turn" in prompt
     assert "runtime_formalization_gap_planner_standalone_seed:same_turn" in prompt
     assert "runs/same-turn-seed.json" in prompt
+    assert "type mismatch at exact target theorem" in prompt
     assert "runs/same-turn-prompt" not in prompt
     assert "formalization-gap-planner-reuse-smoke" not in prompt
     assert "FORMAL_GAP_NEXT_ACTION_ROUTING_CONTRACT_NOT_PROOF_EVIDENCE" in prompt
@@ -30545,7 +30698,7 @@ def test_formalization_validator_failure_does_not_infer_domain_shape_from_sorry(
     assert "Mandatory executable-work-item repair" not in prompt
     assert "Mandatory next_action_reference_contract repair" not in prompt
     assert "Repeated next_action_reference_contract failure" not in prompt
-    assert "target_shape_contract" not in prompt
+    assert '"target_shape_contract":' not in prompt
 
 
 def test_formalizer_packet_validation_feedback_preserves_raw_lean_observations() -> None:
@@ -34170,7 +34323,7 @@ def test_formalizer_candidate_materialization_checks_import_without_project_in_l
     assert row["local_lean_attempted"] is True
 
 
-def test_formalizer_prompt_preserves_complete_legacy_target_drift_packet() -> None:
+def test_formalizer_prompt_keeps_target_drift_observation_without_legacy_recipe() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -34223,13 +34376,10 @@ def test_formalizer_prompt_preserves_complete_legacy_target_drift_packet() -> No
     )
 
     assert "source-theorem target drift" in prompt
-    assert "target_shape_contract" in prompt
-    assert "candidate_reroute_options" in prompt
+    assert "REJECTED_BY_RUNTIME_PRECHECK" in prompt
+    assert "target_shape_contract" not in prompt
+    assert "candidate_reroute_options" not in prompt
     assert "AgentRuntime supplies no Python-authored Lean grammar" in prompt
-    assert (
-        "legacy recommendation fields are control-plane history, not instructions"
-        in prompt
-    )
     assert "Mandatory source-theorem target-preservation repair" not in prompt
     assert "Mandatory target-drift two-lane repair" not in prompt
 
@@ -34455,16 +34605,12 @@ def test_formalizer_prompt_preserves_raw_repeated_lean_failure_observations() ->
     assert "Main.lean:2:3: error: no goals to be solved" in prompt
     assert "Lean exited with status 1" in prompt
     assert "repeated_formalizer_lean_candidate_failure" in prompt
-    assert "repair_owner_agent" in prompt
-    assert "preferred_tool_order" in prompt
-    assert "core_lean_diagnostic_helper_shape" in prompt
-    assert "replace_proof_body" in prompt
-    assert "runtime_guess" in prompt
+    assert "repair_owner_agent" not in prompt
+    assert "preferred_tool_order" not in prompt
+    assert "core_lean_diagnostic_helper_shape" not in prompt
+    assert "replace_proof_body" not in prompt
+    assert "runtime_guess" not in prompt
     assert "AgentRuntime supplies no Python-authored Lean grammar" in prompt
-    assert (
-        "legacy recommendation fields are control-plane history, not instructions"
-        in prompt
-    )
     assert "Repeated Lean-candidate compiler repair" not in prompt
 
 
@@ -34518,7 +34664,7 @@ def test_repeated_lean_parser_failure_preserves_model_owned_tool_observation() -
     _enrich_repeated_formalizer_lean_candidate_feedback(feedback)
 
     diagnostic = feedback["candidate_diagnostics"][0]
-    assert "unexpected token" in diagnostic["local_lean_stdout_excerpt"]
+    assert "unexpected token" in diagnostic["local_lean_stdout"]
     assert "Type*" in diagnostic["lean_source"]
     assert "local_lean_observation" not in feedback
     repeated = feedback["repeated_formalizer_lean_candidate_observation"]
@@ -34782,10 +34928,6 @@ def test_formalizer_prompt_keeps_legacy_core_helper_precheck_as_observation() ->
     assert "core-Lean-only helper contract violation" in prompt
     assert "thm_aipw_normality_hDoubleRobust_source_to_bridge_derivation" in prompt
     assert "AgentRuntime supplies no Python-authored Lean grammar" in prompt
-    assert (
-        "legacy recommendation fields are control-plane history, not instructions"
-        in prompt
-    )
     assert "Local-Lean repair contract is mandatory" not in prompt
     assert "Mandatory core-Lean helper repair" not in prompt
     assert "core_prop_bridge" not in prompt
@@ -34867,7 +35009,7 @@ def test_formalizer_prompt_does_not_infer_domain_contract_from_proof_hole() -> N
 
     assert "contains Lean sorry placeholder" in prompt
     assert "formalizer_packet_validation_feedback" in prompt
-    assert "validation_repair_directives" in prompt
+    assert "validation_repair_directives" not in prompt
     assert "does not prescribe field-specific corrections" in prompt
     assert "Mandatory proof-hole packet repair" not in prompt
     assert "source_theorem_target_preservation" not in prompt
@@ -34909,16 +35051,13 @@ def test_formalizer_prompt_preserves_legacy_target_shape_packet_as_observation()
         },
     )
 
-    assert "probability_or_measure_coverage_claim" in prompt
+    assert "probability_or_measure_coverage_claim" not in prompt
     assert "source theorem target drift" in prompt
     assert "probability/measure coverage conclusion" in prompt
     assert "formalizer_packet_validation_feedback" in prompt
     assert "does not prescribe field-specific corrections" in prompt
-    assert "validation_repair_directives" in prompt
-    assert (
-        "legacy recommendation fields are control-plane history, not instructions"
-        in prompt
-    )
+    assert "validation_repair_directives" not in prompt
+    assert '"target_shape_contract":' not in prompt
     assert "Repeated target-shape failure escalation" not in prompt
     assert "Mandatory target-drift two-lane packet repair" not in prompt
 
@@ -34950,7 +35089,7 @@ def test_formalizer_prompt_repairs_phantom_source_to_bridge_next_action() -> Non
 
     assert "packet contains no source_to_bridge_premise_derivation_candidates" in prompt
     assert "formalizer_packet_validation_feedback" in prompt
-    assert "validation_repair_directives" in prompt
+    assert "validation_repair_directives" not in prompt
     assert "does not prescribe field-specific corrections" in prompt
     assert "Mandatory executable-work-item repair" not in prompt
 
@@ -35206,7 +35345,7 @@ def test_formalizer_expected_token_local_lean_feedback_is_parser_contract() -> N
 
     assert feedback is not None
     diagnostic = feedback["candidate_diagnostics"][0]
-    assert "error: expected token" in diagnostic["local_lean_stdout_excerpt"]
+    assert "error: expected token" in diagnostic["local_lean_stdout"]
     assert "local_lean_observation" not in feedback
 
     feedback["formalizer_lean_repair_retry_depth"] = 1
@@ -42613,7 +42752,7 @@ def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
     assert diagnostics[0]["local_lean_attempted"] is True
     assert diagnostics[0]["local_lean_compiled"] is False
     assert "DefinitelyUnknownLeanIdentifier" in diagnostics[0][
-        "local_lean_stdout_excerpt"
+        "local_lean_stdout"
     ]
     assert "DefinitelyUnknownLeanIdentifier" in diagnostics[0]["lean_source"]
     repair_prompt = build_formalizer_prompt(
@@ -43700,17 +43839,19 @@ def test_runtime_manifest_exposes_formalizer_local_lean_candidate_counts(
     assert learning_row["candidate_live_proof_state_request"][
         "target_lean_declaration"
     ] == "manifest_bad_local_lean_candidate"
-    assert set(learning_row["candidate_proof_state_requested_tools"]) >= {
+    requested_tools = {
+        row["tool"]
+        for row in learning_row["candidate_live_proof_state_request"][
+            "mcp_tool_calls"
+        ]
+    }
+    assert requested_tools >= {
         "lean_goal",
         "lean_diagnostic_messages",
         "lean_multi_attempt",
     }
-    assert learning_row["proofengineer_repair_loop_contract"]["owner_agent"] == (
-        "ProofEngineer"
-    )
-    assert learning_row["proofengineer_repair_loop_contract"]["workflow_style"] == (
-        "lean_dojo_reprover_compatible"
-    )
+    assert "candidate_proof_state_requested_tools" not in learning_row
+    assert "proofengineer_repair_loop_contract" not in learning_row
     assert manifest["n_kernel_verified_subclaims"] == 0
 
 
@@ -46280,6 +46421,11 @@ def test_simulation_engineer_packet_validation_failure_routes_back_to_llm(
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "SimulationEvaluator"
     feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["feedback_id"].startswith(
+        "simulation_engineer_validation_failure:"
+    )
+    assert feedback["question_id"] == question.id
+    assert feedback["source_theory_packet_id"] == theory_packet_id
     assert feedback["failure_classification"] == (
         "simulation_engineer_packet_validation_failed"
     )
@@ -46292,6 +46438,15 @@ def test_simulation_engineer_packet_validation_failure_routes_back_to_llm(
     ][0]["code"]
     assert "required_repair" not in feedback
     assert "target_behavior" not in feedback
+    assert feedback["model_generation_attempt_history"] == [
+        {
+            "attempt_index": 1,
+            "ok": False,
+            "errors": ["missing typed metric contract"],
+        }
+    ]
+    assert feedback["model_route_required_for_cross_owner_revision"] is True
+    assert feedback["execution_authorized"] is False
     assert (
         result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
             "handoff"
@@ -46490,6 +46645,17 @@ def test_coding_packet_regeneration_budget_routes_raw_evidence_to_architect() ->
     ]
     assert simulation_feedback["rejected_candidate"] == rejected_candidate
     assert simulation_feedback["validation_errors"] == [validation_error]
+    assert simulation_feedback["model_generation_attempt_history"] == [
+        {"attempt_index": 0, "ok": False}
+    ]
+    assert simulation_feedback["question_id"] == question.id
+    assert simulation_feedback["source_theory_packet_id"] == (
+        "theory:packet-budget"
+    )
+    assert simulation_feedback[
+        "model_route_required_for_cross_owner_revision"
+    ] is True
+    assert simulation_feedback["execution_authorized"] is False
     assert simulation_feedback["packet_validation_replan_required"] is True
     assert "required_change" not in simulation_feedback
     simulation_replan = simulation_result.next_task.inputs[
@@ -46535,6 +46701,17 @@ def test_coding_packet_regeneration_budget_routes_raw_evidence_to_architect() ->
     ]
     assert algorithm_feedback["rejected_candidate"] == rejected_candidate
     assert algorithm_feedback["validation_errors"] == [validation_error]
+    assert algorithm_feedback["model_generation_attempt_history"] == [
+        {"attempt_index": 0, "ok": False}
+    ]
+    assert algorithm_feedback["question_id"] == question.id
+    assert algorithm_feedback["source_theory_packet_id"] == (
+        "theory:packet-budget"
+    )
+    assert algorithm_feedback[
+        "model_route_required_for_cross_owner_revision"
+    ] is True
+    assert algorithm_feedback["execution_authorized"] is False
     assert algorithm_feedback["packet_validation_replan_required"] is True
     assert "required_change" not in algorithm_feedback
     algorithm_replan = algorithm_result.next_task.inputs["architect_context"][

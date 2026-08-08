@@ -73,7 +73,7 @@ def test_author_feedback_keeps_evidence_but_drops_repair_recipe() -> None:
     assert "repair_instructions" not in str(projected)
 
 
-def test_coding_producers_receive_complete_environment_feedback() -> None:
+def test_coding_producers_receive_complete_environment_observations() -> None:
     long_observation = "raw-observation:" + ("x" * 5000)
     findings = [
         {
@@ -114,7 +114,9 @@ def test_coding_producers_receive_complete_environment_feedback() -> None:
         assert projected["reviewed_source_artifacts"] == feedback[
             "reviewed_source_artifacts"
         ]
-        assert projected == feedback
+        assert "repair_owner_agent" not in projected
+        assert "repair_instructions" not in projected
+        assert all("required_change" not in row for row in projected["findings"])
 
 
 def test_recursive_projection_preserves_rejected_candidate_exactly() -> None:

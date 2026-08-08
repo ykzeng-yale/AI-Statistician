@@ -348,9 +348,9 @@ from .research_architect import (
 )
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
-    build_architect_routed_generated_code_theory_revision_binding,
+    build_architect_routed_theory_revision_binding,
     build_theory_developer_revision_binding,
-    consume_architect_routed_generated_code_theory_revision,
+    consume_architect_routed_theory_revision,
     theory_developer_revision_binding_errors,
 )
 from .research_lab import FormalSubclaimProver, ProblemFormalizer, ResearchSimulator, TheoryPlanner
@@ -11556,9 +11556,6 @@ class TheoryDeveloperRuntimeSubsystem:
         context["runtime_task"] = _runtime_task_prompt_summary(task)
         if "environment_feedback" in task.inputs:
             context["environment_feedback"] = task.inputs["environment_feedback"]
-        generated_code_replan = context.get(
-            "runtime_generated_code_semantic_review_replan", {}
-        )
         metric_protocol_revision_feedback = (
             theory_developer_source_environment_feedback(context)
         )
@@ -11568,6 +11565,7 @@ class TheoryDeveloperRuntimeSubsystem:
             == METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND
         ):
             metric_protocol_revision_feedback = {}
+        routed_environment_feedback = context.get("environment_feedback", {})
         if metric_protocol_revision_feedback:
             parent_theory_packet_id = str(
                 metric_protocol_revision_feedback.get(
@@ -11641,9 +11639,16 @@ class TheoryDeveloperRuntimeSubsystem:
             context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY] = (
                 revision_binding
             )
-        elif isinstance(generated_code_replan, Mapping) and generated_code_replan:
+        elif (
+            isinstance(routed_environment_feedback, Mapping)
+            and routed_environment_feedback
+            and routed_environment_feedback.get(
+                "model_route_required_for_cross_owner_revision"
+            )
+            is True
+        ):
             revision_binding, binding_errors = (
-                build_architect_routed_generated_code_theory_revision_binding(
+                build_architect_routed_theory_revision_binding(
                     architect_context=context,
                     question_id=question.id,
                     artifacts=blackboard.artifacts,
@@ -11888,9 +11893,9 @@ class TheoryDeveloperRuntimeSubsystem:
             theory_material=current_theory_material,
         )
         if active_revision_binding.get("revision_source") == (
-            "architect_routed_generated_code_observations"
+            "architect_routed_environment_observations"
         ):
-            context = consume_architect_routed_generated_code_theory_revision(
+            context = consume_architect_routed_theory_revision(
                 architect_context=context,
                 revision_binding=active_revision_binding,
                 revised_theory_packet_id=packet_id,
@@ -14470,6 +14475,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "findings": routed_findings,
             "reviewed_source_artifacts": reviewed_source_artifacts,
             "source_lineage": source_lineage,
+            "model_route_required_for_cross_owner_revision": True,
+            "execution_results_observed": True,
+            "execution_authorized": False,
             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
             "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
         }
@@ -17913,11 +17921,15 @@ def _simulation_engineer_packet_validation_failure_result(
         if isinstance(exc.last_invalid_packet, Mapping)
         else {}
     )
-    repair_feedback = {
+    regeneration_feedback = {
+        "feedback_id": failure_id,
         "feedback_type": "simulation_engineer_packet_validation_feedback",
+        "question_id": question.id,
+        "source_theory_packet_id": theory_packet_id,
         "failure_classification": failure_classification,
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
+        "model_generation_attempt_history": deepcopy(exc.history),
         "last_attempt_summary": exc.history[-1] if exc.history else {},
         "rejected_candidate": rejected_candidate,
         "rejected_candidate_fingerprint": (
@@ -17925,6 +17937,9 @@ def _simulation_engineer_packet_validation_failure_result(
         ),
         "empirical_evaluation_phase": empirical_evaluation_phase,
         **validation_state,
+        "model_route_required_for_cross_owner_revision": True,
+        "execution_results_observed": False,
+        "execution_authorized": False,
         "execution_evidence_status": (
             "SIMULATION_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE"
         ),
@@ -17945,11 +17960,11 @@ def _simulation_engineer_packet_validation_failure_result(
         "validation_errors": validation_errors,
         "llm_json_repair_history": exc.history,
         "rejected_candidate": rejected_candidate,
-        "rejected_candidate_fingerprint": repair_feedback[
+        "rejected_candidate_fingerprint": regeneration_feedback[
             "rejected_candidate_fingerprint"
         ],
         **validation_state,
-        "execution_evidence_status": repair_feedback[
+        "execution_evidence_status": regeneration_feedback[
             "execution_evidence_status"
         ],
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
@@ -17959,7 +17974,7 @@ def _simulation_engineer_packet_validation_failure_result(
     revision_context["runtime_packet_validation_attempt_ledger"] = dict(
         validation_state["packet_validation_attempt_ledger"]
     )
-    revision_context["environment_feedback"] = repair_feedback
+    revision_context["environment_feedback"] = regeneration_feedback
     revision_context["runtime_feedback_loop"] = {
         **(
             dict(revision_context.get("runtime_feedback_loop", {}))
@@ -17978,22 +17993,22 @@ def _simulation_engineer_packet_validation_failure_result(
     }
     revision_context = _runtime_context_with_environment_feedback_contract(
         revision_context,
-        repair_feedback,
+        regeneration_feedback,
         subsystem="SimulationEvaluator",
     )
     next_inputs = dict(task.inputs)
     next_inputs.update(
         {
             "architect_context": revision_context,
-            "environment_feedback": repair_feedback,
+            "environment_feedback": regeneration_feedback,
             "n_runs": int(n_runs),
             "seed": int(seed),
         }
     )
     same_owner_next_task = AgentTask(
         task_id=(
-            f"simulation-packet-revise:{question.id}:"
-            f"{stable_hash([failure_id, repair_feedback])[:8]}"
+            f"simulation-packet-regenerate:{question.id}:"
+            f"{stable_hash([failure_id, regeneration_feedback])[:8]}"
         ),
         owner_subsystem="SimulationEvaluator",
         objective=(
@@ -18023,7 +18038,7 @@ def _simulation_engineer_packet_validation_failure_result(
             task=task,
             question=question,
             context=revision_context,
-            revision_feedback=repair_feedback,
+            revision_feedback=regeneration_feedback,
             source_artifact_id=failure_id,
             revision_attempts_used=int(
                 validation_state["lineage_packet_validation_round"]
@@ -18046,7 +18061,7 @@ def _simulation_engineer_packet_validation_failure_result(
             "validation_errors": validation_errors,
             "attempts": exc.attempts,
             **validation_state,
-            "execution_evidence_status": repair_feedback[
+            "execution_evidence_status": regeneration_feedback[
                 "execution_evidence_status"
             ],
             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
@@ -18080,7 +18095,7 @@ def _simulation_engineer_packet_validation_failure_result(
                     "failure_id": failure_id,
                     "validation_errors": validation_errors,
                     **validation_state,
-                    "execution_evidence_status": repair_feedback[
+                    "execution_evidence_status": regeneration_feedback[
                         "execution_evidence_status"
                     ],
                     "proof_evidence_status": "NOT_PROOF_EVIDENCE",
@@ -18188,25 +18203,33 @@ def _algorithm_engineer_packet_validation_failure_result(
             "was used as capability evidence, and this is not proof evidence."
         ),
     }
-    repair_feedback = {
+    regeneration_feedback = {
+        "feedback_id": failure_id,
         "feedback_type": "algorithm_engineer_packet_validation_feedback",
+        "question_id": question.id,
+        "source_theory_packet_id": theory_packet_id,
         "failure_classification": failure_classification,
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
+        "model_generation_attempt_history": deepcopy(exc.history),
         "last_attempt_summary": exc.history[-1] if exc.history else {},
         "rejected_candidate": rejected_candidate,
         "rejected_candidate_fingerprint": (
             stable_hash(rejected_candidate) if rejected_candidate else ""
         ),
         **validation_state,
+        "model_route_required_for_cross_owner_revision": True,
+        "execution_results_observed": False,
+        "execution_authorized": False,
         "execution_evidence_status": "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE",
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        "boundary": ALGORITHM_ENGINEER_BOUNDARY,
     }
     revision_context = dict(context)
     revision_context["runtime_packet_validation_attempt_ledger"] = dict(
         validation_state["packet_validation_attempt_ledger"]
     )
-    revision_context["environment_feedback"] = repair_feedback
+    revision_context["environment_feedback"] = regeneration_feedback
     revision_context["runtime_feedback_loop"] = {
         **(
             dict(revision_context.get("runtime_feedback_loop", {}))
@@ -18225,14 +18248,17 @@ def _algorithm_engineer_packet_validation_failure_result(
     }
     revision_context = _runtime_context_with_environment_feedback_contract(
         revision_context,
-        repair_feedback,
+        regeneration_feedback,
         subsystem="AlgorithmEngineer",
     )
     next_inputs = dict(task.inputs)
     next_inputs["architect_context"] = revision_context
-    next_inputs["environment_feedback"] = repair_feedback
+    next_inputs["environment_feedback"] = regeneration_feedback
     same_owner_next_task = AgentTask(
-        task_id=f"algorithm-revise:{question.id}:{stable_hash([failure_id, repair_feedback])[:8]}",
+        task_id=(
+            f"algorithm-regenerate:{question.id}:"
+            f"{stable_hash([failure_id, regeneration_feedback])[:8]}"
+        ),
         owner_subsystem="AlgorithmEngineer",
         objective=(
             "Regenerate the complete AlgorithmEngineer packet from the unchanged "
@@ -18260,7 +18286,7 @@ def _algorithm_engineer_packet_validation_failure_result(
             task=task,
             question=question,
             context=revision_context,
-            revision_feedback=repair_feedback,
+            revision_feedback=regeneration_feedback,
             source_artifact_id=failure_id,
             revision_attempts_used=int(
                 validation_state["lineage_packet_validation_round"]
@@ -29299,11 +29325,6 @@ def _formalizer_lean_candidate_materialization_learning_rows(
             if isinstance(candidate.get("live_proof_state_request", {}), Mapping)
             else {}
         )
-        live_request_tool_names = [
-            str(row.get("tool", "") or "")
-            for row in live_request.get("mcp_tool_calls", []) or []
-            if isinstance(row, Mapping) and str(row.get("tool", "") or "")
-        ]
         lean_lsp_mcp_ready = "lean_lsp_mcp" in tuple(
             str(value)
             for value in live_request.get("provider_preferences", ()) or ()
@@ -29484,23 +29505,6 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                 "candidate_live_proof_state_request": live_request,
                 "n_candidate_live_proof_state_requests": 1 if live_request else 0,
                 "candidate_lean_lsp_mcp_ready_request": lean_lsp_mcp_ready,
-                "candidate_proof_state_requested_tools": live_request_tool_names,
-                "proofengineer_repair_loop_contract": {
-                    "owner_agent": "ProofEngineer",
-                    "workflow_style": "lean_dojo_reprover_compatible",
-                    "required_inputs": [
-                        "exact_materialized_lean_artifact",
-                        "local_lean_stdout_stderr",
-                        "lean_diagnostic_messages",
-                        "lean_goal",
-                        "lean_state_search_or_proof_search",
-                        "lean_multi_attempt_or_local_lean_rerun",
-                    ],
-                    "acceptance_gate": (
-                        "The repaired candidate must rerun through local Lean/AXLE "
-                        "on the exact artifact before any kernel evidence is claimed."
-                    ),
-                },
                 "kernel_verified": local_lean_compiled,
                 **_formalizer_candidate_kernel_scope_fields(
                     local_lean_compiled=local_lean_compiled
@@ -30096,6 +30100,12 @@ def _formalizer_lean_candidate_revision_feedback(
     ]
     failed_rows: list[dict[str, Any]] = []
     for row in candidate_rows:
+        row["local_lean_attempted"] = _bool_like(
+            row.get("local_lean_attempted", False)
+        )
+        row["local_lean_compiled"] = _bool_like(
+            row.get("local_lean_compiled", False)
+        )
         precheck_failed = str(row.get("precheck_status", "") or "") == (
             "REJECTED_BY_RUNTIME_PRECHECK"
         )
@@ -30149,8 +30159,8 @@ def _formalizer_lean_candidate_revision_feedback(
     if not failed_rows:
         return None
 
-    prior_feedback = (
-        deepcopy(dict(prior_environment_feedback))
+    prior_feedback = coding_agent_observations_only(
+        prior_environment_feedback
         if isinstance(prior_environment_feedback, Mapping)
         else {}
     )
@@ -30206,37 +30216,49 @@ def _formalizer_lean_candidate_revision_feedback(
             )
         )
 
-    feedback = deepcopy(dict(manifest))
-    feedback.update(
-        {
-            "feedback_id": (
-                "formalizer_lean_candidate_observation:"
-                + stable_hash(
-                    [
-                        manifest.get("manifest_id", ""),
-                        failed_rows,
-                        prior_feedback,
-                    ]
-                )[:20]
-            ),
-            "feedback_type": (
-                "formalizer_lean_candidate_local_lean_feedback"
-            ),
-            "failure_classification": (
-                "formalizer_lean_candidate_tool_rejected"
-            ),
-            "source_manifest_id": str(manifest.get("manifest_id", "") or ""),
-            "candidate_rows": candidate_rows,
-            "candidate_diagnostics": failed_rows,
-            "proofengineer_repair_context": candidate_context,
-            "model_owned_complete_source_regeneration": True,
-            "runtime_selected_source_edit": False,
-            "proof_evidence_status": (
-                "FORMALIZER_LEAN_CANDIDATE_TOOL_OBSERVATIONS_NOT_PROOF_EVIDENCE"
-            ),
-            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-        }
-    )
+    feedback = {
+        "schema_version": manifest.get("schema_version", RUNTIME_SCHEMA_VERSION),
+        "source_artifact_kind": str(manifest.get("artifact_kind", "") or ""),
+        "source_manifest_id": str(manifest.get("manifest_id", "") or ""),
+        "source_manifest_path": str(manifest.get("manifest_path", "") or ""),
+        "question": deepcopy(manifest.get("question", {})),
+        "task_id": str(manifest.get("task_id", "") or ""),
+        "source_formalizer_packet_id": str(
+            manifest.get("source_formalizer_packet_id", "") or ""
+        ),
+        "n_candidate_sources": len(candidate_rows),
+        "n_candidate_artifacts_written": int(
+            manifest.get("n_candidate_artifacts_written", 0) or 0
+        ),
+        "n_precheck_rejected": int(manifest.get("n_precheck_rejected", 0) or 0),
+        "n_local_lean_checked": int(
+            manifest.get("n_local_lean_checked", 0) or 0
+        ),
+        "n_local_lean_compiled": int(
+            manifest.get("n_local_lean_compiled", 0) or 0
+        ),
+        "feedback_id": (
+            "formalizer_lean_candidate_observation:"
+            + stable_hash(
+                [
+                    manifest.get("manifest_id", ""),
+                    failed_rows,
+                    prior_feedback,
+                ]
+            )[:20]
+        ),
+        "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+        "failure_classification": "formalizer_lean_candidate_tool_rejected",
+        "candidate_rows": candidate_rows,
+        "candidate_diagnostics": failed_rows,
+        "proofengineer_repair_context": candidate_context,
+        "model_owned_complete_source_regeneration": True,
+        "runtime_selected_source_edit": False,
+        "proof_evidence_status": (
+            "FORMALIZER_LEAN_CANDIDATE_TOOL_OBSERVATIONS_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
     if prior_feedback:
         feedback["prior_environment_feedback"] = prior_feedback
     if parent_proof_state_feedback:

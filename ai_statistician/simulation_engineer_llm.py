@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
@@ -25,6 +24,7 @@ from .generated_metric_contract import (
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
+from .semantic_review_feedback import coding_agent_observations_only
 from .scientific_sandbox import (
     generated_code_draft_json_schema,
     generated_code_execution_contract_errors,
@@ -527,11 +527,11 @@ def _compact_theory_packet_for_simulation(theory_packet: Mapping[str, Any]) -> d
 def _simulation_environment_observations(
     feedback: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Return the complete environment packet to the source-producing model."""
+    """Keep raw observations without runtime-authored fix routing."""
 
     if not isinstance(feedback, Mapping):
         return {}
-    return deepcopy(dict(feedback))
+    return coding_agent_observations_only(feedback)
 
 
 def _compact_simulation_runtime_execution_contract(value: Any) -> dict[str, Any]:

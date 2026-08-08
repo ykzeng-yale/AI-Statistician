@@ -966,6 +966,13 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             "feedback_id": feedback_id,
             "feedback_type": "formal_target_semantic_review_feedback",
             "feedback_source": FORMAL_TARGET_SEMANTIC_REVIEWER_SUBSYSTEM,
+            "question_id": question.id,
+            "source_theory_packet_id": str(
+                work_order.get("theory_packet_id", "") or ""
+            ),
+            "source_theory_packet_hash": str(
+                work_order.get("theory_packet_hash", "") or ""
+            ),
             "candidate_materialization_id": str(
                 work_order.get("candidate_materialization_id", "") or ""
             ),
@@ -987,6 +994,9 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             "findings": review_findings,
             "routing_authority": "ArchitectCoordinator_model_packet",
             "runtime_selected_owner": False,
+            "model_route_required_for_cross_owner_revision": True,
+            "execution_results_observed": False,
+            "execution_authorized": False,
             "external_proof_search_dispatch_eligible": False,
             "model_owned_complete_source_tool_loop_eligible": verdict == "ACCEPT",
             "proof_evidence_status": "NOT_PROOF_EVIDENCE",

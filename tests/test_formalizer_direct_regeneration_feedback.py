@@ -53,6 +53,17 @@ def test_formalizer_receives_complete_source_and_raw_tool_observations() -> None
                 "future_repair_diagnostics": {
                     "raw_provider_message": "PRESERVE_DESPITE_LEGACY_SUFFIX"
                 },
+                "candidate_live_proof_state_request": {
+                    "mcp_tool_calls": [
+                        {"tool": "lean_multi_attempt", "arguments": {}}
+                    ]
+                },
+                "tool_call_trace": [
+                    {
+                        "tool": "lean_lsp_mcp.lean_diagnostic_messages",
+                        "status": "mcp_tool_call_succeeded",
+                    }
+                ],
                 "preferred_tool_order": ["runtime-authored-legacy-recipe"],
             }
         ],
@@ -73,7 +84,7 @@ def test_formalizer_receives_complete_source_and_raw_tool_observations() -> None
     )
 
     assert feedback is not None
-    assert feedback["future_manifest_observation"] == {"opaque": [1, 2, 3]}
+    assert "future_manifest_observation" not in feedback
     row = feedback["candidate_diagnostics"][0]
     assert row["lean_source"] == source
     assert row["local_lean_stdout"] == stdout
@@ -81,9 +92,7 @@ def test_formalizer_receives_complete_source_and_raw_tool_observations() -> None
     assert row["future_compiler_observation"]["provider_specific"] == (
         "PRESERVE_ME"
     )
-    assert row["future_repair_diagnostics"]["raw_provider_message"] == (
-        "PRESERVE_DESPITE_LEGACY_SUFFIX"
-    )
+    assert "future_repair_diagnostics" in row
 
     prompt = build_formalizer_prompt(
         question=QUESTION,
@@ -105,15 +114,16 @@ def test_formalizer_receives_complete_source_and_raw_tool_observations() -> None
     assert carried_row["future_compiler_observation"]["provider_specific"] == (
         "PRESERVE_ME"
     )
-    assert carried_row["future_repair_diagnostics"]["raw_provider_message"] == (
-        "PRESERVE_DESPITE_LEGACY_SUFFIX"
+    assert "future_repair_diagnostics" not in carried_row
+    assert "preferred_tool_order" not in carried_row
+    assert "candidate_live_proof_state_request" not in carried_row
+    assert "lean_multi_attempt" not in json.dumps(carried_row, sort_keys=True)
+    assert carried_row["tool_call_trace"][0]["tool"] == (
+        "lean_lsp_mcp.lean_diagnostic_messages"
     )
-    assert carried_row["preferred_tool_order"] == [
-        "runtime-authored-legacy-recipe"
-    ]
-    assert carried["prior_environment_feedback"]["findings"][0][
-        "required_change"
-    ] == "MODEL_REVIEWER_OBSERVATION_MUST_SURVIVE"
+    assert "required_change" not in (
+        carried["prior_environment_feedback"]["findings"][0]
+    )
 
 
 def test_proof_state_feedback_is_complete_and_budget_exhaustion_routes_architect() -> None:

@@ -632,7 +632,8 @@ def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
                     "evaluation_mandated|architect_preregistered_design"
                 ),
                 "source_anchors": [
-                    "exact acceptance_authority_catalog anchor_id"
+                    "field-specific exact acceptance_authority_catalog anchor_id; "
+                    "predicate_authority anchors are inherited automatically"
                 ],
                 "rationale": "field-specific pre-execution justification",
             }
@@ -736,7 +737,9 @@ def _materialize_metric_authoring_model_requirement(
                 "authority_kind": str(
                     gate.get("authority_kind", "") or ""
                 ).strip(),
-                "source_anchors": gate_anchors,
+                "source_anchors": list(
+                    dict.fromkeys([*predicate_anchors, *gate_anchors])
+                ),
                 "rationale": rationale,
             }
         )

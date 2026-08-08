@@ -60,6 +60,7 @@ from .pseudo_formalization import (
 from .research_schema import OpenResearchQuestion
 from .semantic_review_feedback import (
     PRESCRIPTIVE_REPAIR_FIELDS,
+    coding_agent_observations_only,
     compact_semantic_review_feedback,
     model_observations_without_repair_recipes,
 )
@@ -109,7 +110,7 @@ def _is_runtime_authored_prescriptive_field(key: Any) -> bool:
 
 
 def _without_runtime_authored_prescriptions(value: Any) -> Any:
-    return model_observations_without_repair_recipes(value)
+    return coding_agent_observations_only(value)
 
 
 def _is_compaction_path_key(key: Any) -> bool:
@@ -3419,8 +3420,7 @@ def _model_owned_formalizer_feedback_instructions(
             "Use the provider output schema and typed routing fields to return the next "
             "candidate. When the available source and verifier observations are "
             "insufficient, return a precise typed blocker naming the missing evidence "
-            "instead of inventing it. Runtime mode labels and legacy recommendation "
-            "fields are control-plane history, not instructions for how to write Lean."
+            "instead of inventing it."
         ),
     ]
 
@@ -3443,11 +3443,41 @@ def _complete_lean_candidate_revision_feedback(
 def _complete_formalizer_environment_observations(
     feedback: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Transport the complete environment packet without interpreting its fields."""
+    """Preserve observations while withholding runtime-authored fix routing."""
 
     if not isinstance(feedback, Mapping):
         return {}
-    return deepcopy(dict(feedback))
+    projected = _without_runtime_authored_prescriptions(feedback)
+
+    def compact_retrieval(child: Any) -> Any:
+        if isinstance(child, Mapping):
+            result: dict[str, Any] = {}
+            for key, item in child.items():
+                key_text = str(key)
+                if key_text == "proofengineer_repair_context":
+                    key_text = "target_and_environment_observations"
+                    if (
+                        isinstance(item, Mapping)
+                        and item.get("context_kind")
+                        == "task_bound_formal_source_grounding"
+                    ):
+                        item = {
+                            "context_kind": item.get("context_kind"),
+                            "formal_source_grounding_hits": item.get(
+                                "formal_source_grounding_hits", []
+                            ),
+                        }
+                result[key_text] = (
+                    compact_formal_source_grounding_hits_for_prompt(item)
+                    if key_text == "formal_source_grounding_hits"
+                    else compact_retrieval(item)
+                )
+            return result
+        if isinstance(child, list | tuple):
+            return [compact_retrieval(item) for item in child]
+        return deepcopy(child)
+
+    return compact_retrieval(projected)
 
 
 def _theory_trace_downstream_alignment_feedback(
