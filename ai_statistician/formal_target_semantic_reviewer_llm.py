@@ -7,11 +7,17 @@ from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
-from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
+from .model_backend import (
+    PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY,
+    PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY,
+    GeneratorBackend,
+    GeneratorRequest,
+    resolve_generator_model,
+)
 from .research_schema import OpenResearchQuestion
 
 
-FORMAL_TARGET_SEMANTIC_REVIEW_SCHEMA_VERSION = 4
+FORMAL_TARGET_SEMANTIC_REVIEW_SCHEMA_VERSION = 5
 FORMAL_TARGET_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "FORMAL_TARGET_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -58,9 +64,11 @@ def _normalize_dimension_reviews(value: Any) -> list[dict[str, Any]]:
         ]
     elif isinstance(value, list):
         items = [
-            (str(row.get("dimension", "") or ""), row)
-            for row in value
-            if isinstance(row, Mapping)
+            (dimension, value[index])
+            for index, dimension in enumerate(
+                FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS
+            )
+            if index < len(value) and isinstance(value[index], Mapping)
         ]
     else:
         items = []
@@ -178,6 +186,8 @@ class LLMFormalTargetSemanticReviewerAgent:
                 "review_input_fingerprint": stable_hash(review_material),
                 "reviewer_emits_observations_only": True,
                 "architect_owns_routing": True,
+                PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY: True,
+                PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY: True,
             },
         )
 
@@ -251,12 +261,8 @@ def _dimension_schema() -> dict[str, Any]:
     return {
         "type": "object",
         "additionalProperties": False,
-        "required": ["dimension", "status", "rationale", "evidence_refs"],
+        "required": ["status", "rationale", "evidence_refs"],
         "properties": {
-            "dimension": {
-                "type": "string",
-                "enum": list(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS),
-            },
             "status": {
                 "type": "string",
                 "enum": ["PASS", "FAIL", "UNCERTAIN"],
@@ -311,6 +317,11 @@ FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
             "type": "array",
             "minItems": len(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS),
             "maxItems": len(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS),
+            "description": (
+                "One observation per required_dimensions entry, in the exact supplied "
+                "order. AgentRuntime binds array positions to immutable dimension "
+                "identities; do not copy dimension names into rows."
+            ),
             "items": _dimension_schema(),
         },
         "findings": {

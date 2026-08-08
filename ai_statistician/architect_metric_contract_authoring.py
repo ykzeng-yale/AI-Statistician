@@ -1208,12 +1208,6 @@ def review_architect_theory_execution_preflight(
                     packet.get("independent_invocation")
                 ),
                 "overall_verdict": "REVISE",
-                "semantic_reviewer_recommended_repair_scope": (
-                    ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
-                ),
-                "recommended_repair_scope": (
-                    ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
-                ),
                 "dimension_reviews": [
                     dict(row)
                     for row in packet.get("dimension_reviews", []) or []
@@ -1250,11 +1244,6 @@ def review_architect_theory_execution_preflight(
                     dict(row)
                     for row in packet.get("findings", []) or []
                     if isinstance(row, Mapping)
-                ],
-                "repair_instructions": [
-                    str(value)
-                    for value in packet.get("repair_instructions", []) or []
-                    if str(value).strip()
                 ],
                 "execution_authorized": False,
                 "proof_evidence_status": str(

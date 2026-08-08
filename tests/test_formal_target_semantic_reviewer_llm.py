@@ -16,6 +16,7 @@ from ai_statistician.formal_target_semantic_review_runtime import (
 )
 from ai_statistician.formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS,
+    FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA,
     FormalTargetSemanticReviewerConfig,
     LLMFormalTargetSemanticReviewerAgent,
     build_formal_target_semantic_review_prompt,
@@ -26,6 +27,10 @@ from ai_statistician.formalizer_llm import (
 )
 from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+    PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY,
+    PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY,
+    GeneratorRequest,
+    GeneratorResponse,
     StaticJSONGeneratorBackend,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
@@ -46,7 +51,6 @@ def _question() -> OpenResearchQuestion:
 def _review_response(*, accepted: bool) -> dict[str, Any]:
     dimensions = [
         {
-            "dimension": dimension,
             "status": "PASS",
             "rationale": f"The exact target preserves {dimension}.",
             "evidence_refs": [f"/exact_formal_target/{dimension}"],
@@ -93,6 +97,22 @@ def _reviewer(
             max_validation_retries=0,
         ),
     )
+
+
+class _CapturingBackend:
+    provider_name = "static"
+
+    def __init__(self, responses: list[dict[str, Any]]) -> None:
+        self.responses = list(responses)
+        self.requests: list[GeneratorRequest] = []
+
+    def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+        self.requests.append(request)
+        return GeneratorResponse(
+            text=json.dumps(self.responses.pop(0)),
+            provider=self.provider_name,
+            model=request.model,
+        )
 
 
 def _runtime_fixture(
@@ -368,6 +388,9 @@ def test_invalid_observation_packet_fails_closed_without_owner_fallback(
         result, "RuntimeFormalTargetSemanticReviewValidationFailure"
     )
     assert failure["llm_packet_regeneration_history"]
+    assert failure["last_invalid_packet"]["findings"][0][
+        "observed_behavior"
+    ] == "The conclusion proves only a weaker claim."
     assert "repair_owner" not in json.dumps(failure, sort_keys=True)
 
 
@@ -398,3 +421,69 @@ def test_prompt_requests_observations_and_forbids_runtime_repair_planning() -> N
     assert "Do not write Lean" in prompt
     assert "repair_scope" not in prompt
     assert "repair_owner" not in prompt
+
+
+def test_dimension_schema_is_order_bound_without_model_copied_identity() -> None:
+    schema = FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA["properties"][
+        "dimension_reviews"
+    ]
+    assert schema["minItems"] == len(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS)
+    assert schema["maxItems"] == len(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS)
+    assert "dimension" not in schema["items"]["properties"]
+
+
+def test_reviewer_requests_native_schema_for_generation_and_regeneration() -> None:
+    invalid = _review_response(accepted=False)
+    invalid["findings"][0].pop("expected_behavior")
+    backend = _CapturingBackend([invalid, _review_response(accepted=True)])
+    agent = LLMFormalTargetSemanticReviewerAgent(
+        provider=backend,
+        config=FormalTargetSemanticReviewerConfig(
+            provider_name="static",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            max_validation_retries=1,
+        ),
+    )
+    lineage = {
+        "work_order_id": "work-order",
+        "work_order_hash": "work-order-hash",
+        "source_task_id": "source-task",
+        "source_subsystem": "FormalizationEvaluator",
+        "candidate_materialization_id": "materialization",
+        "candidate_materialization_hash": "materialization-hash",
+        "theory_packet_id": "theory-packet",
+        "theory_packet_hash": "theory-packet-hash",
+        "proposal_packet_id": "proposal-packet",
+        "proposal_packet_hash": "proposal-packet-hash",
+        "candidate_id": "candidate",
+        "candidate_source_hash": "candidate-source-hash",
+        "target_lean_declaration": "exact_source",
+        "target_theorem_statement_hash": "target-statement-hash",
+        "target_theorem_statement_hash_algorithm": "sha256",
+        "source_model": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        "source_model_tier": "haiku",
+        "source_agent": "LLMFormalizerProofEngineerAgent",
+    }
+
+    packet = agent.review(
+        question=_question(),
+        review_material={"exact_formal_target": {"source": "theorem t : True"}},
+        trusted_lineage=lineage,
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert len(backend.requests) == 2
+    assert backend.requests[0].metadata[
+        PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY
+    ] is True
+    assert backend.requests[0].metadata[
+        PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY
+    ] is True
+    assert backend.requests[1].metadata[
+        PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY
+    ] is True
+    assert backend.requests[1].schema == backend.requests[0].schema
+    assert backend.requests[1].metadata["json_repair_mode"] == (
+        "full_packet_regeneration"
+    )

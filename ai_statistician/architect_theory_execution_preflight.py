@@ -38,8 +38,8 @@ from .metric_protocol_finding_ledger import (
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 8
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 12
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 9
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 13
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -196,8 +196,9 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
     ),
     (
         "Report only blockers to metric authoring or finite execution. Use one compact "
-        "finding per distinct blocker and the minimum repair needed to make the "
-        "declared contract coherent; omit optional feature requests and unrelated "
+        "finding per distinct blocker. State the observed behavior and the behavior "
+        "required by the supplied research contract, without prescribing an edit, "
+        "repair strategy, or owner; omit optional feature requests and unrelated "
         "method improvements."
     ),
     (
@@ -532,7 +533,12 @@ def architect_theory_execution_preflight_json_schema(
             "minLength": 1,
             "maxLength": 280,
         },
-        "required_change": {
+        "observed_behavior": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 360,
+        },
+        "expected_behavior": {
             "type": "string",
             "minLength": 1,
             "maxLength": 360,
@@ -543,7 +549,8 @@ def architect_theory_execution_preflight_json_schema(
         "severity",
         "category",
         "summary",
-        "required_change",
+        "observed_behavior",
+        "expected_behavior",
         "evidence_refs",
     ]
     finding_schema = {
@@ -1471,32 +1478,7 @@ def _invalid_estimator_declarations(
 def _normalize_estimator_status_summaries(
     rows: Sequence[Mapping[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    normalized_rows: list[dict[str, Any]] = []
-    normalizations: list[dict[str, Any]] = []
-    for source_row in rows:
-        row = dict(source_row)
-        reported_status = str(row.get("status", "") or "").strip().upper()
-        invalid_declarations = _invalid_estimator_declarations(row)
-        if reported_status == "PASS" and invalid_declarations:
-            row["status"] = "UNCERTAIN"
-            normalizations.append(
-                {
-                    "estimator_id": str(row.get("estimator_id", "") or "").strip(),
-                    "model_reported_status": "PASS",
-                    "runtime_normalized_status": "UNCERTAIN",
-                    "false_or_missing_declaration_fields": [
-                        field for field, _description in invalid_declarations
-                    ],
-                    "rule": (
-                        "A PASS estimator summary requires every granular declaration "
-                        "flag to be true; the runtime only downgraded the redundant "
-                        "summary and preserved all model-authored semantic fields."
-                    ),
-                    "runtime_selected_semantics": False,
-                }
-            )
-        normalized_rows.append(row)
-    return normalized_rows, normalizations
+    return [dict(row) for row in rows], []
 
 
 def _ordered_review_slot_rows(
@@ -1627,7 +1609,6 @@ def _normalize_packet(
                     {
                         "prior_finding_id": finding_id,
                         "finding_id": finding_id,
-                        "repair_scope": "upstream_theory",
                     }
                 )
                 if body.get("source_grounding_required") is True:
@@ -1685,7 +1666,7 @@ def _normalize_packet(
     for raw_finding in body.get("findings", []) or []:
         if not isinstance(raw_finding, Mapping):
             continue
-        finding = {**dict(raw_finding), "repair_scope": "upstream_theory"}
+        finding = dict(raw_finding)
         prior_finding_id = str(
             finding.get("prior_finding_id", "") or ""
         ).strip()
@@ -2190,8 +2171,6 @@ def validate_architect_theory_execution_preflight_packet(
             "findings; finding_ids="
             + json.dumps(resolved_with_continuation)
         )
-    if any(row.get("repair_scope") != "upstream_theory" for row in findings):
-        errors.append("theory execution preflight findings must route upstream theory")
     if findings and _all_execution_review_rows_pass(packet):
         errors.append(
             "blocking theory execution preflight findings contradict the all-PASS "

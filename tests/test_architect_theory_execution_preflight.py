@@ -355,9 +355,13 @@ def _payload(*, accept: bool) -> dict[str, object]:
                     "severity": "high",
                     "category": "ideal_executable_semantic_mismatch",
                     "summary": "The finite interface does not represent all ideal outcomes.",
-                    "required_change": (
-                        "Define a total executable outcome and the estimand induced by "
-                        "any resource bound or censoring rule."
+                    "observed_behavior": (
+                        "A finite input can end before the ideal event, leaving the "
+                        "declared executable output undefined."
+                    ),
+                    "expected_behavior": (
+                        "Every admitted finite input has a typed outcome whose "
+                        "relationship to the requested estimand is explicit."
                     ),
                     "evidence_refs": [
                         "theory.estimator_specs",
@@ -471,7 +475,8 @@ def test_preflight_canonicalizes_prior_finding_source_ref_before_binding() -> No
         "severity",
         "category",
         "summary",
-        "required_change",
+        "observed_behavior",
+        "expected_behavior",
         "evidence_refs",
     ):
         assert continued[field] == prior_finding[field]
@@ -1156,7 +1161,7 @@ def test_preflight_preserves_primitive_summary_conflict_without_retry() -> None:
     ) == []
 
 
-def test_preflight_downgrades_inconsistent_estimator_pass_without_retry() -> None:
+def test_preflight_returns_inconsistent_estimator_pass_to_same_model() -> None:
     payload = _payload(accept=True)
     payload["dimension_reviews"][1] = {
         "status": "UNCERTAIN",
@@ -1174,13 +1179,40 @@ def test_preflight_downgrades_inconsistent_estimator_pass_without_retry() -> Non
             "severity": "high",
             "category": "unestablished_theorem_hypothesis",
             "summary": "An invoked theorem hypothesis remains unestablished.",
-            "required_change": (
-                "Establish the hypothesis under the law used by the conclusion."
+            "observed_behavior": (
+                "The estimator row reports PASS while its theorem-hypothesis flag "
+                "is false."
+            ),
+            "expected_behavior": (
+                "The estimator status agrees with every model-authored declaration "
+                "flag."
             ),
             "evidence_refs": ["theory.theorem_cards", "theory.estimator_specs"],
         }
     ]
-    backend = _Backend(payload)
+
+    class Backend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            candidate = deepcopy(payload)
+            if len(self.requests) > 1:
+                candidate["estimator_execution_checks"][0]["status"] = "UNCERTAIN"
+            return GeneratorResponse(
+                text=json.dumps(candidate),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "provider_structured_output_requested": True,
+                    "provider_structured_output_applied": True,
+                },
+            )
+
+    backend = Backend()
 
     packet = review_architect_theory_execution_preflight(
         provider=backend,
@@ -1206,7 +1238,7 @@ def test_preflight_downgrades_inconsistent_estimator_pass_without_retry() -> Non
         },
     )
 
-    assert len(backend.requests) == 1
+    assert len(backend.requests) == 2
     estimator_row = packet["estimator_execution_checks"][0]
     assert estimator_row["status"] == "UNCERTAIN"
     assert estimator_row["theorem_applications_declared_valid"] is False
@@ -1214,22 +1246,8 @@ def test_preflight_downgrades_inconsistent_estimator_pass_without_retry() -> Non
     assert packet["findings"][0]["category"] == (
         "unestablished_theorem_hypothesis"
     )
-    assert packet["runtime_estimator_status_normalizations"] == [
-        {
-            "estimator_id": "generic_stream_method",
-            "model_reported_status": "PASS",
-            "runtime_normalized_status": "UNCERTAIN",
-            "false_or_missing_declaration_fields": [
-                "theorem_applications_declared_valid"
-            ],
-            "rule": (
-                "A PASS estimator summary requires every granular declaration flag "
-                "to be true; the runtime only downgraded the redundant summary and "
-                "preserved all model-authored semantic fields."
-            ),
-            "runtime_selected_semantics": False,
-        }
-    ]
+    assert packet["runtime_estimator_status_normalizations"] == []
+    assert packet["llm_json_repair_attempts"] == 1
     assert validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
@@ -1293,11 +1311,14 @@ def test_preflight_regenerates_all_pass_finding_conflict_with_same_model() -> No
     )
 
 
-def test_preflight_routes_semantic_mismatch_to_upstream_theory() -> None:
+def test_preflight_reports_semantic_mismatch_without_selecting_an_owner() -> None:
     packet, _backend = _review(accept=False)
 
     assert packet["overall_verdict"] == "REVISE"
-    assert packet["findings"][0]["repair_scope"] == "upstream_theory"
+    finding = packet["findings"][0]
+    assert finding["observed_behavior"]
+    assert finding["expected_behavior"]
+    assert "repair_scope" not in finding
     assert packet["generated_code_observed"] is False
     assert packet["simulation_results_observed"] is False
 
@@ -1380,7 +1401,8 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_index() -> None:
             "severity": "medium",
             "category": "new_finite_branch_gap",
             "summary": "A separate finite branch also needs an explicit outcome.",
-            "required_change": "Declare the finite outcome for that branch.",
+            "observed_behavior": "The separate finite branch has no declared output.",
+            "expected_behavior": "Every finite branch has a typed declared output.",
             "evidence_refs": ["theory.estimator_specs"],
         }
     ]
@@ -1525,7 +1547,8 @@ def test_preflight_deduplicates_model_restatement_of_prior_finding() -> None:
                 "severity",
                 "category",
                 "summary",
-                "required_change",
+                "observed_behavior",
+                "expected_behavior",
                 "evidence_refs",
             )
         }
@@ -1698,7 +1721,8 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
     assert provider.requests == []
     assert history[0]["review_stage"] == "theory_execution_preflight"
     assert history[0]["authoring_packet_id"] == ""
-    assert history[0]["recommended_repair_scope"] == "upstream_theory"
+    assert "recommended_repair_scope" not in history[0]
+    assert "repair_instructions" not in history[0]
     assert history[0]["execution_authorized"] is False
     assert history[0]["theory_execution_preflight_packet"] == rejected_packet
 
@@ -1755,7 +1779,6 @@ def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -
             "semantic_review_packet_id": rejected_packet["packet_id"],
             "semantic_review_packet_hash": stable_hash(rejected_packet),
             "overall_verdict": "REVISE",
-            "recommended_repair_scope": "upstream_theory",
             "dimension_reviews": rejected_packet["dimension_reviews"],
             "estimator_execution_checks": rejected_packet[
                 "estimator_execution_checks"
@@ -1798,16 +1821,22 @@ def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -
         max_upstream_theory_revisions=2,
     )
 
-    assert result.status == "BLOCKED"
-    assert result.next_task is None
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
     assert result.failure_classification == (
-        "architect_theory_execution_preflight_stalled"
+        "architect_metric_protocol_feedback_route_requested"
     )
     manifest = next(iter(result.produced_artifacts.values()))
     assert manifest["preflight_revision_stalled"] is True
     assert manifest["upstream_theory_revision_routed"] is False
-    assert manifest["architect_route_requested"] is False
+    assert manifest["architect_route_requested"] is True
     assert manifest["runtime_selected_owner"] is False
+    progress = result.next_task.inputs["environment_feedback"][
+        "progress_observation"
+    ]
+    assert progress["same_lineage_no_progress_observed"] is True
+    assert progress["runtime_selected_disposition"] is False
 
 
 def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
@@ -1823,7 +1852,6 @@ def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
             "semantic_review_packet_id": rejected_packet["packet_id"],
             "semantic_review_packet_hash": stable_hash(rejected_packet),
             "overall_verdict": "REVISE",
-            "recommended_repair_scope": "upstream_theory",
             "dimension_reviews": rejected_packet["dimension_reviews"],
             "estimator_execution_checks": rejected_packet[
                 "estimator_execution_checks"
@@ -1836,8 +1864,12 @@ def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
                         "Need explicit support conditions for right-censoring under "
                         "resource bounds."
                     ),
-                    "required_change": (
-                        "Document finite-horizon behavior as a separate branch."
+                    "observed_behavior": (
+                        "The finite-horizon branch has no explicit support condition."
+                    ),
+                    "expected_behavior": (
+                        "The admitted support conditions cover every finite-horizon "
+                        "branch."
                     ),
                     "evidence_refs": ["theory.estimator_specs"],
                     "finding_id": prior_finding_id,
@@ -1848,8 +1880,11 @@ def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
                     "summary": (
                         "Need a finite-outcome support lemma for the new branch."
                     ),
-                    "required_change": (
-                        "Add a lemma chain for finite-outcome transport."
+                    "observed_behavior": (
+                        "The finite-outcome transport claim has no supporting lemma."
+                    ),
+                    "expected_behavior": (
+                        "The transport claim is linked to a source-grounded argument."
                     ),
                     "evidence_refs": ["theory.estimator_specs"],
                     "finding_id": new_finding_id,
@@ -1895,14 +1930,15 @@ def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
         max_upstream_theory_revisions=2,
     )
 
-    assert result.status == "BLOCKED"
-    assert result.next_task is None
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
     assert result.failure_classification == (
-        "architect_theory_execution_preflight_stalled"
+        "architect_metric_protocol_feedback_route_requested"
     )
     manifest = next(iter(result.produced_artifacts.values()))
     assert manifest["preflight_revision_progressed"] is False
     assert manifest["preflight_revision_stalled"] is True
     assert manifest["upstream_theory_revision_routed"] is False
-    assert manifest["architect_route_requested"] is False
+    assert manifest["architect_route_requested"] is True
     assert manifest["runtime_selected_owner"] is False

@@ -40,6 +40,12 @@ def metric_protocol_finding_id(
         "question_id": str(question_id),
         "category": str(finding.get("category", "") or "").strip(),
         "summary": str(finding.get("summary", "") or "").strip(),
+        "observed_behavior": str(
+            finding.get("observed_behavior", "") or ""
+        ).strip(),
+        "expected_behavior": str(
+            finding.get("expected_behavior", "") or ""
+        ).strip(),
         "required_change": str(
             finding.get("required_change", "") or ""
         ).strip(),

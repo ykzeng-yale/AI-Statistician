@@ -804,6 +804,7 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                     if last_invalid_packet
                     else ""
                 ),
+                "last_invalid_packet": last_invalid_packet,
                 "last_invalid_review_projection": (
                     invalid_review_projection
                 ),

@@ -710,10 +710,6 @@ def architect_preexecution_metric_protocol_rejection_result(
     )
     architect_route_available = bool(
         upstream_theory_revision_count < max_theory_revisions
-        and (
-            not theory_execution_preflight_rejected
-            or preflight_revision_progressed
-        )
     )
     failed_response_identity_checks = [
         dict(row)
@@ -820,13 +816,16 @@ def architect_preexecution_metric_protocol_rejection_result(
             "simulation execution is authorized."
         )
     )
-    if theory_execution_preflight_rejected and not preflight_revision_progressed:
+    if (
+        theory_execution_preflight_rejected
+        and not preflight_revision_progressed
+        and not architect_route_available
+    ):
         failure_classification = "architect_theory_execution_preflight_stalled"
         rationale = (
             "Fresh independent review closed none of the prior theory-preflight "
-            "findings. The runtime stops this lineage instead of spending another "
-            "model turn on semantically unchanged feedback; no coding or simulation "
-            "execution is authorized."
+            "findings and the global theory-revision budget is exhausted. No coding "
+            "or simulation execution is authorized."
         )
     if architect_route_available:
         next_revision_count = upstream_theory_revision_count + 1
@@ -911,6 +910,14 @@ def architect_preexecution_metric_protocol_rejection_result(
                 "top_level_observation_is_current": True,
                 "historical_error_is_not_an_active_blocker_unless_reobserved": True,
             },
+            "progress_observation": {
+                "prior_finding_progress_made": preflight_revision_progressed,
+                "same_lineage_no_progress_observed": bool(
+                    theory_execution_preflight_rejected
+                    and not preflight_revision_progressed
+                ),
+                "runtime_selected_disposition": False,
+            },
             "boundary": (
                 "This is current pre-execution semantic observation for an LLM Architect "
                 "routing decision. It contains no runtime-authored repair recipe or owner "
@@ -979,8 +986,10 @@ def architect_preexecution_metric_protocol_rejection_result(
         )
         rationale = (
             "Independent pre-execution review rejected the current candidate. The "
-            "complete observed lineage is preserved for the existing Architect model "
-            "to select the next owner; runtime authored no repair or owner route."
+            "complete observed lineage, including any same-lineage no-progress "
+            "observation, is preserved for the existing Architect model to select "
+            "the next owner or BLOCK; runtime authored no repair, owner route, or "
+            "stopping decision."
         )
 
     evidence = EvidenceLedgerEntry(
