@@ -85,7 +85,6 @@ ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS = (
     "SimulationEvaluator",
     "AlgorithmEngineer",
     "FormalizationEvaluator",
-    "FormalizationGapPlanner",
     "ProofEngineer",
     "CriticEvaluator",
 )
@@ -2962,7 +2961,6 @@ def _required_architect_plan_subsystems(
             (
                 "FormalizationEvaluator",
                 "ProofEngineer",
-                "FormalizationGapPlanner",
             )
         )
     if (

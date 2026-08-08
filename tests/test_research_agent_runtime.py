@@ -21078,9 +21078,8 @@ def test_architect_model_routes_generated_code_observations_without_owner_hint()
         environment_feedback=routed.next_task.inputs["environment_feedback"],
     )
     prompt_payload = json.loads(prompt.rsplit("\n\n", maxsplit=1)[1])
-    semantic_review = prompt_payload["runtime_environment_feedback"][
-        "generated_code_semantic_review"
-    ]
+    semantic_review = prompt_payload["runtime_environment_feedback"]
+    assert semantic_review == feedback
     assert semantic_review["reviewed_source_artifacts"][0][
         "exact_source_code"
     ] == exact_source
@@ -25070,7 +25069,6 @@ def test_architect_coordinator_elaborates_required_capability_worker_graph() -> 
         "SimulationEvaluator",
         "FormalTargetSemanticReviewer",
         "ProofEngineer",
-        "FormalizationGapPlanner",
         "TheoremReductionClosureProofEngineer",
     ):
         row = plan_by_subsystem[subsystem]
@@ -25079,6 +25077,7 @@ def test_architect_coordinator_elaborates_required_capability_worker_graph() -> 
         assert row["objective"] == ""
         assert row["expected_artifacts"] == []
         assert row["acceptance_gate"] == ""
+    assert "FormalizationGapPlanner" not in plan_by_subsystem
     provenance = packet["subsystem_execution_plan_provenance"]
     assert provenance["llm_authored_subsystems"] == ["RetrievalMemory"]
     assert "SimulationEvaluator" in provenance["runtime_elaborated_subsystems"]

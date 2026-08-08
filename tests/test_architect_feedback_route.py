@@ -6,8 +6,11 @@ from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.architect_coordinator_llm import (
     ARCHITECT_FEEDBACK_ROUTE_JSON_SCHEMA,
     ARCHITECT_FEEDBACK_ROUTE_OPERATION,
+    ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS,
     ArchitectCoordinatorConfig,
     LLMArchitectCoordinatorAgent,
+    build_architect_coordinator_prompt,
+    build_architect_feedback_route_prompt,
     validate_architect_feedback_route_packet,
 )
 from ai_statistician.fingerprint import stable_hash
@@ -29,6 +32,51 @@ def _question() -> OpenResearchQuestion:
         description="Develop and evaluate a new estimator without task-specific rules.",
         tags=("held-out-family",),
     )
+
+
+def test_bridge_only_gap_planner_is_not_a_generic_feedback_owner() -> None:
+    assert "FormalizationGapPlanner" not in ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS
+    assert "FormalizationGapPlanner" not in (
+        ARCHITECT_FEEDBACK_ROUTE_JSON_SCHEMA["properties"]["selected_subsystem"][
+            "enum"
+        ]
+    )
+    route_prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context={},
+        environment_feedback={"feedback_type": "current_observation"},
+    )
+    route_payload = json.loads(route_prompt.rsplit("\n\n", 1)[1])
+    assert "FormalizationGapPlanner" not in route_payload[
+        "available_route_subsystems"
+    ]
+    invalid_route = {
+        "decision": "ROUTE",
+        "selected_subsystem": "FormalizationGapPlanner",
+        "objective": "Plan around a gap without a bridge.",
+        "rationale": "A bridge does not exist.",
+        "operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
+        "environment_feedback_fingerprint": "feedback-hash",
+    }
+    assert "ROUTE requires one available selected_subsystem" in (
+        validate_architect_feedback_route_packet(invalid_route)
+    )
+
+
+def test_formal_requirement_does_not_force_bridge_only_gap_planner() -> None:
+    prompt = build_architect_coordinator_prompt(
+        question=_question(),
+        architect_context={},
+        runtime_config={
+            "formal_verification_policy": "required",
+            "formal_required_for_final": True,
+        },
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    required = payload["execution_plan_contract"]["required_subsystems"]
+    assert "FormalizationEvaluator" in required
+    assert "ProofEngineer" in required
+    assert "FormalizationGapPlanner" not in required
 
 
 class _RouteBackend:
