@@ -26144,15 +26144,14 @@ def test_algorithm_engineer_uses_structured_execution_envelope_for_anthropic() -
             {
                 "estimator_id": "candidate",
                 "registered_template_hint": "none",
-                "estimator_interface_contract": (
-                    _estimator_interface_contract_fixture()
-                ),
             }
         ],
         "sandbox_code_drafts": [
             {
                 "estimator_id": "candidate",
                 "language": "python",
+                "execution_profile": "stdlib",
+                "dependencies": [],
                 "entrypoint": "run_sandbox",
                 "code": (
                     "def run_estimator(request: dict) -> dict:\n"
@@ -26217,7 +26216,10 @@ def test_algorithm_engineer_uses_structured_execution_envelope_for_anthropic() -
     target_schema = request.schema["properties"]["implementation_targets"][
         "items"
     ]
-    assert "estimator_interface_contract" not in target_schema["required"]
+    assert "estimator_interface_contract" not in target_schema["properties"]
+    draft_schema = request.schema["properties"]["sandbox_code_drafts"]["items"]
+    assert "anyOf" not in draft_schema
+    assert "dependencies" in draft_schema["required"]
     assert packet["metric_contracts"] == []
     assert packet["implementation_targets"][0][
         "estimator_interface_contract_id"
@@ -26255,6 +26257,8 @@ def test_simulation_engineer_uses_structured_binding_envelope_for_anthropic() ->
             {
                 "simulation_id": "generated-stress",
                 "language": "python",
+                "execution_profile": "stdlib",
+                "dependencies": [],
                 "entrypoint": "run_sandbox",
                 "code": (
                     "def run_sandbox(seed: int, replicates: int) -> dict:\n"
@@ -26330,16 +26334,11 @@ def test_simulation_engineer_uses_structured_binding_envelope_for_anthropic() ->
         "artifact_id",
         "metric_path",
     }
-    draft_branches = request.schema["properties"]["simulation_code_drafts"][
+    draft_schema = request.schema["properties"]["simulation_code_drafts"][
         "items"
-    ]["anyOf"]
-    stdlib_branch = next(
-        row
-        for row in draft_branches
-        if row["properties"]["execution_profile"]["enum"] == ["stdlib"]
-    )
-    assert "dependencies" not in stdlib_branch["properties"]
-    assert "dependencies" not in stdlib_branch["required"]
+    ]
+    assert "anyOf" not in draft_schema
+    assert "dependencies" in draft_schema["required"]
     contract = packet["metric_contracts"][0]
     assert contract["authority_binding_mode"] == (
         "runtime_joined_frozen_requirement"
@@ -26376,6 +26375,8 @@ def test_simulation_engineer_exploration_uses_code_envelope_without_gates() -> N
             {
                 "simulation_id": "diagnostic",
                 "language": "python",
+                "execution_profile": "stdlib",
+                "dependencies": [],
                 "entrypoint": "run_sandbox",
                 "code": (
                     "def run_sandbox(seed: int, replicates: int) -> dict:\n"

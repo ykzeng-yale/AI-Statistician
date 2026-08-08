@@ -10,7 +10,6 @@ from .fingerprint import stable_hash
 from .estimator_interface_contract import (
     estimator_interface_contract_errors as shared_estimator_interface_contract_errors,
     estimator_interface_contract_id,
-    estimator_interface_contract_json_schema,
     theory_estimator_interface_contracts,
 )
 from .generated_metric_contract import (
@@ -271,9 +270,10 @@ def build_algorithm_engineer_prompt(
             "metadata entrypoint exactly "
             "\"run_sandbox\" and code defining either Python "
             "def run_sandbox(seed: int, replicates: int) -> dict or R "
-            "run_sandbox <- function(seed, replicates). Declare language, "
-            "execution_profile, and only dependencies actually imported. Set every "
-            "implementation_targets and generated source are model-authored. Treat "
+            "run_sandbox <- function(seed, replicates). Always return dependencies "
+            "as an array: use [] for stdlib and list only packages actually imported "
+            "for scientific_wasm. Every implementation target and generated source "
+            "is model-authored. Treat "
             "each supplied implementation_gaps estimator_id as "
             "an exact task-artifact foreign key: copy it unchanged into the matching "
             "implementation_targets and sandbox_code_drafts rows rather than inventing "
@@ -525,7 +525,7 @@ def _algorithm_engineer_output_contract(*, requires_generated_code: bool) -> dic
                 "language": "python",
                 "execution_profile": "stdlib or scientific_wasm",
                 "dependencies": (
-                    "omit this transport field for stdlib; include only packages "
+                    "empty array for stdlib; otherwise include only packages "
                     "actually imported for scientific_wasm"
                 ),
                 "entrypoint": "run_sandbox",
@@ -579,9 +579,6 @@ def _algorithm_engineer_response_schema(
                         "estimator_id": estimator_id_schema,
                         "adapter_strategy": {"type": "string"},
                         "data_contract": _string_array_json_schema(),
-                        "estimator_interface_contract": (
-                            _estimator_interface_contract_json_schema()
-                        ),
                         "validation_metrics": _string_array_json_schema(),
                         "risk_controls": _string_array_json_schema(),
                     },
@@ -625,10 +622,6 @@ def _theory_trace_alignment_json_schema() -> dict[str, Any]:
             "rationale": {"type": "string"},
         },
     }
-
-
-def _estimator_interface_contract_json_schema() -> dict[str, Any]:
-    return estimator_interface_contract_json_schema()
 
 
 def _next_actions_json_schema() -> dict[str, Any]:

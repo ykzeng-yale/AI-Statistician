@@ -70,27 +70,29 @@ def test_generated_code_contract_rejects_string_dependencies_before_execution() 
     assert "generated code dependencies must be an array" in errors
 
 
-def test_generated_code_schema_makes_profile_dependency_choice_structural() -> None:
+def test_generated_code_schema_uses_one_compact_runtime_validated_shape() -> None:
     schema = generated_code_draft_json_schema(
         artifact_properties={"artifact_id": {"type": "string"}},
         artifact_required=["artifact_id"],
     )
 
-    stdlib, scientific_python, scientific_r = schema["anyOf"]
-    assert stdlib["properties"]["execution_profile"]["enum"] == ["stdlib"]
-    assert stdlib["properties"]["language"]["enum"] == ["python"]
-    assert "dependencies" not in stdlib["properties"]
-    assert "dependencies" not in stdlib["required"]
-    assert scientific_python["properties"]["dependencies"]["items"]["enum"] == [
+    assert "anyOf" not in schema
+    assert schema["properties"]["execution_profile"]["enum"] == [
+        "stdlib",
+        "scientific_wasm",
+    ]
+    assert schema["properties"]["language"]["enum"] == ["python", "r"]
+    assert "dependencies" in schema["required"]
+    assert schema["properties"]["dependencies"]["items"]["enum"] == [
         "numpy",
         "scipy",
         "pandas",
         "scikit-learn",
         "statsmodels",
-    ]
-    assert scientific_r["properties"]["language"]["enum"] == ["r"]
-    assert scientific_r["properties"]["execution_profile"]["enum"] == [
-        "scientific_wasm"
+        "base",
+        "stats",
+        "utils",
+        "methods",
     ]
 
 

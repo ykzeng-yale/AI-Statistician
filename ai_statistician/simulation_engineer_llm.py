@@ -373,9 +373,8 @@ def build_simulation_engineer_prompt(
         "source anchors; do not repeat or rewrite those authority fields. "
         "AgentRuntime rejects invented or weakened required gates. Do not ask "
         "AgentRuntime to infer a metric from prose or metric names. "
-        "For stdlib Python omit dependencies from the raw provider transport; "
-        "AgentRuntime normalizes the omission to an empty list. For "
-        "scientific_wasm include only packages actually imported. "
+        "Always return dependencies as an array: use [] for stdlib Python and, "
+        "for scientific_wasm, include only packages actually imported. "
         "Return raw finite measurements at every metric_path whenever an underlying "
         "numeric quantity exists. For identity/mean/min/max, AgentRuntime aggregates "
         "then compares once. For all/any/at_least_count/at_least_fraction, it applies "
@@ -775,7 +774,7 @@ SIMULATION_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
             "language": "python",
             "execution_profile": "stdlib or scientific_wasm",
             "dependencies": (
-                "omit this transport field for stdlib; include only packages "
+                "empty array for stdlib; otherwise include only packages "
                 "actually imported for scientific_wasm"
             ),
             "entrypoint": "run_sandbox",

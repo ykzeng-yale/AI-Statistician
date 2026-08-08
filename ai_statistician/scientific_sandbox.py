@@ -375,12 +375,13 @@ def generated_code_draft_json_schema(
     artifact_required: Sequence[str],
     code_max_length: int = 12000,
 ) -> dict[str, Any]:
-    """Bind generated-code metadata to one executable sandbox profile."""
+    """Return a compact provider schema; runtime validates profile compatibility."""
 
     common_required = [
         *[str(value) for value in artifact_required],
         "language",
         "execution_profile",
+        "dependencies",
         "entrypoint",
         "code",
     ]
@@ -394,56 +395,34 @@ def generated_code_draft_json_schema(
         },
     }
 
-    def branch(
-        *,
-        language: str,
-        execution_profile: str,
-        dependencies: Sequence[str] | None,
-    ) -> dict[str, Any]:
-        properties = {
+    dependency_values = list(
+        dict.fromkeys(
+            [*PYTHON_SCIENTIFIC_DEPENDENCIES, *R_SCIENTIFIC_DEPENDENCIES]
+        )
+    )
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": common_required,
+        "properties": {
             **common_properties,
-            "language": {"type": "string", "enum": [language]},
+            "language": {
+                "type": "string",
+                "enum": list(SCIENTIFIC_SANDBOX_LANGUAGES),
+            },
             "execution_profile": {
                 "type": "string",
-                "enum": [execution_profile],
+                "enum": list(SCIENTIFIC_SANDBOX_PROFILES),
             },
-        }
-        required = list(common_required)
-        if dependencies is not None:
-            properties["dependencies"] = {
+            "dependencies": {
                 "type": "array",
                 "uniqueItems": True,
                 "items": {
                     "type": "string",
-                    "enum": [str(value) for value in dependencies],
+                    "enum": dependency_values,
                 },
-            }
-            required.append("dependencies")
-        return {
-            "type": "object",
-            "additionalProperties": False,
-            "required": required,
-            "properties": properties,
-        }
-
-    return {
-        "anyOf": [
-            branch(
-                language="python",
-                execution_profile=STDLIB_SANDBOX_PROFILE,
-                dependencies=None,
-            ),
-            branch(
-                language="python",
-                execution_profile=SCIENTIFIC_WASM_SANDBOX_PROFILE,
-                dependencies=PYTHON_SCIENTIFIC_DEPENDENCIES,
-            ),
-            branch(
-                language="r",
-                execution_profile=SCIENTIFIC_WASM_SANDBOX_PROFILE,
-                dependencies=R_SCIENTIFIC_DEPENDENCIES,
-            ),
-        ]
+            },
+        },
     }
 
 
