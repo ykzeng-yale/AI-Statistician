@@ -4259,6 +4259,14 @@ def test_critic_does_not_select_gap_planner_from_packet_escalation() -> None:
     assert decision["observed_conditions"]["gap_planner_candidate"] is True
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["feedback_type"] == "critic_architect_replan_observations"
+    assert feedback["feedback_id"].startswith(
+        "critic_architect_replan_feedback:"
+    )
+    assert feedback["question_id"] == question.id
+    assert feedback["source_theory_packet_id"] == theory_packet_id
+    assert feedback["source_theory_packet_hash"] == runtime_module.stable_hash(
+        blackboard.artifacts[theory_packet_id]
+    )
     assert feedback["runtime_selected_owner"] is False
     escalation = feedback["critic_environment_observations"][
         "formalizer_escalation_feedback"
@@ -4266,6 +4274,39 @@ def test_critic_does_not_select_gap_planner_from_packet_escalation() -> None:
     assert bridge["bridge_id"] in escalation[
         "formalization_gap_planner_bridge_ids"
     ]
+    route_id = "architect_feedback_route:test_critic_lineage"
+    routed_context = {
+        "theory_packet_id": theory_packet_id,
+        "environment_feedback": feedback,
+        "architect_feedback_route_decision": {
+            "artifact_kind": "ArchitectFeedbackRouteDecision",
+            "route_decision_id": route_id,
+            "decision": "ROUTE",
+            "selected_subsystem": "TheoryDeveloper",
+            "environment_feedback_fingerprint": runtime_module.stable_hash(
+                feedback
+            ),
+        },
+        "architect_initial_routing": {
+            "artifact_kind": "ArchitectInitialRoutingDecision",
+            "question_id": question.id,
+            "architect_packet_id": route_id,
+            "source": "architect_feedback_route_model",
+            "requested_subsystem": "TheoryDeveloper",
+            "selected_subsystem": "TheoryDeveloper",
+            "environment_feedback_hash": runtime_module.stable_hash(feedback),
+        },
+    }
+    revision_binding, binding_errors = (
+        runtime_module.build_architect_routed_theory_revision_binding(
+            architect_context=routed_context,
+            question_id=question.id,
+            artifacts=blackboard.artifacts,
+        )
+    )
+    assert binding_errors == []
+    assert revision_binding["feedback_id"] == feedback["feedback_id"]
+    assert revision_binding["source_theory_packet_id"] == theory_packet_id
 
 
 def test_formalization_gap_planner_runtime_subsystem_executes_offline_handoff_smoke(

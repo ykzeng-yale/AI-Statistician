@@ -36394,10 +36394,19 @@ class CriticEvaluatorRuntimeSubsystem:
                     formalizer_packet_validation_escalation_active
                 ),
             }
-            replan_feedback = {
+            replan_feedback_body = {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
                 "artifact_kind": "RuntimeCriticArchitectReplanObservations",
                 "feedback_type": "critic_architect_replan_observations",
+                "question_id": question.id,
+                "source_theory_packet_id": str(
+                    theory_packet.get("packet_id", "")
+                    or context.get("theory_packet_id", "")
+                    or ""
+                ),
+                "source_theory_packet_hash": (
+                    stable_hash(dict(theory_packet)) if theory_packet else ""
+                ),
                 "critic_evaluator_manifest_id": manifest_id,
                 "critic_model_packet": (
                     dict(proposal_packet) if proposal_packet is not None else {}
@@ -36428,6 +36437,13 @@ class CriticEvaluatorRuntimeSubsystem:
                 "runtime_selected_owner": False,
                 "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                 "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+            replan_feedback = {
+                **replan_feedback_body,
+                "feedback_id": (
+                    "critic_architect_replan_feedback:"
+                    + stable_hash(replan_feedback_body)[:20]
+                ),
             }
             replan_context = dict(context)
             replan_context["environment_feedback"] = replan_feedback
