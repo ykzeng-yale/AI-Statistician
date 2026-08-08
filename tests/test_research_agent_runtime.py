@@ -45443,7 +45443,7 @@ def test_algorithm_sandbox_failure_memory_replays_to_algorithm_prompt(
     assert feedback["failure_classification"] == (
         "generated_algorithm_sandbox_metric_gate_failed"
     )
-    assert feedback["prototypes"][0]["code_excerpt"].startswith("def run_sandbox")
+    assert feedback["prototypes"][0]["parent_source"].startswith("def run_sandbox")
     assert "metric gate failed" in feedback["prototypes"][0]["stderr_summary"]
 
     prompt = build_algorithm_engineer_prompt(
@@ -46705,7 +46705,7 @@ def test_generated_simulation_failure_memory_replays_to_simulator_prompt(
         "generated_simulation_sandbox_no_executable_draft"
     )
     assert "import numpy" in feedback["generated_simulation_prototypes"][0][
-        "code_excerpt"
+        "parent_source"
     ]
     assert "unsafe import" in feedback["generated_simulation_prototypes"][0][
         "stderr_summary"
@@ -46842,7 +46842,7 @@ def test_simulation_runtime_injects_generated_code_failure_memory_without_curren
         "runtime_execution_contract"
     ]["evidence_boundary"]
     prototype = agent.seen_feedback["generated_simulation_prototypes"][0]  # type: ignore[index]
-    assert "import numpy as np" in prototype["code_excerpt"]
+    assert "import numpy as np" in prototype["parent_source"]
     assert "sandbox rejected unsafe import" in prototype["stderr_summary"]
 
 
@@ -50060,7 +50060,9 @@ def test_generated_algorithm_feedback_carries_typed_metric_contract(
         failure_classification="generated_algorithm_sandbox_metric_gate_failed",
     )
 
-    assert feedback["prototypes"][0]["metric_contracts"] == [metric_contract]
+    assert feedback["prototypes"][0]["metric_observation"][
+        "failed_metric_contracts"
+    ] == [metric_contract]
     prompt = build_algorithm_engineer_prompt(
         question=question,
         theory_packet={
@@ -50126,7 +50128,7 @@ def test_generated_python_sandbox_uses_execution_and_typed_contracts_not_ast_rul
     assert prototype["metric_gate_errors"] == []
 
 
-def test_generated_python_sandbox_rejection_feedback_includes_code_excerpt(
+def test_generated_python_sandbox_rejection_feedback_includes_complete_source_and_diagnostics(
     tmp_path: Path,
 ) -> None:
     bad_code = (
@@ -50193,24 +50195,25 @@ def test_generated_python_sandbox_rejection_feedback_includes_code_excerpt(
         failure_classification="generated_simulation_sandbox_no_executable_draft",
     )
 
-    assert "values = [1, 2, 3" in algorithm_feedback["prototypes"][0][
-        "code_excerpt"
-    ]
     assert algorithm_feedback["prototypes"][0]["parent_source"] == bad_code
     assert algorithm_feedback["prototypes"][0]["parent_source_hash"] == (
         runtime_module.stable_hash(bad_code)
     )
     assert algorithm_feedback["prototypes"][0]["parent_source_complete"] is True
-    assert algorithm_feedback["prototypes"][0]["stdout_summary"] == full_stdout
     assert algorithm_feedback["prototypes"][0]["stderr_summary"] == full_stderr
+    assert algorithm_feedback["prototypes"][0]["stdout_summary"] == full_stdout
+    assert algorithm_feedback["prototypes"][0]["stdout_transport"] == {
+        "complete": True,
+        "character_count": len(full_stdout),
+    }
     assert "required_repair" not in algorithm_feedback
     assert "required_repair" not in simulation_feedback
-    assert "values = [1, 2, 3" in simulation_feedback[
-        "generated_simulation_prototypes"
-    ][0]["code_excerpt"]
     assert simulation_feedback["generated_simulation_prototypes"][0][
-        "stdout_summary"
-    ] == full_stdout
+        "parent_source"
+    ] == bad_code
+    assert simulation_feedback[
+        "generated_simulation_prototypes"
+    ][0]["stdout_summary"] == full_stdout
     assert simulation_feedback["generated_simulation_prototypes"][0][
         "stderr_summary"
     ] == full_stderr
@@ -50332,7 +50335,7 @@ def test_rejected_long_generated_source_is_complete_in_model_feedback(
     assert row["parent_source"].endswith("# EXACT_PARENT_SOURCE_TAIL\n")
 
 
-def test_generated_code_feedback_preserves_every_runtime_observation() -> None:
+def test_generated_code_feedback_projects_model_observations_without_mutating_manifest() -> None:
     prototypes = []
     for index in range(7):
         source = (
@@ -50345,8 +50348,13 @@ def test_generated_code_feedback_preserves_every_runtime_observation() -> None:
             for contract_index in range(9)
         ]
         evaluations = [
-            {"contract_id": row["contract_id"], "raw_observation": "x" * 800}
-            for row in contracts
+            {
+                "contract_id": row["contract_id"],
+                "passed": False,
+                "errors": [f"raw failure {index}-{contract_index}"],
+                "raw_observation": "x" * 800,
+            }
+            for contract_index, row in enumerate(contracts)
         ]
         prototypes.append(
             {
@@ -50363,20 +50371,22 @@ def test_generated_code_feedback_preserves_every_runtime_observation() -> None:
             }
         )
 
+    algorithm_manifest = {
+        "manifest_id": "algorithm_sandbox_manifest:complete-observations",
+        "prototypes": prototypes,
+        "custom_manifest_observation": "kept exactly",
+    }
+    simulation_manifest = {
+        "manifest_id": "simulation_manifest:complete-observations",
+        "generated_simulation_sandbox_prototypes": prototypes,
+        "custom_manifest_observation": "kept exactly",
+    }
     algorithm_feedback = _algorithm_sandbox_revision_feedback(
-        manifest={
-            "manifest_id": "algorithm_sandbox_manifest:complete-observations",
-            "prototypes": prototypes,
-            "custom_manifest_observation": "kept exactly",
-        },
+        manifest=algorithm_manifest,
         boundary="execution observations are not proof evidence",
     )
     simulation_feedback = _generated_simulation_revision_feedback(
-        manifest={
-            "manifest_id": "simulation_manifest:complete-observations",
-            "generated_simulation_sandbox_prototypes": prototypes,
-            "custom_manifest_observation": "kept exactly",
-        },
+        manifest=simulation_manifest,
         boundary="execution observations are not proof evidence",
     )
 
@@ -50385,19 +50395,138 @@ def test_generated_code_feedback_preserves_every_runtime_observation() -> None:
         (simulation_feedback, "generated_simulation_prototypes"),
     ):
         assert len(feedback[key]) == 7
-        assert feedback["custom_manifest_observation"] == "kept exactly"
-        assert feedback[key][6]["metrics"] == prototypes[6]["metrics"]
-        assert feedback[key][6]["metric_contracts"] == prototypes[6]["metric_contracts"]
-        assert feedback[key][6]["metric_contract_evaluation"] == prototypes[6][
-            "metric_contract_evaluation"
-        ]
-        assert feedback[key][6]["stdout_summary"] == prototypes[6]["stdout_summary"]
+        assert "custom_manifest_observation" not in feedback
+        assert "metrics" not in feedback[key][6]
+        assert "stdout_summary" not in feedback[key][6]
+        assert feedback[key][6]["metric_observation"][
+            "failed_metric_contracts"
+        ] == prototypes[6]["metric_contracts"]
+        assert feedback[key][6]["metric_observation"]["failed_evaluations"] == (
+            prototypes[6]["metric_contract_evaluation"]["evaluations"]
+        )
         assert feedback[key][6]["stderr_summary"] == prototypes[6]["stderr_summary"]
         assert feedback[key][6]["parent_source"] == prototypes[6]["source_code"]
-        assert feedback[key][6]["custom_executor_observation"] == {
-            "index": 6,
-            "kept": True,
-        }
+        assert "custom_executor_observation" not in feedback[key][6]
+
+    assert algorithm_manifest["custom_manifest_observation"] == "kept exactly"
+    assert algorithm_manifest["prototypes"][6]["metrics"] == prototypes[6]["metrics"]
+    assert simulation_manifest["custom_manifest_observation"] == "kept exactly"
+    assert simulation_manifest["generated_simulation_sandbox_prototypes"][6][
+        "stdout_summary"
+    ] == prototypes[6]["stdout_summary"]
+
+
+def test_generated_simulation_feedback_keeps_source_and_failed_gates_with_large_results() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'metric': 0.25}\n"
+        "# COMPLETE_SOURCE_TAIL\n"
+    )
+    contract = {
+        "contract_id": "contract-large-result",
+        "requirement_id": "requirement-large-result",
+        "artifact_id": "SIM_LARGE",
+        "metric_path": ["results", "*", "coverage"],
+        "operator": "between",
+        "lower": 0.9,
+        "upper": 0.98,
+        "required": True,
+    }
+    metrics = {
+        "results": [
+            {"coverage": 0.25, "replicate_payload": "m" * 4000}
+            for _ in range(80)
+        ]
+    }
+    stdout = json.dumps(metrics)
+    manifest = {
+        "manifest_id": "simulation_manifest:large-result",
+        "generated_simulation_sandbox_prototypes": [
+            {
+                "simulation_id": "SIM_LARGE",
+                "executor": "generated_simulation_sandbox",
+                "prototype_status": "FAILED_METRIC_GATE",
+                "source_code": source,
+                "script_hash": runtime_module.stable_hash(source),
+                "execution_attempted": True,
+                "returncode": 0,
+                "metrics": metrics,
+                "stdout_summary": stdout,
+                "stderr_summary": "",
+                "result_path": "/artifacts/SIM_LARGE_metrics.json",
+                "result_hash": runtime_module.stable_hash(metrics),
+                "metric_gate_errors": [
+                    "metric contract contract-large-result failed: observed=0.25"
+                ],
+                "metric_contracts": [contract],
+                "metric_contract_evaluation": {
+                    "n_contracts": 1,
+                    "n_passed": 0,
+                    "n_failed": 1,
+                    "evaluations": [
+                        {
+                            "contract_id": "contract-large-result",
+                            "requirement_id": "requirement-large-result",
+                            "metric_path": ["results", "*", "coverage"],
+                            "operator": "between",
+                            "aggregate_value": 0.25,
+                            "passed": False,
+                            "errors": [
+                                "metric contract contract-large-result failed: observed=0.25"
+                            ],
+                        }
+                    ],
+                },
+            }
+        ],
+        "n_generated_simulation_sandbox_metric_gate_failed": 1,
+    }
+
+    feedback = _generated_simulation_revision_feedback(
+        manifest=manifest,
+        boundary="simulation execution is not theorem proof",
+        failure_classification="generated_simulation_sandbox_metric_gate_failed",
+    )
+    row = feedback["generated_simulation_prototypes"][0]
+    prompt = build_simulation_engineer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": "theory:large-result",
+            "estimator_specs": [],
+            "theorem_cards": [],
+            "simulation_ademp_spec": {},
+        },
+        registered_problem={},
+        registered_procedures=[],
+        n_runs=80,
+        seed=20260808,
+        environment_feedback=feedback,
+    )
+    prompt_payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    prompt_row = prompt_payload["runtime_environment_feedback"][
+        "generated_simulation_prototypes"
+    ][0]
+
+    assert row["parent_source"] == source
+    assert row["parent_source_complete"] is True
+    assert row["metric_gate_errors"] == manifest[
+        "generated_simulation_sandbox_prototypes"
+    ][0]["metric_gate_errors"]
+    assert row["metric_observation"]["failed_metric_contracts"] == [contract]
+    assert row["metric_observation"]["failed_evaluations"][0][
+        "aggregate_value"
+    ] == 0.25
+    assert "metrics" not in row
+    assert "stdout_summary" not in row
+    assert prompt_row["parent_source"] == source
+    assert len(json.dumps(feedback, separators=(",", ":"))) < 20_000
+    assert len(prompt) < 50_000
+    assert "m" * 4000 not in prompt
+    assert manifest["generated_simulation_sandbox_prototypes"][0]["metrics"] == metrics
+    assert manifest["generated_simulation_sandbox_prototypes"][0][
+        "stdout_summary"
+    ] == stdout
 
 
 def test_generated_simulation_sandbox_rejects_degenerate_coverage_metric(

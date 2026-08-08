@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "updated_at": "2026-08-08T21:10:55Z",
+  "updated_at": "2026-08-08T21:47:50Z",
   "role": "main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -30,6 +30,7 @@
     "fresh_protocol_gate": "The frozen cross-family full-live CLI rejects deterministic exact-semantic Lean repair executors and attached coding/Formalizer repair evals.",
     "v292_observation": "No deterministic correction executor, attached repair eval, or legacy post-runtime formal fallback ran. The live path executed model-authored code and simulation, but did not reach Formalizer or Lean closure.",
     "v293_observation": "The partial fresh run used exact Haiku and produced three distinct complete simulation-source hashes, confirming model-owned regeneration. It also exposed a redundant failed-candidate reviewer detour and repeated same-producer Architect routing; the run was intentionally stopped at iteration 22 before completion so API budget was not spent evaluating obsolete control flow.",
+    "v294_observation": "The fresh exact-Haiku survival task reached accepted model-authored AlgorithmEngineer code and its first SimulationEvaluator execution. The direct same-producer regeneration call then failed before inference because the harness duplicated 255 KB of metrics, 257 KB of parsed stdout, contracts, and source into a 342,433-token request. Sequential was intentionally interrupted because this transport defect made the run obsolete.",
     "cleanup_direction": "Do not add another repair abstraction. Continue retiring legacy production reachability as typed same-agent ACI paths replace it."
   },
   "live_anthropic_model_policy": {
@@ -80,12 +81,12 @@
     "interpretation": "The run proves that general model-authored coding and simulation execute, but it still closes 0/2 exact theorems. The observed semantic-review ownership error is being corrected generically; it is not permission to patch survival or sequential answers."
   },
   "latest_partial_live_diagnostic": {
-    "run": "runs/main_worker_cross_family_development_20260808_v293_result_blind_semantic_review_exact_haiku",
-    "scope": "Partial fresh development run from baedd323; intentionally interrupted and not completion evidence.",
+    "run": "runs/main_worker_cross_family_development_20260808_v294_thin_model_owned_regeneration_exact_haiku",
+    "scope": "Partial fresh development run from f8b01673; survival failed on provider context length and sequential was intentionally interrupted. This is diagnostic evidence only.",
     "model": "claude-haiku-4-5-20251001",
-    "observed": "Survival reached TheoryDeveloper, AlgorithmEngineer, accepted generated-code semantic review, metric authoring, and repeated generated SimulationEvaluator executions. Three complete simulation candidates had distinct source SHA-256 hashes.",
-    "design_failure": "Failed simulation candidates repeatedly passed through semantic review and Architect routing before another producer turn; Architect could immediately select the same exhausted source lineage.",
-    "correction": "Failed candidates now return directly to their producer, accepted candidates retain independent semantic review, and one generic candidate-lineage budget replaces the metric-specific replan and runtime-owned code-versus-theory decision.",
+    "observed": "Survival reached TheoryDeveloper, accepted theory/DGP preflight, first-pass executable AlgorithmEngineer code, accepted independent code review, frozen metric protocol, and a real generated simulation execution. The failed metric candidate routed directly back to the same SimulationEvaluator as intended.",
+    "design_failure": "The model-facing execution feedback was a deep copy of the complete manifest. One simulation prototype contributed about 592 KB, dominated by duplicated parsed metrics and stdout, so the producer never received a valid inference turn.",
+    "correction": "The immutable manifest remains complete. The producer-facing envelope carries complete hash-bound parent source, raw errors, exact failed metric evaluations and contracts, and result artifact refs while omitting duplicated parsed result bodies. Deterministic replay reduces feedback from 647,843 to 59,368 bytes and the complete prompt to 156,319 characters without authoring a fix.",
     "completion_claim": false
   },
   "formal_rag_foundation": {
@@ -96,17 +97,17 @@
   },
   "proof_boundary": "Theory, simulation, code execution, reviewer acceptance, RAG hits, pseudo-formal blocks, external source compilation, and support-lemma compilation are not proof of the intended theorem. Only exact active-project Lean/kernel verification can close a theorem.",
   "next_main_worker_actions": [
-    "Run a fresh exact-Haiku development panel from the simplified failed-candidate path and measure LLM calls, repeated finding fingerprints, candidate lineages, and exact theorem closure.",
+    "Run fresh exact-Haiku v295 from the bounded observation envelope and require the same SimulationEvaluator to regenerate its own complete candidate from real failures.",
     "Remove unbound post-runtime agenda rows when no single question or theorem target exists.",
     "Retire legacy repair calibration and patch executors from canonical reachability as same-agent ACI paths replace them; do not add another repair middleware layer.",
     "Improve the theory and proof-state workspaces only from cross-task live evidence, then require source-theorem kernel closure.",
     "Do not inspect or tune against held-out PCA or extremes until both development tasks reach exact theorem kernel closure."
   ],
   "verification": {
-    "base_commit": "baedd323",
-    "base_change": "Generated-code semantic review is result-blind while immutable audit and empirical evaluation retain exact outcomes.",
-    "base_regression": "The baedd323 result-blind boundary passed 97 broad focused tests plus separate discovery tests, py_compile, JSON validation, and diff checks.",
-    "current_cleanup": "59 broad generated-code/reviewer/Architect tests, 15 focused direct-path/route tests, and 17 Haiku/Sonnet-ceiling/Opus-rejection tests passed. py_compile, JSON validation, and git diff checks passed. A real exact-Haiku domain-neutral route probe selected AlgorithmEngineer from raw evidence instead of the exhausted SimulationEvaluator, with zero structured-output regeneration attempts."
+    "base_commit": "f8b01673",
+    "base_change": "Failed generated candidates route directly to their producing model for complete-candidate regeneration; independent semantic review evaluates only executable candidates.",
+    "base_regression": "The f8b01673 path passed 59 broad generated-code/reviewer/Architect tests, 15 focused route tests, and 17 model-policy tests before push.",
+    "current_cleanup": "55 generated-code/simulation/feedback tests and 55 model-policy, frozen-protocol, test-environment, and research-eval tests passed. py_compile, JSON validation, diff checks, and deterministic v294 prompt replay passed. No task-specific source change, statistical rule, or model-authored fix was added."
   },
   "history_policy": "This file contains current coordination state only. Superseded audits, runs, and validation logs remain in Git history and immutable run manifests."
 }

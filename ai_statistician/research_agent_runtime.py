@@ -82107,7 +82107,7 @@ def _algorithm_sandbox_feedback_learning_rows(
         "REJECTED_UNSAFE_GENERATED_CODE",
         "UNSUPPORTED_SANDBOX_TEMPLATE",
     }
-    needs_repair = any(
+    regeneration_required = any(
         str(row.get("prototype_status", "") or "") in failure_statuses
         or row.get("smoke_passed") is False
         or bool(row.get("metric_gate_errors", []) or [])
@@ -82116,7 +82116,7 @@ def _algorithm_sandbox_feedback_learning_rows(
         if str(row.get("executor", "") or "") == "generated_python_sandbox"
         or str(row.get("prototype_status", "") or "") in failure_statuses
     )
-    if not needs_repair:
+    if not regeneration_required:
         return []
     failure_classification = (
         "generated_algorithm_sandbox_required_not_executed"
@@ -82147,9 +82147,9 @@ def _algorithm_sandbox_feedback_learning_rows(
             "learning_task": "algorithm_sandbox_execution_feedback",
             "source_manifest_id": str(artifact.get("manifest_id", "") or ""),
             "target_behavior": (
-                "Repair Claude/OpenAI-generated algorithm sandbox code from "
-                "prior local execution diagnostics before proposing unrelated "
-                "implementation targets."
+                "Regenerate the complete model-authored algorithm candidate from "
+                "its prior source and exact local execution observations before "
+                "proposing unrelated implementation targets."
             ),
             "acceptance_gate": (
                 "Next AlgorithmEngineer packet must either produce safe "
@@ -82162,7 +82162,7 @@ def _algorithm_sandbox_feedback_learning_rows(
             ),
             "memory_status": "ALGORITHM_SANDBOX_REPAIR_MEMORY",
             "next_owner_agent": "AlgorithmEngineer",
-            "next_action": "repair generated algorithm sandbox code",
+            "next_action": "regenerate complete generated algorithm candidate",
         }
     ]
 
@@ -82181,14 +82181,14 @@ def _generated_simulation_feedback_learning_rows(
         "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING",
         "REJECTED_UNSAFE_GENERATED_CODE",
     }
-    needs_repair = any(
+    regeneration_required = any(
         str(row.get("prototype_status", "") or "") in failure_statuses
         or row.get("smoke_passed") is False
         or bool(row.get("metric_gate_errors", []) or [])
         or bool(row.get("safety_errors", []) or [])
         for row in prototypes
     )
-    if not needs_repair:
+    if not regeneration_required:
         return []
     failure_classification = (
         "generated_simulation_sandbox_metric_gate_failed"
@@ -82221,9 +82221,9 @@ def _generated_simulation_feedback_learning_rows(
             "learning_task": "generated_simulation_sandbox_execution_feedback",
             "source_manifest_id": str(artifact.get("manifest_id", "") or ""),
             "target_behavior": (
-                "Repair Claude/OpenAI-generated simulation stress-test code "
-                "from prior local execution diagnostics before proposing "
-                "unrelated simulation targets."
+                "Regenerate the complete model-authored simulation candidate "
+                "from its prior source and exact local execution observations "
+                "before proposing unrelated simulation targets."
             ),
             "acceptance_gate": (
                 "Next SimulatorEngineer packet must either produce safe "
@@ -82236,7 +82236,7 @@ def _generated_simulation_feedback_learning_rows(
             ),
             "memory_status": "GENERATED_SIMULATION_SANDBOX_REPAIR_MEMORY",
             "next_owner_agent": "SimulationEngineer",
-            "next_action": "repair generated simulation sandbox code",
+            "next_action": "regenerate complete generated simulation candidate",
         }
     ]
 
@@ -99519,10 +99519,6 @@ def _algorithm_sandbox_revision_feedback(
     prototypes = [
         row for row in manifest.get("prototypes", []) or [] if isinstance(row, Mapping)
     ]
-    observed_prototypes = [
-        _complete_generated_sandbox_prototype_observation(row)
-        for row in prototypes
-    ]
     feedback_type = "algorithm_sandbox_execution_feedback"
     source_manifest_id = str(manifest.get("manifest_id", "") or "")
     feedback_id = _generated_sandbox_feedback_id(
@@ -99531,18 +99527,17 @@ def _algorithm_sandbox_revision_feedback(
         failure_classification=failure_classification,
         prototype_rows=prototypes,
     )
-    feedback = deepcopy(dict(manifest))
-    feedback.update(
-        {
-            "feedback_id": feedback_id,
-            "feedback_type": feedback_type,
-            "algorithm_sandbox_manifest_id": source_manifest_id,
-            "failure_classification": failure_classification,
-            "prototypes": observed_prototypes,
-            "boundary": boundary,
-        }
+    return _generated_sandbox_revision_feedback_envelope(
+        manifest=manifest,
+        feedback_id=feedback_id,
+        feedback_type=feedback_type,
+        source_manifest_key="algorithm_sandbox_manifest_id",
+        source_manifest_id=source_manifest_id,
+        failure_classification=failure_classification,
+        boundary=boundary,
+        prototype_key="prototypes",
+        prototypes=prototypes,
     )
-    return feedback
 
 
 def _simulation_code_drafts(proposal_packet: Mapping[str, Any] | None) -> list[dict[str, Any]]:
@@ -99610,6 +99605,246 @@ def _complete_generated_sandbox_prototype_observation(
     return observation
 
 
+def _bounded_generated_sandbox_stream_observation(
+    value: Any,
+    *,
+    max_chars: int = 24_000,
+) -> tuple[str, dict[str, Any]]:
+    """Transport tool output without allowing one stream to consume the prompt."""
+
+    text = str(value or "")
+    if len(text) <= max_chars:
+        return text, {
+            "complete": True,
+            "character_count": len(text),
+        }
+    half = max(1, max_chars // 2)
+    return (
+        text[:half]
+        + "\n...[prompt transport omitted middle bytes; full stream remains in source manifest]...\n"
+        + text[-half:],
+        {
+            "complete": False,
+            "character_count": len(text),
+            "source_manifest_retains_complete_value": True,
+        },
+    )
+
+
+def _generated_sandbox_metric_observation(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Expose failed empirical gates, not the duplicated replicate payload."""
+
+    evaluation = row.get("metric_contract_evaluation", {})
+    evaluation = evaluation if isinstance(evaluation, Mapping) else {}
+    evaluations = [
+        deepcopy(dict(item))
+        for item in evaluation.get("evaluations", []) or []
+        if isinstance(item, Mapping)
+    ]
+    failed_evaluations = [
+        item
+        for item in evaluations
+        if item.get("passed") is False or bool(item.get("errors"))
+    ]
+    failed_contract_ids = {
+        str(item.get("contract_id", "") or "").strip()
+        for item in failed_evaluations
+        if str(item.get("contract_id", "") or "").strip()
+    }
+    contracts = [
+        deepcopy(dict(item))
+        for item in row.get("metric_contracts", []) or []
+        if isinstance(item, Mapping)
+    ]
+    failed_contracts = [
+        item
+        for item in contracts
+        if str(item.get("contract_id", "") or "").strip()
+        in failed_contract_ids
+    ]
+    contract_bindings = [
+        {
+            key: deepcopy(item[key])
+            for key in (
+                "contract_id",
+                "requirement_id",
+                "artifact_id",
+                "metric_path",
+            )
+            if key in item
+        }
+        for item in contracts
+    ]
+    result_metrics = row.get("metrics", {})
+    metrics_keys = (
+        [str(key) for key in result_metrics]
+        if isinstance(result_metrics, Mapping)
+        else []
+    )
+    observation = {
+        str(key): deepcopy(value)
+        for key, value in evaluation.items()
+        if isinstance(value, (str, int, float, bool)) or value is None
+    }
+    if isinstance(evaluation.get("required_failure_errors"), list):
+        observation["required_failure_errors"] = deepcopy(
+            evaluation["required_failure_errors"]
+        )
+    observation.update(
+        {
+            "failed_evaluations": failed_evaluations,
+            "passed_contract_ids": [
+                str(item.get("contract_id", "") or "")
+                for item in evaluations
+                if item.get("passed") is True
+                and str(item.get("contract_id", "") or "").strip()
+            ],
+            "failed_metric_contracts": failed_contracts,
+            "all_metric_contract_bindings": contract_bindings,
+            "result_artifact": {
+                "path": str(row.get("result_path", "") or ""),
+                "hash": str(row.get("result_hash", "") or ""),
+                "metrics_top_level_keys": metrics_keys,
+                "metrics_top_level_key_count": len(metrics_keys),
+                "complete_metrics_retained_in_source_manifest": True,
+            },
+        }
+    )
+    return observation
+
+
+def _generated_sandbox_model_observation(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project one execution result for full-source model regeneration.
+
+    The complete sandbox manifest remains the immutable audit artifact. This
+    envelope carries candidate identity, complete source, and raw failure
+    observations while replacing repeated result bodies with hash-bound refs.
+    """
+
+    complete = _complete_generated_sandbox_prototype_observation(row)
+    omitted_result_fields = {
+        "code_excerpt",
+        "metric_contract_evaluation",
+        "metric_contracts",
+        "metrics",
+        "parent_source",
+        "source_code",
+        "stderr_summary",
+        "stdout_summary",
+    }
+    observation = {
+        str(key): deepcopy(value)
+        for key, value in complete.items()
+        if key not in omitted_result_fields
+        and (
+            isinstance(value, (int, float, bool))
+            or value is None
+            or isinstance(value, str)
+            and len(value) <= 2_000
+        )
+    }
+    for key in (
+        "available_upstream_estimator_ids",
+        "bound_estimator_code_hashes",
+        "dependencies",
+        "estimator_invocation_counts",
+        "required_estimator_ids",
+        "resource_limits",
+        "spec",
+    ):
+        if key in complete:
+            observation[key] = deepcopy(complete[key])
+    for key, value in complete.items():
+        if str(key).endswith(("_errors", "_failure_ids")):
+            observation[str(key)] = deepcopy(value)
+    observation.update(
+        {
+            "parent_source": complete.get("parent_source", ""),
+            "parent_source_hash": complete.get("parent_source_hash", ""),
+            "parent_source_complete": complete.get(
+                "parent_source_complete", False
+            ),
+        }
+    )
+    stderr, stderr_transport = _bounded_generated_sandbox_stream_observation(
+        complete.get("stderr_summary", "")
+    )
+    observation["stderr_summary"] = stderr
+    observation["stderr_transport"] = stderr_transport
+    stdout = str(complete.get("stdout_summary", "") or "")
+    needs_stdout_diagnostic = bool(
+        complete.get("result_parse_error")
+        or complete.get("returncode") not in (None, 0, "0")
+        or not isinstance(complete.get("metrics"), Mapping)
+    )
+    if needs_stdout_diagnostic:
+        stdout_observation, stdout_transport = (
+            _bounded_generated_sandbox_stream_observation(stdout)
+        )
+        observation["stdout_summary"] = stdout_observation
+        observation["stdout_transport"] = stdout_transport
+    else:
+        observation["stdout_transport"] = {
+            "complete": False,
+            "character_count": len(stdout),
+            "omitted_from_prompt_as_parsed_result_body": True,
+            "source_manifest_retains_complete_value": True,
+        }
+    observation["metric_observation"] = _generated_sandbox_metric_observation(
+        complete
+    )
+    return observation
+
+
+def _generated_sandbox_revision_feedback_envelope(
+    *,
+    manifest: Mapping[str, Any],
+    feedback_id: str,
+    feedback_type: str,
+    source_manifest_key: str,
+    source_manifest_id: str,
+    failure_classification: str,
+    boundary: str,
+    prototype_key: str,
+    prototypes: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Build the model-facing observation envelope; never author a code fix."""
+
+    feedback: dict[str, Any] = {
+        "feedback_id": feedback_id,
+        "feedback_type": feedback_type,
+        source_manifest_key: source_manifest_id,
+        "source_manifest_artifact_id": source_manifest_id,
+        "source_manifest_retains_complete_execution_results": True,
+        "failure_classification": failure_classification,
+        "boundary": boundary,
+        prototype_key: [
+            _generated_sandbox_model_observation(row) for row in prototypes
+        ],
+    }
+    for key in (
+        "artifact_kind",
+        "schema_version",
+        "theory_packet_id",
+        "empirical_evaluation_phase",
+        "exploratory_diagnostic",
+        "confirmatory_empirical_evidence_eligible",
+        "proof_evidence_status",
+        "typed_metric_contract_proof_evidence_status",
+        "implementation_gaps",
+    ):
+        if key in manifest:
+            feedback[key] = deepcopy(manifest[key])
+    for key, value in manifest.items():
+        if str(key).startswith("n_") and isinstance(value, (int, float)):
+            feedback[str(key)] = value
+    return feedback
+
+
 def _generated_simulation_revision_feedback(
     *,
     manifest: Mapping[str, Any],
@@ -99621,10 +99856,6 @@ def _generated_simulation_revision_feedback(
         for row in manifest.get("generated_simulation_sandbox_prototypes", []) or []
         if isinstance(row, Mapping)
     ]
-    observed_prototypes = [
-        _complete_generated_sandbox_prototype_observation(row)
-        for row in prototypes
-    ]
     feedback_type = "generated_simulation_sandbox_execution_feedback"
     source_manifest_id = str(manifest.get("manifest_id", "") or "")
     feedback_id = _generated_sandbox_feedback_id(
@@ -99633,19 +99864,17 @@ def _generated_simulation_revision_feedback(
         failure_classification=failure_classification,
         prototype_rows=prototypes,
     )
-    feedback = deepcopy(dict(manifest))
-    feedback.pop("generated_simulation_sandbox_prototypes", None)
-    feedback.update(
-        {
-            "feedback_id": feedback_id,
-            "feedback_type": feedback_type,
-            "simulation_manifest_id": source_manifest_id,
-            "failure_classification": failure_classification,
-            "generated_simulation_prototypes": observed_prototypes,
-            "boundary": boundary,
-        }
+    return _generated_sandbox_revision_feedback_envelope(
+        manifest=manifest,
+        feedback_id=feedback_id,
+        feedback_type=feedback_type,
+        source_manifest_key="simulation_manifest_id",
+        source_manifest_id=source_manifest_id,
+        failure_classification=failure_classification,
+        boundary=boundary,
+        prototype_key="generated_simulation_prototypes",
+        prototypes=prototypes,
     )
-    return feedback
 
 
 def _run_generated_simulation_sandbox(

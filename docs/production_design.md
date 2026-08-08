@@ -37,6 +37,11 @@ edit, choose a theorem-family fix, or supply grammar and tactic recipes.
 Architect feedback routing receives raw observations and only allowlisted
 control-plane state (artifact identities, progress, phase, and lineage budget).
 Legacy runtime-authored replan prose is not forwarded as model guidance.
+Large parsed stdout and per-replicate result bodies stay intact in the immutable
+execution manifest instead of being duplicated into the next prompt. The
+producer receives their artifact paths and hashes, complete parent source, raw
+stderr/validator errors, and the exact failed metric evaluations and contracts.
+This is prompt transport, not an interpretation or repair policy.
 
 The canonical product loop is deliberately small:
 

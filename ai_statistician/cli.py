@@ -3786,17 +3786,30 @@ def _compact_runtime_learning_sandbox_prototype(
     value: Mapping[str, object],
 ) -> dict[str, object]:
     keys = (
+        "prototype_artifact_id",
         "estimator_id",
         "simulation_id",
         "prototype_status",
         "executor",
+        "language",
+        "execution_profile",
         "smoke_passed",
         "execution_smoke_passed",
+        "returncode",
         "metric_gate_errors",
         "safety_errors",
+        "runtime_errors",
+        "estimator_binding_errors",
+        "estimator_runtime_errors",
         "script_path",
+        "script_hash",
+        "parent_source",
+        "parent_source_hash",
+        "parent_source_complete",
         "code_excerpt",
         "stderr_summary",
+        "result_path",
+        "result_hash",
         "reason",
     )
     compact: dict[str, object] = {}
@@ -3804,12 +3817,16 @@ def _compact_runtime_learning_sandbox_prototype(
         child = value.get(key)
         if child in (None, "", [], {}):
             continue
-        if isinstance(child, list):
+        if key == "parent_source" and isinstance(child, str):
+            compact[key] = child
+        elif isinstance(child, list):
             compact[key] = [
                 _compact_runtime_learning_value(item) for item in child[:5]
             ]
         else:
             compact[key] = _compact_runtime_learning_field_value(key, child)
+    if compact.get("parent_source"):
+        compact.pop("code_excerpt", None)
     return compact
 
 
