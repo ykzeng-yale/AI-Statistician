@@ -518,7 +518,7 @@ _OPERATOR_DOTENV_FILENAMES = (
 )
 FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS = 24
 RESEARCH_EVAL_MIN_AGENT_RUNTIME_ITERATIONS = 24
-MINIMAL_LIVE_FORMALIZER_LEAN_REPAIR_YIELD_AFTER_ATTEMPTS = 3
+MINIMAL_LIVE_FORMALIZER_LEAN_REVISION_MAX_ATTEMPTS = 3
 LIVE_EVALUATION_MIN_ARCHITECT_MAX_TOKENS = 8000
 LIVE_EVALUATION_MIN_METRIC_REVIEWER_MAX_TOKENS = 16000
 LIVE_EVALUATION_MIN_SERIOUS_THEORY_MAX_TOKENS = 16000
@@ -11828,10 +11828,10 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 )
                 or 0
             ),
-            formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts=int(
+            formalizer_lean_candidate_revision_max_attempts=int(
                 getattr(
                     args,
-                    "formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts",
+                    "formalizer_lean_candidate_revision_max_attempts",
                     0,
                 )
                 or 0
@@ -14129,15 +14129,15 @@ def _apply_research_agent_runtime_capability_eval_preset(
         and int(
             getattr(
                 args,
-                "formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts",
+                "formalizer_lean_candidate_revision_max_attempts",
                 0,
             )
             or 0
         )
         <= 0
     ):
-        args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts = (
-            MINIMAL_LIVE_FORMALIZER_LEAN_REPAIR_YIELD_AFTER_ATTEMPTS
+        args.formalizer_lean_candidate_revision_max_attempts = (
+            MINIMAL_LIVE_FORMALIZER_LEAN_REVISION_MAX_ATTEMPTS
         )
     if preset == "full-live":
         args.architect_max_tokens = max(
@@ -14280,14 +14280,14 @@ def _apply_research_agent_runtime_capability_eval_preset(
             int(
                 getattr(
                     args,
-                    "formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts",
+                    "formalizer_lean_candidate_revision_max_attempts",
                     0,
                 )
                 or 0
             )
             <= 0
         ):
-            args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts = 1
+            args.formalizer_lean_candidate_revision_max_attempts = 1
         if (
             int(
                 getattr(
@@ -14833,7 +14833,7 @@ def _research_agent_runtime_capability_config_errors(
             int(
                 getattr(
                     args,
-                    "formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts",
+                    "formalizer_lean_candidate_revision_max_attempts",
                     0,
                 )
                 or 0
@@ -22195,7 +22195,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--formalizer-lean-candidate-revision-max-attempts",
         "--formalizer-lean-candidate-repair-yield-to-gap-planner-after-attempts",
         dest=(
-            "formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts"
+            "formalizer_lean_candidate_revision_max_attempts"
         ),
         type=int,
         default=0,

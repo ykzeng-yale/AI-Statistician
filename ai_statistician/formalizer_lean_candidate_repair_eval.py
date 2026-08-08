@@ -22,7 +22,7 @@ from .proof_state_feedback import (
 from .research_agent_runtime import (
     FormalizationEvaluatorRuntimeSubsystem,
     _formalizer_lean_candidate_proof_state_subclaims,
-    _formalizer_lean_candidate_repair_feedback,
+    _formalizer_lean_candidate_revision_feedback,
     _materialize_formalizer_lean_candidate_artifacts,
 )
 from .research_architect import AnthropicArchitectLLMProvider, StaticArchitectLLMProvider
@@ -106,7 +106,7 @@ def run_formalizer_lean_candidate_repair_eval(
         lean_project=lean_project,
         lean_timeout=lean_timeout,
     )
-    prior_feedback = _formalizer_lean_candidate_repair_feedback(
+    prior_feedback = _formalizer_lean_candidate_revision_feedback(
         prior_failure_manifest
     )
     if prior_feedback is None:

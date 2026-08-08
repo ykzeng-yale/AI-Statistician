@@ -12680,6 +12680,48 @@ def _latest_critic_evidence_contract_decision(
     return {}
 
 
+def _runtime_result_has_validated_architect_feedback_block(
+    data: Mapping[str, Any],
+    traces: Sequence[Mapping[str, Any]],
+    artifacts: Mapping[str, Any],
+) -> bool:
+    """Recognize a schema-validated model blocker as valid control evidence."""
+
+    if data.get("status") != "BLOCKED" or not traces:
+        return False
+    final_trace = traces[-1]
+    if (
+        str(final_trace.get("subsystem", "") or "") != "ArchitectCoordinator"
+        or str(final_trace.get("status", "") or "") != "BLOCKED"
+        or str(final_trace.get("failure_classification", "") or "")
+        != "architect_feedback_route_blocked"
+    ):
+        return False
+    artifact_ids = [
+        str(artifact_id)
+        for artifact_id in final_trace.get("produced_artifact_ids", []) or []
+        if str(artifact_id).strip()
+    ]
+    if len(artifact_ids) != 1:
+        return False
+    artifact_id = artifact_ids[0]
+    artifact = artifacts.get(artifact_id, {})
+    if not isinstance(artifact, Mapping):
+        return False
+    return bool(
+        artifact.get("artifact_kind") == "ArchitectFeedbackRouteDecision"
+        and artifact.get("route_decision_id") == artifact_id
+        and artifact.get("decision") == "BLOCK"
+        and artifact.get("selected_subsystem") == "NONE"
+        and artifact.get("operation") == "environment_feedback_route"
+        and artifact.get("ok") is True
+        and not artifact.get("validation_errors")
+        and str(artifact.get("environment_feedback_fingerprint", "") or "")
+        and str(artifact.get("rationale", "") or "").strip()
+        and str(artifact.get("evidence_boundary", "") or "").strip()
+    )
+
+
 def _audit_result_path(path: Path) -> RuntimeAuditRow:
     errors: list[str] = []
     data = _load_json(path, errors)
@@ -12734,8 +12776,19 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         data.get("status") == "BLOCKED"
         and final_acceptance_status == "FORMAL_REQUIRED_BLOCKED"
     )
+    validated_architect_feedback_block = (
+        _runtime_result_has_validated_architect_feedback_block(
+            data,
+            [row for row in traces if isinstance(row, Mapping)],
+            artifacts,
+        )
+    )
     if data.get("status") != "ACCEPTED":
-        if budgeted_continuation_contract_ok or formal_required_policy_block:
+        if (
+            budgeted_continuation_contract_ok
+            or formal_required_policy_block
+            or validated_architect_feedback_block
+        ):
             pass
         else:
             errors.append("runtime result status is not ACCEPTED")

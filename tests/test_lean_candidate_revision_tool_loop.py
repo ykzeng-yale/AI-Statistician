@@ -437,15 +437,16 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
     payload = json.loads(prompt)
     assert payload["current_lean_source"] == initial_source
     feedback = payload["runtime_observations"]
-    context = feedback["target_and_environment_observations"]
+    context = feedback["proofengineer_repair_context"]
     assert context["target_theorem_statement"] == "theorem target : True"
     assert "proof_state_trace_rag" in context
     assert "formal_source_grounding_hits" in context
-    assert "candidate_rerun_specs" not in context
-    review = feedback["independent_semantic_review"]
-    assert "reviewed_source_artifacts" not in review
-    observation = feedback["candidate_observations"][0]
-    assert "lean_source_excerpt" not in observation
+    assert context["candidate_rerun_specs"] == ["y" * 30000]
+    assert feedback["reviewed_source_artifacts"] == [
+        {"exact_source_code": "duplicate" * 5000}
+    ]
+    observation = feedback["candidate_diagnostics"][0]
+    assert observation["lean_source_excerpt"] == "duplicate" * 5000
     assert observation["local_lean_stderr"] == exact_error
     assert "EXACT_MIDDLE_LEAN_OBSERVATION" in prompt
     assert "required_repair" not in prompt

@@ -265,3 +265,95 @@ def test_architect_feedback_route_can_record_model_blocker() -> None:
     assert packet["decision"] == "BLOCK"
     assert packet["selected_subsystem"] == "NONE"
     assert validate_architect_feedback_route_packet(packet) == []
+
+
+def test_runtime_routes_formal_feedback_to_critic_without_restarting_theory() -> None:
+    question = _question()
+    full_feedback = {
+        "feedback_type": "formalizer_proof_state_feedback",
+        "failure_classification": (
+            "formalizer_proof_state_revision_budget_architect_replan"
+        ),
+        "proof_state_feedback_rows": [
+            {
+                "subclaim_id": "generic:target",
+                "diagnostics": ["exact compiler observation"],
+            }
+        ],
+    }
+    artifact_ids = {
+        "theory_packet_id": "theory:generic",
+        "simulation_manifest_id": "simulation:generic",
+        "algorithm_sandbox_manifest_id": "algorithm:generic",
+        "formalization_manifest_id": "formalization:generic",
+    }
+
+    class _Coordinator:
+        def route_environment_feedback(self, **kwargs):  # type: ignore[no-untyped-def]
+            assert kwargs["environment_feedback"] == full_feedback
+            return {
+                "schema_version": 1,
+                "artifact_kind": "ArchitectFeedbackRouteDecision",
+                "route_decision_id": "architect_feedback_route:critic",
+                "question_id": question.id,
+                "decision": "ROUTE",
+                "selected_subsystem": "CriticEvaluator",
+                "objective": "Independently audit the unresolved formal evidence.",
+                "rationale": "The model selected independent evidence review.",
+                "operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
+                "environment_feedback_fingerprint": stable_hash(full_feedback),
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+
+        def propose(self, **_kwargs):  # type: ignore[no-untyped-def]
+            raise AssertionError("feedback routing must not regenerate a full plan")
+
+    result = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=_Coordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(),
+    ).run(
+        AgentTask(
+            task_id="architect-formal-feedback:generic",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Choose the next typed owner.",
+            inputs={
+                "question": {
+                    "id": question.id,
+                    "title": question.title,
+                    "description": question.description,
+                    "tags": list(question.tags),
+                },
+                "architect_context": {
+                    "architect_runtime_plan": {
+                        "subsystem_execution_plan": [
+                            {
+                                "subsystem": "CriticEvaluator",
+                                "objective": "audit evidence boundaries",
+                                "acceptance_gate": (
+                                    "critic observations preserve evidence boundaries"
+                                ),
+                            }
+                        ]
+                    }
+                },
+                "environment_feedback": full_feedback,
+                "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
+                **artifact_ids,
+            },
+        ),
+        BlackboardState(
+            project_id="architect-formal-feedback",
+            artifacts={
+                value: {"artifact_id": value}
+                for value in artifact_ids.values()
+            },
+        ),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "CriticEvaluator"
+    assert result.next_task.inputs["environment_feedback"] == full_feedback
+    for key, value in artifact_ids.items():
+        assert result.next_task.inputs[key] == value
+    assert result.observations[0].payload["full_research_plan_regenerated"] is False

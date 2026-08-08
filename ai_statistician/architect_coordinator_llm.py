@@ -87,6 +87,7 @@ ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS = (
     "FormalizationEvaluator",
     "FormalizationGapPlanner",
     "ProofEngineer",
+    "CriticEvaluator",
 )
 ARCHITECT_FEEDBACK_ROUTE_NOT_EVIDENCE = (
     "LLM_ARCHITECT_FEEDBACK_ROUTE_NOT_PROOF_OR_EXECUTION_EVIDENCE"
