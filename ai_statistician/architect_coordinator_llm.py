@@ -709,6 +709,8 @@ def build_architect_feedback_route_prompt(
         "formalization or proof; Lean must not substitute for an upstream theory "
         "revision. A truncated routing view is not evidence that an artifact or "
         "worker is unavailable; the selected worker receives the complete feedback. "
+        "Route from direct evidence; a statistically non-diagnostic result does not "
+        "justify source or theory revision, and a frozen gate cannot change post hoc. "
         "Choose BLOCK only when no listed existing subsystem can produce the next "
         "required evidence. If your rationale can name an available subsystem and a "
         "concrete action it can take, choose ROUTE to that subsystem instead of BLOCK. "

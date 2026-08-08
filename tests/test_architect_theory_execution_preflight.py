@@ -1067,6 +1067,8 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         "typed outcome",
         "not observed within a resource bound",
         "neither automatically destroys nor automatically preserves",
+        "exploratory rather than semantic authority",
+        "stated uncertainty and tail behavior",
     ):
         assert phrase in protocol
     assert packet["overall_verdict"] == "ACCEPT"

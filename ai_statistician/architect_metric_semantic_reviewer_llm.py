@@ -1637,10 +1637,11 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "the affected dimension FAIL, and emit a high or critical typed finding."
     ),
     (
-        "Audit each runtime_evaluator_certificate as the executable pass-set "
-        "authority. Verify estimand and DGP argument lifecycles are fixed, derived "
-        "once, or recomputed per replicate exactly as declared; reject ambiguous, "
-        "vacuous, unidentifiable, contradictory, or noise-dominated gates."
+        "Audit each runtime_evaluator_certificate as executable pass-set authority. "
+        "Reject ambiguous, vacuous, unidentifiable, or contradictory gates. A stochastic "
+        "gate is non-diagnostic if its statistic, transform, or aggregation differs from "
+        "the target, or its replicate budget, uncertainty, or tail behavior makes the "
+        "tolerance unattainable."
     ),
     (
         "Audit gate_field_authorities field by field. Theory-derived and mandated "

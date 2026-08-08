@@ -13008,9 +13008,11 @@ def _runtime_generated_code_semantic_review_source_responsibility_contract(
         "assigned_requirement_ids": sorted(assigned_ids),
         "sibling_only_requirement_refs": sibling_only_refs,
         "artifact_review_rule": (
-            "Judge this artifact against its assigned empirical requirements, "
-            "its source proposal's explicit implementation claims, exact bindings "
-            "to supplied theory premises, and the exact executed behavior. A theory "
+            "Judge whether this artifact computes and emits the statistic assigned by "
+            "its empirical requirements, source proposal, interface, and supplied "
+            "theory premises. Do not adjudicate realized threshold pass or fail; the "
+            "empirical evaluator owns that decision. Exact execution may expose source "
+            "semantics, interface, argument, or non-vacuity defects. A theory "
             "premise is not automatically a requirement for finite-data code to "
             "test or prove that premise at runtime. Require an observable check only "
             "when an assigned protocol, interface precondition, or explicit source "

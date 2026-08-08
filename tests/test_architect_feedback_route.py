@@ -192,6 +192,9 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
         request.user_prompt
     )
     assert "automatic same-producer retry budget" in request.user_prompt
+    assert "statistically non-diagnostic result does not" in (
+        request.user_prompt
+    )
     assert "Superseded observations are complete attempt history" in (
         request.user_prompt
     )

@@ -143,6 +143,9 @@ def test_prompt_is_observation_only_and_preserves_complete_source() -> None:
     assert "Do not propose source edits" in prompt
     assert "ArchitectCoordinator decides what subsystem acts next" in prompt
     assert "Monte Carlo uncertainty" in prompt
+    assert "belong exclusively to the empirical evaluator" in prompt
+    assert "cannot create a semantic source finding" in prompt
+    assert "never the realized threshold result" in prompt
     assert "all-PASS" not in prompt
     assert "If every dimension is PASS, findings must be empty" in prompt
     assert "RETRACTED_RUNTIME_CONTRACT_CONFLICT" in prompt

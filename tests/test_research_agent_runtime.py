@@ -22780,6 +22780,9 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert review_request.model == metric_request.model
     assert review_request.metadata["subsystem"] != metric_request.metadata["subsystem"]
     metric_prompt = json.loads(metric_request.user_prompt)
+    authoring_text = " ".join(metric_prompt["hard_requirements"])
+    assert "Every stochastic gate must measure the target statistic" in authoring_text
+    assert "tail behavior" in authoring_text
     theory_material = metric_prompt["theory_developer_protocol_material"]
     authority_catalog = metric_prompt["acceptance_authority_catalog"]
     authority_anchor_ids = {

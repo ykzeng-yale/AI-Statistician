@@ -48,15 +48,20 @@ GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
         "statistical power observed in a finite run",
         "computational efficiency and stopping-time performance",
     ],
-    "scope_exception": (
-        "A downstream empirical observation becomes a semantic-review defect only "
-        "when it demonstrates that source, interface, arguments, or metric meaning "
-        "violated an explicit frozen contract."
+    "source_defect_evidence_rule": (
+        "A source defect requires direct evidence that source, interface, arguments, "
+        "or emitted metric meaning is wrong. A realized value or threshold failure "
+        "alone is downstream evidence, even when the protocol is frozen."
+    ),
+    "metric_dimension_rule": (
+        "frozen_measurement_protocol_alignment checks statistic binding, path, shape, "
+        "units, and meaning; metric_semantics_alignment checks meaning. Neither "
+        "adjudicates realized threshold pass or fail."
     ),
     "prior_finding_rule": (
         "Retract a prior finding as RETRACTED_RUNTIME_CONTRACT_CONFLICT when its "
         "claimed defect belongs only to downstream_empirical_evaluator_scope and it "
-        "does not identify a scope_exception."
+        "does not identify direct source-defect evidence."
     ),
 }
 GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS = (
@@ -529,9 +534,13 @@ def build_generated_code_semantic_review_prompt(
         "only defects in the implemented "
         "statistical object, declared assumptions, executable interface, runtime "
         "arguments, non-vacuity, identifiability, or metric meaning. Realized metric "
-        "values, Monte Carlo uncertainty, and computational efficiency belong to the "
-        "later empirical evaluator unless they demonstrate a violation of an explicit "
-        "frozen semantic or interface contract. Each finding must describe "
+        "values, Monte Carlo uncertainty, threshold pass/fail, and computational "
+        "efficiency belong exclusively to the empirical evaluator and cannot create a "
+        "semantic source finding. Even when a frozen gate fails, reject source only "
+        "when source, interface, arguments, or emitted statistic directly compute the "
+        "wrong object. For frozen_measurement_protocol_alignment, review the statistic "
+        "binding, path, shape, units, and meaning, never the realized threshold result. "
+        "Each finding must describe "
         "observed_behavior and expected_behavior and correspond to at least one FAIL "
         "or UNCERTAIN dimension. If every dimension is PASS, findings must be empty. "
         "Do not propose source edits, tactics, repair rules, owners, routes, or plans; "

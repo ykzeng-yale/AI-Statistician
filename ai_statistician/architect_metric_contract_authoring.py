@@ -1768,7 +1768,11 @@ def author_reviewed_architect_metric_requirements(
                 "When a necessary finite-sample decision is not fixed upstream, the "
                 "Architect may preregister it as architect_preregistered_design and "
                 "must justify it from decision relevance, attainable behavior, the "
-                "fixed runtime budget, and Monte Carlo uncertainty."
+                "fixed runtime budget, and Monte Carlo uncertainty. "
+                "Every stochastic gate must measure the target statistic at the declared "
+                "transformation and aggregation, with a tolerance attainable under its "
+                "replicate budget, uncertainty, and tail behavior. An analytic identity "
+                "need not be a finite-run equality gate."
             ),
             (
                 "Use theory_developer_protocol_material for the estimand, DGP, method, "

@@ -126,7 +126,10 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "Choose a discriminating case where omitted support, weights, normalization, "
         "or data dependence would change the result; avoid symmetry points where "
         "different definitions coincide. Initialization values, source-authored sanity "
-        "checks, and formula restatements are not independent identity checks."
+        "checks, and formula restatements are not independent identity checks. Stochastic "
+        "sandbox output is exploratory rather than semantic authority; use it against an "
+        "analytic identity only when it measures the same quantity and is diagnostic at "
+        "its stated uncertainty and tail behavior."
     ),
     (
         "Audit data dependence and operator closure explicitly. If a parameter, "
@@ -2664,6 +2667,8 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "its returned metrics before marking the independent identity check consistent. "
         "Author the complete check yourself and compare primitive and candidate values; "
         "the sandbox output is empirical calculation feedback, not semantic authority. "
+        "A stochastic check must measure the same quantity and be diagnostic at its "
+        "stated uncertainty and tail behavior; an inconclusive draw cannot reject theory. "
         "Keep the two citation namespaces distinct: evidence_refs uses only exact "
         "theory anchor IDs allowed by the submit schema, while source_evidence_refs "
         "uses only S...H... handles returned by search_preflight_sources. "
