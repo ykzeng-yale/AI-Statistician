@@ -202,6 +202,8 @@ def test_coding_agent_projection_keeps_observations_without_repair_routing() -> 
             ],
             "repair_plan": [{"repair_owner": "AlgorithmEngineer"}],
             "source_repair_contract": {"repair_target_subsystem": "AlgorithmEngineer"},
+            "recommended_repair_scope": "source_code",
+            "semantic_reviewer_recommended_repair_scope": "source_code",
             "next_action": "Apply a canned patch.",
         }
     )
@@ -223,6 +225,8 @@ def test_coding_agent_projection_keeps_observations_without_repair_routing() -> 
     assert "repair_target_subsystem" not in serialized
     assert "repair_scope" not in serialized
     assert "repair_plan" not in serialized
+    assert "recommended_repair_scope" not in serialized
+    assert "semantic_reviewer_recommended_repair_scope" not in serialized
 
 
 def test_architect_projection_keeps_observations_without_runtime_route() -> None:
@@ -237,6 +241,8 @@ def test_architect_projection_keeps_observations_without_runtime_route() -> None
                 }
             ],
             "repair_scope": "source_code",
+            "recommended_repair_scope": "source_code",
+            "semantic_reviewer_recommended_repair_scope": "source_code",
             "repair_owner_agent": "AlgorithmEngineer",
             "repair_target_subsystem": "AlgorithmEngineer",
             "repair_plan": [
@@ -260,5 +266,7 @@ def test_architect_projection_keeps_observations_without_runtime_route() -> None
     assert "Replace the implementation" not in serialized
     assert "repair_owner" not in serialized
     assert "repair_scope" not in serialized
+    assert "recommended_repair_scope" not in serialized
+    assert "semantic_reviewer_recommended_repair_scope" not in serialized
     assert "repair_target_subsystem" not in serialized
     assert "repair_plan" not in serialized

@@ -51653,6 +51653,33 @@ def test_runtime_theory_trace_feedback_rows_route_weak_trace_to_theory_developer
     assert "TheoryDerivationPacket" in agenda_row["acceptance_gate"]
 
 
+def test_runtime_theory_trace_feedback_rows_skip_unbound_multi_question_summary() -> None:
+    manifest = {
+        "question_ids": ["survival", "sequential"],
+        "runtime_evidence_summary": {
+            "theory": {
+                "n_theory_derivation_packets": 2,
+                "n_theory_derivation_packets_with_contract": 2,
+                "n_theory_derivation_packets_with_min_derivation_steps": 2,
+                "n_theory_derivation_packets_with_equation_chain": 2,
+                "n_theory_derivation_packets_with_assumption_ledger": 2,
+                "n_theory_derivation_packets_with_formalization_handoff": 2,
+                "all_required_theory_trace_consumers_observed": False,
+                "all_required_theory_trace_alignment_consumers_observed": False,
+                "required_theory_trace_consumers": [
+                    "SimulationEngineer",
+                    "AlgorithmEngineer",
+                    "FormalizerProofEngineer",
+                ],
+                "theory_trace_consuming_subsystems": [],
+                "structured_theory_trace_aligned_subsystems": [],
+            },
+        },
+    }
+
+    assert _runtime_theory_trace_feedback_rows(manifest=manifest) == ([], [])
+
+
 def test_runtime_feedback_recovers_targets_from_architect_evidence_contract() -> None:
     formal_targets = ["orthogonal score algebra", "asymptotic CLT subclaims"]
     manifest = {
@@ -88845,6 +88872,40 @@ def test_runtime_truth_table_string_false_source_theorem_not_verified() -> None:
         "keep the exact source theorem marked unproved until local Lean/AXLE "
         "reports source theorem kernel verification"
     )
+
+
+def test_runtime_truth_table_skips_missing_unbound_formal_lane() -> None:
+    manifest = {
+        "schema_version": 1,
+        "question_ids": ["survival", "sequential"],
+    }
+    truth_table = {
+        "source_theorem_kernel_verified": False,
+        "formal_gaps_open": False,
+        "current_exact_proof_body_blocker": "",
+        "rows": [
+            {
+                "evidence_id": "full_source_theorem_kernel_evidence",
+                "status": "UNPROVED",
+                "count": 0,
+            },
+            {
+                "evidence_id": "exact_source_proof_body_attempt",
+                "status": "MISSING",
+                "count": 0,
+            },
+            {
+                "evidence_id": "formal_gaps",
+                "status": "NONE",
+                "count": 0,
+            },
+        ],
+    }
+
+    assert _runtime_evidence_truth_learning_rows(
+        manifest=manifest,
+        truth_table=truth_table,
+    ) == []
 
 
 def test_runtime_truth_table_recovers_target_from_proof_body_repair_queue() -> None:

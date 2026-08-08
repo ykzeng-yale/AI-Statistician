@@ -5904,7 +5904,16 @@ def _runtime_evidence_truth_learning_rows(
     )
     formal_gaps_open = _bool_like(truth_table.get("formal_gaps_open", False))
     proof_body_status = str(exact_attempt_row.get("status", "") or "")
+    target_theorem_names = _runtime_source_theorem_target_names_from_manifest(
+        manifest
+    )
     if source_verified and not formal_gaps_open:
+        return []
+    if (
+        proof_body_status == "MISSING"
+        and not formal_gaps_open
+        and not target_theorem_names
+    ):
         return []
     if (
         proof_body_status == "MISSING"
@@ -5973,9 +5982,6 @@ def _runtime_evidence_truth_learning_rows(
     source_theorem_ready_for_exact_proof_body = bool(
         proof_body_gate_open_for_kernel_repair
         or (proof_body_goal_reached and not semantic_review_blocked)
-    )
-    target_theorem_names = _runtime_source_theorem_target_names_from_manifest(
-        manifest
     )
     target_theorem_name = (
         target_theorem_names[0] if len(target_theorem_names) == 1 else ""
@@ -6369,6 +6375,8 @@ def _runtime_theory_trace_feedback_rows(
         for value in manifest.get("question_ids", []) or []
         if str(value).strip()
     ]
+    if len(question_ids) != 1:
+        return [], []
     question_id = question_ids[0] if question_ids else ""
     required_consumers = [
         str(value)
