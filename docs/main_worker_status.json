@@ -1,11 +1,11 @@
 {
   "schema_version": 3,
-  "updated_at": "2026-08-08T20:05:06Z",
+  "updated_at": "2026-08-08T20:19:09Z",
   "role": "main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "main_objective": "Build and honestly evaluate one general, LLM-driven statistical research loop that derives theory, generates and executes scientific code, uses task-bound formal RAG, iterates against real environment feedback, and closes exact intended Lean theorems across unrelated task families.",
-  "current_lane": "Keep candidate revision model-owned: separate code-semantic review from empirical gate evaluation without adding repair middleware, source patches, or failure-specific routes.",
+  "current_lane": "Keep candidate revision model-owned and enforce a result-blind input boundary between code-semantic review and empirical gate evaluation.",
   "canonical_agent_feedback_contract": {
     "producer_ownership": "The same AlgorithmEngineer, SimulationEngineer, TheoryDeveloper, or Formalizer that authored a rejected candidate receives the complete parent candidate, raw validator or execution errors, exact environment observations, and immutable lineage.",
     "revision_action": "The producer regenerates a complete new candidate. Runtime never patches source, chooses a mathematical fix, supplies Lean grammar or tactic recipes, or substitutes a hidden repair agent.",
@@ -51,8 +51,14 @@
     },
     "shared_failure_classification": "No shared terminal classification; both tasks exhausted the 24-step runtime budget before formalization.",
     "observed_feedback_loop": "Both tasks reached model-authored AlgorithmEngineer code and independent semantic review. Sequential evaluation then treated noisy finite-run metric output as evidence of a source/theory defect and cycled back to TheoryDeveloper; survival returned from accepted code review with no iteration left.",
-    "current_code_correction": "The generated-code semantic reviewer now reviews source, interface, arguments, and emitted-statistic meaning only. Realized metric values and frozen threshold outcomes remain the empirical evaluator's authority and cannot alone trigger source revision. This is a model-facing role contract, not executable repair logic.",
-    "post_change_live_replay": "A post-change exact-Haiku replay did not produce a completed provider result and is not counted as evidence. No post-change live success is claimed.",
+    "current_code_correction": "The immutable review material still retains complete source, exact results, hashes, and empirical gate evidence. The semantic-review model projection now carries complete source, interface and runtime arguments, plus result field/type structure and metric meaning, while withholding realized values, pass/fail outcomes, and threshold/operator/tolerance authority. Empirical evaluation remains unchanged.",
+    "post_change_live_replay": {
+      "scope": "Diagnostic replay of immutable v292 simulation semantic-review materialization 9fa2e7416ff8948160bb; not a fresh full-runtime result.",
+      "model": "claude-haiku-4-5-20251001",
+      "before_result_blind_projection": "REVISE with 3 findings based on realized martingale means and failed threshold rows.",
+      "after_result_blind_projection": "ACCEPT with all 6 semantic dimensions PASS, 0 findings, 0 validation errors, and 0 structured-output regeneration attempts.",
+      "interpretation": "The same model can perform the intended semantic role when its context excludes empirical-evaluator authority. Runtime did not rewrite the model verdict or add a task-specific repair rule."
+    },
     "downstream_execution": {
       "algorithm_sandbox": 5,
       "generated_code_sandbox": 5,
@@ -83,10 +89,10 @@
     "Do not inspect or tune against held-out PCA or extremes until both development tasks reach exact theorem kernel closure."
   ],
   "verification": {
-    "base_commit": "08e350e5",
-    "base_change": "Raw feedback and complete rejected artifacts reach the same producing agent for full regeneration; code-local budget exhaustion blocks instead of invoking runtime-authored repair or unrelated theory routing.",
+    "base_commit": "8cf73f0b",
+    "base_change": "Generated-code semantic review and empirical outcome evaluation have separate model-facing authority; same-producer full regeneration remains the only source-revision mechanism.",
     "base_regression": "117 focused tests passed with 1 skipped, multiple selected central AgentRuntime groups passed, py_compile passed, and git diff --check passed.",
-    "current_cleanup": "117 focused tests passed across same-model full regeneration, semantic-review ownership, metric protocol review, theory preflight, Architect routing, central AgentRuntime transitions, and exact-Haiku test policy. py_compile and git diff --check passed."
+    "current_cleanup": "99 focused test invocations passed across result-blind prompt projection, immutable exact-result retention, same-producer regeneration, semantic review, metric review, research-eval mode, scientific sandbox, and AgentRuntime routing. The exact-Haiku diagnostic A/B replay also passed after projection."
   },
   "history_policy": "This file contains current coordination state only. Superseded audits, runs, and validation logs remain in Git history and immutable run manifests."
 }

@@ -130,6 +130,9 @@ def _contains_key(value: object, forbidden: set[str]) -> bool:
 
 def test_prompt_is_observation_only_and_preserves_complete_source() -> None:
     material = _review_material()
+    material["exact_executed_artifacts"][0]["exact_result"][
+        "private_realized_value"
+    ] = "RESULT_VALUE_MUST_NOT_APPEAR"
     prompt = build_generated_code_semantic_review_prompt(
         question=_question(),
         review_material=material,
@@ -139,6 +142,11 @@ def test_prompt_is_observation_only_and_preserves_complete_source() -> None:
     assert projection["exact_executed_artifacts"][0]["exact_source_code"] == (
         material["exact_executed_artifacts"][0]["exact_source_code"]
     )
+    assert "exact_result" not in projection["exact_executed_artifacts"][0]
+    assert projection["exact_executed_artifacts"][0]["exact_result_schema"][
+        "realized_values_withheld"
+    ] is True
+    assert "RESULT_VALUE_MUST_NOT_APPEAR" not in prompt
     assert "def run_sandbox" in prompt
     assert "Do not propose source edits" in prompt
     assert "ArchitectCoordinator decides what subsystem acts next" in prompt
@@ -164,17 +172,62 @@ def test_large_results_are_projected_without_mutating_full_artifact() -> None:
     material["exact_executed_artifacts"][0]["exact_result"]["trajectory"] = trajectory
 
     projection = generated_code_semantic_review_prompt_projection(material)
-    projected = projection["exact_executed_artifacts"][0]["exact_result"][
-        "trajectory"
-    ]
+    projected = projection["exact_executed_artifacts"][0][
+        "exact_result_schema"
+    ]["schema"]["fields"]["trajectory"]
 
-    assert projected["projection_kind"] == "bounded_sequence_summary"
+    assert projected["value_kind"] == "array"
     assert projected["length"] == 80_000
-    assert projected["numeric_summary"]["count"] == 80_000
-    assert projected["full_value_in_prompt"] is False
+    assert projected["observed_item_kinds"] == ["number"]
     assert material["exact_executed_artifacts"][0]["exact_result"][
         "trajectory"
     ] is trajectory
+
+
+def test_prompt_projection_excludes_empirical_gate_authority_and_outcomes() -> None:
+    material = _review_material()
+    requirement = material["architect_frozen_evidence_contract"][
+        "empirical_metric_requirements"
+    ][0]
+    requirement.update(
+        {
+            "operator": "==",
+            "threshold": 1.0,
+            "tolerance": 0.0,
+            "required": True,
+        }
+    )
+    artifact = material["exact_executed_artifacts"][0]
+    artifact["source_row"] = {
+        "metric_contracts": [
+            {
+                **requirement,
+                "contract_id": "contract:estimate",
+                "metric_path": ["estimate"],
+            }
+        ],
+        "metric_contract_evaluation": {
+            "all_required_passed": False,
+            "required_failure_errors": ["realized threshold failed"],
+        },
+        "metrics": {"estimate": 0.0},
+        "stdout_summary": "estimate=0.0 threshold=1.0 FAIL",
+    }
+
+    projection = generated_code_semantic_review_prompt_projection(material)
+    projected_requirement = projection["architect_frozen_evidence_contract"][
+        "empirical_metric_requirements"
+    ][0]
+    projected_row = projection["exact_executed_artifacts"][0]["source_row"]
+
+    assert projected_requirement["requirement_id"] == "metric:estimate"
+    assert projected_requirement["measurement_protocol"]
+    assert not {"operator", "threshold", "tolerance", "required"}.intersection(
+        projected_requirement
+    )
+    assert "metric_contract_evaluation" not in projected_row
+    assert "stdout_summary" not in projected_row
+    assert projected_row["metrics_schema"]["realized_values_withheld"] is True
 
 
 def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:
@@ -284,7 +337,6 @@ def test_reviewer_reports_evidence_bound_defect_without_source_edit() -> None:
                 ),
                 "evidence_refs": [
                     "/exact_executed_artifacts/0/exact_source_code",
-                    "/exact_executed_artifacts/0/exact_result/estimate",
                 ],
             }
         ],

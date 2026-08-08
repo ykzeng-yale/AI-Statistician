@@ -59,9 +59,10 @@ GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
         "adjudicates realized threshold pass or fail."
     ),
     "prior_finding_rule": (
-        "Retract a prior finding as RETRACTED_RUNTIME_CONTRACT_CONFLICT when its "
-        "claimed defect belongs only to downstream_empirical_evaluator_scope and it "
-        "does not identify direct source-defect evidence."
+        "A prior finding is a claim to review, not evidence. Retract it as "
+        "RETRACTED_RUNTIME_CONTRACT_CONFLICT when its claimed defect belongs only "
+        "to downstream_empirical_evaluator_scope and current source, interface, "
+        "arguments, or emitted-statistic structure supplies no direct defect evidence."
     ),
 }
 GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS = (
@@ -312,10 +313,146 @@ def _prompt_projection_value(
     return deepcopy(value)
 
 
+_SEMANTIC_METRIC_FIELDS = frozenset(
+    {
+        "aggregation",
+        "artifact_id",
+        "authority_requirement_fingerprint",
+        "authority_requirement_set_id",
+        "authority_source_subsystem",
+        "boundary",
+        "contract_id",
+        "measurement_protocol",
+        "metric_path",
+        "metric_semantics",
+        "metric_value_kind",
+        "required_runtime_replicates",
+        "requirement_id",
+        "source_anchors",
+        "target_subsystems",
+    }
+)
+_SEMANTIC_REVIEW_RESULT_VALUE_KEYS = frozenset(
+    {"exact_result", "exact_smoke_result", "metrics"}
+)
+_SEMANTIC_REVIEW_EMPIRICAL_OUTCOME_KEYS = frozenset(
+    {
+        "empirical_metric_requirements_preexecution_review",
+        "metric_contract_evaluation",
+        "metric_gate_errors",
+        "metric_gate_policy_mode",
+        "metric_gate_targets",
+        "metric_protocol_execution_authorized",
+        "promotion_ready",
+        "prototype_status",
+        "registered_simulation_passed",
+        "simulations",
+        "simulation_evidence_status",
+        "simulation_passed",
+        "stderr_summary",
+        "stdout_summary",
+    }
+)
+
+
+def _semantic_result_schema(value: Any) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return {
+            "value_kind": "object",
+            "field_count": len(value),
+            "fields": {
+                str(key): _semantic_result_schema(child)
+                for key, child in value.items()
+            },
+        }
+    if isinstance(value, (list, tuple)):
+        kinds = sorted(
+            {
+                _semantic_result_schema(child)["value_kind"]
+                for child in value[:64]
+            }
+        )
+        return {
+            "value_kind": "array",
+            "length": len(value),
+            "observed_item_kinds": kinds,
+        }
+    if isinstance(value, bool):
+        return {"value_kind": "boolean"}
+    if isinstance(value, (int, float)):
+        return {
+            "value_kind": "number",
+            "finite": math.isfinite(float(value)),
+        }
+    if isinstance(value, str):
+        return {"value_kind": "string", "length": len(value)}
+    if value is None:
+        return {"value_kind": "null"}
+    return {"value_kind": type(value).__name__}
+
+
+def _semantic_metric_projection(value: Any) -> Any:
+    if not isinstance(value, (list, tuple)):
+        return []
+    return [
+        {
+            str(key): deepcopy(child)
+            for key, child in row.items()
+            if str(key) in _SEMANTIC_METRIC_FIELDS
+        }
+        for row in value
+        if isinstance(row, Mapping)
+    ]
+
+
+def _semantic_review_model_input(value: Any, *, parent_key: str = "") -> Any:
+    """Project exact audit material to the semantic reviewer's authority."""
+
+    if isinstance(value, Mapping):
+        projected: dict[str, Any] = {}
+        for raw_key, child in value.items():
+            key = str(raw_key)
+            if key in _SEMANTIC_REVIEW_EMPIRICAL_OUTCOME_KEYS:
+                continue
+            if key in {
+                "empirical_metric_requirements",
+                "assigned_empirical_metric_requirements",
+                "metric_contracts",
+            }:
+                projected[key] = _semantic_metric_projection(child)
+                continue
+            if key in _SEMANTIC_REVIEW_RESULT_VALUE_KEYS:
+                projected[f"{key}_schema"] = {
+                    "schema": _semantic_result_schema(child),
+                    "realized_values_withheld": True,
+                    "value_authority_owner": "EmpiricalEvaluator",
+                }
+                continue
+            if parent_key == "source_manifest_summary" and (
+                key.endswith("_passed")
+                or "metric_gate" in key
+                or "typed_metric_contracts" in key
+            ):
+                continue
+            projected[key] = _semantic_review_model_input(
+                child,
+                parent_key=key,
+            )
+        return projected
+    if isinstance(value, (list, tuple)):
+        return [
+            _semantic_review_model_input(child, parent_key=parent_key)
+            for child in value
+        ]
+    return deepcopy(value)
+
+
 def generated_code_semantic_review_prompt_projection(
     review_material: Mapping[str, Any],
 ) -> dict[str, Any]:
-    return _prompt_projection_value(review_material)
+    return _prompt_projection_value(
+        _semantic_review_model_input(review_material)
+    )
 
 
 def _question_context(question: OpenResearchQuestion) -> dict[str, Any]:
@@ -524,8 +661,10 @@ def build_generated_code_semantic_review_prompt(
     }
     return (
         "Independently review the semantic validity of the executed generated code. "
-        "Use the supplied theory, source, runtime arguments, results, and frozen "
-        "measurement contract as evidence. Return only JSON matching the response "
+        "Use the supplied theory, complete source, runtime arguments, result schema, "
+        "and measurement meaning as evidence. The audit artifact retains exact result "
+        "values, but this role-specific input intentionally withholds them because the "
+        "empirical evaluator owns realized outcomes. Return only JSON matching the response "
         "schema. For each dimension, return PASS, FAIL, or UNCERTAIN with concise "
         "reasoning and evidence_refs. Select evidence refs from valid_evidence_refs. "
         "They address the exact question and review_material shown below. Relative "

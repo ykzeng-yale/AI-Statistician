@@ -22115,10 +22115,10 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
                 "severity": "high",
                 "category": "candidate_behavior",
                 "summary": "The executed candidate returns the wrong estimand.",
-                "observed_behavior": "The exact result reports estimate 1.0.",
+                "observed_behavior": "The exact source always returns estimate 1.0.",
                 "expected_behavior": "The declared estimand is returned exactly.",
                 "evidence_refs": [
-                    "/exact_executed_artifacts/0/exact_result/estimate"
+                    "/exact_executed_artifacts/0/exact_source_code"
                 ],
             }
         ],
@@ -22243,7 +22243,7 @@ def test_rejected_generated_code_returns_directly_to_same_producer(
                 "status": "UNRESOLVED",
                 "rationale": "The regenerated artifact still exhibits the finding.",
                 "evidence_refs": [
-                    "/exact_executed_artifacts/0/exact_result/estimate"
+                    "/exact_executed_artifacts/0/exact_source_code"
                 ],
             }
         ],
