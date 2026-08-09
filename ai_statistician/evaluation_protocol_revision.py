@@ -779,6 +779,19 @@ def architect_preexecution_metric_protocol_rejection_result(
         "failed_response_identity_checks": failed_response_identity_checks,
         "generated_code_observed": False,
         "simulation_results_observed": False,
+        "preexecution_evidence_authority": {
+            "source_grounded_semantic_review": True,
+            "generated_code_observed": False,
+            "simulation_results_observed": False,
+            "empirical_measurements_observed": False,
+            "numeric_execution_claims_authoritative": False,
+            "routing_contract": (
+                "Treat source-grounded mathematical findings as review judgments. "
+                "Any claim that requires generated code, Monte Carlo output, or an "
+                "empirical metric must be produced by AlgorithmEngineer or "
+                "SimulationEngineer before it can justify theory revision."
+            ),
+        },
         "current_candidate_acceptance_eligible": False,
         "execution_authorized": False,
         "rejected_lineage_preserved": True,
@@ -840,6 +853,7 @@ def architect_preexecution_metric_protocol_rejection_result(
                     "observed_behavior",
                     "expected_behavior",
                     "evidence_refs",
+                    "source_evidence_refs",
                 )
                 if key in row
             }
@@ -902,6 +916,9 @@ def architect_preexecution_metric_protocol_rejection_result(
             ),
             "generated_code_observed": False,
             "simulation_results_observed": False,
+            "preexecution_evidence_authority": dict(
+                manifest["preexecution_evidence_authority"]
+            ),
             "execution_authorized": False,
             "proof_evidence_status": (
                 "METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_NOT_PROOF_EVIDENCE"

@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-import ast
 import json
 import re
 from copy import deepcopy
 from datetime import datetime, timezone
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from textwrap import indent
 from typing import Any, Mapping, Sequence
 
 from .client_tool_loop import (
@@ -40,14 +36,8 @@ from .metric_protocol_finding_ledger import (
     update_metric_protocol_finding_ledger,
 )
 from .research_schema import OpenResearchQuestion
-from .scientific_sandbox import (
-    PYTHON_SCIENTIFIC_DEPENDENCIES,
-    execute_scientific_sandbox,
-)
-
-
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 10
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 14
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 11
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 15
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -85,11 +75,10 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_source_query_and_calculation_v4"
+    "client_tool_source_query_v5"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_CALCULATIONS = 3
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 8
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TERMINAL_RECOVERY_TURNS = 1
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS = 2
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_BOUNDARY = (
@@ -126,10 +115,10 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "Choose a discriminating case where omitted support, weights, normalization, "
         "or data dependence would change the result; avoid symmetry points where "
         "different definitions coincide. Initialization values, source-authored sanity "
-        "checks, and formula restatements are not independent identity checks. Stochastic "
-        "sandbox output is exploratory rather than semantic authority; use it against an "
-        "analytic identity only when it measures the same quantity and is diagnostic at "
-        "its stated uncertainty and tail behavior."
+        "checks, and formula restatements are not independent identity checks. This "
+        "preflight has no generated-code or simulation authority: if a judgment needs "
+        "execution, record the missing evidence and leave that check to the existing "
+        "AlgorithmEngineer or SimulationEngineer."
     ),
     (
         "Audit data dependence and operator closure explicitly. If a parameter, "
@@ -1061,26 +1050,6 @@ def _preflight_source_tokens(value: Any) -> set[str]:
     }
 
 
-def _preflight_calculation_source(value: Any) -> tuple[str, bool]:
-    source = str(value or "")
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        tree = None
-    if tree is not None and any(
-        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name == "run_sandbox"
-        for node in tree.body
-    ):
-        return source, False
-    return (
-        "def run_sandbox(seed, replicates):\n"
-        + indent(source, "    ")
-        + "\n",
-        True,
-    )
-
-
 def _preflight_source_row(
     *,
     source_kind: str,
@@ -1554,81 +1523,6 @@ def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
         expected_fingerprint
     ):
         errors.append("preflight source observation fingerprint mismatch")
-    calculation_observations = [
-        dict(row)
-        for row in packet.get("preflight_calculation_observations", []) or []
-        if isinstance(row, Mapping)
-    ]
-    if int(packet.get("preflight_calculation_count", 0) or 0) != len(
-        calculation_observations
-    ):
-        errors.append("preflight calculation count mismatch")
-    if len(calculation_observations) > (
-        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_CALCULATIONS
-    ):
-        errors.append("preflight calculation budget exceeded")
-    if calculation_observations and not any(
-        observation.get("execution_status") == "EXECUTED"
-        and observation.get("execution_attempted") is True
-        and observation.get("returncode") == 0
-        for observation in calculation_observations
-    ):
-        errors.append(
-            "preflight calculation attempts produced no successful execution"
-        )
-    for observation in calculation_observations:
-        core = {
-            key: observation.get(key)
-            for key in (
-                "calculation_index",
-                "code_hash",
-                "abi_envelope_added",
-                "model_authored_python_source",
-                "executed_python_source",
-                "dependencies",
-                "execution_status",
-                "execution_attempted",
-                "returncode",
-                "metrics",
-                "errors",
-                "stdout_summary",
-                "stderr_summary",
-                "backend",
-                "isolation_provider",
-            )
-        }
-        expected_id = (
-            "preflight_calculation_observation:"
-            + stable_hash(core)[:20]
-        )
-        if observation.get("observation_id") != expected_id:
-            errors.append("preflight calculation observation identity mismatch")
-        model_source = str(
-            observation.get("model_authored_python_source", "") or ""
-        )
-        executed_source = str(
-            observation.get("executed_python_source", "") or ""
-        )
-        expected_source, expected_abi_added = _preflight_calculation_source(
-            model_source
-        )
-        if (
-            not model_source
-            or executed_source != expected_source
-            or observation.get("abi_envelope_added") is not expected_abi_added
-            or observation.get("code_hash") != stable_hash(executed_source)
-        ):
-            errors.append("preflight calculation source lineage mismatch")
-        if observation.get("execution_status") == "EXECUTED" and (
-            observation.get("execution_attempted") is not True
-            or observation.get("returncode") != 0
-        ):
-            errors.append("successful preflight calculation evidence is inconsistent")
-    expected_calculation_fingerprint = stable_hash(calculation_observations)
-    if str(
-        packet.get("preflight_calculation_observations_fingerprint", "") or ""
-    ) != expected_calculation_fingerprint:
-        errors.append("preflight calculation observation fingerprint mismatch")
     return errors
 
 
@@ -2555,8 +2449,9 @@ typed experiment. This is an execution-admissibility gate, not theorem peer revi
 formal proof closure. Be adversarial about executable semantics, DGP alignment,
 normalization, and measurement, but do not block execution solely because a theorem
 proof is incomplete or an explicitly excluded regime is not robust. Do not write
-implementation code or use observed research results. You may author isolated numerical
-check code only through the supplied calculation tool. Do not invent task-family rules
+implementation or calculation code, and do not claim observed research results. A check
+that requires generated code or simulation belongs to the existing AlgorithmEngineer or
+SimulationEngineer after this source-grounded preflight. Do not invent task-family rules
 or claim proof evidence.
 """
 
@@ -2610,40 +2505,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             },
         ),
         ClientToolDefinition(
-            name="run_preflight_calculation",
-            description=(
-                "Execute one model-authored Python numerical check in the existing "
-                "secret-free scientific WebAssembly sandbox. Supply either complete "
-                "Python source defining run_sandbox(seed, replicates), or only that "
-                "function's body. The function must return a JSON-finite dict comparing "
-                "a primitive definition with its candidate formula on the same finite "
-                "case. Runtime uses Python AST only to detect an existing top-level ABI "
-                "and adds the fixed function envelope when absent; it does not alter the "
-                "model-authored body, interpret results, repair theory, or provide proof "
-                "evidence."
-            ),
-            input_schema={
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["python_source", "dependencies"],
-                "properties": {
-                    "python_source": {
-                        "type": "string",
-                        "minLength": 20,
-                        "maxLength": 7600,
-                    },
-                    "dependencies": {
-                        "type": "array",
-                        "maxItems": 3,
-                        "items": {
-                            "type": "string",
-                            "enum": list(PYTHON_SCIENTIFIC_DEPENDENCIES),
-                        },
-                    },
-                },
-            },
-        ),
-        ClientToolDefinition(
             name="submit_theory_preflight_review",
             description=(
                 "Submit the complete preflight review after source search. Every "
@@ -2662,13 +2523,11 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "source_ref handles; runtime binds them to exact source identities. You own each "
         "statistical judgment and each search query. Runtime retrieval ranking, "
         "source identity checks, and packet validation do not choose semantics. "
-        "When a finite numerical case can test an estimator identity, normalization, "
-        "integral, sum, or approximation, use run_preflight_calculation and inspect "
-        "its returned metrics before marking the independent identity check consistent. "
-        "Author the complete check yourself and compare primitive and candidate values; "
-        "the sandbox output is empirical calculation feedback, not semantic authority. "
-        "A stochastic check must measure the same quantity and be diagnostic at its "
-        "stated uncertainty and tail behavior; an inconclusive draw cannot reject theory. "
+        "No generated-code or simulation results exist at this stage. Do not report "
+        "sample sizes, Monte Carlo metrics, empirical ratios, coverage, or execution "
+        "outcomes as observed facts. If a decision needs such evidence, mark the exact "
+        "source-level question UNCERTAIN so ArchitectCoordinator can route it to the "
+        "existing coding or simulation agent. "
         "Keep the two citation namespaces distinct: evidence_refs uses only exact "
         "theory anchor IDs allowed by the submit schema, while source_evidence_refs "
         "uses only S...H... handles returned by search_preflight_sources. "
@@ -2680,16 +2539,10 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "observations": [],
         "observation_ids": set(),
         "source_ref_by_hit_id": {},
-        "calculations": 0,
-        "calculation_observations": [],
-        "calculation_observation_ids": set(),
     }
 
     def source_grounding_payload(**loop_metadata: Any) -> dict[str, Any]:
         observations = deepcopy(list(state["observations"]))
-        calculation_observations = deepcopy(
-            list(state["calculation_observations"])
-        )
         return {
             "source_grounding_required": True,
             "source_grounding_transport": (
@@ -2702,14 +2555,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             "preflight_source_search_count": int(state["searches"]),
             "preflight_source_search_budget": (
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-            ),
-            "preflight_calculation_observations": calculation_observations,
-            "preflight_calculation_observations_fingerprint": stable_hash(
-                calculation_observations
-            ),
-            "preflight_calculation_count": int(state["calculations"]),
-            "preflight_calculation_budget": (
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_CALCULATIONS
             ),
             "runtime_selected_review_semantics": False,
             **loop_metadata,
@@ -2800,113 +2645,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                     "remaining_searches": (
                         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
                         - state["searches"]
-                    ),
-                },
-                state_changed=True,
-                observation_key=observation_id,
-            )
-
-        if call.name == "run_preflight_calculation":
-            if state["searches"] < 1:
-                raise ClientToolInputError(
-                    "search_preflight_sources must run before calculation"
-                )
-            if state["calculations"] >= (
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_CALCULATIONS
-            ):
-                raise ClientToolInputError(
-                    "preflight calculation budget exhausted"
-                )
-            python_source = str(tool_input.get("python_source", "") or "")
-            dependencies = tool_input.get("dependencies", [])
-            if not 20 <= len(python_source) <= 7600:
-                raise ClientToolInputError(
-                    "calculation python_source length must be between 20 and 7600 "
-                    "characters"
-                )
-            if not isinstance(dependencies, list):
-                raise ClientToolInputError("dependencies must be an array")
-            normalized_dependencies = [
-                str(value or "").strip().lower()
-                for value in dependencies
-                if str(value or "").strip()
-            ]
-            if len(normalized_dependencies) > 3 or any(
-                value not in PYTHON_SCIENTIFIC_DEPENDENCIES
-                for value in normalized_dependencies
-            ):
-                raise ClientToolInputError(
-                    "calculation dependencies are unsupported"
-                )
-            code, abi_envelope_added = _preflight_calculation_source(
-                python_source
-            )
-            calculation_index = int(state["calculations"]) + 1
-            with TemporaryDirectory(
-                prefix="ai-statistician-preflight-calculation-"
-            ) as temp_dir:
-                execution = execute_scientific_sandbox(
-                    sandbox_dir=Path(temp_dir),
-                    artifact_id=(
-                        f"preflight-calculation:{question.id}:"
-                        f"{calculation_index}"
-                    ),
-                    language="python",
-                    code=code,
-                    dependencies=normalized_dependencies,
-                    seed=0,
-                    replicates=1,
-                    timeout_s=30,
-                    max_output_bytes=1024 * 1024,
-                )
-            observation_core = {
-                "calculation_index": calculation_index,
-                "code_hash": execution.code_hash,
-                "abi_envelope_added": abi_envelope_added,
-                "model_authored_python_source": python_source,
-                "executed_python_source": code,
-                "dependencies": list(execution.dependencies),
-                "execution_status": execution.status,
-                "execution_attempted": execution.execution_attempted,
-                "returncode": execution.returncode,
-                "metrics": deepcopy(dict(execution.metrics)),
-                "errors": [str(value)[:1200] for value in execution.errors[:8]],
-                "stdout_summary": str(execution.stdout_summary or "")[:2000],
-                "stderr_summary": str(execution.stderr_summary or "")[:2000],
-                "backend": execution.backend,
-                "isolation_provider": execution.isolation_provider,
-            }
-            observation_id = (
-                "preflight_calculation_observation:"
-                + stable_hash(observation_core)[:20]
-            )
-            observation = {
-                "observation_id": observation_id,
-                **observation_core,
-                "boundary": (
-                    "This is execution feedback from model-authored calculation code. "
-                    "Runtime does not interpret it, repair theory, or treat it as proof."
-                ),
-            }
-            state["calculations"] += 1
-            if observation_id not in state["calculation_observation_ids"]:
-                state["calculation_observation_ids"].add(observation_id)
-                state["calculation_observations"].append(observation)
-            return ClientToolExecutionResult(
-                content={
-                    "ok": execution.status == "EXECUTED",
-                    **{
-                        key: value
-                        for key, value in observation.items()
-                        if key
-                        not in {
-                            "model_authored_python_source",
-                            "executed_python_source",
-                        }
-                    },
-                    "remaining_calculations": (
-                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_CALCULATIONS
-                        - state["calculations"]
                     ),
                 },
                 state_changed=True,
@@ -3034,12 +2772,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 tool.name == "search_preflight_sources"
                 and int(state["searches"])
                 >= ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-            ):
-                continue
-            if (
-                tool.name == "run_preflight_calculation"
-                and int(state["calculations"])
-                >= ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_CALCULATIONS
             ):
                 continue
             selected.append(tool)
