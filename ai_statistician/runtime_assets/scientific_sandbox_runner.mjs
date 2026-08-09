@@ -109,7 +109,23 @@ async function runPython(request, source, estimatorSources) {
       `_ai_stat_result = _ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=_ai_stat_estimators)\n` +
       `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": _ai_stat_invocation_counts, "estimator_runtime_failure": _ai_stat_runtime_failure}, allow_nan=False, sort_keys=True)`
     : `${source}\n\nimport json as _ai_stat_json\n` +
-      `_ai_stat_result = run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)})\n` +
+      `def _ai_stat_json_native(_value):\n` +
+      `    if _value is None or isinstance(_value, (bool, int, float, str)):\n` +
+      `        return _value\n` +
+      `    if isinstance(_value, dict):\n` +
+      `        if not all(isinstance(_key, str) for _key in _value):\n` +
+      `            raise TypeError("sandbox result object keys must be strings")\n` +
+      `        return {_key: _ai_stat_json_native(_item) for _key, _item in _value.items()}\n` +
+      `    if isinstance(_value, (list, tuple)):\n` +
+      `        return [_ai_stat_json_native(_item) for _item in _value]\n` +
+      `    _tolist = getattr(_value, "tolist", None)\n` +
+      `    if callable(_tolist):\n` +
+      `        return _ai_stat_json_native(_tolist())\n` +
+      `    _scalar_item = getattr(_value, "item", None)\n` +
+      `    if callable(_scalar_item):\n` +
+      `        return _ai_stat_json_native(_scalar_item())\n` +
+      `    raise TypeError("sandbox result values must be JSON-native or array-like")\n` +
+      `_ai_stat_result = _ai_stat_json_native(run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}))\n` +
       `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": {}}, allow_nan=False, sort_keys=True)`;
   const serialized = await pyodide.runPythonAsync(wrapped);
   return JSON.parse(String(serialized));

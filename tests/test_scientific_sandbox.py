@@ -707,6 +707,62 @@ def test_live_scientific_runtime_returns_exact_error_feedback(tmp_path: Path) ->
     assert "ValueError" in result.stderr_summary
 
 
+def test_live_unbound_python_normalizes_numpy_result_values(tmp_path: Path) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Pyodide runtime is not installed on this host")
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="unbound-python-numpy-values",
+        language="python",
+        code=(
+            "import numpy as np\n\n"
+            "def run_sandbox(seed, replicates):\n"
+            "    return {\n"
+            "        'accepted': np.bool_(True),\n"
+            "        'count': np.int64(replicates),\n"
+            "        'values': np.asarray([1.5, 2.5]),\n"
+            "    }\n"
+        ),
+        dependencies=["numpy"],
+        seed=7,
+        replicates=5,
+        timeout_s=60,
+    )
+
+    assert result.status == "EXECUTED"
+    assert result.metrics == {
+        "accepted": True,
+        "count": 5,
+        "values": [1.5, 2.5],
+    }
+
+
+def test_live_unbound_python_still_rejects_nonfinite_values(tmp_path: Path) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Pyodide runtime is not installed on this host")
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="unbound-python-nonfinite",
+        language="python",
+        code=(
+            "import numpy as np\n\n"
+            "def run_sandbox(seed, replicates):\n"
+            "    return {'invalid_metric': np.float64(np.nan)}\n"
+        ),
+        dependencies=["numpy"],
+        seed=7,
+        replicates=5,
+        timeout_s=60,
+    )
+
+    assert result.status == "FAILED"
+    assert any("Out of range float values" in error for error in result.errors)
+
+
 @pytest.mark.parametrize(
     ("language", "dependencies", "algorithm", "simulation"),
     [

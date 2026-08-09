@@ -43,6 +43,12 @@ producer receives their artifact paths and hashes, complete parent source, raw
 stderr/validator errors, and the exact failed metric evaluations and contracts.
 This is prompt transport, not an interpretation or repair policy.
 
+Scientific sandbox transport converts backend-specific scalar and container
+representations, such as NumPy scalars and arrays, into equivalent JSON-native
+values after model-authored code returns. It does not alter source or numerical
+values. Non-finite values and unsupported objects still fail closed and return
+their exact execution diagnostics to the producing model.
+
 The canonical product loop is deliberately small:
 
 1. TheoryDeveloper derives the estimand, estimator/test/procedure, assumptions,
