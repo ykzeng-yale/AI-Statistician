@@ -2675,6 +2675,12 @@ def test_architect_routed_generated_code_observations_bind_exact_parent() -> Non
     assert resolution["source_feedback_type"] == feedback["feedback_type"]
     assert resolution["prior_theory_packet_id"] == parent_id
     assert resolution["revised_theory_packet_id"] == revised_id
+    assert routed_context["runtime_theory_revision_budget"] == {
+        "revisions_used": 1,
+        "max_revisions": 1,
+        "budget_exhausted": True,
+        "reset_scope": "fresh_question_runtime_only",
+    }
 
 
 def test_architect_routed_observations_bind_context_parent_without_duplicate_feedback_fields() -> None:
@@ -4314,6 +4320,25 @@ def test_critic_does_not_select_gap_planner_from_packet_escalation() -> None:
     assert binding_errors == []
     assert revision_binding["feedback_id"] == feedback["feedback_id"]
     assert revision_binding["source_theory_packet_id"] == theory_packet_id
+    assert revision_binding["upstream_theory_revision_count"] == 1
+    assert revision_binding["max_upstream_theory_revisions"] == 1
+
+    exhausted_context = copy.deepcopy(routed_context)
+    exhausted_context["runtime_theory_revision_budget"] = {
+        "revisions_used": 1,
+        "max_revisions": 1,
+        "budget_exhausted": True,
+    }
+    _, exhausted_errors = (
+        runtime_module.build_architect_routed_theory_revision_binding(
+            architect_context=exhausted_context,
+            question_id=question.id,
+            artifacts=blackboard.artifacts,
+        )
+    )
+    assert "question-level TheoryDeveloper revision budget is exhausted" in (
+        exhausted_errors
+    )
 
 
 def test_formalization_gap_planner_runtime_subsystem_executes_offline_handoff_smoke(
@@ -21804,6 +21829,13 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
         "architect_metric_protocol_gate": {
             "artifact_kind": "RuntimeArchitectMetricProtocolGate",
             "source_theory_packet_id": theory_packet_id,
+            "source_theory_revision_feedback_id": "feedback:second-revision",
+            "rejection_manifest_ids": [
+                "preflight-rejection:first",
+                "preflight-rejection:second",
+            ],
+            "upstream_theory_revision_count": 2,
+            "max_upstream_theory_revisions": 2,
             "required_disposition": (
                 "THEORY_EXECUTION_PREFLIGHT_ACCEPTED_BEFORE_IMPLEMENTATION"
             ),
@@ -21876,6 +21908,18 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
         "implementation_before_metric_freeze"
     ] is True
     assert preflight_result.next_task.inputs["simulation_manifest_id"] == ""
+    accepted_gate = preflight_result.next_task.inputs["architect_context"][
+        "architect_metric_protocol_gate"
+    ]
+    assert accepted_gate["upstream_theory_revision_count"] == 2
+    assert accepted_gate["max_upstream_theory_revisions"] == 2
+    assert accepted_gate["source_theory_revision_feedback_id"] == (
+        "feedback:second-revision"
+    )
+    assert accepted_gate["rejection_manifest_ids"] == [
+        "preflight-rejection:first",
+        "preflight-rejection:second",
+    ]
     deferred_payload = preflight_result.next_task.inputs[
         "deferred_metric_protocol_task"
     ]

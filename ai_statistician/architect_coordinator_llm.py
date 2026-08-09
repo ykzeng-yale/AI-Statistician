@@ -30,6 +30,7 @@ from .generated_metric_contract import (
 )
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .metric_protocol_stage import (
+    METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
     METRIC_PROTOCOL_PHASE_NOT_REQUIRED,
     METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
@@ -42,6 +43,10 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 from .semantic_review_feedback import (
     architect_observations_without_runtime_routing,
+)
+from .theory_revision_lineage import (
+    RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY,
+    runtime_theory_revision_budget,
 )
 
 
@@ -611,8 +616,10 @@ def build_architect_feedback_route_prompt(
                 "runtime_evaluation_mode",
                 "empirical_evaluation_phase",
                 "candidate_lineage_budget",
+                RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY,
                 "runtime_feedback_loop",
                 "runtime_progress_snapshot",
+                "architect_metric_protocol_gate",
             }
         )
     }
@@ -635,9 +642,7 @@ def build_architect_feedback_route_prompt(
             "tags": list(question.tags),
         },
         "available_route_subsystems": list(available_route_subsystems),
-        "unavailable_for_unchanged_exhausted_lineage": (
-            unavailable_route_subsystems
-        ),
+        "unavailable_route_subsystems": unavailable_route_subsystems,
         "current_validated_plan": {
             key: deepcopy(runtime_plan.get(key))
             for key in (
@@ -662,6 +667,9 @@ def build_architect_feedback_route_prompt(
             "selected_worker_receives_complete_feedback": True,
             "exhausted_unchanged_producer_is_temporarily_unavailable": True,
             "materially_new_parent_artifact_starts_a_new_candidate_lineage": True,
+            "question_theory_revision_budget_survives_new_feedback_and_parents": (
+                True
+            ),
             "block_only_when_no_existing_subsystem_can_produce_next_evidence": True,
             "new_repair_patch_or_adapter_subsystem_forbidden": True,
             "implementation_revision_owner_is_existing_source_producer": True,
@@ -689,8 +697,8 @@ def build_architect_feedback_route_prompt(
     bounded_payload = {
         "question": payload["question"],
         "available_route_subsystems": payload["available_route_subsystems"],
-        "unavailable_for_unchanged_exhausted_lineage": payload[
-            "unavailable_for_unchanged_exhausted_lineage"
+        "unavailable_route_subsystems": payload[
+            "unavailable_route_subsystems"
         ],
         "environment_observations": _bounded_architect_route_prompt_value(
             payload["environment_observations"],
@@ -723,11 +731,13 @@ def build_architect_feedback_route_prompt(
         "Treat the top-level observation marked CURRENT_ACTIVE_OBSERVATION as the current "
         "blocker. Superseded observations are complete attempt history: use them to avoid "
         "repeating failed work, but never route on an old error unless the current artifact "
-        "re-observes it. A producer listed in "
-        "unavailable_for_unchanged_exhausted_lineage has exhausted its candidate budget "
-        "for this exact observation and cannot be selected in this route. It becomes "
+        "re-observes it. A producer listed in unavailable_route_subsystems cannot be "
+        "selected under the current runtime budgets. An exhausted candidate-lineage "
+        "producer becomes "
         "eligible again only on a later route bound to a materially new parent artifact "
-        "and feedback identity. Never propose a new repair, "
+        "and feedback identity. The question-level TheoryDeveloper revision budget does "
+        "not reset when feedback is wrapped, a candidate changes, or a revised parent "
+        "artifact is produced. Never propose a new repair, "
         "patch, correction, or adapter "
         "agent: implementation revision belongs to the existing source producer, while "
         "theory, measurement, simulation design, and environment defects belong to their "
@@ -791,8 +801,35 @@ def _architect_feedback_route_subsystems(
     """Apply only lineage budgets to the model's route choices."""
 
     budget = architect_context.get("candidate_lineage_budget", {})
+    available = list(ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS)
+    revisions_used, max_revisions = runtime_theory_revision_budget(
+        architect_context
+    )
+    reserved_preexecution_revision = bool(
+        environment_feedback.get("artifact_kind")
+        == METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND
+        and revisions_used > 0
+        and revisions_used
+        == _architect_gap_int(
+            environment_feedback.get("upstream_theory_revision_count", 0),
+            fallback=0,
+        )
+        and revisions_used <= max_revisions
+    )
+    if (
+        max_revisions <= 0
+        or (
+            revisions_used >= max_revisions
+            and not reserved_preexecution_revision
+        )
+    ):
+        available = [
+            subsystem
+            for subsystem in available
+            if subsystem != "TheoryDeveloper"
+        ]
     if not isinstance(budget, Mapping):
-        return ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS
+        return tuple(available)
     feedback_id = str(
         environment_feedback.get("active_observation_id", "")
         or environment_feedback.get("feedback_id", "")
@@ -828,7 +865,7 @@ def _architect_feedback_route_subsystems(
 
     return tuple(
         subsystem
-        for subsystem in ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS
+        for subsystem in available
         if subsystem != exhausted_source
     )
 

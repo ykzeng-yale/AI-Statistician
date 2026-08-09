@@ -210,7 +210,7 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     assert "Never propose a new repair, patch, correction, or adapter agent" in (
         request.user_prompt
     )
-    assert "unavailable_for_unchanged_exhausted_lineage" in request.user_prompt
+    assert "unavailable_route_subsystems" in request.user_prompt
     assert "statistically non-diagnostic result does not" in (
         request.user_prompt
     )
@@ -288,7 +288,7 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
     assert "SimulationEvaluator" not in prompt_payload[
         "available_route_subsystems"
     ]
-    assert prompt_payload["unavailable_for_unchanged_exhausted_lineage"] == [
+    assert prompt_payload["unavailable_route_subsystems"] == [
         "SimulationEvaluator"
     ]
     assert prompt_payload["active_runtime_context"]["candidate_lineage_budget"][
@@ -311,7 +311,7 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
     assert "SimulationEvaluator" not in wrapped_payload[
         "available_route_subsystems"
     ]
-    assert wrapped_payload["unavailable_for_unchanged_exhausted_lineage"] == [
+    assert wrapped_payload["unavailable_route_subsystems"] == [
         "SimulationEvaluator"
     ]
 
@@ -350,6 +350,51 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
     assert "SimulationEvaluator" not in backend.requests[0].metadata[
         "available_route_subsystems"
     ]
+
+
+def test_question_theory_revision_budget_does_not_reset_on_new_feedback() -> None:
+    feedback = {
+        "feedback_id": "feedback:new-post-simulation-observation",
+        "feedback_type": "generated_simulation_sandbox_execution_feedback",
+        "failure_classification": "generated_simulation_sandbox_metric_gate_failed",
+        "runtime_errors": ["metric_path /estimate resolved no values"],
+    }
+    context = {
+        "architect_metric_protocol_gate": {
+            "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+            "upstream_theory_revision_count": 2,
+            "max_upstream_theory_revisions": 2,
+            "source_theory_packet_id": "theory:second-revision",
+        }
+    }
+
+    prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context=context,
+        environment_feedback=feedback,
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+
+    assert "TheoryDeveloper" not in payload["available_route_subsystems"]
+    assert "TheoryDeveloper" in payload["unavailable_route_subsystems"]
+    assert payload["active_runtime_context"][
+        "architect_metric_protocol_gate"
+    ]["upstream_theory_revision_count"] == 2
+    assert "does not reset when feedback is wrapped" in prompt
+
+    reserved_feedback = {
+        **feedback,
+        "artifact_kind": "RuntimeMetricProtocolPreExecutionReviewObservation",
+        "upstream_theory_revision_count": 2,
+        "max_upstream_theory_revisions": 2,
+    }
+    reserved_prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context=context,
+        environment_feedback=reserved_feedback,
+    )
+    reserved_payload = json.loads(reserved_prompt.rsplit("\n\n", 1)[1])
+    assert "TheoryDeveloper" in reserved_payload["available_route_subsystems"]
 
 
 def test_runtime_honors_model_owned_route_and_binds_full_feedback() -> None:

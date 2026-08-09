@@ -1,11 +1,11 @@
 {
   "schema_version": 3,
-  "updated_at": "2026-08-09T00:16:39Z",
+  "updated_at": "2026-08-09T01:26:46Z",
   "role": "main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "main_objective": "Build and honestly evaluate one general, LLM-driven statistical research loop that derives theory, generates and executes scientific code, uses task-bound formal RAG, iterates against real environment feedback, and closes exact intended Lean theorems across unrelated task families.",
-  "current_lane": "Keep candidate regeneration model-owned and remove lossy or prescriptive middle layers between raw environment observations, independent critics, and the Architect model.",
+  "current_lane": "Keep candidate regeneration model-owned while making question-level iteration budgets survive every preflight, candidate, Critic, and Architect handoff.",
   "canonical_agent_feedback_contract": {
     "producer_ownership": "The same AlgorithmEngineer, SimulationEngineer, TheoryDeveloper, or Formalizer that authored a rejected candidate receives the complete parent candidate, raw validator or execution errors, exact environment observations, and immutable lineage.",
     "revision_action": "The producer regenerates a complete new candidate. Runtime never patches source, chooses a mathematical fix, supplies Lean grammar or tactic recipes, or substitutes a hidden repair agent.",
@@ -20,7 +20,7 @@
     "lean_aci": "replace_lean_source, search_formal_environment, check_lean_source, and submit_compiled_source are model-controlled tools. The runtime stores and checks exact model-authored source; it does not edit Lean.",
     "structured_output_regeneration": "The historically named llm_json_repair helper is a same-model generation loop, not a repair tool: it sends the original request, complete previous response, and raw validator errors back to the producer and validates the complete regenerated object. It performs no local semantic repair.",
     "failed_candidate_path": "A validator, safety, execution, or metric failure returns directly to the same producing model with the complete candidate and raw observations. It does not detour through GeneratedCodeSemanticReviewer. Independent semantic review is an acceptance boundary for candidates that pass their current execution and metric gates.",
-    "exhausted_lineage_path": "When the unchanged candidate lineage reaches its configured regeneration budget, that producer is omitted only from the immediate Architect route. The root active_observation_id survives Critic and other analysis wrappers, so a new envelope cannot reset the same producer budget. The Architect model may select any remaining existing evidence producer or record a blocker; a materially new parent artifact starts a fresh lineage.",
+    "exhausted_lineage_path": "When an unchanged code candidate reaches its regeneration budget, that producer is omitted from the immediate Architect route until a materially new parent starts a fresh candidate lineage. TheoryDeveloper uses a stricter question-level budget: new feedback envelopes, candidate IDs, Critic wrappers, and revised theory parents cannot reset it. The Architect model still selects among remaining existing evidence producers or records a blocker.",
     "architect_routing_input": "Architect sees raw current/superseded observations plus an allowlisted control-plane projection: artifact IDs and hashes, progress, evaluation phase, feedback-loop counts, and candidate-lineage budget. Legacy runtime replan prose and owner recommendations are not model input.",
     "critic_role": "CriticEvaluator receives the complete current observation plus exact hash-bound TheoryDeveloper and AlgorithmEngineer artifacts. It reports observed failure, evidence, causal hypotheses, uncertainty, and evidence-boundary status only. It does not receive deterministic owner agendas and cannot emit owner routes, next actions, source edits, or gate changes.",
     "forbidden_model_context": "Runtime-authored fix recipes, repair-owner recommendations, tool-order recipes, theorem-family patches, and Lean syntax or tactic recipes are stripped from model-facing observations."
@@ -35,6 +35,7 @@
     "v295_observation": "The bounded observation envelope survived three real SimulationEvaluator executions and produced three distinct complete model-authored source hashes without a provider context-length error. Both tasks failed closed: survival exposed an unbound Critic-to-TheoryDeveloper observation envelope, while sequential exhausted its theory-revision budget under independent pre-execution review.",
     "v296_observation": "The Critic lineage fix worked live: Critic observations reached the exact parent TheoryDeveloper and a fresh theory packet passed independent preflight. Sequential also proved same-producer full-source regeneration twice: two execution failures were followed by a third distinct SimulationEvaluator program that executed, with no runtime-authored edit. A later Critic call was given a lossy string summary and deterministic theory-route agenda, causing it to misclassify missing kernel proof as the cause of an empirical metric failure; that middle layer is now removed.",
     "v297_observation": "The fresh exact-Haiku panel again used same-producer full-source regeneration: three distinct SimulationEvaluator candidates each received complete source and raw KeyError execution feedback, with no local source editor or canned fix. It exposed two generic harness defects instead: Architect transport discarded mapping fields after position 48, hiding late runtime_errors from routing, and a 5,600-token preflight output cap truncated an otherwise complete Haiku review. The field-count truncation is removed and the generic preflight cap is 8,000 without relaxing validation.",
+    "v298_observation": "The fresh exact-Haiku panel used 9/9 Haiku agents, six executed AlgorithmEngineer artifacts, nine executed SimulationEvaluator artifacts, and no legacy repair executor, attached repair eval, or post-runtime formal fallback. Lossless feedback and the 8,000-token preflight cap worked. The sequential task nevertheless produced a third TheoryDeveloper revision after its configured maximum of two because preflight ACCEPT rebuilt the metric gate without its revision count; the current generic correction preserves that budget and removes TheoryDeveloper from later Architect choices once exhausted.",
     "cleanup_direction": "Do not add another repair abstraction. Continue retiring legacy production reachability as typed same-agent ACI paths replace it."
   },
   "live_anthropic_model_policy": {
@@ -42,7 +43,7 @@
     "production_maximum_tier": "sonnet",
     "opus_allowed": false,
     "v292_topology": "9/9 enabled LLM agents used Anthropic claude-haiku-4-5-20251001; llm_topology_policy_status=OK. No Sonnet or Opus model was used.",
-    "current_live_route_probe": "Exact-Haiku replays over immutable v297 artifacts show the corrected Architect prompt contains the late raw KeyError and parent source, and the model cites that execution error while choosing among non-exhausted producers. A separate sequential preflight replay completes a typed ACCEPT packet at the 8,000-token cap. Both are diagnostic subsystem evidence, not integrated E2E or proof evidence."
+    "current_live_route_probe": "Fresh v298 integrated evidence confirms lossless raw feedback, same-producer complete regeneration, and complete 8,000-token theory preflight packets under exact Haiku. It also supplies the counterexample for the question-level revision-budget reset now covered by deterministic regression tests."
   },
   "current_readiness": {
     "ready_for_full_ai_statistician": false,
@@ -51,7 +52,7 @@
     "interpretation": "Contract and evidence-boundary infrastructure is substantial, but no fresh cross-family task currently completes theory through exact source-theorem kernel closure."
   },
   "latest_full_live_development_eval": {
-    "run": "runs/main_worker_cross_family_development_20260808_v297_root_observation_lineage_exact_haiku",
+    "run": "runs/main_worker_cross_family_development_20260808_v298_lossless_feedback_exact_haiku",
     "questions": [
       "right_censored_survival_km",
       "sequential_anytime_bernoulli"
@@ -62,16 +63,16 @@
     },
     "model_topology": "All 9 enabled LLM agents used Anthropic claude-haiku-4-5-20251001 exactly; topology policy status OK; no Sonnet or Opus call was configured.",
     "scorecard": "87/121 capability checks and 43/66 integrated checks passed; capability_ready_for_full_ai_statistician=false.",
-    "survival_result": "Reached accepted theory, executed and independently reviewed AlgorithmEngineer code, and executed multiple complete SimulationEvaluator programs. Three distinct same-model regenerations repeated KeyError: 'standard_error' despite receiving full source and raw errors. After that lineage exhausted, Architect selected AlgorithmEngineer, a fresh algorithm was generated and reviewed, and simulation executed but passed only 8/12 frozen metrics. Critic then triggered a TheoryDeveloper revision that failed independent preflight before the run reached its iteration limit.",
-    "sequential_result": "The pre-execution TheoryDeveloper review used source search and model-authored calculations, but its third typed submission was truncated exactly at the 5,600-token output cap and failed structural completeness checks. The run blocked before coding. An immutable-context exact-Haiku replay at the corrected 8,000-token cap produced a complete ACCEPT packet; this replay is diagnostic only and does not upgrade the integrated run.",
-    "current_code_correction": "Architect observation transport now traverses mapping fields until the existing global character budget is exhausted instead of silently dropping every field after position 48; large source fields retain their own caps, so later raw errors remain visible. Generic preflight output capacity rises from 5,600 to 8,000 tokens while all validators remain unchanged. Neither correction edits model source, names a mathematical solution, supplies a repair recipe, changes a metric, or weakens an evidence gate.",
+    "survival_result": "Reached accepted theory, executed and independently reviewed two AlgorithmEngineer lineages, and executed six complete SimulationEvaluator candidates. The first simulation lineage reached 21/25 metrics; after raw failures were routed through Architect and Critic, TheoryDeveloper produced a fresh packet that passed preflight. The rebuilt candidate still failed six frozen metrics and the task reached its 24-iteration limit without Formalizer or Lean.",
+    "sequential_result": "Two independently rejected theory packets were regenerated by TheoryDeveloper and the second revision passed complete source-grounded preflight. AlgorithmEngineer then executed and passed independent review; three complete SimulationEvaluator candidates reached 8/13 metrics. Architect routed the new observations to TheoryDeveloper a third time because preflight ACCEPT had erased the existing 2/2 revision count. That third theory and algorithm passed their gates, but metric review failed closed when its own independently derived response exponents disagreed with its PASS claim.",
+    "current_code_correction": "Preflight ACCEPT now preserves theory revision count, limit, rejection IDs, and feedback identity. Architect route availability applies that question-level budget across new feedback and parent artifacts while retaining the already-reserved final preflight revision. Architect still chooses every remaining owner; runtime adds no mathematical fix, code edit, Lean grammar rule, repair worker, or task-specific route.",
     "downstream_execution": {
       "generated_code_sandbox_executed": 6,
-      "generated_simulation_sandbox_executed": 1,
+      "generated_simulation_sandbox_executed": 9,
       "formalizer": 0,
       "lean_kernel_verified_subclaims": 0
     },
-    "interpretation": "The direct same-producer regeneration loop is live-proven, but v297 still closes 0/2 exact theorems and never reaches Formalizer. The immediate correction is lossless bounded feedback plus enough output capacity for a complete Haiku artifact, not a simulation-specific fix or another repair subsystem."
+    "interpretation": "The direct same-producer regeneration loop and lossless feedback transport are live-proven, but v298 still closes 0/2 exact theorems and never reaches Formalizer. The immediate correction is a persistent question-level iteration budget, not a generated-answer patch or another repair subsystem."
   },
   "latest_partial_live_diagnostic": {
     "run": "runs/main_worker_cross_family_development_20260808_v294_thin_model_owned_regeneration_exact_haiku",
@@ -90,7 +91,7 @@
   },
   "proof_boundary": "Theory, simulation, code execution, reviewer acceptance, RAG hits, pseudo-formal blocks, external source compilation, and support-lemma compilation are not proof of the intended theorem. Only exact active-project Lean/kernel verification can close a theorem.",
   "next_main_worker_actions": [
-    "Run fresh exact-Haiku v298 development after committing the lossless Architect observation transport and generic preflight output-cap correction.",
+    "Commit the question-level theory-budget correction and run a fresh exact-Haiku development panel from the new commit.",
     "Reduce preflight tool-turn cost through generic model workspace and telemetry improvements without encoding survival, sequential, FDR, conformal, or other theorem-family answers.",
     "Remove unbound post-runtime agenda rows when no single question or theorem target exists.",
     "Retire legacy repair calibration and patch executors from canonical reachability as same-agent ACI paths replace them; do not add another repair middleware layer.",
@@ -101,7 +102,7 @@
     "base_commit": "f2ab4adc",
     "base_change": "Failed generated candidates route directly to their producing model with a bounded observation envelope containing complete source, raw failures, exact failed contracts, and immutable artifact references.",
     "base_regression": "The f2ab4adc path passed 55 generated-code/simulation/feedback tests and 55 model-policy, frozen-protocol, test-environment, and research-eval tests before push.",
-    "current_cleanup": "v297 completed with exact Haiku and no Opus/Sonnet model. Seventy-five focused Architect-route, theory-preflight, semantic-feedback, frozen-protocol, and generated-code-review tests plus five focused runtime routing tests pass. Exact-Haiku diagnostic replays confirm late raw execution errors survive the bounded Architect prompt and a complete preflight review fits the corrected output cap. No validator was relaxed and no task-specific source change, statistical rule, Lean grammar, tactic recipe, repair recipe, or runtime-authored model fix was added."
+    "current_cleanup": "v298 completed with exact Haiku and no Opus/Sonnet model. It executed six algorithm and nine simulation artifacts with every legacy repair executor/eval disabled. One hundred eighteen focused budget, Architect-route, preflight, lineage, semantic-material, research-eval, cross-family protocol, and model-policy regressions pass. An immutable v298 replay carries 2/2 through corrected preflight ACCEPT and removes TheoryDeveloper at the original post-simulation route. No validator was relaxed and no task-specific source change, statistical rule, Lean grammar, tactic recipe, repair recipe, or runtime-authored model fix was added."
   },
   "history_policy": "This file contains current coordination state only. Superseded audits, runs, and validation logs remain in Git history and immutable run manifests."
 }

@@ -7862,10 +7862,39 @@ def _architect_theory_preflight_accepted_result(
     context["empirical_evaluation_phase"] = (
         EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
     )
+    prior_metric_gate = context.get("architect_metric_protocol_gate", {})
+    prior_metric_gate = (
+        dict(prior_metric_gate)
+        if isinstance(prior_metric_gate, Mapping)
+        else {}
+    )
+    upstream_theory_revision_count = max(
+        0,
+        int(prior_metric_gate.get("upstream_theory_revision_count", 0) or 0),
+    )
+    max_upstream_theory_revisions = max(
+        0,
+        int(
+            prior_metric_gate.get("max_upstream_theory_revisions", 0)
+            or runtime_config.metric_protocol_max_upstream_theory_revisions
+            or 0
+        ),
+    )
     context["architect_metric_protocol_gate"] = {
+        **{
+            key: value
+            for key, value in prior_metric_gate.items()
+            if key
+            in {
+                "rejection_manifest_ids",
+                "source_theory_revision_feedback_id",
+            }
+        },
         "artifact_kind": "RuntimeArchitectMetricProtocolGate",
         "source_theory_packet_id": theory_packet_id,
         "source_theory_packet_hash": theory_packet_hash,
+        "upstream_theory_revision_count": upstream_theory_revision_count,
+        "max_upstream_theory_revisions": max_upstream_theory_revisions,
         "required_disposition": (
             "IMPLEMENTATION_ACCEPTED_BEFORE_METRIC_AUTHORING"
         ),
