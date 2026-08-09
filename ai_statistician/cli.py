@@ -5498,13 +5498,16 @@ def _formal_source_retriever_from_runtime_args(
         )
     external = EmpericalProcessLeanRetrievalProvider(
         root=root,
-        db_dir=str(
-            getattr(
-                args,
-                "emperical_process_lean_rag_db_dir",
-                "build/lean_graph",
-            )
-            or "build/lean_graph"
+        db_dir=(
+            str(
+                getattr(
+                    args,
+                    "emperical_process_lean_rag_db_dir",
+                    "",
+                )
+                or ""
+            ).strip()
+            or None
         ),
         source=str(
             getattr(args, "emperical_process_lean_rag_source", "all") or "all"
@@ -14706,6 +14709,75 @@ def _research_agent_runtime_capability_config_errors(
             "--formalizer-candidate-lean-lsp-mcp"
         )
     if str(getattr(args, "capability_eval_preset", "") or "") == "full-live":
+        legacy_formal_paths = (
+            (
+                "theorem_closure_proofengineer_bridge",
+                "--theorem-closure-proofengineer-bridge",
+            ),
+            (
+                "source_semantic_proofengineer_bridge",
+                "--source-semantic-proofengineer-bridge",
+            ),
+            (
+                "source_theorem_promotion_proofengineer_bridge",
+                "--source-theorem-promotion-proofengineer-bridge",
+            ),
+            (
+                "source_theorem_formal_environment_proofengineer_bridge",
+                "--source-theorem-formal-environment-proofengineer-bridge",
+            ),
+            (
+                "source_theorem_proof_body_adapter_proofengineer_bridge",
+                "--source-theorem-proof-body-adapter-proofengineer-bridge",
+            ),
+            (
+                "source_to_bridge_premise_derivation_proofengineer_bridge",
+                "--source-to-bridge-premise-derivation-proofengineer-bridge",
+            ),
+            (
+                "source_theorem_exact_semantic_definition_source_lookup",
+                "--source-theorem-exact-semantic-definition-source-lookup",
+            ),
+            (
+                "source_theorem_exact_semantic_definition_proofengineer_bridge",
+                "--source-theorem-exact-semantic-definition-proofengineer-bridge",
+            ),
+            (
+                "source_theorem_exact_semantic_definition_lean_repair_executor",
+                "--source-theorem-exact-semantic-definition-lean-repair-executor",
+            ),
+            (
+                "source_theorem_exact_semantic_definition_lean_environment_repair_executor",
+                "--source-theorem-exact-semantic-definition-lean-environment-repair-executor",
+            ),
+            (
+                "source_theorem_exact_semantic_definition_authoring_worker",
+                "--source-theorem-exact-semantic-definition-authoring-worker",
+            ),
+            (
+                "source_theorem_exact_semantic_definition_closure_review",
+                "--source-theorem-exact-semantic-definition-closure-review",
+            ),
+            (
+                "source_theorem_exact_semantic_definition_candidate_synthesis",
+                "--source-theorem-exact-semantic-definition-candidate-synthesis",
+            ),
+            (
+                "run_coding_agent_generated_code_repair_eval",
+                "--run-coding-agent-generated-code-repair-eval",
+            ),
+            (
+                "run_formalizer_lean_candidate_repair_eval",
+                "--run-formalizer-lean-candidate-repair-eval",
+            ),
+        )
+        for field_name, flag in legacy_formal_paths:
+            if bool(getattr(args, field_name, False)):
+                errors.append(
+                    "capability eval preset full-live forbids historical "
+                    f"post-runtime or repair-harness path {flag}; use the same-agent "
+                    "model-owned source revision loop"
+                )
         serious_theory_model_tier = str(
             getattr(args, "serious_theory_model_tier", "") or ""
         ).strip().lower()
@@ -14807,7 +14879,7 @@ def _research_agent_runtime_capability_config_errors(
             errors.append(
                 "capability eval preset full-live requires bounded "
                 "AlgorithmEngineer full-candidate revision scheduling; set "
-                "--algorithm-engineer-generated-code-repair-yield-after-attempts > 0"
+                "--algorithm-engineer-generated-code-revision-max-attempts > 0"
             )
         if (
             int(
@@ -14823,7 +14895,7 @@ def _research_agent_runtime_capability_config_errors(
             errors.append(
                 "capability eval preset full-live requires bounded "
                 "SimulationEvaluator full-candidate revision scheduling; set "
-                "--simulation-evaluator-generated-code-repair-yield-after-attempts > 0"
+                "--simulation-evaluator-generated-code-revision-max-attempts > 0"
             )
         if (
             int(
@@ -14895,7 +14967,7 @@ def _research_agent_runtime_capability_config_errors(
             errors.append(
                 "capability eval preset full-live requires at least one bounded "
                 "ProofEngineer full-source proof-state revision turn; set "
-                "--max-formalizer-proof-state-repair-rounds > 0"
+                "--max-formalizer-proof-state-revision-rounds > 0"
             )
         if live_gap_planner_enabled and (
             int(
@@ -21446,10 +21518,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--emperical-process-lean-rag-db-dir",
-        default="build/lean_graph",
+        default="",
         help=(
             "EmpericalProcessLEAN shared declaration-graph database directory; "
-            "relative paths are resolved under --emperical-process-lean-rag-root"
+            "when omitted, use the upstream provider's DEFAULT_DB_DIR; relative "
+            "overrides are resolved under --emperical-process-lean-rag-root"
         ),
     )
     research_agent_runtime.add_argument(
@@ -22145,19 +22218,27 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_agent_runtime.add_argument(
+        "--max-critic-theory-revision-rounds",
         "--max-critic-repair-rounds",
-        type=int,
-        default=1,
-        help="bounded CriticEvaluator -> TheoryDeveloper repair loops before accepting remaining gaps",
-    )
-    research_agent_runtime.add_argument(
-        "--max-formalizer-proof-state-repair-rounds",
+        dest="max_critic_repair_rounds",
         type=int,
         default=1,
         help=(
-            "bounded proof-state -> ProofEngineer repair turns before unresolved "
+            "bounded CriticEvaluator -> TheoryDeveloper model revision rounds "
+            "before accepting remaining gaps"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--max-formalizer-proof-state-revision-rounds",
+        "--max-formalizer-proof-state-repair-rounds",
+        dest="max_formalizer_proof_state_repair_rounds",
+        type=int,
+        default=1,
+        help=(
+            "bounded proof-state -> same ProofEngineer full-source revision turns "
+            "before unresolved "
             "Lean diagnostics yield to FormalizationGapPlanner; 0 skips "
-            "ProofEngineer-eligible repair turns while structural theory gaps "
+            "ProofEngineer-eligible revision turns while structural theory gaps "
             "remain under Critic/Architect prioritization"
         ),
     )
@@ -22204,7 +22285,9 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_agent_runtime.add_argument(
+        "--algorithm-engineer-generated-code-revision-max-attempts",
         "--algorithm-engineer-generated-code-repair-yield-after-attempts",
+        dest="algorithm_engineer_generated_code_repair_yield_after_attempts",
         type=int,
         default=0,
         help=(
@@ -22212,12 +22295,14 @@ def build_parser() -> argparse.ArgumentParser:
             "complete model-authored candidate from exact execution observations for "
             "this many failed rounds; when exhausted, return the unchanged source and "
             "observations to the Architect model without runtime diagnosis or edits. "
-            "The legacy option name is retained for command compatibility; 0 keeps "
+            "The repair-named alias is retained for command compatibility; 0 keeps "
             "unbounded same-producer regeneration"
         ),
     )
     research_agent_runtime.add_argument(
+        "--simulation-evaluator-generated-code-revision-max-attempts",
         "--simulation-evaluator-generated-code-repair-yield-after-attempts",
+        dest="simulation_evaluator_generated_code_repair_yield_after_attempts",
         type=int,
         default=0,
         help=(
@@ -22225,7 +22310,7 @@ def build_parser() -> argparse.ArgumentParser:
             "complete model-authored candidate from exact execution and metric "
             "observations for this many failed rounds; when exhausted, return the "
             "unchanged source and observations to the Architect model without runtime "
-            "diagnosis or edits. The legacy option name is retained for command "
+            "diagnosis or edits. The repair-named alias is retained for command "
             "compatibility; 0 keeps unbounded same-producer regeneration"
         ),
     )

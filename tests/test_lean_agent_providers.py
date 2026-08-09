@@ -350,6 +350,58 @@ def test_emperical_process_lean_provider_calls_structured_graph_api(
     assert hit.provenance["no_sorry_filter"] is True
 
 
+def test_emperical_process_lean_provider_uses_upstream_shared_graph_dir(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "EmpericalProcessLEAN-main"
+    root.mkdir()
+    shared_db_dir = tmp_path / "EmpericalProcessLEAN-rag" / "build" / "lean_graph"
+    shared_db_dir.mkdir(parents=True)
+    loaded_dirs: list[Path] = []
+
+    class FakeSharedRetrievalModule:
+        DEFAULT_DB_DIR = shared_db_dir
+
+        @staticmethod
+        def load_manifest(db_dir: Path):
+            loaded_dirs.append(db_dir)
+            return []
+
+        @staticmethod
+        def iter_searchable_entries(manifest, _source, _checkouts):
+            return list(manifest)
+
+    provider = EmpericalProcessLeanRetrievalProvider(
+        root=root,
+        module_loader=lambda: FakeSharedRetrievalModule(),  # type: ignore[arg-type]
+    )
+
+    assert provider.search("asymptotic normality", k=3) == []
+    assert loaded_dirs == [shared_db_dir.resolve()]
+    descriptor = provider.descriptor()
+    assert descriptor["db_dir"] == str(shared_db_dir.resolve())
+    assert descriptor["db_dir_source"] == "upstream_default"
+
+
+def test_emperical_process_lean_provider_uses_upstream_commit_freshness_api() -> None:
+    class FakeSharedRetrievalModule:
+        @staticmethod
+        def git_commit(_checkout_path: Path):
+            return "abc123def456"
+
+    module = FakeSharedRetrievalModule()
+    assert EmpericalProcessLeanRetrievalProvider._index_signature_state(
+        module,  # type: ignore[arg-type]
+        entry={"commit": "abc123def456"},
+        checkout_path=Path("/tmp/checkout"),
+    ) == "unchanged"
+    assert EmpericalProcessLeanRetrievalProvider._index_signature_state(
+        module,  # type: ignore[arg-type]
+        entry={"commit": "different123"},
+        checkout_path=Path("/tmp/checkout"),
+    ) == "changed"
+
+
 def test_emperical_process_lean_provider_globally_ranks_and_rejects_stale_hits(
     tmp_path: Path,
 ) -> None:

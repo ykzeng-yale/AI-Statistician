@@ -99243,6 +99243,27 @@ def test_live_runtime_lean_defaults_respect_static_or_explicit_configuration() -
     )
 
 
+def test_model_owned_revision_cli_names_bind_existing_runtime_budgets() -> None:
+    args = cli_module.build_parser().parse_args(
+        [
+            "research-agent-runtime",
+            "--algorithm-engineer-generated-code-revision-max-attempts",
+            "2",
+            "--simulation-evaluator-generated-code-revision-max-attempts",
+            "3",
+            "--max-formalizer-proof-state-revision-rounds",
+            "4",
+            "--max-critic-theory-revision-rounds",
+            "5",
+        ]
+    )
+
+    assert args.algorithm_engineer_generated_code_repair_yield_after_attempts == 2
+    assert args.simulation_evaluator_generated_code_repair_yield_after_attempts == 3
+    assert args.max_formalizer_proof_state_repair_rounds == 4
+    assert args.max_critic_repair_rounds == 5
+
+
 def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -99335,6 +99356,33 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     )
     assert _research_agent_runtime_capability_config_errors(args) == []
 
+    args.source_theorem_exact_semantic_definition_lean_repair_executor = True
+    assert any(
+        "full-live forbids historical post-runtime or repair-harness path "
+        "--source-theorem-exact-semantic-definition-lean-repair-executor"
+        in error
+        for error in _research_agent_runtime_capability_config_errors(args)
+    )
+    args.source_theorem_exact_semantic_definition_lean_repair_executor = False
+
+    args.source_theorem_formal_environment_proofengineer_bridge = True
+    assert any(
+        "full-live forbids historical post-runtime or repair-harness path "
+        "--source-theorem-formal-environment-proofengineer-bridge"
+        in error
+        for error in _research_agent_runtime_capability_config_errors(args)
+    )
+    args.source_theorem_formal_environment_proofengineer_bridge = False
+
+    args.run_coding_agent_generated_code_repair_eval = True
+    assert any(
+        "full-live forbids historical post-runtime or repair-harness path "
+        "--run-coding-agent-generated-code-repair-eval"
+        in error
+        for error in _research_agent_runtime_capability_config_errors(args)
+    )
+    args.run_coding_agent_generated_code_repair_eval = False
+
     args.serious_theory_model_tier = "sonnet"
     assert (
         "capability eval preset full-live requires haiku-tier serious "
@@ -99385,7 +99433,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert (
         "capability eval preset full-live requires bounded "
         "AlgorithmEngineer full-candidate revision scheduling; set "
-        "--algorithm-engineer-generated-code-repair-yield-after-attempts > 0"
+        "--algorithm-engineer-generated-code-revision-max-attempts > 0"
     ) in _research_agent_runtime_capability_config_errors(args)
 
     args.algorithm_engineer_generated_code_repair_yield_after_attempts = 1
@@ -99393,7 +99441,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert (
         "capability eval preset full-live requires bounded "
         "SimulationEvaluator full-candidate revision scheduling; set "
-        "--simulation-evaluator-generated-code-repair-yield-after-attempts > 0"
+        "--simulation-evaluator-generated-code-revision-max-attempts > 0"
     ) in _research_agent_runtime_capability_config_errors(args)
 
     args.simulation_evaluator_generated_code_repair_yield_after_attempts = 1
@@ -99417,7 +99465,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert (
         "capability eval preset full-live requires at least one bounded "
         "ProofEngineer full-source proof-state revision turn; set "
-        "--max-formalizer-proof-state-repair-rounds > 0"
+        "--max-formalizer-proof-state-revision-rounds > 0"
     ) in _research_agent_runtime_capability_config_errors(args)
 
 

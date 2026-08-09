@@ -1,11 +1,11 @@
 {
   "schema_version": 4,
-  "updated_at": "2026-08-09T08:25:18Z",
+  "updated_at": "2026-08-09T08:54:44Z",
   "role": "main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "main_objective": "Build and honestly evaluate one general LLM-driven statistical research loop that derives theory, generates and executes scientific code, uses task-bound formal RAG, iterates against real environment feedback, and closes exact intended Lean theorems across unrelated task families.",
-  "current_lane": "Keep Lean and scientific-code authoring model-owned, make direct environment-feedback sessions checkpoint-continuous and lineage-bounded, and remove legacy repair executors from canonical reachability.",
+  "current_lane": "Keep Lean and scientific-code authoring model-owned, reject historical repair executors from full-live reachability, and consume the mature StatInference shared graph through its upstream API.",
   "canonical_authoring_contract": {
     "model_responsibility": "The source-producing LLM receives the exact current source, immutable target identity, raw compiler or sandbox output, semantic-review observations, and model-selected retrieval results. It chooses the next action and authors every byte of the next complete source artifact.",
     "runtime_responsibility": "Runtime executes model-requested tools, returns observations, binds exact source hashes, enforces resource and lineage budgets, persists checkpoints, and applies independent semantic and kernel evidence gates.",
@@ -18,7 +18,7 @@
     ],
     "tool_ownership": "The model chooses whether and when to search, replace the complete source, and check it. A successful model-requested check hands the exact current source hash directly to independent semantic review; no redundant submit action or runtime-authored edit exists.",
     "structured_output_regeneration": "The historically named llm_json_repair helper asks the same model to regenerate a complete structured object from its rejected response and raw validator errors. It performs no local semantic or source repair.",
-    "legacy_policy": "Historical *_repair_executor, replay-patch, attached repair-eval, and post-runtime formal paths are compatibility and calibration code. Fresh cross-family full-live evaluation forbids them; they are not the product architecture."
+    "legacy_policy": "Historical *_repair_executor, replay-patch, attached repair-eval, post-runtime bridge, and candidate-synthesis paths are compatibility and calibration code. Every full-live run now rejects them before provider calls; they are not the product architecture."
   },
   "live_anthropic_model_policy": {
     "tests_and_evaluations": "claude-haiku-4-5-20251001 exactly",
@@ -56,10 +56,11 @@
     "scope": "This is generic progress accounting across task families, not a statistical or Lean repair rule."
   },
   "formal_rag_foundation": {
-    "active_project": "ykzeng-yale/EmpericalProcessLEAN at afe250da47daabbf6c97cad1b5a3e9c88abe2f4c",
+    "active_project": "ykzeng-yale/EmpericalProcessLEAN at ee3350a337a6b3f1ddd9ce824ffaa6cec83a125b",
     "statistical_foundation": "Pinned stat-lib/statlib is a direct dependency and import-closure corpus; StatInference remains the downstream research incubator.",
     "companion_corpus": "YuanheZ/lean-stat-learning-theory at d0f506f0a695018265dccb33bcb05e2f5ca1c876 is retrieval and port context, not active-project proof evidence.",
-    "current_gap": "The v305 EmpericalProcessLEAN shared retrieval provider reported a missing build/lean_graph/shared_manifest.json, while the other formal-source providers remained available.",
+    "shared_graph_status": "Healthy clean main index with 1362 Lean files, 52485 declarations, 3505 import edges, and 201707 declaration edges. The AI adapter now consumes upstream DEFAULT_DB_DIR and verifies manifest commit freshness through the upstream git API.",
+    "current_gap": "The missing-manifest adapter fault is closed. No new live evaluation has yet shown that Formalizer uses the restored results to close either development theorem.",
     "authority": "Every retrieved declaration must be visible and re-elaborated in the active Lean project before it can support a proof claim."
   },
   "remaining_design_debt": [
@@ -69,7 +70,6 @@
     "No development task has reached exact source-theorem kernel closure, so held-out PCA and extremes remain sealed."
   ],
   "next_main_worker_actions": [
-    "Refresh and health-check the EmpericalProcessLEAN shared retrieval manifest before the next paid live run.",
     "Run one fresh exact-Haiku development panel and inspect only cross-task mechanism failures; do not add survival, sequential, FDR, conformal, or Lean-syntax special cases.",
     "Continue retiring legacy repair executors and post-runtime orchestration from production reachability instead of wrapping them in another interface.",
     "Keep the held-out panel sealed until both development tasks reach exact target-bound kernel closure."
@@ -78,7 +78,8 @@
     "runtime_regression": "All 1164 collected nodes in tests/test_research_agent_runtime.py were covered across deterministic ordered segments; this is not represented as one monolithic pytest run. The static CLI integration node was rerun after final fixture cleanup and passed in 96.81 seconds.",
     "focused_regression": "63 passed across Architect routing, scientific sandbox, semantic review, Formalizer feedback, checkpoint continuity, and model-controlled Lean authoring tests.",
     "model_policy_regression": "31 model-backend tests and 5 selected runtime evaluation-policy cases passed; actual Anthropic evaluation calls are pinned to claude-haiku-4-5-20251001 and Opus is rejected.",
-    "evidence_boundary": "No validator was relaxed and no runtime-authored source edit, statistical answer, Lean grammar rule, tactic recipe, or repair recipe was added."
+    "formal_rag_regression": "EmpericalProcessLEAN lean_rag tests: 63 passed. AI provider tests: 15 passed. A direct strict provider query returned five asymptotic-normality/influence-function declarations with no provider failure diagnostic.",
+    "evidence_boundary": "No validator was relaxed and no runtime-authored source edit, statistical answer, Lean grammar rule, tactic recipe, or repair recipe was added. Full-live now rejects historical repair/post-runtime paths instead of merely leaving them disabled by convention."
   },
   "history_policy": "This file contains current coordination state only. Superseded runs and decisions remain in Git history and immutable run manifests."
 }

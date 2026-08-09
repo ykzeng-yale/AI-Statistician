@@ -530,7 +530,7 @@ class EmpericalProcessLeanRetrievalProvider:
         self,
         *,
         root: Path,
-        db_dir: Path | str = Path("build/lean_graph"),
+        db_dir: Path | str | None = None,
         source: str = "all",
         checkouts: Sequence[str] = (),
         no_sorry: bool = True,
@@ -541,11 +541,15 @@ class EmpericalProcessLeanRetrievalProvider:
         module_loader: Callable[[], ModuleType] | None = None,
     ) -> None:
         self.root = Path(root).expanduser().resolve()
-        raw_db_dir = Path(db_dir).expanduser()
-        self.db_dir = (
-            raw_db_dir.resolve()
-            if raw_db_dir.is_absolute()
-            else (self.root / raw_db_dir).resolve()
+        self._db_dir_explicit = db_dir is not None and bool(str(db_dir).strip())
+        raw_db_dir = (
+            Path(str(db_dir)).expanduser()
+            if self._db_dir_explicit
+            else Path("build/lean_graph")
+        )
+        self.db_dir = self._absolute_db_dir(raw_db_dir)
+        self._db_dir_source = (
+            "explicit" if self._db_dir_explicit else "root_relative_fallback"
         )
         self.source = source
         self.checkouts = tuple(str(value) for value in checkouts if str(value))
@@ -565,12 +569,18 @@ class EmpericalProcessLeanRetrievalProvider:
         return self.root / "lean_rag" / "scripts" / "shared_proof_retrieval.py"
 
     def descriptor(self) -> dict[str, Any]:
+        if not self._db_dir_explicit:
+            try:
+                self._resolve_db_dir(self._load_module())
+            except Exception:
+                pass
         return {
             "name": self.name,
             "repository": "ykzeng-yale/EmpericalProcessLEAN",
             "root": str(self.root),
             "script_path": str(self.script_path),
             "db_dir": str(self.db_dir),
+            "db_dir_source": self._db_dir_source,
             "source": self.source,
             "checkouts": list(self.checkouts),
             "reject_changed_index_signature": self.reject_changed_index_signature,
@@ -593,8 +603,9 @@ class EmpericalProcessLeanRetrievalProvider:
         if limit == 0:
             return []
         module = self._load_module()
+        db_dir = self._resolve_db_dir(module)
         try:
-            manifest = list(module.load_manifest(self.db_dir))
+            manifest = list(module.load_manifest(db_dir))
         except SystemExit as exc:
             raise LeanProviderUnavailable(str(exc)) from exc
         except (OSError, ValueError) as exc:
@@ -734,6 +745,24 @@ class EmpericalProcessLeanRetrievalProvider:
         )
         return selected
 
+    def _absolute_db_dir(self, db_dir: Path) -> Path:
+        return (
+            db_dir.resolve()
+            if db_dir.is_absolute()
+            else (self.root / db_dir).resolve()
+        )
+
+    def _resolve_db_dir(self, module: ModuleType) -> Path:
+        if self._db_dir_explicit:
+            return self.db_dir
+        upstream_default = getattr(module, "DEFAULT_DB_DIR", None)
+        if upstream_default is not None and str(upstream_default).strip():
+            self.db_dir = self._absolute_db_dir(
+                Path(str(upstream_default)).expanduser()
+            )
+            self._db_dir_source = "upstream_default"
+        return self.db_dir
+
     @staticmethod
     def _index_signature_state(
         module: ModuleType,
@@ -741,12 +770,26 @@ class EmpericalProcessLeanRetrievalProvider:
         entry: Mapping[str, Any],
         checkout_path: Path,
     ) -> str:
-        if not hasattr(module, "index_signature_state"):
+        if hasattr(module, "index_signature_state"):
+            try:
+                return str(module.index_signature_state(dict(entry), checkout_path))
+            except Exception:
+                pass
+        indexed_commit = str(entry.get("commit", "") or "").strip()
+        git_commit = getattr(module, "git_commit", None)
+        if not indexed_commit or not callable(git_commit):
             return "unknown"
         try:
-            return str(module.index_signature_state(dict(entry), checkout_path))
+            live_commit = str(git_commit(checkout_path) or "").strip()
         except Exception:
             return "unknown"
+        if not live_commit:
+            return "unknown"
+        if live_commit.startswith(indexed_commit) or indexed_commit.startswith(
+            live_commit
+        ):
+            return "unchanged"
+        return "changed"
 
     @staticmethod
     def _checkout_dirty(

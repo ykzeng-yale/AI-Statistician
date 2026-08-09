@@ -122,8 +122,9 @@ not an acceptance gate, because ordinary namespace syntax need not contain the f
 qualified declaration string.
 
 Historical commands and manifest fields containing `repair` remain compatibility
-surfaces for old component experiments. They are forbidden in fresh cross-family
-evaluation and are not part of the canonical product loop. Where a historical
+surfaces for old component experiments. The `full-live` preset rejects those
+post-runtime bridges, executors, candidate synthesizers, and side evaluations;
+they are not part of the canonical product loop. Where a historical
 metric still says `repair attempt`, it records only a lineage-budgeted complete
 regeneration by the source-producing LLM from the prior artifact and raw environment
 observations; it never records a runtime-authored source change.
