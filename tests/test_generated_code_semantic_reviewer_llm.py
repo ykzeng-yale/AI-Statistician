@@ -701,8 +701,6 @@ def test_revision_task_returns_complete_observations_to_source_producer() -> Non
         "source_subsystem": "SimulationEvaluator",
         "source_manifest_id": "simulation-manifest:1",
         "theory_packet_hash": "theory-hash",
-        "source_task": source_task,
-        "deferred_next_task": deferred,
     }
     feedback = {
         "feedback_type": "generated_code_semantic_review_feedback",
@@ -741,6 +739,7 @@ def test_revision_task_returns_complete_observations_to_source_producer() -> Non
         question=_question(),
         review_task_id="review-task:1",
         work_order=work_order,
+        source_task=source_task,
         review_feedback=feedback,
         review_packet_id="review:1",
         review_execution_id="review-execution:1",

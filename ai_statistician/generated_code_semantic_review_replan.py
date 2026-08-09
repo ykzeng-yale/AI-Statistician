@@ -148,6 +148,7 @@ def build_generated_code_semantic_review_producer_revision_task(
     question: OpenResearchQuestion,
     review_task_id: str,
     work_order: Mapping[str, Any],
+    source_task: Mapping[str, Any],
     review_feedback: Mapping[str, Any],
     review_packet_id: str,
     review_execution_id: str,
@@ -158,7 +159,7 @@ def build_generated_code_semantic_review_producer_revision_task(
     """Return complete review feedback to the immutable source producer."""
 
     observations = deepcopy(dict(review_feedback))
-    source_task = _mapping(work_order.get("source_task"))
+    source_task = _mapping(source_task)
     source_inputs = _mapping(source_task.get("inputs"))
     source_subsystem = str(work_order.get("source_subsystem", "") or "")
     if not source_subsystem or str(

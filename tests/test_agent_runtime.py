@@ -206,6 +206,17 @@ def test_agent_runtime_dispatches_subsystems_and_records_observations() -> None:
     assert payload["blackboard"]["handoff_ledger"][0]["to_subsystem"] == "SimulatorDesigner"
     assert payload["traces"][1]["observations"][0]["observation_type"] == "simulation_result"
 
+    compact_payload = result.to_json(include_task_payloads=False)
+    task_ref = compact_payload["traces"][0]["task"]
+    next_task_ref = compact_payload["traces"][0]["next_task"]
+    assert task_ref["artifact_kind"] == "AgentTaskRef"
+    assert task_ref["task_id"] == "theory:q1"
+    assert "inputs" not in task_ref
+    assert next_task_ref["artifact_kind"] == "AgentTaskRef"
+    assert next_task_ref["task_id"] == "simulate:q1"
+    assert next_task_ref["input_keys"] == ["theory_packet"]
+    assert "inputs" not in next_task_ref
+
 
 def test_agent_runtime_handoff_policy_can_rewrite_next_task() -> None:
     class ReviewSubsystem:

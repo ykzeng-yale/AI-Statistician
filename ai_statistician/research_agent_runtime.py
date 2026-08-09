@@ -24,6 +24,7 @@ from .agent_runtime import (
     EnvironmentObservation,
     EvidenceLedgerEntry,
     ToolCallRecord,
+    agent_task_reference,
     agent_runtime_substage,
 )
 from .architect_coordinator_llm import (
@@ -7767,6 +7768,54 @@ def _runtime_architect_operation(task: AgentTask) -> str:
     return str(task.inputs.get("runtime_architect_operation", "") or "").strip()
 
 
+def _compiled_post_theory_workspace_owner(
+    architect_context: Mapping[str, Any],
+    *,
+    implementation_gaps: Sequence[Mapping[str, Any]],
+) -> str:
+    """Compile the model-authored research path into its next workspace."""
+
+    plan = _architect_runtime_plan(architect_context)
+    contract = plan.get("evidence_contract", {})
+    contract = contract if isinstance(contract, Mapping) else {}
+    formal_policy = str(
+        contract.get("formal_verification_policy", "") or "optional"
+    ).strip()
+    research_path = _normalized_recommended_research_path(
+        contract.get("recommended_research_path", ""),
+        formal_verification_policy=formal_policy,
+    )
+    planned = [
+        str(row.get("subsystem", "") or "").strip()
+        for row in plan.get("subsystem_execution_plan", []) or []
+        if isinstance(row, Mapping)
+    ]
+    requires_algorithm = bool(
+        implementation_gaps
+        and _runtime_research_evaluation_contract_flag(
+            contract,
+            "generated_algorithm_code",
+        )
+    )
+    if research_path == "proof_first":
+        return "FormalizationEvaluator"
+    if research_path == "simulation_first":
+        return "AlgorithmEngineer" if requires_algorithm else "SimulationEvaluator"
+    for subsystem in planned:
+        if subsystem not in {
+            "AlgorithmEngineer",
+            "SimulationEvaluator",
+            "FormalizationEvaluator",
+        }:
+            continue
+        if subsystem == "SimulationEvaluator" and requires_algorithm:
+            return "AlgorithmEngineer"
+        if subsystem == "AlgorithmEngineer" and not implementation_gaps:
+            continue
+        return subsystem
+    return "AlgorithmEngineer" if requires_algorithm else "FormalizationEvaluator"
+
+
 def _architect_theory_preflight_accepted_result(
     *,
     task: AgentTask,
@@ -7932,6 +7981,10 @@ def _architect_theory_preflight_accepted_result(
         require_generated_adapter=requires_generated_algorithm,
     )
     context["implementation_gaps"] = implementation_gaps
+    next_workspace_owner = _compiled_post_theory_workspace_owner(
+        context,
+        implementation_gaps=implementation_gaps,
+    )
     route_feedback_body = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": (
@@ -7952,13 +8005,14 @@ def _architect_theory_preflight_accepted_result(
         "n_implementation_gaps": len(implementation_gaps),
         "metric_authoring_deferred": True,
         "confirmatory_simulation_authorized": False,
-        "runtime_selected_owner": False,
+        "compiled_next_owner": next_workspace_owner,
+        "owner_selection_source": "model_authored_architect_plan",
+        "runtime_authored_research_route": False,
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
         "boundary": (
-            "This observation authorizes no particular next worker. The existing "
-            "Architect model must choose the next evidence-producing subsystem from "
-            "the accepted theory, current plan, available artifacts, and research "
-            "path. It is not implementation, simulation, or proof evidence."
+            "This observation records the next workspace compiled from the already "
+            "validated model-authored Architect plan. Runtime does not make a new "
+            "research decision or author implementation, simulation, or proof content."
         ),
     }
     route_feedback_id = (
@@ -7980,36 +8034,26 @@ def _architect_theory_preflight_accepted_result(
         ),
         "source_subsystem": "ArchitectTheoryExecutionPreflightReviewer",
         "preflight_acceptance_id": acceptance_id,
-        "handoff": "accepted_theory_preflight_to_architect_model",
-        "runtime_selected_owner": False,
+        "handoff": "accepted_theory_preflight_to_planned_workspace",
+        "compiled_next_owner": next_workspace_owner,
+        "runtime_authored_research_route": False,
     }
-    architect_route_task = AgentTask(
-        task_id=(
-            f"architect-after-theory-preflight:{question.id}:"
-            f"{stable_hash([task.task_id, route_feedback_id])[:8]}"
+    runtime_plan = _architect_runtime_plan(context)
+    routing_decision = _architect_initial_routing_decision(
+        question=question,
+        packet=runtime_plan,
+        architect_context=context,
+        packet_id=str(
+            context.get("architect_coordinator_proposal_id", "")
+            or runtime_plan.get("packet_id", "")
+            or acceptance_id
         ),
-        owner_subsystem="ArchitectCoordinator",
-        objective=(
-            "Choose the next evidence-producing subsystem after independent theory "
-            "preflight acceptance, following the model-authored research path without "
-            "runtime-imposed empirical-first ordering."
-        ),
-        inputs={
-            "question": _question_to_payload(question),
-            "architect_context": context,
-            "environment_feedback": route_feedback,
-            "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
-        },
-        allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
-        expected_artifacts=("architect_feedback_route_decision",),
-        acceptance_gate=(
-            "the Architect model selects one existing evidence-producing subsystem "
-            "or records a typed blocker without weakening evidence gates"
-        ),
-        stop_condition=(
-            "Architect model selects the next worker or records a blocker"
-        ),
+        runtime_config=runtime_config,
+        blackboard=blackboard,
+        requested_subsystem_override=next_workspace_owner,
+        routing_source_override="architect_plan_workspace_transition",
     )
+    next_task = routing_decision["task"]
     evidence = EvidenceLedgerEntry(
         evidence_id=(
             "evidence:" + stable_hash([task.task_id, acceptance_id])[:20]
@@ -8017,7 +8061,7 @@ def _architect_theory_preflight_accepted_result(
         task_id=task.task_id,
         artifact_id=acceptance_id,
         evidence_type="architect_theory_execution_preflight_acceptance",
-        status="THEORY_PREFLIGHT_ACCEPTED_MODEL_ROUTE_REQUIRED",
+        status="THEORY_PREFLIGHT_ACCEPTED_PLAN_TRANSITION_COMPILED",
         boundary=str(acceptance["boundary"]),
         payload={
             "source_theory_packet_id": theory_packet_id,
@@ -8025,7 +8069,9 @@ def _architect_theory_preflight_accepted_result(
             "algorithm_execution_available": True,
             "algorithm_execution_authorized": False,
             "confirmatory_simulation_authorized": False,
-            "runtime_selected_owner": False,
+            "compiled_next_owner": next_task.owner_subsystem,
+            "owner_selection_source": "model_authored_architect_plan",
+            "runtime_authored_research_route": False,
             "proof_evidence_status": acceptance["proof_evidence_status"],
         },
     )
@@ -8033,8 +8079,9 @@ def _architect_theory_preflight_accepted_result(
         status="REROUTE",
         rationale=(
             "Independent theory preflight accepted. AgentRuntime recorded the "
-            "immutable acceptance and returned control to the existing Architect "
-            "model; runtime selected no implementation, simulation, or proof owner."
+            "immutable acceptance and compiled the existing Architect research path "
+            f"into the {next_task.owner_subsystem} workspace without another model "
+            "routing call."
         ),
         produced_artifacts={
             preflight_packet_id: dict(preflight_packet),
@@ -8045,21 +8092,22 @@ def _architect_theory_preflight_accepted_result(
             EnvironmentObservation(
                 observation_type="architect_theory_preflight_accepted",
                 summary=(
-                    "preflight accepted; Architect model route required; metrics and "
-                    "confirmatory simulation remain deferred"
+                    "preflight accepted; existing Architect plan compiled directly "
+                    "to the next workspace"
                 ),
                 payload={
                     "acceptance_id": acceptance_id,
                     "preflight_packet_id": preflight_packet_id,
-                    "next_owner_subsystem": "ArchitectCoordinator",
-                    "runtime_selected_evidence_owner": False,
+                    "next_owner_subsystem": next_task.owner_subsystem,
+                    "owner_selection_source": "model_authored_architect_plan",
+                    "runtime_authored_research_route": False,
                     "execution_results_observed": False,
                     "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                 },
             ),
         ),
         evidence_entries=(evidence,),
-        next_task=architect_route_task,
+        next_task=next_task,
     )
 
 
@@ -9901,7 +9949,10 @@ def _architect_initial_routing_decision(
                 {
                     "algorithm_execution_authorized": True,
                     "algorithm_execution_selected_by": (
-                        "ArchitectCoordinator_model_route"
+                        "model_authored_architect_plan"
+                        if record.get("source")
+                        == "architect_plan_workspace_transition"
+                        else "ArchitectCoordinator_model_route"
                     ),
                     "algorithm_execution_route_decision_id": str(
                         record.get("architect_packet_id", "") or ""
@@ -13369,9 +13420,8 @@ def _runtime_generated_code_semantic_review_dispatch(
         "confirmatory_empirical_evidence_eligible": (
             confirmatory_empirical_evidence_eligible
         ),
-        "source_task": asdict(task),
-        "deferred_next_task": asdict(deferred_next_task),
-        "review_accepted_next_task": asdict(deferred_next_task),
+        "source_task_ref": agent_task_reference(task),
+        "deferred_next_task_ref": agent_task_reference(deferred_next_task),
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
         ),
@@ -13395,9 +13445,10 @@ def _runtime_generated_code_semantic_review_dispatch(
         ),
         inputs={
             "question": _question_to_payload(question),
-            "architect_context": dict(architect_context),
             "work_order_id": work_order_id,
             "work_order_hash": work_order_hash,
+            "source_task": asdict(task),
+            "deferred_next_task": asdict(deferred_next_task),
         },
         allowed_tools=("model_backend", "filesystem", "blackboard"),
         expected_artifacts=(
@@ -13466,11 +13517,11 @@ def _runtime_generated_code_semantic_review_dispatch(
 def _runtime_generated_code_semantic_review_prior_observations(
     *,
     work_order: Mapping[str, Any],
+    source_task: Mapping[str, Any],
     source_subsystem: str,
 ) -> dict[str, Any]:
     """Recover prior semantic observations carried by the model-selected route."""
 
-    source_task = work_order.get("source_task", {})
     source_inputs = (
         source_task.get("inputs", {})
         if isinstance(source_task, Mapping)
@@ -13652,6 +13703,7 @@ def _runtime_generated_code_semantic_review_prior_observations(
 def _runtime_generated_code_semantic_review_material(
     *,
     work_order: Mapping[str, Any],
+    source_task: Mapping[str, Any],
     source_manifest: Mapping[str, Any],
     theory_packet: Mapping[str, Any],
     proposal_packet: Mapping[str, Any],
@@ -13789,7 +13841,6 @@ def _runtime_generated_code_semantic_review_material(
         for key, value in source_manifest.items()
         if key not in {"generated_simulation_sandbox_prototypes", "prototypes"}
     }
-    source_task = work_order.get("source_task", {})
     source_inputs = (
         source_task.get("inputs", {})
         if isinstance(source_task, Mapping)
@@ -13897,6 +13948,7 @@ def _runtime_generated_code_semantic_review_material(
         "prior_semantic_observations": (
             _runtime_generated_code_semantic_review_prior_observations(
                 work_order=work_order,
+                source_task=source_task,
                 source_subsystem=source_subsystem,
             )
         ),
@@ -14023,25 +14075,15 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         ):
             validation_errors.append("semantic review source manifest kind mismatch")
         source_task_payload = (
-            work_order.get("source_task", {})
-            if isinstance(work_order.get("source_task", {}), Mapping)
+            task.inputs.get("source_task", {})
+            if isinstance(task.inputs.get("source_task", {}), Mapping)
             else {}
         )
         deferred_task_payload = (
-            work_order.get("deferred_next_task", {})
-            if isinstance(work_order.get("deferred_next_task", {}), Mapping)
+            task.inputs.get("deferred_next_task", {})
+            if isinstance(task.inputs.get("deferred_next_task", {}), Mapping)
             else {}
         )
-        accepted_task_payload = (
-            work_order.get("review_accepted_next_task", {})
-            if isinstance(
-                work_order.get("review_accepted_next_task", {}),
-                Mapping,
-            )
-            else {}
-        )
-        if not accepted_task_payload:
-            accepted_task_payload = deferred_task_payload
         if str(source_task_payload.get("owner_subsystem", "") or "") != (
             source_subsystem
         ):
@@ -14052,16 +14094,27 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             validation_errors.append("semantic review source task identity mismatch")
         if not str(deferred_task_payload.get("owner_subsystem", "") or ""):
             validation_errors.append("semantic review deferred task missing")
-        if not str(accepted_task_payload.get("owner_subsystem", "") or ""):
-            validation_errors.append(
-                "semantic review accepted-next task missing"
+        try:
+            source_task_ref = agent_task_reference(
+                _agent_task_from_runtime_payload(source_task_payload)
             )
+            deferred_task_ref = agent_task_reference(
+                _agent_task_from_runtime_payload(deferred_task_payload)
+            )
+        except ValueError as exc:
+            validation_errors.append(str(exc))
+        else:
+            if source_task_ref != work_order.get("source_task_ref"):
+                validation_errors.append("semantic review source task ref mismatch")
+            if deferred_task_ref != work_order.get("deferred_next_task_ref"):
+                validation_errors.append("semantic review deferred task ref mismatch")
 
         review_material: dict[str, Any] = {}
         if not validation_errors:
             review_material, material_errors = (
                 _runtime_generated_code_semantic_review_material(
                     work_order=work_order,
+                    source_task=source_task_payload,
                     source_manifest=source_manifest,
                     theory_packet=theory_packet,
                     proposal_packet=proposal_packet,
@@ -14647,7 +14700,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             feedback["semantic_review_lineage_budget"] = lineage_budget_summary
         if verdict == "ACCEPT":
             deferred_task = _agent_task_from_runtime_payload(
-                accepted_task_payload
+                deferred_task_payload
             )
             next_inputs = dict(deferred_task.inputs)
             algorithm_handoff: dict[str, Any] = {}
@@ -14933,6 +14986,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     question=question,
                     review_task_id=task.task_id,
                     work_order=work_order,
+                    source_task=source_task_payload,
                     review_feedback=revision_feedback,
                     review_packet_id=review_packet_id,
                     review_execution_id=execution_id,
@@ -37045,6 +37099,7 @@ def run_research_agent_runtime(
     out_dir.mkdir(parents=True, exist_ok=True)
     results: list[dict[str, Any]] = []
     trace_rows: list[dict[str, Any]] = []
+    persisted_trace_rows: list[dict[str, Any]] = []
     evidence_rows: list[dict[str, Any]] = []
     handoff_rows: list[dict[str, Any]] = []
     observation_rows: list[dict[str, Any]] = []
@@ -37626,9 +37681,21 @@ def run_research_agent_runtime(
             max_transient_subsystem_retries=config.max_subsystem_retries,
             progress_callback=record_progress,
         )
-        result_json = result.to_json()
+        result_json = result.to_json(include_task_payloads=True)
+        compact_task_refs = _is_runtime_research_evaluation_mode(
+            config.evaluation_mode
+        )
+        persisted_result_json = result.to_json(
+            include_task_payloads=not compact_task_refs
+        )
+        persisted_result_json["trace_task_payload_policy"] = (
+            "content_addressed_refs" if compact_task_refs else "debug_full_payloads"
+        )
         result_path = out_dir / f"{_safe_identifier(question.id)}_runtime_result.json"
-        result_path.write_text(json.dumps(result_json, indent=2, default=str), encoding="utf-8")
+        result_path.write_text(
+            json.dumps(persisted_result_json, indent=2, default=str),
+            encoding="utf-8",
+        )
         result_json["artifact_path"] = str(result_path)
         results.append(result_json)
         blackboard_json = (
@@ -37677,6 +37744,14 @@ def run_research_agent_runtime(
                     "question_id": question.id,
                     "question_title": question.title,
                     **trace,
+                }
+            )
+            persisted_trace = persisted_result_json["traces"][trace_index]
+            persisted_trace_rows.append(
+                {
+                    "question_id": question.id,
+                    "question_title": question.title,
+                    **persisted_trace,
                 }
             )
             task_payload = (
@@ -37730,7 +37805,7 @@ def run_research_agent_runtime(
                 )
 
     traces_path = out_dir / "runtime_traces.jsonl"
-    _write_jsonl(traces_path, trace_rows)
+    _write_jsonl(traces_path, persisted_trace_rows)
     evidence_ledger_path = out_dir / "runtime_evidence_ledger.jsonl"
     _write_jsonl(evidence_ledger_path, evidence_rows)
     task_handoffs_path = out_dir / "runtime_task_handoffs.jsonl"
@@ -37794,6 +37869,11 @@ def run_research_agent_runtime(
             else "retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
         ),
         "runtime_evaluation_mode": config.evaluation_mode,
+        "runtime_trace_task_payload_policy": (
+            "content_addressed_refs"
+            if _is_runtime_research_evaluation_mode(config.evaluation_mode)
+            else "debug_full_payloads"
+        ),
         "runtime_evaluation_claude_model_tier": (
             config.evaluation_claude_model_tier
         ),

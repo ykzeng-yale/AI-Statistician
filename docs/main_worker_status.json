@@ -1,11 +1,11 @@
 {
   "schema_version": 4,
-  "updated_at": "2026-08-09T11:27:48Z",
+  "updated_at": "2026-08-09T12:23:09Z",
   "role": "main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "main_objective": "Build and honestly evaluate one general LLM-driven statistical research loop that derives theory, generates and executes scientific code, uses task-bound formal RAG, iterates against real environment feedback, and closes exact intended Lean theorems across unrelated task families.",
-  "current_lane": "Keep Python, R, and Lean source authoring model-owned while reducing the harness to real tool execution, immutable artifact lineage, raw observations, resource budgets, and evidence gates. Stable consumer interfaces are checked by the target language runtime; failures return to the source-producing model without runtime-authored edits or issue-specific repair recipes.",
+  "current_lane": "Shrink the canonical runtime toward an outer research graph plus model-owned theory, scientific-coding, and formalization workspaces. Runtime compiles an already model-authored plan, executes real tools, returns raw observations, stores content-addressed lineage, enforces budgets and evidence gates, and does not spend model calls on routine routing or author source changes.",
   "canonical_authoring_contract": {
     "model_responsibility": "The source-producing LLM receives the exact current source, immutable target identity, raw compiler or sandbox output, semantic-review observations, and model-selected retrieval results. It chooses the next action and authors every byte of the next complete source artifact.",
     "runtime_responsibility": "Runtime executes model-requested tools, returns observations, binds exact source hashes, enforces resource and lineage budgets, persists checkpoints, and applies independent semantic and kernel evidence gates.",
@@ -24,7 +24,7 @@
     "tests_and_evaluations": "claude-haiku-4-5-20251001 exactly",
     "production_maximum_tier": "sonnet",
     "opus_allowed": false,
-    "latest_live_topology": "The completed v310 two-family development evaluation used Anthropic claude-haiku-4-5-20251001 exactly for every model role; no Sonnet or Opus call was configured."
+    "latest_live_topology": "The bounded v312 structural smoke used Anthropic claude-haiku-4-5-20251001 exactly for every executed model role; no Sonnet or Opus call was configured."
   },
   "current_readiness": {
     "ready_for_full_ai_statistician": false,
@@ -51,6 +51,14 @@
     "non_claim": "This defines and executes a general module ABI; it does not diagnose how to edit source, encode a statistical answer, or add a Python/R corner-case recipe. Passing this gate is engineering evidence only and does not establish simulation validity or theorem proof.",
     "exact_haiku_mechanism_smoke": "runs/main_worker_lean_revision_loop_smoke_20260809_v309_exact_haiku used claude-haiku-4-5-20251001 exactly. The model first requested a real Lean check, received the raw nonexistent-module diagnostic, authored one complete replacement source, and requested a second check. The exact new source compiled and its declaration/axiom identity probe passed. Runtime authored no source bytes and supplied no fix. This is mechanism smoke, not statistical-theory or theorem-closure capability evidence."
   },
+  "structural_simplification": {
+    "diagnostic_precursor": "v311 was intentionally interrupted after eight iterations. Its accepted theory preflight spent a second Architect call routing to Critic, Critic proposed an algebraically equivalent correction as a defect, and Architect routed another TheoryDeveloper revision. It is architecture diagnostic evidence, not a capability result.",
+    "routing_change": "After independent theory-preflight acceptance, AgentRuntime now compiles the next workspace from the already validated model-authored research path and subsystem plan. It no longer calls Architect merely to choose that planned successor. Critic is specified as the final cross-artifact gate; source-local review remains in the owning workspace.",
+    "lineage_change": "Research and capability evaluations persist AgentTaskRef records with task, input, and contract hashes instead of recursively copying complete task inputs into every trace. Generated-code semantic-review work orders likewise retain source and deferred task refs; the full transient tasks live only in the active reviewer handoff needed for continuation or resume.",
+    "measured_payload_debt_removed": "In the v310 survival result, trace task inputs occupied 29.7 MB of a 29.9 MB trace section. Its largest semantic-review work order was 2.88 MB: 1.45 MB source task plus two identical 0.71 MB deferred-task copies, while the non-task work order was about 6.4 KB. The new format removes those archival copies.",
+    "bounded_live_smoke": "runs/main_worker_structure_simplification_20260809_v312_exact_haiku ran five iterations: Architect -> RetrievalMemory -> TheoryDeveloper -> independent theory preflight -> FormalizationEvaluator. The accepted preflight routed directly to FormalizationEvaluator with no second Architect model call and no premature Critic. The persisted result uses content_addressed_refs and no trace task contains inputs.",
+    "non_claim": "v312 ended MAX_ITERATIONS_REACHED with 0 kernel-verified subclaims and three formal gaps. It validates mechanism and persistence only; it does not change development exact-theorem closure from 0/2 or unlock held-out tasks."
+  },
   "orchestration_lineage_correction": {
     "problem": "A Critic to Architect to Critic replan could reset the local critic round, repeating the same lineage until the coarse global iteration cap fired.",
     "change": "When the Architect model explicitly returns the same lineage to CriticEvaluator, AgentRuntime advances the immutable lineage round and preserves the bounded budget. Runtime still does not select the route or prescribe a correction.",
@@ -65,11 +73,11 @@
     "run_disposition": "v307 was intentionally terminated at the first contaminated route and is not counted as a completed capability evaluation."
   },
   "latest_diagnostic_run": {
-    "run": "runs/main_worker_cross_family_development_20260809_v310_sequential_tools_indexed_rag_exact_haiku",
-    "disposition": "Completed fresh two-family exact-Haiku development evaluation; both tasks exhausted the 24-iteration bound, so no capability success is claimed and the held-out panel remains sealed.",
-    "shared_failure": "Both task families exposed the same generated-module consumer ABI defect: standalone smoke execution did not verify the reusable estimator export required by downstream simulation.",
-    "formalizer_observation": "Sequential reached independent formal target review. The reviewer treated incomplete proof bodies and uncertain library API availability as reasons to revise a mathematically sound target statement. Statement-semantic alignment and proof-completeness/tool diagnostics remain conflated and must be separated as a general reviewer contract, not patched with theorem-specific rules.",
-    "evidence": "The audit records 90/121 total and 46/66 integrated checks, 0 kernel-verified subclaims, 5 formal gaps, and 0/2 complete fresh-start task lineages."
+    "run": "runs/main_worker_structure_simplification_20260809_v312_exact_haiku",
+    "disposition": "Completed bounded one-family exact-Haiku mechanism smoke at the configured five-iteration limit. It is not a frozen cross-family evaluation and cannot satisfy capability readiness.",
+    "routing_observation": "The accepted theory preflight compiled the model-authored proof-first path directly to FormalizationEvaluator. No routine Architect route or Critic call occurred after acceptance.",
+    "persistence_observation": "The runtime result records content-addressed task refs with no nested inputs. The five-step task result is 2.0 MB and runtime trace JSONL is 285 KB; remaining size is substantive blackboard and observation payload, not recursive trace tasks.",
+    "evidence": "All executed provider artifacts use claude-haiku-4-5-20251001. The run ended MAX_ITERATIONS_REACHED with 0 kernel-verified subclaims and three formal gaps, so no theorem or end-to-end capability success is claimed."
   },
   "formal_rag_foundation": {
     "active_project": "ykzeng-yale/EmpericalProcessLEAN at b6bf3940",
@@ -82,19 +90,24 @@
   },
   "remaining_design_debt": [
     "The 100k-line research_agent_runtime.py and its historical post-runtime fields still expose too much legacy conceptual surface even when fresh evaluation disables those paths.",
+    "AlgorithmEngineer and SimulationEvaluator are still separate control surfaces. A downstream consumer failure now returns raw evidence to the source producer, but the central runtime still contains a dedicated branch. The next structural step is one scientific-coding workspace that owns source generation, unit execution, integration execution, scoring, and bounded candidate search.",
+    "Blackboard artifacts and the 1492-field audit manifest remain too large. Compact task refs remove recursive trace/work-order copies, but substantive artifact schemas still need narrow ArtifactRef projections at handoff boundaries rather than full packet replication.",
     "The formal authoring session is still whole-source oriented; a mature tactic-state action provider and trained LeanDojo/ReProver-style policy remain absent.",
     "Independent formal target review currently conflates statement semantics with proof completion and library API uncertainty; these evidence dimensions need separate outputs and owners without a deterministic verdict override.",
     "No development task has reached exact source-theorem kernel closure, so held-out PCA and extremes remain sealed."
   ],
   "next_main_worker_actions": [
-    "Commit the real module-export/owner-feedback correction, then run one fresh exact-Haiku development panel and inspect only cross-task mechanism failures.",
+    "Replace the AlgorithmEngineer/SimulationEvaluator cross-routing branch with one model-owned scientific-coding workspace whose loop is complete source -> real Python/R unit and integration tools -> raw observation -> complete source regeneration, with optional candidate search around the same execute-and-score interface.",
+    "Continue replacing copied task and packet payloads with content-addressed ArtifactRef handoffs, while keeping only active pending tasks complete for resume.",
     "If the coding/simulation ABI closes, separate formal statement-semantic review from proof-completeness and tool-availability observations through the existing LLM reviewer contract, without theorem-specific rules.",
     "Continue retiring legacy repair executors and post-runtime orchestration from production reachability instead of wrapping them in another interface.",
     "Keep the held-out panel sealed until both development tasks reach exact target-bound kernel closure."
   ],
   "verification": {
     "runtime_regression": "All 1164 collected nodes in tests/test_research_agent_runtime.py were covered across deterministic ordered segments; this is not represented as one monolithic pytest run. The static CLI integration node was rerun after final fixture cleanup and passed in 96.81 seconds.",
-    "focused_regression": "The current module-ABI correction passes 31 focused runtime owner/feedback/prompt tests and all 27 scientific sandbox tests, including real Pyodide export and bound-consumer failures. Python compilation, Node syntax, and git diff checks pass.",
+    "focused_regression": "The structural slice passes 91 Architect/semantic-review/resume/audit tests, 40 model-policy/protocol tests, 25 final task-ref and producer-regeneration tests, and the focused Python/R scientific sandbox paths. Python compilation and git diff checks pass.",
+    "payload_regression": "AgentRuntime unit tests verify full debug serialization remains available while compact serialization emits AgentTaskRef objects with no inputs. Semantic-review tests verify task-ref hashes, acceptance continuation, source-producer regeneration, and absence of full task payloads in immutable work orders.",
+    "exact_haiku_structure_smoke": "v312 executed five bounded live steps with claude-haiku-4-5-20251001 exactly. Its trace is Architect -> Retrieval -> Theory -> preflight -> Formalization, proving the redundant post-preflight Architect call and premature Critic detour are absent. This is mechanism evidence only.",
     "exact_haiku_authoring_smoke": "v309 completed in three model-selected tool turns: check -> complete-source replacement -> check. It used claude-haiku-4-5-20251001 exactly, compiled the final source, verified the bound declaration with no untrusted axioms, and is labeled mechanism_smoke_not_capability_evidence.",
     "model_policy_regression": "31 model-backend tests and 5 selected runtime evaluation-policy cases passed; actual Anthropic evaluation calls are pinned to claude-haiku-4-5-20251001 and Opus is rejected.",
     "formal_rag_regression": "EmpericalProcessLEAN lean_rag tests: 64 passed. AI provider tests: 15 passed. The upstream shared query returns in 0.09 seconds; the newly wired fused runtime query returns five hits in 1.1 seconds after one 5.4-second index initialization.",

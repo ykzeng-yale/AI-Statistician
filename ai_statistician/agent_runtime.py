@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any, Callable, Iterator, Literal, Mapping, Protocol
 
+from .fingerprint import stable_hash
+
 
 RuntimeStatus = Literal[
     "ACCEPTED",
@@ -51,6 +53,47 @@ class AgentTask:
     expected_artifacts: tuple[str, ...] = ()
     acceptance_gate: str = ""
     stop_condition: str = ""
+
+
+def agent_task_reference(task: AgentTask | None) -> dict[str, Any] | None:
+    """Return a content-addressed task reference without copying its payload."""
+
+    if task is None:
+        return None
+    inputs_hash = stable_hash(task.inputs)
+    snapshot = {
+        "task_id": task.task_id,
+        "owner_subsystem": task.owner_subsystem,
+        "objective": task.objective,
+        "inputs_hash": inputs_hash,
+        "allowed_tools": task.allowed_tools,
+        "budget": task.budget,
+        "expected_artifacts": task.expected_artifacts,
+        "acceptance_gate": task.acceptance_gate,
+        "stop_condition": task.stop_condition,
+    }
+    return {
+        "artifact_kind": "AgentTaskRef",
+        "task_id": task.task_id,
+        "owner_subsystem": task.owner_subsystem,
+        "objective_ref": "task_objective:" + stable_hash(task.objective)[:20],
+        "task_snapshot_hash": stable_hash(snapshot),
+        "inputs_hash": inputs_hash,
+        "input_keys": sorted(str(key) for key in task.inputs),
+        "budget": deepcopy(task.budget),
+        "allowed_tools": list(task.allowed_tools),
+        "expected_artifacts": list(task.expected_artifacts),
+        "acceptance_gate_ref": (
+            "task_acceptance_gate:" + stable_hash(task.acceptance_gate)[:20]
+            if task.acceptance_gate
+            else ""
+        ),
+        "stop_condition_ref": (
+            "task_stop_condition:" + stable_hash(task.stop_condition)[:20]
+            if task.stop_condition
+            else ""
+        ),
+    }
 
 
 @dataclass(frozen=True)
@@ -155,10 +198,29 @@ class RuntimeIterationTrace:
     failure_classification: str = ""
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
-    def to_json(self) -> dict[str, Any]:
-        row = asdict(self)
-        row["task"] = asdict(self.task)
-        row["next_task"] = asdict(self.next_task) if self.next_task is not None else None
+    def to_json(self, *, include_task_payloads: bool = True) -> dict[str, Any]:
+        row = {
+            "iteration": self.iteration,
+            "subsystem": self.subsystem,
+            "status": self.status,
+            "rationale": self.rationale,
+            "produced_artifact_ids": list(self.produced_artifact_ids),
+            "evidence_ids": list(self.evidence_ids),
+            "handoff_id": self.handoff_id,
+            "next_task_id": self.next_task_id,
+            "failure_classification": self.failure_classification,
+            "created_at": self.created_at,
+        }
+        row["task"] = (
+            asdict(self.task)
+            if include_task_payloads
+            else agent_task_reference(self.task)
+        )
+        row["next_task"] = (
+            asdict(self.next_task)
+            if include_task_payloads and self.next_task is not None
+            else agent_task_reference(self.next_task)
+        )
         row["observations"] = [asdict(obs) for obs in self.observations]
         row["tool_calls"] = [asdict(call) for call in self.tool_calls]
         return row
@@ -191,12 +253,15 @@ class AgentRuntimeResult:
     blackboard: BlackboardState
     traces: tuple[RuntimeIterationTrace, ...]
 
-    def to_json(self) -> dict[str, Any]:
+    def to_json(self, *, include_task_payloads: bool = True) -> dict[str, Any]:
         return {
             "status": self.status,
             "final_task_id": self.final_task_id,
             "blackboard": self.blackboard.to_json(),
-            "traces": [row.to_json() for row in self.traces],
+            "traces": [
+                row.to_json(include_task_payloads=include_task_payloads)
+                for row in self.traces
+            ],
         }
 
 

@@ -21934,8 +21934,8 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
         },
         "architect_runtime_plan": {
             "evidence_contract": {
-                "capability_eval_requires_generated_algorithm_code": True,
-                "capability_eval_requires_typed_metric_contracts": True,
+                "research_evaluation_requires_generated_algorithm_code": True,
+                "research_evaluation_requires_typed_metric_contracts": True,
                 "empirical_metric_requirements": [],
             }
         },
@@ -21966,34 +21966,11 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
         def review_theory_execution_preflight(self, **_kwargs):
             return copy.deepcopy(preflight_packet)
 
-        def route_environment_feedback(
-            self,
-            *,
-            environment_feedback: Mapping[str, Any],
-            **_kwargs: Any,
-        ) -> dict[str, Any]:
-            assert environment_feedback["feedback_type"] == (
-                "theory_execution_preflight_accepted"
+        def route_environment_feedback(self, **_kwargs):
+            raise AssertionError(
+                "accepted preflight must compile the existing plan without another "
+                "Architect model call"
             )
-            assert environment_feedback["runtime_selected_owner"] is False
-            return {
-                "decision": "ROUTE",
-                "selected_subsystem": "AlgorithmEngineer",
-                "objective": (
-                    "Generate the theory-bound implementation before metric "
-                    "authoring."
-                ),
-                "rationale": (
-                    "The accepted theory exposes an implementation target and the "
-                    "current model-authored path requests empirical execution."
-                ),
-                "environment_feedback_fingerprint": runtime_module.stable_hash(
-                    dict(environment_feedback)
-                ),
-                "route_decision_id": (
-                    "architect_feedback_route:preflight-to-algorithm"
-                ),
-            }
 
         def propose(self, **_kwargs):
             raise AssertionError("full metric authoring must remain deferred")
@@ -22024,31 +22001,16 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
 
     assert preflight_result.status == "REROUTE"
     assert preflight_result.next_task is not None
-    assert preflight_result.next_task.owner_subsystem == "ArchitectCoordinator"
-    assert preflight_result.next_task.inputs["runtime_architect_operation"] == (
-        ARCHITECT_FEEDBACK_ROUTE_OPERATION
-    )
+    assert preflight_result.next_task.owner_subsystem == "AlgorithmEngineer"
     assert preflight_result.observations[0].payload[
-        "runtime_selected_evidence_owner"
+        "runtime_authored_research_route"
     ] is False
-    pre_route_gate = preflight_result.next_task.inputs["architect_context"][
-        "architect_metric_protocol_gate"
-    ]
-    assert pre_route_gate["algorithm_execution_available"] is True
-    assert pre_route_gate["algorithm_execution_authorized"] is False
     blackboard.artifacts.update(preflight_result.produced_artifacts)
-    route_result = architect_subsystem.run(
-        preflight_result.next_task,
-        blackboard,
-    )
-    assert route_result.status == "REROUTE"
-    assert route_result.next_task is not None
-    assert route_result.next_task.owner_subsystem == "AlgorithmEngineer"
-    assert route_result.next_task.inputs[
+    assert preflight_result.next_task.inputs[
         "implementation_before_metric_freeze"
     ] is True
-    assert route_result.next_task.inputs["simulation_manifest_id"] == ""
-    accepted_gate = route_result.next_task.inputs["architect_context"][
+    assert preflight_result.next_task.inputs["simulation_manifest_id"] == ""
+    accepted_gate = preflight_result.next_task.inputs["architect_context"][
         "architect_metric_protocol_gate"
     ]
     assert accepted_gate["upstream_theory_revision_count"] == 2
@@ -22062,9 +22024,9 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
     ]
     assert accepted_gate["algorithm_execution_authorized"] is True
     assert accepted_gate["algorithm_execution_selected_by"] == (
-        "ArchitectCoordinator_model_route"
+        "model_authored_architect_plan"
     )
-    deferred_payload = route_result.next_task.inputs[
+    deferred_payload = preflight_result.next_task.inputs[
         "deferred_metric_protocol_task"
     ]
     assert deferred_payload["owner_subsystem"] == "ArchitectCoordinator"
@@ -22116,6 +22078,9 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
                         "language": "python",
                         "entrypoint": "run_sandbox",
                         "code": (
+                            "def run_estimator(observations):\n"
+                            "    return {'estimate': float(len(observations))}\n"
+                            "\n"
                             "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                             f"    source_marker = '{source_sentinel}'\n"
                             f"    result_marker = '{result_sentinel}'\n"
@@ -22138,7 +22103,7 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
         proposal_agent=ExploratoryAlgorithmEngineer(),  # type: ignore[arg-type]
         semantic_reviewer_available=True,
         semantic_review_max_revisions=1,
-    ).run(route_result.next_task, blackboard)
+    ).run(preflight_result.next_task, blackboard)
 
     assert algorithm_result.status == "REROUTE"
     assert algorithm_result.next_task is not None
@@ -22164,9 +22129,12 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
         if artifact.get("artifact_kind")
         == "RuntimeGeneratedCodeSemanticReviewWorkOrder"
     )
-    assert work_order["review_accepted_next_task"]["owner_subsystem"] == (
+    assert work_order["deferred_next_task_ref"]["owner_subsystem"] == (
         "ArchitectCoordinator"
     )
+    assert "source_task" not in work_order
+    assert "deferred_next_task" not in work_order
+    assert "review_accepted_next_task" not in work_order
 
     blackboard.artifacts.update(algorithm_result.produced_artifacts)
     reviewer_result = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
@@ -48384,6 +48352,9 @@ def test_algorithm_success_routes_semantic_review_before_formalization(
                         "language": "python",
                         "entrypoint": "run_sandbox",
                         "code": (
+                            "def run_estimator(observations):\n"
+                            "    return {'estimate': float(len(observations))}\n"
+                            "\n"
                             "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                             "    n = max(5, int(replicates))\n"
                             "    return {\n"
@@ -48453,10 +48424,12 @@ def test_algorithm_success_routes_semantic_review_before_formalization(
     assert work_order["capability_eval"] is True
     assert work_order["reviewed_artifacts"][0]["runtime_seed"] == 20260630
     assert work_order["reviewed_artifacts"][0]["runtime_replicates"] == 12
-    assert work_order["deferred_next_task"]["owner_subsystem"] == (
+    assert work_order["deferred_next_task_ref"]["owner_subsystem"] == (
         "SimulationEvaluator"
     )
-    deferred_inputs = work_order["deferred_next_task"]["inputs"]
+    assert "source_task" not in work_order
+    assert "deferred_next_task" not in work_order
+    deferred_inputs = result.next_task.inputs["deferred_next_task"]["inputs"]
     assert "simulation_manifest_id" not in deferred_inputs
     assert deferred_inputs["architect_context"][
         "previous_simulation_manifest_id"
@@ -48601,10 +48574,12 @@ def test_simulation_pass_routes_semantic_review_before_formalization(
     assert work_order["capability_eval"] is True
     assert work_order["reviewed_artifacts"][0]["runtime_seed"] == 20260701
     assert work_order["reviewed_artifacts"][0]["runtime_replicates"] == 12
-    assert work_order["deferred_next_task"]["owner_subsystem"] == (
+    assert work_order["deferred_next_task_ref"]["owner_subsystem"] == (
         "FormalizationEvaluator"
     )
-    assert work_order["deferred_next_task"]["inputs"][
+    assert "source_task" not in work_order
+    assert "deferred_next_task" not in work_order
+    assert result.next_task.inputs["deferred_next_task"]["inputs"][
         "algorithm_sandbox_manifest_id"
     ] == algorithm_manifest_id
     assert any(

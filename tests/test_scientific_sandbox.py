@@ -415,6 +415,7 @@ def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
                 }
             ],
         },
+        source_task={},
         source_manifest={"generated_simulation_sandbox_prototypes": [simulation]},
         theory_packet={},
         proposal_packet={},

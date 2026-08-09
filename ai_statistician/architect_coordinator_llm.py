@@ -68,17 +68,17 @@ ARCHITECT_CAPABILITY_GAP_ROUTING_BOUNDARY = (
 ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "RetrievalMemory",
     "TheoryDeveloper",
-    "SimulationEvaluator",
     "AlgorithmEngineer",
+    "SimulationEvaluator",
     "GeneratedCodeSemanticReviewer",
-    "FormalTargetSemanticReviewer",
     "FormalizationEvaluator",
+    "FormalTargetSemanticReviewer",
+    "ProofEngineer",
     "TheoremReductionClosureProofEngineer",
     "ExactSourceTheoremProofBodyExecutor",
     "SourceSemanticProofEngineer",
     "PseudoFormalBlockVerifier",
     "SourceTheoremPromotionProofEngineer",
-    "ProofEngineer",
     "ExactSourceTheoremProver",
     "FormalizationGapPlanner",
     "CriticEvaluator",
@@ -730,6 +730,10 @@ def build_architect_feedback_route_prompt(
         "artifact availability and recent execution. Do not restart a completed stage "
         "unless the environment observations identify its current artifact as stale, "
         "incompatible, or insufficient for the concrete next objective. "
+        "CriticEvaluator findings are evidence-grounded hypotheses, not accepted "
+        "defects. Before routing a source revision, verify that the cited defect and "
+        "proposed correction are materially different; algebraically or logically "
+        "equivalent expressions do not justify another source-authoring round. "
         "This route materializes exactly one next task; no other lane runs in the "
         "background. Do not claim parallel progress as a reason to schedule only one "
         "lane indefinitely. Honor the current evidence contract's "
@@ -1725,7 +1729,11 @@ def build_architect_coordinator_prompt(
                 "in the single-task runtime: there is no background parallel queue. "
                 "For proof_first, place FormalizationEvaluator before empirical "
                 "workers after theory review. Represent same-owner retries in "
-                "iteration_policy rather than duplicate stage rows"
+                "iteration_policy rather than duplicate stage rows. Treat "
+                "CriticEvaluator as the final cross-artifact acceptance gate, not "
+                "as routine post-theory review; source-specific review and direct "
+                "environment iteration stay inside the theory, scientific-code, "
+                "and formalization workspaces"
             ),
             "resume_rule": (
                 "on plan repair or resume, return the complete amended remaining "
@@ -1764,7 +1772,10 @@ def build_architect_coordinator_prompt(
         "model after theory and implementation context exists, so do not duplicate them. "
         "Return the complete remaining graph on resume. Keep analysis inside the JSON "
         "fields, and do not include Markdown, code, claimed executions, simulation "
-        "results, or proof claims.\n\n"
+        "results, or proof claims. CriticEvaluator must be the final authored plan "
+        "row. Do not route a theory artifact through the global Critic merely to "
+        "review it before coding or formalization; the independent theory preflight "
+        "already owns that local review.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )
 
@@ -2616,6 +2627,7 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                         f"runtime completion placeholder at index {index}"
                     )
     planned_subsystems: set[str] = set()
+    planned_subsystem_sequence: list[str] = []
     for row in packet.get("subsystem_execution_plan", []) or []:
         if not isinstance(row, Mapping):
             errors.append("subsystem_execution_plan entries must be objects")
@@ -2625,6 +2637,38 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
             errors.append("subsystem_execution_plan entry missing subsystem")
             continue
         planned_subsystems.add(subsystem)
+        planned_subsystem_sequence.append(subsystem)
+    duplicate_subsystems = sorted(
+        {
+            subsystem
+            for subsystem in planned_subsystem_sequence
+            if planned_subsystem_sequence.count(subsystem) > 1
+        }
+    )
+    if duplicate_subsystems:
+        errors.append(
+            "subsystem_execution_plan must not repeat subsystem rows; express "
+            "same-owner iteration in iteration_policy: "
+            + ", ".join(duplicate_subsystems)
+        )
+    if (
+        "CriticEvaluator" in planned_subsystem_sequence
+        and planned_subsystem_sequence[-1] != "CriticEvaluator"
+    ):
+        errors.append(
+            "subsystem_execution_plan must place CriticEvaluator last as the "
+            "final cross-artifact gate"
+        )
+    if (
+        "FormalizationEvaluator" in planned_subsystem_sequence
+        and "FormalTargetSemanticReviewer" in planned_subsystem_sequence
+        and planned_subsystem_sequence.index("FormalTargetSemanticReviewer")
+        < planned_subsystem_sequence.index("FormalizationEvaluator")
+    ):
+        errors.append(
+            "subsystem_execution_plan must place FormalTargetSemanticReviewer "
+            "after FormalizationEvaluator produces a target artifact"
+        )
     for subsystem in _required_architect_plan_subsystems(evidence_contract):
         if subsystem not in planned_subsystems:
             errors.append(
@@ -2967,10 +3011,11 @@ def _elaborate_architect_subsystem_execution_plan(
     ]
     planned_subsystems = set(llm_authored_subsystems)
     runtime_elaborated_subsystems: list[str] = []
+    missing_rows: list[dict[str, Any]] = []
     for subsystem in _required_architect_plan_subsystems(evidence_contract):
         if subsystem in planned_subsystems:
             continue
-        plan_rows.append(
+        missing_rows.append(
             {
                 "subsystem": subsystem,
                 "objective": "",
@@ -2984,6 +3029,27 @@ def _elaborate_architect_subsystem_execution_plan(
         )
         planned_subsystems.add(subsystem)
         runtime_elaborated_subsystems.append(subsystem)
+    critic_index = next(
+        (
+            index
+            for index, row in enumerate(plan_rows)
+            if isinstance(row, Mapping)
+            and str(row.get("subsystem", "") or "").strip()
+            == "CriticEvaluator"
+        ),
+        len(plan_rows),
+    )
+    plan_rows[critic_index:critic_index] = [
+        row for row in missing_rows if row["subsystem"] != "CriticEvaluator"
+    ]
+    if any(row["subsystem"] == "CriticEvaluator" for row in missing_rows):
+        plan_rows.append(
+            next(
+                row
+                for row in missing_rows
+                if row["subsystem"] == "CriticEvaluator"
+            )
+        )
     provenance = {
         "artifact_kind": "ArchitectSubsystemExecutionPlanProvenance",
         "llm_authored_subsystems": llm_authored_subsystems,
