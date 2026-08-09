@@ -3172,7 +3172,7 @@ def review_architect_theory_execution_preflight(
     )
     review_output_token_cap = min(
         12000,
-        5600
+        8000
         + 1200 * max(0, review_estimator_count - 1)
         + 900 * review_prior_finding_count,
     )

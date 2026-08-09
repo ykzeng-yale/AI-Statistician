@@ -228,6 +228,38 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     assert "historical_context" not in request.user_prompt
 
 
+def test_architect_route_transport_preserves_late_raw_execution_errors() -> None:
+    prototype = {
+        f"execution_metadata_{index}": f"value-{index}"
+        for index in range(55)
+    }
+    prototype.update(
+        {
+            "runtime_errors": [
+                "OpaqueRuntimeError: exact late diagnostic from the executor"
+            ],
+            "parent_source": "def run_sandbox(seed, replicates):\n    return {}\n",
+        }
+    )
+    prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context={},
+        environment_feedback={
+            "feedback_type": "generated_code_execution_feedback",
+            "observation_status": "CURRENT_ACTIVE_OBSERVATION",
+            "generated_simulation_prototypes": [prototype],
+        },
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    transported = payload["environment_observations"][
+        "generated_simulation_prototypes"
+    ][0]
+
+    assert transported["runtime_errors"] == prototype["runtime_errors"]
+    assert transported["parent_source"] == prototype["parent_source"]
+    assert "_omitted_mapping_items" not in transported
+
+
 def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer() -> None:
     feedback = {
         "feedback_id": "feedback:unchanged-candidate",

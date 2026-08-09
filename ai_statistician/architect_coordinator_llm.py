@@ -863,7 +863,7 @@ def _bounded_architect_route_prompt_value_with_budget(
     if isinstance(value, Mapping):
         rows = list(value.items())
         bounded: dict[str, Any] = {}
-        for key, child in rows[:48]:
+        for key, child in rows:
             if remaining[0] <= 0:
                 break
             key_text = str(key)
@@ -873,8 +873,8 @@ def _bounded_architect_route_prompt_value_with_budget(
                 depth=depth + 1,
                 remaining=remaining,
             )
-        if len(rows) > 48:
-            bounded["_omitted_mapping_items"] = len(rows) - 48
+        if len(bounded) < len(rows):
+            bounded["_omitted_mapping_items"] = len(rows) - len(bounded)
         return bounded
     if isinstance(value, (list, tuple)):
         rows = list(value)

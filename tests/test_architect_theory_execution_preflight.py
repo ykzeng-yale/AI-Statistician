@@ -1111,8 +1111,8 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     }
     assert backend.requests[0].model == TEST_HAIKU_MODEL
     assert backend.requests[0].metadata["model_tier"] == "haiku"
-    assert backend.requests[0].max_tokens == 5600
-    assert backend.requests[0].metadata["review_output_token_cap"] == 5600
+    assert backend.requests[0].max_tokens == 7000
+    assert backend.requests[0].metadata["review_output_token_cap"] == 8000
     assert "not theorem peer review" in backend.requests[0].system_prompt
     assert "Exclude downstream proof obligations" in (
         backend.requests[0].schema["properties"]["findings"]["description"]
