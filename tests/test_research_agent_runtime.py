@@ -9415,7 +9415,7 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
 
 
 def test_architect_plan_guard_routes_unplanned_handoff_to_architect() -> None:
-    class UnplannedAlgorithmHandoffSubsystem:
+    class UnplannedFormalizationHandoffSubsystem:
         name = "SimulationEvaluator"
 
         def run(
@@ -9425,11 +9425,11 @@ def test_architect_plan_guard_routes_unplanned_handoff_to_architect() -> None:
         ) -> AgentStepResult:
             return AgentStepResult(
                 status="REROUTE",
-                rationale="simulation proposed an algorithm handoff",
+                rationale="simulation proposed a formalization handoff",
                 next_task=AgentTask(
-                    task_id="algorithm:q1",
-                    owner_subsystem="AlgorithmEngineer",
-                    objective="implement algorithm outside current plan",
+                    task_id="formalize:q1",
+                    owner_subsystem="FormalizationEvaluator",
+                    objective="formalize outside the planned coding workspace",
                     inputs={
                         "question": {
                             "id": "q1",
@@ -9455,7 +9455,7 @@ def test_architect_plan_guard_routes_unplanned_handoff_to_architect() -> None:
 
     runtime = AgentRuntime(
         subsystems={
-            "SimulationEvaluator": UnplannedAlgorithmHandoffSubsystem(),
+            "SimulationEvaluator": UnplannedFormalizationHandoffSubsystem(),
         },
         blackboard=BlackboardState(project_id="architect-plan-guard-test"),
         handoff_policy=_architect_plan_guard_handoff_policy,
@@ -9474,7 +9474,7 @@ def test_architect_plan_guard_routes_unplanned_handoff_to_architect() -> None:
     assert result.status == "MAX_ITERATIONS_REACHED"
     assert trace.next_task is not None
     assert trace.next_task.owner_subsystem == "ArchitectCoordinator"
-    assert trace.next_task.inputs["resume_pending_task"]["task_id"] == "algorithm:q1"
+    assert trace.next_task.inputs["resume_pending_task"]["task_id"] == "formalize:q1"
     assert trace.failure_classification == "architect_plan_repair_required"
     assert trace.observations[-1].observation_type == "architect_plan_repair_handoff"
     assert result.blackboard.handoff_ledger[0].to_subsystem == "ArchitectCoordinator"
@@ -9491,7 +9491,7 @@ def test_architect_plan_guard_routes_unplanned_handoff_to_architect() -> None:
     assert row["has_architect_context"] is True
 
 
-def test_architect_plan_guard_allows_planned_semantic_reviewer_handoff() -> None:
+def test_architect_plan_guard_allows_internal_scientific_workspace_handoff() -> None:
     next_task = AgentTask(
         task_id="semantic-review:q1",
         owner_subsystem="GeneratedCodeSemanticReviewer",
@@ -9514,13 +9514,9 @@ def test_architect_plan_guard_allows_planned_semantic_reviewer_handoff() -> None
                         {
                             "subsystem": "SimulationEvaluator",
                             "objective": "execute generated simulation",
-                        },
-                        {
-                            "subsystem": "GeneratedCodeSemanticReviewer",
-                            "objective": "review exact executed artifacts",
-                        },
+                        }
                     ]
-                }
+                },
             },
         },
     )
@@ -9550,7 +9546,53 @@ def test_architect_plan_guard_allows_planned_semantic_reviewer_handoff() -> None
     assert guarded.failure_classification == ""
 
 
-def test_architect_plan_guard_requires_architect_after_formal_revision_budget() -> None:
+def test_architect_plan_guard_allows_internal_formalization_workspace_handoff() -> None:
+    next_task = AgentTask(
+        task_id="formal-target-review:q1",
+        owner_subsystem="FormalTargetSemanticReviewer",
+        objective="review the exact generated theorem target",
+        inputs={
+            "question": {
+                "id": "q1",
+                "title": "formal workspace",
+                "description": "exercise workspace-level plan authorization",
+                "tags": [],
+            },
+            "architect_context": {
+                "architect_runtime_plan": {
+                    "subsystem_execution_plan": [
+                        {
+                            "subsystem": "FormalizationEvaluator",
+                            "objective": "formalize and prove the theorem",
+                        }
+                    ]
+                }
+            },
+        },
+    )
+    original = AgentStepResult(
+        status="REROUTE",
+        rationale="dispatch independent target review inside formalization",
+        next_task=next_task,
+    )
+
+    guarded = _architect_plan_guard_handoff_policy(
+        iteration=1,
+        task=AgentTask(
+            task_id="formalize:q1",
+            owner_subsystem="FormalizationEvaluator",
+            objective="formalize the theorem",
+        ),
+        subsystem_name="FormalizationEvaluator",
+        result=original,
+        blackboard=BlackboardState(project_id="formal-workspace-plan-guard"),
+    )
+
+    assert guarded is original
+    assert guarded.next_task is next_task
+
+
+def test_architect_plan_guard_allows_explicit_outer_replan_after_formal_budget() -> None:
     feedback = {
         "failure_classification": (
             "formalizer_lean_candidate_revision_budget_architect_replan"
@@ -9558,42 +9600,24 @@ def test_architect_plan_guard_requires_architect_after_formal_revision_budget() 
         "revision_attempts_used": 3,
         "revision_max_attempts": 3,
     }
-    planner_task = AgentTask(
-        task_id="gap-planner-handoff:q1:legacy",
-        owner_subsystem="FormalizationGapPlanner",
-        objective="legacy direct planner detour",
+    architect_task = AgentTask(
+        task_id="architect-formal-replan:q1:bounded",
+        owner_subsystem="ArchitectCoordinator",
+        objective="choose the outer action after the formal workspace budget",
         inputs={
             "question": {
                 "id": "q1",
                 "title": "bounded formal revision",
-                "description": "reject a direct correction-planner detour",
+                "description": "yield explicitly to the outer research graph",
                 "tags": [],
             },
             "environment_feedback": feedback,
-            "architect_context": {
-                "architect_runtime_plan": {
-                    "subsystem_execution_plan": [
-                        {
-                            "subsystem": "ProofEngineer",
-                            "objective": "attempt bounded formal repair",
-                        },
-                        {
-                            "subsystem": "CriticEvaluator",
-                            "objective": "make the final evidence decision",
-                        },
-                    ]
-                },
-                "runtime_feedback_loop": {
-                    "source_subsystem": "ProofEngineer",
-                    "handoff": "legacy_gap_planner_detour",
-                },
-            },
         },
     )
     original = AgentStepResult(
         status="REROUTE",
         rationale="bounded formal revision budget exhausted",
-        next_task=planner_task,
+        next_task=architect_task,
         failure_classification=(
             "formalizer_lean_candidate_revision_budget_architect_replan"
         ),
@@ -9604,34 +9628,19 @@ def test_architect_plan_guard_requires_architect_after_formal_revision_budget() 
         objective="revise a generated Lean candidate",
     )
 
-    intercepted = _architect_plan_guard_handoff_policy(
-        iteration=4,
-        task=source_task,
-        subsystem_name="ProofEngineer",
-        result=original,
-        blackboard=BlackboardState(project_id="bounded-formal-budget-yield"),
-    )
-    assert intercepted.next_task is not None
-    assert intercepted.next_task.owner_subsystem == "ArchitectCoordinator"
-    assert intercepted.failure_classification == "architect_plan_repair_required"
-
-    architect_task = replace(
-        planner_task,
-        task_id="architect-formal-replan:q1:bounded",
-        owner_subsystem="ArchitectCoordinator",
-    )
     guarded = _architect_plan_guard_handoff_policy(
         iteration=4,
         task=source_task,
         subsystem_name="ProofEngineer",
-        result=replace(original, next_task=architect_task),
+        result=original,
         blackboard=BlackboardState(project_id="formal-budget-architect-replan"),
     )
+    assert guarded is original
     assert guarded.next_task is architect_task
     assert guarded.failure_classification == original.failure_classification
 
 
-def test_architect_plan_guard_routes_unplanned_reviewer_backedge_to_model() -> None:
+def test_architect_plan_guard_blocks_unbound_reviewer_backedge() -> None:
     next_task_id = "algorithm:semantic-regeneration"
     next_task = AgentTask(
         task_id=next_task_id,
@@ -9641,22 +9650,12 @@ def test_architect_plan_guard_routes_unplanned_reviewer_backedge_to_model() -> N
             "question": {
                 "id": "q1",
                 "title": "model-owned regeneration",
-                "description": "route an unplanned worker backedge through the model",
+                "description": "reject an unbound reviewer backedge",
                 "tags": [],
             },
             "environment_feedback": {
                 "feedback_type": "generated_code_semantic_review_feedback",
                 "validation_errors": ["raw independent review observation"],
-            },
-            "architect_context": {
-                "architect_runtime_plan": {
-                    "subsystem_execution_plan": [
-                        {
-                            "subsystem": "GeneratedCodeSemanticReviewer",
-                            "objective": "review generated code",
-                        }
-                    ]
-                },
             },
         },
     )
@@ -9679,12 +9678,49 @@ def test_architect_plan_guard_routes_unplanned_reviewer_backedge_to_model() -> N
     )
 
     assert guarded is not original
-    assert guarded.next_task is not None
-    assert guarded.next_task.owner_subsystem == "ArchitectCoordinator"
-    assert guarded.next_task.inputs["resume_pending_task"]["task_id"] == next_task_id
+    assert guarded.status == "BLOCKED"
+    assert guarded.next_task is None
+    assert guarded.failure_classification == (
+        "generated_code_semantic_review_source_lineage_invalid"
+    )
+    assert guarded.observations[-1].observation_type == (
+        "generated_code_semantic_review_source_lineage_rejected"
+    )
 
 
-def test_architect_plan_guard_allows_model_planned_reviewer_backedge() -> None:
+def test_architect_plan_guard_allows_hash_bound_reviewer_backedge() -> None:
+    source_task = AgentTask(
+        task_id="algorithm:source",
+        owner_subsystem="AlgorithmEngineer",
+        objective="generate and execute the complete estimator source",
+        inputs={
+            "question": {
+                "id": "q1",
+                "title": "lineage-bound regeneration",
+                "description": "return observations to the exact source producer",
+                "tags": [],
+            },
+            "architect_context": {
+                "architect_runtime_plan": {
+                    "subsystem_execution_plan": [
+                        {
+                            "subsystem": "AlgorithmEngineer",
+                            "objective": "implement and validate generated code",
+                        }
+                    ]
+                }
+            },
+        },
+    )
+    work_order_id = "generated-code-review-work-order:q1"
+    work_order = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewWorkOrder",
+        "work_order_id": work_order_id,
+        "source_task_id": source_task.task_id,
+        "source_subsystem": source_task.owner_subsystem,
+        "source_task_ref": runtime_module.agent_task_reference(source_task),
+        "review_revision_count": 0,
+    }
     next_task = AgentTask(
         task_id="algorithm:semantic-regeneration",
         owner_subsystem="AlgorithmEngineer",
@@ -9699,21 +9735,13 @@ def test_architect_plan_guard_allows_model_planned_reviewer_backedge() -> None:
             "environment_feedback": {
                 "feedback_type": "generated_code_semantic_review_feedback",
                 "validation_errors": ["raw independent review observation"],
+                "source_subsystem": "AlgorithmEngineer",
+                "semantic_review_execution_id": "review-execution:q1",
+                "semantic_review_packet_id": "review-packet:q1",
+                "semantic_review_packet_hash": "review-packet-hash:q1",
             },
-            "architect_context": {
-                "architect_runtime_plan": {
-                    "subsystem_execution_plan": [
-                        {
-                            "subsystem": "GeneratedCodeSemanticReviewer",
-                            "objective": "review generated code",
-                        },
-                        {
-                            "subsystem": "AlgorithmEngineer",
-                            "objective": "regenerate complete source from observations",
-                        }
-                    ]
-                },
-            },
+            "architect_context": source_task.inputs["architect_context"],
+            "generated_code_semantic_review_revision_count": 1,
         },
     )
     original = AgentStepResult(
@@ -9728,10 +9756,18 @@ def test_architect_plan_guard_allows_model_planned_reviewer_backedge() -> None:
             task_id="semantic-review:q1",
             owner_subsystem="GeneratedCodeSemanticReviewer",
             objective="review generated code",
+            inputs={
+                "work_order_id": work_order_id,
+                "work_order_hash": runtime_module.stable_hash(work_order),
+                "source_task": asdict(source_task),
+            },
         ),
         subsystem_name="GeneratedCodeSemanticReviewer",
         result=original,
-        blackboard=BlackboardState(project_id="model-planned-reviewer-backedge"),
+        blackboard=BlackboardState(
+            project_id="lineage-bound-reviewer-backedge",
+            artifacts={work_order_id: work_order},
+        ),
     )
 
     assert guarded is original
@@ -36472,7 +36508,13 @@ def test_formalization_evaluator_routes_exact_target_to_semantic_reviewer(
     )
     assert work_order["candidate_source_hash"] == candidate_row["source_hash"]
     assert work_order["target_theorem_statement_hash"]
-    assert work_order["deferred_next_task"]["owner_subsystem"] == "ProofEngineer"
+    assert work_order["deferred_next_task_ref"]["owner_subsystem"] == (
+        "ProofEngineer"
+    )
+    assert "deferred_next_task" not in work_order
+    assert result.next_task.inputs["deferred_next_task"]["owner_subsystem"] == (
+        "ProofEngineer"
+    )
     assert not [
         call
         for call in result.tool_calls

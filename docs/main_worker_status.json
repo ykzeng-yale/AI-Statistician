@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "updated_at": "2026-08-09T12:23:09Z",
+  "updated_at": "2026-08-09T12:52:11Z",
   "role": "main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -57,7 +57,10 @@
     "lineage_change": "Research and capability evaluations persist AgentTaskRef records with task, input, and contract hashes instead of recursively copying complete task inputs into every trace. Generated-code semantic-review work orders likewise retain source and deferred task refs; the full transient tasks live only in the active reviewer handoff needed for continuation or resume.",
     "measured_payload_debt_removed": "In the v310 survival result, trace task inputs occupied 29.7 MB of a 29.9 MB trace section. Its largest semantic-review work order was 2.88 MB: 1.45 MB source task plus two identical 0.71 MB deferred-task copies, while the non-task work order was about 6.4 KB. The new format removes those archival copies.",
     "bounded_live_smoke": "runs/main_worker_structure_simplification_20260809_v312_exact_haiku ran five iterations: Architect -> RetrievalMemory -> TheoryDeveloper -> independent theory preflight -> FormalizationEvaluator. The accepted preflight routed directly to FormalizationEvaluator with no second Architect model call and no premature Critic. The persisted result uses content_addressed_refs and no trace task contains inputs.",
-    "non_claim": "v312 ended MAX_ITERATIONS_REACHED with 0 kernel-verified subclaims and three formal gaps. It validates mechanism and persistence only; it does not change development exact-theorem closure from 0/2 or unlock held-out tasks."
+    "workspace_plan_guard_change": "Architect plans now authorize durable research workspaces rather than requiring every internal worker name to appear as another plan row. Scientific-coding and formalization reviewers remain inside their owning workspace; cross-workspace changes and explicit outer-replan budget signals still route through Architect. Generated-code reviewer backedges are accepted only when the transient complete source task exactly matches the immutable AgentTaskRef in the review work order; an unbound backedge is blocked before another model call.",
+    "formal_target_lineage_change": "Formal-target semantic-review work orders now retain only a deferred AgentTaskRef. The complete deferred ProofEngineer task exists transiently in the active reviewer handoff and must reproduce the immutable reference before review or continuation; tampering fails before any model call.",
+    "bounded_live_workspace_smoke": "runs/main_worker_workspace_plan_guard_20260809_v313_exact_haiku ran six fresh iterations: Architect -> RetrievalMemory -> TheoryDeveloper -> independent theory preflight -> FormalizationEvaluator -> FormalTargetSemanticReviewer. The Formalizer-to-reviewer handoff was aligned by the formalization workspace, no Architect plan-repair task occurred, and the reviewer actually executed. The reviewer rejected the generated target and routed observations to Architect, which is the intended cross-workspace boundary.",
+    "non_claim": "v313 ended MAX_ITERATIONS_REACHED with 0 kernel-verified subclaims and five formal gaps. It validates mechanism, workspace routing, and persistence only; it does not change development exact-theorem closure from 0/2 or unlock held-out tasks."
   },
   "orchestration_lineage_correction": {
     "problem": "A Critic to Architect to Critic replan could reset the local critic round, repeating the same lineage until the coarse global iteration cap fired.",
@@ -73,11 +76,11 @@
     "run_disposition": "v307 was intentionally terminated at the first contaminated route and is not counted as a completed capability evaluation."
   },
   "latest_diagnostic_run": {
-    "run": "runs/main_worker_structure_simplification_20260809_v312_exact_haiku",
-    "disposition": "Completed bounded one-family exact-Haiku mechanism smoke at the configured five-iteration limit. It is not a frozen cross-family evaluation and cannot satisfy capability readiness.",
-    "routing_observation": "The accepted theory preflight compiled the model-authored proof-first path directly to FormalizationEvaluator. No routine Architect route or Critic call occurred after acceptance.",
-    "persistence_observation": "The runtime result records content-addressed task refs with no nested inputs. The five-step task result is 2.0 MB and runtime trace JSONL is 285 KB; remaining size is substantive blackboard and observation payload, not recursive trace tasks.",
-    "evidence": "All executed provider artifacts use claude-haiku-4-5-20251001. The run ended MAX_ITERATIONS_REACHED with 0 kernel-verified subclaims and three formal gaps, so no theorem or end-to-end capability success is claimed."
+    "run": "runs/main_worker_workspace_plan_guard_20260809_v313_exact_haiku",
+    "disposition": "Completed bounded one-family exact-Haiku workspace-routing smoke at the configured six-iteration limit. It is not a frozen cross-family evaluation and cannot satisfy capability readiness.",
+    "routing_observation": "The accepted theory preflight compiled directly to FormalizationEvaluator. FormalizationEvaluator then handed the exact target to FormalTargetSemanticReviewer under alignment_kind=workspace and workspace=formalization; there was no architect_plan_repair_required trace. The reviewer rejected the target and correctly returned the cross-workspace decision to Architect.",
+    "persistence_observation": "All six persisted trace tasks are AgentTaskRef records without inputs. The formal-target review work order contains deferred_next_task_ref and source_task_id but no complete deferred task. The result is 1.52 MB and runtime trace JSONL is 270 KB; the audit manifest remains oversized at 6.37 MB.",
+    "evidence": "Every enabled and executed provider artifact uses claude-haiku-4-5-20251001 exactly. The run ended MAX_ITERATIONS_REACHED with 0 kernel-verified subclaims and five formal gaps, so no theorem or end-to-end capability success is claimed."
   },
   "formal_rag_foundation": {
     "active_project": "ykzeng-yale/EmpericalProcessLEAN at b6bf3940",
@@ -94,6 +97,7 @@
     "Blackboard artifacts and the 1492-field audit manifest remain too large. Compact task refs remove recursive trace/work-order copies, but substantive artifact schemas still need narrow ArtifactRef projections at handoff boundaries rather than full packet replication.",
     "The formal authoring session is still whole-source oriented; a mature tactic-state action provider and trained LeanDojo/ReProver-style policy remain absent.",
     "Independent formal target review currently conflates statement semantics with proof completion and library API uncertainty; these evidence dimensions need separate outputs and owners without a deterministic verdict override.",
+    "Workspace identity is still inferred from legacy subsystem names at the plan guard because AgentTask predates the simplified outer-workspace architecture. This should converge while shrinking the task schema, not through another scheduler or routing service.",
     "No development task has reached exact source-theorem kernel closure, so held-out PCA and extremes remain sealed."
   ],
   "next_main_worker_actions": [
@@ -105,9 +109,9 @@
   ],
   "verification": {
     "runtime_regression": "All 1164 collected nodes in tests/test_research_agent_runtime.py were covered across deterministic ordered segments; this is not represented as one monolithic pytest run. The static CLI integration node was rerun after final fixture cleanup and passed in 96.81 seconds.",
-    "focused_regression": "The structural slice passes 91 Architect/semantic-review/resume/audit tests, 40 model-policy/protocol tests, 25 final task-ref and producer-regeneration tests, and the focused Python/R scientific sandbox paths. Python compilation and git diff checks pass.",
+    "focused_regression": "The new workspace/lineage slice passes 90 related AgentRuntime, Architect, semantic-review, offline-smoke, and evaluation-mode tests; 20 focused plan-guard, formal-target, and generated-code lineage tests also pass. Python compilation and git diff checks pass.",
     "payload_regression": "AgentRuntime unit tests verify full debug serialization remains available while compact serialization emits AgentTaskRef objects with no inputs. Semantic-review tests verify task-ref hashes, acceptance continuation, source-producer regeneration, and absence of full task payloads in immutable work orders.",
-    "exact_haiku_structure_smoke": "v312 executed five bounded live steps with claude-haiku-4-5-20251001 exactly. Its trace is Architect -> Retrieval -> Theory -> preflight -> Formalization, proving the redundant post-preflight Architect call and premature Critic detour are absent. This is mechanism evidence only.",
+    "exact_haiku_structure_smoke": "v313 executed six bounded live steps with claude-haiku-4-5-20251001 exactly. Its trace is Architect -> Retrieval -> Theory -> preflight -> Formalization -> independent formal-target review. The internal formalization handoff is workspace-aligned, no plan-repair route occurs, and the rejected target returns to Architect without being treated as proof. This is mechanism evidence only.",
     "exact_haiku_authoring_smoke": "v309 completed in three model-selected tool turns: check -> complete-source replacement -> check. It used claude-haiku-4-5-20251001 exactly, compiled the final source, verified the bound declaration with no untrusted axioms, and is labeled mechanism_smoke_not_capability_evidence.",
     "model_policy_regression": "31 model-backend tests and 5 selected runtime evaluation-policy cases passed; actual Anthropic evaluation calls are pinned to claude-haiku-4-5-20251001 and Opus is rejected.",
     "formal_rag_regression": "EmpericalProcessLEAN lean_rag tests: 64 passed. AI provider tests: 15 passed. The upstream shared query returns in 0.09 seconds; the newly wired fused runtime query returns five hits in 1.1 seconds after one 5.4-second index initialization.",

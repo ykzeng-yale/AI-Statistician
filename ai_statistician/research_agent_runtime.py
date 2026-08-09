@@ -10910,6 +10910,49 @@ def _canonical_architect_subsystem(value: Any) -> str:
     return ""
 
 
+RUNTIME_RESEARCH_WORKSPACE_BY_SUBSYSTEM = {
+    "RetrievalMemory": "retrieval",
+    "TheoryDeveloper": "theory",
+    "SimulationEvaluator": "scientific_coding",
+    "AlgorithmEngineer": "scientific_coding",
+    "GeneratedCodeSemanticReviewer": "scientific_coding",
+    "FormalTargetSemanticReviewer": "formalization",
+    "FormalizationEvaluator": "formalization",
+    "FormalizationGapPlanner": "formalization",
+    "ProofEngineer": "formalization",
+    "ExactSemanticDefinitionProofEngineer": "formalization",
+    "ExactSemanticDefinitionReviewProofEngineer": "formalization",
+    "TheoremReductionClosureProofEngineer": "formalization",
+    "ExactSourceTheoremProofBodyExecutor": "formalization",
+    "SourceSemanticProofEngineer": "formalization",
+    "SourceTheoremPromotionProofEngineer": "formalization",
+    "PseudoFormalBlockVerifier": "formalization",
+    "ExactSourceTheoremProver": "formalization",
+    "CriticEvaluator": "critic",
+    "ArchitectCoordinator": "architect",
+    "AgentRuntimeOrchestrator": "architect",
+}
+
+
+def _runtime_research_subsystem(value: Any) -> str:
+    raw_subsystem = str(value or "").strip()
+    canonical_subsystem = _canonical_architect_subsystem(raw_subsystem)
+    if canonical_subsystem:
+        return canonical_subsystem
+    if raw_subsystem in RUNTIME_RESEARCH_WORKSPACE_BY_SUBSYSTEM:
+        return raw_subsystem
+    return ""
+
+
+def _runtime_research_workspace(value: Any) -> str:
+    """Return the durable workspace authorized by an Architect plan row."""
+
+    return RUNTIME_RESEARCH_WORKSPACE_BY_SUBSYSTEM.get(
+        _runtime_research_subsystem(value),
+        "",
+    )
+
+
 def _architect_terminal_acceptance_review_policy(
     *,
     iteration: int,
@@ -10934,7 +10977,7 @@ def _architect_terminal_acceptance_review_policy(
     )
     stages = plan.get("subsystem_execution_plan", [])
     planned_subsystems = [
-        _canonical_architect_subsystem(stage.get("subsystem"))
+        _runtime_research_subsystem(stage.get("subsystem"))
         for stage in stages
         if isinstance(stage, Mapping)
     ]
@@ -11092,12 +11135,23 @@ def _lineage_bound_semantic_review_return_to_source_producer(
         != next_task.owner_subsystem
     ):
         return False
-    source_task = work_order.get("source_task", {})
-    if not isinstance(source_task, Mapping) or (
-        str(source_task.get("task_id", "") or "")
+    source_task_payload = task.inputs.get("source_task", {})
+    source_task_ref = work_order.get("source_task_ref", {})
+    if (
+        not isinstance(source_task_payload, Mapping)
+        or not isinstance(source_task_ref, Mapping)
+        or source_task_ref.get("artifact_kind") != "AgentTaskRef"
+    ):
+        return False
+    try:
+        source_task = _agent_task_from_runtime_payload(source_task_payload)
+    except ValueError:
+        return False
+    if (
+        agent_task_reference(source_task) != source_task_ref
+        or source_task.task_id
         != str(work_order.get("source_task_id", "") or "")
-        or str(source_task.get("owner_subsystem", "") or "")
-        != next_task.owner_subsystem
+        or source_task.owner_subsystem != next_task.owner_subsystem
     ):
         return False
     feedback = next_task.inputs.get("environment_feedback", {})
@@ -11148,13 +11202,53 @@ def _architect_plan_guard_handoff_policy(
         return result
     if next_task.owner_subsystem == subsystem_name:
         return result
-    if _lineage_bound_semantic_review_return_to_source_producer(
-        task=task,
-        subsystem_name=subsystem_name,
-        next_task=next_task,
-        blackboard=blackboard,
-    ):
-        return result
+    reviewer_source_revision = (
+        subsystem_name == GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        and result.status == "REVISE"
+        and next_task.owner_subsystem
+        in GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_SUBSYSTEMS
+    )
+    if reviewer_source_revision:
+        if _lineage_bound_semantic_review_return_to_source_producer(
+            task=task,
+            subsystem_name=subsystem_name,
+            next_task=next_task,
+            blackboard=blackboard,
+        ):
+            return result
+        return AgentStepResult(
+            status="BLOCKED",
+            rationale=(
+                "Generated-code semantic review proposed a source revision "
+                "without a valid immutable source-task reference."
+            ),
+            produced_artifacts=result.produced_artifacts,
+            observations=result.observations
+            + (
+                EnvironmentObservation(
+                    observation_type=(
+                        "generated_code_semantic_review_source_lineage_rejected"
+                    ),
+                    summary=(
+                        "The reviewer backedge did not reproduce the exact "
+                        "hash-bound source task recorded by its work order."
+                    ),
+                    payload={
+                        "review_task_id": task.task_id,
+                        "proposed_source_task_id": next_task.task_id,
+                        "proposed_source_subsystem": (
+                            next_task.owner_subsystem
+                        ),
+                        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                    },
+                ),
+            ),
+            tool_calls=result.tool_calls,
+            evidence_entries=result.evidence_entries,
+            failure_classification=(
+                "generated_code_semantic_review_source_lineage_invalid"
+            ),
+        )
     inputs = next_task.inputs if isinstance(next_task.inputs, Mapping) else {}
     architect_context = (
         inputs.get("architect_context", {})
@@ -11178,7 +11272,7 @@ def _architect_plan_guard_handoff_policy(
     if alignment.get("aligned") is True:
         return result
     planned_subsystems = [
-        _canonical_architect_subsystem(stage.get("subsystem"))
+        _runtime_research_subsystem(stage.get("subsystem"))
         for stage in stages
         if isinstance(stage, Mapping)
     ]
@@ -99369,6 +99463,12 @@ def _runtime_handoff_transition_summary(
                     "architect_execution_plan_aligned": bool(
                         architect_plan_alignment["aligned"]
                     ),
+                    "architect_execution_plan_alignment_kind": str(
+                        architect_plan_alignment.get("alignment_kind", "") or ""
+                    ),
+                    "architect_execution_plan_workspace": str(
+                        architect_plan_alignment.get("workspace", "") or ""
+                    ),
                     "architect_execution_plan_stage_index": (
                         architect_plan_alignment["stage_index"]
                     ),
@@ -99554,22 +99654,48 @@ def _runtime_transition_architect_plan_alignment(
     stages = plan.get("subsystem_execution_plan", [])
     if not isinstance(stages, list):
         stages = []
-    canonical_to = _canonical_architect_subsystem(to_subsystem)
+    canonical_to = _runtime_research_subsystem(to_subsystem)
+    raw_to = str(to_subsystem or "").strip()
+    target_workspace = _runtime_research_workspace(raw_to)
     for stage_index, stage in enumerate(stages):
         if not isinstance(stage, Mapping):
             continue
-        subsystem = _canonical_architect_subsystem(stage.get("subsystem"))
-        if subsystem and subsystem == canonical_to:
+        raw_subsystem = str(stage.get("subsystem", "") or "").strip()
+        subsystem = _runtime_research_subsystem(raw_subsystem)
+        exact_match = bool(
+            (subsystem and subsystem == canonical_to)
+            or (raw_subsystem and raw_subsystem == raw_to)
+        )
+        if exact_match:
             return {
                 "aligned": True,
+                "alignment_kind": "exact_subsystem",
+                "workspace": target_workspace,
                 "stage_index": stage_index,
-                "stage_subsystem": subsystem,
+                "stage_subsystem": subsystem or raw_subsystem,
                 "stage_objective": str(stage.get("objective", "") or ""),
             }
+    if target_workspace:
+        for stage_index, stage in enumerate(stages):
+            if not isinstance(stage, Mapping):
+                continue
+            raw_subsystem = str(stage.get("subsystem", "") or "").strip()
+            subsystem = _runtime_research_subsystem(raw_subsystem)
+            if _runtime_research_workspace(raw_subsystem) == target_workspace:
+                return {
+                    "aligned": True,
+                    "alignment_kind": "workspace",
+                    "workspace": target_workspace,
+                    "stage_index": stage_index,
+                    "stage_subsystem": subsystem or raw_subsystem,
+                    "stage_objective": str(stage.get("objective", "") or ""),
+                }
     return {
         "aligned": False,
+        "alignment_kind": "",
+        "workspace": target_workspace,
         "stage_index": -1,
-        "stage_subsystem": canonical_to,
+        "stage_subsystem": canonical_to or raw_to,
         "stage_objective": "",
     }
 

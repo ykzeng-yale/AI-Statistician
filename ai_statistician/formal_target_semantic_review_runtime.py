@@ -12,6 +12,7 @@ from .agent_runtime import (
     EnvironmentObservation,
     EvidenceLedgerEntry,
     ToolCallRecord,
+    agent_task_reference,
 )
 from .architect_coordinator_llm import ARCHITECT_FEEDBACK_ROUTE_OPERATION
 from .fingerprint import stable_hash
@@ -329,7 +330,7 @@ def _runtime_formal_target_semantic_review_dispatch(
         "dispatch_validation_errors": sorted(
             set(dispatch_validation_errors)
         ),
-        "deferred_next_task": asdict(deferred_next_task),
+        "deferred_next_task_ref": agent_task_reference(deferred_next_task),
         "proof_evidence_status": (
             "FORMAL_TARGET_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
         ),
@@ -353,6 +354,7 @@ def _runtime_formal_target_semantic_review_dispatch(
             "architect_context": dict(architect_context),
             "work_order_id": work_order_id,
             "work_order_hash": work_order_hash,
+            "deferred_next_task": asdict(deferred_next_task),
         },
         allowed_tools=("model_backend", "filesystem", "blackboard"),
         expected_artifacts=(
@@ -661,14 +663,29 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             allowed_kinds=FORMAL_TARGET_REVIEW_PROPOSAL_PACKET_KINDS,
         )
         deferred_task_payload = (
-            dict(work_order.get("deferred_next_task", {}) or {})
-            if isinstance(work_order.get("deferred_next_task", {}), Mapping)
+            dict(task.inputs.get("deferred_next_task", {}) or {})
+            if isinstance(task.inputs.get("deferred_next_task", {}), Mapping)
             else {}
         )
-        if str(deferred_task_payload.get("owner_subsystem", "") or "") != (
-            "ProofEngineer"
+        deferred_task_ref = work_order.get("deferred_next_task_ref", {})
+        try:
+            deferred_task = _agent_task_from_runtime_payload(
+                deferred_task_payload
+            )
+        except ValueError as exc:
+            validation_errors.append(str(exc))
+            deferred_task = None
+        if deferred_task is not None and (
+            deferred_task.owner_subsystem != "ProofEngineer"
         ):
-            validation_errors.append("formal-target review deferred task is not ProofEngineer")
+            validation_errors.append(
+                "formal-target review deferred task is not ProofEngineer"
+            )
+        if (
+            deferred_task is not None
+            and agent_task_reference(deferred_task) != deferred_task_ref
+        ):
+            validation_errors.append("formal-target review deferred task ref mismatch")
 
         review_material: dict[str, Any] = {}
         if not validation_errors:
@@ -1008,7 +1025,8 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             int(work_order.get("max_revisions", 0) or 0),
         )
         if verdict == "ACCEPT":
-            deferred_task = _agent_task_from_runtime_payload(deferred_task_payload)
+            if deferred_task is None:
+                raise RuntimeError("validated deferred formal-target task missing")
             next_inputs = dict(deferred_task.inputs)
             prior_feedback = (
                 dict(next_inputs.get("environment_feedback", {}) or {})
@@ -1123,7 +1141,8 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             )
             failure_classification = ""
         else:
-            deferred_task = _agent_task_from_runtime_payload(deferred_task_payload)
+            if deferred_task is None:
+                raise RuntimeError("validated deferred formal-target task missing")
             deferred_inputs = dict(deferred_task.inputs)
             prior_feedback = (
                 dict(deferred_inputs.get("environment_feedback", {}) or {})

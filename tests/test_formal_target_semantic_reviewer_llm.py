@@ -428,6 +428,28 @@ def test_source_hash_drift_is_rejected_before_model_review(tmp_path: Path) -> No
     assert not result.tool_calls
 
 
+def test_deferred_task_ref_drift_is_rejected_before_model_review(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path, accepted=True
+    )
+    work_order = blackboard.artifacts[task.inputs["work_order_id"]]
+    assert "deferred_next_task" not in work_order
+    assert work_order["deferred_next_task_ref"]["artifact_kind"] == (
+        "AgentTaskRef"
+    )
+    task.inputs["deferred_next_task"]["objective"] = "tampered objective"
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "formal_target_semantic_review_input_invalid"
+    )
+    assert not result.tool_calls
+
+
 def test_prompt_requests_observations_and_forbids_runtime_repair_planning() -> None:
     prompt = build_formal_target_semantic_review_prompt(
         question=_question(),
