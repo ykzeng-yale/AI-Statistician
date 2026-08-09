@@ -50,6 +50,9 @@ async function runPython(request, source, estimatorSources) {
     await pyodide.loadPackage(request.dependencies);
   }
   const bound = request.invocation_mode === "estimator_bound";
+  const requiredCallableExports = Array.isArray(request.required_callable_exports)
+    ? request.required_callable_exports.map(String)
+    : [];
   const wrapped = bound
     ? `import json as _ai_stat_json\n` +
       `_ai_stat_simulation_source = ${JSON.stringify(source)}\n` +
@@ -81,7 +84,7 @@ async function runPython(request, source, estimatorSources) {
       `    exec(compile(_source, "<accepted_algorithm:" + _artifact_id + ">", "exec"), _namespace, _namespace)\n` +
       `    _implementation = _namespace.get("run_estimator")\n` +
       `    if not callable(_implementation):\n` +
-      `        raise RuntimeError("accepted algorithm did not define callable run_estimator: " + _artifact_id)\n` +
+      `        raise RuntimeError("ACCEPTED_ESTIMATOR_BINDING_ERROR: " + _artifact_id + ": accepted algorithm did not define callable run_estimator")\n` +
       `    def _bound_estimator(request):\n` +
       `        if not isinstance(request, dict):\n` +
       `            raise TypeError("run_estimator request must be a dict: " + _artifact_id)\n` +
@@ -109,7 +112,14 @@ async function runPython(request, source, estimatorSources) {
       `    raise RuntimeError("generated simulation did not define callable run_sandbox")\n` +
       `_ai_stat_result = _ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=_ai_stat_estimators)\n` +
       `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": _ai_stat_invocation_counts, "estimator_runtime_failure": _ai_stat_runtime_failure}, allow_nan=False, sort_keys=True)`
-    : `${source}\n\nimport json as _ai_stat_json\n` +
+    : `import json as _ai_stat_json\n` +
+      `_ai_stat_source = ${JSON.stringify(source)}\n` +
+      `_ai_stat_namespace = {}\n` +
+      `exec(compile(_ai_stat_source, "<generated_source>", "exec"), _ai_stat_namespace, _ai_stat_namespace)\n` +
+      `_ai_stat_required_callable_exports = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(requiredCallableExports))})\n` +
+      `for _ai_stat_export in _ai_stat_required_callable_exports:\n` +
+      `    if not callable(_ai_stat_namespace.get(_ai_stat_export)):\n` +
+      `        raise RuntimeError("generated source did not export callable " + _ai_stat_export)\n` +
       `def _ai_stat_json_native(_value):\n` +
       `    if _value is None or isinstance(_value, (bool, int, float, str)):\n` +
       `        return _value\n` +
@@ -127,7 +137,10 @@ async function runPython(request, source, estimatorSources) {
       `    if callable(_scalar_item):\n` +
       `        return _ai_stat_json_native(_scalar_item())\n` +
       `    raise TypeError("sandbox result values must be JSON-native or array-like")\n` +
-      `_ai_stat_result = _ai_stat_json_native(run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}))\n` +
+      `_ai_stat_run_sandbox = _ai_stat_namespace.get("run_sandbox")\n` +
+      `if not callable(_ai_stat_run_sandbox):\n` +
+      `    raise RuntimeError("generated source did not export callable run_sandbox")\n` +
+      `_ai_stat_result = _ai_stat_json_native(_ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}))\n` +
       `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": {}}, allow_nan=False, sort_keys=True)`;
   const serialized = await pyodide.runPythonAsync(wrapped);
   return JSON.parse(String(serialized));
@@ -141,6 +154,12 @@ async function runR(request, source, estimatorSources) {
   let result;
   try {
     const bound = request.invocation_mode === "estimator_bound";
+    const requiredCallableExports = Array.isArray(request.required_callable_exports)
+      ? request.required_callable_exports.map(String)
+      : [];
+    const requiredCallableExportVector = requiredCallableExports.length > 0
+      ? `c(${requiredCallableExports.map((value) => JSON.stringify(value)).join(",")})`
+      : "character()";
     const estimatorRows = Object.entries(estimatorSources);
     const estimatorSourceList = estimatorRows
       .map(([artifactId, estimatorSource]) => `${JSON.stringify(artifactId)}=${JSON.stringify(estimatorSource)}`)
@@ -165,7 +184,7 @@ async function runR(request, source, estimatorSources) {
         `    .id <- .artifact_id\n` +
         `    .environment <- new.env(parent=globalenv())\n` +
         `    eval(parse(text=.ai_stat_estimator_sources[[.id]]), envir=.environment)\n` +
-        `    if (!exists("run_estimator", envir=.environment, mode="function", inherits=FALSE)) stop(paste("accepted algorithm did not define callable run_estimator:", .id))\n` +
+        `    if (!exists("run_estimator", envir=.environment, mode="function", inherits=FALSE)) stop(paste0("ACCEPTED_ESTIMATOR_BINDING_ERROR: ", .id, ": accepted algorithm did not define callable run_estimator"))\n` +
         `    .implementation <- get("run_estimator", envir=.environment, inherits=FALSE)\n` +
         `    function(request) {\n` +
         `      if (!is.list(request) || is.null(names(request))) stop(paste("run_estimator request must be a named list:", .id))\n` +
@@ -190,8 +209,18 @@ async function runR(request, source, estimatorSources) {
         `.ai_stat_result <- get("run_sandbox", envir=.ai_stat_simulation_environment, inherits=FALSE)(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=.ai_stat_estimators)\n` +
         `list(metrics=.ai_stat_result, estimator_invocation_counts=.ai_stat_invocation_counts, estimator_runtime_failure=.ai_stat_runtime_failure)\n` +
         `})`
-      : `${source}\n\n` +
-        `local({ .ai_stat_result <- run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}); list(metrics=.ai_stat_result, estimator_invocation_counts=list()) })`;
+      : `local({\n` +
+        `.ai_stat_source <- ${JSON.stringify(source)}\n` +
+        `.ai_stat_environment <- new.env(parent=globalenv())\n` +
+        `eval(parse(text=.ai_stat_source), envir=.ai_stat_environment)\n` +
+        `.ai_stat_required_callable_exports <- ${requiredCallableExportVector}\n` +
+        `for (.ai_stat_export in .ai_stat_required_callable_exports) {\n` +
+        `  if (!exists(.ai_stat_export, envir=.ai_stat_environment, mode="function", inherits=FALSE)) stop(paste("generated source did not export callable", .ai_stat_export))\n` +
+        `}\n` +
+        `if (!exists("run_sandbox", envir=.ai_stat_environment, mode="function", inherits=FALSE)) stop("generated source did not export callable run_sandbox")\n` +
+        `.ai_stat_result <- get("run_sandbox", envir=.ai_stat_environment, inherits=FALSE)(seed=${Number(request.seed)}, replicates=${Number(request.replicates)})\n` +
+        `list(metrics=.ai_stat_result, estimator_invocation_counts=list())\n` +
+        `})`;
     result = await webR.evalR(wrapped);
     return rValueToJson(await result.toJs());
   } finally {
@@ -274,8 +303,12 @@ try {
 } catch (error) {
   const errorMessage = String(error?.message || error);
   const estimatorRuntimePrefix = "ACCEPTED_ESTIMATOR_RUNTIME_ERROR: ";
-  const failedEstimatorId = Object.keys(estimatorSources).find((artifactId) =>
+  const estimatorBindingPrefix = "ACCEPTED_ESTIMATOR_BINDING_ERROR: ";
+  const failedRuntimeEstimatorId = Object.keys(estimatorSources).find((artifactId) =>
     errorMessage.includes(`${estimatorRuntimePrefix}${artifactId}: `),
+  );
+  const failedBindingEstimatorId = Object.keys(estimatorSources).find((artifactId) =>
+    errorMessage.includes(`${estimatorBindingPrefix}${artifactId}: `),
   );
   envelope = {
     schema_version: 1,
@@ -287,8 +320,12 @@ try {
     error_type: error?.constructor?.name || "Error",
     error_message: errorMessage,
     error_stack: String(error?.stack || "").slice(0, 8000),
-    error_origin: failedEstimatorId ? "accepted_estimator" : "generated_simulation",
-    error_artifact_id: failedEstimatorId || "",
+    error_origin: failedBindingEstimatorId
+      ? "accepted_estimator_binding"
+      : failedRuntimeEstimatorId
+        ? "accepted_estimator"
+        : "generated_source",
+    error_artifact_id: failedBindingEstimatorId || failedRuntimeEstimatorId || "",
     started_at: startedAt,
     completed_at: new Date().toISOString(),
   };

@@ -121,6 +121,7 @@ class ScientificSandboxExecution:
     execution_envelope_path: str = ""
     execution_envelope_hash: str = ""
     invocation_mode: str = "standalone"
+    required_callable_exports: tuple[str, ...] = ()
     estimator_code_paths: dict[str, str] = field(default_factory=dict)
     estimator_code_hashes: dict[str, str] = field(default_factory=dict)
     estimator_invocation_counts: dict[str, int] = field(default_factory=dict)
@@ -390,7 +391,7 @@ def scientific_sandbox_contract(
                 ),
                 "estimator_binding_contract": (
                     "A confirmatory DGP harness defines run_sandbox(seed, replicates, "
-                    "estimators). Each exact reviewed algorithm defines "
+                    "estimators). Each exact reviewed algorithm exports module-level "
                     "run_estimator(request), where request and response are named "
                     "JSON-finite objects. AgentRuntime injects a mapping from immutable "
                     "estimator_id to callable and records invocation counts."
@@ -691,6 +692,7 @@ def _empty_execution(
     resource_limits: Mapping[str, int],
     estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
     estimator_binding_errors: Sequence[str] = (),
+    required_callable_exports: Sequence[str] = (),
 ) -> ScientificSandboxExecution:
     backend = "webr" if language == "r" else "pyodide"
     estimator_code_hashes = {
@@ -721,6 +723,7 @@ def _empty_execution(
         ),
         resource_limits=dict(resource_limits),
         invocation_mode="estimator_bound" if estimator_bindings else "standalone",
+        required_callable_exports=tuple(required_callable_exports),
         estimator_code_hashes=estimator_code_hashes,
         estimator_binding_hash=(
             stable_hash(estimator_code_hashes) if estimator_code_hashes else ""
@@ -743,6 +746,7 @@ def execute_scientific_sandbox(
     max_node_heap_mb: int = 768,
     runtime: ScientificSandboxRuntime | None = None,
     estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
+    required_callable_exports: Sequence[str] = (),
 ) -> ScientificSandboxExecution:
     language = normalized_generated_code_language(language)
     dependencies = normalized_scientific_dependencies(
@@ -761,6 +765,13 @@ def execute_scientific_sandbox(
             ),
         )
         for binding in estimator_bindings
+    )
+    normalized_required_callable_exports = tuple(
+        dict.fromkeys(
+            str(value or "").strip()
+            for value in required_callable_exports
+            if str(value or "").strip()
+        )
     )
     runtime = runtime or discover_scientific_sandbox_runtime()
     limits = _resource_limit_payload(
@@ -855,6 +866,7 @@ def execute_scientific_sandbox(
             resource_limits=limits,
             estimator_bindings=normalized_bindings,
             estimator_binding_errors=sorted(set(binding_contract_errors)),
+            required_callable_exports=normalized_required_callable_exports,
         )
     language_available = (
         runtime.python_available if language == "python" else runtime.r_available
@@ -873,6 +885,7 @@ def execute_scientific_sandbox(
             code_hash=code_hash,
             resource_limits=limits,
             estimator_bindings=normalized_bindings,
+            required_callable_exports=normalized_required_callable_exports,
         )
     cache_errors = (
         scientific_python_dependency_cache_errors(runtime, all_dependencies)
@@ -890,6 +903,7 @@ def execute_scientific_sandbox(
             code_hash=code_hash,
             resource_limits=limits,
             estimator_bindings=normalized_bindings,
+            required_callable_exports=normalized_required_callable_exports,
         )
 
     sandbox_dir.mkdir(parents=True, exist_ok=True)
@@ -910,6 +924,9 @@ def execute_scientific_sandbox(
                 binding.artifact_id: binding.code_hash
                 for binding in normalized_bindings
             },
+            "required_callable_exports": list(
+                normalized_required_callable_exports
+            ),
         }
     )[:16]
     code_path = sandbox_dir / f"{safe_id}_{execution_key}_generated_draft.{extension}"
@@ -944,6 +961,9 @@ def execute_scientific_sandbox(
         "code_hash": code_hash,
         "invocation_mode": (
             "estimator_bound" if normalized_bindings else "standalone"
+        ),
+        "required_callable_exports": list(
+            normalized_required_callable_exports
         ),
         "estimators": [
             {
@@ -1059,6 +1079,7 @@ def execute_scientific_sandbox(
             encoding="utf-8",
         )
     errors: list[str] = []
+    runtime_estimator_binding_errors: tuple[str, ...] = ()
     estimator_runtime_failure_ids: tuple[str, ...] = ()
     estimator_runtime_errors: tuple[str, ...] = ()
     if not envelope:
@@ -1070,7 +1091,10 @@ def execute_scientific_sandbox(
             + str(envelope.get("error_message", "execution failed") or "")
         )
         errors.append(envelope_error)
-        if str(envelope.get("error_origin", "") or "") == "accepted_estimator":
+        error_origin = str(envelope.get("error_origin", "") or "")
+        if error_origin == "accepted_estimator_binding":
+            runtime_estimator_binding_errors = (envelope_error,)
+        elif error_origin == "accepted_estimator":
             failure_id = str(
                 envelope.get("error_artifact_id", "") or ""
             ).strip()
@@ -1127,6 +1151,7 @@ def execute_scientific_sandbox(
         invocation_mode=(
             "estimator_bound" if normalized_bindings else "standalone"
         ),
+        required_callable_exports=normalized_required_callable_exports,
         estimator_code_paths={
             artifact_id: str(path)
             for artifact_id, path in estimator_code_paths.items()
@@ -1136,6 +1161,7 @@ def execute_scientific_sandbox(
         estimator_binding_hash=(
             stable_hash(estimator_code_hashes) if estimator_code_hashes else ""
         ),
+        estimator_binding_errors=runtime_estimator_binding_errors,
         estimator_runtime_failure_ids=estimator_runtime_failure_ids,
         estimator_runtime_errors=estimator_runtime_errors,
     )

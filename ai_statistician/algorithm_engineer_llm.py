@@ -264,6 +264,8 @@ def build_algorithm_engineer_prompt(
             "algorithm artifact. Define a domain-general JSON ABI entrypoint "
             "run_estimator(request) returning a named JSON-finite object, and make "
             "run_sandbox exercise that same function for smoke diagnostics. The "
+            "estimator and sandbox functions must both be module-level callable "
+            "exports. The "
             "request and response semantics are owned by the supplied TheoryDeveloper "
             "estimator_interface_contract. Implement every field exactly and do not "
             "rename, rescale, or redefine it during a code revision. AgentRuntime binds "
@@ -544,8 +546,9 @@ def _algorithm_engineer_output_contract(*, requires_generated_code: bool) -> dic
                 ),
                 "entrypoint": "run_sandbox",
                 "code": (
-                    "def run_sandbox(seed: int, replicates: int) -> dict:\n"
-                    "    return {'sandbox_failed': False}"
+                    "complete Python or R source with module-level exported "
+                    "run_estimator(request) and run_sandbox(seed, replicates); "
+                    "run_sandbox exercises the exported estimator"
                 ),
             }
         ]

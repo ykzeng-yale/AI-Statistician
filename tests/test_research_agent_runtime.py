@@ -26627,6 +26627,7 @@ def test_algorithm_engineer_uses_structured_execution_envelope_for_anthropic() -
 
     request = backend.requests[0]
     assert request.metadata["provider_structured_output"] is True
+    assert "module-level callable exports" in request.user_prompt
     assert request.schema["properties"]["metric_contracts"]["maxItems"] == 0
     target_schema = request.schema["properties"]["implementation_targets"][
         "items"
@@ -44993,8 +44994,12 @@ def test_capability_runtime_executes_algorithm_without_empirical_contract(
                         "language": "python",
                         "entrypoint": "run_sandbox",
                         "code": (
+                            "def run_estimator(request: dict) -> dict:\n"
+                            "    return {'metric': float(request['seed'])}\n"
+                            "\n"
                             "def run_sandbox(seed: int, replicates: int) -> dict:\n"
-                            "    return {'metric': 1.0, 'replicates': "
+                            "    result = run_estimator({'seed': seed})\n"
+                            "    return {'metric': result['metric'], 'replicates': "
                             "int(replicates), 'seed': int(seed)}\n"
                         ),
                     }
@@ -45050,6 +45055,7 @@ def test_capability_runtime_executes_algorithm_without_empirical_contract(
     assert manifest["n_passed"] == 1
     assert manifest["n_typed_metric_contracts_evaluated"] == 0
     assert prototype["prototype_status"] == "EXECUTED"
+    assert prototype["required_callable_exports"] == ["run_estimator"]
     assert prototype["metric_contracts"] == []
     assert any(
         tool_call.tool_name == "python.generated_algorithm_sandbox"
@@ -47497,13 +47503,16 @@ def test_algorithm_engineer_ignores_self_authored_statistical_gate(
                         "language": "python",
                         "entrypoint": "run_sandbox",
                         "code": (
-                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "def run_estimator(request: dict) -> dict:\n"
                             "    return {\n"
                             "        'sandbox_failed': False,\n"
                             "        'empirical_coverage': 0.0,\n"
                             "        'mean_width': 1.0,\n"
-                            "        'replicates': int(replicates),\n"
+                            "        'replicates': int(request['replicates']),\n"
                             "    }\n"
+                            "\n"
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    return run_estimator({'replicates': replicates})\n"
                         ),
                     }
                 ],
@@ -47922,9 +47931,14 @@ def test_algorithm_engineer_regenerates_instead_of_refreshing_legacy_metric_gate
                         "language": "python",
                         "entrypoint": "run_sandbox",
                         "code": (
-                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "def run_estimator(request: dict) -> dict:\n"
                             "    return {'sandbox_failed': False, "
-                            "'replicates': int(replicates), 'estimate': seed % 7}\n"
+                            "'replicates': int(request['replicates']), "
+                            "'estimate': request['seed'] % 7}\n"
+                            "\n"
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    return run_estimator({'seed': seed, "
+                            "'replicates': replicates})\n"
                         ),
                     }
                 ],
@@ -48209,9 +48223,9 @@ def test_algorithm_success_routes_to_required_generated_simulation_before_formal
                         "language": "python",
                         "entrypoint": "run_sandbox",
                         "code": (
-                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
-                            "    n = max(5, int(replicates))\n"
-                            "    state = int(seed) % (2**31)\n"
+                            "def run_estimator(request: dict) -> dict:\n"
+                            "    n = max(5, int(request['replicates']))\n"
+                            "    state = int(request['seed']) % (2**31)\n"
                             "    covered = 0\n"
                             "    width_total = 0.0\n"
                             "    for i in range(n):\n"
@@ -48224,6 +48238,10 @@ def test_algorithm_success_routes_to_required_generated_simulation_before_formal
                             "        'mean_width': width_total / n,\n"
                             "        'replicates': n,\n"
                             "    }\n"
+                            "\n"
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    return run_estimator({'seed': seed, "
+                            "'replicates': replicates})\n"
                         ),
                     }
                 ],
@@ -48727,6 +48745,158 @@ def test_simulation_evaluator_revises_after_nonexecutable_generated_simulation_c
         "forbidden in the isolated runtime: os" in row
         for row in feedback["generated_simulation_prototypes"][0]["safety_errors"]
     )
+
+
+def test_simulation_returns_algorithm_dependency_failure_directly_to_source_agent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[1]
+    theory_packet_id = "theory:consumer-source-owner"
+    theory_packet = _structured_theory_packet_fixture(theory_packet_id)
+    algorithm_source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    def run_estimator(request):\n"
+        "        return {'estimate': request['value']}\n"
+        "    return run_estimator({'value': seed})\n"
+    )
+    algorithm_manifest_id = "algorithm:consumer-source-owner"
+    algorithm_manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": algorithm_manifest_id,
+        "boundary": "algorithm execution is not proof evidence",
+        "prototypes": [
+            {
+                "estimator_id": "EST1",
+                "executor": "generated_python_sandbox",
+                "prototype_status": "EXECUTED",
+                "source_code": algorithm_source,
+                "script_hash": runtime_module.stable_hash(algorithm_source),
+                "smoke_passed": True,
+            }
+        ],
+    }
+    handoff = {
+        "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+        "exact_algorithm_artifacts": [
+            {
+                "estimator_id": "EST1",
+                "language": "python",
+                "dependencies": [],
+                "exact_source_code": algorithm_source,
+                "exact_source_hash": runtime_module.stable_hash(
+                    algorithm_source
+                ),
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_validated_algorithm_handoff",
+        lambda **_kwargs: handoff,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_implementation_gaps",
+        lambda *_args, **_kwargs: [
+            {
+                "estimator_id": "EST1",
+                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            }
+        ],
+    )
+
+    class ConsumerSimulationEngineer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            return {
+                "packet_id": "simulation:consumer-source-owner",
+                "simulation_code_drafts": [
+                    {
+                        "simulation_id": "consumer-probe",
+                        "required_estimator_ids": ["EST1"],
+                        "language": "python",
+                        "execution_profile": "stdlib",
+                        "dependencies": [],
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed, replicates, estimators):\n"
+                            "    return estimators['EST1']({'value': seed})\n"
+                        ),
+                    }
+                ],
+                "metric_contracts": [],
+            }
+
+    result = SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=ConsumerSimulationEngineer(),  # type: ignore[arg-type]
+        sandbox_root=tmp_path / "consumer-source-owner",
+    ).run(
+        AgentTask(
+            task_id="simulation:consumer-source-owner",
+            owner_subsystem="SimulationEvaluator",
+            objective="Execute the accepted algorithm in a generated consumer.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+                "n_runs": 5,
+                "seed": 7,
+                "architect_context": {
+                    "confirmatory_simulation_requires_accepted_algorithm_handoff": (
+                        True
+                    ),
+                    "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+                    "upstream_algorithm_handoff": handoff,
+                },
+            },
+        ),
+        BlackboardState(
+            project_id="consumer-source-owner",
+            artifacts={
+                theory_packet_id: theory_packet,
+                algorithm_manifest_id: algorithm_manifest,
+            },
+        ),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.failure_classification == (
+        "accepted_algorithm_estimator_abi_failed"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["feedback_type"] == "algorithm_sandbox_execution_feedback"
+    assert feedback["prototypes"][0]["parent_source"] == algorithm_source
+    assert feedback["prototypes"][0]["parent_source_complete"] is True
+    raw_observation = feedback["consumer_execution_observation"][
+        "generated_simulation_prototypes"
+    ][0]
+    assert raw_observation["estimator_binding_errors"]
+    assert "ACCEPTED_ESTIMATOR_BINDING_ERROR: EST1" in (
+        raw_observation["estimator_binding_errors"][0]
+    )
+    assert feedback["runtime_selected_source_edit"] is False
+    assert not any(
+        "required_repair" in json.dumps(value)
+        for value in feedback.values()
+    )
+    prompt = build_algorithm_engineer_prompt(
+        question=question,
+        theory_packet=theory_packet,
+        simulation_manifest=next(
+            artifact
+            for artifact in result.produced_artifacts.values()
+            if artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+        ),
+        implementation_gaps=[{"estimator_id": "EST1"}],
+        environment_feedback=feedback,
+    )
+    assert "return {'estimate': request['value']}" in prompt
+    assert "ACCEPTED_ESTIMATOR_BINDING_ERROR: EST1" in prompt
+    assert "AgentRuntime does not propose edits" in prompt
 
 
 def test_simulation_evaluator_agentic_authority_revises_when_draft_omitted(

@@ -1,11 +1,11 @@
 {
   "schema_version": 4,
-  "updated_at": "2026-08-09T10:31:55Z",
+  "updated_at": "2026-08-09T11:27:48Z",
   "role": "main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "main_objective": "Build and honestly evaluate one general LLM-driven statistical research loop that derives theory, generates and executes scientific code, uses task-bound formal RAG, iterates against real environment feedback, and closes exact intended Lean theorems across unrelated task families.",
-  "current_lane": "Keep source authoring model-owned while making the environment loop genuinely iterative: one model-selected action per turn, exhausted tools hidden, raw compiler feedback preserved, and all live formal-source providers backed by indexed retrieval.",
+  "current_lane": "Keep Python, R, and Lean source authoring model-owned while reducing the harness to real tool execution, immutable artifact lineage, raw observations, resource budgets, and evidence gates. Stable consumer interfaces are checked by the target language runtime; failures return to the source-producing model without runtime-authored edits or issue-specific repair recipes.",
   "canonical_authoring_contract": {
     "model_responsibility": "The source-producing LLM receives the exact current source, immutable target identity, raw compiler or sandbox output, semantic-review observations, and model-selected retrieval results. It chooses the next action and authors every byte of the next complete source artifact.",
     "runtime_responsibility": "Runtime executes model-requested tools, returns observations, binds exact source hashes, enforces resource and lineage budgets, persists checkpoints, and applies independent semantic and kernel evidence gates.",
@@ -24,31 +24,31 @@
     "tests_and_evaluations": "claude-haiku-4-5-20251001 exactly",
     "production_maximum_tier": "sonnet",
     "opus_allowed": false,
-    "latest_live_topology": "The interrupted v308 development diagnostic used Anthropic claude-haiku-4-5-20251001 throughout; no Sonnet or Opus call was configured."
+    "latest_live_topology": "The completed v310 two-family development evaluation used Anthropic claude-haiku-4-5-20251001 exactly for every model role; no Sonnet or Opus call was configured."
   },
   "current_readiness": {
     "ready_for_full_ai_statistician": false,
     "development_exact_theorem_closure": "0/2",
     "held_out_panel": "sealed",
-    "latest_capability_score": "83/121 overall and 39/66 integrated requirements passed",
+    "latest_capability_score": "90/121 overall and 46/66 integrated requirements passed",
     "interpretation": "The evidence boundary and orchestration contracts are substantial, but no fresh development task currently completes theory, generated computation, formal RAG, iterative Lean feedback, and exact source-theorem kernel closure."
   },
   "latest_full_live_development_eval": {
-    "run": "runs/main_worker_cross_family_development_20260808_v305_plan_consistent_model_aci_exact_haiku",
+    "run": "runs/main_worker_cross_family_development_20260809_v310_sequential_tools_indexed_rag_exact_haiku",
     "status_counts": {
-      "BLOCKED": 2
+      "MAX_ITERATIONS_REACHED": 2
     },
-    "survival_result": "The right-censored survival task produced three bounded TheoryDeveloper candidates and stopped after 10 iterations at the independent theory/execution preflight. It did not reach coding, simulation, Formalizer, or Lean.",
-    "sequential_result": "The sequential task reached 15 iterations. The Architect honored its proof_first plan and scheduled FormalizationEvaluator before empirical work. Formalizer emitted a complete Lean source; local Lean and one live Lean-LSP/MCP request returned exact diagnostics; independent target review returned REVISE; Architect routed the same ProofEngineer into the model-controlled authoring session. Haiku authored and checked multiple distinct complete Lean sources, but no source compiled and the bounded session failed closed.",
-    "proof_result": "0 kernel-verified subclaims, 0 exact source theorems, and 2 open formal gaps.",
+    "survival_result": "The survival task generated and sandboxed multiple algorithm and simulation candidates, but the accepted algorithm exposed run_estimator only inside run_sandbox. Its standalone smoke passed while the real downstream module consumer could not bind the required export. The loop repeatedly crossed SimulationEvaluator, Architect, and AlgorithmEngineer and exhausted 24 iterations.",
+    "sequential_result": "The unrelated sequential task reproduced the same algorithm module-export defect, confirming a shared source/environment contract failure. It later reached FormalizationEvaluator and independent target review, but stopped after 24 iterations with the next ProofEngineer task pending and no theorem closure.",
+    "proof_result": "0 kernel-verified subclaims, 0 exact source theorems, and 5 open formal gaps.",
     "legacy_paths": "No exact-semantic legacy post-runtime fallback or source-theorem-promotion legacy fallback ran.",
-    "capability_result": "83/121 overall checks and 39/66 integrated checks passed; capability_ready_for_full_ai_statistician=false."
+    "capability_result": "90/121 overall checks and 46/66 integrated checks passed; capability_ready_for_full_ai_statistician=false. Seven algorithm sandbox executions and one generated simulation execution do not substitute for a complete per-task evidence lineage."
   },
   "current_code_correction": {
-    "problem": "In v308, Haiku received the raw missing-module error and eventually authored a complete source that removed the nonexistent import. Parallel tool calls had already spent the search budget on one turn and counted two rejected searches against the global call cap, so the loop stopped after the final source replacement but before its remaining local Lean check.",
-    "change": "The canonical Lean workspace now disables parallel tool use, exposes only actions whose per-tool budget remains, and uses the bounded turn budget as call-budget headroom. The model still chooses every search, complete-source replacement, and check; runtime adds no diagnosis or source edit.",
-    "deterministic_replay": "Focused scripted replay verifies that once search is exhausted it disappears from the next model request, a final source replacement is followed by a check-only turn, and the exact source hash remains bound to the compiler result.",
-    "non_claim": "This does not teach a Lean import, grammar rule, tactic, or theorem answer. It only prevents the execution harness from consuming the model's final feedback opportunity.",
+    "problem": "In v310, both survival and sequential AlgorithmEngineer candidates could pass standalone run_sandbox smoke execution while hiding the reusable run_estimator entrypoint inside that function. The downstream simulation correctly failed to load the accepted artifact, but the failure was repeatedly sent through the simulation and Architect loop instead of returning directly to the source owner.",
+    "change": "The scientific sandbox now asks Pyodide or WebR to load generated source in an isolated module environment and verify the stable callable exports required by its consumer. AlgorithmEngineer requires the run_estimator export before semantic acceptance. A downstream failure mechanically attributed to an immutable algorithm artifact returns its complete source and raw consumer observation directly to the same AlgorithmEngineer for complete-source regeneration.",
+    "deterministic_replay": "Focused tests execute the real Pyodide loader, reject a nested-only estimator export, retain the exact parent source and error text, and verify the SimulationEvaluator-to-AlgorithmEngineer owner handoff. No new repair-agent type or source-transform helper is used.",
+    "non_claim": "This defines and executes a general module ABI; it does not diagnose how to edit source, encode a statistical answer, or add a Python/R corner-case recipe. Passing this gate is engineering evidence only and does not establish simulation validity or theorem proof.",
     "exact_haiku_mechanism_smoke": "runs/main_worker_lean_revision_loop_smoke_20260809_v309_exact_haiku used claude-haiku-4-5-20251001 exactly. The model first requested a real Lean check, received the raw nonexistent-module diagnostic, authored one complete replacement source, and requested a second check. The exact new source compiled and its declaration/axiom identity probe passed. Runtime authored no source bytes and supplied no fix. This is mechanism smoke, not statistical-theory or theorem-closure capability evidence."
   },
   "orchestration_lineage_correction": {
@@ -65,12 +65,11 @@
     "run_disposition": "v307 was intentionally terminated at the first contaminated route and is not counted as a completed capability evaluation."
   },
   "latest_diagnostic_run": {
-    "run": "runs/main_worker_cross_family_development_20260809_v308_source_only_preflight_exact_haiku",
-    "disposition": "Intentionally interrupted after survival completed BLOCKED and sequential reached iteration 10; no panel manifest or capability success is claimed.",
-    "positive_evidence": "The source-only preflight no longer created reviewer-owned empirical results. Survival reached FormalizationEvaluator, consumed source-grounded RAG, produced model-owned complete Lean candidates, received raw local Lean observations, and resumed the same ProofEngineer from a hash-bound complete-source checkpoint.",
-    "tool_loop_failure": "The final model checkpoint had removed the nonexistent Mathlib.MeasureTheory.Integral.Lebesgue import, but prior parallel and rejected tool calls exhausted the global call budget before that source could be checked.",
-    "retrieval_failure": "Sequential then spent minutes inside the in-memory FormalSourceRetriever before the already-indexed shared provider ran. Sampling confirmed a full declaration scan, so the run was stopped instead of wasting more exact-Haiku budget.",
-    "environment_correction": "lake exe cache get reported the pinned mathlib cache complete. The referenced Lebesgue module has no source file in the pinned mathlib tree, so this was a model-source error correctly returned by Lean, not an unbuilt-environment error and not a reason for a runtime import rule."
+    "run": "runs/main_worker_cross_family_development_20260809_v310_sequential_tools_indexed_rag_exact_haiku",
+    "disposition": "Completed fresh two-family exact-Haiku development evaluation; both tasks exhausted the 24-iteration bound, so no capability success is claimed and the held-out panel remains sealed.",
+    "shared_failure": "Both task families exposed the same generated-module consumer ABI defect: standalone smoke execution did not verify the reusable estimator export required by downstream simulation.",
+    "formalizer_observation": "Sequential reached independent formal target review. The reviewer treated incomplete proof bodies and uncertain library API availability as reasons to revise a mathematically sound target statement. Statement-semantic alignment and proof-completeness/tool diagnostics remain conflated and must be separated as a general reviewer contract, not patched with theorem-specific rules.",
+    "evidence": "The audit records 90/121 total and 46/66 integrated checks, 0 kernel-verified subclaims, 5 formal gaps, and 0/2 complete fresh-start task lineages."
   },
   "formal_rag_foundation": {
     "active_project": "ykzeng-yale/EmpericalProcessLEAN at b6bf3940",
@@ -84,17 +83,18 @@
   "remaining_design_debt": [
     "The 100k-line research_agent_runtime.py and its historical post-runtime fields still expose too much legacy conceptual surface even when fresh evaluation disables those paths.",
     "The formal authoring session is still whole-source oriented; a mature tactic-state action provider and trained LeanDojo/ReProver-style policy remain absent.",
-    "The source-only preflight no longer owns a coding tool, but exact-Haiku reviewer judgments can still overstate theory defects; this must be measured through source citations and downstream evidence rather than corrected with task-specific rules.",
+    "Independent formal target review currently conflates statement semantics with proof completion and library API uncertainty; these evidence dimensions need separate outputs and owners without a deterministic verdict override.",
     "No development task has reached exact source-theorem kernel closure, so held-out PCA and extremes remain sealed."
   ],
   "next_main_worker_actions": [
-    "Run a bounded exact-Haiku same-model Lean-loop regression, then one fresh development panel after the sequential tool and indexed-RAG changes; inspect only cross-task mechanism failures.",
+    "Commit the real module-export/owner-feedback correction, then run one fresh exact-Haiku development panel and inspect only cross-task mechanism failures.",
+    "If the coding/simulation ABI closes, separate formal statement-semantic review from proof-completeness and tool-availability observations through the existing LLM reviewer contract, without theorem-specific rules.",
     "Continue retiring legacy repair executors and post-runtime orchestration from production reachability instead of wrapping them in another interface.",
     "Keep the held-out panel sealed until both development tasks reach exact target-bound kernel closure."
   ],
   "verification": {
     "runtime_regression": "All 1164 collected nodes in tests/test_research_agent_runtime.py were covered across deterministic ordered segments; this is not represented as one monolithic pytest run. The static CLI integration node was rerun after final fixture cleanup and passed in 96.81 seconds.",
-    "focused_regression": "130 focused deterministic tests passed after the v308 corrections: 27 client-tool/Lean-loop/formal-source topology tests, 73 formal-source/index and source-only-preflight tests, 29 non-live model-backend tests, and the changed runtime failure-lineage test. Python compilation and git diff checks pass; ruff is not installed in the workspace environment.",
+    "focused_regression": "The current module-ABI correction passes 31 focused runtime owner/feedback/prompt tests and all 27 scientific sandbox tests, including real Pyodide export and bound-consumer failures. Python compilation, Node syntax, and git diff checks pass.",
     "exact_haiku_authoring_smoke": "v309 completed in three model-selected tool turns: check -> complete-source replacement -> check. It used claude-haiku-4-5-20251001 exactly, compiled the final source, verified the bound declaration with no untrusted axioms, and is labeled mechanism_smoke_not_capability_evidence.",
     "model_policy_regression": "31 model-backend tests and 5 selected runtime evaluation-policy cases passed; actual Anthropic evaluation calls are pinned to claude-haiku-4-5-20251001 and Opus is rejected.",
     "formal_rag_regression": "EmpericalProcessLEAN lean_rag tests: 64 passed. AI provider tests: 15 passed. The upstream shared query returns in 0.09 seconds; the newly wired fused runtime query returns five hits in 1.1 seconds after one 5.4-second index initialization.",

@@ -16262,6 +16262,132 @@ class SimulationEvaluatorRuntimeSubsystem:
                 boundary=SIMULATION_NOT_PROOF_BOUNDARY,
                 failure_classification=generated_simulation_failure_classification,
             )
+            algorithm_dependency_failed = bool(
+                n_generated_simulation_estimator_binding_failed > 0
+                or n_generated_simulation_estimator_runtime_failed > 0
+            )
+            source_algorithm_manifest_id = str(
+                upstream_algorithm_handoff.get(
+                    "algorithm_sandbox_manifest_id", ""
+                )
+                or ""
+            )
+            source_algorithm_manifest = blackboard.artifacts.get(
+                source_algorithm_manifest_id, {}
+            )
+            if (
+                algorithm_dependency_failed
+                and source_algorithm_manifest_id
+                and isinstance(source_algorithm_manifest, Mapping)
+                and source_algorithm_manifest
+            ):
+                algorithm_feedback = _algorithm_sandbox_revision_feedback(
+                    manifest=source_algorithm_manifest,
+                    boundary=str(
+                        source_algorithm_manifest.get("boundary", "")
+                        or SIMULATION_NOT_PROOF_BOUNDARY
+                    ),
+                    failure_classification=(
+                        generated_simulation_failure_classification
+                    ),
+                )
+                algorithm_feedback["consumer_execution_observation"] = feedback
+                algorithm_feedback["runtime_selected_source_edit"] = False
+                algorithm_feedback["feedback_id"] = (
+                    "algorithm_sandbox_execution_feedback:"
+                    + stable_hash(algorithm_feedback)[:20]
+                )
+                revision_context = dict(effective_context)
+                revision_context["simulation_manifest_id"] = manifest_id
+                revision_context["algorithm_sandbox_manifest_id"] = (
+                    source_algorithm_manifest_id
+                )
+                prior_algorithm_attempts = (
+                    _runtime_algorithm_engineer_candidate_regenerations_used(
+                        effective_context,
+                        theory_packet_id=packet_id,
+                    )
+                )
+                revision_context["runtime_feedback_loop"] = {
+                    **(
+                        dict(
+                            revision_context.get("runtime_feedback_loop", {})
+                        )
+                        if isinstance(
+                            revision_context.get("runtime_feedback_loop", {}),
+                            Mapping,
+                        )
+                        else {}
+                    ),
+                    "source_subsystem": "AlgorithmEngineer",
+                    "handoff": "algorithm_sandbox_execution_feedback",
+                    "algorithm_engineer_generated_code_repair_attempts_used": (
+                        prior_algorithm_attempts + 1
+                    ),
+                    "algorithm_engineer_generated_code_repair_theory_packet_id": (
+                        packet_id
+                    ),
+                }
+                next_task = AgentTask(
+                    task_id=(
+                        f"algorithm-consumer-observation:{question.id}:"
+                        f"{stable_hash(algorithm_feedback)[:8]}"
+                    ),
+                    owner_subsystem="AlgorithmEngineer",
+                    objective=(
+                        "Regenerate the complete algorithm packet from its exact "
+                        "source and raw execution observation."
+                    ),
+                    inputs={
+                        "question": _question_to_payload(question),
+                        "theory_packet_id": packet_id,
+                        "simulation_manifest_id": manifest_id,
+                        "implementation_gaps": implementation_gaps,
+                        "n_runs": n_runs,
+                        "seed": seed,
+                        "architect_context": revision_context,
+                        "environment_feedback": algorithm_feedback,
+                    },
+                    allowed_tools=("python", "filesystem_sandbox"),
+                    expected_artifacts=_architect_expected_artifacts(
+                        context,
+                        "AlgorithmEngineer",
+                        ("algorithm_sandbox_manifest",),
+                    ),
+                    acceptance_gate=_architect_acceptance_gate(
+                        context,
+                        "AlgorithmEngineer",
+                        "regenerated algorithm source executes and exports its "
+                        "declared consumer interface",
+                    ),
+                    stop_condition="new algorithm execution observation recorded",
+                )
+                return AgentStepResult(
+                    status="REROUTE",
+                    rationale=(
+                        "A real consumer execution failed inside the accepted "
+                        "algorithm dependency, so its exact source and raw observation "
+                        "return to AlgorithmEngineer without a runtime-authored edit."
+                    ),
+                    produced_artifacts=produced_artifacts,
+                    observations=tuple(observations),
+                    tool_calls=(
+                        *registered_simulator_tool_calls,
+                        *generated_simulation_tool_calls,
+                    ),
+                    evidence_entries=tuple(
+                        row
+                        for row in (
+                            proposal_evidence,
+                            evidence,
+                        )
+                        if row is not None
+                    ),
+                    next_task=next_task,
+                    failure_classification=(
+                        generated_simulation_failure_classification
+                    ),
+                )
             yield_after_attempts = (
                 _runtime_simulation_evaluator_candidate_regeneration_limit(
                     effective_context,
@@ -16969,6 +17095,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                     n_runs=int(task.inputs.get("n_runs", self.n_runs) or self.n_runs),
                     seed=int(task.inputs.get("seed", self.seed) or self.seed),
                     timeout_s=self.timeout_s,
+                    required_callable_exports=("run_estimator",),
                 )
                 prototype["llm_algorithm_engineer_target"] = proposal_target
                 prototype_rows.append(
@@ -100169,7 +100296,6 @@ def _generated_simulation_revision_feedback(
         prototypes=prototypes,
     )
 
-
 def _run_generated_simulation_sandbox(
     *,
     sandbox_dir: Path,
@@ -100413,6 +100539,7 @@ def _run_generated_code_sandbox(
     metric_contracts: Sequence[Mapping[str, Any]] = (),
     estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
     additional_contract_errors: Sequence[str] = (),
+    required_callable_exports: Sequence[str] = (),
 ) -> tuple[dict[str, Any], ToolCallRecord]:
     """Execute every generated draft through one isolated runtime path."""
 
@@ -100450,6 +100577,7 @@ def _run_generated_code_sandbox(
         metric_contracts=metric_contracts,
         contract_errors=contract_errors,
         estimator_bindings=estimator_bindings,
+        required_callable_exports=required_callable_exports,
     )
 
 
@@ -100466,6 +100594,7 @@ def _run_generated_scientific_sandbox(
     metric_contracts: Sequence[Mapping[str, Any]],
     contract_errors: Sequence[str] = (),
     estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
+    required_callable_exports: Sequence[str] = (),
 ) -> tuple[dict[str, Any], ToolCallRecord]:
     code = str(code_draft.get("code", "") or "")
     language = normalized_generated_code_language(code_draft.get("language"))
@@ -100512,6 +100641,7 @@ def _run_generated_scientific_sandbox(
             replicates=replicates,
             timeout_s=timeout_s,
             estimator_bindings=estimator_bindings,
+            required_callable_exports=required_callable_exports,
         )
     errors = list(contract_errors)
     if execution is not None:
@@ -100662,6 +100792,9 @@ def _run_generated_scientific_sandbox(
         "mechanical_estimator_invocation_verified": (
             mechanical_estimator_invocation_verified
         ),
+        "required_callable_exports": [
+            str(value) for value in required_callable_exports
+        ],
         "script_hash": stable_hash(code),
         "source_code": code,
         "request_hash": execution.request_hash if execution is not None else "",
@@ -100734,6 +100867,9 @@ def _run_generated_scientific_sandbox(
             "execution_profile": requested_profile,
             "dependencies": list(dependencies),
             "bound_estimator_code_hashes": expected_estimator_code_hashes,
+            "required_callable_exports": [
+                str(value) for value in required_callable_exports
+            ],
         },
         output_paths=tuple(
             path
@@ -100748,6 +100884,9 @@ def _run_generated_scientific_sandbox(
                 "language": language,
                 "dependencies": list(dependencies),
                 "bound_estimator_code_hashes": expected_estimator_code_hashes,
+                "required_callable_exports": [
+                    str(value) for value in required_callable_exports
+                ],
             }
         ),
         output_hash=stable_hash(metrics) if metrics else "",

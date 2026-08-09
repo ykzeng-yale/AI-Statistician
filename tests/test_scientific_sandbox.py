@@ -147,6 +147,42 @@ def test_scientific_runtime_unavailable_fails_closed_without_execution(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_live_standalone_source_reports_missing_callable_export(
+    tmp_path: Path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Pyodide runtime is not installed on this host")
+
+    source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    def run_estimator(request):\n"
+        "        return {'estimate': request['value']}\n"
+        "    return run_estimator({'value': seed})\n"
+    )
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="nested-estimator-export",
+        language="python",
+        code=source,
+        dependencies=[],
+        seed=7,
+        replicates=4,
+        timeout_s=60,
+        required_callable_exports=("run_estimator",),
+    )
+
+    assert result.status == "FAILED"
+    assert result.execution_attempted is True
+    assert result.required_callable_exports == ("run_estimator",)
+    assert any(
+        "generated source did not export callable run_estimator" in error
+        for error in result.errors
+    )
+    request = json.loads(Path(result.request_path).read_text(encoding="utf-8"))
+    assert request["required_callable_exports"] == ["run_estimator"]
+
+
 def test_estimator_binding_rejects_tampered_source_hash_before_execution(
     tmp_path: Path,
 ) -> None:
@@ -825,6 +861,50 @@ def test_live_estimator_bound_simulation_invokes_exact_reviewed_source(
     assert result.estimator_code_hashes == {"candidate": stable_hash(algorithm)}
     assert result.estimator_invocation_counts == {"candidate": 1}
     assert result.estimator_binding_hash == stable_hash(result.estimator_code_hashes)
+
+
+def test_live_estimator_bound_reports_nested_export_as_binding_failure(
+    tmp_path: Path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Pyodide runtime is not installed on this host")
+    algorithm = (
+        "def run_sandbox(seed, replicates):\n"
+        "    def run_estimator(request):\n"
+        "        return {'estimate': request['value']}\n"
+        "    return run_estimator({'value': seed})\n"
+    )
+    simulation = (
+        "def run_sandbox(seed, replicates, estimators):\n"
+        "    return estimators['candidate']({'value': seed})\n"
+    )
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="bound-nested-export",
+        language="python",
+        code=simulation,
+        dependencies=[],
+        seed=7,
+        replicates=5,
+        timeout_s=60,
+        estimator_bindings=(
+            ScientificEstimatorBinding(
+                artifact_id="candidate",
+                language="python",
+                code=algorithm,
+                code_hash=stable_hash(algorithm),
+            ),
+        ),
+    )
+
+    assert result.status == "FAILED"
+    assert result.estimator_runtime_failure_ids == ()
+    assert len(result.estimator_binding_errors) == 1
+    assert "ACCEPTED_ESTIMATOR_BINDING_ERROR: candidate" in (
+        result.estimator_binding_errors[0]
+    )
 
 
 def test_live_estimator_bound_python_normalizes_numpy_callback_values(
