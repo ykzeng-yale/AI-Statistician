@@ -519,6 +519,7 @@ _OPERATOR_DOTENV_FILENAMES = (
 FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS = 24
 RESEARCH_EVAL_MIN_AGENT_RUNTIME_ITERATIONS = 24
 MINIMAL_LIVE_FORMALIZER_LEAN_REVISION_MAX_ATTEMPTS = 3
+FULL_LIVE_FORMALIZER_LEAN_REVISION_MAX_ATTEMPTS = 3
 LIVE_EVALUATION_MIN_ARCHITECT_MAX_TOKENS = 8000
 LIVE_EVALUATION_MIN_METRIC_REVIEWER_MAX_TOKENS = 16000
 LIVE_EVALUATION_MIN_SERIOUS_THEORY_MAX_TOKENS = 16000
@@ -14320,7 +14321,9 @@ def _apply_research_agent_runtime_capability_eval_preset(
             )
             <= 0
         ):
-            args.formalizer_lean_candidate_revision_max_attempts = 1
+            args.formalizer_lean_candidate_revision_max_attempts = (
+                FULL_LIVE_FORMALIZER_LEAN_REVISION_MAX_ATTEMPTS
+            )
         if (
             int(
                 getattr(
@@ -22205,11 +22208,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=0,
         help=(
-            "in capability-eval, end the local AlgorithmEngineer repair budget "
-            "after this many attempts; source-owned execution failures receive a "
-            "bounded theory-lineage repair dispatch before typed BLOCKED, while "
-            "cross-subsystem failures yield to ArchitectCoordinator; 0 keeps the "
-            "legacy unbounded self-repair routing"
+            "in capability-eval, let the same AlgorithmEngineer regenerate its "
+            "complete model-authored candidate from exact execution observations for "
+            "this many failed rounds; when exhausted, return the unchanged source and "
+            "observations to the Architect model without runtime diagnosis or edits. "
+            "The legacy option name is retained for command compatibility; 0 keeps "
+            "unbounded same-producer regeneration"
         ),
     )
     research_agent_runtime.add_argument(
@@ -22217,11 +22221,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=0,
         help=(
-            "in capability-eval, route unresolved SimulationEvaluator "
-            "generated-simulation diagnostics after this many self-repair "
-            "attempts: open implementation gaps go to AlgorithmEngineer before "
-            "FormalizationEvaluator, otherwise formalization proceeds directly; "
-            "0 keeps the legacy unbounded self-repair routing"
+            "in capability-eval, let the same SimulationEvaluator regenerate its "
+            "complete model-authored candidate from exact execution and metric "
+            "observations for this many failed rounds; when exhausted, return the "
+            "unchanged source and observations to the Architect model without runtime "
+            "diagnosis or edits. The legacy option name is retained for command "
+            "compatibility; 0 keeps unbounded same-producer regeneration"
         ),
     )
     research_agent_runtime.add_argument(
@@ -22236,7 +22241,9 @@ def build_parser() -> argparse.ArgumentParser:
             "in capability-eval, let the same ProofEngineer regenerate complete "
             "Lean source for this many failed rounds, then route the unchanged "
             "source and exact Lean observations to ArchitectCoordinator for a "
-            "typed replan; 0 keeps unbounded same-agent revision routing"
+            "typed replan. This is a model-owned compile-feedback-regenerate loop, "
+            "not a runtime source-repair tool; 0 keeps unbounded same-agent revision "
+            "routing"
         ),
     )
     research_agent_runtime.add_argument(
@@ -22353,11 +22360,13 @@ def build_parser() -> argparse.ArgumentParser:
             "populate strict live capability-eval defaults without weakening "
             "the scorecard gates. minimal-live enables live providers and the "
             "internal Lean/ProofEngineer paths; full-live requires at least two "
-            "task families and enables the integrated generated-code repair, "
+            "task families and enables producer-owned execution-feedback "
+            "regeneration for generated code, "
             "Formalizer/Lean feedback, live Lean-LSP/MCP, verifier-backed "
-            "OpenProver whole-theorem search, PF/BV runtime, and bounded "
-            "FormalizationGapPlanner fallback paths. Optional standalone "
-            "component calibration remains separate. "
+            "OpenProver whole-theorem search, and PF/BV runtime support. Legacy "
+            "repair executors, standalone side evals, proof bridges, and "
+            "post-runtime formal fallbacks remain disabled. Optional standalone "
+            "component calibration is separate from this preset. "
             "Static fixtures never become capability evidence."
         ),
     )

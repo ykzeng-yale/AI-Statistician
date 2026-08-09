@@ -37,6 +37,8 @@ edit, choose a theorem-family fix, or supply grammar and tactic recipes.
 Architect feedback routing receives raw observations and only allowlisted
 control-plane state (artifact identities, progress, phase, and lineage budget).
 Legacy runtime-authored replan prose is not forwarded as model guidance.
+Runtime-authored `*_cli` command recipes are likewise removed from producer-facing
+observations; artifact paths, hashes, targets, and raw tool output remain available.
 Large parsed stdout and per-replicate result bodies stay intact in the immutable
 execution manifest instead of being duplicated into the next prompt. The
 producer receives their artifact paths and hashes, complete parent source, raw
@@ -58,21 +60,73 @@ The canonical product loop is deliberately small:
    identifiability, executable observation semantics, and declared scope. A
    blocking mathematical objection must be source-grounded and can be rebutted;
    this is not theorem peer review and does not freeze confirmatory metrics.
-3. AlgorithmEngineer turns that theory artifact into executable Python or R;
-   sandbox execution and an independent semantic reviewer accept implementation
-   fidelity, not finite-sample statistical performance.
-4. Architect freezes the smallest sufficient confirmatory experiment protocol
+3. Preflight acceptance returns to the same Architect model, which chooses the
+   next existing evidence-producing subsystem from the current plan and the
+   `simulation_first`, `proof_first`, or `dual_track` policy. Runtime does not
+   impose an empirical-first order or invent a new repair owner. One route
+   materializes one task; there is no hidden background lane, so `proof_first`
+   must actually schedule formalization before empirical work rather than merely
+   describing the two as parallel.
+4. On an empirical lane, AlgorithmEngineer turns the theory artifact into
+   executable Python or R; sandbox execution and an independent semantic
+   reviewer accept implementation fidelity, not finite-sample performance.
+5. Architect freezes the smallest sufficient confirmatory experiment protocol
    after the algorithm artifact exists but before confirmatory results exist.
-5. SimulationEngineer designs DGPs and stress tests around the accepted algorithm
-   artifact. Fresh execution supplies observations; after the producer's bounded
-   regeneration budget, the Architect model chooses the next existing evidence
-   owner. Runtime does not classify the substantive defect.
-6. Formalizer/ProofEngineer and formal RAG progress in parallel under claim-level
-   required/optional/advisory policy. Only Lean/AXLE/kernel evidence proves a
-   theorem, and an open formal gap does not stop unrelated research work.
+   SimulationEngineer then designs DGPs and stress tests. Fresh execution
+   supplies observations; after the producer's bounded regeneration budget, the
+   Architect model chooses the next existing evidence owner.
+6. On a formal lane, Formalizer/ProofEngineer and formal RAG may start directly
+   from the accepted theory artifact; they do not require prior simulation or
+   algorithm artifacts. Only Lean/AXLE/kernel evidence proves a theorem, and an
+   open formal gap does not stop unrelated research work.
 7. AgentRuntime owns typed transport, execution, hashes, budgets, permissions,
    scheduling, and evidence labels. It does not own statistical formulas,
    expected answers, task-family thresholds, Lean grammar, or tactics.
+
+The formal lane has no canonical repair agent. The independent formal-target
+reviewer judges statement semantics only; missing library lemmas, unresolved proof
+goals, parser/elaborator output, and incomplete candidate source remain observations
+for the same Formalizer/ProofEngineer unless they expose a genuine mathematical
+target defect. In `full-live`, that producer receives up to three direct
+compile-feedback-regenerate rounds before control returns to Architect. Each round
+must submit a complete standalone Lean file under the historical
+`lean_statement_sketch` field, including model-selected imports and proof term.
+AgentRuntime writes and checks those exact bytes and never injects imports or edits
+the candidate. A hash-bound target with either an independent `ACCEPT` or `REVISE`
+observation may enter the same producer-owned search/edit/check loop; `ACCEPT` does
+not mean proved, and `REVISE` does not authorize runtime correction. Any changed
+source receives a fresh independent semantic review before prover search, then must
+pass the normal runtime-owned kernel gate before it can count as proof evidence.
+
+The client-tool surface is therefore an authoring environment, not a repair
+algorithm. The model chooses each retrieval query and supplies every complete source
+replacement. `check_lean_source` returns the unmodified Lean output for the exact
+current hash. A successful model-requested check directly records the candidate
+handoff to independent semantic review; there is no redundant submit tool. A bounded
+outer retry resumes the newest hash-validated, model-owned source
+checkpoint rather than silently returning to the original candidate. Prior tool
+transcripts remain in the immutable ledger; the next prompt carries the current
+source once, the active raw diagnostics, semantic-review findings, target identity,
+and compact artifact references. This keeps the feedback loop direct without asking
+Python middleware to interpret or fix Lean.
+
+Feedback-round budgets belong to immutable candidate/theory lineage and survive an
+Architect replan. If the Architect model sends the same lineage back to the same
+reviewer or producer, AgentRuntime advances that lineage's round instead of resetting
+a local counter; this prevents a hidden review/replan cycle without choosing the
+model's next route.
+
+Declaration identity is decided by an active-project Lean probe. A literal qualified
+name appearing in source text is only an optional line-location hint for LSP; it is
+not an acceptance gate, because ordinary namespace syntax need not contain the fully
+qualified declaration string.
+
+Historical commands and manifest fields containing `repair` remain compatibility
+surfaces for old component experiments. They are forbidden in fresh cross-family
+evaluation and are not part of the canonical product loop. Where a historical
+metric still says `repair attempt`, it records only a lineage-budgeted complete
+regeneration by the source-producing LLM from the prior artifact and raw environment
+observations; it never records a runtime-authored source change.
 
 This boundary follows the simple environment-feedback loop advocated in
 [Anthropic's agent guidance](https://www.anthropic.com/engineering/building-effective-agents),
@@ -436,7 +490,7 @@ expected status is `PARTIAL_LIVE_FEEDBACK_LOOP_WITH_SCOPED_AUTONOMY`: correct
 for the current auditable release scaffold, still not correct as a claim of a
 fully autonomous AI statistician.
 
-Bounded research loop:
+Legacy bounded research-loop export (compatibility/calibration only):
 
 ```bash
 python3 -m ai_statistician.cli research-loop \
@@ -446,15 +500,11 @@ python3 -m ai_statistician.cli research-loop \
   --out runs/research_loop
 ```
 
-This writes `research_loop_manifest.json`, one trace per question, and
-`research_loop_repair_tasks.jsonl`. When a live handler actually executes, the
-loop also writes `research_loop_live_repair_artifacts.jsonl`, a first-class
-record of verified bridge artifacts or contract-checked theory/algorithm repair
-outputs. The repair-task JSONL turns blocked routes into agent-ready repair
-tasks with prompts, context, output contracts, and acceptance criteria. Together
-these files are the first executable bridge from `next_iteration_agenda` to live
-action, training/exportable repair work, and replayable repair artifacts. It is
-not yet full autonomous theory repair.
+This command preserves historical `research_loop_*repair*` manifests for replay
+and calibration. Those rows are not a canonical repair agent and cannot satisfy
+fresh cross-family capability evidence. The product path returns raw observations
+to the source-producing model or Architect through typed AgentRuntime tasks, as
+defined above.
 
 Goal-conditioned minimal formalization plans add a `minimal_cut_summary`,
 `route_cost_breakdown`, and route-DAG contract marker on top of the verifier
@@ -2672,7 +2722,7 @@ as their camel-case components, weights current-state overlap most strongly,
 and returns at most one transition per source theorem. Each hit records its
 module, source theorem, local states, one action, and exact-name/path premise
 resolution against the current formal-source index. Query fingerprints suppress
-unchanged retrieval on the next repair turn; a changed goal/diagnostic refreshes
+unchanged retrieval on the next authoring turn; a changed goal/diagnostic refreshes
 the packet, and a no-hit refresh removes stale transitions.
 
 This layer follows the upstream large-formalization organization instead of
@@ -2760,7 +2810,7 @@ intentionally narrows retrieval to that graph. Auto-discovery applies to both
 SQLite-backed retrieval and the lighter in-memory fallback. Kernel-extracted
 proof-state search trees and a trained LeanDojo/ReProver-style action policy
 remain future work; the AI4SLT trace retriever is a bounded state-action context
-provider inside the current LLM repair loop, not that missing autonomous search
+provider inside the current LLM authoring loop, not that missing autonomous search
 engine.
 
 Primitive-source coverage is optimized as a prioritization audit by default:

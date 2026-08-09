@@ -29,7 +29,7 @@ class LeanCandidateRevisionToolLoopResult:
 
 
 @dataclass(frozen=True)
-class AcceptedLeanCandidateRevisionBinding:
+class ReviewedLeanCandidateRevisionBinding:
     materialization_id: str
     materialization: Mapping[str, Any]
     parent_packet_id: str
@@ -41,42 +41,105 @@ class AcceptedLeanCandidateRevisionBinding:
     candidate_source_hash: str
     initial_source: str
     candidate_metadata: Mapping[str, Any]
-    repair_context: Mapping[str, Any]
+    revision_context: Mapping[str, Any]
 
 
-def resolve_accepted_lean_candidate_revision_binding(
+def resolve_lean_candidate_revision_start_source(
+    *,
+    binding: ReviewedLeanCandidateRevisionBinding,
+    environment_feedback: Mapping[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    """Resume from an exact model checkpoint without changing its source bytes."""
+
+    checkpoint = environment_feedback.get("formalizer_recovery_checkpoint", {})
+    if not isinstance(checkpoint, Mapping) or not checkpoint:
+        return binding.initial_source, {
+            "resumed_from_model_checkpoint": False,
+            "reviewed_parent_source_hash": binding.candidate_source_hash,
+        }
+    errors: list[str] = []
+    if str(checkpoint.get("artifact_kind", "") or "") != (
+        "LeanCandidateRevisionRecoveryCheckpoint"
+    ):
+        errors.append("checkpoint artifact kind is not a Lean revision checkpoint")
+    if str(checkpoint.get("candidate_id", "") or "") != binding.candidate_id:
+        errors.append("checkpoint candidate id does not match reviewed lineage")
+    if str(checkpoint.get("candidate_lean_declaration", "") or "") != (
+        binding.candidate_lean_declaration
+    ):
+        errors.append("checkpoint declaration does not match reviewed lineage")
+    reviewed_parent_hash = str(
+        checkpoint.get("reviewed_parent_source_hash", "")
+        or checkpoint.get("parent_source_hash", "")
+        or ""
+    )
+    if reviewed_parent_hash != binding.candidate_source_hash:
+        errors.append("checkpoint root source hash does not match reviewed lineage")
+    source = str(checkpoint.get("current_source", "") or "")
+    source_hash = str(checkpoint.get("current_source_hash", "") or "")
+    if not source.strip() or source_hash != stable_hash(source):
+        errors.append("checkpoint current source is empty or hash-stale")
+    if len(source) > 20000:
+        errors.append("checkpoint current source exceeds the artifact-size boundary")
+    if checkpoint.get("model_owned_lean_code") is not True:
+        errors.append("checkpoint is not marked as model-owned Lean source")
+    if checkpoint.get("runtime_selected_lean_code") is not False:
+        errors.append("checkpoint permits a runtime-selected Lean source")
+    if checkpoint.get("kernel_verified") is not False:
+        errors.append("checkpoint incorrectly claims kernel verification")
+    if errors:
+        raise PacketValidationError(
+            validation_label="Lean candidate revision checkpoint lineage",
+            attempts=1,
+            errors=errors,
+            history=[],
+            recovery_checkpoint=checkpoint,
+        )
+    return source, {
+        "resumed_from_model_checkpoint": True,
+        "reviewed_parent_source_hash": binding.candidate_source_hash,
+        "resume_checkpoint_source_hash": source_hash,
+        "resume_checkpoint_transcript_fingerprint": str(
+            checkpoint.get("transcript_fingerprint", "") or ""
+        ),
+    }
+
+
+def resolve_reviewed_lean_candidate_revision_binding(
     *,
     question_id: str,
     artifacts: Mapping[str, Any],
     environment_feedback: Mapping[str, Any],
     exact_target_statement_hash: Callable[[str], str],
     target_statement_hash_algorithm: str,
-) -> AcceptedLeanCandidateRevisionBinding | None:
-    """Resolve one exact candidate and its immutable accepted-review lineage."""
+) -> ReviewedLeanCandidateRevisionBinding | None:
+    """Resolve one exact candidate and its immutable semantic-review lineage."""
 
-    repair_context = environment_feedback.get("proofengineer_repair_context", {})
-    if not isinstance(repair_context, Mapping):
+    revision_context = environment_feedback.get("proofengineer_repair_context", {})
+    if not isinstance(revision_context, Mapping):
         return None
-    accepted = bool(
-        str(environment_feedback.get("overall_verdict", "") or "").upper()
-        == "ACCEPT"
-        and str(
-            repair_context.get(
-                "formalizer_candidate_semantic_review_status",
-                "",
-            )
-            or ""
+    review_verdict = str(
+        environment_feedback.get("overall_verdict", "") or ""
+    ).upper()
+    review_status = str(
+        revision_context.get(
+            "formalizer_candidate_semantic_review_status",
+            "",
         )
-        == "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"
+        or ""
     )
-    if not accepted:
+    expected_review_status = {
+        "ACCEPT": "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE",
+        "REVISE": "INDEPENDENT_SEMANTIC_REVIEW_REVISE_NOT_PROOF_EVIDENCE",
+    }.get(review_verdict, "")
+    if not expected_review_status or review_status != expected_review_status:
         return None
 
     errors: list[str] = []
 
     def require_equal(label: str, observed: Any, expected: Any) -> None:
         if str(observed or "") != str(expected or ""):
-            errors.append(f"accepted review {label} does not match current lineage")
+            errors.append(f"semantic review {label} does not match current lineage")
 
     materialization_id = str(
         environment_feedback.get("candidate_materialization_id", "")
@@ -87,7 +150,7 @@ def resolve_accepted_lean_candidate_revision_binding(
     if not isinstance(materialization, Mapping) or str(
         materialization.get("artifact_kind", "") or ""
     ) != "RuntimeFormalizerLeanCandidateMaterialization":
-        errors.append("accepted review candidate materialization is missing")
+        errors.append("semantic review candidate materialization is missing")
         materialization = {}
 
     candidate_id = str(
@@ -100,7 +163,7 @@ def resolve_accepted_lean_candidate_revision_binding(
         and str(row.get("candidate_id", "") or "") == candidate_id
     ]
     if len(candidate_rows) != 1:
-        errors.append("accepted review candidate does not resolve uniquely")
+        errors.append("semantic review candidate does not resolve uniquely")
         candidate: Mapping[str, Any] = {}
     else:
         candidate = candidate_rows[0]
@@ -113,19 +176,19 @@ def resolve_accepted_lean_candidate_revision_binding(
     artifact_path = Path(str(candidate.get("artifact_path", "") or ""))
     source_hash = str(candidate.get("source_hash", "") or "").strip()
     if not declaration:
-        errors.append("accepted review candidate declaration is missing")
+        errors.append("semantic review candidate declaration is missing")
     if source_field not in {
         "formal_targets",
         "source_to_bridge_premise_derivation_candidates",
     }:
-        errors.append("accepted review candidate source field is unsupported")
+        errors.append("semantic review candidate source field is unsupported")
     try:
         initial_source = artifact_path.read_text(encoding="utf-8")
     except OSError:
         initial_source = ""
-        errors.append("accepted review candidate artifact is unreadable")
+        errors.append("semantic review candidate artifact is unreadable")
     if not source_hash or stable_hash(initial_source) != source_hash:
-        errors.append("accepted review candidate artifact hash is stale")
+        errors.append("semantic review candidate artifact hash is stale")
 
     parent_packet_id = str(
         materialization.get("source_formalizer_packet_id", "") or ""
@@ -134,7 +197,7 @@ def resolve_accepted_lean_candidate_revision_binding(
     if not isinstance(parent_packet, Mapping) or str(
         parent_packet.get("packet_id", "") or ""
     ) != parent_packet_id:
-        errors.append("accepted review parent Formalizer packet is missing")
+        errors.append("semantic review parent Formalizer packet is missing")
         parent_packet = {}
 
     require_equal(
@@ -150,7 +213,7 @@ def resolve_accepted_lean_candidate_revision_binding(
     )
     require_equal(
         "reviewed candidate source hash",
-        repair_context.get(
+        revision_context.get(
             "formalizer_candidate_semantic_review_candidate_source_hash",
             "",
         ),
@@ -158,43 +221,43 @@ def resolve_accepted_lean_candidate_revision_binding(
     )
     require_equal(
         "lineage candidate source hash",
-        repair_context.get("lineage_candidate_artifact_hash", "")
-        or repair_context.get("target_declaration_source_hash", ""),
+        revision_context.get("lineage_candidate_artifact_hash", "")
+        or revision_context.get("target_declaration_source_hash", ""),
         source_hash,
     )
     require_equal(
         "candidate artifact path",
-        repair_context.get("candidate_artifact_path", "")
-        or repair_context.get("source_candidate_artifact_path", ""),
+        revision_context.get("candidate_artifact_path", "")
+        or revision_context.get("source_candidate_artifact_path", ""),
         str(artifact_path),
     )
     require_equal(
         "target Lean declaration",
-        repair_context.get("target_lean_declaration", "")
-        or repair_context.get("target_theorem_name", ""),
+        revision_context.get("target_lean_declaration", "")
+        or revision_context.get("target_theorem_name", ""),
         declaration,
     )
 
     target_statement = str(
-        repair_context.get("target_theorem_statement", "") or ""
+        revision_context.get("target_theorem_statement", "") or ""
     ).strip()
     target_hash = str(
-        repair_context.get("target_theorem_statement_hash", "") or ""
+        revision_context.get("target_theorem_statement_hash", "") or ""
     ).strip()
     if (
         not target_statement
         or not target_hash
         or exact_target_statement_hash(target_statement) != target_hash
         or str(
-            repair_context.get("target_theorem_statement_hash_algorithm", "")
+            revision_context.get("target_theorem_statement_hash_algorithm", "")
             or ""
         )
         != target_statement_hash_algorithm
     ):
-        errors.append("accepted review target statement identity is missing or stale")
+        errors.append("semantic review target statement identity is missing or stale")
     require_equal(
         "reviewed target statement hash",
-        repair_context.get(
+        revision_context.get(
             "formalizer_candidate_semantic_review_target_statement_hash",
             "",
         ),
@@ -202,7 +265,7 @@ def resolve_accepted_lean_candidate_revision_binding(
     )
     require_equal(
         "reviewed target statement hash algorithm",
-        repair_context.get(
+        revision_context.get(
             "formalizer_candidate_semantic_review_target_statement_hash_algorithm",
             "",
         ),
@@ -210,7 +273,7 @@ def resolve_accepted_lean_candidate_revision_binding(
     )
 
     review_packet_id = str(
-        repair_context.get(
+        revision_context.get(
             "formalizer_candidate_semantic_review_packet_id",
             "",
         )
@@ -218,7 +281,7 @@ def resolve_accepted_lean_candidate_revision_binding(
         or ""
     ).strip()
     review_packet_hash = str(
-        repair_context.get(
+        revision_context.get(
             "formalizer_candidate_semantic_review_packet_hash",
             "",
         )
@@ -232,11 +295,11 @@ def resolve_accepted_lean_candidate_revision_binding(
         or not isinstance(review_packet, Mapping)
         or stable_hash(review_packet) != review_packet_hash
     ):
-        errors.append("accepted review packet artifact/hash is missing or stale")
+        errors.append("semantic review packet artifact/hash is missing or stale")
     else:
         for label, field, expected in (
             ("packet question", "question_id", question_id),
-            ("packet verdict", "overall_verdict", "ACCEPT"),
+            ("packet verdict", "overall_verdict", review_verdict),
             ("packet materialization", "candidate_materialization_id", materialization_id),
             (
                 "packet materialization hash",
@@ -252,7 +315,7 @@ def resolve_accepted_lean_candidate_revision_binding(
             require_equal(label, review_packet.get(field, ""), expected)
 
     review_execution_id = str(
-        repair_context.get(
+        revision_context.get(
             "formalizer_candidate_semantic_review_execution_id",
             "",
         )
@@ -261,7 +324,7 @@ def resolve_accepted_lean_candidate_revision_binding(
     ).strip()
     review_execution = artifacts.get(review_execution_id, {})
     if not review_execution_id or not isinstance(review_execution, Mapping):
-        errors.append("accepted review execution artifact is missing")
+        errors.append("semantic review execution artifact is missing")
     else:
         for label, field, expected in (
             ("execution question", "question_id", question_id),
@@ -270,15 +333,17 @@ def resolve_accepted_lean_candidate_revision_binding(
             ("execution candidate hash", "candidate_source_hash", source_hash),
             ("execution review packet", "review_packet_id", review_packet_id),
             ("execution review packet hash", "review_packet_hash", review_packet_hash),
-            ("execution verdict", "overall_verdict", "ACCEPT"),
+            ("execution verdict", "overall_verdict", review_verdict),
         ):
             require_equal(label, review_execution.get(field, ""), expected)
-        if review_execution.get("semantic_review_accepted") is not True:
-            errors.append("accepted review execution is not marked accepted")
+        if bool(review_execution.get("semantic_review_accepted", False)) != (
+            review_verdict == "ACCEPT"
+        ):
+            errors.append("semantic review execution verdict flag is inconsistent")
 
     if errors:
         raise PacketValidationError(
-            validation_label="Formalizer Lean candidate accepted-review lineage",
+            validation_label="Formalizer Lean candidate semantic-review lineage",
             attempts=1,
             errors=sorted(set(errors)),
             history=[],
@@ -288,12 +353,12 @@ def resolve_accepted_lean_candidate_revision_binding(
                 "candidate_id": candidate_id,
                 "candidate_source_hash": source_hash,
                 "proof_evidence_status": (
-                    "STALE_OR_INCOMPLETE_ACCEPTED_REVIEW_NOT_PROOF_EVIDENCE"
+                    "STALE_OR_INCOMPLETE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
                 ),
             },
         )
     metadata = candidate.get("candidate_metadata", {})
-    return AcceptedLeanCandidateRevisionBinding(
+    return ReviewedLeanCandidateRevisionBinding(
         materialization_id=materialization_id,
         materialization=materialization,
         parent_packet_id=parent_packet_id,
@@ -305,7 +370,7 @@ def resolve_accepted_lean_candidate_revision_binding(
         candidate_source_hash=source_hash,
         initial_source=initial_source,
         candidate_metadata=(metadata if isinstance(metadata, Mapping) else {}),
-        repair_context=repair_context,
+        revision_context=revision_context,
     )
 
 
@@ -326,6 +391,7 @@ def run_lean_candidate_revision_tool_loop(
     candidate_id: str,
     candidate_lean_declaration: str,
     initial_source: str,
+    reviewed_parent_source_hash: str = "",
     check_candidate: LeanCandidateCheck,
     search_formal_environment: FormalEnvironmentSearch,
     request_metadata: Mapping[str, Any] | None = None,
@@ -348,6 +414,9 @@ def run_lean_candidate_revision_tool_loop(
 
     parent_source = str(initial_source)
     parent_source_hash = stable_hash(parent_source)
+    reviewed_parent_source_hash = str(
+        reviewed_parent_source_hash or parent_source_hash
+    )
     state: dict[str, Any] = {
         "source": parent_source,
         "source_hash": parent_source_hash,
@@ -355,6 +424,7 @@ def run_lean_candidate_revision_tool_loop(
         "searches": 0,
         "checks": 0,
         "last_check": {},
+        "latest_check_observation": {},
     }
     tools = _lean_candidate_revision_tools()
 
@@ -375,6 +445,7 @@ def run_lean_candidate_revision_tool_loop(
             )
         state["checks"] += 1
         state["last_check"] = check_result
+        state["latest_check_observation"] = check_result
         return check_result
 
     def execute_tool(call, context):
@@ -387,8 +458,8 @@ def run_lean_candidate_revision_tool_loop(
                 )
             if state["source_updates"] >= max_source_updates:
                 raise ClientToolInputError(
-                    "Lean source-update budget is exhausted; check and submit the "
-                    "current source or stop this bounded attempt"
+                    "Lean source-update budget is exhausted; check the current source "
+                    "or stop this bounded attempt"
                 )
             source = tool_input.get("lean_source")
             if not isinstance(source, str) or not source.strip():
@@ -426,8 +497,8 @@ def run_lean_candidate_revision_tool_loop(
                 )
             if state["searches"] >= max_searches:
                 raise ClientToolInputError(
-                    "formal-environment search budget is exhausted; use the returned "
-                    "signatures to edit, check, and submit the current source"
+                    "formal-environment search budget is exhausted; choose the next "
+                    "source or check action from the observations already returned"
                 )
             query = tool_input.get("query")
             if not isinstance(query, str) or not query.strip():
@@ -473,9 +544,27 @@ def run_lean_candidate_revision_tool_loop(
                     "LOCAL_LEAN_OBSERVATION_REQUIRES_RUNTIME_PROMOTION_GATE"
                 ),
             }
+            if compiled:
+                content.update(
+                    {
+                        "handed_off": True,
+                        "independent_semantic_review_required": True,
+                        "runtime_kernel_promotion_required": True,
+                    }
+                )
             return ClientToolExecutionResult(
                 content=content,
                 is_error=not compiled,
+                terminal=compiled,
+                terminal_payload=(
+                    {
+                        "lean_source": state["source"],
+                        "source_hash": state["source_hash"],
+                        "check_result": deepcopy(check_result),
+                    }
+                    if compiled
+                    else None
+                ),
                 observation_key="check:"
                 + stable_hash(
                     {
@@ -483,44 +572,6 @@ def run_lean_candidate_revision_tool_loop(
                         "check_result": check_result,
                     }
                 ),
-            )
-
-        if call.name == "submit_compiled_source":
-            if tool_input:
-                raise ClientToolInputError(
-                    "submit_compiled_source takes an empty object"
-                )
-            last_check = state["last_check"]
-            checked_hash = str(last_check.get("source_hash", "") or "")
-            compiled = bool(last_check.get("compiled", False))
-            if checked_hash != state["source_hash"] or not compiled:
-                content = {
-                    "ok": False,
-                    "error": "current_source_has_no_successful_local_lean_check",
-                    "current_source_hash": state["source_hash"],
-                    "last_checked_source_hash": checked_hash,
-                    "last_check_compiled": compiled,
-                }
-                return ClientToolExecutionResult(
-                    content=content,
-                    is_error=True,
-                    observation_key="submit-rejected:" + stable_hash(content),
-                )
-            return ClientToolExecutionResult(
-                content={
-                    "ok": True,
-                    "submitted": True,
-                    "source_hash": state["source_hash"],
-                    "independent_semantic_review_required": True,
-                    "runtime_kernel_promotion_required": True,
-                },
-                terminal=True,
-                terminal_payload={
-                    "lean_source": state["source"],
-                    "source_hash": state["source_hash"],
-                    "check_result": deepcopy(last_check),
-                },
-                observation_key="submitted:" + state["source_hash"],
             )
 
         raise ClientToolInputError("unsupported Lean candidate client tool")
@@ -539,11 +590,10 @@ def run_lean_candidate_revision_tool_loop(
             "candidate_id": candidate_id,
             "candidate_lean_declaration": candidate_lean_declaration,
             "parent_source_hash": parent_source_hash,
+            "reviewed_parent_source_hash": reviewed_parent_source_hash,
         },
     )
-    max_tool_calls = (
-        max_source_updates + max_searches + max_checks + max_turns
-    )
+    max_tool_calls = max_source_updates + max_searches + max_checks
     try:
         loop = run_bounded_client_tool_loop(
             backend=provider,
@@ -565,12 +615,16 @@ def run_lean_candidate_revision_tool_loop(
                 "candidate_id": candidate_id,
                 "candidate_lean_declaration": candidate_lean_declaration,
                 "parent_source_hash": parent_source_hash,
+                "reviewed_parent_source_hash": reviewed_parent_source_hash,
                 "current_source_hash": state["source_hash"],
                 "current_source": state["source"],
                 "source_updates": state["source_updates"],
                 "searches": state["searches"],
                 "checks": state["checks"],
                 "last_check": deepcopy(state["last_check"]),
+                "latest_check_observation": deepcopy(
+                    state["latest_check_observation"]
+                ),
                 "turns": exc.turns,
                 "tool_calls": exc.tool_calls,
                 "transcript_fingerprint": exc.transcript_fingerprint,
@@ -611,6 +665,7 @@ def run_lean_candidate_revision_tool_loop(
         candidate_id=candidate_id,
         candidate_lean_declaration=candidate_lean_declaration,
         parent_source_hash=parent_source_hash,
+        reviewed_parent_source_hash=reviewed_parent_source_hash,
         tools=tools,
         max_turns=max_turns,
         max_tool_calls=max_tool_calls,
@@ -625,9 +680,6 @@ def run_lean_candidate_revision_tool_loop(
         response_metadata=loop.final_response_metadata,
         history=loop.history,
         transcript_fingerprint=loop.transcript_fingerprint,
-        handoff_mode="model_submit",
-        model_explicit_submit=True,
-        budget_exhausted=False,
     )
 
 
@@ -639,6 +691,7 @@ def _lean_candidate_revision_success_result(
     candidate_id: str,
     candidate_lean_declaration: str,
     parent_source_hash: str,
+    reviewed_parent_source_hash: str,
     tools: tuple[ClientToolDefinition, ...],
     max_turns: int,
     max_tool_calls: int,
@@ -653,9 +706,6 @@ def _lean_candidate_revision_success_result(
     response_metadata: Mapping[str, Any],
     history: Sequence[Mapping[str, Any]],
     transcript_fingerprint: str,
-    handoff_mode: str,
-    model_explicit_submit: bool,
-    budget_exhausted: bool,
 ) -> LeanCandidateRevisionToolLoopResult:
     source_hash = stable_hash(source)
     evidence = {
@@ -665,6 +715,7 @@ def _lean_candidate_revision_success_result(
         "candidate_id": candidate_id,
         "candidate_lean_declaration": candidate_lean_declaration,
         "parent_source_hash": parent_source_hash,
+        "reviewed_parent_source_hash": reviewed_parent_source_hash,
         "submitted_source_hash": source_hash,
         "source_changed": source_hash != parent_source_hash,
         "turns": turns,
@@ -685,9 +736,9 @@ def _lean_candidate_revision_success_result(
         "provider_usage": dict(provider_usage),
         "history": [deepcopy(dict(row)) for row in history],
         "transcript_fingerprint": transcript_fingerprint,
-        "handoff_mode": handoff_mode,
-        "model_explicit_submit": model_explicit_submit,
-        "budget_exhausted": budget_exhausted,
+        "handoff_mode": "successful_model_requested_check",
+        "model_explicit_submit": False,
+        "budget_exhausted": False,
         "local_candidate_validation_passed": True,
         "tools_executed_by_runtime": bool(
             runtime_executed_tool_calls
@@ -752,19 +803,9 @@ def _lean_candidate_revision_tools() -> tuple[ClientToolDefinition, ...]:
             name="check_lean_source",
             description=(
                 "Run the exact current source in the configured local Lean project and "
-                "return compiler and declaration-identity observations."
-            ),
-            input_schema={
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {},
-            },
-        ),
-        ClientToolDefinition(
-            name="submit_compiled_source",
-            description=(
-                "Submit only when check_lean_source passed for the exact current source. "
-                "Submission remains subject to independent semantic and promotion gates."
+                "return compiler and declaration-identity observations. A successful "
+                "check hands the exact source to independent semantic review; a failed "
+                "check returns raw observations for another model-authored source."
             ),
             input_schema={
                 "type": "object",

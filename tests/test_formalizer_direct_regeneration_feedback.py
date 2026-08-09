@@ -124,6 +124,8 @@ def test_formalizer_receives_complete_source_and_raw_tool_observations() -> None
     assert "required_change" not in (
         carried["prior_environment_feedback"]["findings"][0]
     )
+    assert "complete standalone model-authored Lean source" in prompt
+    assert "AgentRuntime does not inject" in prompt
 
 
 def test_proof_state_feedback_is_complete_and_budget_exhaustion_routes_architect() -> None:

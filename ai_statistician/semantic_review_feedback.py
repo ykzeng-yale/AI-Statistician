@@ -74,6 +74,7 @@ CODING_AGENT_ROUTING_FIELDS = frozenset(
         "repair_scope",
         "repair_scopes",
         "repair_target_subsystem",
+        "runtime_queue_status",
         "runtime_carried_pending_repair",
         "semantic_reviewer_repair_instructions",
         "semantic_reviewer_repair_scope",
@@ -119,6 +120,7 @@ def model_observations_without_repair_recipes(
             or key_text == "required_next_checks"
             or key_text.endswith(
                 (
+                    "_cli",
                     "_repair_contract",
                     "_repair_directive",
                     "_repair_directives",

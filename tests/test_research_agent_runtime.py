@@ -1894,6 +1894,48 @@ def test_theory_developer_routes_protocol_preflight_before_generated_code() -> N
     }
 
 
+def test_fresh_theory_handoff_returns_worker_choice_to_architect_model() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    theory_packet = _structured_theory_packet_fixture(
+        "theory_derivation:model-routed"
+    )
+
+    class StaticTheoryDeveloper:
+        def derive(self, *_args, **_kwargs):
+            return copy.deepcopy(theory_packet)
+
+    result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=StaticTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=17,
+        seed=20260808,
+    ).run(
+        AgentTask(
+            task_id="theory:model-routed",
+            owner_subsystem="TheoryDeveloper",
+            objective="Produce a theory packet without selecting its next worker.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {},
+            },
+        ),
+        BlackboardState(project_id="theory-model-routed"),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.inputs["runtime_architect_operation"] == (
+        ARCHITECT_FEEDBACK_ROUTE_OPERATION
+    )
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["feedback_type"] == "theory_derivation_available"
+    assert feedback["source_theory_packet_id"] == theory_packet["packet_id"]
+    assert feedback["runtime_selected_owner"] is False
+    assert "next_owner_subsystem" not in feedback
+
+
 def test_theory_revision_rebuilds_descendants_through_exploratory_simulation() -> None:
     question = load_open_research_questions(
         Path("examples/research_questions.json")
@@ -19147,6 +19189,55 @@ def test_architect_runtime_routes_simulation_next_action_directly() -> None:
     } == {"llm_architect_coordinator_proposal"}
 
 
+def test_formalization_feasibility_does_not_require_empirical_artifacts() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    theory_packet_id = "theory_derivation:proof-first-ready"
+    blackboard = BlackboardState(
+        project_id="proof-first-feasibility",
+        artifacts={theory_packet_id: {"packet_id": theory_packet_id}},
+    )
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "implementation_gaps": [
+            {
+                "estimator_id": "optional_empirical_candidate",
+                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            }
+        ],
+    }
+
+    assert runtime_module._architect_feasible_initial_subsystem(
+        "FormalizationEvaluator",
+        architect_context=architect_context,
+        blackboard=blackboard,
+    ) == "FormalizationEvaluator"
+    assert runtime_module._architect_feasible_initial_subsystem(
+        "ProofEngineer",
+        architect_context=architect_context,
+        blackboard=blackboard,
+    ) == "FormalizationEvaluator"
+    routing = runtime_module._architect_initial_routing_decision(
+        question=question,
+        packet={
+            "next_actions": [
+                {"owner_agent": "FormalizationEvaluator"}
+            ]
+        },
+        architect_context=architect_context,
+        packet_id="architect:proof-first-ready",
+        runtime_config=ResearchAgentRuntimeConfig(
+            formal_verification_policy="required",
+            recommended_research_path="proof_first",
+        ),
+        blackboard=blackboard,
+    )
+    assert routing["task"].owner_subsystem == "FormalizationEvaluator"
+    assert routing["task"].inputs["simulation_manifest_id"] == ""
+    assert routing["task"].inputs["algorithm_sandbox_manifest_id"] == ""
+
+
 def test_runtime_blocks_confirmatory_simulation_without_algorithm_handoff(
     tmp_path: Path,
 ) -> None:
@@ -21875,6 +21966,35 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
         def review_theory_execution_preflight(self, **_kwargs):
             return copy.deepcopy(preflight_packet)
 
+        def route_environment_feedback(
+            self,
+            *,
+            environment_feedback: Mapping[str, Any],
+            **_kwargs: Any,
+        ) -> dict[str, Any]:
+            assert environment_feedback["feedback_type"] == (
+                "theory_execution_preflight_accepted"
+            )
+            assert environment_feedback["runtime_selected_owner"] is False
+            return {
+                "decision": "ROUTE",
+                "selected_subsystem": "AlgorithmEngineer",
+                "objective": (
+                    "Generate the theory-bound implementation before metric "
+                    "authoring."
+                ),
+                "rationale": (
+                    "The accepted theory exposes an implementation target and the "
+                    "current model-authored path requests empirical execution."
+                ),
+                "environment_feedback_fingerprint": runtime_module.stable_hash(
+                    dict(environment_feedback)
+                ),
+                "route_decision_id": (
+                    "architect_feedback_route:preflight-to-algorithm"
+                ),
+            }
+
         def propose(self, **_kwargs):
             raise AssertionError("full metric authoring must remain deferred")
 
@@ -21882,10 +22002,11 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
         project_id="domain-neutral-metric-order",
         artifacts={theory_packet_id: theory_packet},
     )
-    preflight_result = ArchitectCoordinatorRuntimeSubsystem(
+    architect_subsystem = ArchitectCoordinatorRuntimeSubsystem(
         coordinator=PreflightOnlyCoordinator(),  # type: ignore[arg-type]
         runtime_config=ResearchAgentRuntimeConfig(n_runs=9, seed=41),
-    ).run(
+    )
+    preflight_result = architect_subsystem.run(
         AgentTask(
             task_id="architect-preflight:domain-neutral",
             owner_subsystem="ArchitectCoordinator",
@@ -21903,12 +22024,31 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
 
     assert preflight_result.status == "REROUTE"
     assert preflight_result.next_task is not None
-    assert preflight_result.next_task.owner_subsystem == "AlgorithmEngineer"
-    assert preflight_result.next_task.inputs[
+    assert preflight_result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert preflight_result.next_task.inputs["runtime_architect_operation"] == (
+        ARCHITECT_FEEDBACK_ROUTE_OPERATION
+    )
+    assert preflight_result.observations[0].payload[
+        "runtime_selected_evidence_owner"
+    ] is False
+    pre_route_gate = preflight_result.next_task.inputs["architect_context"][
+        "architect_metric_protocol_gate"
+    ]
+    assert pre_route_gate["algorithm_execution_available"] is True
+    assert pre_route_gate["algorithm_execution_authorized"] is False
+    blackboard.artifacts.update(preflight_result.produced_artifacts)
+    route_result = architect_subsystem.run(
+        preflight_result.next_task,
+        blackboard,
+    )
+    assert route_result.status == "REROUTE"
+    assert route_result.next_task is not None
+    assert route_result.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert route_result.next_task.inputs[
         "implementation_before_metric_freeze"
     ] is True
-    assert preflight_result.next_task.inputs["simulation_manifest_id"] == ""
-    accepted_gate = preflight_result.next_task.inputs["architect_context"][
+    assert route_result.next_task.inputs["simulation_manifest_id"] == ""
+    accepted_gate = route_result.next_task.inputs["architect_context"][
         "architect_metric_protocol_gate"
     ]
     assert accepted_gate["upstream_theory_revision_count"] == 2
@@ -21920,7 +22060,11 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
         "preflight-rejection:first",
         "preflight-rejection:second",
     ]
-    deferred_payload = preflight_result.next_task.inputs[
+    assert accepted_gate["algorithm_execution_authorized"] is True
+    assert accepted_gate["algorithm_execution_selected_by"] == (
+        "ArchitectCoordinator_model_route"
+    )
+    deferred_payload = route_result.next_task.inputs[
         "deferred_metric_protocol_task"
     ]
     assert deferred_payload["owner_subsystem"] == "ArchitectCoordinator"
@@ -21994,7 +22138,7 @@ def test_preflight_then_reviewed_implementation_releases_result_blind_metric_aut
         proposal_agent=ExploratoryAlgorithmEngineer(),  # type: ignore[arg-type]
         semantic_reviewer_available=True,
         semantic_review_max_revisions=1,
-    ).run(preflight_result.next_task, blackboard)
+    ).run(route_result.next_task, blackboard)
 
     assert algorithm_result.status == "REROUTE"
     assert algorithm_result.next_task is not None
@@ -32888,6 +33032,56 @@ def test_formalizer_candidate_identity_is_verified_by_lean_not_python_grammar(
     assert row["candidate_identity_lean_exit_status"] != "0"
     assert row["local_lean_compiled"] is False
     assert row["source_theorem_candidate_evidence_eligible"] is False
+    assert manifest["n_live_proof_state_requests"] == 0
+
+
+def test_namespaced_candidate_identity_does_not_require_literal_full_name(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=AgentTask(
+            task_id="task:namespaced_candidate_identity_lean_probe",
+            owner_subsystem="FormalizationEvaluator",
+            objective="let Lean resolve a namespaced declaration identity",
+        ),
+        proposal_packet={
+            "packet_id": "formalizer_proposal:namespaced_identity_lean_probe",
+            "formal_targets": [
+                {
+                    "id": "namespaced_source_theorem",
+                    "formal_target_role": "SOURCE_THEOREM_CANDIDATE",
+                    "candidate_lean_declaration": "AIS.Test.identity",
+                    "lean_statement_sketch": (
+                        "namespace AIS.Test\n"
+                        "theorem identity (p : Prop) (hp : p) : p := by\n"
+                        "  exact hp\n"
+                        "end AIS.Test\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": "AIS.Test.identity",
+                        "source_theorem_goal_id": "namespaced_source_theorem",
+                    },
+                }
+            ],
+        },
+        local_lean=True,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert row["target_lean_line"] == 0
+    assert row["target_lean_location_source"] == (
+        "structured_candidate_declaration_not_located_in_exact_source"
+    )
+    assert row["structured_candidate_identity_available"] is True
+    assert row["candidate_identity_lean_checked"] is True
+    assert row["candidate_identity_lean_verified"] is True
+    assert row["precheck_errors"] == []
+    assert row["source_theorem_candidate_evidence_eligible"] is True
     assert manifest["n_live_proof_state_requests"] == 0
 
 
@@ -44703,7 +44897,7 @@ def test_typed_generated_metric_contract_bypasses_legacy_domain_inference(
     ] == 1
 
 
-def test_typed_generated_metric_contract_failure_returns_exact_repair_feedback(
+def test_typed_generated_metric_contract_failure_returns_exact_model_observation(
     tmp_path: Path,
 ) -> None:
     metric_contract = {
@@ -44756,8 +44950,9 @@ def test_typed_generated_metric_contract_failure_returns_exact_repair_feedback(
     assert feedback_prototype["metric_gate_policy_mode"] == (
         "typed_artifact_bound"
     )
-    assert feedback_prototype["metric_contracts"] == [metric_contract]
-    assert feedback_prototype["metric_contract_evaluation"][
+    metric_observation = feedback_prototype["metric_observation"]
+    assert metric_observation["failed_metric_contracts"] == [metric_contract]
+    assert metric_observation[
         "all_required_passed"
     ] is False
     assert "strict-fdr-control" in json.dumps(feedback)
@@ -46156,7 +46351,8 @@ def test_algorithm_runtime_injects_sandbox_failure_memory_without_current_feedba
         "generated_algorithm_sandbox_metric_gate_failed"
     )
     prototype = agent.seen_feedback["prototypes"][0]  # type: ignore[index]
-    assert "def run_sandbox" in prototype["code_excerpt"]
+    assert "def run_sandbox" in prototype["parent_source"]
+    assert prototype["parent_source_complete"] is True
     assert "coverage metric gate failed" in prototype["stderr_summary"]
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "AlgorithmEngineer"
@@ -49865,8 +50061,8 @@ def test_exhausted_simulation_metric_gate_replan_does_not_fix_algorithm_route(
     assert budget["source_subsystem"] == "SimulationEvaluator"
     assert budget["budget_exhausted"] is True
     assert feedback["generated_simulation_prototypes"][0][
-        "metric_contract_evaluation"
-    ]["evaluations"][0]["passed"] is False
+        "metric_observation"
+    ]["failed_evaluations"][0]["passed"] is False
     assert replan_task.inputs["architect_context"]["theory_packet_id"] == (
         theory_packet_id
     )
@@ -52279,9 +52475,10 @@ def test_downstream_theory_trace_alignment_memory_replays_to_worker_prompts(
 
     for prompt in (algorithm_prompt, simulation_prompt):
         payload = json.loads(prompt.rsplit("\n\n", maxsplit=1)[1])
-        alignment = payload["runtime_environment_feedback"][
+        alignment = payload["runtime_environment_feedback"]
+        assert alignment["feedback_type"] == (
             "theory_trace_downstream_alignment_feedback"
-        ]
+        )
         assert "required_repair" not in alignment
         assert "target_behavior" not in alignment
 
@@ -55204,7 +55401,7 @@ def test_formalizer_prompt_exposes_registered_proof_obligation_catalog() -> None
     assert "kernel proof or explicit formal blocker" in prompt
 
 
-def test_formalizer_prompt_includes_validation_repair_feedback() -> None:
+def test_formalizer_prompt_includes_validation_observations_without_directives() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)
     _procedures, theorem_goals = TheoryPlanner().plan(problem)
@@ -55320,7 +55517,7 @@ def test_formalizer_prompt_includes_validation_repair_feedback() -> None:
     assert "ENNReal.ofReal (1 - alpha)" in prompt
     assert "copy one of its" not in prompt
     assert "formalizer_packet_validation_failed" in prompt
-    assert "formalizer_validation_feedback" in prompt
+    assert "formalizer_packet_validation_feedback" in prompt
     assert "does not prescribe field-specific corrections" in prompt
     assert (
         "source_to_bridge_grouped_premise_derivation_candidate_request_id"
@@ -76422,114 +76619,115 @@ def test_formalization_capability_eval_does_not_replace_live_formalizer_with_det
 def test_runtime_optional_theorem_closure_runs_only_as_typed_worker(
     tmp_path: Path,
 ) -> None:
-    out_dir = tmp_path / "runtime"
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)
     _procedures, theorem_goals = TheoryPlanner().plan(problem)
     catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
     verified_ids = [str(row["obligation_id"]) for row in catalog]
 
-    developer = LLMTheoryDeveloperAgent(
-        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
-        config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
-    )
-    simulation_engineer = LLMSimulationEngineerAgent(
-        provider=StaticArchitectLLMProvider(_simulation_sample_response()),
-        config=SimulationEngineerConfig(provider_name="static", model="static-simulation-model"),
-    )
-    algorithm_engineer = LLMAlgorithmEngineerAgent(
-        provider=StaticArchitectLLMProvider(_algorithm_sample_response()),
-        config=AlgorithmEngineerConfig(provider_name="static", model="static-algorithm-model"),
-    )
-    formalizer = LLMFormalizerProofEngineerAgent(
-        provider=StaticArchitectLLMProvider(_formalizer_sample_response()),
-        config=FormalizerConfig(provider_name="static", model="static-formalizer-model"),
-    )
-    critic_evaluator = LLMCriticEvaluatorAgent(
-        provider=StaticArchitectLLMProvider(_critic_sample_response()),
-        config=CriticEvaluatorConfig(provider_name="static", model="static-critic-model"),
-    )
+    class ExplodingFormalizer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            raise AssertionError(
+                "Formalizer must not run after proof-bank memory is exhausted"
+            )
 
-    manifest = run_research_agent_runtime(
-        [question],
-        out_dir,
-        theory_developer=developer,
-        simulation_engineer=simulation_engineer,
-        algorithm_engineer=algorithm_engineer,
-        formalizer=formalizer,
-        critic_evaluator=critic_evaluator,
-        proof_state_provider=LocalLeanProofStateFeedbackProvider(lean_command=("true",)),
-        architect_context={
-            "runtime_learning_memory": {
-                "artifact_kind": "RuntimeLearningMemoryContext",
-                "rows": [
-                    {
-                        "kernel_verified_proof_obligation_ids": verified_ids,
-                        "recommended_proof_obligation_ids": verified_ids,
-                    }
-                ],
-            }
+    config = ResearchAgentRuntimeConfig(
+        max_proof_obligations=1,
+        theorem_closure_proofengineer_bridge=True,
+        theorem_closure_proofengineer_local_lean=False,
+    )
+    theory_packet = _runtime_sample_response()
+    theory_packet_id = str(theory_packet["packet_id"])
+    blackboard = BlackboardState(
+        project_id="typed-theorem-closure-runtime",
+        artifacts={
+            theory_packet_id: theory_packet,
+            "simulation_manifest:typed_closure": {
+                "manifest_id": "simulation_manifest:typed_closure"
+            },
+            "algorithm_sandbox_manifest:typed_closure": {
+                "manifest_id": "algorithm_sandbox_manifest:typed_closure"
+            },
         },
-        config=ResearchAgentRuntimeConfig(
-            n_runs=40,
-            seed=20260528,
-            max_iterations=8,
-            theorem_closure_proofengineer_bridge=True,
-            theorem_closure_proofengineer_local_lean=False,
-        ),
     )
+    formalization = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=ExplodingFormalizer(),
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=1,
+        runtime_config=config,
+    )
+    runner_calls = 0
 
-    assert manifest["n_runtime_theorem_reduction_closure_work_orders"] == 1
-    assert manifest["theorem_closure_proofengineer_bridge_requested"] is True
-    assert manifest["theorem_closure_proofengineer_bridge_ran"] is True
-    assert manifest["theorem_closure_proofengineer_bridge_skipped_reason"] == ""
-    assert manifest["theorem_closure_proofengineer_bridge_runtime_learning_ready"] is False
-    assert manifest["theorem_closure_proofengineer_bridge_n_kernel_verified"] == 0
-    assert manifest["theorem_closure_proofengineer_bridge_proof_evidence_status"] == (
-        "THEOREM_REDUCTION_CLOSURE_EXECUTION_NOT_PROOF_EVIDENCE"
-    )
-    assert manifest["n_kernel_verified_subclaims"] == 0
-    assert manifest["theorem_closure_proofengineer_execution_mode"] == (
-        "agent_runtime_typed_worker"
-    )
-    assert manifest["n_theorem_closure_agent_runtime_work_orders"] == 1
-    assert manifest["n_theorem_closure_agent_runtime_executions"] == 1
-    assert manifest["n_theorem_closure_agent_runtime_pending_work_orders"] == 0
-    assert manifest["theorem_closure_legacy_post_runtime_fallback_used"] is False
-    assert "typed, budgeted, Architect-visible AgentRuntime" in manifest[
-        "theorem_closure_proofengineer_bridge_boundary"
-    ]
-    assert "performs no verifier side effects" in manifest[
-        "theorem_closure_proofengineer_bridge_boundary"
-    ]
+    def counting_runner(**kwargs: object) -> dict[str, object]:
+        nonlocal runner_calls
+        runner_calls += 1
+        return run_theorem_reduction_closure_proofengineer_bridge(**kwargs)
 
-    assert Path(
-        manifest["artifacts"][
-            "runtime_theorem_reduction_closure_proofengineer_bridge_manifest"
-        ]
-    ).exists()
-    assert Path(
-        manifest["artifacts"][
-            "runtime_theorem_reduction_closure_proofengineer_learning_rows_jsonl"
-        ]
-    ).exists()
-    result_payload = json.loads(
-        Path(manifest["artifacts"]["per_question_results"][0]).read_text(
-            encoding="utf-8"
+    closure_worker = (
+        runtime_module.TheoremReductionClosureProofEngineerRuntimeSubsystem(
+            out_root=tmp_path / "typed_closure_worker",
+            bridge_runner=counting_runner,
+            repair_available=True,
         )
     )
-    trace_subsystems = [row["subsystem"] for row in result_payload["traces"]]
-    assert "TheoremReductionClosureProofEngineer" in trace_subsystems
-    assert trace_subsystems.index("TheoremReductionClosureProofEngineer") > (
-        trace_subsystems.index("FormalizationEvaluator")
+    task = AgentTask(
+        task_id="formalize:typed_closure_runtime",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Dispatch theorem closure through the typed runtime child.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": "simulation_manifest:typed_closure",
+            "algorithm_sandbox_manifest_id": (
+                "algorithm_sandbox_manifest:typed_closure"
+            ),
+            "architect_context": {
+                "runtime_learning_memory": {
+                    "artifact_kind": "RuntimeLearningMemoryContext",
+                    "rows": [
+                        {
+                            "kernel_verified_proof_obligation_ids": verified_ids,
+                            "recommended_proof_obligation_ids": verified_ids,
+                        }
+                    ],
+                }
+            },
+        },
     )
+    result = AgentRuntime(
+        blackboard=blackboard,
+        subsystems={
+            "FormalizationEvaluator": formalization,
+            runtime_module.THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM: (
+                closure_worker
+            ),
+        },
+    ).run(task, max_iterations=2)
+
+    assert [trace.subsystem for trace in result.traces] == [
+        "FormalizationEvaluator",
+        runtime_module.THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM,
+    ]
+    assert result.traces[0].next_task is not None
+    assert result.traces[0].next_task.owner_subsystem == (
+        runtime_module.THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM
+    )
+    assert runner_calls == 1
+    work_orders = [
+        artifact
+        for artifact in result.blackboard.artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == runtime_module.THEOREM_REDUCTION_CLOSURE_RUNTIME_WORK_ORDER_KIND
+    ]
     typed_executions = [
         artifact
-        for artifact in result_payload["blackboard"]["artifacts"].values()
+        for artifact in result.blackboard.artifacts.values()
         if isinstance(artifact, dict)
         and artifact.get("artifact_kind")
         == runtime_module.THEOREM_REDUCTION_CLOSURE_RUNTIME_EXECUTION_KIND
     ]
+    assert len(work_orders) == 1
     assert len(typed_executions) == 1
     assert typed_executions[0]["runtime_owned_execution"] is True
     assert typed_executions[0]["candidate_bytes_preserved"] is True
@@ -76565,6 +76763,38 @@ def test_full_runtime_executes_exact_source_child_without_post_runtime_fallback(
             "expected_status": "OPEN",
         }
     ]
+
+    class ProofPathArchitectBackend(StaticArchitectLLMProvider):
+        def generate(self, request):  # type: ignore[no-untyped-def]
+            if request.metadata.get("operation") != ARCHITECT_FEEDBACK_ROUTE_OPERATION:
+                return super().generate(request)
+            return GeneratorResponse(
+                text=json.dumps(
+                        {
+                            "decision": "ROUTE",
+                            "selected_subsystem": "FormalizationEvaluator",
+                            "objective": (
+                                "Exercise the model-selected proof-first path in this "
+                                "full-runtime integration fixture."
+                        ),
+                        "rationale": (
+                            "The fixture explicitly selects this valid route; the runtime "
+                            "does not infer the next worker from the theory payload."
+                        ),
+                    }
+                ),
+                provider=self.provider_name,
+                model=request.model,
+                metadata={"generator_only": True, "tools_available": False},
+            )
+
+    architect_coordinator = LLMArchitectCoordinatorAgent(
+        provider=ProofPathArchitectBackend(_architect_sample_response()),
+        config=ArchitectCoordinatorConfig(
+            provider_name="static",
+            model="static-architect-model",
+        ),
+    )
     manifest = run_research_agent_runtime(
         [question],
         tmp_path / "runtime",
@@ -76575,6 +76805,7 @@ def test_full_runtime_executes_exact_source_child_without_post_runtime_fallback(
                 model="static-theory-model",
             ),
         ),
+        architect_coordinator=architect_coordinator,
         simulation_engineer=LLMSimulationEngineerAgent(
             provider=StaticArchitectLLMProvider(_simulation_sample_response()),
             config=SimulationEngineerConfig(
@@ -76638,10 +76869,10 @@ def test_full_runtime_executes_exact_source_child_without_post_runtime_fallback(
         )
     )
     assert [row["subsystem"] for row in result_payload["traces"]] == [
+        "ArchitectCoordinator",
         "RetrievalMemory",
         "TheoryDeveloper",
-        "SimulationEvaluator",
-        "AlgorithmEngineer",
+        "ArchitectCoordinator",
         "FormalizationEvaluator",
         runtime_module.EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
     ]
@@ -80440,7 +80671,11 @@ def _algorithm_sample_response() -> dict[str, object]:
                 "registered_template_hint": "none",
                 "data_contract": ["seed", "replicates"],
                 "validation_metrics": ["mean_bias_probe", "rmse", "n_runs"],
-                "risk_controls": ["no imports", "bounded deterministic arithmetic", "sandbox-only output"],
+                "risk_controls": [
+                    "stdlib-only import",
+                    "bounded deterministic arithmetic",
+                    "sandbox-only output",
+                ],
             }
         ],
         "sandbox_plan": {
@@ -80465,6 +80700,7 @@ def _algorithm_sample_response() -> dict[str, object]:
                 "language": "python",
                 "entrypoint": "run_sandbox",
                 "code": (
+                    "import math\n\n"
                     "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                     "    n = max(5, int(replicates))\n"
                     "    total = 0.0\n"
@@ -80487,7 +80723,11 @@ def _algorithm_sample_response() -> dict[str, object]:
                     "    }\n"
                 ),
                 "intended_metrics": ["mean_bias_probe", "rmse", "n_runs"],
-                "safety_notes": ["no imports", "no filesystem access", "AgentRuntime executes if static guard passes"],
+                "safety_notes": [
+                    "stdlib-only import",
+                    "no filesystem access",
+                    "AgentRuntime executes if static guard passes",
+                ],
             }
         ],
         "metric_contracts": [
@@ -80870,6 +81110,19 @@ def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_base
                 return super().generate(request)
             self.feedback_route_calls += 1
             if self.feedback_route_calls == 1:
+                payload = {
+                    "decision": "ROUTE",
+                    "selected_subsystem": "SimulationEvaluator",
+                    "objective": (
+                        "Exercise the model-selected simulation-first path for this "
+                        "legacy baseline fixture."
+                    ),
+                    "rationale": (
+                        "The accepted theory is available and the Architect chooses "
+                        "the next evidence lane."
+                    ),
+                }
+            elif self.feedback_route_calls == 2:
                 payload = {
                     "decision": "ROUTE",
                     "selected_subsystem": "CriticEvaluator",
@@ -81266,6 +81519,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_base
         "REROUTE",
         "REROUTE",
         "REROUTE",
+        "REROUTE",
         "BLOCKED",
     ]
     assert result["traces"][0]["subsystem"] == "ArchitectCoordinator"
@@ -81275,42 +81529,46 @@ def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_base
     assert "DML/AIPW asymptotic normality papers" in architect_plan["stat_knowledge_bank_plan"]["source_families_to_collect"]
     assert architect_plan["literature_fair_comparison_plan"][0]["candidate_source_family"] == "double machine learning ATE CLT"
     assert result["traces"][2]["task"]["acceptance_gate"] == "schema-valid proposal with no proof-evidence claim"
-    assert result["traces"][3]["task"]["acceptance_gate"] == "runtime records seed, metrics, and empirical boundary"
-    assert result["traces"][4]["task"]["acceptance_gate"] == "sandbox prototype records reproducible metrics"
-    assert result["traces"][5]["task"]["acceptance_gate"] == "kernel count only comes from verifier rows"
-    assert result["traces"][6]["subsystem"] == "ArchitectCoordinator"
-    assert result["traces"][6]["task"]["inputs"][
+    assert result["traces"][3]["subsystem"] == "ArchitectCoordinator"
+    assert result["traces"][3]["next_task"]["owner_subsystem"] == (
+        "SimulationEvaluator"
+    )
+    assert result["traces"][4]["task"]["acceptance_gate"] == "runtime records seed, metrics, and empirical boundary"
+    assert result["traces"][5]["task"]["acceptance_gate"] == "sandbox prototype records reproducible metrics"
+    assert result["traces"][6]["task"]["acceptance_gate"] == "kernel count only comes from verifier rows"
+    assert result["traces"][7]["subsystem"] == "ArchitectCoordinator"
+    assert result["traces"][7]["task"]["inputs"][
         "runtime_architect_operation"
     ] == ARCHITECT_FEEDBACK_ROUTE_OPERATION
-    assert result["traces"][6]["next_task"]["owner_subsystem"] == (
+    assert result["traces"][7]["next_task"]["owner_subsystem"] == (
         "CriticEvaluator"
     )
-    assert result["traces"][7]["task"]["acceptance_gate"] == (
+    assert result["traces"][8]["task"]["acceptance_gate"] == (
         "critic agenda preserves proof and execution boundaries"
     )
-    assert result["traces"][7]["subsystem"] == "CriticEvaluator"
-    assert result["traces"][7]["failure_classification"] == (
+    assert result["traces"][8]["subsystem"] == "CriticEvaluator"
+    assert result["traces"][8]["failure_classification"] == (
         "critic_requested_architect_model_replan"
     )
-    assert result["traces"][7]["next_task_id"].startswith(
+    assert result["traces"][8]["next_task_id"].startswith(
         "architect-critic-replan:"
     )
-    assert result["traces"][8]["subsystem"] == "ArchitectCoordinator"
-    assert result["traces"][8]["status"] == "BLOCKED"
-    assert result["traces"][8]["failure_classification"] == (
+    assert result["traces"][9]["subsystem"] == "ArchitectCoordinator"
+    assert result["traces"][9]["status"] == "BLOCKED"
+    assert result["traces"][9]["failure_classification"] == (
         "architect_feedback_route_blocked"
     )
-    assert result["traces"][8]["task"]["inputs"][
+    assert result["traces"][9]["task"]["inputs"][
         "runtime_architect_operation"
     ] == ARCHITECT_FEEDBACK_ROUTE_OPERATION
-    architect_feedback = result["traces"][8]["task"]["inputs"][
+    architect_feedback = result["traces"][9]["task"]["inputs"][
         "environment_feedback"
     ]
     assert architect_feedback["artifact_kind"] == (
         "RuntimeCriticArchitectReplanObservations"
     )
     assert (
-        result["traces"][8]["task"]["inputs"]["architect_context"][
+        result["traces"][9]["task"]["inputs"]["architect_context"][
             "runtime_feedback_loop"
         ]["handoff"]
         == "critic_observations_to_architect_model"
@@ -81321,15 +81579,15 @@ def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_base
     assert architect_feedback["runtime_selected_owner"] is False
     assert "required_revision" not in architect_feedback
     assert "required_repair" not in architect_feedback
-    assert architect_backend.feedback_route_calls == 2
+    assert architect_backend.feedback_route_calls == 3
     retrieval_context = result["traces"][2]["task"]["inputs"]["architect_context"]["retrieval_context"]
     assert retrieval_context["knowledge_cards"]
     assert retrieval_context["paper_sources"]
     assert "Retrieval hits are not proof evidence" in retrieval_context["boundary"]
-    assert result["traces"][3]["tool_calls"][0]["tool_name"] == "ResearchSimulator.run"
-    algorithm_tool_names = {row["tool_name"] for row in result["traces"][4]["tool_calls"]}
+    assert result["traces"][4]["tool_calls"][0]["tool_name"] == "ResearchSimulator.run"
+    algorithm_tool_names = {row["tool_name"] for row in result["traces"][5]["tool_calls"]}
     assert algorithm_tool_names == {"python.generated_algorithm_sandbox"}
-    assert result["traces"][5]["tool_calls"][0]["tool_name"] == "FormalSubclaimProver.prove"
+    assert result["traces"][6]["tool_calls"][0]["tool_name"] == "FormalSubclaimProver.prove"
     artifacts = result["blackboard"]["artifacts"]
     topology_artifact = next(row for key, row in artifacts.items() if key.startswith("runtime_llm_topology:"))
     assert topology_artifact["manifest_id"] == topology["manifest_id"]
@@ -82053,15 +82311,17 @@ def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_base
     route_summary = manifest["runtime_architect_initial_routing"]
     assert route_summary["artifact_kind"] == "RuntimeArchitectInitialRoutingSummary"
     assert route_summary["n_results_with_architect_initial_routing"] == 1
-    assert route_summary["n_architect_initial_routing_decisions"] == 2
+    assert route_summary["n_architect_initial_routing_decisions"] == 3
     assert route_summary["n_architect_initial_routing_prerequisite_theory"] == 0
     assert route_summary["architect_initial_routing_selected_subsystems"] == {
         "CriticEvaluator": 1,
         "RetrievalMemory": 1,
+        "SimulationEvaluator": 1,
     }
     assert route_summary["architect_initial_routing_requested_subsystems"] == {
         "CriticEvaluator": 1,
         "RetrievalMemory": 1,
+        "SimulationEvaluator": 1,
     }
     assert route_summary["rows"][0]["question_id"] == question.id
     assert route_summary["control_plane_only"] is True
@@ -82082,6 +82342,9 @@ def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_base
     assert (
         transition_summary["transition_pairs"][
             "ArchitectCoordinator->RetrievalMemory"
+        ]
+        + transition_summary["transition_pairs"][
+            "ArchitectCoordinator->SimulationEvaluator"
         ]
         + transition_summary["transition_pairs"][
             "ArchitectCoordinator->CriticEvaluator"
@@ -82224,15 +82487,17 @@ def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_base
         ]
         == 0
     )
-    assert audit["n_architect_initial_routing_decisions"] == 2
+    assert audit["n_architect_initial_routing_decisions"] == 3
     assert audit["n_architect_initial_routing_prerequisite_theory"] == 0
     assert audit["architect_initial_routing_selected_subsystems"] == {
         "CriticEvaluator": 1,
         "RetrievalMemory": 1,
+        "SimulationEvaluator": 1,
     }
     assert audit["architect_initial_routing_requested_subsystems"] == {
         "CriticEvaluator": 1,
         "RetrievalMemory": 1,
+        "SimulationEvaluator": 1,
     }
     assert audit["n_budget_exhausted_with_pending_next_task"] == 0
     assert audit["n_budgeted_continuation_contract_ok"] == 0
@@ -99029,7 +99294,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.generated_code_semantic_review_max_revisions == 2
     assert (
         args.formalizer_lean_candidate_revision_max_attempts
-        == 1
+        == 3
     )
     assert args.max_formalizer_proof_state_repair_rounds == 1
     assert args.run_coding_agent_generated_code_repair_eval is False
@@ -101253,7 +101518,9 @@ def test_static_subsystem_config_requires_response_or_explicit_disable() -> None
     assert _research_agent_runtime_static_subsystem_config_errors(args) == []
 
 
-def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
+def test_research_agent_runtime_cli_static_provider_exports_trace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     root = Path("runs/test_research_agent_runtime_cli")
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True, exist_ok=True)
@@ -101262,6 +101529,57 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     capability_gap_routing_file = root / "runtime_capability_gap_routing.jsonl"
     out_dir = root / "out"
     response_file.write_text(json.dumps(_runtime_sample_response()), encoding="utf-8")
+
+    architect_response = _architect_sample_response()
+    architect_evidence_contract = architect_response["evidence_contract"]
+    assert isinstance(architect_evidence_contract, dict)
+    architect_evidence_contract.pop("empirical_metric_requirements", None)
+
+    class CLIArchitectBackend(StaticArchitectLLMProvider):
+        def __init__(self, response: dict[str, object]) -> None:
+            super().__init__(response)
+            self.feedback_route_calls = 0
+
+        def generate(self, request):  # type: ignore[no-untyped-def]
+            if request.metadata.get("operation") != ARCHITECT_FEEDBACK_ROUTE_OPERATION:
+                return super().generate(request)
+            self.feedback_route_calls += 1
+            selected_subsystem = (
+                "SimulationEvaluator",
+                "AlgorithmEngineer",
+                "CriticEvaluator",
+            )[min(self.feedback_route_calls - 1, 2)]
+            return GeneratorResponse(
+                text=json.dumps(
+                    {
+                        "decision": "ROUTE",
+                        "selected_subsystem": selected_subsystem,
+                        "objective": "Continue the static CLI integration trace.",
+                        "rationale": (
+                            "The static Architect fixture explicitly selects the "
+                            "next evidence-producing subsystem."
+                        ),
+                    }
+                ),
+                provider=self.provider_name,
+                model=request.model,
+                metadata={"generator_only": True, "tools_available": False},
+            )
+
+    architect_backend = CLIArchitectBackend(architect_response)
+    monkeypatch.setattr(
+        "ai_statistician.cli._build_architect_coordinator_agent_from_args",
+        lambda *_args, **_kwargs: LLMArchitectCoordinatorAgent(
+            provider=architect_backend,
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-cli-test",
+                model_tier=AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY[
+                    "ArchitectCoordinator"
+                ],
+            ),
+        ),
+    )
     algorithm_repair_response_file = _write_algorithm_repair_static_response(root)
     simulation_repair_response_file = _write_simulation_repair_static_response(root)
     formalizer_repair_response_file = _write_formalizer_lean_repair_static_response(root)
@@ -101326,7 +101644,9 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
             "--static-response-file",
             str(response_file),
             "--architect-coordinator-provider",
-            "none",
+            "static",
+            "--architect-static-response-file",
+            str(response_file),
             "--simulation-engineer-provider",
             "none",
             "--algorithm-engineer-provider",
@@ -101341,6 +101661,8 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
             "1",
             "--runs",
             "80",
+            "--max-iterations",
+            "11",
             "--learning-memory-jsonl",
             str(learning_file),
             "--max-learning-memory-rows",
@@ -101377,16 +101699,26 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert manifest["runtime_evidence_truth_table"]["source_theorem_kernel_verified"] is False
     route_summary = manifest["runtime_architect_initial_routing"]
     assert route_summary["artifact_kind"] == "RuntimeArchitectInitialRoutingSummary"
-    assert route_summary["n_results_with_architect_initial_routing"] == 0
-    assert route_summary["n_architect_initial_routing_decisions"] == 0
+    assert route_summary["n_results_with_architect_initial_routing"] == 1
+    assert route_summary["n_architect_initial_routing_decisions"] == 4
     assert route_summary["n_architect_initial_routing_prerequisite_theory"] == 0
-    assert route_summary["architect_initial_routing_selected_subsystems"] == {}
-    assert route_summary["architect_initial_routing_requested_subsystems"] == {}
-    assert route_summary["rows"] == []
+    assert route_summary["architect_initial_routing_selected_subsystems"] == {
+        "AlgorithmEngineer": 1,
+        "CriticEvaluator": 1,
+        "RetrievalMemory": 1,
+        "SimulationEvaluator": 1,
+    }
+    assert route_summary["architect_initial_routing_requested_subsystems"] == {
+        "AlgorithmEngineer": 1,
+        "CriticEvaluator": 1,
+        "RetrievalMemory": 1,
+        "SimulationEvaluator": 1,
+    }
+    assert len(route_summary["rows"]) == 1
     assert route_summary["control_plane_only"] is True
     assert "not execute tools" in route_summary["boundary"]
-    assert manifest["n_results_with_architect_initial_routing"] == 0
-    assert manifest["n_architect_initial_routing_decisions"] == 0
+    assert manifest["n_results_with_architect_initial_routing"] == 1
+    assert manifest["n_architect_initial_routing_decisions"] == 4
     transition_summary = manifest["runtime_handoff_transition_summary"]
     assert transition_summary["artifact_kind"] == "RuntimeHandoffTransitionSummary"
     assert transition_summary["n_transition_rows"] == manifest[
@@ -101407,13 +101739,15 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     ]
     assert transition_summary[
         "n_transitions_aligned_with_architect_execution_plan"
-    ] == 0
+    ] > 0
     assert transition_summary[
         "n_transitions_with_only_default_route_source"
-    ] >= 1
+    ] == 0
     assert manifest[
         "n_runtime_handoff_transitions_aligned_with_architect_plan"
-    ] == 0
+    ] == transition_summary[
+        "n_transitions_aligned_with_architect_execution_plan"
+    ]
     coding_capability = manifest["runtime_coding_agent_capability"]
     assert coding_capability["artifact_kind"] == "RuntimeCodingAgentCapabilityTable"
     assert coding_capability["coding_agent_capability_ready"] is False
@@ -101543,6 +101877,8 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert completion["rows"][0]["status"] in manifest["status_counts"]
     assert completion["rows"][0]["last_completed_subsystem"]
     assert completion["rows"][0]["formal_verification_policy"] == "optional"
+    assert completion["rows"][0]["status"] == "ACCEPTED"
+    assert completion["rows"][0]["terminal_kind"] == "accepted"
     assert completion["rows"][0]["final_acceptance_status"] == (
         "RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS"
     )
@@ -101642,11 +101978,17 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
         proof_control["selected_proof_obligation_ids"]
     )
     assert len(proof_control["selected_proof_obligation_ids"]) <= 2
-    assert proof_control["memory_prioritized_proof_obligation_ids"] == ["variance_nonneg"]
-    assert proof_control["memory_off_catalog_proof_obligation_ids"] == ["constant_estimator_unbiased"]
+    assert proof_control["memory_prioritized_proof_obligation_ids"] == [
+        "constant_estimator_unbiased",
+        "variance_nonneg",
+    ]
+    assert proof_control["memory_off_catalog_proof_obligation_ids"] == []
     assert proof_control["memory_rejected_proof_obligation_ids"] == ["not_registered_obligation"]
-    assert proof_control["prioritized_proof_obligation_ids"] == ["variance_nonneg"]
-    assert proof_control["selected_priority_proof_obligation_ids"] == ["variance_nonneg"]
+    assert proof_control["prioritized_proof_obligation_ids"] == [
+        "constant_estimator_unbiased",
+        "variance_nonneg",
+    ]
+    assert proof_control["selected_priority_proof_obligation_ids"] == []
     assert Path(manifest["artifacts"]["runtime_traces_jsonl"]).exists()
     progress_path = Path(manifest["artifacts"]["runtime_progress_jsonl"])
     assert progress_path.exists()
@@ -101656,7 +101998,7 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
         if line.strip()
     ]
     assert progress_rows[0]["event_type"] == "subsystem_start"
-    assert progress_rows[0]["subsystem"] == "RetrievalMemory"
+    assert progress_rows[0]["subsystem"] == "ArchitectCoordinator"
     assert any(row["event_type"] == "subsystem_finish" for row in progress_rows)
     result = json.loads(Path(manifest["artifacts"]["per_question_results"][0]).read_text(encoding="utf-8"))
     learning_context = result["traces"][1]["task"]["inputs"]["architect_context"]["runtime_learning_memory"]
@@ -101746,7 +102088,7 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     )
     assert scorecard_rows["runtime_progress_observable"]["passed"] is True
     assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is False
-    assert scorecard_rows["architect_orchestrated"]["passed"] is False
+    assert scorecard_rows["architect_orchestrated"]["passed"] is True
     assert scorecard_rows["live_generator_agents_enabled"]["passed"] is False
     assert scorecard_rows[
         "coding_agent_generated_code_repair_component_gate"
@@ -101761,11 +102103,6 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
         "pseudo_formal_block_verifier_component_gate"
     ]["passed"] is False
     assert "no live Anthropic/OpenAI generator agents were enabled" in audit["capability_gaps"]
-    assert (
-        "Architect-derived context was propagated, but no ArchitectCoordinator "
-        "trace executed in this runtime budget; propagated context is "
-        "continuity evidence, not architect-orchestrated research"
-    ) in audit["capability_gaps"]
     assert audit["llm_topology_policy_ok"] is True
     assert audit["unsupported_generator_backends_enabled"] == 0
     assert audit["has_real_kernel_evidence"] is False
@@ -101773,7 +102110,7 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert audit["n_real_kernel_verified_subclaims"] == 0
     assert audit["n_non_real_kernel_verified_subclaims"] == 0
     assert audit["n_memory_prioritized_proof_obligations"] >= 1
-    assert audit["n_memory_off_catalog_proof_obligations"] >= 1
+    assert audit["n_memory_off_catalog_proof_obligations"] == 0
     assert audit["n_memory_rejected_proof_obligations"] >= 1
     assert audit["n_runtime_progress_events"] >= audit["n_runtime_traces"] * 2
     assert audit["n_results_with_runtime_learning_memory_input"] == 1
@@ -101853,14 +102190,16 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert audit["runtime_handoff_trace_alignment_ok"] is True
     assert (
         audit["n_runtime_handoff_transitions_aligned_with_architect_plan"]
-        == 0
+        == transition_summary[
+            "n_transitions_aligned_with_architect_execution_plan"
+        ]
     )
     assert (
         audit["n_runtime_handoff_transitions_with_only_default_route_source"]
-        >= 1
+        == 0
     )
-    assert audit["n_results_with_architect_initial_routing"] == 0
-    assert audit["n_architect_initial_routing_decisions"] == 0
+    assert audit["n_results_with_architect_initial_routing"] == 1
+    assert audit["n_architect_initial_routing_decisions"] == 4
     assert (
         scorecard_rows[
             "runtime_capability_gap_routing_input_retention_audited"
@@ -102219,8 +102558,12 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
         "pending_next_task_id"
     ]
     assert second_result["traces"][0]["task"]["task_id"].startswith(
-        "simulation:"
+        "architect-after-theory:"
     )
+    assert second_result["traces"][0]["task"]["owner_subsystem"] == (
+        "ArchitectCoordinator"
+    )
+    assert second_result["status"] == "BLOCKED"
     assert second_result["traces"][0]["task"]["inputs"]["architect_context"][
         "runtime_resume_source_handoff"
     ]["handoff_id"] == pending_task_payload["source_handoff_id"]
@@ -102275,7 +102618,7 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
         second_out_dir,
         second_out_dir / "runtime_audit",
     )
-    assert second_audit["runtime_resume_prior_ledger_continuity_required"] is True
+    assert second_audit["runtime_resume_prior_ledger_continuity_required"] is False
     assert second_audit["runtime_resume_prior_ledger_continuity_complete"] is True
     assert second_audit["n_runtime_resume_prior_evidence_ledger_artifacts"] == 1
     assert second_audit["n_runtime_resume_prior_handoff_ledger_artifacts"] == 1
@@ -104554,9 +104897,10 @@ def test_formalizer_candidate_failure_keeps_external_exact_rerun_feedback() -> N
     assert feedback["proofengineer_repair_context"][
         "external_proof_search_dispatch_eligible"
     ] is False
-    assert feedback["proofengineer_repair_context"][
-        "external_proof_search_dispatch_blockers"
+    assert "external_proof_search_dispatch_blockers" not in feedback[
+        "proofengineer_repair_context"
     ]
+    assert feedback["proofengineer_repair_context"]["model_owns_next_action"] is True
     assert feedback["proofengineer_repair_context"]["context_kind"] == (
         "model_owned_complete_lean_revision_observations"
     )

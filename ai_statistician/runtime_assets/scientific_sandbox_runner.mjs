@@ -63,8 +63,9 @@ async function runPython(request, source, estimatorSources) {
       `    if _value is None or isinstance(_value, (bool, int, float, str)):\n` +
       `        return _value\n` +
       `    if isinstance(_value, dict):\n` +
-      `        if not all(isinstance(_key, str) for _key in _value):\n` +
-      `            raise TypeError("estimator request and response object keys must be strings")\n` +
+      `        for _key in _value:\n` +
+      `            if not isinstance(_key, str):\n` +
+      `                raise TypeError("estimator request and response object keys must be strings; received key type " + type(_key).__name__)\n` +
       `        return {_key: _ai_stat_json_native(_item) for _key, _item in _value.items()}\n` +
       `    if isinstance(_value, (list, tuple)):\n` +
       `        return [_ai_stat_json_native(_item) for _item in _value]\n` +
@@ -113,8 +114,9 @@ async function runPython(request, source, estimatorSources) {
       `    if _value is None or isinstance(_value, (bool, int, float, str)):\n` +
       `        return _value\n` +
       `    if isinstance(_value, dict):\n` +
-      `        if not all(isinstance(_key, str) for _key in _value):\n` +
-      `            raise TypeError("sandbox result object keys must be strings")\n` +
+      `        for _key in _value:\n` +
+      `            if not isinstance(_key, str):\n` +
+      `                raise TypeError("sandbox result object keys must be strings; received key type " + type(_key).__name__)\n` +
       `        return {_key: _ai_stat_json_native(_item) for _key, _item in _value.items()}\n` +
       `    if isinstance(_value, (list, tuple)):\n` +
       `        return [_ai_stat_json_native(_item) for _item in _value]\n` +

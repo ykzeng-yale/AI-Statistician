@@ -998,7 +998,7 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             "execution_results_observed": False,
             "execution_authorized": False,
             "external_proof_search_dispatch_eligible": False,
-            "model_owned_complete_source_tool_loop_eligible": verdict == "ACCEPT",
+            "model_owned_complete_source_tool_loop_eligible": True,
             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
             "evidence_boundary": FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
         }
@@ -1123,6 +1123,59 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             )
             failure_classification = ""
         else:
+            deferred_task = _agent_task_from_runtime_payload(deferred_task_payload)
+            deferred_inputs = dict(deferred_task.inputs)
+            prior_feedback = (
+                dict(deferred_inputs.get("environment_feedback", {}) or {})
+                if isinstance(
+                    deferred_inputs.get("environment_feedback", {}), Mapping
+                )
+                else {}
+            )
+            revision_context = (
+                dict(prior_feedback.get("proofengineer_repair_context", {}) or {})
+                if isinstance(
+                    prior_feedback.get("proofengineer_repair_context", {}),
+                    Mapping,
+                )
+                else {}
+            )
+            revision_context.update(
+                {
+                    "formalizer_candidate_semantic_review_status": (
+                        "INDEPENDENT_SEMANTIC_REVIEW_REVISE_NOT_PROOF_EVIDENCE"
+                    ),
+                    "formalizer_candidate_semantic_review_execution_id": execution_id,
+                    "formalizer_candidate_semantic_review_packet_id": review_packet_id,
+                    "formalizer_candidate_semantic_review_packet_hash": (
+                        review_packet_hash
+                    ),
+                    "formalizer_candidate_semantic_review_candidate_source_hash": str(
+                        work_order.get("candidate_source_hash", "") or ""
+                    ),
+                    "formalizer_candidate_semantic_review_target_statement_hash": str(
+                        work_order.get("target_theorem_statement_hash", "") or ""
+                    ),
+                    "formalizer_candidate_semantic_review_target_statement_hash_algorithm": str(
+                        work_order.get(
+                            "target_theorem_statement_hash_algorithm", ""
+                        )
+                        or ""
+                    ),
+                    "external_proof_search_dispatch_eligible": False,
+                    "model_owned_complete_source_tool_loop_eligible": True,
+                    "source_theorem_kernel_evidence_eligible": False,
+                    "source_theorem_promotion_blockers": [
+                        "The changed source must pass a fresh independent semantic "
+                        "review before prover search or source-theorem promotion."
+                    ],
+                }
+            )
+            feedback = {
+                **prior_feedback,
+                **feedback,
+                "proofengineer_repair_context": revision_context,
+            }
             architect_context = (
                 dict(task.inputs.get("architect_context", {}) or {})
                 if isinstance(task.inputs.get("architect_context", {}), Mapping)
@@ -1233,7 +1286,7 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                         ),
                         "external_proof_search_dispatch_eligible": False,
                         "model_owned_complete_source_tool_loop_eligible": (
-                            verdict == "ACCEPT"
+                            True
                         ),
                         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                     },

@@ -110,9 +110,6 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
                 ),
                 ClientToolCall("check-1", "check_lean_source", {}),
             ),
-            _response(
-                ClientToolCall("submit-1", "submit_compiled_source", {})
-            ),
         ]
     )
     checked_sources: list[str] = []
@@ -166,7 +163,7 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
     assert searches == [("True.intro declaration", 3)]
     assert result.evidence["runtime_selected_lean_code"] is False
     assert result.evidence["model_owned_lean_code"] is True
-    assert result.evidence["runtime_executed_tool_calls"] == 4
+    assert result.evidence["runtime_executed_tool_calls"] == 3
     assert result.evidence["local_lean_checks"] == 1
     assert result.evidence["formal_environment_searches"] == 1
     assert result.evidence["model"] == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
@@ -178,27 +175,25 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
         "replace_lean_source",
         "search_formal_environment",
         "check_lean_source",
-        "submit_compiled_source",
     }
+    assert result.evidence["handoff_mode"] == (
+        "successful_model_requested_check"
+    )
+    assert result.evidence["model_explicit_submit"] is False
 
 
-def test_lean_candidate_tool_loop_rejects_submit_after_unchecked_edit() -> None:
+def test_lean_candidate_tool_loop_hands_off_on_successful_requested_check() -> None:
     initial = "theorem target : True := by trivial\n"
     revised = "theorem target : True := by exact True.intro\n"
     backend = ScriptedLeanToolBackend(
         [
-            _response(ClientToolCall("check-0", "check_lean_source", {})),
             _response(
                 ClientToolCall(
                     "edit-1",
                     "replace_lean_source",
                     {"lean_source": revised},
                 ),
-                ClientToolCall("submit-stale", "submit_compiled_source", {}),
-            ),
-            _response(
                 ClientToolCall("check-1", "check_lean_source", {}),
-                ClientToolCall("submit-1", "submit_compiled_source", {}),
             ),
         ]
     )
@@ -227,12 +222,11 @@ def test_lean_candidate_tool_loop_rejects_submit_after_unchecked_edit() -> None:
     )
 
     assert result.lean_source == revised
-    stale_submit = backend.requests[2].messages[-1]["content"][-1]
-    assert stale_submit["is_error"] is True
-    assert "current_source_has_no_successful_local_lean_check" in stale_submit[
-        "content"
-    ]
-    assert result.evidence["local_lean_checks"] == 2
+    assert len(backend.requests) == 1
+    assert result.evidence["local_lean_checks"] == 1
+    assert result.evidence["handoff_mode"] == (
+        "successful_model_requested_check"
+    )
 
 
 def test_lean_candidate_tool_loop_stops_repeated_identical_checks() -> None:
@@ -324,6 +318,10 @@ def test_lean_candidate_tool_loop_does_not_hide_a_check_at_turn_budget() -> None
         assert checkpoint is not None
         assert checkpoint["current_source"] == repaired
         assert checkpoint["last_check"] == {}
+        assert checkpoint["latest_check_observation"]["source_hash"] == (
+            stable_hash(initial)
+        )
+        assert checkpoint["reviewed_parent_source_hash"] == stable_hash(initial)
         assert "final_runtime_check_performed" not in checkpoint
     else:
         raise AssertionError("unsubmitted final source was accepted")
@@ -379,6 +377,8 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
         assert checkpoint["current_source"] == latest
         assert checkpoint["current_source_hash"] == stable_hash(latest)
         assert checkpoint["last_check"] == {}
+        assert checkpoint["latest_check_observation"] == {}
+        assert checkpoint["reviewed_parent_source_hash"] == stable_hash(initial)
         assert "final_runtime_check_performed" not in checkpoint
         assert checkpoint["model_owned_lean_code"] is True
         assert checkpoint["kernel_verified"] is False
@@ -431,6 +431,17 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
                     "local_lean_stderr": exact_error,
                 }
             ],
+            "formalizer_recovery_checkpoint": {
+                "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
+                "candidate_id": "target-candidate",
+                "candidate_lean_declaration": "target",
+                "reviewed_parent_source_hash": "reviewed-source-hash",
+                "current_source_hash": stable_hash(initial_source),
+                "current_source": initial_source,
+                "model_owned_lean_code": True,
+                "runtime_selected_lean_code": False,
+                "kernel_verified": False,
+            },
         },
     )
 
@@ -439,19 +450,21 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
     feedback = payload["runtime_observations"]
     context = feedback["target_and_environment_observations"]
     assert context["target_theorem_statement"] == "theorem target : True"
-    assert "proof_state_trace_rag" in context
-    assert "formal_source_grounding_hits" in context
-    assert context["candidate_rerun_specs"] == ["y" * 30000]
-    assert feedback["reviewed_source_artifacts"] == [
-        {"exact_source_code": "duplicate" * 5000}
-    ]
+    assert "proof_state_trace_rag" not in context
+    assert "formal_source_grounding_hits" not in context
+    assert "candidate_rerun_specs" not in context
+    assert "reviewed_source_artifacts" not in feedback
     observation = feedback["candidate_diagnostics"][0]
-    assert observation["lean_source_excerpt"] == "duplicate" * 5000
+    assert "lean_source_excerpt" not in observation
     assert observation["local_lean_stderr"] == exact_error
+    checkpoint = feedback["model_revision_checkpoint"]
+    assert checkpoint["current_source_hash"] == stable_hash(initial_source)
+    assert "current_source" not in checkpoint
     assert "EXACT_MIDDLE_LEAN_OBSERVATION" in prompt
     assert "proofengineer_repair_context" not in feedback
     assert "required_repair" not in prompt
     assert "recommended_repair" not in prompt
+    assert len(prompt) < 20000
 
 
 def test_formalizer_validation_failure_routes_model_source_checkpoint() -> None:
@@ -512,7 +525,7 @@ def test_formalizer_validation_failure_routes_model_source_checkpoint() -> None:
     assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
 
 
-def test_runtime_client_tool_revision_requires_independent_target_acceptance(
+def test_runtime_client_tool_revision_requires_hash_bound_semantic_review(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -642,14 +655,18 @@ def test_runtime_client_tool_revision_requires_independent_target_acceptance(
         config = FakeConfig()
         provider = FakeProvider()
 
-        def __init__(self) -> None:
+        def __init__(self, expected_source: str = source) -> None:
+            self.expected_source = expected_source
             self.check_result = {}
             self.search_result = {}
 
         def revise_lean_candidate_with_client_tools(self, **kwargs):
             assert kwargs["candidate_id"] == candidate_id
-            assert kwargs["initial_source"] == source
-            self.check_result = dict(kwargs["check_candidate"](source))
+            assert kwargs["initial_source"] == self.expected_source
+            assert kwargs["reviewed_parent_source_hash"] == stable_hash(source)
+            self.check_result = dict(
+                kwargs["check_candidate"](self.expected_source)
+            )
             self.search_result = kwargs["search_formal_environment"](
                 "target declaration",
                 3,
@@ -661,7 +678,7 @@ def test_runtime_client_tool_revision_requires_independent_target_acceptance(
                     "candidate_id": candidate_id,
                     "model": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
                     "model_tier": "haiku",
-                    "submitted_source_hash": stable_hash(source),
+                    "submitted_source_hash": stable_hash(self.expected_source),
                     "runtime_executed_tool_calls": 2,
                     "proof_evidence_status": (
                         "LEAN_CANDIDATE_CLIENT_TOOL_LOOP_RECORDED_NOT_PROOF_EVIDENCE"
@@ -715,6 +732,76 @@ def test_runtime_client_tool_revision_requires_independent_target_acceptance(
     assert evidence["parent_materialization_manifest_id"] == materialization_id
     assert evidence["parent_formalizer_packet_id"] == parent_packet_id
     assert evidence["model"] == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
+    assert evidence["resumed_from_model_checkpoint"] is False
+
+    resumed_source = "theorem target : True := by\n  exact True.intro\n"
+    resume_feedback = {
+        **feedback,
+        "formalizer_recovery_checkpoint": {
+            "schema_version": 1,
+            "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
+            "candidate_id": candidate_id,
+            "candidate_lean_declaration": "target",
+            "parent_source_hash": stable_hash(source),
+            "reviewed_parent_source_hash": stable_hash(source),
+            "current_source_hash": stable_hash(resumed_source),
+            "current_source": resumed_source,
+            "transcript_fingerprint": "prior-model-transcript",
+            "runtime_selected_lean_code": False,
+            "model_owned_lean_code": True,
+            "kernel_verified": False,
+        },
+    }
+    resume_agent = FakeAgent(resumed_source)
+    resumed = runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
+        proposal_agent=resume_agent,
+        question=question,
+        task=task,
+        blackboard=blackboard,
+        theory_packet={},
+        environment_feedback=resume_feedback,
+        proof_bank_runtime_memory_summary={},
+        formal_source_retriever=None,
+        lean_candidate_root=tmp_path / "candidates",
+        lean_candidate_local_lean=True,
+        lean_candidate_lean_project=tmp_path,
+        lean_candidate_lean_timeout=5,
+    )
+    assert resumed is not None
+    assert resumed[1]["resumed_from_model_checkpoint"] is True
+    assert resumed[1]["resume_checkpoint_source_hash"] == stable_hash(
+        resumed_source
+    )
+    assert resumed[1]["parent_candidate_source_hash"] == stable_hash(source)
+
+    stale_resume_feedback = {
+        **resume_feedback,
+        "formalizer_recovery_checkpoint": {
+            **resume_feedback["formalizer_recovery_checkpoint"],
+            "current_source_hash": "stale",
+        },
+    }
+    try:
+        runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
+            proposal_agent=resume_agent,
+            question=question,
+            task=task,
+            blackboard=blackboard,
+            theory_packet={},
+            environment_feedback=stale_resume_feedback,
+            proof_bank_runtime_memory_summary={},
+            formal_source_retriever=None,
+            lean_candidate_root=tmp_path / "candidates",
+            lean_candidate_local_lean=True,
+            lean_candidate_lean_project=tmp_path,
+            lean_candidate_lean_timeout=5,
+        )
+    except PacketValidationError as exc:
+        assert exc.validation_label == (
+            "Lean candidate revision checkpoint lineage"
+        )
+    else:
+        raise AssertionError("stale model checkpoint source was not rejected")
 
     monkeypatch.setattr(
         runtime_module,
@@ -761,13 +848,48 @@ def test_runtime_client_tool_revision_requires_independent_target_acceptance(
     assert "documentation" not in compact_agent.search_result["hits"][0]
     assert len(json.dumps(compact_agent.search_result)) < 5600
 
-    rejected = runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
+    revise_packet_id = "formal_target_semantic_review:revise"
+    revise_packet = {
+        **review_packet,
+        "packet_id": revise_packet_id,
+        "overall_verdict": "REVISE",
+    }
+    revise_packet_hash = stable_hash(revise_packet)
+    revise_execution_id = "formal_target_semantic_review_execution:revise"
+    revise_execution = {
+        **review_execution,
+        "execution_id": revise_execution_id,
+        "review_packet_id": revise_packet_id,
+        "review_packet_hash": revise_packet_hash,
+        "overall_verdict": "REVISE",
+        "semantic_review_accepted": False,
+    }
+    blackboard.artifacts[revise_packet_id] = revise_packet
+    blackboard.artifacts[revise_execution_id] = revise_execution
+    revise_context = {
+        **feedback["proofengineer_repair_context"],
+        "formalizer_candidate_semantic_review_status": (
+            "INDEPENDENT_SEMANTIC_REVIEW_REVISE_NOT_PROOF_EVIDENCE"
+        ),
+        "formalizer_candidate_semantic_review_execution_id": revise_execution_id,
+        "formalizer_candidate_semantic_review_packet_id": revise_packet_id,
+        "formalizer_candidate_semantic_review_packet_hash": revise_packet_hash,
+    }
+    revise_feedback = {
+        **feedback,
+        "overall_verdict": "REVISE",
+        "semantic_review_execution_id": revise_execution_id,
+        "semantic_review_packet_id": revise_packet_id,
+        "semantic_review_packet_hash": revise_packet_hash,
+        "proofengineer_repair_context": revise_context,
+    }
+    revised = runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
         proposal_agent=agent,
         question=question,
         task=task,
         blackboard=blackboard,
         theory_packet={},
-        environment_feedback={**feedback, "overall_verdict": "REVISE"},
+        environment_feedback=revise_feedback,
         proof_bank_runtime_memory_summary={},
         formal_source_retriever=None,
         lean_candidate_root=tmp_path / "candidates",
@@ -775,7 +897,8 @@ def test_runtime_client_tool_revision_requires_independent_target_acceptance(
         lean_candidate_lean_project=tmp_path,
         lean_candidate_lean_timeout=5,
     )
-    assert rejected is None
+    assert revised is not None
+    assert revised[1]["parent_candidate_source_hash"] == stable_hash(source)
 
     blackboard.artifacts[review_packet_id] = {
         **review_packet,
@@ -798,7 +921,7 @@ def test_runtime_client_tool_revision_requires_independent_target_acceptance(
         )
     except PacketValidationError as exc:
         assert exc.validation_label == (
-            "Formalizer Lean candidate accepted-review lineage"
+            "Formalizer Lean candidate semantic-review lineage"
         )
     else:
         raise AssertionError("tampered accepted review lineage was not rejected")
@@ -818,9 +941,6 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
                     {"lean_source": repaired},
                 ),
                 ClientToolCall("check", "check_lean_source", {}),
-            ),
-            _response(
-                ClientToolCall("submit", "submit_compiled_source", {})
             ),
         ]
     )

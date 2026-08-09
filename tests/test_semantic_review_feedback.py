@@ -178,6 +178,28 @@ def test_recursive_projection_drops_runtime_repair_memory_and_recommendations() 
     }
 
 
+def test_projection_drops_runtime_authored_cli_recipes() -> None:
+    projected = model_observations_without_repair_recipes(
+        {
+            "local_lean_stderr": "type mismatch at the exact target",
+            "llm_route_planner_prompt_cli": "python -m hidden.route --fix target",
+            "nested": {
+                "reuse_smoke_cli": "python -m hidden.replay --repair target",
+                "target_theorem_statement": "theorem target : True",
+            },
+        }
+    )
+
+    assert projected["local_lean_stderr"] == (
+        "type mismatch at the exact target"
+    )
+    assert projected["nested"]["target_theorem_statement"] == (
+        "theorem target : True"
+    )
+    assert "llm_route_planner_prompt_cli" not in projected
+    assert "reuse_smoke_cli" not in projected["nested"]
+
+
 def test_coding_agent_projection_keeps_observations_without_repair_routing() -> None:
     rejected_candidate = {
         "source": "def estimate(x):\n    return x\n",
@@ -204,6 +226,7 @@ def test_coding_agent_projection_keeps_observations_without_repair_routing() -> 
             "source_repair_contract": {"repair_target_subsystem": "AlgorithmEngineer"},
             "recommended_repair_scope": "source_code",
             "semantic_reviewer_recommended_repair_scope": "source_code",
+            "runtime_queue_status": "PENDING_SOURCE_REPAIR",
             "next_action": "Apply a canned patch.",
         }
     )
@@ -225,6 +248,7 @@ def test_coding_agent_projection_keeps_observations_without_repair_routing() -> 
     assert "repair_target_subsystem" not in serialized
     assert "repair_scope" not in serialized
     assert "repair_plan" not in serialized
+    assert "runtime_queue_status" not in serialized
     assert "recommended_repair_scope" not in serialized
     assert "semantic_reviewer_recommended_repair_scope" not in serialized
 

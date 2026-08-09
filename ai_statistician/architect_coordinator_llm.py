@@ -675,6 +675,8 @@ def build_architect_feedback_route_prompt(
             "implementation_revision_owner_is_existing_source_producer": True,
             "runtime_progress_snapshot_is_authoritative_for_availability": True,
             "current_validated_plan_is_prior_intent_not_missing_work": True,
+            "recommended_research_path_controls_lane_order_not_prerequisites": True,
+            "one_route_materializes_one_task_no_background_parallelism": True,
             "completed_stage_restart_requires_observed_staleness_or_incompatibility": (
                 True
             ),
@@ -728,6 +730,16 @@ def build_architect_feedback_route_prompt(
         "artifact availability and recent execution. Do not restart a completed stage "
         "unless the environment observations identify its current artifact as stale, "
         "incompatible, or insufficient for the concrete next objective. "
+        "This route materializes exactly one next task; no other lane runs in the "
+        "background. Do not claim parallel progress as a reason to schedule only one "
+        "lane indefinitely. Honor the current evidence contract's "
+        "recommended_research_path when choosing lane order: after theory review, "
+        "proof_first selects FormalizationEvaluator before AlgorithmEngineer or "
+        "SimulationEvaluator unless the current observations identify a concrete "
+        "missing mathematical prerequisite; simulation_first prefers the empirical "
+        "lane; dual_track selects one lane now and must leave the other for a later "
+        "Architect turn. Simulation and algorithm artifacts are not prerequisites "
+        "for starting formalization. "
         "Treat the top-level observation marked CURRENT_ACTIVE_OBSERVATION as the current "
         "blocker. Superseded observations are complete attempt history: use them to avoid "
         "repeating failed work, but never route on an old error unless the current artifact "
@@ -745,7 +757,12 @@ def build_architect_feedback_route_prompt(
         "derivations to TheoryDeveloper. Route to ProofEngineer only when the target "
         "and premises are mathematically specified and the remaining blocker is Lean "
         "formalization or proof; Lean must not substitute for an upstream theory "
-        "revision. A truncated routing view is not evidence that an artifact or "
+        "revision. A parser, elaborator, compiler, unresolved-goal, or generated "
+        "declaration-identity observation belongs to the existing FormalizationEvaluator "
+        "or ProofEngineer source producer when independent semantic review has not found "
+        "a target-level mathematical defect. Do not send candidate-source failures or "
+        "missing proof dependencies to TheoryDeveloper merely because the generated Lean "
+        "is malformed or incomplete. A truncated routing view is not evidence that an artifact or "
         "worker is unavailable; the selected worker receives the complete feedback. "
         "Route from direct evidence; a statistically non-diagnostic result does not "
         "justify source or theory revision, and a frozen gate cannot change post hoc. "
@@ -1647,6 +1664,23 @@ def build_architect_coordinator_prompt(
             "proof_first",
             "dual_track",
         ],
+        "research_path_semantics": {
+            "simulation_first": (
+                "attempt the empirical implementation/simulation lane before the "
+                "formal lane when the accepted theory supports it"
+            ),
+            "proof_first": (
+                "after theory review, schedule FormalizationEvaluator before "
+                "AlgorithmEngineer or SimulationEvaluator unless a concrete missing "
+                "mathematical prerequisite blocks formalization; empirical artifacts "
+                "are not prerequisites"
+            ),
+            "dual_track": (
+                "interleave empirical and formal evidence by scheduling one real task "
+                "now and the other on a later Architect turn; neither lane is a "
+                "prerequisite for starting the other"
+            ),
+        },
     }
     required_plan_subsystems = _required_architect_plan_subsystems(
         requested_evidence_contract
@@ -1680,8 +1714,10 @@ def build_architect_coordinator_prompt(
                 "shells for mandatory evidence stages omitted by the proposal, "
                 "without inventing objectives, artifacts, statistical content, "
                 "code, or proof content. Order authored rows by intended execution "
-                "and represent same-owner retries in iteration_policy rather than "
-                "duplicate stage rows"
+                "in the single-task runtime: there is no background parallel queue. "
+                "For proof_first, place FormalizationEvaluator before empirical "
+                "workers after theory review. Represent same-owner retries in "
+                "iteration_policy rather than duplicate stage rows"
             ),
             "resume_rule": (
                 "on plan repair or resume, return the complete amended remaining "

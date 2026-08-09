@@ -991,6 +991,7 @@ def test_live_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
     assert result.estimator_runtime_failure_ids == ("candidate",)
     assert len(result.estimator_runtime_errors) == 1
     assert "object keys must be strings" in result.estimator_runtime_errors[0]
+    assert "float" in result.estimator_runtime_errors[0]
 
 
 def test_live_r_estimator_failure_caught_by_simulation_keeps_algorithm_origin(

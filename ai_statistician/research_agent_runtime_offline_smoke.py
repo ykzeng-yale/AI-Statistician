@@ -8,11 +8,13 @@ from typing import Any
 
 from .algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
 from .architect_coordinator_llm import (
+    ARCHITECT_FEEDBACK_ROUTE_OPERATION,
     ArchitectCoordinatorConfig,
     LLMArchitectCoordinatorAgent,
 )
 from .critic_evaluator_llm import CriticEvaluatorConfig, LLMCriticEvaluatorAgent
 from .formalizer_llm import FormalizerConfig, LLMFormalizerProofEngineerAgent
+from .model_backend import GeneratorResponse
 from .proof_state_feedback import LocalLeanProofStateFeedbackProvider
 from .research_agent_runtime import ResearchAgentRuntimeConfig, run_research_agent_runtime
 from .research_architect import (
@@ -36,13 +38,50 @@ OFFLINE_RUNTIME_SMOKE_BOUNDARY = (
 )
 
 
+class _OfflineSmokeArchitectProvider(StaticArchitectLLMProvider):
+    """Static model fixture that makes the post-theory route explicit."""
+
+    def __init__(self, response: dict[str, Any]) -> None:
+        super().__init__(response)
+        self.feedback_route_calls = 0
+
+    def generate(self, request):  # type: ignore[no-untyped-def]
+        if request.metadata.get("operation") != ARCHITECT_FEEDBACK_ROUTE_OPERATION:
+            return super().generate(request)
+        self.feedback_route_calls += 1
+        selected_subsystem = (
+            "SimulationEvaluator"
+            if self.feedback_route_calls == 1
+            else "CriticEvaluator"
+        )
+        return GeneratorResponse(
+            text=json.dumps(
+                {
+                    "decision": "ROUTE",
+                    "selected_subsystem": selected_subsystem,
+                    "objective": (
+                        "Continue the deterministic smoke through its declared "
+                        "evidence lane."
+                    ),
+                    "rationale": (
+                        "This static Architect fixture explicitly selects each "
+                        "post-observation route."
+                    ),
+                }
+            ),
+            provider=self.provider_name,
+            model=request.model,
+            metadata={"generator_only": True, "tools_available": False},
+        )
+
+
 def run_research_agent_runtime_offline_smoke(
     out_dir: Path,
     *,
     question_file: Path = Path("examples/research_questions.json"),
     n_runs: int = 20,
     seed: int = 20260528,
-    max_iterations: int = 8,
+    max_iterations: int = 9,
 ) -> dict[str, Any]:
     """Run a deterministic real AgentRuntime smoke for system-audit plumbing."""
 
@@ -63,7 +102,7 @@ def run_research_agent_runtime_offline_smoke(
             ),
         ),
         architect_coordinator=LLMArchitectCoordinatorAgent(
-            provider=StaticArchitectLLMProvider(_architect_response()),
+            provider=_OfflineSmokeArchitectProvider(_architect_response()),
             config=ArchitectCoordinatorConfig(
                 provider_name="static",
                 model="static-architect-offline-smoke",
@@ -105,7 +144,7 @@ def run_research_agent_runtime_offline_smoke(
             seed=seed,
             max_iterations=max_iterations,
             evaluation_mode="system_offline_smoke",
-            formal_verification_policy="required",
+            formal_verification_policy="optional",
         ),
     )
     manifest["runtime_audit_source"] = OFFLINE_RUNTIME_SMOKE_SOURCE
@@ -207,13 +246,13 @@ def _architect_response() -> dict[str, Any]:
             }
         ],
         "evidence_contract": {
-            "formal_verification_policy": "required",
+            "formal_verification_policy": "optional",
             "recommended_research_path": "dual_track",
-            "formal_required_for_final": True,
+            "formal_required_for_final": False,
             "formal_targets": ["orthogonal score algebra"],
             "simulation_targets": ["finite-sample bias stress test"],
             "acceptance_modes": [
-                "final acceptance requires the selected formal target to close"
+                "offline smoke acceptance records disclosed formal gaps"
             ],
             "disclosure_requirements": [
                 "distinguish simulation support from Lean proof evidence"

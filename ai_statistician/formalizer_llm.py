@@ -300,12 +300,13 @@ class LLMFormalizerProofEngineerAgent:
         candidate_source_field: str,
         candidate_lean_declaration: str,
         initial_source: str,
+        reviewed_parent_source_hash: str = "",
         environment_feedback: Mapping[str, Any],
         proof_bank_runtime_memory_summary: Mapping[str, Any] | None,
         check_candidate: LeanCandidateCheck,
         search_formal_environment: FormalEnvironmentSearch,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Revise one accepted target through model-selected Lean tool actions."""
+        """Revise one hash-bound reviewed target through model-selected tools."""
 
         if not self.config.use_client_tool_lean_candidate_revision:
             raise ValueError("Formalizer Lean candidate client-tool revision is disabled")
@@ -320,7 +321,9 @@ class LLMFormalizerProofEngineerAgent:
             provider=self.provider,
             system_prompt=(
                 FORMALIZER_SYSTEM_PROMPT
-                + "\nYou are revising one independently reviewed Lean target. "
+                + "\nYou are revising one hash-bound Lean target that has undergone "
+                "independent semantic review. The review verdict and findings are "
+                "observations, and every changed source will be reviewed again. "
                 "You own every Lean edit and search query. Use the client tools to "
                 "inspect the active formal environment and compile the exact current "
                 "source. Do not answer with prose or JSON, and do not weaken the target."
@@ -352,6 +355,7 @@ class LLMFormalizerProofEngineerAgent:
             candidate_id=candidate_id,
             candidate_lean_declaration=candidate_lean_declaration,
             initial_source=initial_source,
+            reviewed_parent_source_hash=reviewed_parent_source_hash,
             check_candidate=check_candidate,
             search_formal_environment=search_formal_environment,
             request_metadata={
@@ -363,7 +367,7 @@ class LLMFormalizerProofEngineerAgent:
             },
         )
         revised_payload = _formalizer_revision_payload_from_packet(parent_packet)
-        _replace_formalizer_lean_candidate_source(
+        _bind_model_authored_lean_candidate_source(
             revised_payload,
             candidate_id=candidate_id,
             candidate_source_field=candidate_source_field,
@@ -504,7 +508,7 @@ def _formalizer_revision_payload_from_packet(
     }
 
 
-def _replace_formalizer_lean_candidate_source(
+def _bind_model_authored_lean_candidate_source(
     payload: dict[str, Any],
     *,
     candidate_id: str,
@@ -512,7 +516,7 @@ def _replace_formalizer_lean_candidate_source(
     candidate_lean_declaration: str,
     lean_source: str,
 ) -> None:
-    """Apply model-authored source to one runtime-bound packet row."""
+    """Bind exact model-authored source to one immutable candidate row."""
 
     source_field = str(candidate_source_field or "").strip()
     if source_field not in {
@@ -586,10 +590,12 @@ def _build_lean_candidate_revision_tool_prompt(
     initial_source: str,
     environment_feedback: Mapping[str, Any],
 ) -> str:
-    repair_context = environment_feedback.get("proofengineer_repair_context", {})
-    accepted_review = (
-        dict(repair_context)
-        if isinstance(repair_context, Mapping)
+    review_context_payload = environment_feedback.get(
+        "proofengineer_repair_context", {}
+    )
+    review_context = (
+        dict(review_context_payload)
+        if isinstance(review_context_payload, Mapping)
         else {}
     )
     runtime_observations = _complete_lean_candidate_revision_feedback(
@@ -599,14 +605,15 @@ def _build_lean_candidate_revision_tool_prompt(
     payload = {
         "task": (
             "Revise the complete exact current Lean source through search/edit/check "
-            "actions. "
-            "Call submit_compiled_source only after check_lean_source passes for the "
-            "current source."
+            "actions. A successful model-requested check hands the exact current "
+            "source to independent semantic review."
         ),
         "tool_workflow": (
-            "Use targeted searches, then edit and compile. Preserve enough turn budget "
-            "to check every changed source. When ready, check_lean_source followed by "
-            "submit_compiled_source may be called in the same turn, in that order."
+            "Choose the search, complete-source replacement, and check sequence from "
+            "the current observations. Preserve enough budget to check the final exact "
+            "source. A successful check_lean_source hands that exact hash to independent "
+            "semantic review automatically; a failed check returns raw Lean "
+            "observations for another complete model-authored source."
         ),
         "question": {
             "id": question.id,
@@ -619,19 +626,19 @@ def _build_lean_candidate_revision_tool_prompt(
             "candidate_source_field": candidate_source_field,
             "candidate_lean_declaration": candidate_lean_declaration,
             "source_theorem_target_identity_status": str(
-                accepted_review.get("source_theorem_target_identity_status", "")
+                review_context.get("source_theorem_target_identity_status", "")
                 or ""
             ),
             "formalizer_candidate_semantic_review_status": str(
-                accepted_review.get(
+                review_context.get(
                     "formalizer_candidate_semantic_review_status",
                     "",
                 )
                 or ""
             ),
             "target_theorem_statement_hash": str(
-                accepted_review.get("target_theorem_statement_hash", "")
-                or accepted_review.get(
+                review_context.get("target_theorem_statement_hash", "")
+                or review_context.get(
                     "formalizer_candidate_semantic_review_target_statement_hash",
                     "",
                 )
@@ -645,7 +652,7 @@ def _build_lean_candidate_revision_tool_prompt(
         ),
         "boundaries": {
             "model_owns_lean_source_and_search_queries": True,
-            "runtime_selected_lean_repair": False,
+            "runtime_selected_lean_code": False,
             "local_compile_is_not_source_theorem_semantic_acceptance": True,
             "independent_semantic_review_after_revision_required": True,
             "runtime_kernel_promotion_gate_required": True,
@@ -907,9 +914,9 @@ def _formalizer_indexed_lean_environment_candidates(
     if not isinstance(environment_feedback, Mapping):
         return []
     contexts: list[Mapping[str, Any]] = []
-    repair_context = environment_feedback.get("proofengineer_repair_context", {})
-    if isinstance(repair_context, Mapping):
-        contexts.append(repair_context)
+    review_context = environment_feedback.get("proofengineer_repair_context", {})
+    if isinstance(review_context, Mapping):
+        contexts.append(review_context)
     if environment_feedback.get("formal_source_grounding_hits"):
         contexts.append(environment_feedback)
 
@@ -1305,6 +1312,11 @@ def build_formalizer_prompt(
             "missing, return the most precise typed blocker supported by the output "
             "schema instead of weakening the target or inventing evidence. Generated "
             "Lean remains a proposal until the exact local Lean/kernel gate accepts it. "
+            "The historical lean_statement_sketch field must contain the complete "
+            "standalone model-authored Lean source, including every selected import, "
+            "namespace/open command, declaration, and proof term. lean_imports is only "
+            "a model-authored retrieval/lineage inventory; AgentRuntime does not inject "
+            "it into or otherwise edit lean_statement_sketch. "
         )
     else:
         lean_candidate_instruction = ""
@@ -1387,7 +1399,11 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
                 "HELPER_OR_SUPPORT; single generated routing authority, not proof evidence"
             ),
             "informal_source": "string",
-            "lean_statement_sketch": "string",
+            "lean_statement_sketch": (
+                "complete standalone model-authored Lean source, including imports, "
+                "declarations, and proof term when expected_status is NEEDS_KERNEL_CHECK; "
+                "AgentRuntime does not inject imports or edit this source"
+            ),
             "candidate_lean_declaration": (
                 "exact Lean-resolvable declaration name emitted by "
                 "lean_statement_sketch, namespace-qualified when needed; candidate "
@@ -3430,13 +3446,196 @@ def _complete_lean_candidate_revision_feedback(
     *,
     candidate_id: str,
 ) -> dict[str, Any]:
-    """Carry complete producer, verifier, retrieval, and reviewer observations."""
+    """Carry source-relevant observations without replaying prior tool transcripts."""
 
     if not isinstance(feedback, Mapping):
         return {}
-    payload = _complete_formalizer_environment_observations(feedback)
-    if candidate_id:
-        payload["active_candidate_id"] = candidate_id
+    context_payload = feedback.get("proofengineer_repair_context", {})
+    context = (
+        context_payload if isinstance(context_payload, Mapping) else {}
+    )
+    context_fields = (
+        "context_kind",
+        "target_lean_declaration",
+        "target_theorem_name",
+        "target_theorem_statement",
+        "target_theorem_statement_hash",
+        "target_theorem_statement_hash_algorithm",
+        "source_theorem_target_identity_status",
+        "source_theorem_target_provenance",
+        "semantic_alignment_constraints",
+        "compiler_feedback",
+        "candidate_proof_state_feedback_rows",
+        "candidate_proof_state_feedback_counts",
+        "formalizer_candidate_semantic_review_status",
+        "formalizer_candidate_semantic_review_execution_id",
+        "formalizer_candidate_semantic_review_packet_id",
+        "formalizer_candidate_semantic_review_packet_hash",
+        "formalizer_candidate_semantic_review_candidate_source_hash",
+        "formalizer_candidate_semantic_review_target_statement_hash",
+        "formalizer_candidate_semantic_review_target_statement_hash_algorithm",
+        "formal_source_grounding_policy",
+        "source_scope_ids",
+    )
+    target_observations = {
+        field: deepcopy(context[field])
+        for field in context_fields
+        if context.get(field) not in (None, "", [], {})
+    }
+
+    candidate_fields = (
+        "candidate_id",
+        "candidate_kind",
+        "source_hash",
+        "candidate_lean_declaration",
+        "target_lean_declaration",
+        "precheck_errors",
+        "blocking_precheck_errors",
+        "local_lean_attempted",
+        "local_lean_source_compiled",
+        "local_lean_compiled",
+        "local_lean_exit_status",
+        "local_lean_stdout",
+        "local_lean_stderr",
+        "candidate_identity_lean_checked",
+        "candidate_identity_lean_verified",
+        "candidate_identity_lean_exit_status",
+        "candidate_identity_lean_stdout",
+        "candidate_identity_lean_stderr",
+        "proof_evidence_status",
+    )
+    candidate_observation: dict[str, Any] = {}
+    for collection_name in ("candidate_diagnostics", "candidate_rows"):
+        rows = feedback.get(collection_name, [])
+        if not isinstance(rows, list | tuple):
+            continue
+        match = next(
+            (
+                row
+                for row in rows
+                if isinstance(row, Mapping)
+                and (
+                    not candidate_id
+                    or str(row.get("candidate_id", "") or "") == candidate_id
+                )
+            ),
+            None,
+        )
+        if isinstance(match, Mapping):
+            candidate_observation = {
+                field: deepcopy(match[field])
+                for field in candidate_fields
+                if field in match
+                and match.get(field) not in (None, "", [], {})
+            }
+            break
+
+    checkpoint_payload = feedback.get("formalizer_recovery_checkpoint", {})
+    checkpoint = (
+        checkpoint_payload if isinstance(checkpoint_payload, Mapping) else {}
+    )
+    checkpoint_fields = (
+        "artifact_kind",
+        "candidate_id",
+        "candidate_lean_declaration",
+        "parent_source_hash",
+        "reviewed_parent_source_hash",
+        "current_source_hash",
+        "source_updates",
+        "searches",
+        "checks",
+        "last_check",
+        "latest_check_observation",
+        "turns",
+        "tool_calls",
+        "transcript_fingerprint",
+        "provider",
+        "model",
+        "model_tier",
+        "runtime_selected_lean_code",
+        "model_owned_lean_code",
+        "kernel_verified",
+        "proof_evidence_status",
+    )
+    model_checkpoint = {
+        field: deepcopy(checkpoint[field])
+        for field in checkpoint_fields
+        if field in checkpoint
+    }
+
+    validation_payload = feedback.get("formalizer_validation_feedback", {})
+    validation = (
+        validation_payload if isinstance(validation_payload, Mapping) else {}
+    )
+    validation_observation = {
+        field: deepcopy(validation[field])
+        for field in (
+            "feedback_id",
+            "validation_label",
+            "validation_error_messages",
+            "validation_error_fingerprint",
+            "rejected_packet_fingerprint",
+            "rejected_packet_projection",
+            "retry_depth",
+        )
+        if validation.get(field) not in (None, "", [], {})
+    }
+    payload = {
+        "active_candidate_id": candidate_id,
+        "feedback_type": str(feedback.get("feedback_type", "") or ""),
+        "failure_classification": str(
+            feedback.get("failure_classification", "") or ""
+        ),
+        "overall_verdict": str(feedback.get("overall_verdict", "") or ""),
+        "target_and_environment_observations": target_observations,
+        "candidate_diagnostics": (
+            [candidate_observation] if candidate_observation else []
+        ),
+        "semantic_review": {
+            "dimension_reviews": deepcopy(
+                list(feedback.get("dimension_reviews", []) or [])
+            ),
+            "findings": deepcopy(list(feedback.get("findings", []) or [])),
+            "semantic_review_execution_id": str(
+                feedback.get("semantic_review_execution_id", "") or ""
+            ),
+            "semantic_review_packet_id": str(
+                feedback.get("semantic_review_packet_id", "") or ""
+            ),
+            "semantic_review_packet_hash": str(
+                feedback.get("semantic_review_packet_hash", "") or ""
+            ),
+        },
+        "model_revision_checkpoint": model_checkpoint,
+        "validator_observation": validation_observation,
+        "validation_errors": deepcopy(
+            list(feedback.get("validation_errors", []) or [])
+        ),
+        "lineage_refs": {
+            field: deepcopy(feedback[field])
+            for field in (
+                "feedback_id",
+                "failure_id",
+                "candidate_materialization_id",
+                "candidate_source_hash",
+                "source_formalizer_packet_id",
+                "source_theory_packet_id",
+                "source_theory_packet_hash",
+                "target_theorem_statement_hash",
+                "target_theorem_statement_hash_algorithm",
+            )
+            if feedback.get(field) not in (None, "", [], {})
+        },
+        "boundaries": {
+            field: deepcopy(feedback[field])
+            for field in (
+                "evidence_boundary",
+                "proof_evidence_boundary",
+                "proof_evidence_status",
+            )
+            if feedback.get(field) not in (None, "", [], {})
+        },
+    }
     return payload
 
 
@@ -3454,6 +3653,11 @@ def _complete_formalizer_environment_observations(
             result: dict[str, Any] = {}
             for key, item in child.items():
                 key_text = str(key)
+                if key_text.endswith("_repair_feedback"):
+                    key_text = (
+                        key_text[: -len("_repair_feedback")]
+                        + "_observations"
+                    )
                 if key_text == "proofengineer_repair_context":
                     key_text = "target_and_environment_observations"
                     if (
@@ -3585,8 +3789,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "source_theorem_integrator_blocked_target_names",
         "source_theorem_integrator_blocker_triggers",
         "source_theorem_exact_candidate_requires_repair",
-        "source_theorem_exact_candidate_repair_target_names",
-        "source_theorem_exact_candidate_repair_triggers",
         "source_theorem_exact_candidate_failure_classifications",
         "source_theorem_exact_candidate_environment_gap",
         "source_theorem_candidate_materialization_required",
@@ -3675,11 +3877,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "pseudo_formal_block_routing_memory",
         "pseudo_formal_block_routing_diagnostic_memory",
         "source_theorem_proof_body_adapter_diagnostics",
-        "source_theorem_exact_proof_body_repair_target_names",
-        "source_theorem_exact_proof_body_repair_diagnostics",
         "source_theorem_exact_semantic_definition_typechecked_candidates",
-        "source_theorem_exact_candidate_repair_placeholder_symbols",
-        "source_theorem_exact_candidate_repair_diagnostics",
         "exact_source_theorem_binders",
         "required_bridge_premise_names_for_shared_instantiation",
         "source_to_bridge_adapter_instantiation_group_id",
@@ -3713,82 +3911,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         values = compact["memory_kernel_verified_proof_obligation_ids"]
         if isinstance(values, list):
             compact["memory_kernel_verified_proof_obligation_ids"] = values[:12]
-    if isinstance(row.get("source_theorem_exact_candidate_repair_diagnostics"), list):
-        compact["source_theorem_exact_candidate_repair_diagnostics"] = _compact_rows(
-            row.get("source_theorem_exact_candidate_repair_diagnostics", []),
-            keys=(
-                "target_theorem_name",
-                "target_lean_declaration",
-                "target_declaration_source_excerpt",
-                "target_theorem_statement",
-                "current_proof_body_excerpt",
-                "residual_goal_excerpt",
-                "trigger",
-                "placeholder_symbol",
-                "missing_formal_symbols",
-                "typeclass_blockers",
-                "failure_classification",
-                "structural_reformulation_required",
-                "pseudo_formalization_required",
-                "runtime_queue_status",
-                "validation_errors",
-                "retry_validation_errors",
-                "source_failed_candidate_packet_id",
-                "response_validation_feedback",
-                "source_theorem_exact_semantic_definition_structural_reformulation_route",
-                "source_lookup_hits",
-                "exact_source_theorem_binders",
-                "required_bridge_premise_names_for_shared_instantiation",
-                "source_to_bridge_adapter_instantiation_group_id",
-                "source_to_bridge_grouped_premise_derivation_candidate_request_id",
-                "exact_goal_shape_obligation_ids",
-                "candidate_artifact_path",
-                "definition_only_candidate_artifact_path",
-                "diagnostics",
-                "semantic_definition_risks",
-                "semantic_alignment_blockers",
-                "local_definition_lean_compiled",
-                "semantic_definition_typecheck_evidence_status",
-                "proof_body_gate_status",
-                "proof_body_goal_reached",
-                "proof_body_attempted",
-                "proof_body_attempt_count",
-                "proof_body_attempt_summaries",
-                "proof_body_goal_excerpt",
-            ),
-            limit=3,
-        )
-    if isinstance(row.get("source_theorem_exact_proof_body_repair_diagnostics"), list):
-        compact["source_theorem_exact_proof_body_repair_diagnostics"] = _compact_rows(
-            row.get("source_theorem_exact_proof_body_repair_diagnostics", []),
-            keys=(
-                "target_theorem_name",
-                "trigger",
-                "failure_classification",
-                "candidate_artifact_path",
-                "proof_body_gate_status",
-                "proof_body_goal_reached",
-                "proof_body_attempted",
-                "proof_body_attempt_count",
-                "proof_body_attempt_summaries",
-                "proof_body_goal_excerpt",
-                "target_declaration_source_excerpt",
-                "candidate_source_excerpt",
-                "target_theorem_statement",
-                "current_proof_body_excerpt",
-                "semantic_alignment_blockers",
-                "source_theorem_kernel_evidence_eligible",
-                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
-                "exact_goal_shape_obligation_ids",
-                "exact_goal_shape_obligations",
-                "adapter_kernel_verified",
-                "kernel_verified_source_theorem_proof_body_adapter_ids",
-                "adapter_candidate_artifact_path",
-                "adapter_declaration_name",
-                "diagnostics",
-            ),
-            limit=3,
-        )
     if isinstance(row.get("source_theorem_proof_body_adapter_diagnostics"), list):
         compact["source_theorem_proof_body_adapter_diagnostics"] = _compact_rows(
             row.get("source_theorem_proof_body_adapter_diagnostics", []),

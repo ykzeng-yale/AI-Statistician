@@ -135,7 +135,8 @@ from .formal_target_semantic_review_runtime import (
 )
 from .lean_candidate_identity import run_lean_candidate_identity_probe
 from .lean_candidate_revision_tool_loop import (
-    resolve_accepted_lean_candidate_revision_binding,
+    resolve_lean_candidate_revision_start_source,
+    resolve_reviewed_lean_candidate_revision_binding,
 )
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     FORBIDDEN_ARTIFACT_TOKENS,
@@ -7840,17 +7841,20 @@ def _architect_theory_preflight_accepted_result(
         "theory_execution_preflight_packet": dict(preflight_packet),
         "execution_results_observed": False,
         "full_metric_authoring_completed": False,
-        "algorithm_execution_authorized": True,
+        "algorithm_execution_available": True,
+        "algorithm_execution_authorized": False,
+        "formalization_evaluation_available": True,
         "confirmatory_simulation_authorized": False,
+        "runtime_selected_next_owner": False,
         "runtime_selected_semantics": False,
         "proof_evidence_status": (
             "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_ACCEPTANCE_NOT_PROOF_EVIDENCE"
         ),
         "boundary": (
             "Independent source-grounded preflight accepted the current theory "
-            "for exploratory implementation. It does not freeze empirical metrics, "
-            "authorize confirmatory simulation, accept statistical performance, or "
-            "prove a theorem."
+            "for downstream evidence work selected by the Architect model. It does "
+            "not select a worker, freeze empirical metrics, authorize confirmatory "
+            "simulation, accept statistical performance, or prove a theorem."
         ),
     }
     acceptance_id = (
@@ -7899,7 +7903,8 @@ def _architect_theory_preflight_accepted_result(
             "IMPLEMENTATION_ACCEPTED_BEFORE_METRIC_AUTHORING"
         ),
         "execution_authorized": False,
-        "algorithm_execution_authorized": True,
+        "algorithm_execution_available": True,
+        "algorithm_execution_authorized": False,
         "confirmatory_simulation_authorized": False,
         "consumed": False,
         "preflight_acceptance_id": acceptance_id,
@@ -7908,9 +7913,11 @@ def _architect_theory_preflight_accepted_result(
             "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
         ),
         "boundary": (
-            "Only exploratory AlgorithmEngineer execution is authorized. Full metric "
-            "authoring remains deferred until independent implementation review "
-            "accepts a hash-bound executable interface."
+            "If the Architect model selects AlgorithmEngineer, only exploratory "
+            "execution is authorized and full metric authoring remains deferred "
+            "until independent implementation review accepts a hash-bound executable "
+            "interface. Formalization and theory review do not depend on that "
+            "empirical sequence."
         ),
     }
     requires_generated_algorithm = bool(
@@ -7924,94 +7931,83 @@ def _architect_theory_preflight_accepted_result(
         [],
         require_generated_adapter=requires_generated_algorithm,
     )
-    if not implementation_gaps:
-        return AgentStepResult(
-            status="BLOCKED",
-            rationale=(
-                "Accepted theory preflight produced no explicit implementation "
-                "target for AlgorithmEngineer."
-            ),
-            produced_artifacts={
-                preflight_packet_id: dict(preflight_packet),
-                acceptance_id: acceptance,
-            },
-            failure_classification="architect_preflight_implementation_target_missing",
-        )
     context["implementation_gaps"] = implementation_gaps
-    deferred_metric_task = AgentTask(
+    route_feedback_body = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": (
+            "RuntimeArchitectTheoryExecutionPreflightAcceptedObservation"
+        ),
+        "feedback_type": "theory_execution_preflight_accepted",
+        "feedback_source": "ArchitectTheoryExecutionPreflightReviewer",
+        "question_id": question.id,
+        "source_task_id": task.task_id,
+        "source_theory_packet_id": theory_packet_id,
+        "source_theory_packet_hash": theory_packet_hash,
+        "preflight_packet_id": preflight_packet_id,
+        "preflight_packet_hash": preflight_packet_hash,
+        "preflight_acceptance_id": acceptance_id,
+        "preflight_acceptance_hash": stable_hash(acceptance),
+        "overall_verdict": "ACCEPT",
+        "implementation_target_available": bool(implementation_gaps),
+        "n_implementation_gaps": len(implementation_gaps),
+        "metric_authoring_deferred": True,
+        "confirmatory_simulation_authorized": False,
+        "runtime_selected_owner": False,
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "This observation authorizes no particular next worker. The existing "
+            "Architect model must choose the next evidence-producing subsystem from "
+            "the accepted theory, current plan, available artifacts, and research "
+            "path. It is not implementation, simulation, or proof evidence."
+        ),
+    }
+    route_feedback_id = (
+        "architect_theory_execution_preflight_accepted_observation:"
+        + stable_hash(route_feedback_body)[:20]
+    )
+    route_feedback = {
+        **route_feedback_body,
+        "feedback_id": route_feedback_id,
+        "active_observation_id": route_feedback_id,
+        "observation_status": "CURRENT_ACTIVE_OBSERVATION",
+    }
+    context["environment_feedback"] = route_feedback
+    context["runtime_feedback_loop"] = {
+        **(
+            dict(context.get("runtime_feedback_loop", {}))
+            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+            else {}
+        ),
+        "source_subsystem": "ArchitectTheoryExecutionPreflightReviewer",
+        "preflight_acceptance_id": acceptance_id,
+        "handoff": "accepted_theory_preflight_to_architect_model",
+        "runtime_selected_owner": False,
+    }
+    architect_route_task = AgentTask(
         task_id=(
-            f"architect-metric-after-implementation:{question.id}:"
-            f"{stable_hash([task.task_id, acceptance_id])[:8]}"
+            f"architect-after-theory-preflight:{question.id}:"
+            f"{stable_hash([task.task_id, route_feedback_id])[:8]}"
         ),
         owner_subsystem="ArchitectCoordinator",
         objective=(
-            "Author and independently review the smallest confirmatory simulation "
-            "metric portfolio after implementation acceptance, without observing "
-            "implementation smoke-test results."
+            "Choose the next evidence-producing subsystem after independent theory "
+            "preflight acceptance, following the model-authored research path without "
+            "runtime-imposed empirical-first ordering."
         ),
         inputs={
             "question": _question_to_payload(question),
             "architect_context": context,
-            "runtime_architect_operation": (
-                RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
-            ),
+            "environment_feedback": route_feedback,
+            "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
         },
         allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
-        expected_artifacts=(
-            "architect_coordinator_proposal",
-            "architect_metric_requirement_authoring",
-            "architect_metric_semantic_review",
-        ),
+        expected_artifacts=("architect_feedback_route_decision",),
         acceptance_gate=(
-            "accepted implementation interface is result-free and the theory-bound "
-            "confirmatory simulation protocol receives independent ACCEPT"
+            "the Architect model selects one existing evidence-producing subsystem "
+            "or records a typed blocker without weakening evidence gates"
         ),
         stop_condition=(
-            "metric protocol is accepted and routed to confirmatory simulation, or "
-            "typed review feedback preserves exact lineage"
-        ),
-    )
-    algorithm_task = AgentTask(
-        task_id=(
-            f"algorithm-before-metric:{question.id}:"
-            f"{stable_hash([task.task_id, acceptance_id, implementation_gaps])[:8]}"
-        ),
-        owner_subsystem="AlgorithmEngineer",
-        objective=(
-            "Generate and execute the theory-bound estimator implementation before "
-            "confirmatory metrics are frozen; expose exact source and smoke feedback "
-            "to an independent semantic reviewer."
-        ),
-        inputs={
-            "question": _question_to_payload(question),
-            "theory_packet_id": theory_packet_id,
-            "simulation_manifest_id": "",
-            "implementation_gaps": implementation_gaps,
-            "architect_context": context,
-            "empirical_evaluation_phase": (
-                EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
-            ),
-            "implementation_before_metric_freeze": True,
-            "deferred_metric_protocol_task": asdict(deferred_metric_task),
-            "n_runs": runtime_config.n_runs,
-            "seed": _architect_candidate_seed(
-                architect_context=context,
-                default_seed=runtime_config.seed,
-            ),
-        },
-        allowed_tools=("model_backend", "python", "filesystem_sandbox"),
-        expected_artifacts=_architect_expected_artifacts(
-            context,
-            "AlgorithmEngineer",
-            ("algorithm_sandbox_manifest",),
-        ),
-        acceptance_gate=(
-            "generated implementation executes and receives independent semantic "
-            "ACCEPT before the deferred metric-authoring task can resume"
-        ),
-        stop_condition=(
-            "implementation review accepts the exact executable interface or routes "
-            "a bounded source/theory repair"
+            "Architect model selects the next worker or records a blocker"
         ),
     )
     evidence = EvidenceLedgerEntry(
@@ -8021,46 +8017,49 @@ def _architect_theory_preflight_accepted_result(
         task_id=task.task_id,
         artifact_id=acceptance_id,
         evidence_type="architect_theory_execution_preflight_acceptance",
-        status="IMPLEMENTATION_ONLY_AUTHORIZED",
+        status="THEORY_PREFLIGHT_ACCEPTED_MODEL_ROUTE_REQUIRED",
         boundary=str(acceptance["boundary"]),
         payload={
             "source_theory_packet_id": theory_packet_id,
             "preflight_packet_id": preflight_packet_id,
-            "algorithm_execution_authorized": True,
+            "algorithm_execution_available": True,
+            "algorithm_execution_authorized": False,
             "confirmatory_simulation_authorized": False,
+            "runtime_selected_owner": False,
             "proof_evidence_status": acceptance["proof_evidence_status"],
         },
     )
     return AgentStepResult(
         status="REROUTE",
         rationale=(
-            "Independent theory preflight accepted. AgentRuntime is routing to "
-            "AlgorithmEngineer and deferring full metric authoring until independent "
-            "implementation review accepts the exact executable interface."
+            "Independent theory preflight accepted. AgentRuntime recorded the "
+            "immutable acceptance and returned control to the existing Architect "
+            "model; runtime selected no implementation, simulation, or proof owner."
         ),
         produced_artifacts={
             preflight_packet_id: dict(preflight_packet),
             acceptance_id: acceptance,
+            route_feedback_id: route_feedback,
         },
         observations=(
             EnvironmentObservation(
                 observation_type="architect_theory_preflight_accepted",
                 summary=(
-                    "preflight accepted; implementation authorized; metrics and "
+                    "preflight accepted; Architect model route required; metrics and "
                     "confirmatory simulation remain deferred"
                 ),
                 payload={
                     "acceptance_id": acceptance_id,
                     "preflight_packet_id": preflight_packet_id,
-                    "next_owner_subsystem": "AlgorithmEngineer",
-                    "deferred_owner_subsystem": "ArchitectCoordinator",
+                    "next_owner_subsystem": "ArchitectCoordinator",
+                    "runtime_selected_evidence_owner": False,
                     "execution_results_observed": False,
                     "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                 },
             ),
         ),
         evidence_entries=(evidence,),
-        next_task=algorithm_task,
+        next_task=architect_route_task,
     )
 
 
@@ -8405,6 +8404,20 @@ class ArchitectCoordinatorRuntimeSubsystem:
             selected_subsystem = str(
                 route_packet.get("selected_subsystem", "") or ""
             ).strip()
+            if (
+                selected_subsystem == "CriticEvaluator"
+                and str(environment_feedback.get("feedback_type", "") or "")
+                == "critic_architect_replan_observations"
+            ):
+                feedback_loop = (
+                    dict(context.get("runtime_feedback_loop", {}))
+                    if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+                    else {}
+                )
+                feedback_loop["critic_repair_round"] = (
+                    _int_like(feedback_loop.get("critic_repair_round", 0)) + 1
+                )
+                context["runtime_feedback_loop"] = feedback_loop
             routing_decision = _architect_initial_routing_decision(
                 question=question,
                 packet={
@@ -9869,15 +9882,125 @@ def _architect_initial_routing_decision(
             context["environment_feedback"] = dict(feedback)
             inputs["environment_feedback"] = dict(feedback)
             inputs["architect_context"] = context
+        metric_gate = context.get("architect_metric_protocol_gate", {})
+        pre_metric_implementation = bool(
+            isinstance(metric_gate, Mapping)
+            and (
+                metric_gate.get("algorithm_execution_available") is True
+                or metric_gate.get("algorithm_execution_authorized") is True
+            )
+            and metric_gate.get("confirmatory_simulation_authorized") is False
+            and metric_gate.get("execution_authorized") is False
+            and str(metric_gate.get("preflight_acceptance_id", "") or "")
+            and context.get("empirical_evaluation_phase")
+            == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+        )
+        if pre_metric_implementation:
+            selected_metric_gate = dict(metric_gate)
+            selected_metric_gate.update(
+                {
+                    "algorithm_execution_authorized": True,
+                    "algorithm_execution_selected_by": (
+                        "ArchitectCoordinator_model_route"
+                    ),
+                    "algorithm_execution_route_decision_id": str(
+                        record.get("architect_packet_id", "") or ""
+                    ),
+                }
+            )
+            context["architect_metric_protocol_gate"] = selected_metric_gate
+            inputs["architect_context"] = context
+            acceptance_id = str(
+                metric_gate.get("preflight_acceptance_id", "") or ""
+            )
+            deferred_metric_task = AgentTask(
+                task_id=(
+                    f"architect-metric-after-implementation:{question.id}:"
+                    f"{stable_hash([packet_id, acceptance_id])[:8]}"
+                ),
+                owner_subsystem="ArchitectCoordinator",
+                objective=(
+                    "Author and independently review the smallest confirmatory "
+                    "simulation metric portfolio after implementation acceptance, "
+                    "without observing implementation smoke-test results."
+                ),
+                inputs={
+                    "question": _question_to_payload(question),
+                    "architect_context": context,
+                    "runtime_architect_operation": (
+                        RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+                    ),
+                },
+                allowed_tools=(
+                    "model_backend",
+                    "blackboard",
+                    "evidence_ledger",
+                ),
+                expected_artifacts=(
+                    "architect_coordinator_proposal",
+                    "architect_metric_requirement_authoring",
+                    "architect_metric_semantic_review",
+                ),
+                acceptance_gate=(
+                    "accepted implementation interface is result-free and the "
+                    "theory-bound confirmatory simulation protocol receives "
+                    "independent ACCEPT"
+                ),
+                stop_condition=(
+                    "metric protocol is accepted and routed to confirmatory "
+                    "simulation, or typed review feedback preserves exact lineage"
+                ),
+            )
+            inputs.update(
+                {
+                    "empirical_evaluation_phase": (
+                        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                    ),
+                    "implementation_before_metric_freeze": True,
+                    "deferred_metric_protocol_task": asdict(
+                        deferred_metric_task
+                    ),
+                }
+            )
+            task_prefix = "algorithm-before-metric"
+            default_objective = (
+                "Generate and execute the theory-bound estimator implementation "
+                "selected by the Architect model before confirmatory metrics are "
+                "frozen; expose exact source and smoke feedback to an independent "
+                "semantic reviewer."
+            )
+            default_acceptance_gate = (
+                "generated implementation executes and receives independent "
+                "semantic ACCEPT before deferred metric authoring resumes"
+            )
+            default_stop_condition = (
+                "implementation review accepts the exact executable interface or "
+                "returns complete observations to an existing model-owned worker"
+            )
+        else:
+            task_prefix = "algorithm"
+            default_objective = (
+                "Execute algorithm sandbox and generated-code diagnostics requested "
+                "by the Architect model plan."
+            )
+            default_acceptance_gate = (
+                "algorithm sandbox manifest plus generated-code capability evidence "
+                "or an explicit blocker"
+            )
+            default_stop_condition = (
+                "algorithm sandbox diagnostics recorded for the next typed task"
+            )
         return {
             "task": AgentTask(
-                task_id=f"algorithm:{question.id}:{stable_hash([packet_id, record])[:8]}",
+                task_id=(
+                    f"{task_prefix}:{question.id}:"
+                    f"{stable_hash([packet_id, record])[:8]}"
+                ),
                 owner_subsystem="AlgorithmEngineer",
                 objective=_architect_initial_objective(
                     context,
                     "AlgorithmEngineer",
-                    "Execute algorithm sandbox and generated-code diagnostics requested "
-                    "by the Architect model plan.",
+                    default_objective,
                 ),
                 inputs=inputs,
                 allowed_tools=("model_backend", "python", "filesystem_sandbox"),
@@ -9889,9 +10012,9 @@ def _architect_initial_routing_decision(
                 acceptance_gate=_architect_acceptance_gate(
                     context,
                     "AlgorithmEngineer",
-                    "algorithm sandbox manifest plus generated-code capability evidence or an explicit blocker",
+                    default_acceptance_gate,
                 ),
-                stop_condition="algorithm sandbox diagnostics recorded for the next typed task",
+                stop_condition=default_stop_condition,
             ),
             "record": record,
             "rationale": (
@@ -10365,29 +10488,6 @@ def _architect_feasible_initial_subsystem(
             theory_packet_id,
         ):
             return "TheoryDeveloper"
-        simulation_manifest_id = _architect_context_simulation_manifest_id(
-            architect_context
-        )
-        if not simulation_manifest_id or not _architect_blackboard_artifact_present(
-            blackboard,
-            simulation_manifest_id,
-        ):
-            return "SimulationEvaluator"
-        algorithm_manifest_id = _architect_context_algorithm_sandbox_manifest_id(
-            architect_context
-        )
-        implementation_gaps = _architect_context_implementation_gaps(
-            architect_context,
-            blackboard=blackboard,
-        )
-        if (
-            (algorithm_manifest_id or implementation_gaps)
-            and not _architect_blackboard_artifact_present(
-                blackboard,
-                algorithm_manifest_id,
-            )
-            ):
-            return "AlgorithmEngineer"
         return "FormalizationEvaluator"
     if requested == "FormalizationGapPlanner":
         if _architect_formalization_gap_planner_bridge_available(
@@ -10409,29 +10509,6 @@ def _architect_feasible_initial_subsystem(
             theory_packet_id,
         ):
             return "TheoryDeveloper"
-        simulation_manifest_id = _architect_context_simulation_manifest_id(
-            architect_context
-        )
-        if not simulation_manifest_id or not _architect_blackboard_artifact_present(
-            blackboard,
-            simulation_manifest_id,
-        ):
-            return "SimulationEvaluator"
-        algorithm_manifest_id = _architect_context_algorithm_sandbox_manifest_id(
-            architect_context
-        )
-        implementation_gaps = _architect_context_implementation_gaps(
-            architect_context,
-            blackboard=blackboard,
-        )
-        if (
-            (algorithm_manifest_id or implementation_gaps)
-            and not _architect_blackboard_artifact_present(
-                blackboard,
-                algorithm_manifest_id,
-            )
-        ):
-            return "AlgorithmEngineer"
         if not _architect_proofengineer_repair_feedback_available(
             architect_context=architect_context,
             blackboard=blackboard,
@@ -11974,6 +12051,7 @@ class TheoryDeveloperRuntimeSubsystem:
             evidence_contract=evidence_contract,
             architect_context=context,
         )
+        architect_route_artifacts: dict[str, dict[str, Any]] = {}
         if requires_metric_protocol_gate:
             prior_metric_gate = context.get(
                 "architect_metric_protocol_gate", {}
@@ -12066,8 +12144,80 @@ class TheoryDeveloperRuntimeSubsystem:
                 ),
             )
             next_task = metric_protocol_task
-        else:
+        elif dependency_rebuild_required:
             next_task = simulation_task
+        else:
+            route_feedback_body = {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "RuntimeTheoryDerivationAvailableObservation",
+                "feedback_type": "theory_derivation_available",
+                "feedback_source": "TheoryDeveloper",
+                "question_id": question.id,
+                "source_task_id": task.task_id,
+                "source_theory_packet_id": packet_id,
+                "source_theory_packet_hash": str(
+                    current_theory_material.get("source_theory_packet_hash", "")
+                    or ""
+                ),
+                "theory_revision": theory_revision,
+                "runtime_selected_owner": False,
+                "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+                "boundary": (
+                    "A validated model-authored theory packet is available. This "
+                    "observation selects no empirical or formal worker and is not "
+                    "simulation, implementation, or proof evidence."
+                ),
+            }
+            route_feedback_id = (
+                "theory_derivation_available_observation:"
+                + stable_hash(route_feedback_body)[:20]
+            )
+            route_feedback = {
+                **route_feedback_body,
+                "feedback_id": route_feedback_id,
+                "active_observation_id": route_feedback_id,
+                "observation_status": "CURRENT_ACTIVE_OBSERVATION",
+            }
+            architect_route_artifacts[route_feedback_id] = route_feedback
+            context["environment_feedback"] = route_feedback
+            context["runtime_feedback_loop"] = {
+                **(
+                    dict(context.get("runtime_feedback_loop", {}))
+                    if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+                    else {}
+                ),
+                "source_subsystem": "TheoryDeveloper",
+                "handoff": "validated_theory_to_architect_model",
+                "source_theory_packet_id": packet_id,
+                "runtime_selected_owner": False,
+            }
+            next_task = AgentTask(
+                task_id=(
+                    f"architect-after-theory:{question.id}:"
+                    f"{stable_hash([task.task_id, route_feedback_id])[:8]}"
+                ),
+                owner_subsystem="ArchitectCoordinator",
+                objective=(
+                    "Choose the next evidence-producing subsystem from the validated "
+                    "theory packet and current model-authored research plan."
+                ),
+                inputs={
+                    "question": _question_to_payload(question),
+                    "theory_packet_id": packet_id,
+                    "architect_context": context,
+                    "environment_feedback": route_feedback,
+                    "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
+                },
+                allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
+                expected_artifacts=("architect_feedback_route_decision",),
+                acceptance_gate=(
+                    "the Architect model selects one available evidence-producing "
+                    "subsystem or records a typed blocker"
+                ),
+                stop_condition=(
+                    "Architect model selects the next worker or records a blocker"
+                ),
+            )
         return AgentStepResult(
             status="REROUTE",
             rationale=(
@@ -12081,11 +12231,13 @@ class TheoryDeveloperRuntimeSubsystem:
                     "rebuilding hash-bound empirical descendants through a "
                     "non-confirmatory simulation handoff."
                     if dependency_rebuild_required
-                    else "LLM TheoryDeveloper produced a proposal; runtime is "
-                    "routing it to executable simulation feedback."
+                    else "LLM TheoryDeveloper produced a proposal; runtime returned "
+                    "the validated theory observation to ArchitectCoordinator so the "
+                    "model can choose simulation-first, proof-first, or another "
+                    "available evidence worker."
                 )
             ),
-            produced_artifacts={packet_id: packet},
+            produced_artifacts={packet_id: packet, **architect_route_artifacts},
             observations=(
                 EnvironmentObservation(
                     observation_type="llm_theory_derivation_packet",
@@ -27473,12 +27625,6 @@ def _materialize_formalizer_lean_candidate_artifacts(
                     "Lean candidate missing structured candidate_lean_declaration; "
                     "AgentRuntime will not infer declaration identity from Lean source"
                 )
-        elif int(target_location.get("target_lean_line", 0) or 0) <= 0:
-            precheck_errors.append(
-                "Lean candidate structured candidate_lean_declaration was not "
-                "located in the exact generated source: "
-                + candidate_lean_declaration
-            )
         precheck_errors = sorted(set(precheck_errors))
         blocking_precheck_errors = (
             _formalizer_lean_candidate_blocking_precheck_errors(precheck_errors)
@@ -27625,14 +27771,14 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "target_identity_unbound_not_source_theorem",
                 False,
             )
-            or not (
-                candidate_lean_declaration
-                and int(target_location.get("target_lean_line", 0) or 0) > 0
+            or not candidate_lean_declaration
+            or (
+                candidate_identity_lean_checked
+                and not candidate_identity_lean_verified
             )
         )
         structured_candidate_identity_available = bool(
             candidate_lean_declaration
-            and int(target_location.get("target_lean_line", 0) or 0) > 0
         )
         source_theorem_candidate_evidence_eligible = (
             formal_target_role == FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
@@ -29391,8 +29537,8 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                         "reuse exact materialized candidate only as a checked helper"
                         if local_lean_compiled
                         else (
-                            "route the materialized Lean candidate through the internal "
-                            "ProofEngineer proof-state repair loop"
+                            "route the materialized Lean candidate through the "
+                            "same-producer ProofEngineer proof-state revision loop"
                         )
                     )
                 ),
@@ -30018,6 +30164,8 @@ def _formalizer_lean_candidate_revision_feedback(
         "proof_search_role",
     ):
         candidate_context.pop(runtime_authored_strategy_field, None)
+    # The exact external result is retained once at the feedback top level.
+    candidate_context.pop("external_proof_search_result", None)
     candidate_context.update(
         {
             "context_kind": "model_owned_complete_lean_revision_observations",
@@ -31509,7 +31657,7 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
     lean_candidate_lean_project: Path | None,
     lean_candidate_lean_timeout: int,
 ) -> tuple[dict[str, Any], dict[str, Any]] | None:
-    """Run a same-context model edit/search/Lean loop for an accepted target."""
+    """Run a same-context model edit/search/Lean loop for a reviewed target."""
 
     config = getattr(proposal_agent, "config", None)
     provider = getattr(proposal_agent, "provider", None)
@@ -31523,7 +31671,7 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
         or not callable(getattr(provider, "generate_client_tool_turn", None))
     ):
         return None
-    binding = resolve_accepted_lean_candidate_revision_binding(
+    binding = resolve_reviewed_lean_candidate_revision_binding(
         question_id=question.id,
         artifacts=blackboard.artifacts,
         environment_feedback=environment_feedback,
@@ -31532,7 +31680,7 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
     )
     if binding is None:
         return None
-    repair_context = binding.repair_context
+    revision_context = binding.revision_context
     materialization_id = binding.materialization_id
     parent_packet_id = binding.parent_packet_id
     parent_packet = binding.parent_packet
@@ -31541,7 +31689,10 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
     source_field = binding.candidate_source_field
     artifact_path = binding.candidate_artifact_path
     expected_source_hash = binding.candidate_source_hash
-    initial_source = binding.initial_source
+    initial_source, revision_start = resolve_lean_candidate_revision_start_source(
+        binding=binding,
+        environment_feedback=environment_feedback,
+    )
 
     revision_root = (
         Path(lean_candidate_root)
@@ -31624,7 +31775,7 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
             "local_lean_project": str(lean_candidate_lean_project),
         }
 
-    source_scope_ids = _proofengineer_formal_source_scope_ids(repair_context)
+    source_scope_ids = _proofengineer_formal_source_scope_ids(revision_context)
 
     def search_formal_environment(query: str, k: int) -> Any:
         if formal_source_retriever is None:
@@ -31663,6 +31814,7 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
             candidate_source_field=source_field,
             candidate_lean_declaration=candidate_declaration,
             initial_source=initial_source,
+            reviewed_parent_source_hash=expected_source_hash,
             environment_feedback=environment_feedback,
             proof_bank_runtime_memory_summary=(
                 proof_bank_runtime_memory_summary
@@ -31680,6 +31832,7 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
         "parent_formalizer_packet_id": parent_packet_id,
         "parent_candidate_artifact_path": str(artifact_path),
         "parent_candidate_source_hash": expected_source_hash,
+        **revision_start,
         "active_lean_project": str(lean_candidate_lean_project),
         "source_scope_ids": list(source_scope_ids),
     }
@@ -31715,14 +31868,8 @@ def _formalizer_lean_candidate_blocking_precheck_errors(
 
 def _formalizer_lean_candidate_diagnostic_only_precheck_error(error: str) -> bool:
     text = str(error or "")
-    return bool(
-        text.startswith("Lean parser/syntax error:")
-        or text.startswith(
-            "Lean candidate missing structured candidate_lean_declaration"
-        )
-        or text.startswith(
-            "Lean candidate structured candidate_lean_declaration was not located"
-        )
+    return text.startswith(
+        "Lean candidate missing structured candidate_lean_declaration"
     )
 
 
@@ -91042,7 +91189,9 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
         ):
             if bool_key in task:
                 task[bool_key] = _bool_like(task.get(bool_key))
-        rows.append(coding_agent_observations_only(task))
+        # This is an internal queue/audit artifact. Prompt projection happens in
+        # the authoring worker, so retain routing and lineage fields here.
+        rows.append(task)
     return rows
 
 
@@ -95506,6 +95655,22 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
         first_task = first_trace.get("task", {}) if isinstance(first_trace.get("task"), Mapping) else {}
         first_inputs = first_task.get("inputs", {}) if isinstance(first_task.get("inputs"), Mapping) else {}
         question = first_inputs.get("question", {}) if isinstance(first_inputs.get("question"), Mapping) else {}
+        first_architect_context = (
+            first_inputs.get("architect_context", {})
+            if isinstance(first_inputs.get("architect_context", {}), Mapping)
+            else {}
+        )
+        requested_evidence_contract = (
+            first_architect_context.get("runtime_requested_evidence_contract", {})
+            if isinstance(
+                first_architect_context.get(
+                    "runtime_requested_evidence_contract",
+                    {},
+                ),
+                Mapping,
+            )
+            else {}
+        )
         artifacts = (
             result.get("blackboard", {}).get("artifacts", {})
             if isinstance(result.get("blackboard", {}), Mapping)
@@ -95593,10 +95758,20 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
                 "last_failure_classification": failure_classification,
                 "final_acceptance_status": final_acceptance_status,
                 "formal_verification_policy": str(
-                    critic_decision.get("formal_verification_policy", "") or ""
+                    critic_decision.get("formal_verification_policy", "")
+                    or requested_evidence_contract.get(
+                        "formal_verification_policy",
+                        "",
+                    )
+                    or ""
                 ),
                 "recommended_research_path": str(
-                    critic_decision.get("recommended_research_path", "") or ""
+                    critic_decision.get("recommended_research_path", "")
+                    or requested_evidence_contract.get(
+                        "recommended_research_path",
+                        "",
+                    )
+                    or ""
                 ),
                 "formal_satisfied": bool(critic_decision.get("formal_satisfied", False)),
                 "full_frontier_theorem_proved": bool(

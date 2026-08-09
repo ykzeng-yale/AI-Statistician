@@ -291,7 +291,9 @@ def _artifact_of_kind(result: Any, artifact_kind: str) -> dict[str, Any]:
     )
 
 
-def test_accept_is_the_only_path_to_model_owned_lean_generation(tmp_path: Path) -> None:
+def test_accept_routes_hash_bound_target_to_model_owned_lean_generation(
+    tmp_path: Path,
+) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accepted=True)
 
     result = subsystem.run(task, blackboard)
@@ -334,8 +336,16 @@ def test_rejection_routes_observations_to_architect_not_a_repair_owner(
     )
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["external_proof_search_dispatch_eligible"] is False
+    assert feedback["model_owned_complete_source_tool_loop_eligible"] is True
     assert feedback["runtime_selected_owner"] is False
     assert feedback["routing_authority"] == "ArchitectCoordinator_model_packet"
+    revision_context = feedback["proofengineer_repair_context"]
+    assert revision_context["formalizer_candidate_semantic_review_status"] == (
+        "INDEPENDENT_SEMANTIC_REVIEW_REVISE_NOT_PROOF_EVIDENCE"
+    )
+    assert revision_context["model_owned_complete_source_tool_loop_eligible"] is True
+    assert revision_context["external_proof_search_dispatch_eligible"] is False
+    assert revision_context["source_theorem_kernel_evidence_eligible"] is False
     serialized = json.dumps(feedback, sort_keys=True)
     for forbidden in (
         "repair_scope",
@@ -428,6 +438,9 @@ def test_prompt_requests_observations_and_forbids_runtime_repair_planning() -> N
     assert "expected_behavior" in prompt
     assert "ArchitectCoordinator decides what acts next" in prompt
     assert "Do not write Lean" in prompt
+    assert "missing proof" in prompt
+    assert "not a semantic finding" in prompt
+    assert "ACCEPT means eligible for proof construction, not proved" in prompt
     assert "repair_scope" not in prompt
     assert "repair_owner" not in prompt
 

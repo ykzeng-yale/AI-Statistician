@@ -6,12 +6,12 @@ import ai_statistician.research_agent_runtime_offline_smoke as offline_smoke
 from ai_statistician.critic_evaluator_llm import CRITIC_EVALUATOR_OUTPUT_CONTRACT
 
 
-def test_offline_smoke_fixture_exercises_formal_gap_feedback() -> None:
+def test_offline_smoke_fixture_discloses_formal_gaps_without_claiming_closure() -> None:
     architect_response = offline_smoke._architect_response()
     evidence_contract = architect_response["evidence_contract"]
 
-    assert evidence_contract["formal_verification_policy"] == "required"
-    assert evidence_contract["formal_required_for_final"] is True
+    assert evidence_contract["formal_verification_policy"] == "optional"
+    assert evidence_contract["formal_required_for_final"] is False
     assert "formal gap" in architect_response["iteration_policy"][
         "reroute_triggers"
     ]
@@ -20,7 +20,7 @@ def test_offline_smoke_fixture_exercises_formal_gap_feedback() -> None:
         assert critic_response[field]
 
 
-def test_offline_smoke_runtime_config_requires_formal_feedback(
+def test_offline_smoke_runtime_config_keeps_formal_feedback_nonblocking(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -39,4 +39,4 @@ def test_offline_smoke_runtime_config_requires_formal_feedback(
         max_iterations=1,
     )
 
-    assert captured["config"].formal_verification_policy == "required"
+    assert captured["config"].formal_verification_policy == "optional"

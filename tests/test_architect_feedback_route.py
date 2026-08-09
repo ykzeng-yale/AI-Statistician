@@ -52,6 +52,8 @@ def test_bridge_only_gap_planner_is_not_a_generic_feedback_owner() -> None:
     ]
     assert "Route missing mathematical assumptions" in route_prompt
     assert "Lean must not substitute" in route_prompt
+    assert "candidate-source failures" in route_prompt
+    assert "missing proof dependencies" in route_prompt
     invalid_route = {
         "decision": "ROUTE",
         "selected_subsystem": "FormalizationGapPlanner",
@@ -79,6 +81,11 @@ def test_formal_requirement_does_not_force_bridge_only_gap_planner() -> None:
     assert "FormalizationEvaluator" in required
     assert "ProofEngineer" in required
     assert "FormalizationGapPlanner" not in required
+    path_semantics = payload["requested_evidence_contract"][
+        "research_path_semantics"
+    ]
+    assert "not prerequisites" in path_semantics["proof_first"]
+    assert "neither lane is a prerequisite" in path_semantics["dual_track"]
 
 
 class _RouteBackend:
@@ -217,6 +224,11 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     assert "never ask a worker to edit the currently frozen gate" in (
         request.user_prompt
     )
+    assert "Simulation and algorithm artifacts are not prerequisites" in (
+        request.user_prompt
+    )
+    assert "exactly one next task" in request.user_prompt
+    assert "no other lane runs in the background" in request.user_prompt
     assert "Superseded observations are complete attempt history" in (
         request.user_prompt
     )
