@@ -176,10 +176,72 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
         "search_formal_environment",
         "check_lean_source",
     }
+    assert all(request.disable_parallel_tool_use for request in backend.requests)
     assert result.evidence["handoff_mode"] == (
         "successful_model_requested_check"
     )
     assert result.evidence["model_explicit_submit"] is False
+
+
+def test_lean_candidate_tool_loop_hides_exhausted_actions_before_next_turn() -> None:
+    initial = "import Missing.Module\n\ntheorem target : True := by trivial\n"
+    revised = "theorem target : True := by exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "search-1",
+                    "search_formal_environment",
+                    {"query": "True introduction"},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "replace-1",
+                    "replace_lean_source",
+                    {"lean_source": revised},
+                )
+            ),
+            _response(ClientToolCall("check-1", "check_lean_source", {})),
+        ]
+    )
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Revise this target from environment observations.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=4,
+        max_source_updates=1,
+        max_searches=1,
+        max_checks=1,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=initial,
+        check_candidate=lambda source: {
+            "source_hash": stable_hash(source),
+            "compiled": source == revised,
+        },
+        search_formal_environment=lambda query, k: {
+            "query": query,
+            "hits": [{"module": "Mathlib", "name": "True.intro"}],
+        },
+    )
+
+    assert result.lean_source == revised
+    assert [tool.name for tool in backend.requests[1].tools] == [
+        "replace_lean_source",
+        "check_lean_source",
+    ]
+    assert [tool.name for tool in backend.requests[2].tools] == [
+        "check_lean_source"
+    ]
+    assert backend.requests[2].tool_choice == "check_lean_source"
+    assert all(request.disable_parallel_tool_use for request in backend.requests)
 
 
 def test_lean_candidate_tool_loop_hands_off_on_successful_requested_check() -> None:
@@ -522,6 +584,16 @@ def test_formalizer_validation_failure_routes_model_source_checkpoint() -> None:
     assert routed == checkpoint
     failure = next(iter(result.produced_artifacts.values()))
     assert failure["formalizer_recovery_checkpoint"]["current_source"] == latest
+    assert failure["rejected_candidate_complete"] is False
+    assert failure["complete_current_source_checkpoint_provided"] is True
+    assert failure["regeneration_contract"][
+        "complete_rejected_candidate_provided"
+    ] is False
+    assert failure["regeneration_contract"][
+        "complete_current_source_checkpoint_provided"
+    ] is True
+    assert "complete current model-authored source checkpoint" in result.rationale
+    assert "complete rejected packet" not in result.rationale.lower()
     assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
 
 

@@ -29626,6 +29626,7 @@ def test_formalizer_validation_failure_preserves_complete_candidate_and_context(
         "same_owner_subsystem": "FormalizationEvaluator",
         "same_model_regenerates_complete_packet": True,
         "complete_rejected_candidate_provided": True,
+        "complete_current_source_checkpoint_provided": False,
         "raw_validation_observations_provided": True,
         "runtime_edits_candidate": False,
         "runtime_selects_mathematics_or_lean": False,

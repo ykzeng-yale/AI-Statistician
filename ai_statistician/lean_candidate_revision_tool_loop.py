@@ -584,6 +584,7 @@ def run_lean_candidate_revision_tool_loop(
         max_tokens=max_tokens,
         temperature=temperature,
         tool_choice="any",
+        disable_parallel_tool_use=True,
         metadata={
             **dict(request_metadata or {}),
             "model_tier": model_tier,
@@ -593,7 +594,33 @@ def run_lean_candidate_revision_tool_loop(
             "reviewed_parent_source_hash": reviewed_parent_source_hash,
         },
     )
-    max_tool_calls = max_source_updates + max_searches + max_checks
+
+    def select_available_tools(
+        _turn_index: int,
+        available_tools: tuple[ClientToolDefinition, ...],
+    ) -> tuple[ClientToolDefinition, ...]:
+        remaining = {
+            "replace_lean_source": state["source_updates"] < max_source_updates,
+            "search_formal_environment": state["searches"] < max_searches,
+            "check_lean_source": state["checks"] < max_checks,
+        }
+        selected = tuple(
+            tool for tool in available_tools if remaining.get(tool.name, False)
+        )
+        if selected:
+            return selected
+        # Keep one declared action so the generic loop can return a bounded,
+        # model-visible exhaustion observation instead of issuing a tool-free turn.
+        return tuple(
+            tool for tool in available_tools if tool.name == "check_lean_source"
+        )
+
+    # Tool-specific counters bound expensive execution. With parallel calls disabled,
+    # the turn budget is also a strict bound while leaving room for rejected calls.
+    max_tool_calls = max(
+        max_turns,
+        max_source_updates + max_searches + max_checks,
+    )
     try:
         loop = run_bounded_client_tool_loop(
             backend=provider,
@@ -602,6 +629,7 @@ def run_lean_candidate_revision_tool_loop(
             max_turns=max_turns,
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
+            select_tools=select_available_tools,
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(

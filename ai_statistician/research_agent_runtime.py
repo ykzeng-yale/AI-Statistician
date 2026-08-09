@@ -26707,6 +26707,18 @@ def _formalizer_packet_validation_failure_result(
         if isinstance(exc.recovery_checkpoint, Mapping)
         else {}
     )
+    checkpoint_source = str(
+        recovery_checkpoint.get("current_source", "") or ""
+    )
+    checkpoint_source_hash = str(
+        recovery_checkpoint.get("current_source_hash", "") or ""
+    )
+    complete_current_source_checkpoint_provided = bool(
+        checkpoint_source.strip()
+        and checkpoint_source_hash == stable_hash(checkpoint_source)
+        and recovery_checkpoint.get("model_owned_lean_code") is True
+        and recovery_checkpoint.get("runtime_selected_lean_code") is False
+    )
     previous_root_id = str(
         prior_feedback.get("formalizer_packet_regeneration_root_failure_id", "")
         or prior_feedback.get("formalizer_packet_repair_root_failure_id", "")
@@ -26761,6 +26773,9 @@ def _formalizer_packet_validation_failure_result(
         "same_owner_subsystem": task.owner_subsystem,
         "same_model_regenerates_complete_packet": True,
         "complete_rejected_candidate_provided": bool(last_invalid_packet),
+        "complete_current_source_checkpoint_provided": (
+            complete_current_source_checkpoint_provided
+        ),
         "raw_validation_observations_provided": True,
         "runtime_edits_candidate": False,
         "runtime_selects_mathematics_or_lean": False,
@@ -26789,6 +26804,9 @@ def _formalizer_packet_validation_failure_result(
         "rejected_candidate_complete": bool(last_invalid_packet),
         "rejected_candidate_fingerprint": rejected_candidate_fingerprint,
         "formalizer_recovery_checkpoint": recovery_checkpoint,
+        "complete_current_source_checkpoint_provided": (
+            complete_current_source_checkpoint_provided
+        ),
         "attempt_history": [deepcopy(dict(row)) for row in exc.history],
         "prior_environment_observations": prior_observations,
         "proof_bank_runtime_memory_summary": dict(
@@ -26841,9 +26859,10 @@ def _formalizer_packet_validation_failure_result(
             }
         ],
         "boundary": (
-            "This artifact records the complete rejected model packet and exact "
-            "environment observations. It is not a source edit, repair recipe, "
-            "or proof artifact."
+            "This artifact records the exact model artifact available at failure "
+            "and the raw environment observations. A complete structured rejected "
+            "packet and a complete current model-authored source checkpoint are "
+            "reported separately; neither is a runtime source edit or proof artifact."
         ),
     }
     next_task = None
@@ -26859,8 +26878,9 @@ def _formalizer_packet_validation_failure_result(
             ),
             objective=(
                 "Regenerate the complete Formalizer/ProofEngineer packet using "
-                "the complete rejected candidate, original task context, and exact "
-                "validator or environment observations."
+                "the available complete rejected packet or complete current "
+                "model-authored source checkpoint, original task context, and "
+                "exact validator or environment observations."
             ),
             inputs=next_inputs,
             acceptance_gate=(
@@ -26894,11 +26914,21 @@ def _formalizer_packet_validation_failure_result(
         status="BLOCKED" if exhausted else "REVISE",
         rationale=(
             "The bounded same-model full-packet regeneration budget was exhausted; "
-            "the exact rejected candidate and observations were recorded without "
+            "the exact available model artifact and observations were recorded without "
             "runtime-authored source changes."
             if exhausted
-            else "The complete rejected packet and exact validator observations "
-            "were returned to the same model for full-packet regeneration."
+            else (
+                "The complete rejected packet and exact validator observations "
+                "were returned to the same model for full-packet regeneration."
+                if last_invalid_packet
+                else "The complete current model-authored source checkpoint and "
+                "exact validator observations were returned to the same model for "
+                "full-packet regeneration."
+                if complete_current_source_checkpoint_provided
+                else "The exact validator observations were returned to the same "
+                "model for full-packet regeneration; no complete packet or source "
+                "checkpoint was available."
+            )
         ),
         produced_artifacts={failure_id: failure_artifact},
         observations=(

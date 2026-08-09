@@ -526,6 +526,9 @@ LIVE_EVALUATION_MIN_SERIOUS_THEORY_MAX_TOKENS = 16000
 SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS = (
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 3.0
 )
+RESEARCH_AGENT_RUNTIME_FORMAL_SOURCE_INDEX_CACHE = Path(
+    "runs/formal_source_index_cache/formal_source_index.sqlite"
+)
 
 
 def _resolve_dotenv_path(path: Path | str | None) -> Path:
@@ -5484,11 +5487,40 @@ def _proof_state_provider_from_args(args: argparse.Namespace):
 def _formal_source_retriever_from_runtime_args(
     args: argparse.Namespace,
 ):
+    cache_value = str(
+        getattr(
+            args,
+            "formal_source_index_cache",
+            RESEARCH_AGENT_RUNTIME_FORMAL_SOURCE_INDEX_CACHE,
+        )
+        or ""
+    ).strip()
+    db_value = str(
+        getattr(args, "formal_source_index_db", "") or ""
+    ).strip()
+    cache_path = Path(cache_value).expanduser() if cache_value else None
+    db_path = (
+        Path(db_value).expanduser()
+        if db_value
+        else cache_path
+        if cache_path is not None
+        else Path(str(getattr(args, "out", "runs/research_agent_runtime")))
+        / "formal_source_index.sqlite"
+    )
+    local_retriever = build_formal_source_search_backend(
+        db_path=db_path,
+        cache_path=cache_path,
+        refresh_cache=bool(
+            getattr(args, "refresh_formal_source_index_cache", False)
+        ),
+    )
     root_value = str(
         getattr(args, "emperical_process_lean_rag_root", "") or ""
     ).strip()
     if not root_value:
-        return build_default_formal_source_retriever()
+        return build_default_formal_source_retriever(
+            local_retriever=local_retriever,
+        )
     root = Path(root_value).expanduser().resolve()
     script = root / "lean_rag" / "scripts" / "shared_proof_retrieval.py"
     if not script.is_file():
@@ -5534,6 +5566,7 @@ def _formal_source_retriever_from_runtime_args(
     )
     return build_default_formal_source_retriever(
         additional_providers=(external,),
+        local_retriever=local_retriever,
     )
 
 
@@ -21255,6 +21288,27 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-capability-gap-routing-rows",
         type=int,
         default=20,
+    )
+    research_agent_runtime.add_argument(
+        "--formal-source-index-db",
+        default="",
+        help=(
+            "optional runtime SQLite FTS declaration index; defaults to the "
+            "persistent --formal-source-index-cache"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formal-source-index-cache",
+        default=str(RESEARCH_AGENT_RUNTIME_FORMAL_SOURCE_INDEX_CACHE),
+        help=(
+            "persistent SQLite FTS cache used by live formal-source retrieval; "
+            "pass an empty string to build an index under --out"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--refresh-formal-source-index-cache",
+        action="store_true",
+        help="rebuild the live formal-source SQLite FTS cache before the run",
     )
     research_agent_runtime.add_argument(
         "--llm-model",

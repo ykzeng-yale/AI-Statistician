@@ -137,16 +137,46 @@ def test_default_formal_source_topology_uses_rich_local_backend(
 
 def test_runtime_cli_uses_default_proof_bank_topology_without_external_rag(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
     sentinel = object()
+    local_retriever = object()
+    build_calls = []
+
+    def build_local(**kwargs):
+        build_calls.append(kwargs)
+        return local_retriever
+
+    topology_calls = []
+
+    def build_topology(**kwargs):
+        topology_calls.append(kwargs)
+        return sentinel
+
+    monkeypatch.setattr(cli, "build_formal_source_search_backend", build_local)
     monkeypatch.setattr(
         cli,
         "build_default_formal_source_retriever",
-        lambda: sentinel,
+        build_topology,
     )
+    cache = tmp_path / "formal-source.sqlite"
 
     retriever = cli._formal_source_retriever_from_runtime_args(
-        Namespace(emperical_process_lean_rag_root="")
+        Namespace(
+            emperical_process_lean_rag_root="",
+            formal_source_index_db="",
+            formal_source_index_cache=str(cache),
+            refresh_formal_source_index_cache=False,
+            out=str(tmp_path / "run"),
+        )
     )
 
     assert retriever is sentinel
+    assert build_calls == [
+        {
+            "db_path": cache,
+            "cache_path": cache,
+            "refresh_cache": False,
+        }
+    ]
+    assert topology_calls == [{"local_retriever": local_retriever}]

@@ -1,11 +1,11 @@
 {
   "schema_version": 4,
-  "updated_at": "2026-08-09T09:41:05Z",
+  "updated_at": "2026-08-09T10:31:55Z",
   "role": "main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "main_objective": "Build and honestly evaluate one general LLM-driven statistical research loop that derives theory, generates and executes scientific code, uses task-bound formal RAG, iterates against real environment feedback, and closes exact intended Lean theorems across unrelated task families.",
-  "current_lane": "Keep source authoring model-owned, remove reviewer-owned coding side paths, preserve observation authority across Architect routing, and consume the mature StatInference shared graph through its indexed upstream API.",
+  "current_lane": "Keep source authoring model-owned while making the environment loop genuinely iterative: one model-selected action per turn, exhausted tools hidden, raw compiler feedback preserved, and all live formal-source providers backed by indexed retrieval.",
   "canonical_authoring_contract": {
     "model_responsibility": "The source-producing LLM receives the exact current source, immutable target identity, raw compiler or sandbox output, semantic-review observations, and model-selected retrieval results. It chooses the next action and authors every byte of the next complete source artifact.",
     "runtime_responsibility": "Runtime executes model-requested tools, returns observations, binds exact source hashes, enforces resource and lineage budgets, persists checkpoints, and applies independent semantic and kernel evidence gates.",
@@ -24,7 +24,7 @@
     "tests_and_evaluations": "claude-haiku-4-5-20251001 exactly",
     "production_maximum_tier": "sonnet",
     "opus_allowed": false,
-    "latest_live_topology": "v305 used Anthropic claude-haiku-4-5-20251001 for all 9 enabled LLM agents; topology policy status was OK and no Sonnet or Opus call was configured."
+    "latest_live_topology": "The interrupted v308 development diagnostic used Anthropic claude-haiku-4-5-20251001 throughout; no Sonnet or Opus call was configured."
   },
   "current_readiness": {
     "ready_for_full_ai_statistician": false,
@@ -45,10 +45,11 @@
     "capability_result": "83/121 overall checks and 39/66 integrated checks passed; capability_ready_for_full_ai_statistician=false."
   },
   "current_code_correction": {
-    "problem": "The first model-controlled Lean authoring attempt received about 417 KB of duplicated context and the second received about 886 KB. A later outer attempt also restarted from the originally reviewed source instead of the newest model-authored checkpoint.",
-    "change": "The model workspace now carries the exact current source once, active raw Lean diagnostics, semantic findings, immutable target identity, and compact lineage references. Full RAG remains available through the model-selected search tool. A hash-validated model-owned checkpoint resumes the latest exact source without runtime edits.",
-    "deterministic_replay": "The v305 feedback projections shrink from 417442 to 36422 bytes and from 886055 to 40531 bytes while preserving the exact raw Lean diagnostic and current model-authored source. The old v305 checkpoint resumes byte-for-byte at its recorded hash.",
-    "non_claim": "This does not improve or patch the generated theorem or Lean proof. It removes redundant transport and preserves the model's own progress."
+    "problem": "In v308, Haiku received the raw missing-module error and eventually authored a complete source that removed the nonexistent import. Parallel tool calls had already spent the search budget on one turn and counted two rejected searches against the global call cap, so the loop stopped after the final source replacement but before its remaining local Lean check.",
+    "change": "The canonical Lean workspace now disables parallel tool use, exposes only actions whose per-tool budget remains, and uses the bounded turn budget as call-budget headroom. The model still chooses every search, complete-source replacement, and check; runtime adds no diagnosis or source edit.",
+    "deterministic_replay": "Focused scripted replay verifies that once search is exhausted it disappears from the next model request, a final source replacement is followed by a check-only turn, and the exact source hash remains bound to the compiler result.",
+    "non_claim": "This does not teach a Lean import, grammar rule, tactic, or theorem answer. It only prevents the execution harness from consuming the model's final feedback opportunity.",
+    "exact_haiku_mechanism_smoke": "runs/main_worker_lean_revision_loop_smoke_20260809_v309_exact_haiku used claude-haiku-4-5-20251001 exactly. The model first requested a real Lean check, received the raw nonexistent-module diagnostic, authored one complete replacement source, and requested a second check. The exact new source compiled and its declaration/axiom identity probe passed. Runtime authored no source bytes and supplied no fix. This is mechanism smoke, not statistical-theory or theorem-closure capability evidence."
   },
   "orchestration_lineage_correction": {
     "problem": "A Critic to Architect to Critic replan could reset the local critic round, repeating the same lineage until the coarse global iteration cap fired.",
@@ -63,31 +64,41 @@
     "scope": "This removes a redundant coding lane and fixes a cross-task evidence-authority error; it does not encode a survival, Greenwood, sequential, or theorem-specific judgment.",
     "run_disposition": "v307 was intentionally terminated at the first contaminated route and is not counted as a completed capability evaluation."
   },
+  "latest_diagnostic_run": {
+    "run": "runs/main_worker_cross_family_development_20260809_v308_source_only_preflight_exact_haiku",
+    "disposition": "Intentionally interrupted after survival completed BLOCKED and sequential reached iteration 10; no panel manifest or capability success is claimed.",
+    "positive_evidence": "The source-only preflight no longer created reviewer-owned empirical results. Survival reached FormalizationEvaluator, consumed source-grounded RAG, produced model-owned complete Lean candidates, received raw local Lean observations, and resumed the same ProofEngineer from a hash-bound complete-source checkpoint.",
+    "tool_loop_failure": "The final model checkpoint had removed the nonexistent Mathlib.MeasureTheory.Integral.Lebesgue import, but prior parallel and rejected tool calls exhausted the global call budget before that source could be checked.",
+    "retrieval_failure": "Sequential then spent minutes inside the in-memory FormalSourceRetriever before the already-indexed shared provider ran. Sampling confirmed a full declaration scan, so the run was stopped instead of wasting more exact-Haiku budget.",
+    "environment_correction": "lake exe cache get reported the pinned mathlib cache complete. The referenced Lebesgue module has no source file in the pinned mathlib tree, so this was a model-source error correctly returned by Lean, not an unbuilt-environment error and not a reason for a runtime import rule."
+  },
   "formal_rag_foundation": {
     "active_project": "ykzeng-yale/EmpericalProcessLEAN at b6bf3940",
     "statistical_foundation": "Pinned stat-lib/statlib is a direct dependency and import-closure corpus; StatInference remains the downstream research incubator.",
     "companion_corpus": "YuanheZ/lean-stat-learning-theory at d0f506f0a695018265dccb33bcb05e2f5ca1c876 is retrieval and port context, not active-project proof evidence.",
     "shared_graph_status": "Healthy clean main index with 1362 Lean files, 52485 declarations, 3505 import edges, and 201707 declaration edges. Long semantic queries now use bounded strict-then-relaxed FTS instead of unindexed whole-proof LIKE scans; a representative query with an unmatched term fell from more than nine minutes without completion to 0.09 seconds and returned five relevant declarations.",
-    "current_gap": "The missing-manifest and unindexed-query faults are closed. No completed live evaluation has yet shown that Formalizer uses the restored results to close either development theorem.",
+    "local_index_status": "AgentRuntime now opens the persistent 238 MB formal-source SQLite FTS cache instead of constructing an in-memory linear retriever. A live-topology Kaplan-Meier query initialized the current index in 5.4 seconds and returned five fused local/proof-bank/shared hits in 1.1 seconds; the prior path was still scanning after several minutes.",
+    "current_gap": "The shared and local unindexed-query faults are closed. No completed live evaluation has yet shown that Formalizer uses the restored results to close either development theorem.",
     "authority": "Every retrieved declaration must be visible and re-elaborated in the active Lean project before it can support a proof claim."
   },
   "remaining_design_debt": [
     "The 100k-line research_agent_runtime.py and its historical post-runtime fields still expose too much legacy conceptual surface even when fresh evaluation disables those paths.",
     "The formal authoring session is still whole-source oriented; a mature tactic-state action provider and trained LeanDojo/ReProver-style policy remain absent.",
-    "The fresh development rerun must establish that the simplified source-only preflight no longer invents empirical authority or misroutes code-required checks into theory revision.",
+    "The source-only preflight no longer owns a coding tool, but exact-Haiku reviewer judgments can still overstate theory defects; this must be measured through source citations and downstream evidence rather than corrected with task-specific rules.",
     "No development task has reached exact source-theorem kernel closure, so held-out PCA and extremes remain sealed."
   ],
   "next_main_worker_actions": [
-    "Run one fresh exact-Haiku development panel from the simplified source-only preflight and inspect only cross-task mechanism failures; do not add survival, sequential, FDR, conformal, or Lean-syntax special cases.",
+    "Run a bounded exact-Haiku same-model Lean-loop regression, then one fresh development panel after the sequential tool and indexed-RAG changes; inspect only cross-task mechanism failures.",
     "Continue retiring legacy repair executors and post-runtime orchestration from production reachability instead of wrapping them in another interface.",
     "Keep the held-out panel sealed until both development tasks reach exact target-bound kernel closure."
   ],
   "verification": {
     "runtime_regression": "All 1164 collected nodes in tests/test_research_agent_runtime.py were covered across deterministic ordered segments; this is not represented as one monolithic pytest run. The static CLI integration node was rerun after final fixture cleanup and passed in 96.81 seconds.",
-    "focused_regression": "116 passed across source-only theory preflight, Architect routing, metric semantic review, runtime handoffs, and exact model policy tests.",
+    "focused_regression": "130 focused deterministic tests passed after the v308 corrections: 27 client-tool/Lean-loop/formal-source topology tests, 73 formal-source/index and source-only-preflight tests, 29 non-live model-backend tests, and the changed runtime failure-lineage test. Python compilation and git diff checks pass; ruff is not installed in the workspace environment.",
+    "exact_haiku_authoring_smoke": "v309 completed in three model-selected tool turns: check -> complete-source replacement -> check. It used claude-haiku-4-5-20251001 exactly, compiled the final source, verified the bound declaration with no untrusted axioms, and is labeled mechanism_smoke_not_capability_evidence.",
     "model_policy_regression": "31 model-backend tests and 5 selected runtime evaluation-policy cases passed; actual Anthropic evaluation calls are pinned to claude-haiku-4-5-20251001 and Opus is rejected.",
-    "formal_rag_regression": "EmpericalProcessLEAN lean_rag tests: 64 passed. AI provider tests: 15 passed. A direct long semantic query returned five relevant declarations in 0.09 seconds with no provider failure diagnostic.",
-    "evidence_boundary": "No validator was relaxed and no runtime-authored source edit, statistical answer, Lean grammar rule, tactic recipe, or repair recipe was added. One reviewer-owned coding tool and its validation/test machinery were removed; full-live continues to reject historical repair/post-runtime paths."
+    "formal_rag_regression": "EmpericalProcessLEAN lean_rag tests: 64 passed. AI provider tests: 15 passed. The upstream shared query returns in 0.09 seconds; the newly wired fused runtime query returns five hits in 1.1 seconds after one 5.4-second index initialization.",
+    "evidence_boundary": "No validator was relaxed and no runtime-authored source edit, statistical answer, Lean grammar rule, tactic recipe, import substitution, or repair recipe was added. Full-live continues to reject historical repair/post-runtime paths."
   },
   "history_policy": "This file contains current coordination state only. Superseded runs and decisions remain in Git history and immutable run manifests."
 }
