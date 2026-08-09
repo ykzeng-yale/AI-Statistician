@@ -384,11 +384,11 @@ Live evidence collected during this lane:
   12-iteration budget reached generated algorithm fail-then-pass repair and
   Formalizer/ProofEngineer local Lean diagnostics; scorecard 32/49.
 - `runs/main_worker_live_coding_agent_repair_eval_both_guided/coding_agent_generated_code_repair_eval_manifest.json`:
-  standalone live combined coding-agent repair eval passed with one
-  AlgorithmEngineer and one SimulationEngineer fail-then-pass repair sequence.
+  historical standalone coding-repair calibration only; this side eval is
+  retired and cannot satisfy current capability readiness.
 - `runs/main_worker_live_runtime_with_coding_gate_both_guided/research_agent_runtime_manifest.json`:
-  attached live coding-agent repair component gate passed inside the runtime
-  audit with live, non-fixture evidence; scorecard 31/49.
+  historical attached coding-repair calibration; the attachment path and its
+  scorecard credit are retired. The recorded score was 31/49 under the old gate.
 - `runs/main_worker_live_runtime_resume_entrypoint_hardened/research_agent_runtime_manifest.json`:
   resumed from the prior AlgorithmEngineer validation failure and reached
   integrated generated AlgorithmEngineer code execution; scorecard 31/49.

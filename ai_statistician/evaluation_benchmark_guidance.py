@@ -2361,44 +2361,6 @@ def _suite_rows(
             else ("no passing source-withheld fresh holdout frontier suite is currently present",),
         ),
         BenchmarkSuiteGuidanceRow(
-            suite_id="S10_live_coding_agent_generated_repair",
-            exercised=bool(artifacts.get("coding_agent_generated_code_repair_eval")),
-            status="OK"
-            if _bool(counts.get("coding_agent_generated_code_repair_capability_evidence_ok"))
-            else "CAPACITY_GAP",
-            evidence_paths=(
-                str(artifacts.get("coding_agent_generated_code_repair_eval", "")),
-                "runs/coding_agent_generated_code_repair_eval/coding_agent_generated_code_repair_eval_manifest.json",
-            ),
-            key_counts={
-                "coding_agent_generated_code_repair_capability_evidence_ok": counts.get(
-                    "coding_agent_generated_code_repair_capability_evidence_ok"
-                ),
-                "coding_agent_algorithm_capability_evidence_ok": counts.get(
-                    "coding_agent_algorithm_capability_evidence_ok"
-                ),
-                "coding_agent_simulation_capability_evidence_ok": counts.get(
-                    "coding_agent_simulation_capability_evidence_ok"
-                ),
-                "coding_agent_algorithm_repair_sequences": counts.get(
-                    "coding_agent_algorithm_repair_sequences"
-                ),
-                "coding_agent_simulation_repair_sequences": counts.get(
-                    "coding_agent_simulation_repair_sequences"
-                ),
-            },
-            honesty_boundary=(
-                "Static fixture plumbing and registered templates do not count as coding-agent "
-                "capacity. This suite checks generated implementation/simulation repair only; "
-                "it is not theorem proof evidence."
-            ),
-            issues=()
-            if _bool(counts.get("coding_agent_generated_code_repair_capability_evidence_ok"))
-            else (
-                "no live Claude/OpenAI combined AlgorithmEngineer+SimulationEngineer generated-code fail-then-pass repair evidence is present",
-            ),
-        ),
-        BenchmarkSuiteGuidanceRow(
             suite_id="S11_live_formalizer_lean_candidate_repair",
             exercised=bool(artifacts.get("formalizer_lean_candidate_repair_eval")),
             status="OK"
@@ -3572,26 +3534,13 @@ def _top_actions(
             "rank": len(actions) + 1,
             "owner_suite": "S13_live_integrated_agent_runtime_capability",
             "action": "Run one integrated live AgentRuntime capability gate with Architect enabled, generated algorithm/simulation repair, Formalizer local Lean feedback, attached Formalizer PF/BV packet-emission calibration, attached PF/BV BlockVerifier calibration, aggregate exact semantic-definition authoring, and internal ProofEngineer handoffs in the same run.",
-            "why": "S10/S11/S11c/S11b/S12 prove component capabilities separately, but they do not prove the full Claude/OpenAI-driven AI Statistician loop works end to end without static/no-Architect/template-only substitution or staged-only semantic authoring.",
+            "why": "Isolated formal component calibrations do not prove the full Claude/OpenAI-driven AI Statistician loop works end to end without static/no-Architect/template-only substitution or staged-only semantic authoring.",
             "success_metric": "research_agent_runtime_capability_ready_for_full_ai_statistician=true with zero static providers, ArchitectCoordinator enabled, generated code and simulation repair evidence, Formalizer local Lean feedback, attached Formalizer PF/BV packet-emission evidence with capability_evidence_ok=true, pseudo_formal_packets>0, routable_work_order_rows>0, source_theorem_exact_semantic_definition in target lanes, exact_semantic_definition_lane_present=true, nonproof_boundary_preserved=true, proof_evidence_status_ok=true, no_theorem_proof_claim=true, raw_model_output_written=false, attachment_gate_recomputed=true, and runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed=true with consumed_rows>0, attached internal_pseudo_formal_block_verifier_eval_capability_evidence_ok=true with prompt_packets>0, valid_responses>0, and runtime_learning_rows>0 from a live backend, zero unresolved AgentRuntime/Architect deferred meta capability gaps with owner/requirement telemetry if any are detected, architect_deferred_meta_capability_gaps_resolved priority-pinned in capability-gap replay whenever such a gap remains open, aggregate primary/retry/late/post-runtime exact semantic-definition authoring n_live_llm_attempted>0 when required, post-runtime exact semantic candidates materialized and locally Lean-checked with repair state exposed, exact source-theorem proof-body executor evidence with result rows plus local Lean/AXLE feedback or source-theorem kernel verification, ProofEngineer handoff feedback, explicit theorem-proof boundary fields, PF+BV row-kind/effective-vs-diagnostic split/method-lineage/non-proof contract complete for any pseudo-formal routing rows, source-semantic ProofEngineer bridge consumption for pseudo-formal semantic primitive work orders with semantic-support/not-source-theorem-proof status, FormalizationGapPlanner executable handoff context plus live route-planner target-prover route-revision followthrough, and priority_pinned_latest_rows retention plus row-level retention_selection whenever capability-gap routing input is truncated.",
         }
         if s13_followup_commands:
             s13_action["recommended_commands"] = s13_followup_commands
             s13_action["recommended_command_rows"] = s13_followup_command_rows
         actions.append(s13_action)
-    if (
-        rows_by_id.get("S10_live_coding_agent_generated_repair", None) is not None
-        and rows_by_id["S10_live_coding_agent_generated_repair"].status != "OK"
-    ):
-        actions.append(
-            {
-                "rank": 4,
-                "owner_suite": "S10_live_coding_agent_generated_repair",
-                "action": "Run the combined live coding-agent generated-code repair gate with Claude/OpenAI and require both AlgorithmEngineer and SimulationEngineer fail-then-pass repair evidence.",
-                "why": "Static fixtures and registered templates are plumbing/baseline evidence only; the system still needs live generated-code repair evidence for autonomous implementation and simulation capacity.",
-                "success_metric": "coding_agent_generated_code_repair_capability_evidence_ok=true with nonzero algorithm and simulation repair sequences from a live provider.",
-            }
-        )
     if (
         rows_by_id.get("S11_live_formalizer_lean_candidate_repair", None) is not None
         and rows_by_id["S11_live_formalizer_lean_candidate_repair"].status != "OK"

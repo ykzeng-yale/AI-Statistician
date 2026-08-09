@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "updated_at": "2026-08-09T12:52:11Z",
+  "updated_at": "2026-08-09T14:08:25Z",
   "role": "main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -18,7 +18,7 @@
     ],
     "tool_ownership": "The model chooses whether and when to search, replace the complete source, and check it. A successful model-requested check hands the exact current source hash directly to independent semantic review; no redundant submit action or runtime-authored edit exists.",
     "structured_output_regeneration": "The historically named llm_json_repair helper asks the same model to regenerate a complete structured object from its rejected response and raw validator errors. It performs no local semantic or source repair.",
-    "legacy_policy": "Historical *_repair_executor, replay-patch, attached repair-eval, post-runtime bridge, and candidate-synthesis paths are compatibility and calibration code. Every full-live run now rejects them before provider calls; they are not the product architecture."
+    "legacy_policy": "Historical *_repair_executor, replay-patch, attached repair-eval, and candidate-synthesis paths are not the product architecture. The canonical runtime no longer contains executable post-runtime source-lookup, authoring, proof-search, Lean-repair, or source-theorem-promotion bridge bodies. The standalone coding repair eval is deleted; archived coding-repair fields remain readable but cannot create learning rows, scorecard credit, ladder credit, or readiness progress."
   },
   "live_anthropic_model_policy": {
     "tests_and_evaluations": "claude-haiku-4-5-20251001 exactly",
@@ -30,7 +30,7 @@
     "ready_for_full_ai_statistician": false,
     "development_exact_theorem_closure": "0/2",
     "held_out_panel": "sealed",
-    "latest_capability_score": "90/121 overall and 46/66 integrated requirements passed",
+    "latest_capability_score": "The last pre-simplification v310 audit reported 90/121 overall and 46/66 integrated requirements passed; this historical denominator included the now-retired coding side calibration row.",
     "interpretation": "The evidence boundary and orchestration contracts are substantial, but no fresh development task currently completes theory, generated computation, formal RAG, iterative Lean feedback, and exact source-theorem kernel closure."
   },
   "latest_full_live_development_eval": {
@@ -59,6 +59,8 @@
     "bounded_live_smoke": "runs/main_worker_structure_simplification_20260809_v312_exact_haiku ran five iterations: Architect -> RetrievalMemory -> TheoryDeveloper -> independent theory preflight -> FormalizationEvaluator. The accepted preflight routed directly to FormalizationEvaluator with no second Architect model call and no premature Critic. The persisted result uses content_addressed_refs and no trace task contains inputs.",
     "workspace_plan_guard_change": "Architect plans now authorize durable research workspaces rather than requiring every internal worker name to appear as another plan row. Scientific-coding and formalization reviewers remain inside their owning workspace; cross-workspace changes and explicit outer-replan budget signals still route through Architect. Generated-code reviewer backedges are accepted only when the transient complete source task exactly matches the immutable AgentTaskRef in the review work order; an unbound backedge is blocked before another model call.",
     "formal_target_lineage_change": "Formal-target semantic-review work orders now retain only a deferred AgentTaskRef. The complete deferred ProofEngineer task exists transiently in the active reviewer handoff and must reproduce the immutable reference before review or continuation; tampering fails before any model call.",
+    "post_runtime_control_plane_removal": "Removed the executable post-runtime source lookup, authoring-worker, bridge, candidate-synthesis, proof-body, and local-Lean chains plus the obsolete runtime-source-theorem-promotion-proofengineer-bridge command. AgentRuntime termination can project typed work orders and evidence summaries but cannot wake a second formal execution plane. Low-level local Lean/kernel tools and typed Formalizer/ProofEngineer workers remain intact.",
+    "coding_repair_side_eval_removal": "Deleted the standalone AlgorithmEngineer, SimulationEngineer, and combined generated-code repair-eval modules; removed their CLI command and runtime attachment flags; removed S10 from benchmark guidance and the recommended gate stack; removed their learning-row and capability-calibration credit. The current diff deletes 9,090 lines and adds 486, for a net reduction of 8,604 lines. Historical manifest readers are display-only.",
     "bounded_live_workspace_smoke": "runs/main_worker_workspace_plan_guard_20260809_v313_exact_haiku ran six fresh iterations: Architect -> RetrievalMemory -> TheoryDeveloper -> independent theory preflight -> FormalizationEvaluator -> FormalTargetSemanticReviewer. The Formalizer-to-reviewer handoff was aligned by the formalization workspace, no Architect plan-repair task occurred, and the reviewer actually executed. The reviewer rejected the generated target and routed observations to Architect, which is the intended cross-workspace boundary.",
     "non_claim": "v313 ended MAX_ITERATIONS_REACHED with 0 kernel-verified subclaims and five formal gaps. It validates mechanism, workspace routing, and persistence only; it does not change development exact-theorem closure from 0/2 or unlock held-out tasks."
   },
@@ -92,24 +94,26 @@
     "authority": "Every retrieved declaration must be visible and re-elaborated in the active Lean project before it can support a proof claim."
   },
   "remaining_design_debt": [
-    "The 100k-line research_agent_runtime.py and its historical post-runtime fields still expose too much legacy conceptual surface even when fresh evaluation disables those paths.",
-    "AlgorithmEngineer and SimulationEvaluator are still separate control surfaces. A downstream consumer failure now returns raw evidence to the source producer, but the central runtime still contains a dedicated branch. The next structural step is one scientific-coding workspace that owns source generation, unit execution, integration execution, scoring, and bounded candidate search.",
+    "The 97k-line research_agent_runtime.py and its historical post-runtime projection/manifest fields still expose too much legacy conceptual surface even after executable fallback bodies were removed.",
+    "AlgorithmEngineer and SimulationEvaluator are still separate control surfaces. A downstream consumer failure correctly returns the exact accepted source and raw observation to AlgorithmEngineer, but the central runtime still constructs that visible cross-owner task. Consolidate it only when one genuine model/tool scientific-coding session replaces both control surfaces; adding a wrapper around the current calls would not simplify the system.",
     "Blackboard artifacts and the 1492-field audit manifest remain too large. Compact task refs remove recursive trace/work-order copies, but substantive artifact schemas still need narrow ArtifactRef projections at handoff boundaries rather than full packet replication.",
     "The formal authoring session is still whole-source oriented; a mature tactic-state action provider and trained LeanDojo/ReProver-style policy remain absent.",
+    "Standalone Formalizer Lean-candidate and PF/BV component evals still inject synthetic work after AgentRuntime. They remain explicitly non-authoritative calibration, but the model-owned check/revise behavior should move into the formalization workspace before these side evals are retired.",
     "Independent formal target review currently conflates statement semantics with proof completion and library API uncertainty; these evidence dimensions need separate outputs and owners without a deterministic verdict override.",
     "Workspace identity is still inferred from legacy subsystem names at the plan guard because AgentTask predates the simplified outer-workspace architecture. This should converge while shrinking the task schema, not through another scheduler or routing service.",
     "No development task has reached exact source-theorem kernel closure, so held-out PCA and extremes remain sealed."
   ],
   "next_main_worker_actions": [
-    "Replace the AlgorithmEngineer/SimulationEvaluator cross-routing branch with one model-owned scientific-coding workspace whose loop is complete source -> real Python/R unit and integration tools -> raw observation -> complete source regeneration, with optional candidate search around the same execute-and-score interface.",
+    "Replace AlgorithmEngineer and SimulationEvaluator together with one model-owned scientific-coding session whose loop is complete source -> real Python/R unit and integration tools -> raw observation -> complete source regeneration. Do not add a facade that merely hides the existing calls or their budgets.",
     "Continue replacing copied task and packet payloads with content-addressed ArtifactRef handoffs, while keeping only active pending tasks complete for resume.",
     "If the coding/simulation ABI closes, separate formal statement-semantic review from proof-completeness and tool-availability observations through the existing LLM reviewer contract, without theorem-specific rules.",
-    "Continue retiring legacy repair executors and post-runtime orchestration from production reachability instead of wrapping them in another interface.",
+    "Continue shrinking post-runtime projection and manifest compatibility fields now that executable post-runtime orchestration has been removed; do not restore the deleted composite CLI bridge.",
+    "Move model-owned Lean check/revise and PF/BV verification into the formalization workspace, then retire the remaining standalone formal side-eval attachments rather than wrapping them in another interface.",
     "Keep the held-out panel sealed until both development tasks reach exact target-bound kernel closure."
   ],
   "verification": {
     "runtime_regression": "All 1164 collected nodes in tests/test_research_agent_runtime.py were covered across deterministic ordered segments; this is not represented as one monolithic pytest run. The static CLI integration node was rerun after final fixture cleanup and passed in 96.81 seconds.",
-    "focused_regression": "The new workspace/lineage slice passes 90 related AgentRuntime, Architect, semantic-review, offline-smoke, and evaluation-mode tests; 20 focused plan-guard, formal-target, and generated-code lineage tests also pass. Python compilation and git diff checks pass.",
+    "focused_regression": "After removing the post-runtime execution plane and coding repair side eval, focused capability-table, ladder, scorecard, attachment, benchmark-guidance, cross-family, and static CLI integration tests pass. Collection succeeds for 1,437 tests across the three largest affected files. Python compilation, CLI help under uv, JSON validation, and git diff checks pass; these deterministic tests made no Claude API calls.",
     "payload_regression": "AgentRuntime unit tests verify full debug serialization remains available while compact serialization emits AgentTaskRef objects with no inputs. Semantic-review tests verify task-ref hashes, acceptance continuation, source-producer regeneration, and absence of full task payloads in immutable work orders.",
     "exact_haiku_structure_smoke": "v313 executed six bounded live steps with claude-haiku-4-5-20251001 exactly. Its trace is Architect -> Retrieval -> Theory -> preflight -> Formalization -> independent formal-target review. The internal formalization handoff is workspace-aligned, no plan-repair route occurs, and the rejected target returns to Architect without being treated as proof. This is mechanism evidence only.",
     "exact_haiku_authoring_smoke": "v309 completed in three model-selected tool turns: check -> complete-source replacement -> check. It used claude-haiku-4-5-20251001 exactly, compiled the final source, verified the bound declaration with no untrusted axioms, and is labeled mechanism_smoke_not_capability_evidence.",

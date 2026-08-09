@@ -410,17 +410,6 @@ from .architect_research_path_policy_eval import (
     write_architect_research_path_policy_eval_failure_manifest,
 )
 from .algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
-from .algorithm_engineer_generated_code_repair_eval import (
-    run_algorithm_engineer_generated_code_repair_eval,
-    write_algorithm_engineer_generated_code_repair_eval_failure_manifest,
-)
-from .simulation_engineer_generated_code_repair_eval import (
-    run_simulation_engineer_generated_code_repair_eval,
-    write_simulation_engineer_generated_code_repair_eval_failure_manifest,
-)
-from .coding_agent_generated_code_repair_eval import (
-    run_coding_agent_generated_code_repair_eval,
-)
 from .model_backend import (
     LIVE_EVALUATION_CLAUDE_MODEL,
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
@@ -453,7 +442,6 @@ from .research_agent_runtime import (
     RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS,
     RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS,
     RUNTIME_SCHEMA_VERSION,
-    _runtime_coding_agent_component_gate_learning_rows,
     _runtime_coding_agent_capability_learning_rows,
     _runtime_coding_agent_capability_table,
     _runtime_component_gate_summary,
@@ -463,7 +451,6 @@ from .research_agent_runtime import (
     _runtime_pseudo_formal_block_verifier_component_gate_learning_rows,
     _runtime_proof_bank_memory_summary_from_learning_rows,
     _dedupe_runtime_next_action_agenda_rows,
-    _run_runtime_source_theorem_promotion_proofengineer_bridge,
     _write_runtime_learning_rows_jsonl,
     _write_runtime_next_action_agenda_jsonl,
     run_research_agent_runtime,
@@ -1169,10 +1156,6 @@ def _cross_family_eval_protocol_selection(
         (
             "source_theorem_exact_semantic_definition_lean_environment_repair_executor",
             "--source-theorem-exact-semantic-definition-lean-environment-repair-executor",
-        ),
-        (
-            "run_coding_agent_generated_code_repair_eval",
-            "--run-coding-agent-generated-code-repair-eval",
         ),
         (
             "run_formalizer_lean_candidate_repair_eval",
@@ -10273,40 +10256,6 @@ def _exact_source_theorem_proof_body_executor(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
-def _runtime_source_theorem_promotion_proofengineer_bridge(
-    args: argparse.Namespace,
-) -> int:
-    payload = _run_runtime_source_theorem_promotion_proofengineer_bridge(
-        seed_queue_dir=Path(args.seed_queue_dir),
-        out_dir=Path(args.out),
-        local_lean=not bool(args.no_local_lean),
-        overwrite_artifacts=bool(args.overwrite),
-        lean_project=Path(args.lean_project) if args.lean_project else None,
-        lean_timeout=int(args.lean_timeout),
-    )
-    print("\nAI Statistical Theory Lab Runtime Source-Theorem ProofEngineer Bridge")
-    print("=" * 72)
-    print(
-        f"materialized={payload['n_materialized_artifacts']} "
-        f"artifact_kernel={payload['n_artifact_kernel_verified']} "
-        f"formal_env_work_orders={payload['n_source_theorem_formal_environment_work_orders']} "
-        f"ready_source_integration={payload['n_ready_for_source_theorem_integration']} "
-        f"source_kernel={payload['n_source_theorem_kernel_verified']} "
-        f"local_lean_skipped={payload['local_lean_skipped_reason'] or 'no'}"
-    )
-    print(
-        f"\nbridge manifest written to "
-        f"{(Path(args.out) / 'runtime_source_theorem_promotion_proofengineer_bridge_manifest.json').resolve()}"
-    )
-    if payload.get("source_theorem_formal_environment_work_order_manifest"):
-        print(
-            f"formal-environment work-order manifest written to "
-            f"{Path(str(payload['source_theorem_formal_environment_work_order_manifest'])).resolve()}"
-        )
-    print(f"proof evidence status: {payload['proof_evidence_status']}")
-    return 0
-
-
 def _formal_verifier_agentic_proof_source_theorem_promotion_queue(
     args: argparse.Namespace,
 ) -> int:
@@ -12456,11 +12405,6 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             ),
         ),
     )
-    if getattr(args, "run_coding_agent_generated_code_repair_eval", False):
-        manifest = _attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
-            args,
-            manifest,
-        )
     if getattr(args, "run_formalizer_lean_candidate_repair_eval", False):
         manifest = _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
             args,
@@ -12740,173 +12684,6 @@ def _strict_formalizer_pseudo_formal_packet_attachment_summary(
     }
 
 
-def _attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
-    args: argparse.Namespace,
-    manifest: dict[str, Any],
-) -> dict[str, Any]:
-    """Run the generated-code repair gate and attach it to a runtime manifest."""
-
-    provider_name = str(
-        getattr(args, "coding_agent_repair_eval_provider", "same") or "same"
-    )
-    if provider_name == "same":
-        provider_name = str(getattr(args, "provider", "anthropic") or "anthropic")
-    out_dir = Path(
-        getattr(args, "coding_agent_repair_eval_out", "")
-        or Path(args.out) / "internal_coding_agent_generated_code_repair_eval"
-    )
-    existing_manifest_path = str(
-        getattr(args, "coding_agent_repair_eval_existing_manifest", "") or ""
-    ).strip()
-    if existing_manifest_path:
-        eval_manifest = _load_existing_component_eval_manifest(
-            Path(existing_manifest_path),
-            expected_artifact_kind="CodingAgentGeneratedCodeRepairEvalManifest",
-        )
-    else:
-        eval_manifest = run_coding_agent_generated_code_repair_eval(
-            question_file=Path(args.question_file),
-            question_id=(
-                str(getattr(args, "coding_agent_repair_eval_question_id", "") or "")
-                or "conformal_prediction_coverage"
-            ),
-            out_dir=out_dir,
-            provider_name=provider_name,
-            model=str(getattr(args, "coding_agent_repair_eval_model", "") or ""),
-            algorithm_static_response_file=(
-                Path(getattr(args, "coding_agent_repair_eval_algorithm_static_response_file", ""))
-                if getattr(args, "coding_agent_repair_eval_algorithm_static_response_file", "")
-                else None
-            ),
-            simulation_static_response_file=(
-                Path(getattr(args, "coding_agent_repair_eval_simulation_static_response_file", ""))
-                if getattr(args, "coding_agent_repair_eval_simulation_static_response_file", "")
-                else None
-            ),
-            llm_timeout_seconds=float(
-                getattr(
-                    args,
-                    "coding_agent_repair_eval_llm_timeout_seconds",
-                    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-                )
-            ),
-            max_tokens=int(getattr(args, "coding_agent_repair_eval_max_tokens", 4000)),
-            temperature=float(getattr(args, "coding_agent_repair_eval_temperature", 0.1)),
-            n_runs=int(getattr(args, "coding_agent_repair_eval_runs", args.runs)),
-            seed=int(getattr(args, "coding_agent_repair_eval_seed", args.seed)),
-            target_coverage=float(
-                getattr(args, "coding_agent_repair_eval_target_coverage", 0.9)
-            ),
-            max_repair_attempts=int(
-                getattr(args, "coding_agent_repair_eval_max_repair_attempts", 4)
-            ),
-        )
-    gate_summary = _runtime_component_gate_summary(eval_manifest)
-    attached = {
-        "artifact_kind": "RuntimeAttachedCodingAgentGeneratedCodeRepairEval",
-        "manifest_path": str(eval_manifest.get("artifacts", {}).get("manifest_json", "")),
-        "provider_name": str(gate_summary["provider_name"]),
-        "backend_provider_name": str(gate_summary["backend_provider_name"]),
-        "component_backend_provider_names": list(
-            gate_summary["component_backend_provider_names"]
-        ),
-        "model": str(eval_manifest.get("model", "")),
-        "live_generator": bool(gate_summary["live_generator"]),
-        "static_or_fixture_only": bool(gate_summary["static_or_fixture_only"]),
-        "fixture_plumbing_ok": _runtime_learning_memory_bool_like(
-            eval_manifest.get("fixture_plumbing_ok", False)
-        ),
-        "capability_evidence_ok": bool(gate_summary["capability_evidence_ok"]),
-        "algorithm_capability_evidence_ok": bool(
-            eval_manifest.get("algorithm_capability_evidence_ok", False)
-        ),
-        "simulation_capability_evidence_ok": bool(
-            eval_manifest.get("simulation_capability_evidence_ok", False)
-        ),
-        "algorithm_repair_sequences": int(
-            eval_manifest.get("algorithm_repair_sequences", 0) or 0
-        ),
-        "algorithm_live_repair_sequences": int(
-            eval_manifest.get("algorithm_live_repair_sequences", 0) or 0
-        ),
-        "simulation_repair_sequences": int(
-            eval_manifest.get("simulation_repair_sequences", 0) or 0
-        ),
-        "simulation_live_repair_sequences": int(
-            eval_manifest.get("simulation_live_repair_sequences", 0) or 0
-        ),
-        "prior_failure_feedback_injected": bool(
-            eval_manifest.get("prior_failure_feedback_injected", False)
-        ),
-        "autonomous_live_failed_then_passed_repair_observed": bool(
-            eval_manifest.get(
-                "autonomous_live_failed_then_passed_repair_observed",
-                False,
-            )
-        ),
-        "capability_evidence_scope": str(
-            eval_manifest.get("capability_evidence_scope", "") or ""
-        ),
-        "proof_evidence_status": str(
-            eval_manifest.get(
-                "proof_evidence_status",
-                "CODING_AGENT_GENERATED_CODE_REPAIR_EVAL_NOT_PROOF_EVIDENCE",
-            )
-        ),
-        "boundary": (
-            "This attached component gate checks generated-code repair capability "
-            "for AlgorithmEngineer and SimulationEngineer. It is not theorem proof, "
-            "not simulation proof, and not a substitute for an integrated "
-            "AgentRuntime research success."
-        ),
-    }
-    manifest["internal_coding_agent_generated_code_repair_eval"] = attached
-    manifest["internal_coding_agent_generated_code_repair_eval_provider_name"] = str(
-        attached["provider_name"]
-    )
-    manifest["internal_coding_agent_generated_code_repair_eval_backend_provider_name"] = str(
-        attached["backend_provider_name"]
-    )
-    manifest[
-        "internal_coding_agent_generated_code_repair_eval_component_backend_provider_names"
-    ] = list(attached["component_backend_provider_names"])
-    manifest["internal_coding_agent_generated_code_repair_eval_live_generator"] = bool(
-        attached["live_generator"]
-    )
-    manifest["internal_coding_agent_generated_code_repair_eval_capability_evidence_ok"] = bool(
-        attached["capability_evidence_ok"]
-    )
-    manifest[
-        "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only"
-    ] = bool(attached["static_or_fixture_only"])
-    manifest[
-        "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences"
-    ] = int(attached["algorithm_repair_sequences"])
-    manifest[
-        "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences"
-    ] = int(attached["algorithm_live_repair_sequences"])
-    manifest[
-        "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences"
-    ] = int(attached["simulation_repair_sequences"])
-    manifest[
-        "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences"
-    ] = int(attached["simulation_live_repair_sequences"])
-    manifest[
-        "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed"
-    ] = bool(attached["autonomous_live_failed_then_passed_repair_observed"])
-    manifest[
-        "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope"
-    ] = str(attached["capability_evidence_scope"])
-    manifest.setdefault("artifacts", {})[
-        "internal_coding_agent_generated_code_repair_eval_manifest_json"
-    ] = str(attached["manifest_path"])
-    _refresh_runtime_coding_agent_capability_manifest(
-        manifest,
-        runtime_out_dir=Path(args.out),
-    )
-    manifest_path = Path(args.out) / "research_agent_runtime_manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
-    return manifest
 
 
 def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
@@ -13864,9 +13641,6 @@ def _refresh_runtime_coding_agent_capability_manifest(
         manifest=manifest,
         capability_table=manifest["runtime_coding_agent_capability"],
     )
-    coding_component_gate_learning_rows = (
-        _runtime_coding_agent_component_gate_learning_rows(manifest)
-    )
     component_gate_learning_rows = _runtime_formalizer_component_gate_learning_rows(
         manifest
     )
@@ -13927,7 +13701,6 @@ def _refresh_runtime_coding_agent_capability_manifest(
     refreshed_rows = [
         *retained_rows,
         *capability_learning_rows,
-        *coding_component_gate_learning_rows,
         *component_gate_learning_rows,
         *formalizer_pseudo_formal_packet_learning_rows,
         *pseudo_formal_component_gate_learning_rows,
@@ -13966,9 +13739,6 @@ def _refresh_runtime_coding_agent_capability_manifest(
     _write_runtime_next_action_agenda_jsonl(agenda_path, refreshed_agenda_rows)
     manifest["n_runtime_coding_agent_capability_learning_rows"] = len(
         capability_learning_rows
-    )
-    manifest["n_runtime_coding_agent_component_gate_learning_rows"] = len(
-        coding_component_gate_learning_rows
     )
     manifest["n_runtime_formalizer_component_gate_learning_rows"] = len(
         component_gate_learning_rows
@@ -14659,12 +14429,6 @@ def _research_agent_runtime_capability_config_errors(
             )
     component_eval_provider_fields = (
         (
-            "run_coding_agent_generated_code_repair_eval",
-            "coding_agent_repair_eval_provider",
-            "coding_agent_repair_eval_existing_manifest",
-            "coding-agent generated-code repair eval",
-        ),
-        (
             "run_formalizer_lean_candidate_repair_eval",
             "formalizer_repair_eval_provider",
             "formalizer_repair_eval_existing_manifest",
@@ -14794,10 +14558,6 @@ def _research_agent_runtime_capability_config_errors(
             (
                 "source_theorem_exact_semantic_definition_candidate_synthesis",
                 "--source-theorem-exact-semantic-definition-candidate-synthesis",
-            ),
-            (
-                "run_coding_agent_generated_code_repair_eval",
-                "--run-coding-agent-generated-code-repair-eval",
             ),
             (
                 "run_formalizer_lean_candidate_repair_eval",
@@ -15167,187 +14927,10 @@ def _research_agent_runtime_audit(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
-def _algorithm_engineer_generated_code_repair_eval(args: argparse.Namespace) -> int:
-    _load_dotenv(Path(args.env_file))
-    try:
-        manifest = run_algorithm_engineer_generated_code_repair_eval(
-            question_file=Path(args.question_file),
-            question_id=args.question_id,
-            out_dir=Path(args.out),
-            provider_name=args.provider,
-            model=args.llm_model,
-            static_response_file=(
-                Path(args.static_response_file)
-                if args.static_response_file
-                else None
-            ),
-            llm_timeout_seconds=args.llm_timeout_seconds,
-            max_tokens=args.max_tokens,
-            temperature=args.temperature,
-            n_runs=args.runs,
-            seed=args.seed,
-            max_repair_attempts=args.max_repair_attempts,
-        )
-    except Exception as exc:
-        manifest = write_algorithm_engineer_generated_code_repair_eval_failure_manifest(
-            out_dir=Path(args.out),
-            provider_name=args.provider,
-            model=args.llm_model,
-            question_id=args.question_id,
-            exc=exc,
-        )
-        print("\nAI Statistician AlgorithmEngineer generated-code repair eval failed")
-        print("=" * 72)
-        print(f"- {exc}")
-        print(f"manifest={manifest['artifacts']['manifest_json']}")
-        return 1
-    print("\nAI Statistician AlgorithmEngineer Generated-Code Repair Eval")
-    print("=" * 72)
-    print(f"provider={manifest['provider_name']} model={manifest['model']}")
-    print(f"live_generator={manifest['live_generator']}")
-    print(f"result_status={manifest['result_status']}")
-    print(
-        "generated_code_executed="
-        f"{manifest['n_generated_code_sandbox_executed']} "
-        "passed="
-        f"{manifest['n_generated_code_sandbox_passed']} "
-        "metric_gate_failed="
-        f"{manifest['n_generated_code_sandbox_metric_gate_failed']}"
-    )
-    print(
-        "fail_then_pass_repair_sequences="
-        f"{manifest['n_generated_code_sandbox_failed_then_passed_repair_sequences']}"
-    )
-    fixture_plumbing_ok = bool(
-        manifest["static_or_fixture_only"] and manifest["sandbox_clean_after_repair"]
-    )
-    print(f"fixture_plumbing_ok={fixture_plumbing_ok}")
-    print(f"capability_evidence_ok={manifest['capability_evidence_ok']}")
-    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
-    print(f"manifest={manifest['artifacts']['manifest_json']}")
-    if manifest["capability_evidence_ok"]:
-        return 0
-    if args.allow_fixture_success and fixture_plumbing_ok:
-        return 0
-    return 1
 
 
-def _simulation_engineer_generated_code_repair_eval(args: argparse.Namespace) -> int:
-    _load_dotenv(Path(args.env_file))
-    try:
-        manifest = run_simulation_engineer_generated_code_repair_eval(
-            question_file=Path(args.question_file),
-            question_id=args.question_id,
-            out_dir=Path(args.out),
-            provider_name=args.provider,
-            model=args.llm_model,
-            static_response_file=(
-                Path(args.static_response_file)
-                if args.static_response_file
-                else None
-            ),
-            llm_timeout_seconds=args.llm_timeout_seconds,
-            max_tokens=args.max_tokens,
-            temperature=args.temperature,
-            n_runs=args.runs,
-            seed=args.seed,
-            target_coverage=args.target_coverage,
-            max_repair_attempts=args.max_repair_attempts,
-        )
-    except Exception as exc:
-        manifest = write_simulation_engineer_generated_code_repair_eval_failure_manifest(
-            out_dir=Path(args.out),
-            provider_name=args.provider,
-            model=args.llm_model,
-            question_id=args.question_id,
-            exc=exc,
-        )
-        print("\nAI Statistician SimulationEngineer generated-code repair eval failed")
-        print("=" * 72)
-        print(f"- {exc}")
-        print(f"manifest={manifest['artifacts']['manifest_json']}")
-        return 1
-    print("\nAI Statistician SimulationEngineer Generated-Code Repair Eval")
-    print("=" * 72)
-    print(f"provider={manifest['provider_name']} model={manifest['model']}")
-    print(f"live_generator={manifest['live_generator']}")
-    print(f"result_status={manifest['result_status']}")
-    print(
-        "generated_simulation_executed="
-        f"{manifest['n_generated_simulation_sandbox_executed']} "
-        "passed="
-        f"{manifest['n_generated_simulation_sandbox_passed']} "
-        "metric_gate_failed="
-        f"{manifest['n_generated_simulation_sandbox_metric_gate_failed']}"
-    )
-    print(
-        "fail_then_pass_repair_sequences="
-        f"{manifest['n_generated_simulation_sandbox_failed_then_passed_repair_sequences']}"
-    )
-    fixture_plumbing_ok = bool(
-        manifest["static_or_fixture_only"] and manifest["sandbox_clean_after_repair"]
-    )
-    print(f"fixture_plumbing_ok={fixture_plumbing_ok}")
-    print(f"capability_evidence_ok={manifest['capability_evidence_ok']}")
-    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
-    print(f"manifest={manifest['artifacts']['manifest_json']}")
-    if manifest["capability_evidence_ok"]:
-        return 0
-    if args.allow_fixture_success and fixture_plumbing_ok:
-        return 0
-    return 1
 
 
-def _coding_agent_generated_code_repair_eval(args: argparse.Namespace) -> int:
-    _load_dotenv(Path(args.env_file))
-    manifest = run_coding_agent_generated_code_repair_eval(
-        question_file=Path(args.question_file),
-        question_id=args.question_id,
-        out_dir=Path(args.out),
-        provider_name=args.provider,
-        model=args.llm_model,
-        algorithm_static_response_file=(
-            Path(args.algorithm_static_response_file)
-            if args.algorithm_static_response_file
-            else None
-        ),
-        simulation_static_response_file=(
-            Path(args.simulation_static_response_file)
-            if args.simulation_static_response_file
-            else None
-        ),
-        llm_timeout_seconds=args.llm_timeout_seconds,
-        max_tokens=args.max_tokens,
-        temperature=args.temperature,
-        n_runs=args.runs,
-        seed=args.seed,
-        target_coverage=args.target_coverage,
-        max_repair_attempts=args.max_repair_attempts,
-    )
-    print("\nAI Statistician Coding-Agent Generated-Code Repair Eval")
-    print("=" * 72)
-    print(f"provider={manifest['provider_name']} model={manifest['model']}")
-    print(f"live_generator={manifest['live_generator']}")
-    print(
-        "algorithm_ok="
-        f"{manifest['algorithm_capability_evidence_ok']} "
-        "simulation_ok="
-        f"{manifest['simulation_capability_evidence_ok']}"
-    )
-    print(
-        "repair_sequences="
-        f"algorithm:{manifest['algorithm_repair_sequences']} "
-        f"simulation:{manifest['simulation_repair_sequences']}"
-    )
-    print(f"fixture_plumbing_ok={manifest['fixture_plumbing_ok']}")
-    print(f"capability_evidence_ok={manifest['capability_evidence_ok']}")
-    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
-    print(f"manifest={manifest['artifacts']['manifest_json']}")
-    if manifest["capability_evidence_ok"]:
-        return 0
-    if args.allow_fixture_success and manifest["fixture_plumbing_ok"]:
-        return 0
-    return 1
 
 
 def _formalizer_lean_candidate_repair_eval(args: argparse.Namespace) -> int:
@@ -20111,48 +19694,6 @@ def build_parser() -> argparse.ArgumentParser:
         func=_exact_source_theorem_proof_body_executor
     )
 
-    runtime_source_theorem_promotion_proofengineer_bridge = sub.add_parser(
-        "runtime-source-theorem-promotion-proofengineer-bridge",
-        help=(
-            "materialize source-theorem promotion seeds, run optional local Lean, "
-            "and emit ProofEngineer bridge work orders"
-        ),
-    )
-    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
-        "--seed-queue-dir",
-        required=True,
-        help="directory containing formal_verifier_agentic_proof_execution_queue_manifest.json",
-    )
-    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
-        "--out",
-        default="runs/runtime_source_theorem_promotion_proofengineer_bridge",
-        help="runtime source-theorem promotion ProofEngineer bridge output directory",
-    )
-    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
-        "--lean-project",
-        default="",
-        help="optional local Lake project; when set runs lake env lean",
-    )
-    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
-        "--lean-timeout",
-        type=int,
-        default=90,
-        help="seconds before each local Lean artifact/source-theorem check times out",
-    )
-    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
-        "--no-local-lean",
-        action="store_true",
-        help="materialize only; skip local Lean artifact and source-theorem checks",
-    )
-    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="rewrite existing exact-source candidate artifacts before verification",
-    )
-    runtime_source_theorem_promotion_proofengineer_bridge.set_defaults(
-        func=_runtime_source_theorem_promotion_proofengineer_bridge
-    )
-
     formal_verifier_agentic_proof_trace_memory = sub.add_parser(
         "formal-verifier-agentic-proof-trace-memory",
         help="summarize agentic proof execution transcripts into reusable search memory",
@@ -22510,107 +22051,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_agent_runtime.add_argument(
-        "--run-coding-agent-generated-code-repair-eval",
-        action="store_true",
-        help=(
-            "after AgentRuntime finishes, run the combined AlgorithmEngineer + "
-            "SimulationEngineer generated-code repair gate and attach its manifest "
-            "to the runtime manifest. This component gate is not theorem proof and "
-            "does not substitute for integrated runtime success."
-        ),
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-provider",
-        choices=("same", "anthropic", "openai", "static"),
-        default="same",
-        help=(
-            "provider for --run-coding-agent-generated-code-repair-eval; same uses "
-            "the runtime --provider"
-        ),
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-model",
-        default="",
-        help="optional model for the attached coding-agent repair eval",
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-question-id",
-        default="conformal_prediction_coverage",
-        help=(
-            "question id for the attached component repair eval; defaults to "
-            "the conformal generated-code repair probe and is intentionally "
-            "separate from the main runtime question selection"
-        ),
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-algorithm-static-response-file",
-        default="",
-        help=(
-            "AlgorithmEngineer static JSON response for the attached repair eval "
-            "when --coding-agent-repair-eval-provider static"
-        ),
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-simulation-static-response-file",
-        default="",
-        help=(
-            "SimulationEngineer static JSON response for the attached repair eval "
-            "when --coding-agent-repair-eval-provider static"
-        ),
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-llm-timeout-seconds",
-        type=float,
-        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-max-tokens",
-        type=int,
-        default=4000,
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-temperature",
-        type=float,
-        default=0.1,
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-runs",
-        type=int,
-        default=24,
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-seed",
-        type=int,
-        default=20260623,
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-target-coverage",
-        type=float,
-        default=0.9,
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-max-repair-attempts",
-        type=int,
-        default=4,
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-out",
-        default="",
-        help=(
-            "optional output directory for the attached coding-agent repair eval; "
-            "defaults to <runtime-out>/internal_coding_agent_generated_code_repair_eval"
-        ),
-    )
-    research_agent_runtime.add_argument(
-        "--coding-agent-repair-eval-existing-manifest",
-        default="",
-        help=(
-            "attach an existing CodingAgentGeneratedCodeRepairEvalManifest instead "
-            "of rerunning the coding-agent repair eval. The attachment remains "
-            "component calibration evidence only."
-        ),
-    )
-    research_agent_runtime.add_argument(
         "--run-formalizer-lean-candidate-repair-eval",
         action="store_true",
         help=(
@@ -22910,275 +22350,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_agent_runtime_audit.set_defaults(func=_research_agent_runtime_audit)
-
-    algorithm_engineer_generated_code_repair_eval = sub.add_parser(
-        "algorithm-engineer-generated-code-repair-eval",
-        help=(
-            "component eval for AlgorithmEngineer generated-code repair: inject "
-            "a prior execution failure, call a generator backend, execute the "
-            "new Python sandbox locally, and record fail-then-pass evidence"
-        ),
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--question-file",
-        default="examples/research_questions.json",
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--question-id",
-        default="conformal_prediction_coverage",
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--provider",
-        choices=("anthropic", "openai", "static"),
-        default=_default_live_generator_provider(),
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--static-response-file",
-        default="",
-        help="JSON response to replay when --provider static",
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--llm-model",
-        default="",
-        help="model name for AlgorithmEngineer; Anthropic defaults to Claude Haiku 4.5",
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--llm-timeout-seconds",
-        type=float,
-        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--max-tokens",
-        type=int,
-        default=4000,
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--temperature",
-        type=float,
-        default=0.1,
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--runs",
-        type=int,
-        default=24,
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--seed",
-        type=int,
-        default=20260623,
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--max-repair-attempts",
-        type=int,
-        default=4,
-        help=(
-            "bounded generated-code repair attempts after the initial proposal; "
-            "default allows validation and sandbox-execution repair"
-        ),
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--out",
-        default="runs/algorithm_engineer_generated_code_repair_eval",
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--env-file",
-        default=".env",
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--allow-fixture-success",
-        action="store_true",
-        help=(
-            "return success for static fixture plumbing checks; default success "
-            "requires live generator capability evidence"
-        ),
-    )
-    algorithm_engineer_generated_code_repair_eval.set_defaults(
-        func=_algorithm_engineer_generated_code_repair_eval
-    )
-
-    simulation_engineer_generated_code_repair_eval = sub.add_parser(
-        "simulation-engineer-generated-code-repair-eval",
-        help=(
-            "component eval for SimulationEngineer generated-code repair: inject "
-            "a prior metric-gate failure, call a generator backend, execute the "
-            "new Python stress-test sandbox locally, and record fail-then-pass evidence"
-        ),
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--question-file",
-        default="examples/research_questions.json",
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--question-id",
-        default="conformal_prediction_coverage",
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--provider",
-        choices=("anthropic", "openai", "static"),
-        default=_default_live_generator_provider(),
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--static-response-file",
-        default="",
-        help="JSON response to replay when --provider static",
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--llm-model",
-        default="",
-        help="model name for SimulationEngineer; Anthropic defaults to Claude Haiku 4.5",
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--llm-timeout-seconds",
-        type=float,
-        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--max-tokens",
-        type=int,
-        default=4000,
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--temperature",
-        type=float,
-        default=0.1,
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--runs",
-        type=int,
-        default=24,
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--seed",
-        type=int,
-        default=20260623,
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--target-coverage",
-        type=float,
-        default=0.9,
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--max-repair-attempts",
-        type=int,
-        default=4,
-        help=(
-            "bounded generated-simulation repair attempts after the initial proposal; "
-            "default allows validation repair and metric-gate repair"
-        ),
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--out",
-        default="runs/simulation_engineer_generated_code_repair_eval",
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--env-file",
-        default=".env",
-    )
-    simulation_engineer_generated_code_repair_eval.add_argument(
-        "--allow-fixture-success",
-        action="store_true",
-        help=(
-            "return success for static fixture plumbing checks; default success "
-            "requires live generator capability evidence"
-        ),
-    )
-    simulation_engineer_generated_code_repair_eval.set_defaults(
-        func=_simulation_engineer_generated_code_repair_eval
-    )
-
-    coding_agent_generated_code_repair_eval = sub.add_parser(
-        "coding-agent-generated-code-repair-eval",
-        help=(
-            "combined coding-agent capability gate: AlgorithmEngineer and "
-            "SimulationEngineer must both show generated-code fail-then-pass repair"
-        ),
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--question-file",
-        default="examples/research_questions.json",
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--question-id",
-        default="conformal_prediction_coverage",
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--provider",
-        choices=("anthropic", "openai", "static"),
-        default=_default_live_generator_provider(),
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--algorithm-static-response-file",
-        default="",
-        help="AlgorithmEngineer JSON response to replay when --provider static",
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--simulation-static-response-file",
-        default="",
-        help="SimulationEngineer JSON response to replay when --provider static",
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--llm-model",
-        default="",
-        help="model name for coding-agent eval; Anthropic defaults to Claude Haiku 4.5",
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--llm-timeout-seconds",
-        type=float,
-        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--max-tokens",
-        type=int,
-        default=4000,
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--temperature",
-        type=float,
-        default=0.1,
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--runs",
-        type=int,
-        default=24,
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--seed",
-        type=int,
-        default=20260623,
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--target-coverage",
-        type=float,
-        default=0.9,
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--max-repair-attempts",
-        type=int,
-        default=4,
-        help=(
-            "bounded repair attempts per component after the initial proposal; "
-            "default allows validation repair and metric-gate repair"
-        ),
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--out",
-        default="runs/coding_agent_generated_code_repair_eval",
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--env-file",
-        default=".env",
-    )
-    coding_agent_generated_code_repair_eval.add_argument(
-        "--allow-fixture-success",
-        action="store_true",
-        help=(
-            "return success for static fixture plumbing checks; default success "
-            "requires both live generated-code repair capabilities"
-        ),
-    )
-    coding_agent_generated_code_repair_eval.set_defaults(
-        func=_coding_agent_generated_code_repair_eval
-    )
 
     formalizer_lean_candidate_repair_eval = sub.add_parser(
         "formalizer-lean-candidate-repair-eval",

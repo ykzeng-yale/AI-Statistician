@@ -5498,7 +5498,7 @@ class SystemTests(unittest.TestCase):
             system_audit_payload=payload,
         )
         self.assertTrue(guidance["all_ok"])
-        self.assertEqual(guidance["suites_defined"], 16)
+        self.assertEqual(guidance["suites_defined"], 15)
         self.assertEqual(guidance["frontier_entries"], 60)
         statuses = {row["suite_id"]: row["status"] for row in guidance["suites"]}
         self.assertEqual(statuses["S3_frontier_blind_theory_target"], "CAPACITY_GAP")
@@ -5516,16 +5516,11 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(statuses["S6_algorithm_simulation_stress"], "OK")
         self.assertEqual(statuses["S8_adversarial_unsupported_intake"], "OK")
         self.assertEqual(statuses["S9_fresh_holdout_frontier"], "OK")
-        self.assertEqual(statuses["S10_live_coding_agent_generated_repair"], "CAPACITY_GAP")
         self.assertEqual(statuses["S11_live_formalizer_lean_candidate_repair"], "CAPACITY_GAP")
         self.assertEqual(statuses["S11c_live_formalizer_pseudo_formal_packet"], "CAPACITY_GAP")
         self.assertEqual(statuses["S11b_live_pseudo_formal_block_verifier"], "CAPACITY_GAP")
         self.assertEqual(statuses["S12_live_architect_research_path_policy"], "CAPACITY_GAP")
         self.assertEqual(statuses["S13_live_integrated_agent_runtime_capability"], "CAPACITY_GAP")
-        self.assertIn(
-            "no live Claude/OpenAI combined AlgorithmEngineer+SimulationEngineer",
-            suites["S10_live_coding_agent_generated_repair"]["issues"][0],
-        )
         self.assertIn(
             "no live Claude/OpenAI Formalizer Lean-candidate",
             suites["S11_live_formalizer_lean_candidate_repair"]["issues"][0],
@@ -7715,48 +7710,6 @@ class SystemTests(unittest.TestCase):
             guidance_report,
         )
         self.assertIn("Boundary: Selection metadata", guidance_report)
-        live_coding_agent_payload = json.loads(json.dumps(payload))
-        live_coding_agent_payload["artifacts"][
-            "coding_agent_generated_code_repair_eval"
-        ] = (
-            "runs/example/coding_agent_generated_code_repair_eval/"
-            "coding_agent_generated_code_repair_eval_manifest.json"
-        )
-        live_coding_agent_payload["counts"].update(
-            {
-                "coding_agent_generated_code_repair_capability_evidence_ok": True,
-                "coding_agent_algorithm_capability_evidence_ok": True,
-                "coding_agent_simulation_capability_evidence_ok": True,
-                "coding_agent_algorithm_repair_sequences": 1,
-                "coding_agent_simulation_repair_sequences": 1,
-                "coding_agent_generated_code_repair_live_generator": True,
-                "coding_agent_generated_code_repair_static_or_fixture_only": False,
-            }
-        )
-        live_coding_agent_guidance = build_evaluation_benchmark_guidance(
-            Path("runs/test_evaluation_benchmark_guidance_live_coding_agent"),
-            system_audit_payload=live_coding_agent_payload,
-        )
-        live_coding_agent_s10 = next(
-            row
-            for row in live_coding_agent_guidance["suites"]
-            if row["suite_id"] == "S10_live_coding_agent_generated_repair"
-        )
-        self.assertEqual(live_coding_agent_s10["status"], "OK")
-        self.assertTrue(
-            live_coding_agent_s10["key_counts"][
-                "coding_agent_generated_code_repair_capability_evidence_ok"
-            ]
-        )
-        self.assertEqual(
-            live_coding_agent_s10["key_counts"]["coding_agent_algorithm_repair_sequences"],
-            1,
-        )
-        self.assertEqual(
-            live_coding_agent_s10["key_counts"]["coding_agent_simulation_repair_sequences"],
-            1,
-        )
-        self.assertEqual(live_coding_agent_s10["issues"], ())
         live_formalizer_payload = json.loads(json.dumps(payload))
         live_formalizer_payload["artifacts"][
             "formalizer_lean_candidate_repair_eval"
@@ -8075,10 +8028,6 @@ class SystemTests(unittest.TestCase):
                 "pseudo_formal_block_verifier_component_gate_runtime_learning_rows": 1,
             },
             "artifacts": {
-                "coding_agent_generated_code_repair_eval": (
-                    "runs/example/coding_agent_generated_code_repair_eval/"
-                    "coding_agent_generated_code_repair_eval_manifest.json"
-                ),
                 "formalizer_lean_candidate_repair_eval": (
                     "runs/example/formalizer_lean_candidate_repair_eval/"
                     "formalizer_lean_candidate_repair_eval_manifest.json"
@@ -8104,10 +8053,6 @@ class SystemTests(unittest.TestCase):
         )
         rows = {row["suite_id"]: row for row in guidance["suites"]}
 
-        self.assertEqual(
-            rows["S10_live_coding_agent_generated_repair"]["status"],
-            "CAPACITY_GAP",
-        )
         self.assertEqual(
             rows["S11_live_formalizer_lean_candidate_repair"]["status"],
             "CAPACITY_GAP",
@@ -10937,7 +10882,6 @@ class SystemTests(unittest.TestCase):
                 "S7_feedback_loop_repair",
                 "S8_adversarial_unsupported_intake",
                 "S9_fresh_holdout_frontier",
-                "S10_live_coding_agent_generated_repair",
                 "S11_live_formalizer_lean_candidate_repair",
                 "S11c_live_formalizer_pseudo_formal_packet",
                 "S11b_live_pseudo_formal_block_verifier",
@@ -10976,48 +10920,11 @@ class SystemTests(unittest.TestCase):
             0,
         )
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
-        self.assertIn("S10_live_coding_agent_generated_repair", payload["recommended_next_gate_stack"])
         self.assertIn("S11_live_formalizer_lean_candidate_repair", payload["recommended_next_gate_stack"])
         self.assertIn("S11c_live_formalizer_pseudo_formal_packet", payload["recommended_next_gate_stack"])
         self.assertIn("S11b_live_pseudo_formal_block_verifier", payload["recommended_next_gate_stack"])
         self.assertIn("S12_live_architect_research_path_policy", payload["recommended_next_gate_stack"])
         self.assertIn("S13_live_integrated_agent_runtime_capability", payload["recommended_next_gate_stack"])
-        self.assertEqual(
-            suites["S10_live_coding_agent_generated_repair"]["current_status"],
-            (
-                "live Anthropic Claude Haiku evidence present in "
-                "runs/coding_agent_generated_code_repair_eval_live_20260623_repairloop_helperguard: "
-                "AlgorithmEngineer and SimulationEngineer each have one generated-code "
-                "fail-then-pass repair sequence; this is coding-agent "
-                "implementation/simulation evidence only"
-            ),
-        )
-        self.assertTrue(
-            suites["S10_live_coding_agent_generated_repair"]["current_live_evidence"][
-                "capability_evidence_ok"
-            ]
-        )
-        self.assertEqual(
-            suites["S10_live_coding_agent_generated_repair"]["current_live_evidence"][
-                "algorithm_repair_sequences"
-            ],
-            1,
-        )
-        self.assertEqual(
-            suites["S10_live_coding_agent_generated_repair"]["current_live_evidence"][
-                "simulation_repair_sequences"
-            ],
-            1,
-        )
-        self.assertTrue(
-            suites["S10_live_coding_agent_generated_repair"]["current_live_evidence"][
-                "proof_evidence_status"
-            ].endswith("NOT_PROOF_EVIDENCE")
-        )
-        self.assertIn(
-            "Static fixture plumbing",
-            suites["S10_live_coding_agent_generated_repair"]["honesty_boundary"],
-        )
         self.assertEqual(
             suites["S11_live_formalizer_lean_candidate_repair"]["current_status"],
             (
@@ -11250,7 +11157,7 @@ class SystemTests(unittest.TestCase):
             )
         )
         self.assertIn(
-            "Passing S10, S11, and S12 separately does not imply S13 passes",
+            "Passing isolated formal component calibrations does not imply S13 passes",
             suites["S13_live_integrated_agent_runtime_capability"]["honesty_boundary"],
         )
         self.assertTrue(

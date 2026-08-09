@@ -47,21 +47,6 @@ from ai_statistician.algorithm_engineer_llm import (
     build_algorithm_engineer_prompt,
     validate_algorithm_engineer_packet,
 )
-from ai_statistician.algorithm_engineer_generated_code_repair_eval import (
-    _prior_execution_failure_manifest as _algorithm_prior_execution_failure_manifest,
-    _prior_execution_failure_feedback as _algorithm_prior_execution_failure_feedback,
-    run_algorithm_engineer_generated_code_repair_eval,
-    write_algorithm_engineer_generated_code_repair_eval_failure_manifest,
-)
-from ai_statistician.simulation_engineer_generated_code_repair_eval import (
-    _prior_metric_gate_failure_manifest as _simulation_prior_metric_gate_failure_manifest,
-    _prior_metric_gate_feedback as _simulation_prior_metric_gate_feedback,
-    run_simulation_engineer_generated_code_repair_eval,
-    write_simulation_engineer_generated_code_repair_eval_failure_manifest,
-)
-from ai_statistician.coding_agent_generated_code_repair_eval import (
-    run_coding_agent_generated_code_repair_eval,
-)
 from ai_statistician.formalizer_lean_candidate_repair_eval import (
     run_formalizer_lean_candidate_repair_eval,
     write_formalizer_lean_candidate_repair_eval_failure_manifest,
@@ -233,7 +218,6 @@ from ai_statistician.research_agent_runtime import (
     _prune_stale_source_to_bridge_premise_gap_rows,
     _runtime_source_theorem_formal_environment_work_order_rows,
     _runtime_source_theorem_formal_environment_work_order_rows_from_learning_rows,
-    _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_payload,
     _runtime_source_theorem_formal_environment_proof_body_executor_learning_rows,
     _runtime_source_theorem_promotion_work_order_rows,
     _runtime_source_theorem_promotion_work_order_rows_from_learning_rows,
@@ -251,12 +235,10 @@ from ai_statistician.research_agent_runtime import (
     _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learning_rows,
     _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows,
     _runtime_source_theorem_exact_semantic_definition_learning_rows,
-    _typechecked_review_runtime_learning_rows_from_recheck_manifest,
     _exact_semantic_definition_lean_repair_executor_project,
     _dedupe_runtime_next_action_agenda_rows,
     _late_typechecked_candidate_review_unresolved,
     _runtime_source_theorem_promotion_bridge_learning_rows,
-    _run_runtime_source_theorem_promotion_proofengineer_bridge,
     _run_runtime_source_theorem_formal_environment_bridge_stack,
     _run_runtime_source_theorem_formal_environment_bridge_stack_from_promotion_bridge,
     _proof_body_execution_queue_manifest_from_bridge_manifests,
@@ -22572,11 +22554,13 @@ def test_pre_metric_implementation_does_not_release_without_independent_reviewer
                 "sandbox_code_drafts": [
                     {
                         "estimator_id": "candidate",
-                        "language": "python",
-                        "entrypoint": "run_sandbox",
-                        "code": (
-                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
-                            "    return {'sandbox_failed': False, "
+                            "language": "python",
+                            "entrypoint": "run_sandbox",
+                            "code": (
+                                "def run_estimator(observations):\n"
+                                "    return {'estimate': 0.0}\n\n"
+                                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                                "    return {'sandbox_failed': False, "
                             "'estimate': 0.0, 'replicates': int(replicates)}\n"
                         ),
                     }
@@ -25437,7 +25421,12 @@ def test_promotion_generation_prompt_and_invalid_response_preserve_retry_lineage
         "same_model_regenerates_complete_packet"
     ] is True
     assert retry_feedback["regeneration_contract"]["runtime_edits_candidate"] is False
-    assert "complete rejected candidate" in result.next_task.objective
+    assert "Regenerate the complete Formalizer/ProofEngineer packet" in (
+        result.next_task.objective
+    )
+    assert "exact validator or environment observations" in (
+        result.next_task.objective
+    )
     assert "exact validator" in result.next_task.objective
 
 
@@ -47628,6 +47617,8 @@ def test_agent_runtime_regenerates_algorithm_after_execution_failure(
 
             if self.calls == 1:
                 code = (
+                    "def run_estimator(observations):\n"
+                    "    return {'estimate': 0.0}\n\n"
                     "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                     "    return {'sandbox_failed': False, "
                     "'estimate': missing_estimate, 'replicates': int(replicates)}\n"
@@ -47644,6 +47635,8 @@ def test_agent_runtime_regenerates_algorithm_after_execution_failure(
                 assert prototypes[0]["prototype_status"] == "FAILED"
                 assert "NameError" in prototypes[0]["stderr_summary"]
                 code = (
+                    "def run_estimator(observations):\n"
+                    "    return {'estimate': 0.0}\n\n"
                     "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                     "    n = max(5, int(replicates))\n"
                     "    state = int(seed) % (2**31)\n"
@@ -54214,436 +54207,6 @@ def test_runtime_audit_post_runtime_exact_semantic_kernel_string_false_stays_fal
     assert summary["source_theorem_kernel_verified"] is False
 
 
-def test_algorithm_engineer_generated_code_repair_eval_static_fixture(
-    tmp_path: Path,
-) -> None:
-    static_response_file = _write_algorithm_repair_static_response(tmp_path)
-
-    manifest = run_algorithm_engineer_generated_code_repair_eval(
-        question_file=Path("examples/research_questions.json"),
-        question_id="conformal_prediction_coverage",
-        out_dir=tmp_path / "repair_eval",
-        provider_name="static",
-        static_response_file=static_response_file,
-        n_runs=20,
-        seed=20260623,
-    )
-
-    assert manifest["repair_loop_observed"] is True
-    assert manifest["sandbox_clean_after_repair"] is True
-    assert manifest["backend_provider_name"] == "static"
-    assert manifest["live_generator"] is False
-    assert manifest["capability_evidence_ok"] is False
-    assert manifest["static_or_fixture_only"] is True
-    assert (
-        manifest["n_generated_code_sandbox_failed_then_passed_repair_sequences"]
-        == 1
-    )
-    assert (
-        manifest[
-            "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
-        ]
-        == 0
-    )
-    assert (
-        manifest[
-            "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
-        ]
-        == 0
-    )
-    assert (
-        manifest[
-            "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
-        ]
-        == 0
-    )
-    assert manifest["prior_failure_feedback_injected"] is True
-    assert manifest["live_attempt_failed_then_passed_observed"] is False
-    assert (
-        manifest["repair_evidence_scope"]
-        == "static_fixture_plumbing_only"
-    )
-    assert manifest["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
-    assert Path(manifest["artifacts"]["manifest_json"]).exists()
-
-
-def test_algorithm_engineer_generated_code_repair_eval_rejects_static_backend_mislabel(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import ai_statistician.algorithm_engineer_generated_code_repair_eval as repair_eval_module
-
-    static_response_file = _write_algorithm_repair_static_response(tmp_path)
-    original_provider_factory = repair_eval_module._repair_eval_provider
-
-    def static_backend_factory(**_: object) -> object:
-        return original_provider_factory(
-            provider_name="static",
-            static_response_file=static_response_file,
-            llm_timeout_seconds=None,
-        )
-
-    monkeypatch.setattr(
-        repair_eval_module,
-        "_repair_eval_provider",
-        static_backend_factory,
-    )
-
-    manifest = repair_eval_module.run_algorithm_engineer_generated_code_repair_eval(
-        question_file=Path("examples/research_questions.json"),
-        question_id="conformal_prediction_coverage",
-        out_dir=tmp_path / "repair_eval_mislabel",
-        provider_name="anthropic",
-        n_runs=20,
-        seed=20260623,
-    )
-
-    assert manifest["provider_name"] == "anthropic"
-    assert manifest["backend_provider_name"] == "static"
-    assert manifest["repair_loop_observed"] is True
-    assert manifest["live_generator"] is False
-    assert manifest["capability_evidence_ok"] is False
-    assert manifest["static_or_fixture_only"] is True
-
-
-def test_algorithm_engineer_repair_eval_feedback_targets_execution_repair() -> None:
-    prior_failure = _algorithm_prior_execution_failure_manifest(
-        estimator_id="generated_split_conformal_repair_probe",
-    )
-    feedback = _algorithm_prior_execution_failure_feedback(
-        manifest=prior_failure,
-    )
-
-    assert "required_repair" not in feedback
-    assert feedback["prototypes"][0]["parent_source_complete"] is True
-    assert "missing_estimate" in feedback["prototypes"][0]["parent_source"]
-    assert feedback["prototypes"][0]["stderr_summary"].startswith("NameError")
-    assert feedback["failure_classification"] == (
-        "generated_algorithm_sandbox_execution_failed"
-    )
-    assert "implementation evidence only, not theorem proof" in feedback["boundary"]
-
-
-def test_algorithm_engineer_generated_code_repair_eval_cli_static_is_not_capability(
-    tmp_path: Path,
-) -> None:
-    static_response_file = _write_algorithm_repair_static_response(tmp_path)
-    base_args = [
-        "algorithm-engineer-generated-code-repair-eval",
-        "--provider",
-        "static",
-        "--static-response-file",
-        str(static_response_file),
-        "--out",
-        str(tmp_path / "cli_repair_eval"),
-        "--runs",
-        "20",
-    ]
-
-    assert main(base_args) == 1
-    assert main([*base_args, "--allow-fixture-success"]) == 0
-
-
-def test_algorithm_engineer_generated_code_repair_eval_failure_manifest(
-    tmp_path: Path,
-) -> None:
-    manifest = write_algorithm_engineer_generated_code_repair_eval_failure_manifest(
-        out_dir=tmp_path / "repair_eval_failure",
-        provider_name="anthropic",
-        model="",
-        question_id="conformal_prediction_coverage",
-        exc=RuntimeError("synthetic provider failure"),
-    )
-
-    assert manifest["result_status"] == "PROVIDER_OR_RUNTIME_FAILURE"
-    assert manifest["failure_classification"] == "provider_or_runtime_exception"
-    assert manifest["failure_exception_type"] == "RuntimeError"
-    assert manifest["backend_provider_name"] == "anthropic"
-    assert manifest["model"] == "claude-haiku-4-5-20251001"
-    assert manifest["live_generator"] is True
-    assert manifest["capability_evidence_ok"] is False
-    assert manifest["sandbox_clean_after_repair"] is False
-    assert manifest["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
-    assert Path(manifest["artifacts"]["manifest_json"]).exists()
-
-
-def test_simulation_engineer_generated_code_repair_eval_static_fixture(
-    tmp_path: Path,
-) -> None:
-    static_response_file = _write_simulation_repair_static_response(tmp_path)
-
-    manifest = run_simulation_engineer_generated_code_repair_eval(
-        question_file=Path("examples/research_questions.json"),
-        question_id="conformal_prediction_coverage",
-        out_dir=tmp_path / "simulation_repair_eval",
-        provider_name="static",
-        static_response_file=static_response_file,
-        n_runs=20,
-        seed=20260623,
-        target_coverage=0.9,
-    )
-
-    assert manifest["repair_loop_observed"] is True
-    assert manifest["sandbox_clean_after_repair"] is True
-    assert manifest["backend_provider_name"] == "static"
-    assert manifest["live_generator"] is False
-    assert manifest["capability_evidence_ok"] is False
-    assert manifest["static_or_fixture_only"] is True
-    assert (
-        manifest[
-            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
-        ]
-        == 1
-    )
-    assert (
-        manifest[
-            "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
-        ]
-        == 1
-    )
-    assert (
-        manifest[
-            "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
-        ]
-        == 0
-    )
-    assert (
-        manifest[
-            "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
-        ]
-        == 0
-    )
-    assert manifest["prior_failure_feedback_injected"] is True
-    assert manifest["live_attempt_failed_then_passed_observed"] is False
-    assert (
-        manifest["repair_evidence_scope"]
-        == "static_fixture_plumbing_only"
-    )
-    assert manifest["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
-    assert Path(manifest["artifacts"]["manifest_json"]).exists()
-
-
-def test_simulation_engineer_generated_code_repair_eval_rejects_static_backend_mislabel(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import ai_statistician.simulation_engineer_generated_code_repair_eval as repair_eval_module
-
-    static_response_file = _write_simulation_repair_static_response(tmp_path)
-    original_provider_factory = repair_eval_module._repair_eval_provider
-
-    def static_backend_factory(**_: object) -> object:
-        return original_provider_factory(
-            provider_name="static",
-            static_response_file=static_response_file,
-            llm_timeout_seconds=None,
-        )
-
-    monkeypatch.setattr(
-        repair_eval_module,
-        "_repair_eval_provider",
-        static_backend_factory,
-    )
-
-    manifest = repair_eval_module.run_simulation_engineer_generated_code_repair_eval(
-        question_file=Path("examples/research_questions.json"),
-        question_id="conformal_prediction_coverage",
-        out_dir=tmp_path / "simulation_repair_eval_mislabel",
-        provider_name="anthropic",
-        n_runs=20,
-        seed=20260623,
-        target_coverage=0.9,
-    )
-
-    assert manifest["provider_name"] == "anthropic"
-    assert manifest["backend_provider_name"] == "static"
-    assert manifest["repair_loop_observed"] is True
-    assert manifest["live_generator"] is False
-    assert manifest["capability_evidence_ok"] is False
-    assert manifest["static_or_fixture_only"] is True
-
-
-def test_simulation_engineer_repair_eval_feedback_preserves_contract_without_recipe() -> None:
-    prior_failure = _simulation_prior_metric_gate_failure_manifest(
-        simulation_id="generated_split_conformal_stress_repair_probe",
-        target_coverage=0.9,
-    )
-    feedback = _simulation_prior_metric_gate_feedback(
-        manifest=prior_failure,
-    )
-
-    assert "required_repair" not in feedback
-    prototype = feedback["generated_simulation_prototypes"][0]
-    assert prototype["parent_source_complete"] is True
-    assert "empirical_coverage" in prototype["parent_source"]
-    assert prototype["metric_gate_errors"]
-    assert "not proof evidence" in feedback["boundary"]
-
-
-def test_simulation_engineer_generated_code_repair_eval_cli_static_is_not_capability(
-    tmp_path: Path,
-) -> None:
-    static_response_file = _write_simulation_repair_static_response(tmp_path)
-    base_args = [
-        "simulation-engineer-generated-code-repair-eval",
-        "--provider",
-        "static",
-        "--static-response-file",
-        str(static_response_file),
-        "--out",
-        str(tmp_path / "cli_simulation_repair_eval"),
-        "--runs",
-        "20",
-        "--target-coverage",
-        "0.9",
-    ]
-
-    assert main(base_args) == 1
-    assert main([*base_args, "--allow-fixture-success"]) == 0
-
-
-def test_simulation_engineer_generated_code_repair_eval_failure_manifest(
-    tmp_path: Path,
-) -> None:
-    manifest = write_simulation_engineer_generated_code_repair_eval_failure_manifest(
-        out_dir=tmp_path / "simulation_repair_eval_failure",
-        provider_name="anthropic",
-        model="",
-        question_id="conformal_prediction_coverage",
-        exc=RuntimeError("synthetic provider failure"),
-    )
-
-    assert manifest["result_status"] == "PROVIDER_OR_RUNTIME_FAILURE"
-    assert manifest["failure_classification"] == "provider_or_runtime_exception"
-    assert manifest["failure_exception_type"] == "RuntimeError"
-    assert manifest["backend_provider_name"] == "anthropic"
-    assert manifest["model"] == "claude-haiku-4-5-20251001"
-    assert manifest["live_generator"] is True
-    assert manifest["capability_evidence_ok"] is False
-    assert manifest["sandbox_clean_after_repair"] is False
-    assert manifest["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
-    assert Path(manifest["artifacts"]["manifest_json"]).exists()
-
-
-def test_coding_agent_generated_code_repair_eval_static_fixture_is_not_capability(
-    tmp_path: Path,
-) -> None:
-    algorithm_response_file = _write_algorithm_repair_static_response(tmp_path)
-    simulation_response_file = _write_simulation_repair_static_response(tmp_path)
-
-    manifest = run_coding_agent_generated_code_repair_eval(
-        question_file=Path("examples/research_questions.json"),
-        question_id="conformal_prediction_coverage",
-        out_dir=tmp_path / "coding_agent_repair_eval",
-        provider_name="static",
-        algorithm_static_response_file=algorithm_response_file,
-        simulation_static_response_file=simulation_response_file,
-        n_runs=20,
-        seed=20260623,
-        target_coverage=0.9,
-    )
-
-    assert manifest["algorithm_capability_evidence_ok"] is False
-    assert manifest["simulation_capability_evidence_ok"] is False
-    assert manifest["backend_provider_name"] == "static"
-    assert manifest["component_backend_provider_names"] == ["static"]
-    assert manifest["live_generator"] is False
-    assert manifest["capability_evidence_ok"] is False
-    assert manifest["fixture_plumbing_ok"] is True
-    assert manifest["static_or_fixture_only"] is True
-    assert manifest["algorithm_repair_sequences"] == 1
-    assert manifest["algorithm_metric_repair_sequences"] == 0
-    assert manifest["algorithm_live_repair_sequences"] == 0
-    assert manifest["simulation_repair_sequences"] == 1
-    assert manifest["simulation_metric_repair_sequences"] == 1
-    assert manifest["simulation_live_repair_sequences"] == 0
-    assert manifest["prior_failure_feedback_injected"] is True
-    assert manifest["autonomous_live_failed_then_passed_repair_observed"] is False
-    assert (
-        manifest["capability_evidence_scope"]
-        == "static_fixture_plumbing_only"
-    )
-    assert manifest["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
-    assert Path(manifest["artifacts"]["manifest_json"]).exists()
-    assert Path(manifest["algorithm_manifest"]["path"]).exists()
-    assert Path(manifest["simulation_manifest"]["path"]).exists()
-
-
-def test_coding_agent_generated_code_repair_eval_rejects_static_child_backend_mislabel(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import ai_statistician.coding_agent_generated_code_repair_eval as repair_eval_module
-
-    child_manifest = {
-        "provider_name": "anthropic",
-        "backend_provider_name": "static",
-        "live_generator": True,
-        "capability_evidence_ok": True,
-        "sandbox_clean_after_repair": True,
-        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
-        "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 1,
-        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
-        "artifacts": {"manifest_json": str(tmp_path / "child_manifest.json")},
-    }
-    simulation_child_manifest = {
-        **child_manifest,
-        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
-        "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 1,
-        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
-    }
-    monkeypatch.setattr(
-        repair_eval_module,
-        "run_algorithm_engineer_generated_code_repair_eval",
-        lambda **_: dict(child_manifest),
-    )
-    monkeypatch.setattr(
-        repair_eval_module,
-        "run_simulation_engineer_generated_code_repair_eval",
-        lambda **_: dict(simulation_child_manifest),
-    )
-
-    manifest = repair_eval_module.run_coding_agent_generated_code_repair_eval(
-        question_file=Path("examples/research_questions.json"),
-        question_id="conformal_prediction_coverage",
-        out_dir=tmp_path / "coding_agent_repair_eval_mislabel",
-        provider_name="anthropic",
-    )
-
-    assert manifest["backend_provider_name"] == "static"
-    assert manifest["component_backend_provider_names"] == ["static"]
-    assert manifest["algorithm_live_generator"] is False
-    assert manifest["simulation_live_generator"] is False
-    assert manifest["live_generator"] is False
-    assert manifest["capability_evidence_ok"] is False
-    assert manifest["static_or_fixture_only"] is True
-
-
-def test_coding_agent_generated_code_repair_eval_cli_static_is_not_capability(
-    tmp_path: Path,
-) -> None:
-    algorithm_response_file = _write_algorithm_repair_static_response(tmp_path)
-    simulation_response_file = _write_simulation_repair_static_response(tmp_path)
-    base_args = [
-        "coding-agent-generated-code-repair-eval",
-        "--provider",
-        "static",
-        "--algorithm-static-response-file",
-        str(algorithm_response_file),
-        "--simulation-static-response-file",
-        str(simulation_response_file),
-        "--out",
-        str(tmp_path / "cli_coding_agent_repair_eval"),
-        "--runs",
-        "20",
-        "--target-coverage",
-        "0.9",
-    ]
-
-    assert main(base_args) == 1
-    assert main([*base_args, "--allow-fixture-success"]) == 0
-
-
 def test_formalizer_lean_candidate_repair_eval_static_fixture_is_not_capability(
     tmp_path: Path,
 ) -> None:
@@ -54911,72 +54474,6 @@ def test_architect_research_path_policy_eval_failure_manifest(
     assert Path(manifest["artifacts"]["manifest_json"]).exists()
 
 
-def _write_algorithm_repair_static_response(tmp_path: Path) -> Path:
-    static_response = {
-        "packet_id": "algorithm_engineer_proposal:repair-eval-static",
-        "implementation_targets": [
-            {
-                "estimator_id": "generated_algorithm_repair_probe",
-                "adapter_strategy": "repair generated estimator execution",
-                "registered_template_hint": "none",
-                "data_contract": ["generated component eval fixture"],
-                "validation_metrics": ["sandbox_failed", "replicates"],
-                "risk_controls": ["do not use registered templates"],
-            }
-        ],
-        "sandbox_plan": {
-            "prototype_steps": ["return finite estimator smoke diagnostics"],
-            "stress_tests": ["component repair fixture"],
-            "expected_outputs": ["sandbox_failed", "replicates", "checksum"],
-            "expected_failure_modes": ["execution failure"],
-        },
-        "code_generation_plan": {
-            "files_to_generate": [],
-            "functions_to_implement": ["run_sandbox"],
-            "dependencies": [],
-            "runtime_executor": "AgentRuntime generated_python_sandbox",
-        },
-        "sandbox_code_drafts": [
-            {
-                "estimator_id": "generated_algorithm_repair_probe",
-                "language": "python",
-                "entrypoint": "run_sandbox",
-                "code": (
-                    "def run_sandbox(seed: int, replicates: int) -> dict:\n"
-                    "    return {\n"
-                    "        'sandbox_failed': False,\n"
-                    "        'checksum': int(seed) + int(replicates),\n"
-                    "        'replicates': int(replicates),\n"
-                    "    }\n"
-                ),
-            }
-        ],
-        "metric_contracts": [],
-        "promotion_gate": {
-            "required_tests": ["generated sandbox execution"],
-            "required_reproducibility_evidence": ["fixed seed"],
-            "production_registration_requirements": ["not part of component eval"],
-        },
-        "critic_findings": [
-            {
-                "critic": "component_eval",
-                "finding": "static replay proves plumbing only",
-                "reroute_if_confirmed": "AlgorithmEngineer",
-            }
-        ],
-        "next_actions": [
-            {
-                "owner_agent": "AgentRuntime",
-                "action": "execute generated repair sandbox",
-                "acceptance_gate": "generated sandbox executes successfully",
-            }
-        ],
-    }
-    static_response_file = tmp_path / "algorithm_repair_static_response.json"
-    static_response_file.write_text(json.dumps(static_response), encoding="utf-8")
-    return static_response_file
-
-
 def _write_formalizer_lean_repair_static_response(tmp_path: Path) -> Path:
     static_response = {
         "formal_targets": [
@@ -55196,79 +54693,6 @@ def _architect_policy_static_response(
         "runtime_executed": False,
         "kernel_verified": False,
     }
-
-
-def _write_simulation_repair_static_response(tmp_path: Path) -> Path:
-    static_response = {
-        "simulation_targets": [
-            {
-                "procedure_id": "generated_split_conformal_stress_repair_probe",
-                "estimand": "finite-sample predictive coverage",
-            }
-        ],
-        "runtime_execution_plan": {
-            "registered_simulator": "ResearchSimulator.run",
-            "n_runs": 20,
-            "seed": 20260623,
-        },
-        "critic_findings": [
-            {
-                "critic": "component_eval",
-                "finding": "static replay proves simulation plumbing only",
-                "reroute_if_confirmed": "SimulationEvaluator",
-            }
-        ],
-        "next_actions": [
-            {
-                "owner_agent": "AgentRuntime",
-                "action": "execute generated simulation repair sandbox",
-                "acceptance_gate": "generated simulation sandbox passes metric gate",
-            }
-        ],
-        "simulation_code_drafts": [
-            {
-                "simulation_id": "generated_split_conformal_stress_repair_probe",
-                "language": "python",
-                "entrypoint": "run_sandbox",
-                "code": (
-                    "def run_sandbox(seed: int, replicates: int) -> dict:\n"
-                    "    covered = 0\n"
-                    "    widths = []\n"
-                    "    for i in range(replicates):\n"
-                    "        covered += 1 if (int(seed) + i) % 10 else 0\n"
-                    "        widths.append(1.0 + ((int(seed) + i) % 3) * 0.1)\n"
-                    "    return {\n"
-                    "        'sandbox_failed': False,\n"
-                    "        'empirical_coverage': covered / max(1, replicates),\n"
-                    "        'target_coverage': 0.9,\n"
-                    "        'mean_width': sum(widths) / max(1, len(widths)),\n"
-                    "        'replicates': int(replicates),\n"
-                    "    }\n"
-                ),
-            }
-        ],
-        "metric_contracts": [
-            {
-                "contract_id": "simulation-repair-eval-coverage",
-                "artifact_id": (
-                    "generated_split_conformal_stress_repair_probe"
-                ),
-                "metric_path": ["empirical_coverage"],
-                "operator": ">=",
-                "threshold": 0.9,
-                "tolerance": 0.0,
-                "aggregation": "identity",
-                "required": True,
-                "source_anchors": ["repair-eval:target-coverage"],
-            }
-        ],
-        "simulation_evidence_status": "LLM_SIMULATION_PROPOSAL_NOT_EXECUTION_EVIDENCE",
-        "simulations_executed": False,
-        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-    }
-    static_response_file = tmp_path / "simulation_repair_static_response.json"
-    static_response_file.write_text(json.dumps(static_response), encoding="utf-8")
-    return static_response_file
 
 
 def test_formal_subclaim_prover_uses_batch_kernel_verifier() -> None:
@@ -57021,10 +56445,7 @@ def test_exact_semantic_authoring_backend_routing_survives_memory_compaction(
     ] == ["s", "q_hat", "C", "hC"]
 
 
-def test_typechecked_review_blocked_manifest_rows_generate_next_action(
-    tmp_path: Path,
-) -> None:
-    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+def test_typechecked_review_blocked_rows_generate_next_action() -> None:
     blocked_row = {
         "schema_version": 1,
         "artifact_kind": (
@@ -57071,14 +56492,7 @@ def test_typechecked_review_blocked_manifest_rows_generate_next_action(
             "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_BLOCKED_NOT_PROOF_EVIDENCE"
         ),
     }
-    learning_path.write_text(json.dumps(blocked_row) + "\n", encoding="utf-8")
-    recheck_manifest = {"runtime_learning_rows_jsonl": str(learning_path)}
-
-    recheck_learning_rows = (
-        _typechecked_review_runtime_learning_rows_from_recheck_manifest(
-            recheck_manifest
-        )
-    )
+    recheck_learning_rows = [blocked_row]
     agenda_rows: list[dict[str, object]] = []
     generated_rows = _append_runtime_generated_next_action_rows(
         agenda_rows,
@@ -57162,10 +56576,7 @@ def test_typechecked_review_blocked_manifest_rows_generate_next_action(
     ]
 
 
-def test_typechecked_semantic_review_work_orders_generate_next_action(
-    tmp_path: Path,
-) -> None:
-    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+def test_typechecked_semantic_review_work_orders_generate_next_action() -> None:
     work_order = {
         "schema_version": 1,
         "artifact_kind": (
@@ -57220,14 +56631,7 @@ def test_typechecked_semantic_review_work_orders_generate_next_action(
         ),
         "proof_evidence_boundary": "not theorem proof evidence",
     }
-    learning_path.write_text(json.dumps(work_order) + "\n", encoding="utf-8")
-    recheck_manifest = {"runtime_learning_rows_jsonl": str(learning_path)}
-
-    recheck_learning_rows = (
-        _typechecked_review_runtime_learning_rows_from_recheck_manifest(
-            recheck_manifest
-        )
-    )
+    recheck_learning_rows = [work_order]
     agenda_rows: list[dict[str, object]] = []
     generated_rows = _append_runtime_generated_next_action_rows(
         agenda_rows,
@@ -63024,7 +62428,6 @@ def test_runtime_consumes_authoring_retry_memory_with_authoring_worker(
 
 def test_runtime_does_not_auto_run_authoring_retry_worker_post_runtime(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     learning_path = tmp_path / "authoring_retry_learning_rows.jsonl"
     learning_path.write_text(
@@ -63064,137 +62467,9 @@ def test_runtime_does_not_auto_run_authoring_retry_worker_post_runtime(
         encoding="utf-8",
     )
     memory = _load_runtime_learning_memory([learning_path])
-    authoring_calls: list[dict[str, object]] = []
-
-    def fake_authoring_worker(
-        *,
-        out_dir: Path,
-        runtime_dir: Path | None = None,
-        repair_executor_manifest: Path | None = None,
-        authoring_tasks_jsonl: Path | None = None,
-        provider: object | None = None,
-        config: object | None = None,
-    ) -> dict[str, object]:
-        assert runtime_dir is None
-        assert repair_executor_manifest is None
-        assert authoring_tasks_jsonl is not None and authoring_tasks_jsonl.exists()
-        task_rows = [
-            json.loads(line)
-            for line in authoring_tasks_jsonl.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        source_binders = [
-            {"name": "s", "type": "Fin (n + 1) -> Omega -> Real"},
-            {"name": "q_hat", "type": "Real"},
-            {"name": "hq", "type": "source quantile coverage hypothesis"},
-        ]
-        candidate_definition_request = dict(task_rows[0]["candidate_definition_request"])
-        candidate_definition_request["required_anchor_bindings"] = [
-            {
-                "required_anchor_name": "s",
-                "actual_anchor_name": "s",
-                "binder": source_binders[0],
-            },
-            {
-                "required_anchor_name": "q_hat",
-                "actual_anchor_name": "q_hat",
-                "binder": source_binders[1],
-            },
-            {
-                "required_anchor_name": "hq",
-                "actual_anchor_name": "hq",
-                "binder": source_binders[2],
-            },
-        ]
-        out_dir.mkdir(parents=True, exist_ok=True)
-        manifest_path = (
-            out_dir
-            / "source_theorem_exact_semantic_definition_authoring_worker_manifest.json"
-        )
-        prompt_packets_path = (
-            out_dir
-            / "source_theorem_exact_semantic_definition_authoring_prompt_packets.jsonl"
-        )
-        candidate_packets_path = (
-            out_dir
-            / "source_theorem_exact_semantic_definition_authoring_candidate_packets.jsonl"
-        )
-        learning_rows_path = out_dir / "runtime_learning_rows.jsonl"
-        prompt_packets_path.write_text(
-            json.dumps(
-                {
-                    "artifact_kind": (
-                        "SourceTheoremExactSemanticDefinitionAuthoringPromptPacket"
-                    ),
-                    "target_theorem_name": "split_conformal_coverage",
-                    "placeholder_symbol": "coverage_event",
-                    "candidate_definition_request": candidate_definition_request,
-                    "source_theorem_binders": source_binders,
-                    "exact_source_theorem_binders": source_binders,
-                    "source_anchor_context": [
-                        {
-                            "required_anchor_name": row["required_anchor_name"],
-                            "actual_anchor_name": row["actual_anchor_name"],
-                            "name": row["actual_anchor_name"],
-                        }
-                        for row in candidate_definition_request[
-                            "required_anchor_bindings"
-                        ]
-                    ],
-                    "source_anchor_context_rows": 3,
-                    "lean_authoring_environment_contract": {
-                        "source_theorem_binder_count": 3,
-                        "source_theorem_binders": source_binders,
-                    },
-                    "proof_evidence_status": (
-                        "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_NOT_PROOF_EVIDENCE"
-                    ),
-                }
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        candidate_packets_path.write_text("", encoding="utf-8")
-        learning_rows_path.write_text("", encoding="utf-8")
-        manifest = {
-            "schema_version": 1,
-            "manifest_path": str(manifest_path),
-            "authoring_prompt_packets_jsonl": str(prompt_packets_path),
-            "authoring_candidate_packets_jsonl": str(candidate_packets_path),
-            "runtime_learning_rows_jsonl": str(learning_rows_path),
-            "provider_name": "none",
-            "backend_provider_name": "",
-            "dry_run": True,
-            "n_prompt_packets": 1,
-            "n_prompt_packets_with_source_theorem_binders": 1,
-            "n_prompt_packets_with_exact_source_theorem_binders": 1,
-            "n_prompt_packets_with_source_anchor_context": 1,
-            "n_prompt_packets_with_required_anchor_bindings": 1,
-            "n_prompt_packets_with_complete_required_anchors": 1,
-            "n_prompt_packets_with_lean_contract_source_binders": 1,
-            "n_prompt_packets_with_source_grounded_authoring_handoff": 1,
-            "n_llm_attempted": 0,
-            "n_live_llm_attempted": 0,
-            "n_candidate_packets": 0,
-            "proof_evidence_status": (
-                "EXACT_SEMANTIC_DEFINITION_AUTHORING_WORKER_NOT_PROOF_EVIDENCE"
-            ),
-        }
-        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-        authoring_calls.append(
-            {
-                "authoring_tasks_jsonl": str(authoring_tasks_jsonl),
-                "provider": provider,
-                "provider_name": getattr(config, "provider_name", None),
-                "dry_run": getattr(config, "dry_run", None),
-            }
-        )
-        return manifest
-
-    monkeypatch.setattr(
+    assert not hasattr(
         runtime_module,
         "run_source_theorem_exact_semantic_definition_authoring_worker",
-        fake_authoring_worker,
     )
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
 
@@ -63218,7 +62493,6 @@ def test_runtime_does_not_auto_run_authoring_retry_worker_post_runtime(
         ),
     )
 
-    assert authoring_calls == []
     assert manifest[
         "source_theorem_exact_semantic_definition_authoring_retry_tasks_required"
     ] is True
@@ -66184,7 +65458,7 @@ def test_runtime_semantic_definition_repair_queue_drives_formalizer_target_mode(
     assert diagnostics[0]["semantic_definition_risks"]
 
 
-def test_runtime_disables_legacy_post_runtime_formal_fallbacks_unconditionally(
+def test_runtime_projects_formal_work_without_post_runtime_execution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -66220,20 +65494,6 @@ def test_runtime_disables_legacy_post_runtime_formal_fallbacks_unconditionally(
         runtime_module,
         "_runtime_source_theorem_exact_semantic_definition_work_order_rows_from_semantic_primitive_work_orders",
         lambda _rows: [dict(exact_work_order)],
-    )
-
-    def forbidden_fallback(**_kwargs: object) -> dict[str, object]:
-        raise AssertionError("review-first runtime must not execute post-runtime proof work")
-
-    monkeypatch.setattr(
-        runtime_module,
-        "run_source_theorem_semantic_primitive_proofengineer_bridge",
-        forbidden_fallback,
-    )
-    monkeypatch.setattr(
-        runtime_module,
-        "run_source_theorem_exact_semantic_definition_source_lookup",
-        forbidden_fallback,
     )
 
     manifest = run_research_agent_runtime(
@@ -68319,31 +67579,6 @@ def test_source_theorem_exact_candidate_environment_failure_guides_formalizer(
     assert verifier_payload["by_failure_classification"] == {
         "lean_import_environment_missing": 1
     }
-    immediate_work_orders = (
-        _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_payload(
-            verifier_payload,
-            artifact_verifier_manifest=str(
-                verifier_dir
-                / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
-            ),
-        )
-    )
-    assert len(immediate_work_orders) == 1
-    assert immediate_work_orders[0]["artifact_kind"] == (
-        "SourceTheoremFormalEnvironmentWorkOrder"
-    )
-    assert immediate_work_orders[0]["artifact_verification_id"] == row[
-        "artifact_verification_id"
-    ]
-    assert immediate_work_orders[0]["target_theorem_name"] == "exact_source_claim"
-    assert immediate_work_orders[0]["candidate_artifact_path"] == str(candidate_path)
-    assert immediate_work_orders[0]["failure_classification"] == (
-        "lean_import_environment_missing"
-    )
-    assert immediate_work_orders[0]["proof_evidence_status"] == (
-        "WORK_ORDER_NOT_PROOF_EVIDENCE"
-    )
-
     learning_rows = _runtime_source_theorem_promotion_bridge_learning_rows(
         {
             "artifact_verifier_manifest": str(
@@ -69380,84 +68615,6 @@ def test_candidate_materialization_precedes_verified_adapter_proof_body_retry() 
     assert "target_lean_declaration, signature_probe_artifact_path" in summary[
         "boundary"
     ]
-
-
-def test_formal_environment_work_order_names_missing_symbols_and_typeclass_blockers() -> None:
-    verifier_payload = {
-        "rows": [
-            {
-                "artifact_verification_id": "artifact_verifier:source_env_gap",
-                "target_theorem_name": "split_conformal_source_theorem",
-                "target_lean_declaration": "split_conformal_source_theorem",
-                "source_theorem_target_known": True,
-                "source_theorem_target_resolution_id": "target_resolution:split",
-                "source_theorem_route_id": "route:split_conformal_source",
-                "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
-                "target_theorem_goal_ids": [
-                    "split_conformal_finite_sample_coverage",
-                    "unrelated_broad_runtime_goal",
-                ],
-                "source_theorem_statement": (
-                    "split conformal source coverage theorem"
-                ),
-                "source_theorem_lean_file": "StatInference/Conformal/SplitCoverage.lean",
-                "semantic_alignment_constraints": [
-                    "preserve exact source theorem target"
-                ],
-                "candidate_artifact_path": "/tmp/split_conformal_source_theorem.lean",
-                "source_theorem_kernel_verified": False,
-                "failure_classification": "formal_environment_symbol_missing",
-                "diagnostics": [
-                    "failed to synthesize instance of type class\n  HSub ℕ ℝ ENNReal",
-                    "Function expected at\n  Exchangeable\nbut this term has type\n  ?m.1\nHint: The identifier `Exchangeable` is unknown in the current environment.",
-                    "Function expected at",
-                    "  orderStat",
-                    "Hint: The identifier `orderStat` is unknown in the current environment.",
-                ],
-            }
-        ]
-    }
-
-    work_orders = _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_payload(
-        verifier_payload,
-        artifact_verifier_manifest="/tmp/artifact_verifier_manifest.json",
-    )
-
-    assert len(work_orders) == 1
-    work_order = work_orders[0]
-    assert work_order["target_lean_declaration"] == "split_conformal_source_theorem"
-    assert work_order["target_ids"] == ["split_conformal_finite_sample_coverage"]
-    assert work_order["target_theorem_goal_ids"] == [
-        "split_conformal_finite_sample_coverage"
-    ]
-    assert work_order["source_theorem_target_known"] is True
-    assert work_order["source_theorem_target_provenance"][
-        "source_theorem_target_resolution_id"
-    ] == "target_resolution:split"
-    assert work_order["source_theorem_target_provenance"][
-        "source_theorem_route_id"
-    ] == "route:split_conformal_source"
-    assert work_order["source_theorem_target_provenance"][
-        "source_theorem_statement"
-    ] == "split conformal source coverage theorem"
-    assert work_order["semantic_alignment_constraints"] == [
-        "preserve exact source theorem target"
-    ]
-    assert work_order["missing_formal_symbols"] == ["Exchangeable", "orderStat"]
-    assert work_order["typeclass_blockers"] == ["HSub ℕ ℝ ENNReal"]
-    assert any(
-        "`Exchangeable`" in task for task in work_order["recommended_repair_tasks"]
-    )
-    assert any("`orderStat`" in task for task in work_order["recommended_repair_tasks"])
-    assert any(
-        "`HSub ℕ ℝ ENNReal`" in task
-        for task in work_order["recommended_repair_tasks"]
-    )
-    assert any(
-        "runtime-source-theorem-promotion-proofengineer-bridge" in task
-        for task in work_order["recommended_repair_tasks"]
-    )
-    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
 def test_formal_environment_proof_body_executor_learning_rows_enter_runtime_memory(
@@ -74288,345 +73445,6 @@ def test_source_theorem_promotion_infers_mathlib_import_for_statistical_statemen
     ] == ["Mathlib"]
 
 
-def test_source_theorem_promotion_bridge_exports_formal_environment_work_order(
-    tmp_path: Path,
-) -> None:
-    seed_queue_dir = tmp_path / "source_theorem_seed_queue"
-    seed_queue_dir.mkdir()
-    candidate_path = tmp_path / "exact_source_candidate.lean"
-    transcript_path = tmp_path / "exact_source_candidate.jsonl"
-    (
-        seed_queue_dir / "formal_verifier_agentic_proof_execution_queue_manifest.json"
-    ).write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "rows": [
-                    {
-                        "schema_version": 1,
-                        "execution_queue_id": "runtime_source_theorem:missing_env",
-                        "population_entry_id": "population:missing_env",
-                        "display_name": "Missing env exact source theorem",
-                        "target_theorem_name": "exact_source_claim",
-                        "candidate_bridge_lemma_name": "exact_source_claim",
-                        "residual_gap": "source theorem formal environment missing",
-                        "population_bucket": "source_theorem_promotion_attempt",
-                        "candidate_artifact_path": str(candidate_path),
-                        "execution_transcript_path": str(transcript_path),
-                        "lean_statement_sketch": (
-                            "theorem exact_source_claim : True := by\n"
-                            "  exact True.intro"
-                        ),
-                        "source_theorem_materialization_mode": (
-                            "exact_source_theorem_candidate"
-                        ),
-                        "strategy_id": (
-                            "runtime_source_theorem_promotion_exact_target_attempt"
-                        ),
-                        "kernel_overlay_context": {
-                            "source_theorem_target_known": True,
-                            "target_location": {
-                                "target_imports": ["Missing.StatEnvironment"],
-                            },
-                        },
-                    }
-                ],
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-
-    bridge_payload = _run_runtime_source_theorem_promotion_proofengineer_bridge(
-        seed_queue_dir=seed_queue_dir,
-        out_dir=tmp_path / "runtime_source_theorem_promotion_proofengineer_bridge",
-        local_lean=True,
-        lean_project=None,
-        lean_timeout=30,
-    )
-
-    assert bridge_payload["n_materialized_artifacts"] == 1
-    assert bridge_payload["n_artifact_kernel_verified"] == 0
-    assert bridge_payload["n_source_theorem_kernel_verified"] == 0
-    assert bridge_payload["n_source_theorem_formal_environment_work_orders"] == 1
-    assert bridge_payload["proof_evidence_status"] == (
-        "SOURCE_THEOREM_PROMOTION_PROOFENGINEER_BRIDGE_NOT_SOURCE_THEOREM_PROOF"
-    )
-    work_orders_path = Path(
-        bridge_payload["source_theorem_formal_environment_work_orders_jsonl"]
-    )
-    work_order_manifest_path = Path(
-        bridge_payload["source_theorem_formal_environment_work_order_manifest"]
-    )
-    assert work_orders_path.exists()
-    assert work_order_manifest_path.exists()
-    work_orders = [
-        json.loads(line)
-        for line in work_orders_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-    assert len(work_orders) == 1
-    assert work_orders[0]["artifact_kind"] == (
-        "SourceTheoremFormalEnvironmentWorkOrder"
-    )
-    assert work_orders[0]["action_type"] == (
-        "repair_exact_source_theorem_formal_environment"
-    )
-    assert work_orders[0]["target_theorem_name"] == "exact_source_claim"
-    assert work_orders[0]["target_ids"] == ["exact_source_claim"]
-    assert work_orders[0]["target_theorem_goal_ids"] == ["exact_source_claim"]
-    assert work_orders[0]["candidate_artifact_path"] == str(candidate_path)
-    assert work_orders[0]["failure_classification"] in {
-        "lean_import_environment_missing",
-        "lean_project_or_import_environment_missing",
-        "lean_syntax_or_import_environment_gap",
-    }
-    assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
-    (
-        formal_env_bridge_manifest,
-        proof_body_executor_manifest,
-        formal_env_learning_rows,
-        proof_body_learning_rows,
-    ) = _run_runtime_source_theorem_formal_environment_bridge_stack(
-        out_dir=tmp_path
-        / "runtime_source_theorem_formal_environment_proofengineer_bridge_from_source_semantic_promotion",
-        queue_jsonl=work_orders_path,
-        question_id="conformal_prediction_coverage",
-        config=ResearchAgentRuntimeConfig(
-            source_theorem_formal_environment_proofengineer_bridge=True,
-            source_theorem_formal_environment_proofengineer_execute_proof_body=False,
-        ),
-    )
-    assert formal_env_bridge_manifest is not None
-    assert proof_body_executor_manifest is None
-    assert formal_env_bridge_manifest["n_repair_packets"] == 1
-    assert formal_env_bridge_manifest["signature_probes_requested"] is False
-    assert formal_env_bridge_manifest["n_proof_body_work_orders"] == 0
-    assert formal_env_bridge_manifest["n_proof_body_execution_queue_rows"] == 0
-    assert formal_env_bridge_manifest["proof_evidence_status"] == (
-        "FORMAL_ENVIRONMENT_REPAIR_PACKETS_NOT_PROOF_EVIDENCE"
-    )
-    assert formal_env_learning_rows
-    assert proof_body_learning_rows == []
-    (
-        post_executor_formal_env_bridge_manifest,
-        post_executor_proof_body_executor_manifest,
-        post_executor_formal_env_learning_rows,
-        post_executor_proof_body_learning_rows,
-    ) = _run_runtime_source_theorem_formal_environment_bridge_stack_from_promotion_bridge(
-        promotion_bridge_manifest=bridge_payload,
-        out_dir=tmp_path
-        / "runtime_source_theorem_formal_environment_proofengineer_bridge_from_post_executor_semantic_promotion",
-        question_id="conformal_prediction_coverage",
-        config=ResearchAgentRuntimeConfig(
-            source_theorem_formal_environment_proofengineer_bridge=True,
-            source_theorem_formal_environment_proofengineer_execute_proof_body=False,
-        ),
-    )
-    assert post_executor_formal_env_bridge_manifest is not None
-    assert post_executor_proof_body_executor_manifest is None
-    assert post_executor_formal_env_bridge_manifest["n_repair_packets"] == 1
-    assert post_executor_formal_env_bridge_manifest["proof_evidence_status"] == (
-        "FORMAL_ENVIRONMENT_REPAIR_PACKETS_NOT_PROOF_EVIDENCE"
-    )
-    assert post_executor_formal_env_learning_rows
-    assert post_executor_proof_body_learning_rows == []
-    (
-        formal_env_bridge_manifest_with_executor_requested,
-        proof_body_executor_manifest_with_empty_queue,
-        _formal_env_learning_rows_with_executor_requested,
-        proof_body_learning_rows_with_empty_queue,
-    ) = _run_runtime_source_theorem_formal_environment_bridge_stack(
-        out_dir=tmp_path
-        / "runtime_source_theorem_formal_environment_proofengineer_bridge_empty_proof_body_queue",
-        queue_jsonl=work_orders_path,
-        question_id="conformal_prediction_coverage",
-        config=ResearchAgentRuntimeConfig(
-            source_theorem_formal_environment_proofengineer_bridge=True,
-            source_theorem_formal_environment_proofengineer_execute_proof_body=True,
-        ),
-    )
-    assert formal_env_bridge_manifest_with_executor_requested is not None
-    assert (
-        formal_env_bridge_manifest_with_executor_requested[
-            "n_proof_body_execution_queue_rows"
-        ]
-        == 0
-    )
-    assert proof_body_executor_manifest_with_empty_queue is None
-    assert proof_body_learning_rows_with_empty_queue == []
-
-    cli_out = tmp_path / "runtime_source_theorem_promotion_proofengineer_bridge_cli"
-    code = main(
-        [
-            "runtime-source-theorem-promotion-proofengineer-bridge",
-            "--seed-queue-dir",
-            str(seed_queue_dir),
-            "--out",
-            str(cli_out),
-            "--lean-timeout",
-            "30",
-            "--overwrite",
-        ]
-    )
-    assert code == 0
-    cli_manifest_path = (
-        cli_out / "runtime_source_theorem_promotion_proofengineer_bridge_manifest.json"
-    )
-    assert cli_manifest_path.exists()
-    cli_manifest = json.loads(cli_manifest_path.read_text(encoding="utf-8"))
-    assert cli_manifest["overwrite_artifacts"] is True
-    assert cli_manifest["n_source_theorem_formal_environment_work_orders"] == 1
-    assert Path(
-        cli_manifest["source_theorem_formal_environment_work_orders_jsonl"]
-    ).exists()
-    assert cli_manifest["proof_evidence_status"] == (
-        "SOURCE_THEOREM_PROMOTION_PROOFENGINEER_BRIDGE_NOT_SOURCE_THEOREM_PROOF"
-    )
-
-
-def test_source_theorem_promotion_bridge_exports_blocked_semantic_seed_work_order(
-    tmp_path: Path,
-) -> None:
-    seed_queue_dir = tmp_path / "source_theorem_seed_queue"
-    seed_queue_dir.mkdir()
-    blocked_seed = {
-        "schema_version": 1,
-        "artifact_kind": "RuntimeSourceTheoremPromotionMaterializationSeed",
-        "materialization_seed_id": "runtime_source_theorem_promotion_seed:blocked",
-        "execution_queue_id": "runtime_source_theorem_promotion_seed:blocked",
-        "source_theorem_promotion_work_order_id": "source_theorem_promotion_work_order:blocked",
-        "question_id": "conformal_prediction_coverage",
-        "question_title": "Split conformal prediction interval coverage",
-        "target_theorem_name": "split_conformal_finite_sample_coverage",
-        "target_ids": ["split_conformal_finite_sample_coverage"],
-        "target_lean_declaration": "split_conformal_finite_sample_coverage",
-        "candidate_artifact_path": str(tmp_path / "blocked_source_candidate.lean"),
-        "source_theorem_target_known": True,
-        "source_theorem_target_provenance": {
-            "source_theorem_target_known": True,
-            "target_lean_declaration": "split_conformal_finite_sample_coverage",
-            "semantic_alignment_constraints": [
-                "use reviewed exact coverage-event semantics"
-            ],
-        },
-        "unresolved_source_theorem_semantic_primitive_placeholder_symbols": [
-            "good_rank_event",
-            "coverage_event",
-            "covered",
-        ],
-        "target_location_preflight": {
-            "execution_preflight_status": (
-                "NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS"
-            ),
-            "target_lean_declaration": "split_conformal_finite_sample_coverage",
-        },
-        "execution_status": "BLOCKED_NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS",
-        "materialization_seed_status": (
-            "BLOCKED_NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS"
-        ),
-        "errors": [
-            "reviewed exact semantic definitions missing",
-            "covered",
-        ],
-        "proof_evidence_status": "MATERIALIZATION_SEED_NOT_PROOF_EVIDENCE",
-    }
-    (
-        seed_queue_dir / "formal_verifier_agentic_proof_execution_queue_manifest.json"
-    ).write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "rows": [],
-                "blocked_rows": [blocked_seed],
-                "n_execution_queue_items": 0,
-                "n_blocked": 1,
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-    (seed_queue_dir / "blocked_materialization_seeds.jsonl").write_text(
-        json.dumps(blocked_seed) + "\n",
-        encoding="utf-8",
-    )
-
-    bridge_payload = _run_runtime_source_theorem_promotion_proofengineer_bridge(
-        seed_queue_dir=seed_queue_dir,
-        out_dir=tmp_path / "runtime_source_theorem_promotion_proofengineer_bridge",
-        local_lean=True,
-        lean_project=None,
-        lean_timeout=30,
-    )
-
-    assert bridge_payload["n_materializer_rows"] == 0
-    assert bridge_payload["local_lean_skipped_reason"] == "no_materializer_rows"
-    assert bridge_payload["n_source_theorem_kernel_verified"] == 0
-    assert bridge_payload["n_source_theorem_formal_environment_work_orders"] == 1
-    assert (
-        bridge_payload[
-            "n_blocked_materialization_seed_formal_environment_work_orders"
-        ]
-        == 1
-    )
-    work_orders_path = Path(
-        bridge_payload["source_theorem_formal_environment_work_orders_jsonl"]
-    )
-    work_order_manifest_path = Path(
-        bridge_payload["source_theorem_formal_environment_work_order_manifest"]
-    )
-    assert work_orders_path.exists()
-    assert work_order_manifest_path.exists()
-    work_orders = [
-        json.loads(line)
-        for line in work_orders_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-    assert len(work_orders) == 1
-    work_order = work_orders[0]
-    assert work_order["artifact_kind"] == "SourceTheoremFormalEnvironmentWorkOrder"
-    assert work_order["source_materialization_seed_id"] == (
-        "runtime_source_theorem_promotion_seed:blocked"
-    )
-    assert work_order["target_theorem_name"] == (
-        "split_conformal_finite_sample_coverage"
-    )
-    assert work_order["failure_classification"] == (
-        "formal_environment_placeholder_primitives"
-    )
-    assert work_order["exact_semantic_definition_repair_required"] is True
-    assert work_order["missing_formal_symbols"] == [
-        "good_rank_event",
-        "coverage_event",
-        "covered",
-    ]
-    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
-    assert (
-        "reviewed exact semantic definitions"
-        in work_order["recommended_repair_tasks"][0]
-    )
-    (
-        formal_env_bridge_manifest,
-        proof_body_executor_manifest,
-        formal_env_learning_rows,
-        proof_body_learning_rows,
-    ) = _run_runtime_source_theorem_formal_environment_bridge_stack_from_promotion_bridge(
-        promotion_bridge_manifest=bridge_payload,
-        out_dir=tmp_path
-        / "runtime_source_theorem_formal_environment_proofengineer_bridge_from_blocked_promotion_seed",
-        question_id="conformal_prediction_coverage",
-        config=ResearchAgentRuntimeConfig(
-            source_theorem_formal_environment_proofengineer_bridge=True,
-            source_theorem_formal_environment_proofengineer_execute_proof_body=False,
-        ),
-    )
-    assert formal_env_bridge_manifest is not None
-    assert proof_body_executor_manifest is None
-    assert formal_env_bridge_manifest["n_repair_packets"] == 1
-    assert formal_env_learning_rows
-    assert proof_body_learning_rows == []
-
-
 def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> None:
     formalization_manifest = {
         "artifact_kind": "RuntimeFormalizationManifest",
@@ -74722,14 +73540,6 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         materialization_seed_queue_dir,
         tmp_path / "materialized_source_theorem_promotion_exact_target",
     )
-    bridge_payload = _run_runtime_source_theorem_promotion_proofengineer_bridge(
-        seed_queue_dir=materialization_seed_queue_dir,
-        out_dir=tmp_path / "runtime_source_theorem_promotion_proofengineer_bridge",
-        local_lean=False,
-        lean_project=None,
-        lean_timeout=30,
-    )
-
     assert len(rows) == 1
     assert rows[0]["artifact_kind"] == "SourceTheoremPromotionWorkOrder"
     assert rows[0]["runtime_queue_status"] == (
@@ -74878,19 +73688,6 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     assert "theorem split_conformal_coverage" in exact_source_text
     assert "_route_probe" not in exact_source_text
     assert "route probe" not in exact_source_text.lower()
-    assert bridge_payload["n_materialized_artifacts"] == 1
-    assert bridge_payload["n_artifact_kernel_verified"] == 0
-    assert bridge_payload["n_source_theorem_kernel_verified"] == 0
-    assert bridge_payload["local_lean_skipped_reason"] == "local_lean_disabled"
-    assert bridge_payload["proof_evidence_status"] == (
-        "SOURCE_THEOREM_PROMOTION_PROOFENGINEER_BRIDGE_NOT_SOURCE_THEOREM_PROOF"
-    )
-    assert Path(bridge_payload["materializer_manifest"]).exists()
-    assert Path(bridge_payload["bridge_manifest"]).exists()
-    assert bridge_payload["n_source_theorem_integration_rows"] == 0
-    assert bridge_payload["n_source_theorem_integration_blocked_route_probe"] == 0
-    assert _runtime_source_theorem_promotion_bridge_learning_rows(bridge_payload) == []
-
     materialized_integrator_queue_dir = tmp_path / "materialized_exact_integrator_queue"
     materialized_integrator_queue_dir.mkdir()
     (
@@ -74972,7 +73769,6 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         encoding="utf-8",
     )
     ready_bridge_payload = {
-        **bridge_payload,
         "source_theorem_promotion_queue_dir": str(ready_queue_dir),
         "source_theorem_promotion_queue_manifest": str(
             ready_queue_dir
@@ -85977,16 +84773,6 @@ def test_runtime_coding_agent_capability_table_requires_conditional_repair() -> 
         "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
         "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": 1,
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 0,
-        "internal_coding_agent_generated_code_repair_eval_provider_name": "anthropic",
-        "internal_coding_agent_generated_code_repair_eval_backend_provider_name": "anthropic",
-        "internal_coding_agent_generated_code_repair_eval_component_backend_provider_names": [
-            "anthropic"
-        ],
-        "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok": True,
-        "internal_coding_agent_generated_code_repair_eval_live_generator": True,
-        "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only": False,
-        "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences": 1,
-        "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences": 1,
         "internal_formalizer_lean_candidate_repair_eval_provider_name": "anthropic",
         "internal_formalizer_lean_candidate_repair_eval_backend_provider_name": "anthropic",
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok": True,
@@ -85999,30 +84785,6 @@ def test_runtime_coding_agent_capability_table_requires_conditional_repair() -> 
     rows = {row["capability_id"]: row for row in table["rows"]}
     assert rows["generated_algorithm_code_executed_locally"]["passed"] is False
     assert rows["generated_simulation_code_executed_locally"]["passed"] is False
-    assert rows[
-        "coding_agent_generated_code_repair_component_calibration"
-    ]["passed"] is False
-    assert "attached_algorithm_live_repair_sequences=0" in rows[
-        "coding_agent_generated_code_repair_component_calibration"
-    ]["evidence"]
-
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences"
-    ] = 1
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences"
-    ] = 1
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed"
-    ] = True
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope"
-    ] = "live_attempt_failed_then_passed"
-    table = _runtime_coding_agent_capability_table(payload)
-    rows = {row["capability_id"]: row for row in table["rows"]}
-    assert rows[
-        "coding_agent_generated_code_repair_component_calibration"
-    ]["passed"] is True
     assert rows[
         "formalizer_lean_candidate_proof_state_request_routed"
     ]["passed"] is False
@@ -86038,7 +84800,6 @@ def test_runtime_coding_agent_capability_table_requires_conditional_repair() -> 
     ]["evidence"]
     assert table["coding_agent_capability_ready"] is False
     assert table["integrated_capability_ready"] is False
-    assert table["component_calibration"]["attached_coding_repair_calibration"] is True
     assert table["component_calibration"][
         "attached_formalizer_repair_calibration"
     ] is False
@@ -86122,12 +84883,6 @@ def test_runtime_coding_agent_capability_table_requires_conditional_repair() -> 
 
     static_component_payload = dict(payload)
     static_component_payload[
-        "internal_coding_agent_generated_code_repair_eval_backend_provider_name"
-    ] = "static"
-    static_component_payload[
-        "internal_coding_agent_generated_code_repair_eval_component_backend_provider_names"
-    ] = ["static"]
-    static_component_payload[
         "internal_formalizer_lean_candidate_repair_eval_backend_provider_name"
     ] = "static"
     static_component_table = _runtime_coding_agent_capability_table(
@@ -86136,9 +84891,6 @@ def test_runtime_coding_agent_capability_table_requires_conditional_repair() -> 
     static_component_rows = {
         row["capability_id"]: row for row in static_component_table["rows"]
     }
-    assert static_component_rows[
-        "coding_agent_generated_code_repair_component_calibration"
-    ]["passed"] is False
     assert static_component_rows[
         "formalizer_lean_candidate_repair_component_calibration"
     ]["passed"] is False
@@ -86675,9 +85427,6 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ]["passed"] is True
     assert rows["generated_simulation_metric_feedback_closed"]["passed"] is True
     assert rows["generated_simulation_failure_feedback_closed"]["passed"] is True
-    assert rows[
-        "coding_agent_generated_code_repair_component_gate"
-    ]["passed"] is True
     assert rows["formalizer_lean_candidate_local_check_attempted"]["passed"] is True
     assert rows[
         "formalizer_lean_candidate_repair_component_gate"
@@ -86760,12 +85509,6 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
 
     static_component_payload = dict(payload)
     static_component_payload[
-        "internal_coding_agent_generated_code_repair_eval_backend_provider_name"
-    ] = "static"
-    static_component_payload[
-        "internal_coding_agent_generated_code_repair_eval_component_backend_provider_names"
-    ] = ["static"]
-    static_component_payload[
         "internal_formalizer_lean_candidate_repair_eval_backend_provider_name"
     ] = "static"
     static_component_payload[
@@ -86779,9 +85522,6 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ] = ["static"]
     scorecard = _runtime_capability_scorecard(static_component_payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
-    assert rows[
-        "coding_agent_generated_code_repair_component_gate"
-    ]["passed"] is False
     assert rows[
         "formalizer_lean_candidate_repair_component_gate"
     ]["passed"] is False
@@ -87079,7 +85819,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "generated_algorithm_code_executed"
     ]["next_owner_subsystem"] == "AlgorithmEngineer"
     assert rows["generated_simulation_code_executed"]["passed"] is False
-    assert "registered simulator rows and attached component gates" in rows[
+    assert "registered simulator rows do not substitute" in rows[
         "generated_simulation_code_executed"
     ]["blocker"]
     assert rows[
@@ -87106,30 +85846,6 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     payload[
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
     ] = 0
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok"
-    ] = False
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only"
-    ] = True
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences"
-    ] = 0
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences"
-    ] = 0
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences"
-    ] = 0
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences"
-    ] = 0
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed"
-    ] = False
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope"
-    ] = ""
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
@@ -87144,58 +85860,6 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert rows[
         "formalizer_lean_candidate_proof_state_request_routed"
     ]["next_owner_subsystem"] == "FormalizationEvaluator"
-    assert rows[
-        "coding_agent_generated_code_repair_component_gate"
-    ]["passed"] is False
-    assert "attached live combined coding-agent repair calibration" in rows[
-        "coding_agent_generated_code_repair_component_gate"
-    ]["blocker"]
-
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok"
-    ] = True
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_live_generator"
-    ] = True
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only"
-    ] = False
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences"
-    ] = 1
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences"
-    ] = 1
-    scorecard = _runtime_capability_scorecard(payload)
-    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
-
-    assert rows["generated_algorithm_failure_feedback_closed"]["passed"] is True
-    assert rows["generated_simulation_failure_feedback_closed"]["passed"] is True
-    assert rows[
-        "coding_agent_generated_code_repair_component_gate"
-    ]["passed"] is False
-    assert "attached_algorithm_live_repair_sequences=0" in rows[
-        "coding_agent_generated_code_repair_component_gate"
-    ]["evidence"]
-
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences"
-    ] = 1
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences"
-    ] = 1
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed"
-    ] = True
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope"
-    ] = "live_attempt_failed_then_passed"
-    scorecard = _runtime_capability_scorecard(payload)
-    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
-    assert rows[
-        "coding_agent_generated_code_repair_component_gate"
-    ]["passed"] is True
-
     payload["n_generated_code_sandbox_executed"] = 1
     payload["n_live_generated_code_sandbox_executed"] = 1
     payload["n_generated_simulation_sandbox_executed"] = 1
@@ -89233,58 +87897,6 @@ def test_runtime_capability_scorecard_keeps_attached_live_formalizer_lsp_calibra
         rows["formalizer_lean_candidate_proof_state_request_routed"]["passed"]
         is False
     )
-
-
-def test_runtime_capability_scorecard_requires_live_attached_coding_repair_sequences() -> None:
-    payload = {
-        "runtime_evaluation_mode": "capability_eval",
-        "n_results": 1,
-        "internal_coding_agent_generated_code_repair_eval_provider_name": "anthropic",
-        "internal_coding_agent_generated_code_repair_eval_backend_provider_name": "anthropic",
-        "internal_coding_agent_generated_code_repair_eval_component_backend_provider_names": [
-            "anthropic"
-        ],
-        "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok": True,
-        "internal_coding_agent_generated_code_repair_eval_live_generator": True,
-        "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only": False,
-        "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences": 1,
-        "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences": 1,
-    }
-
-    scorecard = _runtime_capability_scorecard(payload)
-    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
-
-    assert rows[
-        "coding_agent_generated_code_repair_component_gate"
-    ]["passed"] is False
-    assert "attached_algorithm_live_repair_sequences=0" in rows[
-        "coding_agent_generated_code_repair_component_gate"
-    ]["evidence"]
-    assert scorecard["component_calibration"][
-        "attached_coding_repair_ready"
-    ] is False
-
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences"
-    ] = 1
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences"
-    ] = 1
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed"
-    ] = True
-    payload[
-        "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope"
-    ] = "live_attempt_failed_then_passed"
-    scorecard = _runtime_capability_scorecard(payload)
-    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
-
-    assert rows[
-        "coding_agent_generated_code_repair_component_gate"
-    ]["passed"] is True
-    assert scorecard["component_calibration"][
-        "attached_coding_repair_ready"
-    ] is True
 
 
 def test_runtime_truth_table_exports_unproved_source_theorem_learning_row(
@@ -99146,11 +97758,9 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         algorithm_engineer_generated_code_repair_yield_after_attempts=0,
         simulation_evaluator_generated_code_repair_yield_after_attempts=0,
         formalizer_lean_candidate_revision_max_attempts=0,
-        run_coding_agent_generated_code_repair_eval=False,
         run_formalizer_lean_candidate_repair_eval=False,
         run_formalizer_pseudo_formal_packet_eval=False,
         run_pseudo_formal_block_verifier_eval=False,
-        coding_agent_repair_eval_provider="same",
         formalizer_repair_eval_provider="same",
         formalizer_pseudo_formal_packet_eval_provider="same",
         formalizer_pseudo_formal_packet_eval_runtime_timeout_seconds=300.0,
@@ -99292,7 +97902,6 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
         args.source_theorem_exact_semantic_definition_authoring_worker_allow_external_export
         is False
     )
-    assert args.run_coding_agent_generated_code_repair_eval is False
     assert args.run_formalizer_lean_candidate_repair_eval is False
     assert args.run_formalizer_pseudo_formal_packet_eval is False
     assert args.run_pseudo_formal_block_verifier_eval is False
@@ -99506,12 +98115,10 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
         == 3
     )
     assert args.max_formalizer_proof_state_repair_rounds == 1
-    assert args.run_coding_agent_generated_code_repair_eval is False
     assert args.run_formalizer_lean_candidate_repair_eval is False
     assert args.run_formalizer_pseudo_formal_packet_eval is False
     assert args.run_pseudo_formal_block_verifier_eval is False
     assert args.pseudo_formal_block_verifier_runtime is True
-    assert args.coding_agent_repair_eval_provider == "same"
     assert args.formalizer_repair_eval_provider == "same"
     assert args.formalizer_pseudo_formal_packet_eval_provider == "same"
     assert args.formalizer_pseudo_formal_packet_eval_runtime_timeout_seconds > 0
@@ -99561,15 +98168,6 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
         for error in _research_agent_runtime_capability_config_errors(args)
     )
     args.source_theorem_formal_environment_proofengineer_bridge = False
-
-    args.run_coding_agent_generated_code_repair_eval = True
-    assert any(
-        "full-live forbids historical post-runtime or repair-harness path "
-        "--run-coding-agent-generated-code-repair-eval"
-        in error
-        for error in _research_agent_runtime_capability_config_errors(args)
-    )
-    args.run_coding_agent_generated_code_repair_eval = False
 
     args.serious_theory_model_tier = "sonnet"
     assert (
@@ -99694,22 +98292,9 @@ def test_capability_eval_full_live_does_not_configure_optional_gap_planner() -> 
     assert args.formalization_gap_planner_live_timeout_seconds is None
 
 
-def test_capability_eval_rejects_static_component_repair_gate_provider() -> None:
+def test_capability_eval_rejects_static_pseudo_formal_block_verifier_provider() -> None:
     args = _capability_eval_preset_args("minimal-live")
     _apply_research_agent_runtime_capability_eval_preset(args)
-    args.run_coding_agent_generated_code_repair_eval = True
-    args.coding_agent_repair_eval_provider = "static"
-    args.coding_agent_repair_eval_existing_manifest = ""
-
-    errors = _research_agent_runtime_capability_config_errors(args)
-
-    assert any(
-        "coding-agent generated-code repair eval" in error
-        and "resolves to static" in error
-        for error in errors
-    )
-
-    args.run_coding_agent_generated_code_repair_eval = False
     args.run_pseudo_formal_block_verifier_eval = True
     args.pseudo_formal_block_verifier_eval_provider = "static"
     args.pseudo_formal_block_verifier_eval_existing_manifest = ""
@@ -99723,21 +98308,9 @@ def test_capability_eval_rejects_static_component_repair_gate_provider() -> None
     )
 
 
-def test_capability_eval_existing_component_manifest_skips_rerun_provider_error() -> None:
+def test_capability_eval_existing_pseudo_formal_manifest_skips_provider_error() -> None:
     args = _capability_eval_preset_args("minimal-live")
     _apply_research_agent_runtime_capability_eval_preset(args)
-    args.run_coding_agent_generated_code_repair_eval = True
-    args.coding_agent_repair_eval_provider = "static"
-    args.coding_agent_repair_eval_existing_manifest = "runs/live/coding_manifest.json"
-
-    errors = _research_agent_runtime_capability_config_errors(args)
-
-    assert not any(
-        "coding-agent generated-code repair eval" in error
-        and "resolves to static" in error
-        for error in errors
-    )
-
     args.run_pseudo_formal_block_verifier_eval = True
     args.pseudo_formal_block_verifier_eval_provider = "static"
     args.pseudo_formal_block_verifier_eval_existing_manifest = (
@@ -99875,12 +98448,11 @@ def test_pseudo_formal_block_verifier_source_rows_materialize_runtime_memory(
     assert prompt_payload["all_ok"] is True
 
 
-def test_runtime_attaches_existing_live_component_repair_manifests(
+def test_runtime_attaches_existing_live_formal_component_manifests(
     tmp_path: Path,
 ) -> None:
     runtime_out = tmp_path / "runtime"
     runtime_out.mkdir()
-    coding_manifest_path = tmp_path / "coding_agent_generated_code_repair_eval_manifest.json"
     formalizer_manifest_path = tmp_path / "formalizer_lean_candidate_repair_eval_manifest.json"
     formalizer_pf_packet_manifest_path = (
         tmp_path / "formalizer_pseudo_formal_packet_eval_manifest.json"
@@ -99899,35 +98471,6 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     )
     pseudo_formal_manifest_path = (
         tmp_path / "pseudo_formal_block_verifier_component_gate_manifest.json"
-    )
-    coding_manifest_path.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "artifact_kind": "CodingAgentGeneratedCodeRepairEvalManifest",
-                "provider_name": "anthropic",
-                "backend_provider_name": "anthropic",
-                "component_backend_provider_names": ["anthropic"],
-                "model": "claude-haiku-4-5-20251001",
-                "live_generator": True,
-                "static_or_fixture_only": False,
-                "fixture_plumbing_ok": False,
-                "capability_evidence_ok": True,
-                "algorithm_capability_evidence_ok": True,
-                "simulation_capability_evidence_ok": True,
-                "algorithm_repair_sequences": 1,
-                "algorithm_live_repair_sequences": 1,
-                "simulation_repair_sequences": 1,
-                "simulation_live_repair_sequences": 1,
-                "prior_failure_feedback_injected": True,
-                "autonomous_live_failed_then_passed_repair_observed": True,
-                "capability_evidence_scope": "live_attempt_failed_then_passed",
-                "proof_evidence_status": (
-                    "CODING_AGENT_GENERATED_CODE_REPAIR_EVAL_NOT_PROOF_EVIDENCE"
-                ),
-            }
-        ),
-        encoding="utf-8",
     )
     formalizer_manifest_path.write_text(
         json.dumps(
@@ -100164,9 +98707,6 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         provider="anthropic",
         runs=12,
         seed=20260623,
-        coding_agent_repair_eval_provider="static",
-        coding_agent_repair_eval_existing_manifest=str(coding_manifest_path),
-        coding_agent_repair_eval_out="",
         formalizer_repair_eval_provider="static",
         formalizer_repair_eval_existing_manifest=str(formalizer_manifest_path),
         formalizer_repair_eval_out="",
@@ -100187,10 +98727,6 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         }
     }
 
-    manifest = cli_module._attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
-        args,
-        manifest,
-    )
     manifest = cli_module._attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
         args,
         manifest,
@@ -100204,36 +98740,6 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         manifest,
     )
 
-    assert manifest[
-        "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok"
-    ] is True
-    assert manifest[
-        "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only"
-    ] is False
-    assert (
-        manifest[
-            "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences"
-        ]
-        == 1
-    )
-    assert (
-        manifest[
-            "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences"
-        ]
-        == 1
-    )
-    assert (
-        manifest[
-            "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed"
-        ]
-        is True
-    )
-    assert (
-        manifest[
-            "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope"
-        ]
-        == "live_attempt_failed_then_passed"
-    )
     assert manifest[
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok"
     ] is True
@@ -100255,9 +98761,6 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         ]
         == 3
     )
-    assert manifest["artifacts"][
-        "internal_coding_agent_generated_code_repair_eval_manifest_json"
-    ] == str(coding_manifest_path)
     assert manifest["artifacts"][
         "internal_formalizer_lean_candidate_repair_eval_manifest_json"
     ] == str(formalizer_manifest_path)
@@ -100437,12 +98940,6 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         ).read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    assert any(
-        row.get("learning_task") == "coding_agent_generated_code_component_gate_feedback"
-        and row.get("capability_evidence_ok") is True
-        and row.get("static_or_fixture_only") is False
-        for row in learning_rows
-    )
     assert any(
         row.get("learning_task") == "formalizer_lean_candidate_component_gate_feedback"
         and row.get("prior_feedback_lean_lsp_mcp_tool_calls") == 3
@@ -101816,8 +100313,6 @@ def test_research_agent_runtime_cli_static_provider_exports_trace(
             ),
         ),
     )
-    algorithm_repair_response_file = _write_algorithm_repair_static_response(root)
-    simulation_repair_response_file = _write_simulation_repair_static_response(root)
     formalizer_repair_response_file = _write_formalizer_lean_repair_static_response(root)
     learning_file.write_text(
         json.dumps(
@@ -101909,13 +100404,6 @@ def test_research_agent_runtime_cli_static_provider_exports_trace(
             "5",
             "--max-proof-obligations",
             "2",
-            "--run-coding-agent-generated-code-repair-eval",
-            "--coding-agent-repair-eval-provider",
-            "static",
-            "--coding-agent-repair-eval-algorithm-static-response-file",
-            str(algorithm_repair_response_file),
-            "--coding-agent-repair-eval-simulation-static-response-file",
-            str(simulation_repair_response_file),
             "--run-formalizer-lean-candidate-repair-eval",
             "--formalizer-repair-eval-provider",
             "static",
@@ -102028,24 +100516,6 @@ def test_research_agent_runtime_cli_static_provider_exports_trace(
     assert manifest["n_runtime_coding_agent_capability_learning_rows"] == len(
         coding_feedback_rows
     )
-    coding_component_gate_rows = [
-        row
-        for row in output_learning_rows
-        if row.get("learning_task")
-        == "coding_agent_generated_code_component_gate_feedback"
-    ]
-    assert len(coding_component_gate_rows) == 1
-    assert manifest["n_runtime_coding_agent_component_gate_learning_rows"] == 1
-    assert coding_component_gate_rows[0]["static_or_fixture_only"] is True
-    assert coding_component_gate_rows[0]["capability_evidence_ok"] is False
-    assert coding_component_gate_rows[0]["algorithm_repair_sequences"] >= 1
-    assert coding_component_gate_rows[0]["simulation_repair_sequences"] >= 1
-    assert coding_component_gate_rows[0]["proof_evidence_status"] == (
-        "CODING_AGENT_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE"
-    )
-    assert "not evidence that the current AgentRuntime turn executed generated code" in (
-        coding_component_gate_rows[0]["proof_evidence_boundary"]
-    )
     formalizer_component_gate_rows = [
         row
         for row in output_learning_rows
@@ -102065,23 +100535,6 @@ def test_research_agent_runtime_cli_static_provider_exports_trace(
     assert "not source theorem proof" in formalizer_component_gate_rows[0][
         "proof_evidence_boundary"
     ]
-    attached_repair_eval = manifest[
-        "internal_coding_agent_generated_code_repair_eval"
-    ]
-    assert attached_repair_eval["artifact_kind"] == (
-        "RuntimeAttachedCodingAgentGeneratedCodeRepairEval"
-    )
-    assert attached_repair_eval["static_or_fixture_only"] is True
-    assert attached_repair_eval["capability_evidence_ok"] is False
-    assert attached_repair_eval["algorithm_repair_sequences"] >= 1
-    assert attached_repair_eval["proof_evidence_status"].endswith(
-        "NOT_PROOF_EVIDENCE"
-    )
-    assert Path(
-        manifest["artifacts"][
-            "internal_coding_agent_generated_code_repair_eval_manifest_json"
-        ]
-    ).exists()
     attached_formalizer_eval = manifest[
         "internal_formalizer_lean_candidate_repair_eval"
     ]
@@ -102285,22 +100738,7 @@ def test_research_agent_runtime_cli_static_provider_exports_trace(
     scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     assert scorecard["runtime_evaluation_mode"] == "debug"
     assert scorecard["ready"] is False
-    assert (
-        audit["internal_coding_agent_generated_code_repair_eval_attached"]
-        is True
-    )
-    assert (
-        audit[
-            "internal_coding_agent_generated_code_repair_eval_static_or_fixture_only"
-        ]
-        is True
-    )
-    assert (
-        audit[
-            "internal_coding_agent_generated_code_repair_eval_capability_evidence_ok"
-        ]
-        is False
-    )
+    assert audit["internal_coding_agent_generated_code_repair_eval_attached"] is False
     assert (
         audit["internal_formalizer_lean_candidate_repair_eval_attached"]
         is True
@@ -102326,9 +100764,6 @@ def test_research_agent_runtime_cli_static_provider_exports_trace(
     assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is False
     assert scorecard_rows["architect_orchestrated"]["passed"] is True
     assert scorecard_rows["live_generator_agents_enabled"]["passed"] is False
-    assert scorecard_rows[
-        "coding_agent_generated_code_repair_component_gate"
-    ]["passed"] is False
     assert scorecard_rows[
         "formalizer_lean_candidate_repair_component_gate"
     ]["passed"] is False

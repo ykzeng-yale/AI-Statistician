@@ -1093,38 +1093,21 @@ not mean the system has proved the holdout papers' full theorems in Lean.
 This is the benchmark needed before claiming progress toward a general
 statistical theorist.
 
-### S10. Live Coding-Agent Generated-Code Repair Suite
+### Retired Standalone Coding Repair Suite
 
-Question answered: can the system's own generator-backed coding agents write
-Python, execute it locally, consume failure feedback, and repair without
-Codex/manual edits or registered-template substitution?
+The former S10 side eval injected coding failures and maintained a second set of
+repair manifests, counters, CLI switches, and readiness calibration. It is no
+longer a benchmark or product path. A coding failure is now an ordinary
+observation inside the scientific-coding workspace: the source-owning model
+receives the exact current source and raw execution output, authors the complete
+replacement, and reruns the real consumer under the same lineage budget.
 
-Sources:
-
-- `coding-agent-generated-code-repair-eval`
-- component manifests for `algorithm_engineer` and `simulation_engineer`
-- generated sandbox result files under the eval run directory
-
-Current live signal:
-
-- `runs/coding_agent_generated_code_repair_eval_live_20260623_repairloop_helperguard/coding_agent_generated_code_repair_eval_manifest.json`
-- provider `anthropic`, model `claude-haiku-4-5-20251001`
-- `capability_evidence_ok=true`
-- `algorithm_repair_sequences=1`
-- `simulation_repair_sequences=1`
-
-This is the first live evidence that both AlgorithmEngineer and
-SimulationEngineer can consume local metric-gate feedback and produce generated
-code that passes the bounded sandbox. Static fixture plumbing and registered
-templates remain excluded from capability evidence. This suite is
-implementation/simulation capability evidence only; it is not theorem proof
-evidence and does not close any Lean/source-theorem gap.
-
-Repair counts must be artifact-bound. A later pass counts only when its runtime
-lineage names the failed parent prototype, parent script hash, concrete feedback
-id, repaired child prototype, and changed child script hash. A failure and an
-unrelated success sharing only a question id are diagnostic events, not an
-agent repair sequence.
+Only integrated AgentRuntime traces may establish coding feedback closure. A
+later pass counts only when it binds the failed parent source hash, concrete
+observation, model-authored child source hash, and real unit or integration
+execution. Historical S10 manifests remain interpretable as archived evidence,
+but they cannot create learning rows, satisfy readiness, or enter the current
+recommended gate stack.
 
 ### S11. Live Formalizer Lean-Candidate Repair Suite
 

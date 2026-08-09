@@ -163,20 +163,19 @@ def test_cross_family_cli_rejects_resume_and_learning_memory() -> None:
     assert "fresh cross-family protocol runs forbid --learning-memory-jsonl" in errors
 
 
-def test_cross_family_cli_rejects_legacy_repair_executors_and_side_evals() -> None:
+def test_cross_family_cli_rejects_legacy_repair_executors_and_formal_side_eval() -> None:
     questions = load_open_research_questions(Path("examples/research_questions.json"))
 
     _, _, errors = _cross_family_eval_protocol_selection(
         _protocol_cli_args(
             source_theorem_exact_semantic_definition_lean_repair_executor=True,
             source_theorem_exact_semantic_definition_lean_environment_repair_executor=True,
-            run_coding_agent_generated_code_repair_eval=True,
             run_formalizer_lean_candidate_repair_eval=True,
         ),
         questions,
     )
 
-    assert len(errors) == 4
+    assert len(errors) == 3
     assert all("fresh cross-family protocol runs forbid" in error for error in errors)
 
 

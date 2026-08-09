@@ -19998,47 +19998,6 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     integrated_simulation_code_executed = int(
         payload.get("n_live_generated_simulation_sandbox_executed", 0) or 0
     )
-    attached_coding_summary = _runtime_component_gate_summary(
-        _runtime_attached_component_gate_source(
-            payload,
-            "internal_coding_agent_generated_code_repair_eval",
-        )
-    )
-    attached_coding_algorithm_live_sequences = int(
-        payload.get(
-            "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences",
-            0,
-        )
-        or 0
-    )
-    attached_coding_simulation_live_sequences = int(
-        payload.get(
-            "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences",
-            0,
-        )
-        or 0
-    )
-    attached_coding_autonomous_live_repair_observed = _safe_bool(
-        payload.get(
-            "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed",
-            False,
-        )
-    )
-    attached_coding_capability_evidence_scope = str(
-        payload.get(
-            "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope",
-            "",
-        )
-        or ""
-    )
-    attached_coding_repair_ready = (
-        _safe_bool(attached_coding_summary["capability_evidence_ok"])
-        and attached_coding_algorithm_live_sequences > 0
-        and attached_coding_simulation_live_sequences > 0
-        and attached_coding_autonomous_live_repair_observed
-        and attached_coding_capability_evidence_scope
-        == "live_attempt_failed_then_passed"
-    )
     integrated_formalizer_repair_sequences = int(
         payload.get(
             "n_formalizer_lean_candidate_failed_then_passed_repair_sequences",
@@ -20336,9 +20295,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "live_integrated_algorithm_metric_repair_sequences="
                 f"{integrated_algorithm_metric_repair_sequences} "
                 "live_integrated_simulation_metric_repair_sequences="
-                f"{integrated_simulation_metric_repair_sequences} "
-                "attached_coding_repair_ready="
-                f"{attached_coding_repair_ready}"
+                f"{integrated_simulation_metric_repair_sequences}"
             ),
             (
                 "no live generated AlgorithmEngineer and SimulationEngineer "
@@ -20359,9 +20316,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "integrated_algorithm_metric_repair_sequences="
                 f"{integrated_algorithm_metric_repair_sequences} "
                 "integrated_simulation_metric_repair_sequences="
-                f"{integrated_simulation_metric_repair_sequences} "
-                "attached_coding_repair_ready="
-                f"{attached_coding_repair_ready}"
+                f"{integrated_simulation_metric_repair_sequences}"
             ),
             (
                 "no generated algorithm and simulation failure diagnostics were "
@@ -20613,11 +20568,10 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
             else ""
         ),
         "component_calibration": {
-            "attached_coding_repair_ready": attached_coding_repair_ready,
             "attached_formalizer_repair_ready": attached_formalizer_repair_ready,
             "boundary": (
-                "Attached component repair gates are calibration evidence for "
-                "subsystems. They do not advance integrated ladder levels L3-L6."
+                "Attached formal component gates are calibration evidence only. "
+                "They do not advance integrated ladder levels L3-L6."
             ),
         },
         "levels": levels,
@@ -20979,61 +20933,6 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             0,
         )
         or 0
-    )
-    attached_repair_eval_algorithm_sequences = int(
-        payload.get(
-            "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences",
-            0,
-        )
-        or 0
-    )
-    attached_repair_eval_algorithm_live_sequences = int(
-        payload.get(
-            "internal_coding_agent_generated_code_repair_eval_algorithm_live_repair_sequences",
-            0,
-        )
-        or 0
-    )
-    attached_repair_eval_simulation_sequences = int(
-        payload.get(
-            "internal_coding_agent_generated_code_repair_eval_simulation_repair_sequences",
-            0,
-        )
-        or 0
-    )
-    attached_repair_eval_simulation_live_sequences = int(
-        payload.get(
-            "internal_coding_agent_generated_code_repair_eval_simulation_live_repair_sequences",
-            0,
-        )
-        or 0
-    )
-    attached_coding_autonomous_live_repair_observed = _safe_bool(
-        payload.get(
-            "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed",
-            False,
-        )
-    )
-    attached_coding_capability_evidence_scope = str(
-        payload.get(
-            "internal_coding_agent_generated_code_repair_eval_capability_evidence_scope",
-            "",
-        )
-        or ""
-    )
-    attached_coding_summary = _runtime_component_gate_summary(
-        _runtime_attached_component_gate_source(
-            payload,
-            "internal_coding_agent_generated_code_repair_eval",
-        )
-    )
-    attached_live_component_repair_gate_passed = (
-        _safe_bool(attached_coding_summary["capability_evidence_ok"])
-        and attached_repair_eval_algorithm_live_sequences > 0
-        and attached_repair_eval_simulation_live_sequences > 0
-        and attached_coding_autonomous_live_repair_observed
-        and attached_coding_capability_evidence_scope
-        == "live_attempt_failed_then_passed"
     )
     integrated_formalizer_candidate_checked = int(
         payload.get("n_formalizer_lean_candidate_local_lean_checked", 0) or 0
@@ -25631,17 +25530,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "n_live_generated_code_sandbox_executed="
                 f"{payload.get('n_live_generated_code_sandbox_executed')} "
                 "n_generated_code_sandbox_executed="
-                f"{payload.get('n_generated_code_sandbox_executed')} "
-                "attached_live_component_repair_gate_passed="
-                f"{attached_live_component_repair_gate_passed} "
-                "attached_algorithm_repair_sequences="
-                f"{attached_repair_eval_algorithm_sequences}"
+                f"{payload.get('n_generated_code_sandbox_executed')}"
             ),
             (
                 "no Claude/OpenAI-generated algorithm code executed locally; "
-                "registered templates are baselines, and attached component "
-                "repair gates do not substitute for integrated AlgorithmEngineer "
-                "execution from runtime theory context"
+                "registered templates are baselines and do not substitute for "
+                "integrated AlgorithmEngineer execution from runtime theory context"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -25759,17 +25653,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "n_live_generated_simulation_sandbox_executed="
                 f"{payload.get('n_live_generated_simulation_sandbox_executed')} "
                 "n_generated_simulation_sandbox_executed="
-                f"{payload.get('n_generated_simulation_sandbox_executed')} "
-                "attached_live_component_repair_gate_passed="
-                f"{attached_live_component_repair_gate_passed} "
-                "attached_simulation_repair_sequences="
-                f"{attached_repair_eval_simulation_sequences}"
+                f"{payload.get('n_generated_simulation_sandbox_executed')}"
             ),
             (
                 "no Claude/OpenAI-generated simulation stress-test code executed "
-                "locally; registered simulator rows and attached component gates "
-                "do not substitute for integrated SimulationEvaluator execution "
-                "from runtime theory context"
+                "locally; registered simulator rows do not substitute for integrated "
+                "SimulationEvaluator execution from runtime theory context"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -26200,44 +26089,6 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "or n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences>0"
                 ),
             ),
-        ),
-        _scorecard_row(
-            "coding_agent_generated_code_repair_component_gate",
-            attached_live_component_repair_gate_passed,
-            (
-                "integrated_algorithm_repair_sequences="
-                f"{integrated_algorithm_repair_sequences} "
-                "integrated_simulation_repair_sequences="
-                f"{integrated_simulation_repair_sequences} "
-                "attached_component_capability="
-                f"{attached_coding_summary['capability_evidence_ok']} "
-                "attached_live_generator="
-                f"{attached_coding_summary['live_generator']} "
-                "attached_static_or_fixture_only="
-                f"{attached_coding_summary['static_or_fixture_only']} "
-                "attached_provider="
-                f"{attached_coding_summary['provider_name']} "
-                "attached_backend_provider="
-                f"{attached_coding_summary['backend_provider_name']} "
-                "attached_algorithm_repair_sequences="
-                f"{attached_repair_eval_algorithm_sequences} "
-                "attached_algorithm_live_repair_sequences="
-                f"{attached_repair_eval_algorithm_live_sequences} "
-                "attached_simulation_repair_sequences="
-                f"{attached_repair_eval_simulation_sequences}"
-                " attached_simulation_live_repair_sequences="
-                f"{attached_repair_eval_simulation_live_sequences} "
-                "attached_autonomous_live_failed_then_passed="
-                f"{attached_coding_autonomous_live_repair_observed} "
-                "attached_capability_evidence_scope="
-                f"{attached_coding_capability_evidence_scope}"
-            ),
-            (
-                "attached live combined coding-agent repair calibration did not "
-                "show both AlgorithmEngineer and SimulationEngineer fail-then-pass "
-                "live generated-code repair evidence"
-            ),
-            scope="component_calibration",
         ),
         _scorecard_row(
             "llm_formalizer_proofengineer_proposal_observed",
@@ -29939,7 +29790,6 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             1 for row in optional_experiment_rows if not row["passed"]
         ),
         "component_calibration": {
-            "attached_coding_repair_ready": attached_live_component_repair_gate_passed,
             "attached_formalizer_repair_ready": attached_formalizer_live_gate_passed,
             "attached_formalizer_prover_tool_called": (
                 attached_formalizer_live_prover_tool_called

@@ -239,36 +239,6 @@
       ]
     },
     {
-      "id": "S10_live_coding_agent_generated_repair",
-      "name": "Live Coding-Agent Generated-Code Repair Suite",
-      "capability": "Claude/OpenAI AlgorithmEngineer and SimulationEngineer write generated Python, execute locally, consume failure/metric feedback, and repair",
-      "primary_artifacts": [
-        "runs/coding_agent_generated_code_repair_eval/coding_agent_generated_code_repair_eval_manifest.json",
-        "runs/coding_agent_generated_code_repair_eval/algorithm_engineer/algorithm_engineer_generated_code_repair_eval_manifest.json",
-        "runs/coding_agent_generated_code_repair_eval/simulation_engineer/simulation_engineer_generated_code_repair_eval_manifest.json"
-      ],
-      "recommended_commands": [
-        "python3 -m ai_statistician.cli coding-agent-generated-code-repair-eval --provider anthropic --question-id conformal_prediction_coverage --out runs/coding_agent_generated_code_repair_eval"
-      ],
-      "release_floor": [
-        "provider is anthropic or openai, not static",
-        "AlgorithmEngineer has a generated-code fail-then-pass repair sequence",
-        "SimulationEngineer has a generated-code fail-then-pass repair sequence",
-        "capability_evidence_ok is true only when both live generated-code repair gates pass"
-      ],
-      "current_status": "live Anthropic Claude Haiku evidence present in runs/coding_agent_generated_code_repair_eval_live_20260623_repairloop_helperguard: AlgorithmEngineer and SimulationEngineer each have one generated-code fail-then-pass repair sequence; this is coding-agent implementation/simulation evidence only",
-      "current_live_evidence": {
-        "manifest": "runs/coding_agent_generated_code_repair_eval_live_20260623_repairloop_helperguard/coding_agent_generated_code_repair_eval_manifest.json",
-        "provider": "anthropic",
-        "model": "claude-haiku-4-5-20251001",
-        "capability_evidence_ok": true,
-        "algorithm_repair_sequences": 1,
-        "simulation_repair_sequences": 1,
-        "proof_evidence_status": "CODING_AGENT_GENERATED_CODE_REPAIR_EVAL_NOT_PROOF_EVIDENCE"
-      },
-      "honesty_boundary": "Static fixture plumbing and registered templates do not count as coding-agent capability; this suite is implementation/simulation capability evidence, not theorem proof evidence."
-    },
-    {
       "id": "S11_live_formalizer_lean_candidate_repair",
       "name": "Live Formalizer Lean-Candidate Repair Suite",
       "capability": "Claude/OpenAI Formalizer/ProofEngineer consumes local Lean diagnostics, generates a repaired Lean candidate, and gets that exact candidate checked locally",
@@ -476,7 +446,7 @@
         "runtime_pseudo_formal_exact_semantic_definition_manifest_stale": true,
         "runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup": false
       },
-      "honesty_boundary": "This is the integrated live runtime gate. Passing S10, S11, and S12 separately does not imply S13 passes; S13 is still capability evidence, not theorem proof unless the exact source theorem is kernel verified."
+      "honesty_boundary": "This is the integrated live runtime gate. Passing isolated formal component calibrations does not imply S13 passes; S13 is still capability evidence, not theorem proof unless the exact source theorem is kernel verified."
     }
   ],
   "recommended_next_gate_stack": [
@@ -485,7 +455,6 @@
     "S3_frontier_blind_theory_target_on_all_60",
     "S4_formal_primitive_ladder_top_10",
     "S7_feedback_loop_repair_with_seeded_failures",
-    "S10_live_coding_agent_generated_repair",
     "S11_live_formalizer_lean_candidate_repair",
     "S11c_live_formalizer_pseudo_formal_packet",
     "S11b_live_pseudo_formal_block_verifier",
