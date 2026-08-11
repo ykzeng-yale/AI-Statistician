@@ -517,6 +517,33 @@ def _build_lean_candidate_revision_tool_prompt(
         environment_feedback,
         candidate_id=candidate_id,
     )
+    target_rows = [
+        row
+        for row in parent_packet.get("formal_targets", []) or []
+        if isinstance(row, Mapping)
+        and (
+            str(row.get("id", "") or "") == candidate_id
+            or (
+                candidate_lean_declaration
+                and str(row.get("candidate_lean_declaration", "") or "")
+                == candidate_lean_declaration
+            )
+        )
+    ]
+    target_row = target_rows[0] if len(target_rows) == 1 else {}
+    exact_target_contract = {
+        field: deepcopy(target_row[field])
+        for field in (
+            "id",
+            "formal_target_role",
+            "informal_source",
+            "candidate_lean_declaration",
+            "semantic_alignment_constraints",
+            "source_theorem_target_provenance",
+            "expected_status",
+        )
+        if target_row.get(field) not in (None, "", [], {})
+    }
     payload = {
         "task": (
             "Revise the complete exact current Lean source through search/edit/check "
@@ -560,6 +587,7 @@ def _build_lean_candidate_revision_tool_prompt(
                 or ""
             ),
         },
+        "exact_target_contract": exact_target_contract,
         "current_lean_source": initial_source,
         "runtime_observations": runtime_observations,
         "model_owned_revision_contract": (
@@ -1861,6 +1889,8 @@ def _complete_lean_candidate_revision_feedback(
             for field in (
                 "feedback_id",
                 "failure_id",
+                "source_manifest_id",
+                "source_manifest_path",
                 "candidate_materialization_id",
                 "candidate_source_hash",
                 "source_formalizer_packet_id",
@@ -1882,6 +1912,48 @@ def _complete_lean_candidate_revision_feedback(
         },
     }
     return payload
+
+
+def compact_lean_workspace_observation(
+    feedback: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Project one resumable Lean observation without copying workspace history."""
+
+    if not isinstance(feedback, Mapping):
+        return {}
+    context = feedback.get("formalizer_workspace_context", {})
+    candidate_id = str(feedback.get("candidate_id", "") or "")
+    if not candidate_id and isinstance(context, Mapping):
+        candidate_id = str(context.get("candidate_id", "") or "")
+    projected = _complete_lean_candidate_revision_feedback(
+        feedback,
+        candidate_id=candidate_id,
+    )
+    compact = deepcopy(dict(projected.get("lineage_refs", {}) or {}))
+    for field in (
+        "source_artifact_kind",
+        "feedback_type",
+        "failure_classification",
+        "overall_verdict",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+    ):
+        if feedback.get(field) not in (None, "", [], {}):
+            compact[field] = deepcopy(feedback[field])
+    target = projected.get("target_and_environment_observations", {})
+    if isinstance(target, Mapping) and target:
+        compact["formalizer_workspace_context"] = deepcopy(dict(target))
+    diagnostics = projected.get("candidate_diagnostics", [])
+    if isinstance(diagnostics, list) and diagnostics:
+        compact["candidate_diagnostics"] = deepcopy(diagnostics)
+    semantic_review = projected.get("semantic_review", {})
+    if isinstance(semantic_review, Mapping):
+        for field, value in semantic_review.items():
+            if value not in (None, "", [], {}):
+                compact[str(field)] = deepcopy(value)
+    compact["source_observation_hash"] = stable_hash(dict(feedback))
+    compact["source_observation_keys"] = sorted(str(key) for key in feedback)
+    return compact
 
 
 def _complete_formalizer_environment_observations(

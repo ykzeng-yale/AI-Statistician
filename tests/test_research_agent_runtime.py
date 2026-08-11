@@ -321,6 +321,26 @@ def test_unreviewed_compiled_lean_candidate_cannot_claim_generic_kernel_proof() 
     assert fields["candidate_kernel_verified_scope"] == "candidate_artifact_only"
 
 
+def test_zero_materialized_gap_rows_do_not_claim_formal_closure() -> None:
+    summary = runtime_module._runtime_formal_closure_summary(
+        completion_summary={
+            "rows": [
+                {"question_id": "q1", "formal_satisfied": False},
+                {"question_id": "q2", "formal_satisfied": True},
+            ]
+        },
+        n_materialized_formal_gap_rows=0,
+    )
+
+    assert summary["n_materialized_formal_gap_rows"] == 0
+    assert summary["formal_gap_inventory_status"] == (
+        "NO_MATERIALIZED_GAP_ROWS"
+    )
+    assert summary["n_questions_formal_unverified"] == 1
+    assert summary["formal_closure_status"] == "FORMAL_CLOSURE_UNVERIFIED"
+    assert summary["formal_closure_verified_for_all_questions"] is False
+
+
 def _full_evidence_context(question_id: str) -> dict[str, object]:
     return {
         "architect_coordinator_proposal_id": "architect:generic",

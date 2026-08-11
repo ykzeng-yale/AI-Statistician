@@ -692,7 +692,18 @@ def audit_research_agent_runtime(
         "n_kernel_verified_subclaims": _int(
             manifest.get("n_kernel_verified_subclaims", 0)
         ),
+        "n_materialized_formal_gap_rows": _int(
+            manifest.get(
+                "n_materialized_formal_gap_rows",
+                manifest.get("n_formal_gaps", 0),
+            )
+        ),
         "n_formal_gaps": _int(manifest.get("n_formal_gaps", 0)),
+        "formal_closure_summary": dict(
+            manifest.get("formal_closure_summary", {})
+            if isinstance(manifest.get("formal_closure_summary", {}), Mapping)
+            else {}
+        ),
         "n_live_generated_code_sandbox_executed": _int(
             manifest.get("n_live_generated_code_sandbox_executed", 0)
         ),

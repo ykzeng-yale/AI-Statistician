@@ -3930,7 +3930,10 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     )
     print(
         f"kernel_verified_subclaims={manifest['n_kernel_verified_subclaims']} "
-        f"formal_gaps={manifest['n_formal_gaps']} "
+        "materialized_formal_gap_rows="
+        f"{manifest['n_materialized_formal_gap_rows']} "
+        "formal_unverified_questions="
+        f"{manifest['formal_closure_summary']['n_questions_formal_unverified']} "
         "generated_code_sandbox_executed="
         f"{manifest['n_generated_code_sandbox_executed']} "
         "generated_simulation_sandbox_executed="
@@ -4701,7 +4704,10 @@ def _research_agent_runtime_audit(args: argparse.Namespace) -> int:
     )
     print(
         f"kernel_verified_subclaims={payload['n_kernel_verified_subclaims']} "
-        f"formal_gaps={payload['n_formal_gaps']} "
+        "materialized_formal_gap_rows="
+        f"{payload['n_materialized_formal_gap_rows']} "
+        "formal_unverified_questions="
+        f"{payload['formal_closure_summary'].get('n_questions_formal_unverified', 'unknown')} "
         f"full_frontier_theorem_proved={payload['n_full_frontier_theorem_proved']}"
     )
     print(

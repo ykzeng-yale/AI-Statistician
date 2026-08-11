@@ -601,7 +601,26 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
             title="Compact Lean context",
             description="Keep exact target context and retrieve signatures on demand.",
         ),
-        parent_packet={"packet_id": "formalizer_proposal:compact"},
+        parent_packet={
+            "packet_id": "formalizer_proposal:compact",
+            "formal_targets": [
+                {
+                    "id": "target-candidate",
+                    "formal_target_role": "SOURCE_THEOREM_CANDIDATE",
+                    "informal_source": "The exact target remains true.",
+                    "candidate_lean_declaration": "target",
+                    "semantic_alignment_constraints": [
+                        "Preserve the exact non-vacuous target."
+                    ],
+                    "source_theorem_target_provenance": {
+                        "source_theorem_goal_id": "goal-1",
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": "target",
+                    },
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                }
+            ],
+        },
         candidate_id="target-candidate",
         candidate_source_field="formal_targets",
         candidate_lean_declaration="target",
@@ -647,6 +666,21 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
 
     payload = json.loads(prompt)
     assert payload["current_lean_source"] == initial_source
+    assert payload["exact_target_contract"] == {
+        "id": "target-candidate",
+        "formal_target_role": "SOURCE_THEOREM_CANDIDATE",
+        "informal_source": "The exact target remains true.",
+        "candidate_lean_declaration": "target",
+        "semantic_alignment_constraints": [
+            "Preserve the exact non-vacuous target."
+        ],
+        "source_theorem_target_provenance": {
+            "source_theorem_goal_id": "goal-1",
+            "source_theorem_target_known": True,
+            "target_lean_declaration": "target",
+        },
+        "expected_status": "NEEDS_KERNEL_CHECK",
+    }
     feedback = payload["runtime_observations"]
     context = feedback["target_and_environment_observations"]
     assert context["target_theorem_statement"] == "theorem target : True"
@@ -758,6 +792,136 @@ def test_formalizer_validation_failure_continues_same_workspace_once() -> None:
         "formalizer_workspace_continuation_exhausted"
     )
     assert "Architect or Critic" in exhausted.rationale
+
+
+def test_formalizer_failure_preserves_workspace_refs_without_payload_copy() -> None:
+    source = "theorem target : True := by\n  exact True.intro\n"
+    source_hash = stable_hash(source)
+    packet_id = "formalizer_proposal:parent"
+    materialization_id = "formalizer_lean_candidate_materialization:parent"
+    parent_packet = {
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "packet_id": packet_id,
+        "formal_targets": [
+            {
+                "id": "target-candidate",
+                "candidate_lean_declaration": "target",
+                "informal_source": "Exact target",
+            }
+        ],
+    }
+    materialization = {
+        "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+        "manifest_id": materialization_id,
+        "source_formalizer_packet_id": packet_id,
+        "candidate_rows": [],
+    }
+    checkpoint = {
+        "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
+        "candidate_id": "target-candidate",
+        "candidate_lean_declaration": "target",
+        "parent_source_hash": source_hash,
+        "current_source_hash": source_hash,
+        "current_source": source,
+        "last_check": {
+            "source_hash": source_hash,
+            "compiled": False,
+            "local_lean_stdout": "raw Lean diagnostic",
+        },
+        "model_owned_lean_code": True,
+        "runtime_selected_lean_code": False,
+        "kernel_verified": False,
+    }
+    result = runtime_module._formalizer_packet_validation_failure_result(
+        task=AgentTask(
+            task_id="formalize:preserve-workspace",
+            owner_subsystem="FormalizationEvaluator",
+            objective="Continue the exact source workspace.",
+            inputs={"environment_feedback": {}},
+        ),
+        question=OpenResearchQuestion(
+            id="preserve-workspace",
+            title="Preserve workspace",
+            description="Retain refs and the current model source.",
+        ),
+        theory_packet_id="theory:parent",
+        simulation_manifest_id="",
+        algorithm_sandbox_manifest_id="",
+        exc=PacketValidationError(
+            validation_label="LLM Formalizer Lean candidate client-tool revision",
+            attempts=4,
+            errors=["global client-tool turn budget exhausted"],
+            history=[
+                {
+                    "turn_index": 0,
+                    "result_excerpt": "raw transcript observation" * 10000,
+                }
+            ],
+            recovery_checkpoint=checkpoint,
+        ),
+        environment_feedback={
+            "source_manifest_id": materialization_id,
+            "source_formalizer_packet_id": packet_id,
+            "candidate_id": "target-candidate",
+            "formalizer_workspace_context": {
+                "candidate_id": "target-candidate",
+                "target_lean_declaration": "target",
+                "semantic_alignment_constraints": ["Preserve the exact target"],
+                "formal_source_scope_ids": ["active-project"],
+                "formal_source_grounding_hits": [
+                    {"hits": ["redundant retrieval payload" * 10000]}
+                ],
+            },
+            "prior_environment_feedback": {
+                "recursive": "nested history" * 10000
+            },
+        },
+        workspace_artifacts={
+            packet_id: parent_packet,
+            materialization_id: materialization,
+        },
+    )
+
+    failure_ids = [
+        artifact_id
+        for artifact_id in result.produced_artifacts
+        if artifact_id.startswith("formalizer_validation_failure:")
+    ]
+    attempt_history_ids = [
+        artifact_id
+        for artifact_id in result.produced_artifacts
+        if artifact_id.startswith("formalizer_attempt_history:")
+    ]
+    assert len(failure_ids) == 1
+    assert len(attempt_history_ids) == 1
+    assert set(result.produced_artifacts) == {
+        packet_id,
+        materialization_id,
+        attempt_history_ids[0],
+        failure_ids[0],
+    }
+    failure = next(
+        artifact
+        for artifact_id, artifact in result.produced_artifacts.items()
+        if artifact_id.startswith("formalizer_validation_failure:")
+    )
+    assert failure["source_manifest_id"] == materialization_id
+    assert failure["source_formalizer_packet_id"] == packet_id
+    assert failure["formalizer_recovery_checkpoint"]["current_source"] == source
+    assert "formal_source_grounding_hits" not in failure[
+        "formalizer_workspace_context"
+    ]
+    assert "prior_environment_feedback" not in failure
+    assert "prior_environment_observations" not in failure
+    assert len(json.dumps(failure)) < 20000
+    assert failure["attempt_history_ref"]["artifact_id"] == (
+        attempt_history_ids[0]
+    )
+    attempt_history = result.produced_artifacts[attempt_history_ids[0]]
+    assert attempt_history["attempts"][0]["result_excerpt"].startswith(
+        "raw transcript observation"
+    )
+    assert "result_excerpt" not in json.dumps(failure)
 
 
 def test_formalizer_packet_failure_stays_with_source_owner_then_blocks() -> None:

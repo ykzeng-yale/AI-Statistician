@@ -139,6 +139,7 @@ from .formalizer_llm import (
     FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
     FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
     LLMFormalizerProofEngineerAgent,
+    compact_lean_workspace_observation,
 )
 from .formalizer_feedback import (
     formalizer_tool_observation_envelope,
@@ -10547,6 +10548,7 @@ class FormalizerWorkspaceRuntimeSubsystem:
                             ),
                             exc=exc,
                             environment_feedback=initial_workspace_feedback,
+                            workspace_artifacts=produced_artifacts,
                         )
                     if immediate_revision is not None:
                         (
@@ -10824,7 +10826,8 @@ class FormalizerWorkspaceRuntimeSubsystem:
                             ],
                         ),
                         environment_feedback=environment_feedback,
-                )
+                        workspace_artifacts=produced_artifacts,
+                    )
             if lean_candidate_materialization["n_candidate_sources"] > 0:
                 produced_artifacts[
                     str(lean_candidate_materialization["manifest_id"])
@@ -11663,6 +11666,7 @@ def _formalizer_packet_validation_failure_result(
     algorithm_sandbox_manifest_id: str,
     exc: PacketValidationError,
     environment_feedback: Mapping[str, Any] | None = None,
+    workspace_artifacts: Mapping[str, Any] | None = None,
 ) -> AgentStepResult:
     """Record exhausted validation without inventing a source-level repair."""
     validation_errors = [str(error) for error in exc.errors if str(error)]
@@ -11675,7 +11679,7 @@ def _formalizer_packet_validation_failure_result(
             else {}
         )
     )
-    prior_observations = coding_agent_observations_only(
+    prior_observations = compact_lean_workspace_observation(
         prior_feedback
     )
     last_invalid_packet = (
@@ -11700,6 +11704,15 @@ def _formalizer_packet_validation_failure_result(
         and recovery_checkpoint.get("model_owned_lean_code") is True
         and recovery_checkpoint.get("runtime_selected_lean_code") is False
     )
+    attempt_history_rows = [
+        deepcopy(dict(row)) for row in exc.history if isinstance(row, Mapping)
+    ]
+    attempt_history_hash = stable_hash(attempt_history_rows)
+    attempt_history_id = (
+        "formalizer_attempt_history:" + attempt_history_hash[:20]
+        if attempt_history_rows
+        else ""
+    )
     failure_id = (
         "formalizer_validation_failure:"
         + stable_hash(
@@ -11707,7 +11720,7 @@ def _formalizer_packet_validation_failure_result(
                 task.task_id,
                 exc.validation_label,
                 validation_errors,
-                exc.history,
+                attempt_history_hash,
                 last_invalid_packet,
                 recovery_checkpoint,
             ]
@@ -11770,8 +11783,15 @@ def _formalizer_packet_validation_failure_result(
         ),
         "workspace_continuation_attempt": workspace_continuation_attempt,
         "workspace_continuation_allowed": workspace_continuation_allowed,
-        "attempt_history": [deepcopy(dict(row)) for row in exc.history],
-        "prior_environment_observations": prior_observations,
+        "attempt_history_ref": (
+            {
+                "artifact_id": attempt_history_id,
+                "content_hash": attempt_history_hash,
+                "n_rows": len(attempt_history_rows),
+            }
+            if attempt_history_id
+            else {}
+        ),
         "validation_boundary": validation_boundary,
         "proof_evidence_status": (
             "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
@@ -11787,9 +11807,6 @@ def _formalizer_packet_validation_failure_result(
         "theory_packet_id": theory_packet_id,
         "simulation_manifest_id": simulation_manifest_id,
         "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
-        "structured_output_retry_history": [
-            deepcopy(dict(row)) for row in exc.history
-        ],
         "internal_json_regeneration_attempts": max(
             0,
             int(exc.attempts or 0) - 1,
@@ -11864,10 +11881,28 @@ def _formalizer_packet_validation_failure_result(
             ),
         },
     )
+    produced_artifacts = {
+        str(artifact_id): deepcopy(dict(artifact))
+        for artifact_id, artifact in (workspace_artifacts or {}).items()
+        if str(artifact_id).strip() and isinstance(artifact, Mapping)
+    }
+    if attempt_history_id:
+        produced_artifacts[attempt_history_id] = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "FormalizerAttemptHistory",
+            "artifact_id": attempt_history_id,
+            "content_hash": attempt_history_hash,
+            "validation_label": exc.validation_label,
+            "attempts": attempt_history_rows,
+            "proof_evidence_status": (
+                "FORMALIZER_ATTEMPT_HISTORY_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    produced_artifacts[failure_id] = failure_artifact
     return AgentStepResult(
         status="REVISE" if workspace_continuation_allowed else "BLOCKED",
         rationale=result_rationale,
-        produced_artifacts={failure_id: failure_artifact},
+        produced_artifacts=produced_artifacts,
         observations=(
             EnvironmentObservation(
                 observation_type="formalizer_packet_validation_failure",
@@ -16390,6 +16425,10 @@ def run_research_agent_runtime(
         if _bool_like(payload.get("source_theorem_kernel_verified", False))
         and bool(payload.get("source_theorem_kernel_verified_target_ids", []) or [])
     )
+    formal_closure_summary = _runtime_formal_closure_summary(
+        completion_summary=completion_summary,
+        n_materialized_formal_gap_rows=n_formal_gaps,
+    )
     runtime_resume_policy = (
         "fresh_start"
         if not initial_task_overrides
@@ -16485,7 +16524,9 @@ def run_research_agent_runtime(
             if _bool_like(payload.get("source_llm_proposal_live_generator", False))
         ),
         "n_kernel_verified_subclaims": n_kernel_verified_subclaims,
+        "n_materialized_formal_gap_rows": n_formal_gaps,
         "n_formal_gaps": n_formal_gaps,
+        "formal_closure_summary": formal_closure_summary,
         "n_full_frontier_theorem_proved": n_full_frontier_theorem_proved,
         "n_formalizer_lean_candidate_local_lean_checked": sum(
             payload_int(payload, "n_local_lean_checked")
@@ -18858,6 +18899,55 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
             "final_acceptance_status records the Architect evidence-contract decision, "
             "not theorem proof evidence. Completion status is not simulation evidence "
             "or a claim that remaining formal gaps are closed."
+        ),
+    }
+
+
+def _runtime_formal_closure_summary(
+    *,
+    completion_summary: Mapping[str, Any],
+    n_materialized_formal_gap_rows: int,
+) -> dict[str, Any]:
+    """Separate observed gap rows from target-bound formal closure."""
+
+    raw_rows = completion_summary.get("rows", [])
+    rows = (
+        [row for row in raw_rows if isinstance(row, Mapping)]
+        if isinstance(raw_rows, list)
+        else []
+    )
+    n_questions = len(rows)
+    n_satisfied = sum(
+        1 for row in rows if _bool_like(row.get("formal_satisfied", False))
+    )
+    n_unverified = max(0, n_questions - n_satisfied)
+    materialized_rows = max(0, int(n_materialized_formal_gap_rows or 0))
+    if not n_questions:
+        closure_status = "NO_QUESTION_ROWS"
+    elif n_unverified:
+        closure_status = "FORMAL_CLOSURE_UNVERIFIED"
+    else:
+        closure_status = "ALL_QUESTIONS_FORMALLY_SATISFIED"
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeFormalClosureSummary",
+        "n_questions": n_questions,
+        "n_questions_formal_satisfied": n_satisfied,
+        "n_questions_formal_unverified": n_unverified,
+        "n_materialized_formal_gap_rows": materialized_rows,
+        "formal_closure_verified_for_all_questions": bool(
+            n_questions and not n_unverified
+        ),
+        "formal_closure_status": closure_status,
+        "formal_gap_inventory_status": (
+            "MATERIALIZED_GAP_ROWS_PRESENT"
+            if materialized_rows
+            else "NO_MATERIALIZED_GAP_ROWS"
+        ),
+        "boundary": (
+            "Materialized formal-gap rows are an observed inventory, not an "
+            "exhaustive complement of proof. Zero rows never imply formal closure; "
+            "closure requires each question's target-bound formal_satisfied gate."
         ),
     }
 
