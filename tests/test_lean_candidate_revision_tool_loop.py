@@ -147,9 +147,6 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
         temperature=0.0,
         max_tokens=1200,
         max_turns=4,
-        max_source_updates=2,
-        max_searches=2,
-        max_checks=2,
         max_no_progress_turns=2,
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
@@ -229,10 +226,6 @@ def test_prover_candidates_are_observations_and_only_model_replaces_source() -> 
         temperature=0.0,
         max_tokens=1200,
         max_turns=3,
-        max_source_updates=1,
-        max_searches=1,
-        max_proof_searches=1,
-        max_checks=1,
         max_no_progress_turns=2,
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
@@ -297,10 +290,6 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
         temperature=0.0,
         max_tokens=1200,
         max_turns=4,
-        max_source_updates=1,
-        max_searches=1,
-        max_state_inspections=1,
-        max_checks=2,
         max_no_progress_turns=2,
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
@@ -390,10 +379,6 @@ def test_model_selects_exact_declaration_inspection_inside_same_source_loop() ->
         temperature=0.0,
         max_tokens=1200,
         max_turns=4,
-        max_source_updates=1,
-        max_searches=1,
-        max_declaration_inspections=1,
-        max_checks=2,
         max_no_progress_turns=2,
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
@@ -423,7 +408,7 @@ def test_model_selects_exact_declaration_inspection_inside_same_source_loop() ->
     }
 
 
-def test_lean_candidate_tool_loop_hides_exhausted_actions_before_next_turn() -> None:
+def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() -> None:
     initial = "import Missing.Module\n\ntheorem target : True := by trivial\n"
     revised = "theorem target : True := by exact True.intro\n"
     backend = ScriptedLeanToolBackend(
@@ -455,9 +440,6 @@ def test_lean_candidate_tool_loop_hides_exhausted_actions_before_next_turn() -> 
         temperature=0.0,
         max_tokens=1200,
         max_turns=4,
-        max_source_updates=1,
-        max_searches=1,
-        max_checks=1,
         max_no_progress_turns=2,
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
@@ -475,13 +457,72 @@ def test_lean_candidate_tool_loop_hides_exhausted_actions_before_next_turn() -> 
     assert result.lean_source == revised
     assert [tool.name for tool in backend.requests[1].tools] == [
         "replace_lean_source",
+        "search_formal_environment",
         "check_lean_source",
     ]
     assert [tool.name for tool in backend.requests[2].tools] == [
+        "replace_lean_source",
+        "search_formal_environment",
         "check_lean_source"
     ]
-    assert backend.requests[2].tool_choice == "check_lean_source"
+    assert backend.requests[2].tool_choice == "any"
     assert all(request.disable_parallel_tool_use for request in backend.requests)
+
+
+def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> None:
+    sources = [
+        f"theorem target : True := by\n  exact candidate_{index}\n"
+        for index in range(4)
+    ]
+    backend = ScriptedLeanToolBackend(
+        [
+            response
+            for index, source in enumerate(sources)
+            for response in (
+                _response(
+                    ClientToolCall(
+                        f"edit-{index}",
+                        "replace_lean_source",
+                        {"lean_source": source},
+                    )
+                ),
+                _response(
+                    ClientToolCall(f"check-{index}", "check_lean_source", {})
+                ),
+            )
+        ]
+    )
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Keep revising from each exact compiler observation.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=8,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source="theorem target : True := by\n  sorry\n",
+        check_candidate=lambda source: {
+            "source_hash": stable_hash(source),
+            "compiled": source == sources[-1],
+            "local_lean_stderr": "unknown identifier"
+            if source != sources[-1]
+            else "",
+        },
+        search_formal_environment=lambda query, k: [],
+    )
+
+    assert result.lean_source == sources[-1]
+    assert result.evidence["source_updates"] == 4
+    assert result.evidence["local_lean_checks"] == 4
+    assert all(
+        "replace_lean_source" in {tool.name for tool in request.tools}
+        for request in backend.requests
+    )
 
 
 def test_lean_candidate_tool_loop_hands_off_on_successful_requested_check() -> None:
@@ -512,9 +553,6 @@ def test_lean_candidate_tool_loop_hands_off_on_successful_requested_check() -> N
         temperature=0.0,
         max_tokens=1200,
         max_turns=4,
-        max_source_updates=2,
-        max_searches=1,
-        max_checks=2,
         max_no_progress_turns=2,
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
@@ -550,9 +588,6 @@ def test_lean_candidate_tool_loop_stops_repeated_identical_checks() -> None:
             temperature=0.0,
             max_tokens=1200,
             max_turns=3,
-            max_source_updates=1,
-            max_searches=1,
-            max_checks=3,
             max_no_progress_turns=1,
             candidate_id="target-candidate",
             candidate_lean_declaration="target",
@@ -605,9 +640,6 @@ def test_lean_candidate_tool_loop_does_not_hide_a_check_at_turn_budget() -> None
             temperature=0.0,
             max_tokens=1200,
             max_turns=2,
-            max_source_updates=1,
-            max_searches=1,
-            max_checks=2,
             max_no_progress_turns=2,
             candidate_id="target-candidate",
             candidate_lean_declaration="target",
@@ -656,9 +688,6 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
             temperature=0.0,
             max_tokens=1200,
             max_turns=1,
-            max_source_updates=1,
-            max_searches=1,
-            max_checks=1,
             max_no_progress_turns=1,
             candidate_id="target-candidate",
             candidate_lean_declaration="target",
@@ -1556,4 +1585,6 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
     assert packet["packet_id"] != parent_packet["packet_id"]
     assert packet["model"] == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
     assert evidence["runtime_selected_lean_code"] is False
-    assert backend.requests[0].metadata["client_tool_loop_max_turns"] == 12
+    assert backend.requests[0].metadata["client_tool_loop_max_turns"] == (
+        FormalizerConfig().client_tool_lean_candidate_max_turns
+    )

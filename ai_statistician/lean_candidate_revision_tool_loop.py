@@ -103,12 +103,6 @@ def run_lean_candidate_revision_tool_loop(
     temperature: float,
     max_tokens: int,
     max_turns: int,
-    max_source_updates: int,
-    max_searches: int,
-    max_proof_searches: int = 1,
-    max_state_inspections: int = 2,
-    max_declaration_inspections: int = 2,
-    max_checks: int,
     max_no_progress_turns: int,
     candidate_id: str,
     candidate_lean_declaration: str,
@@ -128,22 +122,10 @@ def run_lean_candidate_revision_tool_loop(
         raise ValueError("Lean candidate tool loop requires nonempty source")
     for value, label in (
         (max_turns, "turn"),
-        (max_source_updates, "source-update"),
-        (max_searches, "search"),
-        (max_checks, "check"),
         (max_no_progress_turns, "no-progress"),
     ):
         if value < 1:
             raise ValueError(f"Lean candidate {label} budget must be positive")
-    if search_proof_candidates is not None and max_proof_searches < 1:
-        raise ValueError("Lean candidate proof-search budget must be positive")
-    if inspect_lean_state is not None and max_state_inspections < 1:
-        raise ValueError("Lean state-inspection budget must be positive")
-    if (
-        inspect_lean_declaration is not None
-        and max_declaration_inspections < 1
-    ):
-        raise ValueError("Lean declaration-inspection budget must be positive")
 
     parent_source = str(initial_source)
     parent_source_hash = stable_hash(parent_source)
@@ -168,11 +150,6 @@ def run_lean_candidate_revision_tool_loop(
     )
 
     def check_current_source() -> dict[str, Any]:
-        if state["checks"] >= max_checks:
-            raise ClientToolInputError(
-                "local Lean check budget is exhausted; submit only if the current "
-                "source already has a successful bound check"
-            )
         raw_result = check_candidate(str(state["source"]))
         if not isinstance(raw_result, Mapping):
             raise ClientToolInputError("Lean checker returned a non-object result")
@@ -195,11 +172,6 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError(
                     "replace_lean_source requires exactly lean_source"
                 )
-            if state["source_updates"] >= max_source_updates:
-                raise ClientToolInputError(
-                    "Lean source-update budget is exhausted; check the current source "
-                    "or stop this bounded attempt"
-                )
             source = tool_input.get("lean_source")
             if not isinstance(source, str) or not source.strip():
                 raise ClientToolInputError("lean_source must be a nonempty string")
@@ -220,10 +192,6 @@ def run_lean_candidate_revision_tool_loop(
                     "changed": changed,
                     "source_hash": source_hash,
                     "source_updates": state["source_updates"],
-                    "maximum_source_updates": max_source_updates,
-                    "remaining_source_updates": (
-                        max_source_updates - state["source_updates"]
-                    ),
                 },
                 state_changed=changed,
                 observation_key="source:" + source_hash,
@@ -233,11 +201,6 @@ def run_lean_candidate_revision_tool_loop(
             if set(tool_input) - {"query", "max_results"}:
                 raise ClientToolInputError(
                     "search_formal_environment accepts query and optional max_results"
-                )
-            if state["searches"] >= max_searches:
-                raise ClientToolInputError(
-                    "formal-environment search budget is exhausted; choose the next "
-                    "source or check action from the observations already returned"
                 )
             query = tool_input.get("query")
             if not isinstance(query, str) or not query.strip():
@@ -253,8 +216,6 @@ def run_lean_candidate_revision_tool_loop(
                 "query": query.strip(),
                 "results": deepcopy(results),
                 "searches": state["searches"],
-                "maximum_searches": max_searches,
-                "remaining_searches": max_searches - state["searches"],
                 "proof_evidence_status": "FORMAL_SOURCE_SEARCH_NOT_PROOF_EVIDENCE",
             }
             return ClientToolExecutionResult(
@@ -275,11 +236,6 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError(
                     "search_proof_candidates accepts query and optional max_results"
                 )
-            if state["proof_searches"] >= max_proof_searches:
-                raise ClientToolInputError(
-                    "proof-candidate search budget is exhausted; revise or check the "
-                    "current source from the observations already returned"
-                )
             query = tool_input.get("query")
             if not isinstance(query, str) or not query.strip():
                 raise ClientToolInputError("proof-search query must be a nonempty string")
@@ -299,10 +255,6 @@ def run_lean_candidate_revision_tool_loop(
                 "query": query.strip(),
                 "results": deepcopy(results),
                 "proof_searches": state["proof_searches"],
-                "maximum_proof_searches": max_proof_searches,
-                "remaining_proof_searches": (
-                    max_proof_searches - state["proof_searches"]
-                ),
                 "proof_evidence_status": (
                     "PROOF_SEARCH_RESULT_NOT_PROOF_EVIDENCE"
                 ),
@@ -328,11 +280,6 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError("Lean state inspection is unavailable")
             if tool_input:
                 raise ClientToolInputError("inspect_lean_state takes an empty object")
-            if state["state_inspections"] >= max_state_inspections:
-                raise ClientToolInputError(
-                    "Lean state-inspection budget is exhausted; revise or check the "
-                    "current source from the observations already returned"
-                )
             if not state["last_check"]:
                 raise ClientToolInputError(
                     "check_lean_source must run before inspect_lean_state so the "
@@ -349,10 +296,6 @@ def run_lean_candidate_revision_tool_loop(
                 "source_hash": state["source_hash"],
                 "observation": deepcopy(result),
                 "state_inspections": state["state_inspections"],
-                "maximum_state_inspections": max_state_inspections,
-                "remaining_state_inspections": (
-                    max_state_inspections - state["state_inspections"]
-                ),
                 "proof_evidence_status": (
                     "LEAN_STATE_INSPECTION_NOT_PROOF_EVIDENCE"
                 ),
@@ -376,11 +319,6 @@ def run_lean_candidate_revision_tool_loop(
             if set(tool_input) - {"symbol", "context_lines"}:
                 raise ClientToolInputError(
                     "inspect_lean_declaration accepts symbol and optional context_lines"
-                )
-            if state["declaration_inspections"] >= max_declaration_inspections:
-                raise ClientToolInputError(
-                    "Lean declaration-inspection budget is exhausted; revise or "
-                    "check the current source from observations already returned"
                 )
             if not state["last_check"]:
                 raise ClientToolInputError(
@@ -414,11 +352,6 @@ def run_lean_candidate_revision_tool_loop(
                 "symbol": symbol.strip(),
                 "observation": deepcopy(result),
                 "declaration_inspections": state["declaration_inspections"],
-                "maximum_declaration_inspections": max_declaration_inspections,
-                "remaining_declaration_inspections": (
-                    max_declaration_inspections
-                    - state["declaration_inspections"]
-                ),
                 "proof_evidence_status": (
                     "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
                 ),
@@ -445,8 +378,6 @@ def run_lean_candidate_revision_tool_loop(
                 **check_result,
                 "ok": compiled,
                 "checks": state["checks"],
-                "maximum_checks": max_checks,
-                "remaining_checks": max_checks - state["checks"],
                 "proof_evidence_status": (
                     "LOCAL_LEAN_OBSERVATION_REQUIRES_RUNTIME_PROMOTION_GATE"
                 ),
@@ -505,52 +436,18 @@ def run_lean_candidate_revision_tool_loop(
         _turn_index: int,
         available_tools: tuple[ClientToolDefinition, ...],
     ) -> tuple[ClientToolDefinition, ...]:
-        remaining = {
-            "replace_lean_source": state["source_updates"] < max_source_updates,
-            "search_formal_environment": state["searches"] < max_searches,
-            "search_proof_candidates": (
-                search_proof_candidates is not None
-                and state["proof_searches"] < max_proof_searches
-            ),
-            "inspect_lean_state": (
-                inspect_lean_state is not None
-                and state["state_inspections"] < max_state_inspections
-                and bool(state["last_check"])
-            ),
-            "inspect_lean_declaration": (
-                inspect_lean_declaration is not None
-                and state["declaration_inspections"]
-                < max_declaration_inspections
-                and bool(state["last_check"])
-            ),
-            "check_lean_source": state["checks"] < max_checks,
-        }
-        selected = tuple(
-            tool for tool in available_tools if remaining.get(tool.name, False)
-        )
-        if selected:
-            return selected
-        # Keep one declared action so the generic loop can return a bounded,
-        # model-visible exhaustion observation instead of issuing a tool-free turn.
         return tuple(
-            tool for tool in available_tools if tool.name == "check_lean_source"
+            tool
+            for tool in available_tools
+            if tool.name
+            not in {"inspect_lean_state", "inspect_lean_declaration"}
+            or bool(state["last_check"])
         )
 
-    # Tool-specific counters bound expensive execution. With parallel calls disabled,
-    # the turn budget is also a strict bound while leaving room for rejected calls.
-    max_tool_calls = max(
-        max_turns,
-        max_source_updates
-        + max_searches
-        + (max_proof_searches if search_proof_candidates is not None else 0)
-        + (max_state_inspections if inspect_lean_state is not None else 0)
-        + (
-            max_declaration_inspections
-            if inspect_lean_declaration is not None
-            else 0
-        )
-        + max_checks,
-    )
+    # One global budget lets the model allocate effort between editing, retrieval,
+    # inspection, and compilation. Only state-dependent inspection preconditions
+    # affect tool visibility; previously used actions never disappear mid-session.
+    max_tool_calls = max_turns
     try:
         loop = run_bounded_client_tool_loop(
             backend=provider,

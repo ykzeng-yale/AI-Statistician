@@ -167,8 +167,6 @@ def run_scientific_code_workspace(
     temperature: float,
     max_tokens: int,
     max_turns: int,
-    max_source_updates: int,
-    max_checks: int,
     max_no_progress_turns: int,
     artifact_id: str,
     initial_code_draft: Mapping[str, Any] | None,
@@ -183,8 +181,6 @@ def run_scientific_code_workspace(
         raise ValueError("scientific code workspace requires a bound artifact id")
     for value, label in (
         (max_turns, "turn"),
-        (max_source_updates, "source-update"),
-        (max_checks, "check"),
         (max_no_progress_turns, "no-progress"),
     ):
         if value < 1:
@@ -228,8 +224,6 @@ def run_scientific_code_workspace(
                     "replace_scientific_source requires the complete language, "
                     "execution_profile, dependencies, entrypoint, and code candidate"
                 )
-            if state["source_updates"] >= max_source_updates:
-                raise ClientToolInputError("scientific source-update budget is exhausted")
             draft = _complete_code_draft(tool_input)
             draft_hash = stable_hash(draft)
             changed = draft_hash != state["code_draft_hash"]
@@ -248,9 +242,6 @@ def run_scientific_code_workspace(
                     "changed": True,
                     "code_draft_hash": draft_hash,
                     "source_updates": state["source_updates"],
-                    "remaining_source_updates": (
-                        max_source_updates - state["source_updates"]
-                    ),
                 },
                 state_changed=True,
                 observation_key="scientific-source:" + draft_hash,
@@ -263,8 +254,6 @@ def run_scientific_code_workspace(
                 raise ClientToolInputError(
                     "author complete scientific source before requesting execution"
                 )
-            if state["checks"] >= max_checks:
-                raise ClientToolInputError("scientific sandbox check budget is exhausted")
             raw = check_candidate(deepcopy(dict(state["code_draft"])))
             if not isinstance(raw, Mapping):
                 raise ClientToolInputError("scientific sandbox returned a non-object result")
@@ -282,7 +271,6 @@ def run_scientific_code_workspace(
                     **check,
                     "ok": accepted,
                     "checks": state["checks"],
-                    "remaining_checks": max_checks - state["checks"],
                     "execution_evidence_status": (
                         "SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE"
                     ),
@@ -351,16 +339,10 @@ def run_scientific_code_workspace(
     )
 
     def select_tools(_turn_index, available_tools):
-        enabled = {
-            "replace_scientific_source": (
-                state["source_updates"] < max_source_updates
-            ),
-            "run_scientific_source": bool(state["code_draft"])
-            and state["checks"] < max_checks,
-        }
-        selected = tuple(tool for tool in available_tools if enabled[tool.name])
-        return selected or tuple(
-            tool for tool in available_tools if tool.name == "run_scientific_source"
+        return tuple(
+            tool
+            for tool in available_tools
+            if tool.name != "run_scientific_source" or bool(state["code_draft"])
         )
 
     try:
@@ -369,7 +351,7 @@ def run_scientific_code_workspace(
             request=request,
             execute_tool=execute_tool,
             max_turns=max_turns,
-            max_tool_calls=max(max_turns, max_source_updates + max_checks),
+            max_tool_calls=max_turns,
             max_no_progress_turns=max_no_progress_turns,
             select_tools=select_tools,
         )

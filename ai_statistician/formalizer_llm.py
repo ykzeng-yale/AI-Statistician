@@ -100,13 +100,7 @@ class FormalizerConfig:
     provider_name: str = "anthropic"
     max_validation_retries: int = 1
     use_client_tool_lean_candidate_revision: bool = True
-    client_tool_lean_candidate_max_turns: int = 12
-    client_tool_lean_candidate_max_source_updates: int = 3
-    client_tool_lean_candidate_max_searches: int = 3
-    client_tool_lean_candidate_max_proof_searches: int = 1
-    client_tool_lean_candidate_max_state_inspections: int = 2
-    client_tool_lean_candidate_max_declaration_inspections: int = 2
-    client_tool_lean_candidate_max_checks: int = 4
+    client_tool_lean_candidate_max_turns: int = 20
     client_tool_lean_candidate_max_no_progress_turns: int = 2
 
 
@@ -271,30 +265,6 @@ class LLMFormalizerProofEngineerAgent:
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
         )
-        effective_max_checks = max(
-            self.config.client_tool_lean_candidate_max_checks,
-            self.config.client_tool_lean_candidate_max_source_updates + 1,
-        )
-        available_action_budget = (
-            self.config.client_tool_lean_candidate_max_source_updates
-            + self.config.client_tool_lean_candidate_max_searches
-            + effective_max_checks
-            + (
-                self.config.client_tool_lean_candidate_max_proof_searches
-                if search_proof_candidates is not None
-                else 0
-            )
-            + (
-                self.config.client_tool_lean_candidate_max_state_inspections
-                if inspect_lean_state is not None
-                else 0
-            )
-            + (
-                self.config.client_tool_lean_candidate_max_declaration_inspections
-                if inspect_lean_declaration is not None
-                else 0
-            )
-        )
         loop = run_lean_candidate_revision_tool_loop(
             provider=self.provider,
             system_prompt=(
@@ -320,29 +290,7 @@ class LLMFormalizerProofEngineerAgent:
             model_tier=self.config.model_tier,
             temperature=self.config.temperature,
             max_tokens=self.config.max_tokens,
-            max_turns=max(
-                1,
-                self.config.client_tool_lean_candidate_max_turns,
-                available_action_budget,
-            ),
-            max_source_updates=max(
-                1,
-                self.config.client_tool_lean_candidate_max_source_updates,
-            ),
-            max_searches=max(1, self.config.client_tool_lean_candidate_max_searches),
-            max_proof_searches=max(
-                1,
-                self.config.client_tool_lean_candidate_max_proof_searches,
-            ),
-            max_state_inspections=max(
-                1,
-                self.config.client_tool_lean_candidate_max_state_inspections,
-            ),
-            max_declaration_inspections=max(
-                1,
-                self.config.client_tool_lean_candidate_max_declaration_inspections,
-            ),
-            max_checks=max(1, effective_max_checks),
+            max_turns=max(1, self.config.client_tool_lean_candidate_max_turns),
             max_no_progress_turns=max(
                 1,
                 self.config.client_tool_lean_candidate_max_no_progress_turns,

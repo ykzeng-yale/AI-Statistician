@@ -66,8 +66,6 @@ class SimulationEngineerConfig:
     max_validation_retries: int = 1
     use_client_tool_code_workspace: bool = True
     client_tool_code_max_turns: int = 8
-    client_tool_code_max_source_updates: int = 4
-    client_tool_code_max_checks: int = 4
     client_tool_code_max_no_progress_turns: int = 2
 
 
@@ -297,10 +295,6 @@ class LLMSimulationEngineerAgent:
             temperature=self.config.temperature,
             max_tokens=self.config.max_tokens,
             max_turns=max(1, self.config.client_tool_code_max_turns),
-            max_source_updates=max(
-                1, self.config.client_tool_code_max_source_updates
-            ),
-            max_checks=max(1, self.config.client_tool_code_max_checks),
             max_no_progress_turns=max(
                 1, self.config.client_tool_code_max_no_progress_turns
             ),
