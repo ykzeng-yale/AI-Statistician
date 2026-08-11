@@ -8,6 +8,7 @@ from ai_statistician.model_backend import (
     ClientToolTurnResponse,
 )
 from ai_statistician.scientific_code_workspace import (
+    SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
     SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
     run_scientific_code_workspace,
     scientific_workspace_prototype_observation,
@@ -193,6 +194,88 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL
     ]
+    assert len(backend.requests) == 1
+
+
+def test_dependency_owner_failure_terminates_without_more_local_edits() -> None:
+    initial = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates):\n    return {'value': 0}\n",
+    }
+    submitted = {
+        **initial,
+        "code": "def run_sandbox(seed, replicates):\n    return {'value': 1}\n",
+    }
+    unused = {
+        **initial,
+        "code": "def run_sandbox(seed, replicates):\n    return {'value': 2}\n",
+    }
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="submit-1",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=submitted,
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="must-not-run",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=unused,
+                )
+            ),
+        ]
+    )
+    source_owner = {
+        "owner_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": "algorithm:accepted",
+        "source_manifest_hash": "sha256:manifest",
+        "artifact_ids": ["estimator-a"],
+        "artifact_hashes": {"estimator-a": "sha256:source"},
+    }
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Revise only source owned by this workspace.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_no_progress_turns=2,
+        artifact_id="question:dependency-observation",
+        initial_code_draft=initial,
+        initial_check_result={
+            "code_draft_hash": stable_hash(initial),
+            "accepted": False,
+            "stderr": "local callback mismatch",
+        },
+        check_candidate=lambda candidate: {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": False,
+            "source_iteration_disposition": (
+                SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+            ),
+            "source_owner": source_owner,
+            "stderr": "bound dependency failed in consumer execution",
+        },
+    )
+
+    assert dict(result.code_draft) == submitted
+    assert result.check_result["accepted"] is False
+    assert result.evidence["accepted"] is False
+    assert result.evidence["source_iteration_disposition"] == (
+        SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+    )
+    assert result.evidence["source_owner"] == source_owner
+    assert result.evidence["source_updates"] == 1
+    assert result.evidence["sandbox_checks"] == 1
     assert len(backend.requests) == 1
 
 

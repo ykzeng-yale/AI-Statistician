@@ -26,6 +26,7 @@ from ai_statistician.scientific_sandbox import (
     scientific_python_safety_errors,
 )
 from ai_statistician.scientific_code_workspace import (
+    SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
@@ -882,6 +883,95 @@ def test_runtime_simulation_dispatch_records_mechanical_estimator_reuse(
     assert receipt["mechanical_estimator_invocation_verified"] is True
     assert receipt["mechanically_invoked_estimator_ids"] == ["candidate"]
     assert receipt["all_handoff_estimators_invoked"] is False
+
+
+def test_runtime_simulation_dependency_failure_names_exact_source_owner(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    algorithm = "def run_estimator(request):\n    return {'estimate': float('inf')}\n"
+    simulation = (
+        "def run_sandbox(seed, replicates, estimators):\n"
+        "    return estimators['candidate']({'seed': seed})\n"
+    )
+    source_hash = stable_hash(algorithm)
+    execution = ScientificSandboxExecution(
+        status="FAILED",
+        language="python",
+        execution_profile="scientific_wasm",
+        backend="pyodide",
+        isolation_provider="test-wasm-isolation",
+        dependencies=(),
+        execution_attempted=True,
+        returncode=1,
+        metrics={},
+        errors=("accepted estimator returned a non-finite response",),
+        stdout_summary="",
+        stderr_summary="accepted estimator traceback",
+        result_parse_error="",
+        code_path=str(tmp_path / "simulation.py"),
+        request_path=str(tmp_path / "request.json"),
+        result_path=str(tmp_path / "result.json"),
+        code_hash=stable_hash(simulation),
+        request_hash="request-hash",
+        result_hash="",
+        subprocess_environment_keys=("HOME", "PATH"),
+        resource_limits={"cpu_seconds": 5},
+        execution_envelope_hash="execution-envelope-hash",
+        estimator_code_hashes={"candidate": source_hash},
+        estimator_invocation_counts={"candidate": 1},
+        estimator_binding_hash=stable_hash({"candidate": source_hash}),
+        estimator_runtime_failure_ids=("candidate",),
+        estimator_runtime_errors=(
+            "ACCEPTED_ESTIMATOR_RUNTIME_ERROR: non-finite response",
+        ),
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "execute_scientific_sandbox",
+        lambda **_kwargs: execution,
+    )
+    handoff = {
+        "algorithm_sandbox_manifest_id": "algorithm:accepted",
+        "algorithm_sandbox_manifest_hash": "sha256:accepted-manifest",
+        "exact_algorithm_artifacts": [
+            {
+                "estimator_id": "candidate",
+                "language": "python",
+                "dependencies": [],
+                "exact_source_code": algorithm,
+                "exact_source_hash": source_hash,
+            }
+        ],
+    }
+
+    prototype, _ = runtime_module._run_generated_simulation_sandbox(
+        sandbox_dir=tmp_path,
+        simulation_id="consumer-probe",
+        code_draft={
+            "required_estimator_ids": ["candidate"],
+            "language": "python",
+            "execution_profile": "stdlib",
+            "dependencies": [],
+            "entrypoint": "run_sandbox",
+            "code": simulation,
+        },
+        upstream_algorithm_handoff=handoff,
+        n_runs=8,
+        seed=11,
+        timeout_s=5,
+    )
+
+    assert prototype["source_iteration_disposition"] == (
+        SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+    )
+    assert prototype["source_owner"] == {
+        "owner_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": "algorithm:accepted",
+        "source_manifest_hash": "sha256:accepted-manifest",
+        "artifact_ids": ["candidate"],
+        "artifact_hashes": {"candidate": source_hash},
+    }
 
 
 def test_estimator_abi_failure_preserves_typed_observation() -> None:

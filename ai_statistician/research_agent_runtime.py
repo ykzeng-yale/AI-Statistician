@@ -101,6 +101,7 @@ from .scientific_sandbox import (
     normalized_scientific_dependencies,
 )
 from .scientific_code_workspace import (
+    SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
     scientific_workspace_prototype_observation,
 )
@@ -20060,11 +20061,20 @@ def _run_source_owner_scientific_workspace(
         last_checked_prototype.clear()
         last_checked_prototype.update(deepcopy(dict(prototype)))
         tool_calls.append(tool_call)
-        return {
+        check = {
             "code_draft_hash": stable_hash(dict(candidate)),
             "accepted": prototype.get("smoke_passed") is True,
             "prototype": scientific_workspace_prototype_observation(prototype),
         }
+        disposition = str(
+            prototype.get("source_iteration_disposition", "") or ""
+        ).strip()
+        if disposition:
+            check["source_iteration_disposition"] = disposition
+        source_owner = prototype.get("source_owner", {})
+        if isinstance(source_owner, Mapping) and source_owner:
+            check["source_owner"] = deepcopy(dict(source_owner))
+        return check
 
     if source_deferred:
         if not can_use_workspace:
@@ -20103,7 +20113,12 @@ def _run_source_owner_scientific_workspace(
     else:
         prototype, tool_call = execute_candidate(code_draft)
         tool_calls.append(tool_call)
-        if prototype.get("smoke_passed") is True or not can_use_workspace:
+        if (
+            prototype.get("smoke_passed") is True
+            or prototype.get("source_iteration_disposition")
+            == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+            or not can_use_workspace
+        ):
             return prototype, tool_calls
         workspace_draft = {
             key: deepcopy(code_draft[key])
@@ -20409,6 +20424,47 @@ def _run_generated_simulation_sandbox(
     if execution_smoke_passed and metric_gate_errors:
         prototype["prototype_status"] = "FAILED_METRIC_GATE"
     prototype["boundary"] = simulation_boundary
+    dependency_failure_ids = list(
+        prototype.get("estimator_runtime_failure_ids", []) or []
+    )
+    if prototype.get("estimator_binding_errors") and not dependency_failure_ids:
+        dependency_failure_ids = list(required_estimator_ids)
+    source_manifest_id = str(
+        (upstream_algorithm_handoff or {}).get(
+            "algorithm_sandbox_manifest_id", ""
+        )
+        or ""
+    ).strip()
+    source_manifest_hash = str(
+        (upstream_algorithm_handoff or {}).get(
+            "algorithm_sandbox_manifest_hash", ""
+        )
+        or ""
+    ).strip()
+    bound_hashes = dict(prototype.get("bound_estimator_code_hashes", {}) or {})
+    exact_dependency_binding = bool(
+        dependency_failure_ids
+        and source_manifest_id
+        and source_manifest_hash
+        and all(
+            str(bound_hashes.get(artifact_id, "") or "").strip()
+            for artifact_id in dependency_failure_ids
+        )
+    )
+    if exact_dependency_binding:
+        prototype["source_iteration_disposition"] = (
+            SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+        )
+        prototype["source_owner"] = {
+            "owner_subsystem": "AlgorithmEngineer",
+            "source_manifest_id": source_manifest_id,
+            "source_manifest_hash": source_manifest_hash,
+            "artifact_ids": dependency_failure_ids,
+            "artifact_hashes": {
+                artifact_id: str(bound_hashes.get(artifact_id, "") or "")
+                for artifact_id in dependency_failure_ids
+            },
+        }
     tool_language = normalized_generated_code_language(code_draft.get("language"))
     wrapped_tool_call = ToolCallRecord(
         tool_name=(

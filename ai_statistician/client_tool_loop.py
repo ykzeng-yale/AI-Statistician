@@ -37,7 +37,7 @@ class ClientToolExecutionResult:
 
 @dataclass(frozen=True)
 class ClientToolLoopResult:
-    """Successful bounded loop result; acceptance remains caller-owned."""
+    """Terminal bounded loop result; acceptance remains caller-owned."""
 
     terminal_payload: Mapping[str, Any]
     messages: tuple[Mapping[str, Any], ...]
@@ -392,6 +392,7 @@ def run_bounded_client_tool_loop(
                 tool_definitions.get(call.name) is not None
                 and tool_definitions[call.name].terminal
                 and execution.is_error
+                and not execution.terminal
             ):
                 terminal_attempt_rejected = True
             observation_key = execution.observation_key or stable_hash(
@@ -429,7 +430,7 @@ def run_bounded_client_tool_loop(
                     "observation_key": observation_key,
                 }
             )
-            if execution.terminal and not execution.is_error:
+            if execution.terminal:
                 if not isinstance(execution.terminal_payload, Mapping):
                     raise loop_error(
                         "terminal client tool returned no payload",

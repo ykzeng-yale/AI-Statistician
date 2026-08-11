@@ -31,6 +31,10 @@ ScientificCodeCheck = Callable[[Mapping[str, Any]], Mapping[str, Any]]
 SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS = "native_client_tools"
 SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET = "structured_packet"
 SCIENTIFIC_SOURCE_SUBMISSION_TOOL = "submit_scientific_source"
+SCIENTIFIC_SOURCE_REVISE_CURRENT = "revise_current_source"
+SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER = (
+    "return_to_bound_dependency_owner"
+)
 _SCIENTIFIC_PACKAGES = (
     PYTHON_SCIENTIFIC_DEPENDENCIES + R_SCIENTIFIC_DEPENDENCIES
 )
@@ -268,6 +272,54 @@ def run_scientific_code_workspace(
             state["checks"] += 1
             state["last_check"] = check
             accepted = check.get("accepted") is True
+            disposition = str(
+                check.get("source_iteration_disposition", "") or ""
+            ).strip()
+            if not disposition:
+                disposition = (
+                    "accepted" if accepted else SCIENTIFIC_SOURCE_REVISE_CURRENT
+                )
+                check["source_iteration_disposition"] = disposition
+            if disposition not in {
+                "accepted",
+                SCIENTIFIC_SOURCE_REVISE_CURRENT,
+                SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
+            }:
+                raise ClientToolInputError(
+                    "scientific sandbox returned an unsupported source iteration "
+                    "disposition"
+                )
+            if accepted != (disposition == "accepted"):
+                raise ClientToolInputError(
+                    "scientific sandbox acceptance and source iteration disposition "
+                    "disagree"
+                )
+            terminal = bool(
+                accepted
+                or disposition == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+            )
+            if disposition == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER:
+                source_owner = check.get("source_owner", {})
+                if not (
+                    isinstance(source_owner, Mapping)
+                    and str(source_owner.get("owner_subsystem", "") or "").strip()
+                    and str(source_owner.get("source_manifest_id", "") or "").strip()
+                    and str(source_owner.get("source_manifest_hash", "") or "").strip()
+                    and isinstance(source_owner.get("artifact_ids"), Sequence)
+                    and not isinstance(source_owner.get("artifact_ids"), (str, bytes))
+                    and source_owner.get("artifact_ids")
+                    and isinstance(source_owner.get("artifact_hashes"), Mapping)
+                    and all(
+                        str(
+                            source_owner["artifact_hashes"].get(artifact_id, "")
+                            or ""
+                        ).strip()
+                        for artifact_id in source_owner["artifact_ids"]
+                    )
+                ):
+                    raise ClientToolInputError(
+                        "dependency-owner disposition requires bound source owner refs"
+                    )
             return ClientToolExecutionResult(
                 content={
                     **check,
@@ -281,14 +333,14 @@ def run_scientific_code_workspace(
                 },
                 is_error=not accepted,
                 state_changed=True,
-                terminal=accepted,
+                terminal=terminal,
                 terminal_payload=(
                     {
                         "code_draft": deepcopy(dict(state["code_draft"])),
                         "code_draft_hash": state["code_draft_hash"],
                         "check_result": check,
                     }
-                    if accepted
+                    if terminal
                     else None
                 ),
                 observation_key="scientific-submission:"
@@ -379,15 +431,23 @@ def run_scientific_code_workspace(
     draft = _complete_code_draft(terminal.get("code_draft", {}))
     check = dict(terminal.get("check_result", {}))
     draft_hash = stable_hash(draft)
+    disposition = str(
+        check.get("source_iteration_disposition", "") or ""
+    ).strip()
     if (
         terminal.get("code_draft_hash") != draft_hash
         or check.get("code_draft_hash") != draft_hash
-        or check.get("accepted") is not True
+        or disposition
+        not in {"accepted", SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER}
+        or (check.get("accepted") is True) != (disposition == "accepted")
     ):
         raise PacketValidationError(
             validation_label="LLM scientific code workspace",
             attempts=loop.turns,
-            errors=["terminal payload is not bound to an accepted current candidate"],
+            errors=[
+                "terminal payload is not bound to an accepted candidate or exact "
+                "dependency source owner"
+            ],
             history=[deepcopy(dict(row)) for row in loop.history],
         )
 
@@ -418,7 +478,11 @@ def run_scientific_code_workspace(
         "transcript_fingerprint": loop.transcript_fingerprint,
         "model_owned_source": True,
         "runtime_edited_source": False,
-        "accepted": True,
+        "accepted": check.get("accepted") is True,
+        "source_iteration_disposition": disposition,
+        "source_owner": deepcopy(dict(check.get("source_owner", {})))
+        if isinstance(check.get("source_owner", {}), Mapping)
+        else {},
         "proof_evidence_status": "SCIENTIFIC_CODE_EXECUTION_NOT_PROOF_EVIDENCE",
     }
     return ScientificCodeWorkspaceResult(
