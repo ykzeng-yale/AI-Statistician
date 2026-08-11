@@ -14,7 +14,7 @@ from .client_tool_loop import (
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
-from .llm_json_repair import (
+from .structured_output_retry import (
     PacketValidationError,
     extract_json_object,
     generate_validated_json_packet,
@@ -2881,7 +2881,7 @@ def review_architect_theory_execution_preflight(
     max_tokens: int,
     temperature: float,
     provider_name: str,
-    max_repair_attempts: int,
+    max_validation_retries: int,
     prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
     source_retriever: Any = None,
 ) -> dict[str, Any]:
@@ -2971,5 +2971,5 @@ def review_architect_theory_execution_preflight(
             material=material,
         ),
         validation_label="Architect theory-to-execution preflight review packet",
-        max_repair_attempts=max_repair_attempts,
+        max_validation_retries=max_validation_retries,
     )

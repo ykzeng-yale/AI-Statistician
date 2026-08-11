@@ -10,7 +10,6 @@ from ai_statistician.fresh_start_cross_task_e2e import (
 )
 from ai_statistician.model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER
 from ai_statistician.research_agent_runtime import (
-    _generated_sandbox_feedback_id,
     _generated_sandbox_prototype_artifact_id,
 )
 
@@ -38,8 +37,8 @@ def _complete_task(
     formalization_id = f"formalization_manifest:{question_id}"
     target_id = f"{question_id}:source_theorem"
     lineage_id = f"source_lineage:{question_id}"
-    proof_manifest_id = f"external_exact_proof_candidate_rerun:{question_id}"
-    proof_state_feedback_id = f"proof_state_feedback:{question_id}"
+    proof_manifest_id = f"lean_kernel_promotion:{question_id}"
+    lean_tool_loop_id = f"formalizer_lean_candidate_client_tool_loop:{question_id}"
     question = {"id": question_id, "tags": [f"task_family:{task_family}"]}
     algorithm_failed_id = f"algorithm_sandbox_manifest:{question_id}:failed"
     simulation_failed_id = f"simulation_manifest:{question_id}:failed"
@@ -59,12 +58,6 @@ def _complete_task(
     algorithm_failed_prototype["prototype_artifact_id"] = (
         _generated_sandbox_prototype_artifact_id(algorithm_failed_prototype)
     )
-    algorithm_feedback_id = _generated_sandbox_feedback_id(
-        feedback_type="algorithm_sandbox_execution_feedback",
-        source_manifest_id=algorithm_failed_id,
-        failure_classification="generated_algorithm_sandbox_execution_failed",
-        prototype_rows=[algorithm_failed_prototype],
-    )
     algorithm_passed_prototype = {
         "estimator_id": f"algorithm:{question_id}",
         "executor": "generated_python_sandbox",
@@ -79,26 +72,32 @@ def _complete_task(
     algorithm_passed_prototype["prototype_artifact_id"] = (
         _generated_sandbox_prototype_artifact_id(algorithm_passed_prototype)
     )
-    algorithm_passed_prototype["repair_lineage"] = {
-        "feedback_id": algorithm_feedback_id,
-        "feedback_type": "algorithm_sandbox_execution_feedback",
-        "feedback_failure_classification": (
-            "generated_algorithm_sandbox_execution_failed"
+    algorithm_passed_prototype["scientific_code_workspace"] = {
+        "artifact_kind": "ScientificCodeWorkspaceResult",
+        "artifact_id": f"{question_id}:algorithm:{question_id}",
+        "parent_code_draft_hash": stable_hash(
+            f"bad algorithm draft:{question_id}"
         ),
-        "parent_manifest_id": algorithm_failed_id,
-        "parent_prototype_artifact_ids": [
-            algorithm_failed_prototype["prototype_artifact_id"]
-        ],
-        "parent_script_hashes": [algorithm_failed_prototype["script_hash"]],
-        "child_prototype_artifact_id": algorithm_passed_prototype[
-            "prototype_artifact_id"
-        ],
-        "child_script_hash": algorithm_passed_prototype["script_hash"],
-        "child_proposal_id": algorithm_passed_prototype[
-            "source_llm_proposal_id"
-        ],
-        "feedback_supplied_to_generator": True,
-        "lineage_contract_complete": True,
+        "submitted_code_draft_hash": stable_hash(
+            f"revised algorithm draft:{question_id}"
+        ),
+        "initial_check_result_hash": stable_hash(
+            f"algorithm failure:{question_id}"
+        ),
+        "terminal_check_result_hash": stable_hash(
+            f"algorithm pass:{question_id}"
+        ),
+        "transcript_fingerprint": stable_hash(
+            f"algorithm workspace:{question_id}"
+        ),
+        "initial_check_accepted": False,
+        "source_changed": True,
+        "source_updates": 1,
+        "sandbox_checks": 1,
+        "runtime_executed_tool_calls": 2,
+        "model_owned_source": True,
+        "runtime_edited_source": False,
+        "accepted": True,
     }
     simulation_failed_prototype = {
         "simulation_id": f"simulation:{question_id}",
@@ -115,12 +114,6 @@ def _complete_task(
     simulation_failed_prototype["prototype_artifact_id"] = (
         _generated_sandbox_prototype_artifact_id(simulation_failed_prototype)
     )
-    simulation_feedback_id = _generated_sandbox_feedback_id(
-        feedback_type="generated_simulation_sandbox_execution_feedback",
-        source_manifest_id=simulation_failed_id,
-        failure_classification="generated_simulation_sandbox_metric_gate_failed",
-        prototype_rows=[simulation_failed_prototype],
-    )
     simulation_passed_prototype = {
         "simulation_id": f"simulation:{question_id}",
         "executor": "generated_simulation_sandbox",
@@ -135,26 +128,32 @@ def _complete_task(
     simulation_passed_prototype["prototype_artifact_id"] = (
         _generated_sandbox_prototype_artifact_id(simulation_passed_prototype)
     )
-    simulation_passed_prototype["repair_lineage"] = {
-        "feedback_id": simulation_feedback_id,
-        "feedback_type": "generated_simulation_sandbox_execution_feedback",
-        "feedback_failure_classification": (
-            "generated_simulation_sandbox_metric_gate_failed"
+    simulation_passed_prototype["scientific_code_workspace"] = {
+        "artifact_kind": "ScientificCodeWorkspaceResult",
+        "artifact_id": f"{question_id}:simulation:{question_id}",
+        "parent_code_draft_hash": stable_hash(
+            f"bad simulation draft:{question_id}"
         ),
-        "parent_manifest_id": simulation_failed_id,
-        "parent_prototype_artifact_ids": [
-            simulation_failed_prototype["prototype_artifact_id"]
-        ],
-        "parent_script_hashes": [simulation_failed_prototype["script_hash"]],
-        "child_prototype_artifact_id": simulation_passed_prototype[
-            "prototype_artifact_id"
-        ],
-        "child_script_hash": simulation_passed_prototype["script_hash"],
-        "child_proposal_id": simulation_passed_prototype[
-            "source_llm_proposal_id"
-        ],
-        "feedback_supplied_to_generator": True,
-        "lineage_contract_complete": True,
+        "submitted_code_draft_hash": stable_hash(
+            f"revised simulation draft:{question_id}"
+        ),
+        "initial_check_result_hash": stable_hash(
+            f"simulation failure:{question_id}"
+        ),
+        "terminal_check_result_hash": stable_hash(
+            f"simulation pass:{question_id}"
+        ),
+        "transcript_fingerprint": stable_hash(
+            f"simulation workspace:{question_id}"
+        ),
+        "initial_check_accepted": False,
+        "source_changed": True,
+        "source_updates": 1,
+        "sandbox_checks": 1,
+        "runtime_executed_tool_calls": 2,
+        "model_owned_source": True,
+        "runtime_edited_source": False,
+        "accepted": True,
     }
     artifacts: dict[str, object] = {
         f"architect_coordinator_proposal:{question_id}": {
@@ -315,53 +314,46 @@ def _complete_task(
             "theory_packet_id": packet_id,
             "simulation_manifest_id": simulation_id,
             "algorithm_sandbox_manifest_id": algorithm_id,
-            "proof_state_feedback_manifest_id": proof_state_feedback_id,
+            "lean_candidate_client_tool_loop_id": lean_tool_loop_id,
+            "lean_kernel_promotion_id": proof_manifest_id,
             "full_frontier_current_target_ids": [target_id],
             "counts": {"formal_gap": 0},
         },
-        proof_state_feedback_id: {
-            "artifact_kind": "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest",
-            "manifest_id": proof_state_feedback_id,
-            "question": question,
+        lean_tool_loop_id: {
+            "artifact_kind": "LeanCandidateRevisionClientToolLoop",
+            "artifact_id": lean_tool_loop_id,
+            "question_id": question_id,
+            "provider": "anthropic",
+            "model": "claude-haiku-4-5-20251001",
+            "model_owned_lean_code": True,
+            "runtime_selected_lean_code": False,
+            "local_lean_checks": 2,
+            "runtime_executed_tool_calls": 3,
+            "lean_state_inspections": 1,
             "lean_lsp_mcp_live_called": True,
-            "source_materialization_manifest_id": f"materialization:{question_id}",
         },
         proof_manifest_id: {
-            "artifact_kind": "RuntimeExternalExactProofCandidateRerunManifest",
-            "manifest_id": proof_manifest_id,
-            "execution_id": f"proof_execution:{question_id}",
-            "input_fingerprint": f"input-fingerprint-{question_id}",
+            "artifact_kind": "LeanKernelPromotionResult",
+            "promotion_id": proof_manifest_id,
             "question_id": question_id,
             "source_lineage_id": lineage_id,
-            "source_task_id": f"proof_task:{question_id}",
-            "source_work_order_id": f"proof_work_order:{question_id}",
-            "execution_queue_id": f"proof_queue:{question_id}",
-            "provider": "openprover_hlm_controller",
-            "provider_result_id": f"openprover_result:{question_id}",
-            "n_runtime_generated_proof_bodies": 0,
-            "proof_body_generation_contract": {
-                "mode": "llm_zero_shot_with_lean_compile_feedback",
-                "compiler_feedback_retry": True,
-                "static_tactic_fallback": False,
-            },
+            "candidate_materialization_id": f"materialization:{question_id}",
+            "candidate_id": f"candidate:{question_id}",
+            "candidate_source_hash": stable_hash(f"lean source:{question_id}"),
+            "candidate_artifact_path": f"/tmp/{question_id}.lean",
+            "semantic_review_execution_id": f"formal_review:{question_id}",
+            "semantic_review_packet_id": f"formal_review_packet:{question_id}",
             "source_theorem_kernel_verified": True,
-            "n_source_theorem_kernel_verified": 1,
-            "n_local_lean_checked": 1,
-            "n_local_lean_compiled": 1,
-            "source_theorem_kernel_verified_target_ids": [target_id],
-            "rows": [
-                {
-                    "question_id": question_id,
-                    "source_lineage_id": lineage_id,
-                    "candidate_origin": "external_llm_or_prover_provider",
-                    "runtime_generated_proof_body": False,
-                    "target_ids": [target_id],
-                    "exact_signature_preserved": True,
-                    "local_lean_checked": True,
-                    "local_lean_compiled": True,
-                    "source_theorem_kernel_verified": True,
-                }
-            ],
+            "local_lean_checked": True,
+            "local_lean_compiled": True,
+            "candidate_identity_lean_verified": True,
+            "candidate_axiom_audit_clean": True,
+            "exact_source_hash_preserved": True,
+            "independent_semantic_review_accepted": True,
+            "runtime_edited_source": False,
+            "runtime_selected_proof": False,
+            "target_ids": [target_id],
+            "proof_evidence_status": "EXACT_MODEL_SOURCE_KERNEL_VERIFIED",
         },
     }
     result = {
@@ -387,8 +379,6 @@ def _complete_task(
         "architect_coordinator_enabled": True,
         "n_live_generated_code_sandbox_executed": 1,
         "n_live_generated_simulation_sandbox_executed": 1,
-        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
-        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_lean_lsp_mcp_live_calls": 1,
         "n_formal_gaps": 0,
     }
@@ -442,13 +432,7 @@ def test_fresh_start_cross_task_e2e_accepts_first_pass_correct_agents() -> None:
             for key in ("prototypes", "generated_simulation_sandbox_prototypes"):
                 for prototype in artifact.get(key, []) or []:
                     if isinstance(prototype, dict):
-                        prototype.pop("repair_lineage", None)
-        summary[
-            "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
-        ] = 0
-        summary[
-            "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
-        ] = 0
+                        prototype.pop("scientific_code_workspace", None)
 
     audit = audit_fresh_start_cross_task_e2e(
         runtime_manifest=manifest,
@@ -466,13 +450,13 @@ def test_fresh_start_cross_task_e2e_accepts_first_pass_correct_agents() -> None:
     [
         ("resume", None),
         ("same_family", None),
-        ("aggregate_only_repair", "algorithm_feedback_closed_if_failure_observed"),
-        ("same_script_replay", "algorithm_feedback_closed_if_failure_observed"),
+        ("missing_workspace_trajectory", "algorithm_feedback_closed_if_failure_observed"),
+        ("same_source_replay", "algorithm_feedback_closed_if_failure_observed"),
         ("forged_prototype_id", "algorithm_feedback_closed_if_failure_observed"),
-        ("cross_task_feedback", "algorithm_feedback_closed_if_failure_observed"),
+        ("cross_task_workspace", "algorithm_feedback_closed_if_failure_observed"),
         ("proof_target_drift", "exact_source_theorem_kernel_verified"),
-        ("runtime_generated_proof", "exact_source_theorem_kernel_verified"),
-        ("fixture_provider", "exact_source_theorem_kernel_verified"),
+        ("runtime_selected_proof", "exact_source_theorem_kernel_verified"),
+        ("unreviewed_proof", "exact_source_theorem_kernel_verified"),
     ],
 )
 def test_fresh_start_cross_task_e2e_fails_closed(
@@ -489,82 +473,48 @@ def test_fresh_start_cross_task_e2e_fails_closed(
         manifest["runtime_resumed_from_pending_task"] = True
     elif mutation == "same_family":
         summaries[1]["task_family"] = "causal"
-    elif mutation == "aggregate_only_repair":
+    elif mutation == "missing_workspace_trajectory":
         algorithm_manifest = next(
             row
             for row in results[1]["blackboard"]["artifacts"].values()
             if row.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
             and row.get("n_passed") == 1
         )
-        algorithm_manifest["prototypes"][0].pop("repair_lineage")
+        algorithm_manifest["prototypes"][0].pop("scientific_code_workspace")
     elif mutation in {
-        "same_script_replay",
+        "same_source_replay",
         "forged_prototype_id",
-        "cross_task_feedback",
+        "cross_task_workspace",
     }:
         second_artifacts = results[1]["blackboard"]["artifacts"]
-        failed_manifest = next(
-            row
-            for row in second_artifacts.values()
-            if row.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
-            and row.get("n_passed") is None
-        )
         passed_manifest = next(
             row
             for row in second_artifacts.values()
             if row.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
             and row.get("n_passed") == 1
         )
-        failed_prototype = failed_manifest["prototypes"][0]
         passed_prototype = passed_manifest["prototypes"][0]
-        lineage = passed_prototype["repair_lineage"]
-        if mutation == "same_script_replay":
-            passed_prototype["script_hash"] = failed_prototype["script_hash"]
-            passed_prototype["prototype_artifact_id"] = (
-                _generated_sandbox_prototype_artifact_id(passed_prototype)
-            )
-            lineage["child_script_hash"] = passed_prototype["script_hash"]
-            lineage["child_prototype_artifact_id"] = passed_prototype[
-                "prototype_artifact_id"
+        workspace = passed_prototype["scientific_code_workspace"]
+        if mutation == "same_source_replay":
+            workspace["submitted_code_draft_hash"] = workspace[
+                "parent_code_draft_hash"
             ]
         elif mutation == "forged_prototype_id":
             passed_prototype["prototype_artifact_id"] = "forged:prototype"
         else:
-            first_artifacts = results[0]["blackboard"]["artifacts"]
-            foreign_manifest = next(
-                row
-                for row in first_artifacts.values()
-                if row.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
-                and row.get("n_passed") is None
-            )
-            foreign_prototype = foreign_manifest["prototypes"][0]
-            lineage["parent_manifest_id"] = foreign_manifest["manifest_id"]
-            lineage["parent_prototype_artifact_ids"] = [
-                foreign_prototype["prototype_artifact_id"]
-            ]
-            lineage["parent_script_hashes"] = [foreign_prototype["script_hash"]]
-            lineage["feedback_id"] = _generated_sandbox_feedback_id(
-                feedback_type="algorithm_sandbox_execution_feedback",
-                source_manifest_id=foreign_manifest["manifest_id"],
-                failure_classification=(
-                        "generated_algorithm_sandbox_execution_failed"
-                ),
-                prototype_rows=[foreign_prototype],
-            )
+            workspace["artifact_id"] = "causal_ate_holdout:foreign"
     else:
         proof = next(
             row
             for row in results[1]["blackboard"]["artifacts"].values()
-            if row.get("artifact_kind")
-            == "RuntimeExternalExactProofCandidateRerunManifest"
+            if row.get("artifact_kind") == "LeanKernelPromotionResult"
         )
         if mutation == "proof_target_drift":
-            proof["source_theorem_kernel_verified_target_ids"] = ["other:target"]
-        elif mutation == "runtime_generated_proof":
-            proof["n_runtime_generated_proof_bodies"] = 1
-            proof["rows"][0]["runtime_generated_proof_body"] = True
-        elif mutation == "fixture_provider":
-            proof["provider"] = "openprover_fixture_payload"
+            proof["target_ids"] = ["other:target"]
+        elif mutation == "runtime_selected_proof":
+            proof["runtime_selected_proof"] = True
+        elif mutation == "unreviewed_proof":
+            proof["independent_semantic_review_accepted"] = False
 
     audit = audit_fresh_start_cross_task_e2e(
         runtime_manifest=manifest,

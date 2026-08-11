@@ -26,7 +26,7 @@ from .model_backend import (
     StaticJSONGeneratorBackend,
     resolve_generator_model,
 )
-from .llm_json_repair import (
+from .structured_output_retry import (
     PacketValidationError,
     extract_json_object,
     generate_validated_json_packet,
@@ -34,7 +34,7 @@ from .llm_json_repair import (
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
 )
-from .research_schema import OpenResearchQuestion, ResearchReport
+from .research_schema import OpenResearchQuestion
 from .semantic_review_feedback import model_observations_without_repair_recipes
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
@@ -128,7 +128,7 @@ class ResearchArchitectConfig:
     serious_max_tokens: int = 10000
     temperature: float = 0.2
     provider_name: str = "anthropic"
-    max_repair_attempts: int = 2
+    max_validation_retries: int = 2
 
 
 @dataclass(frozen=True)
@@ -195,10 +195,10 @@ class LLMTheoryDeveloperAgent:
             or self.config.provider_name
         ).strip().lower()
         use_provider_structured_output = backend_provider_name == "anthropic"
-        effective_max_repair_attempts = (
-            min(self.config.max_repair_attempts, 1)
+        effective_max_validation_retries = (
+            min(self.config.max_validation_retries, 1)
             if transport_recovery
-            else self.config.max_repair_attempts
+            else self.config.max_validation_retries
         )
         recovered_core_packet = _theory_developer_recovered_core_checkpoint(
             context,
@@ -224,7 +224,7 @@ class LLMTheoryDeveloperAgent:
                 serious_model_tier=self.config.serious_model_tier,
                 temperature=self.config.temperature,
                 max_tokens=effective_max_tokens,
-                max_repair_attempts=effective_max_repair_attempts,
+                max_validation_retries=effective_max_validation_retries,
                 transport_recovery=transport_recovery,
                 use_provider_structured_output=use_provider_structured_output,
             )
@@ -255,7 +255,7 @@ class LLMTheoryDeveloperAgent:
                     "theory_prompt_mode": theory_prompt_mode,
                     "serious_theory_mode": serious_theory_mode,
                     "transport_recovery": transport_recovery,
-                    "effective_max_repair_attempts": effective_max_repair_attempts,
+                    "effective_max_validation_retries": effective_max_validation_retries,
                     "resolved_model": request_model,
                     **(
                         {"provider_structured_output": True}
@@ -287,7 +287,7 @@ class LLMTheoryDeveloperAgent:
                 build_packet=build_packet,
                 validate_packet=validate_theory_core_packet,
                 validation_label="LLM TheoryDeveloper core packet",
-                max_repair_attempts=effective_max_repair_attempts,
+                max_validation_retries=effective_max_validation_retries,
             )
         # Test doubles may return a sentinel without running the supplied builder.
         if not core_packet.get("estimator_specs"):
@@ -303,7 +303,7 @@ class LLMTheoryDeveloperAgent:
             model_tier=effective_model_tier,
             temperature=self.config.temperature,
             max_tokens=effective_max_tokens,
-            max_repair_attempts=effective_max_repair_attempts,
+            max_validation_retries=effective_max_validation_retries,
             use_provider_structured_output=use_provider_structured_output,
         )
 
@@ -372,47 +372,6 @@ class ResearchArchitectAgent:
         report_path.write_text(_markdown_report(manifest, packets), encoding="utf-8")
         return manifest
 
-
-class LLMTheoryDeveloperRepairHandler:
-    """Research-loop live repair handler backed by the LLM TheoryDeveloper."""
-
-    def __init__(
-        self,
-        *,
-        theory_developer: LLMTheoryDeveloperAgent,
-        out_dir: Path | None = None,
-    ) -> None:
-        self.theory_developer = theory_developer
-        self.out_dir = out_dir
-
-    def __call__(self, item: Mapping[str, Any], report: ResearchReport) -> dict[str, Any]:
-        context = research_loop_theory_repair_context(item, report)
-        packet = self.theory_developer.derive(report.question, architect_context=context)
-        artifact = theory_revision_artifact_from_packet(packet, item=item, report=report)
-        artifact_paths: dict[str, str] = {}
-        if self.out_dir is not None:
-            artifact_paths = write_theory_repair_artifacts(
-                packet,
-                artifact,
-                out_dir=self.out_dir / stable_hash([report.question.id, item, packet.get("packet_id", "")])[:16],
-                question=report.question,
-            )
-        return {
-            "execution_status": "EXECUTED_LLM_THEORY_DEVELOPER_REPAIR",
-            "task_type": "theory_revision_from_simulation_failure",
-            "result": (
-                "LLM TheoryDeveloper produced a derivation-backed theory revision. "
-                "The revision is a proposal and must still pass simulation, semantic, "
-                "source-grounding, and Lean/kernel gates."
-            ),
-            "rerun_requested": True,
-            "repair_artifact": artifact,
-            "live_repair_handler": "LLMTheoryDeveloperRepairHandler",
-            "llm_theory_derivation_packet_id": packet.get("packet_id", ""),
-            "llm_theory_artifacts": artifact_paths,
-            "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
-            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-        }
 
 
 def build_theory_developer_prompt(
@@ -734,7 +693,6 @@ def _compact_architect_context_for_prompt(context: Mapping[str, Any]) -> dict[st
         "previous_theory_packet_id",
         "simulation_manifest_id",
         "formalization_manifest_id",
-        "proof_state_feedback_manifest_id",
     ):
         if context.get(key) not in (None, "", [], {}):
             compact[key] = _truncate_text(context.get(key), 180)
@@ -805,9 +763,6 @@ def _compact_architect_context_for_prompt(context: Mapping[str, Any]) -> dict[st
             "boundary": prior_theory_material.get("boundary", ""),
         }
 
-    runtime_learning_memory = context.get("runtime_learning_memory")
-    if isinstance(runtime_learning_memory, Mapping):
-        compact["runtime_learning_memory"] = _compact_runtime_learning_memory_for_prompt(runtime_learning_memory)
     return compact
 
 
@@ -873,7 +828,7 @@ def _compact_architect_runtime_plan_for_prompt(plan: Mapping[str, Any]) -> dict[
         ),
         "iteration_policy": _compact_prompt_mapping(
             plan.get("iteration_policy", {}),
-            keys=("reroute_triggers", "stop_conditions", "max_repair_rounds"),
+            keys=("reroute_triggers", "stop_conditions", "max_revision_rounds"),
             list_limit=3,
             text_limit=220,
         ),
@@ -1068,9 +1023,6 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
             "source_metric_protocol_rejection_manifest_id", ""
         ),
         "target_consumer_subsystem": feedback.get("target_consumer_subsystem", ""),
-        "recommended_repair_scope": feedback.get(
-            "recommended_repair_scope", ""
-        ),
         "ownership_clarification_required": feedback.get(
             "ownership_clarification_required", ""
         ),
@@ -1080,13 +1032,12 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
         "max_upstream_theory_revisions": feedback.get(
             "max_upstream_theory_revisions", ""
         ),
-        "critic_repair_round": feedback.get("critic_repair_round", ""),
-        "next_critic_repair_round": feedback.get("next_critic_repair_round", ""),
-        "max_critic_repair_rounds": feedback.get("max_critic_repair_rounds", ""),
+        "critic_revision_round": feedback.get("critic_revision_round", ""),
+        "next_critic_revision_round": feedback.get("next_critic_revision_round", ""),
+        "max_critic_revision_rounds": feedback.get("max_critic_revision_rounds", ""),
         "theory_packet_id": feedback.get("theory_packet_id", ""),
         "simulation_manifest_id": feedback.get("simulation_manifest_id", ""),
         "formalization_manifest_id": feedback.get("formalization_manifest_id", ""),
-        "proof_state_feedback_manifest_id": feedback.get("proof_state_feedback_manifest_id", ""),
         "formalization_counts": feedback.get("formalization_counts", {}),
         "simulation_passed": feedback.get("simulation_passed", ""),
         "high_priority_agenda": [_compact_feedback_row(row) for row in high_priority_agenda[:5]],
@@ -1156,179 +1107,6 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
         for key, value in compact.items()
         if value not in (None, "", [], {})
     }
-
-
-def _compact_runtime_learning_memory_for_prompt(memory: Mapping[str, Any]) -> dict[str, Any]:
-    memory = model_observations_without_repair_recipes(memory)
-    rows = list(memory.get("rows", []) or [])
-    return {
-        "schema_version": memory.get("schema_version", 1),
-        "source_paths": list(memory.get("source_paths", []) or [])[:5],
-        "counts": {
-            "rows": len(rows),
-            "rows_prompted": min(len(rows), 8),
-            "rows_loaded": memory.get("counts", {}).get("rows_loaded", len(rows))
-            if isinstance(memory.get("counts", {}), Mapping)
-            else len(rows),
-        },
-        "rows": [_compact_learning_memory_row(row) for row in rows[:8]],
-        "boundary": _truncate_text(memory.get("boundary", ""), 500),
-    }
-
-
-def _compact_learning_memory_row(row: Any) -> dict[str, Any]:
-    if not isinstance(row, Mapping):
-        return {"summary": _truncate_text(row, 240)}
-    compact = {
-        "learning_task": _truncate_text(row.get("learning_task", ""), 120),
-        "question_id": _truncate_text(row.get("question_id", ""), 120),
-        "work_order_id": _truncate_text(row.get("work_order_id", ""), 120),
-        "next_owner_subsystem": _truncate_text(
-            row.get("next_owner_subsystem", ""), 120
-        ),
-        "target_consumer_subsystem": _truncate_text(
-            row.get("target_consumer_subsystem", ""), 120
-        ),
-        "target_theorem_name": _truncate_text(row.get("target_theorem_name", ""), 160),
-        "failure_classification": _truncate_text(
-            row.get("failure_classification", ""), 160
-        ),
-        "failure_classifications": _compact_learning_memory_value(
-            row.get("failure_classifications", [])
-        ),
-        "acceptance_gate": _truncate_text(row.get("acceptance_gate", ""), 240),
-        "proof_evidence_status": _truncate_text(
-            row.get("proof_evidence_status", ""), 180
-        ),
-        "input_summary": _compact_learning_memory_input_summary(
-            row.get("input_summary", {})
-        ),
-    }
-    return {
-        key: value
-        for key, value in compact.items()
-        if value not in (None, "", [], {})
-    }
-
-
-def _compact_learning_memory_input_summary(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    keep_keys = (
-        "trigger",
-        "owner_subsystem",
-        "agenda_id",
-        "work_order_id",
-        "semantic_primitive_id",
-        "target_theorem_name",
-        "placeholder_symbol",
-        "runtime_queue_status",
-        "verification_status",
-        "execution_status",
-        "failure_classification",
-        "route_planner_contract_feedback_id",
-        "contract_counts",
-        "provider_token_counts",
-        "staged_followup_assembly_error_summary",
-        "staged_followup_assembly_error_preview",
-        "source_manifest_id",
-        "source_manifest_path",
-        "source_rows_path",
-        "formalization_gap_planner_bridge_id",
-        "formalization_gap_planner_handoff_id",
-        "standalone_seed_path",
-        "source_theorem_kernel_verified",
-        "artifact_kernel_verified",
-        "local_lean_checked",
-        "local_lean_compiled",
-        "proof_body_attempted",
-        "proof_body_attempt_success",
-        "premise_name",
-        "premise_target_status",
-        "premise_target_matched_binder",
-        "premise_target_type",
-        "premise_derivation_gap_kind",
-        "premise_derivation_gap_summary",
-        "target_ids",
-        "target_theorem_goal_ids",
-        "kernel_verified_proof_obligation_ids",
-        "kernel_verified_source_theorem_semantic_primitive_ids",
-        "kernel_verified_source_theorem_semantic_support_obligation_ids",
-        "source_theorem_semantic_primitive_work_order_ids",
-        "semantic_primitive_ids",
-        "formal_environment_placeholder_symbols",
-        "missing_formal_symbols",
-        "formal_environment_typeclass_blockers",
-        "typeclass_blockers",
-        "formal_gap_target_ids",
-        "recommended_proof_obligation_ids",
-        "diagnostics",
-        "proof_body_goal_excerpt",
-        "proof_body_attempt_summaries",
-        "proof_body_gate_status",
-        "formalization_counts",
-        "retrieval_counts",
-        "candidate_artifact_path",
-        "definition_only_candidate_artifact_path",
-        "source_candidate_artifact_path",
-        "adapter_candidate_artifact_path",
-        "adapter_candidate_artifact_paths",
-        "premise_candidate_artifact_path",
-        "proof_body_candidate_artifact_path",
-        "source_theorem_exact_semantic_definition_typechecked_candidate",
-        "n_theory_derivation_packets",
-        "n_theory_derivation_packets_with_contract",
-        "n_theory_derivation_packets_with_min_derivation_steps",
-        "n_theory_derivation_packets_with_equation_chain",
-        "n_theory_derivation_packets_with_assumption_ledger",
-        "n_theory_derivation_packets_with_formalization_handoff",
-        "required_theory_trace_consumers",
-        "theory_trace_consuming_subsystems",
-        "structured_theory_trace_consuming_subsystems",
-        "structured_theory_trace_aligned_subsystems",
-        "all_required_theory_trace_consumers_observed",
-        "all_required_theory_trace_alignment_consumers_observed",
-        "target_consumer_subsystem",
-        "n_theory_trace_consumption_contracts",
-        "n_theory_trace_alignment_contracts",
-        "n_theory_trace_alignment_contracts_with_llm_alignment",
-        "n_structured_theory_trace_alignment_contracts",
-        "n_theory_trace_alignment_contracts_with_unsupported_anchors",
-        "failure_classifications",
-    )
-    compact: dict[str, Any] = {}
-    for key in keep_keys:
-        if key not in value or value[key] in (None, "", [], {}):
-            continue
-        child = value[key]
-        if _prompt_key_is_path_like(key):
-            compact[key] = _compact_prompt_value_for_key(
-                key,
-                child,
-                list_limit=8,
-                mapping_limit=8,
-                text_limit=320,
-                path_limit=1024,
-            )
-        elif isinstance(child, list):
-            limit = (
-                4
-                if key
-                in {"diagnostics", "proof_body_goal_excerpt", "proof_body_attempt_summaries"}
-                else 8
-            )
-            compact[key] = [
-                _compact_learning_memory_value(item) for item in child[:limit]
-            ]
-        elif isinstance(child, Mapping):
-            compact[key] = {
-                str(child_key): _compact_learning_memory_value(child_value)
-                for child_key, child_value in list(child.items())[:8]
-                if child_value not in (None, "", [], {})
-            }
-        else:
-            compact[key] = _compact_learning_memory_value(child)
-    return compact
 
 
 def _compact_learning_memory_value(value: Any) -> Any:
@@ -2641,7 +2419,7 @@ def _generate_full_theory_revision(
     serious_model_tier: str,
     temperature: float,
     max_tokens: int,
-    max_repair_attempts: int,
+    max_validation_retries: int,
     transport_recovery: bool,
     use_provider_structured_output: bool,
 ) -> dict[str, Any]:
@@ -2670,7 +2448,7 @@ def _generate_full_theory_revision(
             "theory_prompt_mode": THEORY_PROMPT_MODE_SERIOUS_REVISION,
             "serious_theory_mode": True,
             "transport_recovery": transport_recovery,
-            "effective_max_repair_attempts": max_repair_attempts,
+            "effective_max_validation_retries": max_validation_retries,
             "resolved_model": request_model,
             "source_theory_packet_id": revision_inputs.get(
                 "source_theory_packet_id", ""
@@ -2721,7 +2499,7 @@ def _generate_full_theory_revision(
             revision_inputs=revision_inputs,
         ),
         validation_label="LLM TheoryDeveloper full revision packet",
-        max_repair_attempts=max_repair_attempts,
+        max_validation_retries=max_validation_retries,
     )
 
 
@@ -2751,7 +2529,7 @@ def _complete_theory_estimator_interfaces(
     model_tier: str,
     temperature: float,
     max_tokens: int,
-    max_repair_attempts: int,
+    max_validation_retries: int,
     use_provider_structured_output: bool,
 ) -> dict[str, Any]:
     """Author bounded executable interfaces after core theory is frozen."""
@@ -2837,7 +2615,7 @@ def _complete_theory_estimator_interfaces(
                 )
             ),
             validation_label="LLM TheoryDeveloper estimator interface packet",
-            max_repair_attempts=min(max(0, max_repair_attempts), 1),
+            max_validation_retries=min(max(0, max_validation_retries), 1),
         )
     except PacketValidationError as exc:
         completed_phase = (
@@ -2903,11 +2681,11 @@ def _complete_theory_estimator_interfaces(
         "model": interface_packet["model"],
         "model_tier": interface_packet["model_tier"],
         "n_interfaces": len(authored_by_id),
-        "llm_json_repair_attempts": interface_packet.get(
-            "llm_json_repair_attempts", 0
+        "structured_output_retry_attempts": interface_packet.get(
+            "structured_output_retry_attempts", 0
         ),
-        "llm_json_repair_history": deepcopy(
-            interface_packet.get("llm_json_repair_history", [])
+        "structured_output_retry_history": deepcopy(
+            interface_packet.get("structured_output_retry_history", [])
         ),
         "raw_response_fingerprint": interface_packet.get(
             "raw_response_fingerprint", ""
@@ -2926,8 +2704,8 @@ def _complete_theory_estimator_interfaces(
         ),
         "model": str(core_packet.get("model", "")),
         "model_tier": str(core_packet.get("model_tier", "")),
-        "llm_json_repair_attempts": core_packet.get(
-            "llm_json_repair_attempts", 0
+        "structured_output_retry_attempts": core_packet.get(
+            "structured_output_retry_attempts", 0
         ),
     }
     core_client_tool_loop = core_packet.get("llm_client_tool_loop", {})
@@ -2947,8 +2725,8 @@ def _complete_theory_estimator_interfaces(
             "phase": "estimator_interface_authoring",
             "model": interface_packet["model"],
             "model_tier": interface_packet["model_tier"],
-            "llm_json_repair_attempts": interface_packet.get(
-                "llm_json_repair_attempts", 0
+            "structured_output_retry_attempts": interface_packet.get(
+                "structured_output_retry_attempts", 0
             ),
         },
     ]
@@ -2958,9 +2736,9 @@ def _complete_theory_estimator_interfaces(
         raise PacketValidationError(
             validation_label="merged LLM TheoryDeveloper packet",
             attempts=1
-            + int(interface_packet.get("llm_json_repair_attempts", 0) or 0),
+            + int(interface_packet.get("structured_output_retry_attempts", 0) or 0),
             errors=errors,
-            history=interface_packet.get("llm_json_repair_history", []),
+            history=interface_packet.get("structured_output_retry_history", []),
             last_invalid_packet=merged,
         )
     merged["validation_errors"] = []
@@ -3462,211 +3240,6 @@ def _first_nonempty(row: Mapping[str, Any], *keys: str) -> Any:
     return ""
 
 
-def research_loop_theory_repair_context(
-    item: Mapping[str, Any],
-    report: ResearchReport,
-) -> dict[str, Any]:
-    return {
-        "mode": "research_loop_theory_repair",
-        "failed_agenda_item": dict(item),
-        "problem": {
-            "question_id": report.problem.question_id,
-            "problem_class": report.problem.problem_class,
-            "dgp": report.problem.dgp,
-            "estimand": report.problem.estimand,
-            "assumptions": list(report.problem.assumptions),
-            "asymptotic_regime": report.problem.asymptotic_regime,
-            "diagnostics": list(report.problem.diagnostics),
-            "stress_tests": list(report.problem.stress_tests),
-        },
-        "current_procedures": [
-            {
-                "id": row.id,
-                "name": row.name,
-                "role": row.role,
-                "formula": row.formula,
-                "informal_derivation": row.informal_derivation,
-                "algorithm": row.algorithm,
-                "theorem_goals": list(row.theorem_goals),
-                "limitations": list(row.limitations),
-            }
-            for row in report.procedures
-        ],
-        "current_theorem_goals": [
-            {
-                "id": row.id,
-                "title": row.title,
-                "informal_statement": row.informal_statement,
-                "proof_strategy": row.proof_strategy,
-                "status": row.status,
-                "required_primitives": list(row.required_primitives),
-                "proof_obligations": list(row.proof_obligations),
-            }
-            for row in report.theorem_goals
-        ],
-        "formal_subclaims": [
-            {
-                "id": row.id,
-                "title": row.title,
-                "status": row.status,
-                "claim_type": row.claim_type,
-                "kernel_verified": row.kernel_verified,
-                "gap_reason": row.gap_reason,
-                "errors": list(row.errors),
-            }
-            for row in report.formal_subclaims
-        ],
-        "simulation_feedback": [
-            {
-                "procedure_id": row.procedure_id,
-                "design": row.design,
-                "passed": row.passed,
-                "feedback": row.feedback,
-                "metrics": dict(row.metrics),
-                "stress_tests": list(row.stress_tests),
-                "diagnosis": (
-                    {
-                        "status": row.diagnosis.status,
-                        "escalate_to": row.diagnosis.escalate_to,
-                        "failed_diagnostics": list(row.diagnosis.failed_diagnostics),
-                        "failed_stress_tests": list(row.diagnosis.failed_stress_tests),
-                        "rationale": row.diagnosis.rationale,
-                        "metric_evidence": dict(row.diagnosis.metric_evidence),
-                    }
-                    if row.diagnosis is not None
-                    else None
-                ),
-            }
-            for row in report.simulations
-        ],
-        "required_output": (
-            "Return a derivation that can be converted into a theory_revision_from_simulation_failure "
-            "repair artifact with revised_procedure, revised_theorem_goals, assumption_delta, "
-            "expected_simulation_delta, and next formalization obligations."
-        ),
-    }
-
-
-def theory_revision_artifact_from_packet(
-    packet: Mapping[str, Any],
-    *,
-    item: Mapping[str, Any],
-    report: ResearchReport,
-) -> dict[str, Any]:
-    estimator_specs = [
-        row for row in packet.get("estimator_specs", []) or [] if isinstance(row, Mapping)
-    ]
-    theorem_cards = [
-        row for row in packet.get("theorem_cards", []) or [] if isinstance(row, Mapping)
-    ]
-    formalization_requests = [
-        row
-        for row in packet.get("formalization_requests", []) or []
-        if isinstance(row, Mapping)
-    ]
-    problem_card = packet.get("problem_card", {}) if isinstance(packet.get("problem_card"), Mapping) else {}
-    simulation_spec = (
-        packet.get("simulation_ademp_spec", {})
-        if isinstance(packet.get("simulation_ademp_spec"), Mapping)
-        else {}
-    )
-    target_procedure = str(item.get("target_procedure", "")) or _first_procedure_id(report)
-    first_estimator = estimator_specs[0] if estimator_specs else {}
-    revised_procedure = _safe_identifier(
-        str(first_estimator.get("id") or first_estimator.get("name") or target_procedure or "llm_theory_revision")
-    )
-    if not revised_procedure.endswith("_llm_theory_revision"):
-        revised_procedure = f"{revised_procedure}_llm_theory_revision"
-    revised_theorem_goals = [
-        _safe_identifier(str(row.get("id") or row.get("conclusion") or "llm_theory_goal"))
-        for row in theorem_cards
-    ]
-    assumption_delta = [
-        str(row)
-        for row in problem_card.get("assumptions", []) or []
-        if str(row).strip()
-    ]
-    next_formal_obligations = [
-        _safe_identifier(str(row.get("id") or row.get("target_theorem_card") or "llm_formalization_request"))
-        for row in formalization_requests
-    ]
-    expected_simulation_delta = "; ".join(
-        str(row)
-        for row in simulation_spec.get("expected_theoretical_behavior", []) or []
-        if str(row).strip()
-    )
-    if not expected_simulation_delta:
-        expected_simulation_delta = str(
-            packet.get("theory_derivation_packet", {}).get("derivation_summary", "")
-            if isinstance(packet.get("theory_derivation_packet"), Mapping)
-            else ""
-        )
-    return {
-        "revision_kind": "llm_theory_developer_derivation",
-        "target_procedure": target_procedure,
-        "revised_procedure": revised_procedure,
-        "revised_theorem_goals": [row for row in revised_theorem_goals if row],
-        "assumption_delta": assumption_delta,
-        "expected_simulation_delta": expected_simulation_delta
-        or "LLM TheoryDeveloper expects revised theorem/procedure diagnostics to improve on rerun.",
-        "next_formal_obligations": [row for row in next_formal_obligations if row],
-        "failed_diagnostics": list(item.get("failed_diagnostics", []) or []),
-        "failed_stress_tests": list(item.get("failed_stress_tests", []) or []),
-        "failure_class": "llm_theory_revision_from_simulation_failure",
-        "algorithm_unchanged": True,
-        "full_theorem_proved": False,
-        "kernel_verified": False,
-        "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-        "llm_theory_derivation_packet_id": str(packet.get("packet_id", "")),
-        "llm_theory_derivation_packet": dict(packet),
-    }
-
-
-def write_theory_repair_artifacts(
-    packet: Mapping[str, Any],
-    repair_artifact: Mapping[str, Any],
-    *,
-    out_dir: Path,
-    question: OpenResearchQuestion,
-) -> dict[str, str]:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    packet_path = out_dir / "theory_derivation_packet.json"
-    artifact_path = out_dir / "theory_repair_artifact.json"
-    ledger_path = out_dir / "evidence_ledger.jsonl"
-    manifest_path = out_dir / "llm_theory_repair_manifest.json"
-    packet_path.write_text(json.dumps(packet, indent=2, default=str), encoding="utf-8")
-    artifact_path.write_text(json.dumps(repair_artifact, indent=2, default=str), encoding="utf-8")
-    ledger = asdict(_ledger_row_for_packet(packet, question))
-    _write_jsonl(ledger_path, [ledger])
-    manifest = {
-        "schema_version": ARCHITECT_SCHEMA_VERSION,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "question_id": question.id,
-        "packet_id": packet.get("packet_id", ""),
-        "repair_artifact_kind": "theory_revision_from_simulation_failure",
-        "repair_contract_fields": [
-            "revised_procedure",
-            "revised_theorem_goals",
-            "assumption_delta",
-            "expected_simulation_delta",
-        ],
-        "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-        "artifacts": {
-            "packet": str(packet_path),
-            "repair_artifact": str(artifact_path),
-            "evidence_ledger": str(ledger_path),
-        },
-    }
-    manifest_path.write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
-    return {
-        "manifest": str(manifest_path),
-        "packet": str(packet_path),
-        "repair_artifact": str(artifact_path),
-        "evidence_ledger": str(ledger_path),
-    }
-
 
 def _ledger_row_for_packet(packet: Mapping[str, Any], question: OpenResearchQuestion) -> EvidenceLedgerRow:
     artifact_id = str(packet.get("packet_id", ""))
@@ -3682,19 +3255,6 @@ def _ledger_row_for_packet(packet: Mapping[str, Any], question: OpenResearchQues
         created_at=datetime.now(timezone.utc).isoformat(),
     )
 
-
-def _first_procedure_id(report: ResearchReport) -> str:
-    return report.procedures[0].id if report.procedures else ""
-
-
-def _safe_identifier(raw: str) -> str:
-    value = re.sub(r"[^A-Za-z0-9_]+", "_", raw.strip())
-    value = re.sub(r"_+", "_", value).strip("_")
-    if not value:
-        return ""
-    if value[0].isdigit():
-        value = f"g_{value}"
-    return value
 
 
 def _project_state(

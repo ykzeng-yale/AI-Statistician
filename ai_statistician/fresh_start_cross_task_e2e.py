@@ -8,7 +8,7 @@ from .model_backend import (
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     is_live_generator_backend,
 )
-from .research_agent_runtime import _generated_sandbox_repair_sequence_counts
+from .research_agent_runtime import generated_sandbox_workspace_closure_counts
 from .task_family import is_explicit_task_family, task_family_value
 
 
@@ -133,7 +133,7 @@ def audit_fresh_start_cross_task_e2e(
         "boundary": (
             "This audit binds already-recorded runtime and kernel evidence into a "
             "cross-task capability claim. It does not itself prove either theorem. "
-            "Aggregate family, repair, or kernel counters cannot satisfy this gate "
+            "Aggregate family, workspace, or kernel counters cannot satisfy this gate "
             "without complete per-task artifact lineages."
         ),
         "audit_fingerprint": stable_hash(
@@ -257,7 +257,7 @@ def _audit_task_e2e(
         source_manifest_ids=accepted_simulation_manifest_ids,
         require_confirmatory=True,
     )
-    repair_counts = _generated_sandbox_repair_sequence_counts(artifacts)
+    workspace_counts = generated_sandbox_workspace_closure_counts(artifacts)
     algorithm_failure_observed = any(
         str(row.get("theory_packet_id", "") or "") == theory_packet_id
         and _artifact_question_id(row) == question_id
@@ -283,18 +283,14 @@ def _audit_task_e2e(
     algorithm_feedback_closed = bool(
         not algorithm_failure_observed
         or _safe_int(
-            repair_counts.get(
-                "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
-            )
+            workspace_counts.get("algorithm_failed_then_passed")
         )
         > 0
     )
     simulation_feedback_closed = bool(
         not simulation_failure_observed
         or _safe_int(
-            repair_counts.get(
-                "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
-            )
+            workspace_counts.get("simulation_failed_then_passed")
         )
         > 0
     )
@@ -310,24 +306,28 @@ def _audit_task_e2e(
         simulation_rows=simulation_rows,
     )
     current_target_ids = _formalization_target_ids(linked_formalization)
-    linked_proof_state_feedback_id = str(
-        (linked_formalization or {}).get("proof_state_feedback_manifest_id", "")
+    linked_lean_tool_loop_id = str(
+        (linked_formalization or {}).get(
+            "lean_candidate_client_tool_loop_id", ""
+        )
         or ""
     )
     lean_feedback = bool(
-        _safe_int(summary.get("n_lean_lsp_mcp_live_calls")) > 0
-        and linked_proof_state_feedback_id
+        linked_lean_tool_loop_id
         and any(
-            row.get("lean_lsp_mcp_live_called") is True
-            and _artifact_question_id(row) == question_id
-            and str(row.get("manifest_id", "") or "")
-            == linked_proof_state_feedback_id
+            str(row.get("artifact_id", "") or "") == linked_lean_tool_loop_id
+            and str(row.get("question_id", "") or "") == question_id
+            and _safe_int(row.get("local_lean_checks")) > 0
+            and _safe_int(row.get("runtime_executed_tool_calls")) > 0
+            and row.get("model_owned_lean_code") is True
+            and row.get("runtime_selected_lean_code") is False
+            and is_live_generator_backend(
+                str(row.get("provider", "") or ""),
+                str(row.get("provider", "") or ""),
+            )
             for row in artifact_rows
             if str(row.get("artifact_kind", "") or "")
-            in {
-                "RuntimeProofStateFeedbackManifest",
-                "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest",
-            }
+            == "LeanCandidateRevisionClientToolLoop"
         )
     )
     proof_manifest, verified_target_ids = _exact_source_proof(
@@ -398,10 +398,10 @@ def _audit_task_e2e(
         "current_target_ids": current_target_ids,
         "verified_target_ids": verified_target_ids,
         "source_proof_manifest_id": str(
-            (proof_manifest or {}).get("manifest_id", "") or ""
+            (proof_manifest or {}).get("promotion_id", "") or ""
         ),
         "source_proof_lineage_id": source_proof_lineage_id,
-        "artifact_bound_repair_counts": dict(repair_counts),
+        "artifact_bound_workspace_counts": dict(workspace_counts),
         "gates": gates,
         "missing_requirements": missing,
         "complete": not missing,
@@ -553,61 +553,39 @@ def _exact_source_proof(
 ) -> tuple[Mapping[str, Any] | None, list[str]]:
     current_targets = set(current_target_ids)
     for manifest in reversed(
-        _artifacts_of_kind(
-            artifacts, "RuntimeExternalExactProofCandidateRerunManifest"
-        )
+        _artifacts_of_kind(artifacts, "LeanKernelPromotionResult")
     ):
-        provider = str(manifest.get("provider", "") or "").lower()
         source_lineage_id = str(
             manifest.get("source_lineage_id", "") or ""
         ).strip()
-        contract = _mapping(manifest.get("proof_body_generation_contract"))
         target_ids = set(
-            _strings(manifest.get("source_theorem_kernel_verified_target_ids", []))
+            _strings(manifest.get("target_ids", []))
         )
         matching_targets = sorted(current_targets & target_ids)
-        rows = manifest.get("rows", [])
-        if not isinstance(rows, list):
-            rows = []
-        verified_rows = [
-            row
-            for row in rows
-            if isinstance(row, Mapping)
-            and row.get("source_theorem_kernel_verified") is True
-            and row.get("local_lean_checked") is True
-            and row.get("local_lean_compiled") is True
-            and row.get("exact_signature_preserved") is True
-            and row.get("runtime_generated_proof_body") is False
-            and str(row.get("candidate_origin", "") or "")
-            == "external_llm_or_prover_provider"
-            and str(row.get("question_id", "") or "") == question_id
-            and str(row.get("source_lineage_id", "") or "")
-            == source_lineage_id
-            and bool(set(_strings(row.get("target_ids", []))) & set(matching_targets))
-        ]
         if (
             not question_id
             or str(manifest.get("question_id", "") or "") != question_id
             or not source_lineage_id
-            or not str(manifest.get("input_fingerprint", "") or "").strip()
-            or not str(manifest.get("execution_id", "") or "").strip()
-            or not str(manifest.get("source_task_id", "") or "").strip()
-            or not str(manifest.get("source_work_order_id", "") or "").strip()
-            or not str(manifest.get("execution_queue_id", "") or "").strip()
-            or not provider
-            or any(marker in provider for marker in NON_LIVE_PROVIDER_MARKERS)
-            or not str(manifest.get("provider_result_id", "") or "").strip()
-            or _safe_int(manifest.get("n_runtime_generated_proof_bodies")) != 0
-            or contract.get("mode") != "llm_zero_shot_with_lean_compile_feedback"
-            or contract.get("compiler_feedback_retry") is not True
-            or contract.get("static_tactic_fallback") is not False
             or manifest.get("source_theorem_kernel_verified") is not True
-            or _safe_int(manifest.get("n_source_theorem_kernel_verified"))
-            != len(verified_rows)
-            or _safe_int(manifest.get("n_local_lean_checked")) < len(verified_rows)
-            or _safe_int(manifest.get("n_local_lean_compiled")) < len(verified_rows)
+            or manifest.get("local_lean_checked") is not True
+            or manifest.get("local_lean_compiled") is not True
+            or manifest.get("candidate_identity_lean_verified") is not True
+            or manifest.get("candidate_axiom_audit_clean") is not True
+            or manifest.get("exact_source_hash_preserved") is not True
+            or manifest.get("independent_semantic_review_accepted") is not True
+            or manifest.get("runtime_edited_source") is not False
+            or manifest.get("runtime_selected_proof") is not False
+            or not str(manifest.get("candidate_source_hash", "") or "").strip()
+            or not str(manifest.get("candidate_artifact_path", "") or "").strip()
+            or not str(
+                manifest.get("semantic_review_execution_id", "") or ""
+            ).strip()
+            or not str(
+                manifest.get("semantic_review_packet_id", "") or ""
+            ).strip()
+            or str(manifest.get("proof_evidence_status", "") or "")
+            != "EXACT_MODEL_SOURCE_KERNEL_VERIFIED"
             or not matching_targets
-            or not verified_rows
         ):
             continue
         return manifest, matching_targets

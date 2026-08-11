@@ -28,7 +28,7 @@ from .generated_metric_contract import (
     generated_sandbox_runtime_replicates,
     validate_generated_metric_requirements,
 )
-from .llm_json_repair import extract_json_object, generate_validated_json_packet
+from .structured_output_retry import extract_json_object, generate_validated_json_packet
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
     METRIC_PROTOCOL_PHASE_NOT_REQUIRED,
@@ -59,12 +59,6 @@ ARCHITECT_COORDINATOR_BOUNDARY = (
     "or prove theorems. Runtime validators and AXLE/local Lean remain the "
     "authority gates."
 )
-ARCHITECT_CAPABILITY_GAP_ROUTING_BOUNDARY = (
-    "Runtime capability-gap routing is Architect orchestration input only. "
-    "It may prioritize subsystem work and capability-eval reruns, but it is "
-    "not proof evidence, simulation evidence, generated-code evidence, or "
-    "verifier evidence."
-)
 ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "RetrievalMemory",
     "TheoryDeveloper",
@@ -73,14 +67,6 @@ ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "GeneratedCodeSemanticReviewer",
     "FormalizationEvaluator",
     "FormalTargetSemanticReviewer",
-    "ProofEngineer",
-    "TheoremReductionClosureProofEngineer",
-    "ExactSourceTheoremProofBodyExecutor",
-    "SourceSemanticProofEngineer",
-    "PseudoFormalBlockVerifier",
-    "SourceTheoremPromotionProofEngineer",
-    "ExactSourceTheoremProver",
-    "FormalizationGapPlanner",
     "CriticEvaluator",
 )
 ARCHITECT_FEEDBACK_ROUTE_OPERATION = "environment_feedback_route"
@@ -90,7 +76,6 @@ ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS = (
     "SimulationEvaluator",
     "AlgorithmEngineer",
     "FormalizationEvaluator",
-    "ProofEngineer",
     "CriticEvaluator",
 )
 ARCHITECT_FEEDBACK_ROUTE_NOT_EVIDENCE = (
@@ -121,14 +106,6 @@ RESEARCH_EVAL_FORBIDDEN_FORMAL_SUBSYSTEMS = frozenset(
     {
         "FormalTargetSemanticReviewer",
         "FormalizationEvaluator",
-        "TheoremReductionClosureProofEngineer",
-        "ExactSourceTheoremProofBodyExecutor",
-        "SourceSemanticProofEngineer",
-        "PseudoFormalBlockVerifier",
-        "SourceTheoremPromotionProofEngineer",
-        "ProofEngineer",
-        "ExactSourceTheoremProver",
-        "FormalizationGapPlanner",
     }
 )
 ARCHITECT_REUSABLE_VALIDATED_PLAN_FIELDS = (
@@ -164,12 +141,9 @@ def _research_evaluation_contract_flag(
     evidence_contract: Mapping[str, Any],
     requirement: str,
 ) -> bool:
-    canonical = f"research_evaluation_requires_{requirement}"
-    legacy = f"capability_eval_requires_{requirement}"
-    value = evidence_contract.get(canonical)
-    if isinstance(value, bool):
-        return value
-    return evidence_contract.get(legacy) is True
+    return evidence_contract.get(
+        f"research_evaluation_requires_{requirement}"
+    ) is True
 
 LONG_HORIZON_RESEARCH_GUIDANCE: dict[str, Any] = {
     "problem_analysis_before_retrieval": [
@@ -235,11 +209,11 @@ class ArchitectCoordinatorConfig:
     max_tokens: int = 5000
     temperature: float = 0.1
     provider_name: str = "anthropic"
-    max_repair_attempts: int = 2
+    max_validation_retries: int = 2
     metric_semantic_reviewer_model: str = ""
     metric_semantic_reviewer_model_tier: str = "sonnet"
     metric_semantic_reviewer_max_tokens: int = 7000
-    metric_semantic_reviewer_max_revisions: int = 2
+    metric_semantic_reviewer_max_revisions: int = 1
 
 
 class LLMArchitectCoordinatorAgent:
@@ -331,7 +305,7 @@ class LLMArchitectCoordinatorAgent:
                     max_tokens=self.config.max_tokens,
                     model_tier=self.config.model_tier,
                     provider_name=self.config.provider_name,
-                    max_repair_attempts=self.config.max_repair_attempts,
+                    max_validation_retries=self.config.max_validation_retries,
                     metric_semantic_reviewer_max_revisions=(
                         self.config.metric_semantic_reviewer_max_revisions
                     ),
@@ -353,19 +327,6 @@ class LLMArchitectCoordinatorAgent:
                     if isinstance(
                         architect_context.get(
                             "architect_metric_protocol_prior_rejection", {}
-                        ),
-                        Mapping,
-                    )
-                    else {}
-                ),
-                fresh_candidate_revision_context=(
-                    architect_context.get(
-                        "architect_metric_protocol_fresh_candidate_revision", {}
-                    )
-                    if isinstance(
-                        architect_context.get(
-                            "architect_metric_protocol_fresh_candidate_revision",
-                            {},
                         ),
                         Mapping,
                     )
@@ -470,7 +431,7 @@ class LLMArchitectCoordinatorAgent:
             "architect_plan_generation",
             metadata={
                 "model_tier": self.config.model_tier,
-                "max_packet_regeneration_attempts": self.config.max_repair_attempts,
+                "max_packet_regeneration_attempts": self.config.max_validation_retries,
                 "metric_protocol_authored": bool(metric_authoring_packet),
             },
         ):
@@ -481,7 +442,7 @@ class LLMArchitectCoordinatorAgent:
                 build_packet=build_packet,
                 validate_packet=validate_architect_coordinator_packet,
                 validation_label="LLM ArchitectCoordinator packet",
-                max_repair_attempts=self.config.max_repair_attempts,
+                max_validation_retries=self.config.max_validation_retries,
             )
 
     def route_environment_feedback(
@@ -577,7 +538,7 @@ class LLMArchitectCoordinatorAgent:
             "architect_feedback_route",
             metadata={
                 "model_tier": self.config.model_tier,
-                "max_packet_regeneration_attempts": self.config.max_repair_attempts,
+                "max_packet_regeneration_attempts": self.config.max_validation_retries,
                 "full_research_plan_regeneration": False,
             },
         ):
@@ -591,7 +552,7 @@ class LLMArchitectCoordinatorAgent:
                     available_subsystems=available_route_subsystems,
                 ),
                 validation_label="LLM Architect feedback-route packet",
-                max_repair_attempts=self.config.max_repair_attempts,
+                max_validation_retries=self.config.max_validation_retries,
             )
 
 
@@ -1389,8 +1350,8 @@ def _architect_theory_execution_preflight_summary(
         "overall_verdict": str(preflight.get("overall_verdict", "") or ""),
         "model": str(preflight.get("model", "") or ""),
         "model_tier": str(preflight.get("model_tier", "") or ""),
-        "llm_json_repair_attempts": int(
-            preflight.get("llm_json_repair_attempts", 0) or 0
+        "structured_output_retry_attempts": int(
+            preflight.get("structured_output_retry_attempts", 0) or 0
         ),
         "n_findings": len(preflight.get("findings", []) or []),
         "proof_evidence_status": str(
@@ -1518,7 +1479,7 @@ def _architect_context_with_metric_requirement_authoring(
 def _architect_metric_requirement_authoring_summary(
     packet: Mapping[str, Any],
 ) -> dict[str, Any]:
-    history = packet.get("llm_json_repair_history", [])
+    history = packet.get("structured_output_retry_history", [])
     last_history = (
         history[-1]
         if isinstance(history, list)
@@ -1565,8 +1526,8 @@ def _architect_metric_requirement_authoring_summary(
         "theory_execution_preflight": (
             _architect_theory_execution_preflight_summary(packet)
         ),
-        "llm_json_repair_attempts": int(
-            packet.get("llm_json_repair_attempts", 0) or 0
+        "structured_output_retry_attempts": int(
+            packet.get("structured_output_retry_attempts", 0) or 0
         ),
         "provider_structured_output_requested": bool(
             response_metadata.get("provider_structured_output_requested")
@@ -1638,9 +1599,6 @@ def build_architect_coordinator_prompt(
     architect_context: Mapping[str, Any],
     runtime_config: Mapping[str, Any],
 ) -> str:
-    capability_gap_routing_agenda = architect_capability_gap_routing_agenda(
-        architect_context
-    )
     formal_verification_policy = str(
         runtime_config.get("formal_verification_policy", "optional") or "optional"
     )
@@ -1748,7 +1706,6 @@ def build_architect_coordinator_prompt(
             "runnable generated code requires independent semantic review before downstream acceptance",
             "AXLE/local Lean/kernel evidence is required for theorem proof claims",
         ],
-        "runtime_capability_gap_routing_agenda": capability_gap_routing_agenda,
         "long_horizon_research_guidance": LONG_HORIZON_RESEARCH_GUIDANCE,
         "requested_evidence_contract": requested_evidence_contract,
         "formal_target_authoring_contract": (
@@ -1760,8 +1717,8 @@ def build_architect_coordinator_prompt(
     return (
         "Act as the top-level ArchitectCoordinator for the AI Statistician runtime. "
         "Return only one compact JSON object matching required_output_contract exactly. "
-        "Use the question, current artifacts, raw environment observations, reviewer "
-        "findings, and runtime memory to choose the research plan and next subsystem. "
+        "Use the question, current workspace artifacts, raw environment observations, "
+        "and reviewer findings to choose the research plan and next subsystem. "
         "Treat feedback as evidence for your own reasoning, not as a Python-authored "
         "edit recipe. When a model-authored artifact is rejected, route the complete "
         "artifact and exact observations to its owning model for full regeneration; "
@@ -1780,211 +1737,11 @@ def build_architect_coordinator_prompt(
     )
 
 
-def architect_capability_gap_routing_agenda(
-    architect_context: Mapping[str, Any],
-) -> dict[str, Any]:
-    """Project capability-gap observations without prescribing an Architect route."""
-    if not isinstance(architect_context, Mapping):
-        return {}
-    context = architect_context.get("runtime_capability_gap_routing", {})
-    if not (
-        isinstance(context, Mapping)
-        and context.get("artifact_kind") == "RuntimeCapabilityGapRoutingContext"
-    ):
-        return {}
-    raw_rows = context.get("rows", [])
-    if not isinstance(raw_rows, list):
-        return {}
-    rows: list[dict[str, Any]] = []
-    owner_subsystems: set[str] = set()
-    for raw_row in raw_rows:
-        if not isinstance(raw_row, Mapping):
-            continue
-        requirement_id = _clean_architect_gap_text(
-            raw_row.get("requirement_id") or raw_row.get("id")
-        )
-        if not requirement_id:
-            continue
-        next_owner = _clean_architect_gap_text(
-            raw_row.get("next_owner_subsystem") or "ArchitectCoordinator"
-        )
-        if next_owner:
-            owner_subsystems.add(next_owner)
-        agenda_row = {
-            "requirement_id": requirement_id,
-            "scope": _clean_architect_gap_text(raw_row.get("scope")),
-            "gap_status": _clean_architect_gap_text(raw_row.get("gap_status"))
-            or "OPEN",
-            "next_owner_subsystem": next_owner or "ArchitectCoordinator",
-            "success_metric": _clean_architect_gap_text(
-                raw_row.get("success_metric")
-            ),
-            "blocker": _clean_architect_gap_text(raw_row.get("blocker")),
-            "retention_selection": _clean_architect_gap_text(
-                raw_row.get("retention_selection")
-            ),
-            "retention_selection_boundary": _clean_architect_gap_text(
-                raw_row.get("retention_selection_boundary")
-            ),
-            "routing_boundary": _clean_architect_gap_text(
-                raw_row.get("routing_boundary")
-            )
-            or ARCHITECT_CAPABILITY_GAP_ROUTING_BOUNDARY,
-        }
-        scorecard_payload = _architect_gap_scorecard_payload(
-            raw_row.get("scorecard_payload", {})
-        )
-        if scorecard_payload:
-            agenda_row["scorecard_payload"] = scorecard_payload
-        rows.append(agenda_row)
-    if not rows:
-        return {}
-    counts = context.get("counts", {})
-    if not isinstance(counts, Mapping):
-        counts = {}
-    rows_loaded = _architect_gap_int(counts.get("rows_loaded"), fallback=len(rows))
-    rows_seen = _architect_gap_int(counts.get("rows_seen"), fallback=len(rows))
-    return {
-        "artifact_kind": "ArchitectCapabilityGapRoutingAgenda",
-        "source_artifact_kind": "RuntimeCapabilityGapRoutingContext",
-        "counts": {
-            "rows_loaded": rows_loaded,
-            "rows_seen": rows_seen,
-            "errors": _architect_gap_int(counts.get("errors"), fallback=0),
-            "max_rows": _architect_gap_int(counts.get("max_rows"), fallback=0),
-            "retention_policy": _clean_architect_gap_text(
-                counts.get("retention_policy")
-            ),
-            "input_context_truncated": rows_seen > rows_loaded,
-        },
-        "owner_subsystems": sorted(owner_subsystems),
-        "rows": rows,
-        "source_paths": _architect_gap_source_paths(context.get("source_paths", [])),
-        "boundary": ARCHITECT_CAPABILITY_GAP_ROUTING_BOUNDARY,
-    }
-
-
-def _clean_architect_gap_text(value: Any) -> str:
-    return str(value or "").strip()
-
-
-def _architect_gap_scorecard_payload(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    scorecard_row = (
-        value.get("scorecard_row", {})
-        if isinstance(value.get("scorecard_row", {}), Mapping)
-        else {}
-    )
-    audit_metrics = (
-        value.get("audit_metrics", {})
-        if isinstance(value.get("audit_metrics", {}), Mapping)
-        else {}
-    )
-    if not scorecard_row and not audit_metrics:
-        return {}
-    return {
-        "artifact_kind": _clean_architect_gap_text(
-            value.get("artifact_kind")
-        )
-        or "RuntimeCapabilityGapScorecardPayload",
-        "requirement_id": _clean_architect_gap_text(value.get("requirement_id")),
-        "scorecard_row": {
-            str(key): _architect_gap_compact_value(nested)
-            for key, nested in list(scorecard_row.items())[:10]
-        },
-        "audit_metrics": {
-            key: _architect_gap_compact_value(nested)
-            for key, nested in _architect_gap_metric_items(
-                audit_metrics,
-                limit=24,
-            )
-        },
-        "proof_evidence_status": _clean_architect_gap_text(
-            value.get("proof_evidence_status")
-        ),
-        "boundary": _clean_architect_gap_text(value.get("boundary")),
-    }
-
-
-def _architect_gap_metric_items(
-    audit_metrics: Mapping[str, Any],
-    *,
-    limit: int,
-) -> list[tuple[str, Any]]:
-    indexed_items = [
-        (str(key), value, index)
-        for index, (key, value) in enumerate(audit_metrics.items())
-    ]
-
-    def priority(item: tuple[str, Any, int]) -> tuple[int, int]:
-        key, value, index = item
-        score = 0
-        if _architect_gap_metric_has_signal(key, value):
-            score -= 100
-        for token, weight in (
-            ("contract_issues", 35),
-            ("missing", 30),
-            ("invalid", 30),
-            ("required", 25),
-            ("inherited_scope", 20),
-            ("scope_parent", 20),
-            ("contract_complete", 15),
-        ):
-            if token in key:
-                score -= weight
-        return (score, index)
-
-    return [
-        (key, value)
-        for key, value, _ in sorted(indexed_items, key=priority)[: max(limit, 0)]
-    ]
-
-
-def _architect_gap_metric_has_signal(key: str, value: Any) -> bool:
-    if isinstance(value, bool):
-        return value is False if "complete" in key or "passed" in key else value
-    if isinstance(value, (int, float)):
-        return value != 0
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, Mapping):
-        return bool(value)
-    if isinstance(value, (list, tuple, set)):
-        return bool(value)
-    return value is not None
-
-
-def _architect_gap_compact_value(value: Any) -> Any:
-    if isinstance(value, (int, float, bool)) or value is None:
-        return value
-    if isinstance(value, str):
-        return value[:500]
-    if isinstance(value, Mapping):
-        return {
-            str(key): _architect_gap_compact_value(nested)
-            for key, nested in list(value.items())[:10]
-        }
-    if isinstance(value, list):
-        return [_architect_gap_compact_value(item) for item in value[:10]]
-    return str(value)[:500]
-
-
 def _architect_gap_int(value: Any, *, fallback: int) -> int:
     try:
         return int(value)
     except (TypeError, ValueError):
         return int(fallback)
-
-
-def _architect_gap_source_paths(value: Any) -> list[str]:
-    if isinstance(value, list):
-        return [str(path) for path in value]
-    if value in (None, ""):
-        return []
-    return [str(value)]
-
-
 ARCHITECT_COORDINATOR_SYSTEM_PROMPT = """\
 You are the top-level ArchitectCoordinator inside an AI Statistician AgentRuntime.
 
@@ -2049,7 +1806,7 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
     },
     "iteration_policy": {
         "reroute_triggers": ["one short string"],
-        "max_repair_rounds": "integer",
+        "max_revision_rounds": "integer",
         "stop_conditions": ["one short string"],
     },
     "evidence_gates": [
@@ -2286,7 +2043,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
             "additionalProperties": False,
             "required": [
                 "reroute_triggers",
-                "max_repair_rounds",
+                "max_revision_rounds",
                 "stop_conditions",
             ],
             "properties": {
@@ -2294,7 +2051,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                     "type": "array",
                     "items": {"type": "string"},
                 },
-                "max_repair_rounds": {"type": "integer"},
+                "max_revision_rounds": {"type": "integer"},
                 "stop_conditions": {
                     "type": "array",
                     "items": {"type": "string"},
@@ -2455,7 +2212,7 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
         )
         if typed_required is not None and not isinstance(typed_required, bool):
             errors.append(
-                "evidence_contract.capability_eval_requires_typed_metric_contracts "
+                "evidence_contract.research_evaluation_requires_typed_metric_contracts "
                 "must be a boolean"
             )
         if authority_policy and authority_policy not in {
@@ -3084,17 +2841,13 @@ def _architect_runtime_evaluation_contract(
             research_evaluation
         ),
         "research_evaluation_requires_typed_metric_contracts": research_evaluation,
-        "capability_eval_requires_generated_algorithm_code": research_evaluation,
-        "capability_eval_requires_generated_simulation_code": research_evaluation,
-        "capability_eval_requires_generated_code_semantic_review": research_evaluation,
-        "capability_eval_requires_formal_target_semantic_review": bool(
+        "formal_evaluation_requires_formal_target_semantic_review": bool(
             capability_eval
             and runtime_config.get(
                 "formal_target_semantic_review_required", False
             )
         ),
-        "capability_eval_requires_typed_metric_contracts": research_evaluation,
-        "capability_eval_requires_formalizer_lean_candidate": capability_eval,
+        "formal_evaluation_requires_formalizer_lean_candidate": capability_eval,
         "generated_sandbox_runtime_replicates": (
             generated_sandbox_runtime_replicates(
                 int(runtime_config.get("n_runs", 100) or 100)
@@ -3110,40 +2863,9 @@ def _architect_runtime_evaluation_contract(
             if research_evaluation
             else GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
         ),
-        "capability_eval_requires_exact_source_theorem_prover": (
+        "formal_evaluation_exposes_proof_search_tool": (
             capability_eval
-            and bool(runtime_config.get("exact_source_theorem_prover_available", False))
-        ),
-        "theorem_reduction_closure_proofengineer_required": bool(
-            evaluation_mode != "research_eval"
-            and runtime_config.get(
-                "theorem_closure_proofengineer_bridge", False
-            )
-        ),
-        "exact_source_theorem_proof_body_executor_required": bool(
-            evaluation_mode != "research_eval"
-            and runtime_config.get(
-                "source_theorem_formal_environment_proofengineer_bridge",
-                False,
-            )
-            and runtime_config.get(
-                "source_theorem_formal_environment_proofengineer_execute_proof_body",
-                False,
-            )
-        ),
-        "source_semantic_proofengineer_required": bool(
-            evaluation_mode != "research_eval"
-            and runtime_config.get("source_semantic_proofengineer_bridge", False)
-        ),
-        "pseudo_formal_block_verifier_required": bool(
-            evaluation_mode != "research_eval"
-            and runtime_config.get("pseudo_formal_block_verifier_runtime", False)
-        ),
-        "source_theorem_promotion_proofengineer_required": bool(
-            evaluation_mode != "research_eval"
-            and runtime_config.get(
-                "source_theorem_promotion_proofengineer_bridge", False
-            )
+            and bool(runtime_config.get("proof_search_tool_available", False))
         ),
     }
 
@@ -3173,7 +2895,7 @@ def _required_architect_plan_subsystems(
         if (
             evaluation_mode == "capability_eval"
             and evidence_contract.get(
-                "capability_eval_requires_formal_target_semantic_review"
+                "formal_evaluation_requires_formal_target_semantic_review"
             )
             is True
         ):
@@ -3181,55 +2903,17 @@ def _required_architect_plan_subsystems(
         if (
             evaluation_mode == "capability_eval"
             and evidence_contract.get(
-                "capability_eval_requires_formalizer_lean_candidate"
+                "formal_evaluation_requires_formalizer_lean_candidate"
             )
             is True
         ):
             required.add("FormalizationEvaluator")
-        if (
-            evaluation_mode == "capability_eval"
-            and evidence_contract.get(
-                "capability_eval_requires_exact_source_theorem_prover"
-            )
-            is True
-        ):
-            required.add("ExactSourceTheoremProver")
     if (
         evidence_contract.get("formal_required_for_final") is True
         or str(evidence_contract.get("formal_verification_policy", "") or "")
         == "required"
     ):
-        required.update(
-            (
-                "FormalizationEvaluator",
-                "ProofEngineer",
-            )
-        )
-    if (
-        evidence_contract.get(
-            "theorem_reduction_closure_proofengineer_required"
-        )
-        is True
-    ):
-        required.add("TheoremReductionClosureProofEngineer")
-    if (
-        evidence_contract.get(
-            "exact_source_theorem_proof_body_executor_required"
-        )
-        is True
-    ):
-        required.add("ExactSourceTheoremProofBodyExecutor")
-    if evidence_contract.get("source_semantic_proofengineer_required") is True:
-        required.add("SourceSemanticProofEngineer")
-    if evidence_contract.get("pseudo_formal_block_verifier_required") is True:
-        required.add("PseudoFormalBlockVerifier")
-    if (
-        evidence_contract.get(
-            "source_theorem_promotion_proofengineer_required"
-        )
-        is True
-    ):
-        required.add("SourceTheoremPromotionProofEngineer")
+        required.add("FormalizationEvaluator")
     return tuple(
         subsystem
         for subsystem in ARCHITECT_RUNTIME_SUBSYSTEMS

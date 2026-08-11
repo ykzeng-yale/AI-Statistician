@@ -24,10 +24,6 @@ PROOF_STATE_FEEDBACK_BOUNDARY = (
     "Lean kernel verifier without placeholders."
 )
 
-PLACEHOLDER_RE = re.compile(r"\b(sorry|admit|axiom)\b")
-FORMAL_GAP_RE = re.compile(r"\bFORMAL_GAP\b|h_frontier_missing")
-
-
 @dataclass(frozen=True)
 class ProofStateFeedbackRow:
     schema_version: int
@@ -62,14 +58,7 @@ class ProofStateFeedbackProvider(Protocol):
 
 
 class LocalLeanProofStateFeedbackProvider:
-    """Runtime proof-state feedback via local Lean diagnostics when possible.
-
-    This is not a Lean LSP MCP implementation. It is the local fallback side of
-    the same proof-state provider contract: it classifies placeholder/formal-gap
-    skeletons without executing them, and delegates all other syntax and
-    elaboration decisions to `lake env lean`. Python does not maintain a shadow
-    grammar for deciding what counts as a Lean command.
-    """
+    """Execute the exact model-owned source and return Lean observations."""
 
     name = "local_lean_proof_state_feedback"
 
@@ -88,7 +77,7 @@ class LocalLeanProofStateFeedbackProvider:
         return [self._inspect_subclaim(row) for row in subclaims]
 
     def _inspect_subclaim(self, subclaim: FormalSubclaim) -> ProofStateFeedbackRow:
-        statement = str(subclaim.lean_statement or "").strip()
+        statement = str(subclaim.lean_statement or "")
         diagnostics: list[str] = []
         residual_goals: list[str] = []
         attempt_status = ""
@@ -103,24 +92,11 @@ class LocalLeanProofStateFeedbackProvider:
                 "subclaim already has kernel_verified=true from the formal verifier; "
                 "proof-state feedback is not adding proof evidence"
             )
-        elif not statement:
+        elif not statement.strip():
             attempt_status = "missing_lean_statement"
             diagnostics.append("subclaim has no Lean statement to inspect")
             requested_tools = ("lean_diagnostic_messages", "formalizer_author_lean")
             residual_goals.extend(_residual_goals_for_subclaim(subclaim, "missing Lean statement"))
-        elif PLACEHOLDER_RE.search(statement):
-            attempt_status = "placeholder_blocked"
-            diagnostics.append("Lean statement contains sorry/admit/axiom; proof-state provider did not run it")
-            requested_tools = ("lean_diagnostic_messages", "formalizer_author_lean")
-            residual_goals.extend(_residual_goals_for_subclaim(subclaim, "placeholder Lean statement"))
-        elif FORMAL_GAP_RE.search(statement):
-            attempt_status = "formal_gap_scaffold_blocked"
-            diagnostics.append(
-                "Lean statement is a formal-gap scaffold with h_frontier_missing/FORMAL_GAP markers; "
-                "diagnostic feedback records residual goals instead of treating it as proof"
-            )
-            requested_tools = ("lean_diagnostic_messages", "formalizer_author_lean")
-            residual_goals.extend(_residual_goals_for_subclaim(subclaim, "formal-gap scaffold"))
         elif not self.lean_command:
             attempt_status = "local_lean_unavailable"
             diagnostics.append("local Lean command unavailable; configure lake/lean before live proof-state diagnostics")
@@ -191,10 +167,8 @@ class LocalLeanProofStateFeedbackProvider:
             residual_goals=tuple(residual_goals),
             route_revision_recommended=attempt_status
             in {
-                "formal_gap_scaffold_blocked",
                 "local_lean_failed",
                 "missing_lean_statement",
-                "placeholder_blocked",
             },
             subclaim_status=str(subclaim.status),
             subclaim_kernel_verified=bool(subclaim.kernel_verified),
@@ -217,11 +191,7 @@ class LocalLeanProofStateFeedbackProvider:
     def _run_local_lean(self, statement: str) -> dict[str, Any]:
         with tempfile.TemporaryDirectory(prefix="ai_stat_proof_state_") as tmp:
             lean_file = Path(tmp) / "ProofStateFeedback.lean"
-            source, source_diagnostics = _lean_source(
-                statement,
-                project_root=self.project_root,
-            )
-            lean_file.write_text(source, encoding="utf-8")
+            lean_file.write_text(statement, encoding="utf-8")
             command = (*self.lean_command, str(lean_file))
             try:
                 proc = subprocess.run(
@@ -249,9 +219,8 @@ class LocalLeanProofStateFeedbackProvider:
                 }
         combined = "\n".join(item for item in (proc.stdout, proc.stderr) if item).strip()
         diagnostics = _diagnostic_lines(combined)
-        diagnostics.extend(source_diagnostics)
         return {
-            "attempt_status": "local_lean_scaffold_accepted" if proc.returncode == 0 else "local_lean_failed",
+            "attempt_status": "local_lean_accepted" if proc.returncode == 0 else "local_lean_failed",
             "returncode": proc.returncode,
             "diagnostics": diagnostics or [f"local Lean exited with return code {proc.returncode}"],
             "first_error": diagnostics[0] if diagnostics and proc.returncode != 0 else "",
@@ -506,67 +475,17 @@ def _residual_goals_for_subclaim(subclaim: FormalSubclaim, reason: str) -> list[
     return rows
 
 
-def _lean_source(
-    statement: str,
-    *,
-    project_root: Path | None = None,
-) -> tuple[str, list[str]]:
-    if statement.lstrip().startswith("import "):
-        return statement, []
-    if _mathlib_root_import_available(project_root):
-        return "import Mathlib\n\n" + statement + "\n", []
-    return (
-        statement + "\n",
-        [
-            (
-                "implicit `import Mathlib` skipped: configured Lake project does "
-                "not expose Mathlib.olean; proof-state feedback used the candidate "
-                "source directly so parser/identifier diagnostics are not masked by "
-                "an umbrella-import environment error"
-            )
-        ],
-    )
+def _diagnostic_lines(text: str, *, limit: int = 40) -> list[str]:
+    """Bound Lean output without classifying its grammar or error semantics."""
 
-
-def _mathlib_root_import_available(project_root: Path | None) -> bool:
-    if project_root is None:
-        return True
-    root = Path(project_root)
-    candidate_paths = (
-        root / ".lake" / "build" / "lib" / "lean" / "Mathlib.olean",
-        root
-        / ".lake"
-        / "packages"
-        / "mathlib"
-        / ".lake"
-        / "build"
-        / "lib"
-        / "lean"
-        / "Mathlib.olean",
-    )
-    return any(path.exists() for path in candidate_paths)
-
-
-def _diagnostic_lines(text: str, *, limit: int = 12) -> list[str]:
     if not text:
         return []
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    interesting = [
-        line
-        for line in lines
-        if any(
-            marker in line.lower()
-            for marker in (
-                "error",
-                "warning",
-                "unsolved goals",
-                "unknown identifier",
-                "failed",
-                "type mismatch",
-            )
-        )
-    ]
-    return (interesting or lines)[:limit]
+    if len(lines) <= limit:
+        return lines
+    head = max(1, limit // 2)
+    tail = max(1, limit - head - 1)
+    return [*lines[:head], "[Lean output truncated]", *lines[-tail:]]
 
 
 _LEAN_DIAGNOSTIC_POSITION_RE = re.compile(

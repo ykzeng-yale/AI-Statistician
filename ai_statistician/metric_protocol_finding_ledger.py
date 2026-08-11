@@ -46,9 +46,6 @@ def metric_protocol_finding_id(
         "expected_behavior": str(
             finding.get("expected_behavior", "") or ""
         ).strip(),
-        "required_change": str(
-            finding.get("required_change", "") or ""
-        ).strip(),
         "evidence_refs": [
             str(value).strip()
             for value in finding.get("evidence_refs", []) or []

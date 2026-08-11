@@ -14,11 +14,10 @@ from .agent_runtime import (
     ToolCallRecord,
     agent_task_reference,
 )
-from .architect_coordinator_llm import ARCHITECT_FEEDBACK_ROUTE_OPERATION
 from .fingerprint import stable_hash
-from .exact_source_theorem_proof_body_executor import (
-    EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
-    exact_target_statement_hash,
+from .lean_candidate_identity import (
+    LEAN_TARGET_STATEMENT_HASH_ALGORITHM,
+    lean_target_statement_hash,
 )
 from .formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
@@ -27,7 +26,7 @@ from .formal_target_semantic_reviewer_llm import (
     LLMFormalTargetSemanticReviewerAgent,
     validate_formal_target_semantic_review_packet,
 )
-from .llm_json_repair import PacketValidationError
+from .structured_output_retry import PacketValidationError
 from .model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER
 from .research_schema import OpenResearchQuestion
 
@@ -131,9 +130,9 @@ def _runtime_formal_target_semantic_review_dispatch(
     max_revisions: int,
 ) -> dict[str, Any] | None:
     target_context = (
-        dict(candidate_feedback.get("proofengineer_repair_context", {}) or {})
+        dict(candidate_feedback.get("formalizer_workspace_context", {}) or {})
         if isinstance(
-            candidate_feedback.get("proofengineer_repair_context", {}), Mapping
+            candidate_feedback.get("formalizer_workspace_context", {}), Mapping
         )
         else {}
     )
@@ -172,11 +171,11 @@ def _runtime_formal_target_semantic_review_dispatch(
         dispatch_validation_errors.append("target_theorem_statement missing")
     if not target_statement_hash:
         dispatch_validation_errors.append("target_theorem_statement_hash missing")
-    elif exact_target_statement_hash(target_statement) != target_statement_hash:
+    elif lean_target_statement_hash(target_statement) != target_statement_hash:
         dispatch_validation_errors.append(
             "target_theorem_statement_hash does not match the shared exact-target identity"
         )
-    if target_statement_hash_algorithm != EXACT_TARGET_STATEMENT_HASH_ALGORITHM:
+    if target_statement_hash_algorithm != LEAN_TARGET_STATEMENT_HASH_ALGORITHM:
         dispatch_validation_errors.append(
             "target_theorem_statement_hash_algorithm mismatch"
         )
@@ -257,6 +256,17 @@ def _runtime_formal_target_semantic_review_dispatch(
     work_order_id = "formal_target_semantic_review_work_order:" + stable_hash(
         work_order_seed
     )[:20]
+    deferred_task_payload = asdict(deferred_next_task)
+    deferred_task_snapshot_id = "agent_task_snapshot:" + stable_hash(
+        deferred_task_payload
+    )[:20]
+    deferred_task_snapshot = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeAgentTaskSnapshot",
+        "snapshot_id": deferred_task_snapshot_id,
+        "task_ref": agent_task_reference(deferred_next_task),
+        "task": deferred_task_payload,
+    }
     work_order = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeFormalTargetSemanticReviewWorkOrder",
@@ -331,6 +341,8 @@ def _runtime_formal_target_semantic_review_dispatch(
             set(dispatch_validation_errors)
         ),
         "deferred_next_task_ref": agent_task_reference(deferred_next_task),
+        "deferred_next_task_snapshot_id": deferred_task_snapshot_id,
+        "deferred_next_task_snapshot_hash": stable_hash(deferred_task_snapshot),
         "proof_evidence_status": (
             "FORMAL_TARGET_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
         ),
@@ -346,15 +358,12 @@ def _runtime_formal_target_semantic_review_dispatch(
         objective=(
             "Independently review whether the exact hash-bound Lean theorem "
             "statement faithfully and non-vacuously formalizes the research "
-            "question and TheoryDeveloper derivation before further model-owned "
-            "source generation."
+            "question and TheoryDeveloper derivation before kernel promotion."
         ),
         inputs={
             "question": _question_to_payload(question),
-            "architect_context": dict(architect_context),
             "work_order_id": work_order_id,
             "work_order_hash": work_order_hash,
-            "deferred_next_task": asdict(deferred_next_task),
         },
         allowed_tools=("model_backend", "filesystem", "blackboard"),
         expected_artifacts=(
@@ -393,7 +402,7 @@ def _runtime_formal_target_semantic_review_dispatch(
         observation_type="formal_target_semantic_review_dispatched",
         summary=(
             "hash-bound exact theorem target routed to independent mathematical "
-            "semantic review before proof search"
+            "semantic review before kernel promotion"
         ),
         payload={
             "work_order_id": work_order_id,
@@ -416,6 +425,12 @@ def _runtime_formal_target_semantic_review_dispatch(
         ),
         "work_order_id": work_order_id,
         "work_order": work_order,
+        "deferred_task_snapshot_id": deferred_task_snapshot_id,
+        "deferred_task_snapshot": deferred_task_snapshot,
+        "artifacts": {
+            work_order_id: work_order,
+            deferred_task_snapshot_id: deferred_task_snapshot,
+        },
         "next_task": review_task,
         "evidence": evidence,
         "observation": observation,
@@ -526,9 +541,9 @@ def _runtime_formal_target_semantic_review_material(
     target_statement_hash_algorithm = str(
         work_order.get("target_theorem_statement_hash_algorithm", "") or ""
     )
-    if target_statement_hash_algorithm != EXACT_TARGET_STATEMENT_HASH_ALGORITHM:
+    if target_statement_hash_algorithm != LEAN_TARGET_STATEMENT_HASH_ALGORITHM:
         errors.append("formal-target theorem statement hash algorithm mismatch")
-    if not target_statement or exact_target_statement_hash(target_statement) != str(
+    if not target_statement or lean_target_statement_hash(target_statement) != str(
         work_order.get("target_theorem_statement_hash", "") or ""
     ):
         errors.append("formal-target theorem statement hash mismatch")
@@ -662,12 +677,27 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             hash_field="proposal_packet_hash",
             allowed_kinds=FORMAL_TARGET_REVIEW_PROPOSAL_PACKET_KINDS,
         )
+        deferred_task_snapshot = bound_artifact(
+            id_field="deferred_next_task_snapshot_id",
+            hash_field="deferred_next_task_snapshot_hash",
+            kind="RuntimeAgentTaskSnapshot",
+        )
         deferred_task_payload = (
-            dict(task.inputs.get("deferred_next_task", {}) or {})
-            if isinstance(task.inputs.get("deferred_next_task", {}), Mapping)
+            dict(deferred_task_snapshot.get("task", {}) or {})
+            if isinstance(deferred_task_snapshot.get("task", {}), Mapping)
             else {}
         )
         deferred_task_ref = work_order.get("deferred_next_task_ref", {})
+        if str(deferred_task_snapshot.get("snapshot_id", "") or "") != str(
+            work_order.get("deferred_next_task_snapshot_id", "") or ""
+        ):
+            validation_errors.append(
+                "formal-target review deferred task snapshot identity mismatch"
+            )
+        if deferred_task_snapshot.get("task_ref") != deferred_task_ref:
+            validation_errors.append(
+                "formal-target review deferred task snapshot ref mismatch"
+            )
         try:
             deferred_task = _agent_task_from_runtime_payload(
                 deferred_task_payload
@@ -676,7 +706,7 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             validation_errors.append(str(exc))
             deferred_task = None
         if deferred_task is not None and (
-            deferred_task.owner_subsystem != "ProofEngineer"
+            deferred_task.owner_subsystem != "FormalizationEvaluator"
         ):
             validation_errors.append(
                 "formal-target review deferred task is not ProofEngineer"
@@ -826,7 +856,6 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 "last_invalid_review_projection": (
                     invalid_review_projection
                 ),
-                "external_proof_search_dispatch_eligible": False,
                 "kernel_verified": False,
                 "proof_evidence_status": (
                     "FORMAL_TARGET_SEMANTIC_REVIEW_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
@@ -852,8 +881,7 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                             "failure_id": failure_id,
                             "validation_errors": list(exc.errors),
                             "validation_attempts": exc.attempts,
-                            "external_proof_search_dispatch_eligible": False,
-                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                         },
                     ),
                 ),
@@ -1009,12 +1037,11 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             "overall_verdict": verdict,
             "dimension_reviews": list(review_packet.get("dimension_reviews", []) or []),
             "findings": review_findings,
-            "routing_authority": "ArchitectCoordinator_model_packet",
+            "routing_authority": "same_formalizer_workspace",
             "runtime_selected_owner": False,
-            "model_route_required_for_cross_owner_revision": True,
+            "model_route_required_for_cross_owner_revision": False,
             "execution_results_observed": False,
             "execution_authorized": False,
-            "external_proof_search_dispatch_eligible": False,
             "model_owned_complete_source_tool_loop_eligible": True,
             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
             "evidence_boundary": FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
@@ -1033,20 +1060,20 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 if isinstance(next_inputs.get("environment_feedback", {}), Mapping)
                 else {}
             )
-            repair_context = (
-                dict(prior_feedback.get("proofengineer_repair_context", {}) or {})
+            workspace_context = (
+                dict(prior_feedback.get("formalizer_workspace_context", {}) or {})
                 if isinstance(
-                    prior_feedback.get("proofengineer_repair_context", {}), Mapping
+                    prior_feedback.get("formalizer_workspace_context", {}), Mapping
                 )
                 else {}
             )
             target_provenance = (
                 dict(
-                    repair_context.get("source_theorem_target_provenance", {})
+                    workspace_context.get("source_theorem_target_provenance", {})
                     or {}
                 )
                 if isinstance(
-                    repair_context.get("source_theorem_target_provenance", {}),
+                    workspace_context.get("source_theorem_target_provenance", {}),
                     Mapping,
                 )
                 else {}
@@ -1068,7 +1095,7 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                     ),
                 }
             )
-            repair_context.update(
+            workspace_context.update(
                 {
                     "formalizer_candidate_semantic_review_status": (
                         "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"
@@ -1090,7 +1117,6 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                         )
                         or ""
                     ),
-                    "external_proof_search_dispatch_eligible": False,
                     "model_owned_complete_source_tool_loop_eligible": True,
                     "source_theorem_target_known": True,
                     "source_theorem_target_identity_status": (
@@ -1104,7 +1130,7 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             next_feedback = {
                 **prior_feedback,
                 **feedback,
-                "proofengineer_repair_context": repair_context,
+                "formalizer_workspace_context": workspace_context,
             }
             next_inputs["environment_feedback"] = next_feedback
             next_context = dict(next_inputs.get("architect_context", {}) or {})
@@ -1136,8 +1162,8 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             status = "REROUTE"
             rationale = (
                 "Independent semantic review accepted the exact theorem target; "
-                "the hash-bound target is now eligible for typed prover search, "
-                "but remains unproved until the runtime-owned kernel gate passes."
+                "the unchanged hash-bound source is now eligible for the local "
+                "identity/kernel promotion gate."
             )
             failure_classification = ""
         else:
@@ -1152,9 +1178,9 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 else {}
             )
             revision_context = (
-                dict(prior_feedback.get("proofengineer_repair_context", {}) or {})
+                dict(prior_feedback.get("formalizer_workspace_context", {}) or {})
                 if isinstance(
-                    prior_feedback.get("proofengineer_repair_context", {}),
+                    prior_feedback.get("formalizer_workspace_context", {}),
                     Mapping,
                 )
                 else {}
@@ -1181,85 +1207,50 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                         )
                         or ""
                     ),
-                    "external_proof_search_dispatch_eligible": False,
                     "model_owned_complete_source_tool_loop_eligible": True,
                     "source_theorem_kernel_evidence_eligible": False,
                     "source_theorem_promotion_blockers": [
                         "The changed source must pass a fresh independent semantic "
-                        "review before prover search or source-theorem promotion."
+                        "review before source-theorem kernel promotion."
                     ],
                 }
             )
             feedback = {
                 **prior_feedback,
                 **feedback,
-                "proofengineer_repair_context": revision_context,
+                "formalizer_workspace_context": revision_context,
             }
-            architect_context = (
-                dict(task.inputs.get("architect_context", {}) or {})
-                if isinstance(task.inputs.get("architect_context", {}), Mapping)
-                else {}
-            )
-            architect_context["environment_feedback"] = dict(feedback)
-            architect_context["formal_target_semantic_review_replan"] = {
-                "review_execution_id": execution_id,
-                "review_packet_id": review_packet_id,
-                "review_packet_hash": review_packet_hash,
-                "work_order_id": work_order_id,
-                "work_order_hash": work_order_hash,
-                "candidate_source_hash": str(
-                    work_order.get("candidate_source_hash", "") or ""
-                ),
-                "target_theorem_statement_hash": str(
-                    work_order.get("target_theorem_statement_hash", "") or ""
-                ),
-                "revision_budget": {
-                    "revisions_used": revision_count,
-                    "max_revisions": max_revisions,
-                    "revision_available": revision_count < max_revisions,
-                },
-                "routing_authority": "ArchitectCoordinator_model_packet",
-                "runtime_selected_owner": False,
-            }
-            next_task = AgentTask(
-                task_id=(
-                    f"formal-target-architect-replan:{question.id}:"
-                    f"{stable_hash([execution_id, revision_count])[:8]}"
-                ),
-                owner_subsystem="ArchitectCoordinator",
-                objective=(
-                    "Choose the next evidence-producing subsystem from the independent "
-                    "formal-target observations and immutable artifact lineage."
-                ),
-                inputs={
-                    "question": _question_to_payload(question),
-                    "architect_context": architect_context,
-                    "environment_feedback": dict(feedback),
-                    "formal_target_semantic_review_revision_count": revision_count,
-                    "runtime_architect_operation": (
-                        ARCHITECT_FEEDBACK_ROUTE_OPERATION
+            if revision_count < max_revisions:
+                next_inputs = dict(deferred_task.inputs)
+                next_inputs["environment_feedback"] = feedback
+                next_inputs["formal_target_semantic_review_revision_count"] = (
+                    revision_count + 1
+                )
+                next_task = replace(
+                    deferred_task,
+                    task_id=(
+                        f"formal-target-revise:{question.id}:"
+                        f"{stable_hash([execution_id, deferred_task.task_id])[:8]}"
                     ),
-                },
-                allowed_tools=("model_backend", "evidence_ledger"),
-                expected_artifacts=("architect_feedback_route_decision",),
-                acceptance_gate=(
-                    "validated Architect proposal selects one next subsystem while "
-                    "preserving rejected target lineage and revision budgets"
-                ),
-                stop_condition=(
-                    "one model-owned route is selected or the blocker is recorded "
-                    "without enabling proof search for the rejected target"
-                ),
-            )
-            status = "REROUTE"
-            rationale = (
-                "Independent semantic review rejected the exact theorem target. "
-                "The runtime preserved its observations and lineage for the "
-                "Architect model without choosing a repair owner or strategy."
-            )
-            failure_classification = (
-                "formal_target_semantic_observations_require_architect_route"
-            )
+                    inputs=next_inputs,
+                )
+                status = "REVISE"
+                rationale = (
+                    "Independent semantic review returned its exact findings to the "
+                    "same Formalizer workspace for a complete model-authored source "
+                    "revision."
+                )
+                failure_classification = "formal_target_semantic_review_revise"
+            else:
+                next_task = None
+                status = "BLOCKED"
+                rationale = (
+                    "The same Formalizer workspace exhausted its bounded semantic "
+                    "revision budget; the target remains unpromoted."
+                )
+                failure_classification = (
+                    "formal_target_semantic_review_revision_budget_exhausted"
+                )
 
         evidence = EvidenceLedgerEntry(
             evidence_id="evidence:" + stable_hash([task.task_id, execution_id])[:20],
@@ -1303,7 +1294,6 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                         "next_owner_subsystem": (
                             next_task.owner_subsystem if next_task else ""
                         ),
-                        "external_proof_search_dispatch_eligible": False,
                         "model_owned_complete_source_tool_loop_eligible": (
                             True
                         ),

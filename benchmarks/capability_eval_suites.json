@@ -239,117 +239,6 @@
       ]
     },
     {
-      "id": "S11_live_formalizer_lean_candidate_repair",
-      "name": "Live Formalizer Lean-Candidate Repair Suite",
-      "capability": "Claude/OpenAI Formalizer/ProofEngineer consumes local Lean diagnostics, generates a repaired Lean candidate, and gets that exact candidate checked locally",
-      "primary_artifacts": [
-        "runs/formalizer_lean_candidate_repair_eval/formalizer_lean_candidate_repair_eval_manifest.json",
-        "runs/formalizer_lean_candidate_repair_eval/formalizer_lean_candidate_repair_eval_result.json"
-      ],
-      "recommended_commands": [
-        "python3 -m ai_statistician.cli formalizer-lean-candidate-repair-eval --provider anthropic --question-id conformal_prediction_coverage --out runs/formalizer_lean_candidate_repair_eval"
-      ],
-      "release_floor": [
-        "provider is anthropic or openai, not static",
-        "Formalizer/ProofEngineer has a Lean-candidate fail-then-pass repair sequence",
-        "local Lean checked at least one generated candidate",
-        "local Lean compiled at least one generated candidate",
-        "source_theorem_kernel_verified remains false unless the exact source theorem is separately checked"
-      ],
-      "current_status": "live Anthropic Claude Sonnet evidence present in runs/formalizer_lean_candidate_repair_eval_live_20260623_sonnet_repair: Formalizer repaired a prior local-Lean failure into one locally compiled Lean candidate; this is helper-candidate capability evidence only",
-      "current_live_evidence": {
-        "manifest": "runs/formalizer_lean_candidate_repair_eval_live_20260623_sonnet_repair/formalizer_lean_candidate_repair_eval_manifest.json",
-        "provider": "anthropic",
-        "model": "claude-sonnet-4-6",
-        "capability_evidence_ok": true,
-        "candidate_kernel_verified": true,
-        "source_theorem_kernel_verified": false,
-        "repair_sequences": 1,
-        "local_lean_checked": 1,
-        "local_lean_compiled": 1,
-        "proof_evidence_status": "FORMALIZER_LEAN_CANDIDATE_REPAIR_EVAL_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
-      },
-      "honesty_boundary": "Static fixture plumbing does not count as Formalizer/ProofEngineer capability; local Lean compile verifies only the exact generated helper candidate, not source theorem proof and not semantic faithfulness."
-    },
-    {
-      "id": "S11c_live_formalizer_pseudo_formal_packet",
-      "name": "Live Formalizer PF/BV Packet-Emission Suite",
-      "capability": "Claude/OpenAI Formalizer/ProofEngineer turns blocked proof-body feedback into schema-valid source-anchored pseudo-formal packets with exact-semantic-definition and PF/BV work-order lanes",
-      "primary_artifacts": [
-        "runs/formalizer_pseudo_formal_packet_eval/formalizer_pseudo_formal_packet_eval_manifest.json",
-        "runs/research_agent_runtime_audit/research_agent_runtime_audit_manifest.json"
-      ],
-      "recommended_commands": [
-        "python3 -m ai_statistician.cli formalizer-pseudo-formal-packet-eval --provider anthropic --out runs/formalizer_pseudo_formal_packet_eval",
-        "python3 -m ai_statistician.cli research-agent-runtime --capability-eval --provider anthropic --run-formalizer-pseudo-formal-packet-eval --formalizer-pseudo-formal-packet-eval-provider same --out runs/live_integrated_agent_runtime_capability_eval"
-      ],
-      "release_floor": [
-        "provider is anthropic or openai, not static",
-        "Formalizer emits at least one schema-valid pseudo-formal proof packet under required PF/BV activation",
-        "packet expansion produces nonzero lane-routable work-order rows",
-        "target lanes include source_theorem_exact_semantic_definition before proof-body replay resumes",
-        "raw model output is not written to public artifacts",
-        "packets are not counted as Lean/AXLE kernel or source theorem proof evidence"
-      ],
-      "current_status": "live Anthropic Claude Sonnet evidence present in runs/formalizer_pseudo_formal_packet_eval_live_20260705: Formalizer emitted one valid PF/BV packet with 11 work-order rows and 8 routable rows across exact-semantic-definition, source-to-bridge, Lean RAG, and formal-gap lanes; this is packet/routing capability evidence only",
-      "current_live_evidence": {
-        "manifest": "runs/formalizer_pseudo_formal_packet_eval_live_20260705/formalizer_pseudo_formal_packet_eval_manifest.json",
-        "provider": "anthropic",
-        "model": "claude-sonnet-4-6",
-        "live_generator": true,
-        "static_or_fixture_only": false,
-        "capability_evidence_ok": true,
-        "n_pseudo_formal_packets": 1,
-        "n_pseudo_formal_work_order_rows": 11,
-        "n_pseudo_formal_routable_work_order_rows": 8,
-        "target_lanes": [
-          "formal_gap",
-          "lean_rag",
-          "source_theorem_exact_semantic_definition",
-          "source_to_bridge"
-        ],
-        "raw_model_output_written": false,
-        "proof_evidence_status": "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE"
-      },
-      "honesty_boundary": "Formalizer PF/BV packet emission can unblock exact semantic-definition, RAG, source-to-bridge, and BlockVerifier lanes, but schema-valid packets and routable rows are non-proof decomposition/routing evidence until exact target obligations are replayed and verified by Lean/AXLE."
-    },
-    {
-      "id": "S11b_live_pseudo_formal_block_verifier",
-      "name": "Live Pseudo-Formal BlockVerifier Suite",
-      "capability": "Claude/OpenAI-driven PF/BV BlockVerifier turns independent pseudo-formal block-verification requests into validated non-proof runtime feedback rows",
-      "primary_artifacts": [
-        "runs/pseudo_formal_block_verifier_component_gate/pseudo_formal_block_verifier_component_gate_manifest.json",
-        "runs/research_agent_runtime_audit/research_agent_runtime_audit_manifest.json"
-      ],
-      "recommended_commands": [
-        "python3 -m ai_statistician.cli research-agent-runtime --capability-eval --provider anthropic --run-pseudo-formal-block-verifier-eval --pseudo-formal-block-verifier-eval-provider same --out runs/live_integrated_agent_runtime_capability_eval",
-        "python3 -m ai_statistician.cli pseudo-formal-block-verifier-component-gate --runtime-learning-jsonl runs/live_integrated_agent_runtime_capability_eval/runtime_learning_rows.jsonl --provider anthropic --out runs/pseudo_formal_block_verifier_component_gate"
-      ],
-      "release_floor": [
-        "provider is anthropic or openai, not static",
-        "prompt-packet export finds at least one independent pseudo-formal block-verification request row",
-        "live LLM BlockVerifier response generation returns at least one valid response",
-        "response validation emits at least one runtime learning row with non-proof PF/BV feedback boundary",
-        "accepted pseudo-formal blocks are not counted as Lean/AXLE kernel evidence"
-      ],
-      "current_status": "live Anthropic Claude Haiku evidence present in runs/pseudo_formal_block_verifier_component_gate_live_main_worker_cli_probe: the standalone PF/BV component gate produced one prompt packet, one valid BlockVerifier response, and one validated non-proof runtime learning row from a live backend",
-      "current_live_evidence": {
-        "manifest": "runs/pseudo_formal_block_verifier_component_gate_live_main_worker_cli_probe/pseudo_formal_block_verifier_component_gate_manifest.json",
-        "provider": "anthropic",
-        "model": "claude-haiku-4-5-20251001",
-        "live_generator": true,
-        "static_or_fixture_only": false,
-        "capability_evidence_ok": true,
-        "n_prompt_packets": 1,
-        "n_valid_responses": 1,
-        "n_runtime_learning_rows": 1,
-        "n_accepted_blocks": 1,
-        "n_failed_blocks": 0,
-        "proof_evidence_status": "PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_NOT_PROOF_EVIDENCE"
-      },
-      "honesty_boundary": "PF/BV feedback can smooth formalizer routing and error localization, but accepted blocks are non-proof verifier feedback until exact target obligations are replayed and verified by Lean/AXLE."
-    },
-    {
       "id": "S12_live_architect_research_path_policy",
       "name": "Live Architect Research-Path Policy Suite",
       "capability": "Claude/OpenAI ArchitectCoordinator emits valid evidence contracts and chooses proof-first, simulation-first, or optional research paths across representative statistical tasks",
@@ -367,12 +256,14 @@
         "optional mixed-evidence case returns a valid policy/path",
         "problem_analysis, stat_knowledge_bank_plan, and literature_fair_comparison_plan are present in every case"
       ],
-      "current_status": "live Anthropic Claude Sonnet evidence present in runs/architect_research_path_policy_eval_live_20260623_sonnet: Architect returned valid policy/path contracts for all 3 cases with problem-analysis, knowledge-bank, and fair-comparison fields present",
+      "current_status": "CAPACITY_GAP: the historical Sonnet run predates the exact-Haiku evaluation policy and receives no current capability credit; rerun this suite with claude-haiku-4-5-20251001",
       "current_live_evidence": {
-        "manifest": "runs/architect_research_path_policy_eval_live_20260623_sonnet/architect_research_path_policy_eval_manifest.json",
+        "historical_manifest": "runs/architect_research_path_policy_eval_live_20260623_sonnet/architect_research_path_policy_eval_manifest.json",
         "provider": "anthropic",
-        "model": "claude-sonnet-4-6",
-        "capability_evidence_ok": true,
+        "historical_model": "claude-sonnet-4-6",
+        "required_evaluation_model": "claude-haiku-4-5-20251001",
+        "model_policy_conforming": false,
+        "capability_evidence_ok": false,
         "n_cases": 3,
         "n_cases_ok": 3,
         "n_with_problem_analysis": 3,
@@ -385,68 +276,39 @@
     {
       "id": "S13_live_integrated_agent_runtime_capability",
       "name": "Live Integrated AgentRuntime Capability Suite",
-      "capability": "A single live Claude/OpenAI AgentRuntime run keeps Architect control, generated implementation/simulation repair, Formalizer local Lean feedback, runtime learning, and ProofEngineer handoffs in the same loop",
+      "capability": "A fresh multi-family runtime keeps theory, scientific coding, independent review, formal RAG, model-owned Lean iteration, typed PF/BV feedback, and kernel verification in one lineage-bound AgentRuntime graph",
       "primary_artifacts": [
-        "runs/research_agent_runtime_audit/research_agent_runtime_audit_manifest.json",
-        "runs/live_capability_eval_conformal_20260622_formalizer_import_suggestion_resume_verify_runtime_audit_after_repair_sequence_gate/research_agent_runtime_audit_manifest.json"
+        "runs/live_integrated_agent_runtime_capability_eval/research_agent_runtime_manifest.json",
+        "runs/live_integrated_agent_runtime_capability_eval/runtime_capability_audit/research_agent_runtime_audit_manifest.json"
       ],
       "recommended_commands": [
-        "python3 -m ai_statistician.cli research-agent-runtime --capability-eval --provider anthropic --architect-coordinator-provider same --simulation-engineer-provider same --algorithm-engineer-provider same --formalizer-provider same --critic-evaluator-provider same --local-lean --formalizer-candidate-local-lean --run-pseudo-formal-block-verifier-eval --pseudo-formal-block-verifier-eval-provider same --theorem-closure-proofengineer-bridge --theorem-closure-proofengineer-local-lean --source-semantic-proofengineer-bridge --source-semantic-proofengineer-local-lean --source-theorem-promotion-proofengineer-bridge --source-theorem-promotion-proofengineer-local-lean --source-theorem-formal-environment-proofengineer-bridge --source-theorem-formal-environment-proofengineer-signature-probes --source-theorem-formal-environment-proofengineer-execute-proof-body --source-theorem-formal-environment-proofengineer-proof-body-local-lean --source-theorem-proof-body-adapter-proofengineer-bridge --source-theorem-proof-body-adapter-proofengineer-local-lean --source-to-bridge-premise-derivation-proofengineer-bridge --source-to-bridge-premise-derivation-proofengineer-local-lean --source-theorem-exact-semantic-definition-source-lookup --source-theorem-exact-semantic-definition-proofengineer-bridge --source-theorem-exact-semantic-definition-lean-repair-executor --source-theorem-exact-semantic-definition-lean-repair-executor-local-lean --source-theorem-exact-semantic-definition-lean-environment-repair-executor --source-theorem-exact-semantic-definition-closure-review --source-theorem-exact-semantic-definition-candidate-synthesis --source-theorem-exact-semantic-definition-candidate-synthesis-local-lean --source-theorem-exact-semantic-definition-source-root legacy_sources/emperical_process_lean --out runs/live_integrated_agent_runtime_capability_eval"
+        "python3 -m ai_statistician.cli research-agent-runtime --capability-eval --capability-eval-preset full-live --provider anthropic --cross-family-eval-protocol benchmarks/autonomous_cross_family_e2e_protocol_20260713.json --cross-family-eval-panel development --out runs/live_integrated_agent_runtime_capability_eval"
       ],
       "release_floor": [
-        "runtime_evaluation_mode is capability_eval",
-        "provider is anthropic or openai and all core subsystems are live generator-backed",
-        "ArchitectCoordinator is enabled and its evidence contract propagates to downstream artifacts",
-        "generated algorithm code has a local fail-then-pass repair sequence",
-        "generated simulation code has a local fail-then-pass repair sequence",
-        "Formalizer/ProofEngineer generated Lean candidate is checked locally",
-        "attached internal PF/BV BlockVerifier component gate has live capability evidence, prompt packets, valid responses, validated non-proof runtime learning rows, and source runtime-learning lineage checked to the current runtime output",
-        "internal ProofEngineer handoffs run or are explicitly not required",
-        "static replay, no-Architect routing, registered-template-only success, and manual path override do not count",
-        "pseudo-formal/block-verification routing rows preserve PF+BV method lineage and remain non-proof bridge-verification feedback",
-        "source theorem proof is claimed only when exact local Lean/AXLE source-theorem verification succeeds"
+        "every evaluation model call uses claude-haiku-4-5-20251001 exactly",
+        "ArchitectCoordinator plans the outer graph while routine source iteration stays inside the owning theory, scientific-coding, or formalization workspace",
+        "generated Python or R source is executed by real unit and downstream integration tools and repaired by the same source-producing model from raw observations",
+        "Formalizer model-selected retrieval and complete-source Lean revisions run inside AgentRuntime against the active Statlib/Mathlib/EmpericalProcessLEAN environment",
+        "typed PF/BV work completes work-order to independent verifier to same-run ProofEngineer or Critic feedback with the non-proof boundary preserved",
+        "no post-runtime attachment, standalone repair eval, static replay, registered-template-only success, or manual path override counts",
+        "every development task closes its exact intended source theorem with target-bound Lean or AXLE kernel evidence before held-out evaluation unlocks"
       ],
-      "current_status": "live integrated runtime evidence at 78/96 in runs/main_worker_s13_pf_bv_runtime_gate_resume_probe_20260704/audit_after_pf_exact_visibility_recompute: Architect, TheoryDeveloper, SimulationEngineer, AlgorithmEngineer, FormalizerProofEngineer theory-trace handoff, live Formalizer PF/BV proposal, attached PF/BV live component evidence, and retrospectively recovered PF/BV exact semantic-definition work orders are present; not ready because the integrated Formalizer/ProofEngineer loop still has no local Lean candidate check or proof-state/tool-call feedback, and the recovered PF/BV exact-definition work orders have not reached the exact-definition source lookup/review loop",
+      "current_status": "No post-simplification integrated run has passed this suite. The historical v310 development run used exact Haiku but ended MAX_ITERATIONS_REACHED on both tasks with 0/2 exact theorem closures; its retired side-calibration fields do not count.",
       "current_live_evidence": {
-        "manifest": "runs/main_worker_s13_pf_bv_runtime_gate_resume_probe_20260704/audit_after_pf_exact_visibility_recompute/research_agent_runtime_audit_manifest.json",
+        "historical_manifest": "runs/main_worker_cross_family_development_20260809_v310_sequential_tools_indexed_rag_exact_haiku/runtime_capability_audit/research_agent_runtime_audit_manifest.json",
+        "provider": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
         "capability_ready_for_full_ai_statistician": false,
-        "n_requirements": 96,
-        "n_passed": 78,
-        "n_failed": 18,
-        "component_calibration_ready": true,
-        "architect_coordinator_enabled": true,
-        "architect_problem_analysis_present": true,
-        "dynamic_stat_knowledge_bank_planned": true,
-        "literature_fair_comparison_planned": true,
-        "generated_algorithm_code_executed": true,
-        "generated_simulation_code_executed": true,
-        "formalizer_lean_candidate_local_check_attempted": false,
-        "internal_pseudo_formal_block_verifier_eval_capability_evidence_ok": true,
-        "internal_pseudo_formal_block_verifier_eval_live_generator": true,
-        "internal_pseudo_formal_block_verifier_eval_static_or_fixture_only": false,
-        "internal_pseudo_formal_block_verifier_eval_prompt_packets": 1,
-        "internal_pseudo_formal_block_verifier_eval_valid_responses": 1,
-        "internal_pseudo_formal_block_verifier_eval_runtime_learning_rows": 1,
-        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_ok": true,
+        "status_counts": {
+          "MAX_ITERATIONS_REACHED": 2
+        },
+        "development_exact_theorem_closure": "0/2",
         "full_frontier_theorem_kernel_proved": false,
-        "downstream_theory_trace_consuming_subsystems": [
-          "AlgorithmEngineer",
-          "FormalizerProofEngineer",
-          "SimulationEngineer"
-        ],
-        "downstream_theory_trace_aligned_subsystems": [
-          "AlgorithmEngineer",
-          "FormalizerProofEngineer",
-          "SimulationEngineer"
-        ],
-        "llm_formalizer_proofengineer_proposal_observed": true,
-        "runtime_pseudo_formal_block_routing_contract_complete": true,
-        "runtime_pseudo_formal_exact_semantic_definition_work_orders": 2,
-        "runtime_pseudo_formal_exact_semantic_definition_work_orders_manifest": 0,
-        "runtime_pseudo_formal_exact_semantic_definition_manifest_stale": true,
-        "runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup": false
+        "historical_integrated_requirements_passed": 46,
+        "historical_integrated_requirements": 66,
+        "offline_component_evidence_credit_allowed": false
       },
-      "honesty_boundary": "This is the integrated live runtime gate. Passing isolated formal component calibrations does not imply S13 passes; S13 is still capability evidence, not theorem proof unless the exact source theorem is kernel verified."
+      "honesty_boundary": "Only same-run, task-bound observations and exact kernel evidence count. Historical attachment fields remain readable for provenance but cannot create learning rows, scorecard rows, ladder progress, or readiness credit."
     }
   ],
   "recommended_next_gate_stack": [
@@ -455,9 +317,6 @@
     "S3_frontier_blind_theory_target_on_all_60",
     "S4_formal_primitive_ladder_top_10",
     "S7_feedback_loop_repair_with_seeded_failures",
-    "S11_live_formalizer_lean_candidate_repair",
-    "S11c_live_formalizer_pseudo_formal_packet",
-    "S11b_live_pseudo_formal_block_verifier",
     "S12_live_architect_research_path_policy",
     "S13_live_integrated_agent_runtime_capability"
   ]

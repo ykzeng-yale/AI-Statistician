@@ -198,7 +198,7 @@ class RuntimeIterationTrace:
     failure_classification: str = ""
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
-    def to_json(self, *, include_task_payloads: bool = True) -> dict[str, Any]:
+    def to_json(self, *, include_task_payloads: bool = False) -> dict[str, Any]:
         row = {
             "iteration": self.iteration,
             "subsystem": self.subsystem,
@@ -253,7 +253,7 @@ class AgentRuntimeResult:
     blackboard: BlackboardState
     traces: tuple[RuntimeIterationTrace, ...]
 
-    def to_json(self, *, include_task_payloads: bool = True) -> dict[str, Any]:
+    def to_json(self, *, include_task_payloads: bool = False) -> dict[str, Any]:
         return {
             "status": self.status,
             "final_task_id": self.final_task_id,

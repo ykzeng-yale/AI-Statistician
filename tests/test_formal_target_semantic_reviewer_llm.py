@@ -5,12 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
-from ai_statistician.architect_coordinator_llm import (
-    ARCHITECT_FEEDBACK_ROUTE_OPERATION,
-)
-from ai_statistician.exact_source_theorem_proof_body_executor import (
-    EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
-    exact_target_statement_hash,
+from ai_statistician.lean_candidate_identity import (
+    LEAN_TARGET_STATEMENT_HASH_ALGORITHM,
+    lean_target_statement_hash,
 )
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.formal_target_semantic_review_runtime import (
@@ -31,7 +28,7 @@ from ai_statistician.formalizer_llm import (
 from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY,
-    PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY,
+    PROVIDER_STRUCTURED_OUTPUT_ON_RETRY_METADATA_KEY,
     GeneratorRequest,
     GeneratorResponse,
     StaticJSONGeneratorBackend,
@@ -123,7 +120,7 @@ def _runtime_fixture(
     *,
     accepted: bool,
     response: dict[str, Any] | None = None,
-    target_hash_algorithm: str = EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
+    target_hash_algorithm: str = LEAN_TARGET_STATEMENT_HASH_ALGORITHM,
     revision_count: int = 0,
     max_revisions: int = 2,
 ) -> tuple[
@@ -140,7 +137,7 @@ def _runtime_fixture(
     )
     target_statement = "theorem exact_source (p : Prop) (hp : p) : p"
     source_hash = stable_hash(source)
-    target_hash = exact_target_statement_hash(target_statement)
+    target_hash = lean_target_statement_hash(target_statement)
     artifact_path = tmp_path / "exact_source.lean"
     artifact_path.write_text(source, encoding="utf-8")
 
@@ -243,12 +240,12 @@ def _runtime_fixture(
     }
     candidate_feedback = {
         "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
-        "proofengineer_repair_context": target_context,
+        "formalizer_workspace_context": target_context,
     }
     deferred_task = AgentTask(
-        task_id="formalize-lean-revision:generic-formal-target-review",
-        owner_subsystem="ProofEngineer",
-        objective="Continue model-owned proof search for the accepted target.",
+        task_id="architect-workspace-replan:generic-formal-target-review",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Replan the unresolved formal workspace after target review.",
         inputs={
             **source_task.inputs,
             "environment_feedback": candidate_feedback,
@@ -273,7 +270,7 @@ def _runtime_fixture(
             theory_packet["packet_id"]: theory_packet,
             proposal_packet["packet_id"]: proposal_packet,
             candidate_materialization["manifest_id"]: candidate_materialization,
-            dispatch["work_order_id"]: dispatch["work_order"],
+            **dispatch["artifacts"],
         }
     )
     subsystem = FormalTargetSemanticReviewerRuntimeSubsystem(
@@ -300,16 +297,15 @@ def test_accept_routes_hash_bound_target_to_model_owned_lean_generation(
 
     assert result.status == "REROUTE"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "ProofEngineer"
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
     feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["external_proof_search_dispatch_eligible"] is False
     assert feedback["model_owned_complete_source_tool_loop_eligible"] is True
-    assert feedback["proofengineer_repair_context"][
-        "external_proof_search_dispatch_eligible"
-    ] is False
-    assert feedback["proofengineer_repair_context"][
+    assert feedback["formalizer_workspace_context"][
         "model_owned_complete_source_tool_loop_eligible"
     ] is True
+    assert feedback["formalizer_workspace_context"][
+        "formalizer_candidate_semantic_review_status"
+    ] == "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"
     packet = _artifact_of_kind(result, "FormalTargetSemanticReviewPacket")
     assert packet["model"] == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
     assert packet["model_tier"] == "haiku"
@@ -318,33 +314,25 @@ def test_accept_routes_hash_bound_target_to_model_owned_lean_generation(
     assert validate_formal_target_semantic_review_packet(packet) == []
 
 
-def test_rejection_routes_observations_to_architect_not_a_repair_owner(
+def test_rejection_returns_observations_to_same_formalizer_workspace(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accepted=False)
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "REROUTE"
+    assert result.status == "REVISE"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
-    assert result.next_task.inputs["runtime_architect_operation"] == (
-        ARCHITECT_FEEDBACK_ROUTE_OPERATION
-    )
-    assert result.next_task.expected_artifacts == (
-        "architect_feedback_route_decision",
-    )
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
     feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["external_proof_search_dispatch_eligible"] is False
     assert feedback["model_owned_complete_source_tool_loop_eligible"] is True
     assert feedback["runtime_selected_owner"] is False
-    assert feedback["routing_authority"] == "ArchitectCoordinator_model_packet"
-    revision_context = feedback["proofengineer_repair_context"]
+    assert feedback["routing_authority"] == "same_formalizer_workspace"
+    revision_context = feedback["formalizer_workspace_context"]
     assert revision_context["formalizer_candidate_semantic_review_status"] == (
         "INDEPENDENT_SEMANTIC_REVIEW_REVISE_NOT_PROOF_EVIDENCE"
     )
     assert revision_context["model_owned_complete_source_tool_loop_eligible"] is True
-    assert revision_context["external_proof_search_dispatch_eligible"] is False
     assert revision_context["source_theorem_kernel_evidence_eligible"] is False
     serialized = json.dumps(feedback, sort_keys=True)
     for forbidden in (
@@ -356,18 +344,12 @@ def test_rejection_routes_observations_to_architect_not_a_repair_owner(
         "suggested_fix",
     ):
         assert forbidden not in serialized
-    replan = result.next_task.inputs["architect_context"][
-        "formal_target_semantic_review_replan"
-    ]
-    assert replan["runtime_selected_owner"] is False
-    assert replan["revision_budget"] == {
-        "revisions_used": 0,
-        "max_revisions": 2,
-        "revision_available": True,
-    }
+    assert result.next_task.inputs[
+        "formal_target_semantic_review_revision_count"
+    ] == 1
 
 
-def test_rejection_after_local_budget_still_uses_architect_for_cross_lane_choice(
+def test_rejection_after_local_budget_blocks_without_a_second_router(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(
@@ -379,13 +361,11 @@ def test_rejection_after_local_budget_still_uses_architect_for_cross_lane_choice
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "REROUTE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
-    budget = result.next_task.inputs["architect_context"][
-        "formal_target_semantic_review_replan"
-    ]["revision_budget"]
-    assert budget["revision_available"] is False
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "formal_target_semantic_review_revision_budget_exhausted"
+    )
 
 
 def test_invalid_observation_packet_fails_closed_without_owner_fallback(
@@ -439,7 +419,10 @@ def test_deferred_task_ref_drift_is_rejected_before_model_review(
     assert work_order["deferred_next_task_ref"]["artifact_kind"] == (
         "AgentTaskRef"
     )
-    task.inputs["deferred_next_task"]["objective"] = "tampered objective"
+    assert "deferred_next_task" not in task.inputs
+    assert "architect_context" not in task.inputs
+    snapshot_id = work_order["deferred_next_task_snapshot_id"]
+    blackboard.artifacts[snapshot_id]["task"]["objective"] = "tampered objective"
 
     result = subsystem.run(task, blackboard)
 
@@ -522,12 +505,12 @@ def test_reviewer_requests_native_schema_for_generation_and_regeneration() -> No
         PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY
     ] is True
     assert backend.requests[0].metadata[
-        PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY
+        PROVIDER_STRUCTURED_OUTPUT_ON_RETRY_METADATA_KEY
     ] is True
     assert backend.requests[1].metadata[
         PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY
     ] is True
     assert backend.requests[1].schema == backend.requests[0].schema
-    assert backend.requests[1].metadata["json_repair_mode"] == (
+    assert backend.requests[1].metadata["structured_output_retry_mode"] == (
         "full_packet_regeneration"
     )

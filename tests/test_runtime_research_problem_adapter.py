@@ -121,8 +121,8 @@ def test_architect_plan_seeds_retrieval_without_task_family_classifier() -> None
     )
 
 
-def test_legacy_mode_requires_explicit_absence_of_agentic_authority() -> None:
-    assert runtime_llm_research_authority_required({}) is False
+def test_legacy_mode_requires_an_explicit_opt_in() -> None:
+    assert runtime_llm_research_authority_required({}) is True
     assert runtime_llm_research_authority_required(
         {
             "runtime_requested_evidence_contract": {
@@ -150,7 +150,7 @@ def test_legacy_mode_requires_explicit_absence_of_agentic_authority() -> None:
     }
 
 
-def test_only_live_theory_packet_implicitly_activates_agentic_authority() -> None:
+def test_theory_packet_provider_does_not_change_default_agentic_authority() -> None:
     packet = {
         "source_agent": "LLMTheoryDeveloperAgent",
         "provider": "anthropic",
@@ -163,6 +163,10 @@ def test_only_live_theory_packet_implicitly_activates_agentic_authority() -> Non
     assert runtime_llm_research_authority_required(
         {},
         {**packet, "provider": "static", "model": "fixture-model"},
+    ) is True
+    assert runtime_llm_research_authority_required(
+        {"research_problem_authority_mode": "legacy_baseline"},
+        packet,
     ) is False
 
 

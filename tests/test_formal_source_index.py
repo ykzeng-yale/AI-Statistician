@@ -333,7 +333,7 @@ def test_task_bound_formal_source_queries_and_scope_use_explicit_provenance() ->
         theory_packet=theory_packet,
         theorem_goals=theorem_goals,
     )
-    repair_context = feedback["proofengineer_repair_context"]
+    repair_context = feedback["formalizer_workspace_context"]
     assert repair_context["retrieval_query_seeds"][:3] == queries
     assert repair_context["formal_source_scope_ids"] == ["source_library"]
 
@@ -1784,7 +1784,6 @@ def test_formalizer_prompt_makes_revision_strategy_model_owned() -> None:
     assert "proof_construction_strategy_contract" not in prompt
     assert "current-active-frontier" in prompt
     assert "Keep unrelated obligations separate" in prompt
-    assert "never invent scaffolding rows" in prompt
     assert "source_to_bridge_premise_derivation_candidates" not in prompt
     assert "pseudo_formal_proof_packets" not in prompt
     assert len(prompt) < 9000

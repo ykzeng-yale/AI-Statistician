@@ -1,627 +1,177 @@
 # AI Statistician
 
-AI Statistician is intended to become a full coding-agent statistical research
-system, not a thin wrapper around Codex or any other complete external agent.
-The target runtime should own planning, tool use, environment interaction,
-artifact tracking, memory/RAG, validation, and iterative failure recovery, while
-using Claude/OpenAI/Gemini-style API models as replaceable generator backends.
-Complete coding agents such as Codex are not treated as normal pure-LLM
-providers; they would need explicit tool-worker adapters governed by the
-runtime.
+AI Statistician is an in-progress autonomous statistical theory laboratory. Its
+target is to take a fresh research question or paper through rigorous theory,
+scientific Python/R implementation, simulation, Lean formalization, and exact
+kernel-checked theorem closure inside one evidence-preserving agent runtime.
 
-The system should take open JASA/AOAS/frontier-style research questions or
-papers, have specialized subsystems derive estimands, estimators, theorem
-candidates, proof plans, simulations, code, and Lean obligations, then use
-Lean/AXLE, retrieval, executable simulation, critics, and an evidence ledger to
-accept, reject, or revise those artifacts through repeated
-plan-act-observe-revise loops.
+This repository is not yet the finished system. The latest authoritative
+cross-family development panel remains at 0/2 exact source-theorem closures, and
+the held-out panel is sealed. Passing unit tests or compiling support lemmas does
+not change that claim.
 
-The canonical goal boundary is
-[`docs/architect_llm_agent_goal.md`](docs/architect_llm_agent_goal.md).
+The canonical architecture and current boundary are documented in
+[Production Design](docs/production_design.md). The product objective is in
+[Agent Runtime Goal](docs/architect_llm_agent_goal.md), and current worker status
+is machine-readable in [main_worker_status.json](docs/main_worker_status.json).
 
-The current production code is a partial implementation and verification
-substrate, not the finished AI Statistician runtime. It provides:
+## Architecture
 
-- formal Lean proof obligations and explicit formal gaps,
-- vetted estimator and algorithm registries,
-- retrieval over papers, Mathlib, StatInference, Lean RAG, and proof banks,
-- Monte Carlo simulation feedback with persisted traces,
-- release audits that preserve the boundary between routing, simulation,
-  retrieval, LLM proposals, and kernel proof evidence.
+There is one outer typed graph:
 
-The old interview/demo exploration is archived in `Preliminary Attempt/`; those
-files show the original Claude/AXLE multi-agent loop shape. The current code
-lives in `ai_statistician/`.
+```text
+Goal and plan
+  -> Theory workspace
+  -> Scientific coding and simulation workspace
+  -> Independent semantic review
+  -> Lean formalization workspace
+  -> Final critic and kernel gate
+```
 
-## Quick Start
+Python, R, and Lean use the same source-agent pattern:
 
-Generated algorithm and simulation drafts default to the conservative Python
-stdlib sandbox. To enable the pinned scientific Python and R profile on macOS,
-prepare the repository-local Pyodide and WebR runtimes once:
+```text
+model chooses a tool or writes complete source
+  -> isolated environment executes the exact artifact
+  -> raw observation returns to the same model
+  -> model writes the next complete source
+```
+
+The runtime owns execution, artifact hashes, target identity, budgets,
+permissions, checkpoints, independent-review separation, and evidence labels.
+It does not author source patches, statistical answers, Lean grammar fixes, or
+tactic recipes. There is no hidden repair agent or post-runtime scheduler.
+Complete coding-agent CLIs are not treated as normal pure-LLM providers; any
+future adapter must preserve the same execution and evidence boundaries.
+
+Only a semantically accepted, exact hash-bound target that passes a fresh local
+Lean identity and axiom check can become source-theorem proof evidence.
+
+## Model Policy
+
+Anthropic is the current live provider. Production may use Haiku or Sonnet;
+Opus is forbidden. Every test and evaluation call is pinned to exactly
+`claude-haiku-4-5-20251001`, including retries.
+
+Relevant environment variables:
+
+```text
+ANTHROPIC_API_KEY
+AI_STATISTICIAN_CLAUDE_HAIKU_MODEL
+AI_STATISTICIAN_CLAUDE_SONNET_MODEL
+```
+
+Never commit credentials. The runtime records the resolved provider, model,
+tier, token use, latency, and tool-turn count in evidence artifacts.
+
+## Setup
+
+Create the Python environment:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e '.[test,llm]'
+```
+
+Prepare the repository-pinned scientific Python and R WASM runtimes:
 
 ```bash
 npm ci
 npm run prepare:scientific-sandbox
 ```
 
-AlgorithmEngineer and SimulationEngineer may then declare
-`execution_profile=scientific_wasm` with only the packages they use. Generated
-code still runs without inherited secrets or network access in a bounded
-subprocess. The macOS host-filesystem policy permits reads only from pinned
-runtimes and the exact code/request artifacts, and writes only the exact
-result/log artifacts. Metrics remain implementation/simulation evidence rather
-than production registration or theorem proof evidence. If the isolated runtime
-is absent, AgentRuntime records an explicit capability blocker instead of
-silently executing generated code in the host Python or R process.
+The scientific sandbox uses Pyodide for Python and WebR for R. Generated code
+runs in bounded subprocesses without inherited secrets or network access. If a
+required runtime is absent, the system records a capability blocker instead of
+silently executing in the host process.
+
+Lean proving requires an active local Lean project and configured formal-source
+indexes. Use `doctor` to inspect the local environment rather than assuming that
+retrieval, LSP/MCP, AXLE, or Lean is available.
+
+## Basic Commands
 
 ```bash
-python3 -m ai_statistician.cli list
-python3 -m ai_statistician.cli demo --runs 300 --out runs/smoke
-python3 -m ai_statistician.cli demo --question-file examples/questions.json --runs 300 --out runs/external
-python3 -m ai_statistician.cli demo --question-file examples/partial_questions.json --runs 300 --out runs/partial
-python3 -m ai_statistician.cli trace-audit --run-dir runs/partial --out runs/trace_audit_partial
-python3 -m ai_statistician.cli eval --question-file examples/questions.json --n-seeds 3 --runs 300 --out runs/eval_external
-python3 -m ai_statistician.cli proof-audit --out runs/proof_audit
-python3 -m ai_statistician.cli proof-search-audit --max-obligations 12 --out runs/proof_search_audit
-python3 -m ai_statistician.cli proof-search-training-export --results-jsonl runs/proof_search_audit/proof_search_results.jsonl --out runs/proof_search_training_export
-python3 -m ai_statistician.cli proof-search-value-train --train-jsonl runs/proof_search_training_export/proof_search_process_train.jsonl --validation-jsonl runs/proof_search_training_export/proof_search_process_validation.jsonl --out runs/proof_search_value_model
-python3 -m ai_statistician.cli proof-policy-train --train-jsonl runs/proof_training_export/proof_sft_train.jsonl --validation-jsonl runs/proof_training_export/proof_sft_validation.jsonl --out runs/proof_policy_model
-python3 -m ai_statistician.cli intake-audit --out runs/intake_audit
-python3 -m ai_statistician.cli retrieval-audit --out runs/retrieval_audit
-python3 -m ai_statistician.cli retrieval-audit --loogle --out runs/retrieval_audit_loogle
-python3 -m ai_statistician.cli formal-source-audit --out runs/formal_source_index
-python3 -m ai_statistician.cli algorithm-audit --out runs/algorithm_audit
-python3 -m ai_statistician.cli research-algorithm-audit --out runs/research_algorithm_audit
-python3 -m ai_statistician.cli research-intake-audit --out runs/research_intake_audit
-python3 -m ai_statistician.cli research-knowledge-audit --out runs/research_knowledge_audit
-python3 -m ai_statistician.cli frontier-coverage-audit --out runs/frontier_coverage_audit
-python3 -m ai_statistician.cli frontier-precision-audit --out runs/frontier_precision_audit
-python3 -m ai_statistician.cli frontier-backlog-audit --out runs/frontier_backlog_audit
-python3 -m ai_statistician.cli frontier-smoke-benchmark --runs 60 --out runs/frontier_smoke_benchmark
-python3 -m ai_statistician.cli doctor --out runs/doctor
-python3 -m ai_statistician.cli capability-audit --out runs/capability_audit
-python3 -m ai_statistician.cli research-capability-audit --out runs/research_capability_audit
-python3 -m ai_statistician.cli prover-component-audit --out runs/prover_component_audit
-python3 -m ai_statistician.cli system-audit --include-partial-examples --runs 300 --out runs/system_audit
-python3 -m ai_statistician.cli release-bundle --include-partial-examples --runs 300 --out runs/release_bundle
-python3 -m ai_statistician.cli research-benchmark --runs 100 --out runs/research_benchmark
-python3 -m ai_statistician.cli research-agent-runtime --max-questions 1 --runs 100 --out runs/research_agent_runtime
-python3 -m ai_statistician.cli research-agent-runtime --max-questions 1 --runs 100 --local-lean --lean-project /Users/yukang/LeanProjects/LeanPractice --out runs/research_agent_runtime_local_lean
-python3 -m ai_statistician.cli research-benchmark --question-file examples/research_paper_abstracts.md --runs 100 --out runs/research_paper_benchmark
-python3 -m ai_statistician.cli research-report --run-dir runs/research_benchmark --out runs/research_report
-python3 -m ai_statistician.cli research-eval --n-seeds 3 --runs 80 --out runs/research_eval
-python3 -m ai_statistician.cli research-trace-audit --run-dir runs/research_benchmark --out runs/research_trace_audit
-python3 -m ai_statistician.cli research-gap-audit --run-dir runs/research_benchmark --out runs/research_gap_backlog
-python3 -m ai_statistician.cli formalization-target-audit --run-dir runs/research_benchmark --out runs/formalization_target_audit
-python3 -m ai_statistician.cli autoform-harness-audit --out runs/autoform_harness
-python3 -m ai_statistician.cli autoform-target-export --run-dir runs/research_benchmark --out runs/autoform_targets
-python3 -m ai_statistician.cli formal-source-retrieval-benchmark --suite all --out runs/formal_source_retrieval_all_benchmark
-python3 -m ai_statistician.cli research-system-audit --runs 100 --out runs/research_system_audit
-python3 -m ai_statistician.cli rag-collaboration-export --system-audit-manifest runs/research_system_audit/research_system_audit_manifest.json --out runs/rag_collaboration_handoff
+.venv/bin/python -m ai_statistician.cli list
+.venv/bin/python -m ai_statistician.cli doctor --out runs/doctor
+.venv/bin/python -m ai_statistician.cli research-agent-runtime --help
+.venv/bin/python -m ai_statistician.cli research-agent-runtime-audit --help
+.venv/bin/pytest -q
 ```
 
-`research-knowledge-audit` also writes a source inventory under
-`source_inventory/`, checking that the local paper/prover/Lean resources used by
-the lab are present and contain usable artifacts: AI-for-math paper logs,
-Mathlib Probability/MeasureTheory, local StatInference, lean-stat-learning-theory,
-the vendored EmpericalProcessLEAN main snapshot in
-`legacy_sources/emperical_process_lean/`, the vendored legacy AI-Statistician
-source pool in `legacy_sources/ai_statistician/`, the local
-`ykzeng-yale/atlas-lean` probability/statistics/analysis/Fourier/functional-
-analysis/differential-analysis/projection subtrees, the local
-`ykzeng-yale/autoform-bot` harness checkout, and OpenProver. These
-vendored Lean/stat source pools are not the active runtime. Their benchmarks,
-schemas, provenance, and proof trajectories remain audit/training material, but
-their superseded Lean declarations are excluded from live Formalizer retrieval;
-the current StatLib-founded `EmpericalProcessLEAN/main` graph owns that surface.
-Atlas and AutoformBot use the user-owned local mirrors for retrieval and harness
-integration. Training exporters omit their declaration payloads by default for
-provenance hygiene; set `AI_STATISTICIAN_INCLUDE_EXTERNAL_TRAINING_SOURCES=1`
-when an owner-authorized local training export should include every registered
-external source.
-Every research trace now also carries `paper_sources`: ranked local hits from
-the 60-paper frontier benchmark and the AI-for-math paper log. Frontier
-benchmark records deliberately mark `expected_theoretical_results` and
-`evaluation_prompt` as withheld fields and do not use them for retrieval, so
-paper grounding does not leak benchmark answers into theory planning.
-Simulation traces also carry an auditable `stress_tests` ledger: every stress
-scenario extracted at problem-intake time is copied onto each simulation row
-with compact numeric diagnostics (`covered`, `stress_flag`, `primary_value`,
-`threshold`). This does not claim a separate theorem proof for each stress
-scenario; it ensures the trace can prove which declared stress checks were
-exercised by the simulation layer.
+`research-agent-runtime` is the canonical product path. The CLI also contains
+offline corpus, retrieval, proof-search, training-export, and historical audit
+utilities. Those commands are support tools; their outputs do not establish
+end-to-end research capability.
 
-`formal-source-audit` goes one step deeper: it indexes local Lean declarations
-from Mathlib Probability/MeasureTheory plus the local StatInference,
-EmpiricalProcessLEAN, lean-stat-learning-theory, and the focused Atlas
-probability/high-dimensional-statistics/probabilistic-methods/analysis/Fourier/
-functional-analysis/differential-analysis/projection checkouts, then runs
-theorem-mining queries such as finite-sum variance, Bonferroni/finite union
-bound, Chebyshev tails, CLT, Borel-Cantelli, conditional expectation,
-sub-Gaussian learning, empirical-process, and Godambe/bootstrap search. This is
-the proof-bank expansion tool: before adding a new obligation, run it to find
-existing declarations to reuse instead of re-proving from scratch.
-The local declaration index now stores compressed theorem-shape features
-alongside raw text: binder counts, premise heads, conclusion head, left/right
-equality heads, major symbols, and the Lean imports available at each
-declaration. Search therefore uses Lean-aware structure such as
-`IndepFun -> variance = sum` plus module context such as
-`Mathlib.Probability.Moments.Variance` instead of only grep-style token overlap.
-The Atlas integration is visible in the default audit queries:
-`atlas_subgaussian_high_dimensional` retrieves `IsSubGaussian.mgf_bound`, and
-`atlas_probability_limit_theory` retrieves probability limit-theory declarations
-from the ATLAS probability corpus. Additional Atlas queries now cover
-characteristic-function weak convergence, Hilbert/projection identities,
-Sobolev/Taylor-style differential analysis, and geometric projection theory.
-Formal gaps also persist `primitive_formal_source_hits`, so each missing
-primitive such as `slutsky_theorem`, `davis_kahan_sin_theta`, or
-`regular_variation` gets its own local Lean/StatInference candidate list rather
-than relying only on a broad theorem-goal query.
-`formalization-target-audit` then aggregates those primitive-level hits into a
-ranked theorem-development queue: each row lists the missing primitive, gaps it
-unlocks, local candidate declarations, supporting proof obligations, and a
-suggested next proof-bank/library step. It also classifies each target's
-`bridge_readiness` so the lab can distinguish primitives that can start from
-existing AXLE-verified proof-bank bridges from primitives that need fresh source
-search or library design. The queue also ranks
-`bridge_candidate_obligations` for each primitive, so theorem mining starts
-from the most relevant verified bridge instead of a broad proof-obligation list.
-`autoform-target-export` bridges the same audited formal gaps into
-Autoform-Bot's target-list format. It writes `autoform_targets.yaml` plus a
-small book-style Markdown directory so the external Autoform evaluation and
-visualizer harness can assess or route these theorem-development targets.
-`autoform-harness-audit` is the direct readiness gate for the local
-`ykzeng-yale/autoform-bot` mirror: it records statement extraction, Lean eval,
-dependency-graph evaluation, proof-checker, REPL/native-LSP, Lean skill docs,
-multi-agent bot, and visualizer entrypoints before any target queue is handed
-off.
-`formal-source-audit` now defaults to a persistent SQLite FTS + Lean-shape
-reranking backend and writes `formal_source_index.sqlite` next to the audit
-manifest, so repeated search and interactive theorem mining can query the local
-corpus without rescanning every Lean file in Python.
-For `lean-stat-learning-theory`, the Formalizer also consumes direct
-statement/proof dependency signatures in Lean import order before a bounded
-same-file fallback. A checksum-pinned 3,021-premise AI4SLT corpus is available
-when that source scope activates its companion provider. Source scopes are
-provider-activation hints, not a global source allowlist; ordinary cross-source
-retrieval remains available and unscoped fallbacks are disclosed. The default
-Formalizer composite preserves scoped search, declaration loading, and
-dependency context rather than flattening this path to ranked hits. Corpus proof
-bodies are removed, and its older Lean/Mathlib revision means every candidate
-must be rechecked in the active project. Set
-`AI_STATISTICIAN_AI4SLT_PREMISE_CORPUS` to its pinned
-`corpus.jsonl` when it is not installed under the standard external-resource
-path. This is premise retrieval, never proof evidence.
-The full retrieval artifact keeps bounded alternatives, while the first-turn
-Formalizer prompt carries one target-bound declaration fragment plus its module,
-snapshot, premise names, and representative statement/proof signatures. Later
-Lean diagnostics trigger a fresh bounded query instead of front-loading every
-candidate into the prompt.
-The declaration index also carries each Lean file's bounded leading module
-documentation and source-derived citation aliases. Explicit abbreviations such
-as the upstream README's `HDP` are expanded, and unambiguous author/year rows are
-joined to the same README's full bibliography titles for Vershynin, Wainwright,
-and Boucheron-Lugosi-Massart. None is encoded as a runtime theorem rule. These
-fields improve semantic and book-reference retrieval while declaration
-signatures, import visibility, and active-project kernel checking remain
-authoritative.
-When a ProofEngineer packet contains an actual Lean goal or compiler diagnostic,
-the same path can add at most three checksum-pinned
-[AI4SLT Novel](https://huggingface.co/datasets/yuanhezhang/lean4-stat-learning-theory-novel)
-`state_before -> tactic -> state_after` analogies. Only the Novel training split
-is indexed; the external validation and test splits stay excluded. Retrieved
-actions carry premise provenance and are re-bound to exact names/signatures in
-the current formal-source index when possible, but the older source toolchain
-means they must be rerun on the exact active-project artifact. Set
-`AI_STATISTICIAN_AI4SLT_PROOF_STATE_TRACES` when the pinned `novel-train.jsonl`
-is not under the standard external-resource path. These transitions guide the
-existing LLM ProofEngineer feedback loop; they are neither tactic templates nor
-proof evidence. The same bounded packet reaches the existing OpenProver
-generator policy together with declaration RAG, and its retrieval fingerprint
-is recorded before verifier-driven search.
-Exact target/source-theorem name overlaps are marked explicitly and cannot be
-counted as held-out generalization.
-The production research benchmark can use the same backend: by default
-`research-benchmark` writes `formal_source_index.sqlite` in its output
-directory and uses that SQLite FTS + Lean-shape reranker when attaching local
-Lean/StatInference candidates to formal-gap skeletons. Use
-`--formal-source-backend memory` only for tiny fixture runs.
-Research traces additionally require source grounding for each normalized
-problem class: the primary statistical-method card must be present, along with
-at least one local Lean/stat formal source and one retrieval/search-system
-source.
+The frozen development/held-out protocol is
+[`benchmarks/autonomous_cross_family_e2e_protocol_20260713.json`](benchmarks/autonomous_cross_family_e2e_protocol_20260713.json).
+Do not run or inspect held-out outcomes until the development gate passes.
 
-Real AXLE proof verification:
+## Formal Retrieval
 
-```bash
-python3 -m ai_statistician.cli doctor --out runs/doctor
-/Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
-  -m ai_statistician.cli demo --real-lean --runs 300 --out runs/axle
-/Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
-  -m ai_statistician.cli proof-audit --real-lean --out runs/proof_audit_axle
-/Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
-  -m ai_statistician.cli theory-intake --question-file examples/llm_theory_questions.json --llm-theory
-/Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
-  -m ai_statistician.cli system-audit --real-lean --runs 200 --seeds 20260528 20260529 --out runs/system_audit_axle
-/Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
-  -m ai_statistician.cli release-bundle --real-lean --include-partial-examples --runs 200 --seeds 20260528 20260529 --out runs/release_bundle_axle
-/Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
-  -m ai_statistician.cli research-benchmark --real-lean --runs 60 --out runs/research_benchmark_axle
-/Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
-  -m ai_statistician.cli research-eval --real-lean --runs 40 --seeds 20260528 20260529 --out runs/research_eval_axle
-/Users/yukang/LeanProjects/LeanPractice/.venv/bin/python \
-  -m ai_statistician.cli research-system-audit --real-lean --runs 60 --out runs/research_system_audit_axle
+The formalizer can retrieve declaration signatures, modules, dependencies, and
+source context from configured Mathlib, Statlib/StatInference,
+`lean-stat-learning-theory`, `EmpericalProcessLEAN`, OpenProver, and CodexProver
+resources. The preferred policy is:
+
+1. reuse active Mathlib/Statlib definitions and declaration conventions;
+2. search task-bound source scopes and current proof state;
+3. let the model choose premises and complete Lean source;
+4. check the exact source in the active project;
+5. treat every hit or generated proof candidate as context until kernel rerun.
+
+Proof banks are optional baselines, not the default live proving policy. Old
+source snapshots remain useful as RAG or evaluation data but cannot override the
+active project's imports, names, or kernel.
+
+## Evidence Boundary
+
+Artifacts distinguish at least these states:
+
+- LLM theory or code proposal;
+- source-grounded review judgment;
+- isolated Python/R execution;
+- simulation under a frozen protocol;
+- retrieved formal context;
+- locally compiled Lean candidate artifact;
+- independently accepted exact theorem statement;
+- exact source-theorem kernel promotion.
+
+An unreviewed Lean file may record `candidate_kernel_verified=true` when its exact
+bytes compile, while generic `kernel_verified` and
+`source_theorem_kernel_verified` remain false. This prevents a helper or weakened
+statement from being counted as the requested theorem.
+
+## Current Structure
+
+The earlier architecture accumulated a 101k-line runtime plus large
+repair/bridge/planner module families. The current cleanup has reduced the
+central runtime to about 20k lines and the top-level package to fewer than 150
+modules. Structural regression tests prevent those control planes from silently
+returning.
+
+The largest remaining design debts are:
+
+- an oversized metric authoring/review/preflight implementation;
+- a TheoryDeveloper that still needs a persistent equation, lemma, assumption,
+  and counterexample workspace;
+- no post-simplification live two-family exact-theorem closure yet;
+- incomplete arbitrary-paper ingestion and learned research/proof policies.
+
+The next capability gate is a fresh exact-Haiku development panel using real
+scientific and Lean tools. Shared mechanism failures may improve prompts,
+workspace tools, retrieval, or evidence infrastructure; they may not introduce
+task-family answers or benchmark-specific rules.
+
+## Repository Map
+
+```text
+ai_statistician/                 Runtime and subsystem implementation
+benchmarks/                      Frozen evaluation protocols and suites
+docs/                            Product design, evidence, and operating status
+data/                            Evaluation fixtures and source metadata
+legacy_sources/                  Non-authoritative source/RAG snapshots
+runs/                            Generated execution and audit artifacts
+tests/                           Mechanism and evidence-boundary regression tests
 ```
-
-Offline local Lean kernel proof-bank verification:
-
-```bash
-python3 -m ai_statistician.cli proof-audit \
-  --local-lean \
-  --out runs/proof_audit_local_lean_current
-```
-
-Current evidence: `112/112` registered proof-bank obligations pass
-`local_lean_kernel_batch` with proof-bank fingerprint
-`dcbb1825151a6779ab2726a7c998a0723c05debe98d6fbb034f5bd2a3d2d644f`.
-The latest release-style research-system audit also passes all gates with
-Lean-RAG dependency retrieval enabled and `research_loop_theory_revisions=6`.
-That audit is scaffold evidence unless it is run with `--local-lean`; the real
-kernel evidence for the registered proof obligations is the `112/112`
-`proof-audit` result above. These revisions attach verified proof obligations
-to theorem roadmaps; they do not claim the full frontier asymptotic theorems are
-closed.
-
-`proof-search-audit` is the first bounded proof-search controller layer above
-one-shot proof lookup. It runs a best-first whole-proof candidate frontier,
-expands candidate proof bodies from registered proof memory, expected-lemma
-templates, built-in whole-proof tactic templates, retrieved proof-bank
-neighbors, and formal-source declaration templates from the local
-Lean/StatInference/Atlas index. It can load the `proof-policy-train` model and
-the `proof-search-value-train` model to score proof bodies, verifies each
-expanded node, and writes `proof_search_results.jsonl`. This is still not
-tactic-state MCTS or RL, but it gives the prover stack an auditable search
-object with tactic-template, retrieval-candidate, formal-source-candidate,
-failed-node, policy-score, value-score, and solved-node evidence.
-Current local-kernel release evidence: `proof_search_solved=12/12` and
-`proof_search_kernel_verified=12/12` inside `research-system-audit --local-lean`.
-`proof-search-training-export` converts the expanded proof-search nodes into
-process-reward/value-model examples, preserving candidate proof bodies, verifier
-errors, binary reward, and `kernel_verified` provenance. This is a training data
-substrate, not a trained value/RL model.
-`proof-search-value-train` consumes those process examples and fits a small
-deterministic logistic value baseline. The release audit now uses it in a
-second proof-search pass after bootstrap trace collection, so verifier-labeled
-process data affects final candidate ordering. This is still not a neural
-prover or RL policy.
-`proof-policy-train` similarly trains a deterministic whole-proof candidate
-ranking policy over proof SFT examples. The release audit now feeds this model
-back into `proof-search-audit`, so it influences candidate ordering rather than
-only existing as an offline report. It ranks known proof bodies; it does not
-generate novel Lean syntax or replace a tactic-state policy.
-Current local-kernel release evidence includes `24` proof-search process
-examples (`12` positive, `12` negative from rejected invalid probes) and a
-baseline value model with validation accuracy `1.0` on that controlled audit
-split. The local/AXLE verifier wrappers reject `sorry`, `admit`, and introduced
-`axiom`s before invoking Lean because Lean can otherwise compile `sorry` with a
-warning.
-
-Check `doctor` first. It reports `real_lean_ready` and concrete
-`real_lean_blockers`; an AXLE key alone is not enough if the active Python
-runtime cannot import the `axle` package. Use `python -m pip install -e
-'.[proof]'` in the runtime that will launch `--real-lean`.
-
-`proof-audit` writes both human-auditable proof artifacts and future training
-data: `proof_audit_manifest.json`, exported Lean files, `proof_attempts.jsonl`,
-and `proof_attempt_log_manifest.json`. The JSONL rows are proof-level verifier
-attempts. Positive rows include the checked proof body as `supervision_target`;
-failed rows preserve verifier errors, `first_error`, retrieval context, and
-reward `0.0` for future repair/value-model data. Every proof row records
-`verification_strength` and `kernel_verified`: offline mock checks are useful
-for regression gates, but only `--real-lean` AXLE rows with
-`kernel_verified=true` are Lean-kernel proof evidence. Capability audits mark
-the proof-bank path ready only when the latest real audit covers the full
-registered proof bank, not just a selected smoke subset. This is not
-tactic-state tracing yet.
-Convert those checked attempts into whole-proof SFT prompt/completion data with:
-
-```bash
-python3 -m ai_statistician.cli proof-training-export \
-  --attempt-log runs/proof_audit/proof_attempts.jsonl \
-  --out runs/proof_training_export
-```
-Then evaluate the no-training nearest-neighbor proof-memory baseline:
-
-```bash
-python3 -m ai_statistician.cli proof-policy-baseline \
-  --train-jsonl runs/proof_training_export/proof_sft_train.jsonl \
-  --validation-jsonl runs/proof_training_export/proof_sft_validation.jsonl \
-  --out runs/proof_policy_baseline
-```
-
-Then fit the first trainable whole-proof ranking policy:
-
-```bash
-python3 -m ai_statistician.cli proof-policy-train \
-  --train-jsonl runs/proof_training_export/proof_sft_train.jsonl \
-  --validation-jsonl runs/proof_training_export/proof_sft_validation.jsonl \
-  --out runs/proof_policy_model
-```
-
-Read [docs/production_design.md](/Users/yukang/AI%20Statistician/docs/production_design.md) for the architecture and the exact honesty boundary.
-Read [docs/real_axle_validation.md](/Users/yukang/AI%20Statistician/docs/real_axle_validation.md) for the latest full proof-bank AXLE validation summary.
-
-## Honest Capability Boundary
-
-The production core verifies registered Mathlib-backed proof obligations and
-simulates vetted estimator implementations. The new `research-benchmark` command
-is the first AI Statistical Theory Lab layer: it turns open, paper-style
-questions into structured problem specs with extraction evidence, creates
-theory plans, proves available subclaims, marks frontier theorem pieces as
-`FORMAL_GAP`, exports Lean-facing theorem skeletons for those gaps under
-`formal_gaps/`, records the missing Lean/stat primitives needed to turn each
-skeleton into a theorem, attaches retrieved local Lean/StatInference declaration
-candidates to each formal gap, and runs problem-specific simulations.
-The proof bank now includes a genuine finite-sample estimator theorem,
-`finite_sample_mean_unbiased`: the arithmetic mean over `Fin n` is unbiased
-whenever every component estimator is integrable and unbiased for the same
-target. This is still finite-sample expectation algebra, not a CLT or efficiency
-theorem, but it is a real estimator definition plus Lean proof rather than a
-placeholder theorem statement.
-It also includes `finite_sample_mean_variance_indep`: for pairwise independent
-L2 component estimators indexed by `Fin n`, the variance of the arithmetic
-sample mean is the sum of component variances divided by `n^2`. This closes the
-previous `finite_sample_mean_variance` primitive gap for registered
-finite-sample mean traces while still leaving CLT/asymptotic normality as a
-separate frontier gap.
-It also includes `finite_sample_mean_chebyshev_indep`, a composed
-nonasymptotic guarantee proving that an unbiased pairwise-independent
-finite-sample mean has absolute-error probability bounded by the proved
-finite-sample variance identity divided by `c^2`.
-It also includes `affine_estimator_expectation`, proving the expectation of
-an affine/shrinkage estimator `a*X+b` is `a*E[X]+b`; this is the formal bridge
-used by the Bayesian normal-conjugate posterior-mean trace.
-It also includes `affine_estimator_variance`, proving that the variance of
-`a*X+b` is `a^2 Var(X)` for L2 estimators; this supports posterior shrinkage,
-linear-smoother SE, and bias-adjusted ranking uncertainty traces.
-It also includes `mean2_estimator_variance_indep`, a finite-sample performance
-identity proving that the variance of an average of two independent L2
-estimators is `(Var(X)+Var(Y))/4`.
-It also includes `estimator_error_chebyshev`, a nonasymptotic error-probability
-bound for any finite-second-moment estimator with known mean.
-It also includes `block_estimator_chebyshev_bound`, the same Mathlib-backed
-Chebyshev ingredient exposed as a block-estimator bridge for robust
-median-of-means traces. This proves the block failure probability ingredient
-only; the binomial median amplification and full robust sub-Gaussian deviation
-theorem remain explicit formal gaps.
-It also includes `chebyshev_block_failure_bound_bridge`, a domain-named wrapper
-that maps the missing robust-mean primitive `chebyshev_block_failure_bound`
-directly to the verified Chebyshev block-estimator inequality. This is a queue
-classification improvement, not a new sharp concentration theorem.
-It also includes `median_of_means_failure_union_control`, a finite block-event
-union bridge. If the median-of-means failure event is contained in the union of
-bad block events, and each bad block event has a local error budget, then the
-median failure event is bounded by the sum of those budgets. This improves the
-robust-mean formalization queue while still leaving the binomial majority tail
-and sharp sub-Gaussian MoM theorem as explicit formal gaps.
-It also includes `median_of_means_deviation_bridge`, a domain-named finite
-bad-block union wrapper that maps the missing primitive
-`median_of_means_deviation` to the verified finite-union MoM skeleton.
-It also includes `neyman_variance_conservative_algebra`, a design-based
-finite-population variance bridge. If the exact randomization variance equals
-an observable Neyman bound minus a nonnegative treatment-effect variance term,
-then the observable bound is conservative. This verifies the algebraic
-conservativeness step while still leaving complete randomization and the
-finite-population randomization variance formula as explicit formal gaps.
-It also includes `randomization_variance_decomposition_bridge`, a domain-named
-wrapper around Mathlib's contrast variance identity. This gives the
-`randomization_variance_decomposition` primitive a real kernel-verified bridge,
-while still leaving assignment uniformity and the full finite-population
-randomization variance theorem as formal gaps.
-It also includes `finite_population_ate_mean_difference`, a deterministic
-finite-population potential-outcome target bridge. It proves that the mean of
-unit-level effects `Y(1)-Y(0)` equals the treated potential-outcome mean minus
-the control potential-outcome mean. This formalizes the ATE target algebra while
-still leaving complete-randomization assignment and estimator unbiasedness as
-separate theorem goals.
-It also includes `complete_randomization_uniform_assignment_mass`, a finite
-uniform-randomization bridge. For any finite nonempty assignment space, Mathlib's
-uniform PMF assigns each assignment mass `1 / card`. This gives the
-complete-randomization distribution primitive a real Lean bridge while still
-leaving fixed-treated-count combinatorics and design-based covariance formulas
-as formal gaps.
-It also includes `uniform_rank_pmf_mass`, a finite conformal-rank distribution
-bridge. For a finite nonempty rank space `Fin n`, Mathlib's uniform PMF assigns
-each rank mass `1 / n`. This gives conformal rank-uniformity traces a verified
-PMF building block while still leaving the exchangeable-scores-to-uniform-rank
-theorem and the full order-statistic conformal coverage theorem as formal gaps.
-It also includes `exchangeable_scores_uniform_rank_bridge`, a domain-named
-wrapper for the missing primitive `exchangeable_scores`. It verifies the finite
-uniform-rank PMF ingredient after the exchangeability argument has reduced
-scores to a uniform rank; it does not prove that exchangeability reduction.
-It also includes `order_statistic_quantile_rule_bridge`, a domain-named finite
-bad-rank coverage wrapper for split-conformal order-statistic rules. It proves
-the finite rank/union/complement algebra while still leaving score
-exchangeability and the quantile construction theorem as formal gaps.
-It also includes `bh_threshold_grid_mono`, a deterministic BH/FDR algebra
-bridge. For nonnegative nominal level `q`, the Benjamini-Hochberg threshold
-grid `q * k / m` is monotone in the rank index `k`. This gives ordered-p-value
-and BH step-up fixed-point traces a verified algebraic primitive while still
-leaving BH self-consistency and FDR control as formal gaps.
-It also includes `potential_outcome_observed_consistency`, a deterministic
-causal-inference bridge. For a binary treatment assignment, the observed
-outcome equals `Y(1)` on treated units and `Y(0)` on control units by
-definition. This upgrades the potential-outcome consistency primitive while
-still leaving conditional exchangeability, positivity, and ATE identification
-as formal gaps.
-It also includes `propensity_score_ne_zero_of_lower_bound`, a causal positivity
-bridge. A propensity score bounded below by a strictly positive constant is
-nonzero, so inverse-propensity denominators are safe under the stated lower
-bound. This upgrades the positivity primitive while still leaving overlap,
-conditional exchangeability, and identification as formal gaps.
-It also includes `propensity_weight_mul_cancel_of_lower_bound`, the next
-inverse-weight algebra bridge. Under the same strict positive lower bound, Lean
-proves `p⁻¹ * p = 1`, giving AIPW/IPW traces a verified
-`propensity_weight_identity` primitive while still leaving conditional
-exchangeability, nuisance correctness, identification, and double robustness as
-formal gaps.
-Another composed guarantee is `mean2_estimator_chebyshev_indep`, which derives
-an explicit Chebyshev error bound for the average of two independent unbiased L2
-estimators using both the expectation and variance proof ingredients. Composed
-obligations now carry machine-readable `depends_on` edges, and the proof/trace
-audits validate that those edges point to registered proof-bank obligations.
-It also includes `finite_event_indicator_mean_unbiased`, a finite-sample
-sample-proportion theorem proving that the mean of event indicators is unbiased
-for the common event probability.
-It also includes `finite_union_bound`, a Bonferroni-style finite union bound
-using Mathlib's `measure_biUnion_finset_le`; conformal, BH/FDR, and
-finite-horizon anytime-valid traces can now point to an AXLE-verified union
-probability subclaim instead of leaving all event-control algebra as an
-unstructured formal gap.
-It also includes `finite_horizon_type1_union_control`, a finite monitoring
-horizon type-I control bridge: if each monitored rejection event has mass at
-most its allocated `α_i`, then the probability of any rejection is at most the
-sum of those budgets. This supports sequential-testing traces while still
-leaving Ville's inequality and full anytime supermartingale validity as formal
-gaps.
-It also includes `finite_horizon_evalue_markov_type1_control`, a finite-horizon
-e-value exceedance bridge that combines Markov's inequality with a finite union
-allocation. It proves type-I control for finitely many ENNReal e-value-like
-coordinates with verified tail budgets, and gives the e-process/Ville
-formalization queue a proof-bank-backed stepping stone without claiming
-optional stopping or nonnegative-supermartingale validity.
-It also includes `filtration_mono_measurable_set`, proving that event
-measurability is monotone along a filtration: an event measurable at an earlier
-index remains measurable at any later index. This is now the verified bridge
-for the `filtration` primitive and an additional bridge candidate for
-stopping-time/Ville theorem skeletons, while full optional-stopping and Ville
-inequality remain formal gaps.
-It also includes `stopping_time_le_event_measurable`, proving the defining
-stopping-time measurability fact that `{ω | τ ω ≤ i}` is measurable in the
-sigma-algebra `ℱ i`. This gives stopped-process and optional-stopping theorem
-skeletons a real AXLE-verified stopping-time event primitive while still
-leaving optional-stopping and Ville inequality as explicit formal gaps.
-It also includes `submartingale_expected_stopped_value_mono`, a direct wrapper
-around Mathlib's forward optional-stopping theorem: for bounded stopping times
-`τ ≤ π` of a submartingale, the expected stopped value at `τ` is at most the
-expected stopped value at `π`. This is a substantially stronger bridge for
-optional-stopping theorem skeletons, while full e-process validity and
-anytime type-I control remain explicit formal gaps.
-It also includes `submartingale_stopped_process`, proving that stopping a
-real-valued submartingale at a stopping time preserves the submartingale
-property. This gives the sequential queue a verified stopped-process theorem
-for nonnegative-supermartingale/e-process skeletons.
-It also includes `supermartingale_expected_stopped_value_antimono`, proving the
-bounded-stopping expectation budget for real-valued supermartingales:
-if `τ ≤ π`, then `E[f_π] <= E[f_τ]`. This is the direct optional-stopping
-primitive needed by nonnegative-supermartingale/e-process arguments.
-It also includes `submartingale_doob_maximal_ineq`, a direct wrapper around
-Mathlib's finite-horizon Doob maximal inequality for nonnegative
-submartingales. This gives the Ville/e-process queue a verified maximal
-inequality bridge while still leaving the full e-process construction and
-anytime type-I theorem as explicit formal gaps.
-It also includes `submartingale_doob_maximal_budget`, a budgeted Doob corollary:
-if the terminal integral over the running-maximum event is bounded by a
-threshold times an error budget, then the threshold-weighted event probability
-obeys the same budget. This moves the sequential queue closer to Ville-style
-type-I control while keeping the final e-process construction explicit.
-It also includes `submartingale_doob_maximal_probability_bound`, which cancels
-the nonzero threshold using `ENNReal.mul_le_mul_iff_right` and turns the
-budgeted weighted tail bound into the actual event-probability bound
-`μ {sup f >= ε} <= α`. This closes the algebraic division step in the
-finite-horizon Ville/e-process skeleton; the remaining gaps are the e-process
-construction and proof of the terminal budget assumption.
-It also includes `event_probability_mono`, the measure monotonicity fact
-`A ⊆ B -> μ(A) ≤ μ(B)`, which is a reusable subclaim for bad-event containment
-arguments in conformal coverage, BH/FDR decompositions, and anytime-valid error
-control.
-It also includes `independent_event_inter_probability`, proving
-`μ(A ∩ B) = μ(A) * μ(B)` from Mathlib's `IndepSet` event-independence
-interface; BH/FDR and sequential likelihood-ratio traces can now cite a real
-AXLE-verified independence algebra subclaim instead of treating independence as
-only informal prose.
-It also includes `independent_null_event_family_inter_probability`, proving
-the finite-family factorization
-`μ (⋂ i ∈ I, A i) = ∏ i ∈ I, μ (A i)` from Mathlib's `iIndepSet.meas_biInter`.
-This upgrades the BH/FDR `independent_null_pvalues` primitive to a
-proof-bank-backed bridge while still leaving p-value validity, ordering, and
-the full BH step-up FDR theorem as explicit formal gaps.
-It also includes `independent_null_event_family_compl_inter_probability`,
-proving the finite-family complement factorization
-`μ (⋂ i ∈ I, (A i)ᶜ) = ∏ i ∈ I, μ (A i)ᶜ`. This gives BH/FDR and
-familywise-error traces a verified "no false null event" product-probability
-bridge, while still leaving null-p-value validity and BH step-up FDR control as
-formal gaps.
-It also includes `first_borel_cantelli_limsup_zero`, a first Borel-Cantelli
-lemma wrapper proving that summable bad-event probabilities imply the limsup
-bad-event has measure zero. This gives sequential and extreme-tail traces a
-real AXLE-verified repeated-event control subclaim.
-It also includes `second_borel_cantelli_limsup_one`, the independent-event
-recurrence counterpart: independent measurable events with divergent total
-probability occur infinitely often with probability one. Extreme-tail traces
-can now cite both Borel-Cantelli directions as verified formal subclaims.
-It also includes `adapted_hitting_after_is_stopping_time`, proving that the
-first hitting time of a measurable set by an adapted discrete process is a
-stopping time. This is a concrete verified primitive for optional-stopping and
-e-process traces.
-It also includes `event_indicator_product_integral_eq_inter`, proving that the
-integral of the product of two event indicators is the measure of their
-intersection. This gives Bernoulli likelihood-ratio and product-process traces
-a verified bridge before independence or conditional-expectation martingale
-lifting is applied; it still does not prove the full likelihood-ratio
-martingale theorem.
-For private/noised inference, the proof bank now also contains
-`noised_estimator_unbiased`, `noised_estimator_variance_indep`, and
-`noised_estimator_chebyshev_indep`: real AXLE-verified Lean obligations showing
-that independent mean-zero additive noise preserves unbiasedness, adds variance,
-and yields a Chebyshev error bound with `Var(X)+Var(Z)`. This is still not a
-proof of epsilon-delta DP calibration, but it is a formal bridge for the
-sampling-plus-privacy-noise estimator error decomposition used by the DP trace.
-`research-eval` repeats that workflow across multiple seeds and writes aggregate
-diagnostics, so benchmark claims are stability claims rather than one-off demos.
-The trace audit also checks that every extracted diagnostic is backed by a
-concrete simulation metric, allowing deliberate aliases such as
-`se_calibration -> se_ratio`. It also checks theorem-goal coverage: every
-candidate procedure's theorem goal must be defined in the trace and represented
-downstream by either a proved subclaim or a formal gap skeleton.
-Theorem goals can now also carry explicit `proof_obligations`, so a frontier
-gap can point to the exact AXLE-verified subclaims that already support part of
-the argument. The current templates use this for causal AIPW expectation
-linearity, augmentation-cancellation algebra, and score-term integrability,
-conformal probability complements, survival event indicators, robust mean
-Chebyshev/Markov steps, design-based variance algebra, BH/anytime
-probability inequalities, PCA variance positivity, extreme-tail probability
-facts, nonparametric sieve regression error bounds, and DP private-mean noise
-decomposition. For example, the private mean error-decomposition gap links to
-the three noised-estimator obligations above while still keeping DP calibration
-and composition as unproved formal gaps.
-The frontier layer now includes narrow differential-privacy, nonparametric
-regression, Bayesian posterior-calibration, and measurement-bias ranking
-classes: recent DP accountant/private-learning prompts route to a
-Gaussian-mechanism clipped-mean baseline, DNN/P-spline nonparametric prompts
-route to a polynomial-sieve pointwise inference baseline,
-predictive-distribution-to-prior prompts route to a normal-conjugate posterior
-calibration baseline, and educational-assessment measurement-bias prompts route
-to a bias-adjusted country-ranking baseline. Full DP calibration, composition,
-DNN approximation, subsampling U-statistic, adaptive tuning theory, posterior
-coherence, nonconjugate posterior calibration, IRT measurement-invariance
-identifiability, and rank-functional asymptotics remain explicit formal gaps.
-
-It is not yet a fully autonomous system that invents arbitrary new estimators and
-proves CLTs, efficiency bounds, or full JASA/AOAS paper theorems in Lean.
-The gap backlog is therefore a library-construction plan, not just a list of
-unproved claims.
-
-Research capability audit:
-
-```bash
-python3 -m ai_statistician.cli research-capability-audit \
-  --out runs/research_capability_audit
-```
-
-This is the direct answer to "have we achieved the full target?" It maps the
-AI Statistical Theory Lab goal to concrete evidence rows. The current scaffold
-is expected to pass `all_current_release_requirements_met=true`, while
-`goal_complete=false` remains intentional: full Lean proofs of new frontier
-asymptotic/statistical theorems and arbitrary JASA/AOAS coverage are still
-roadmap items, not achieved capabilities.

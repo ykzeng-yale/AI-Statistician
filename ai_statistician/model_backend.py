@@ -33,8 +33,8 @@ DEFAULT_ANTHROPIC_GENERATOR_MODEL = DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
 DEFAULT_STATIC_GENERATOR_MODEL = "static"
 DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS = 120.0
 PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY = "provider_structured_output"
-PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY = (
-    "provider_structured_output_on_repair"
+PROVIDER_STRUCTURED_OUTPUT_ON_RETRY_METADATA_KEY = (
+    "provider_structured_output_on_retry"
 )
 MAX_LIVE_ANTHROPIC_MODEL_TIER = "sonnet"
 ALLOWED_LIVE_ANTHROPIC_MODEL_TIERS = frozenset({"haiku", "sonnet"})
@@ -51,8 +51,6 @@ AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY = {
     "ArchitectCoordinator": "sonnet",
     "TheoryDeveloper": "sonnet",
     "FormalizerProofEngineer": "sonnet",
-    "PseudoFormalBlockVerifier": "sonnet",
-    "formalization_gap_planner_route_synthesis": "auto",
     "TheoryIntake": "haiku",
     "SimulationEngineer": "sonnet",
     "SimulatorEngineer": "sonnet",
@@ -183,8 +181,6 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
             "SimulationEngineer",
             "AlgorithmEngineer",
             "FormalizerProofEngineer",
-            "PseudoFormalBlockVerifier",
-            "formalization_gap_planner_route_synthesis",
         ],
         "haiku": [
             "theory_intake",

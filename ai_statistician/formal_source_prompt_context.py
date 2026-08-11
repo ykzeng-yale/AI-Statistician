@@ -20,13 +20,6 @@ FORMAL_SOURCE_OUTLINE_PROMPT_POLICY = (
     "active-project Lean/kernel checking."
 )
 FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS = 5600
-PROOFENGINEER_REPAIR_QUERY_ROLES = frozenset(
-    {
-        "live_proof_state_or_diagnostic",
-        "repair_context_seed",
-        "unknown_identifier_api_repair",
-    }
-)
 
 
 def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str, Any]]:
@@ -62,14 +55,12 @@ def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str
     projected_groups: list[dict[str, Any]] = []
     for group_index, (group, hits) in enumerate(selected):
         query_role = str(group.get("query_role", "") or "")[:120]
-        repair_focused = query_role in PROOFENGINEER_REPAIR_QUERY_ROLES
         projected_group: dict[str, Any] = {
             "query_role": query_role,
             "hits": [
                 _compact_formal_source_hit_for_prompt(
                     hit,
                     primary=group_index == 0 and hit_index == 0,
-                    repair_focused=repair_focused,
                 )
                 for hit_index, hit in enumerate(hits)
             ],
@@ -119,7 +110,6 @@ def _compact_formal_source_hit_for_prompt(
     hit: Mapping[str, Any],
     *,
     primary: bool,
-    repair_focused: bool,
 ) -> dict[str, Any]:
     payload = {
         "source_id": str(hit.get("source_id", "") or "")[:120],
@@ -137,7 +127,6 @@ def _compact_formal_source_hit_for_prompt(
             _compact_declaration_source_context_for_prompt(
                 context,
                 primary=primary,
-                repair_focused=repair_focused,
             )
         )
     return {
@@ -185,7 +174,6 @@ def _compact_declaration_source_context_for_prompt(
     context: Any,
     *,
     primary: bool,
-    repair_focused: bool,
 ) -> dict[str, Any]:
     if not isinstance(context, Mapping):
         return {}
@@ -194,7 +182,7 @@ def _compact_declaration_source_context_for_prompt(
         for row in context.get("premise_declaration_outlines", []) or []
         if isinstance(row, Mapping)
     ][:6]
-    import_limit = 4 if repair_focused else 6 if primary else 3
+    import_limit = 6 if primary else 3
     selected_rows: list[Mapping[str, Any]] = []
     if primary:
         for scope, limit in (("statement", 1), ("proof", 2), ("unspecified", 1)):
@@ -570,17 +558,17 @@ def formalizer_feedback_with_task_bound_formal_source_queries(
     """Seed a Formalizer turn through the existing bounded retrieval channel."""
 
     payload = dict(feedback) if isinstance(feedback, Mapping) else {}
-    repair_context = (
-        dict(payload.get("proofengineer_repair_context", {}) or {})
-        if isinstance(payload.get("proofengineer_repair_context", {}), Mapping)
+    workspace_context = (
+        dict(payload.get("formalizer_workspace_context", {}) or {})
+        if isinstance(payload.get("formalizer_workspace_context", {}), Mapping)
         else {}
     )
-    if repair_context.get("formal_source_grounding_hits"):
+    if workspace_context.get("formal_source_grounding_hits"):
         return payload
 
     existing_queries = [
         str(value).strip()
-        for value in repair_context.get("retrieval_query_seeds", []) or []
+        for value in workspace_context.get("retrieval_query_seeds", []) or []
         if str(value).strip()
     ]
     task_queries = task_bound_formal_source_query_seeds(
@@ -596,21 +584,21 @@ def formalizer_feedback_with_task_bound_formal_source_queries(
     if not query_seeds:
         return payload
 
-    repair_context.setdefault(
+    workspace_context.setdefault(
         "context_kind",
         "task_bound_formal_source_grounding",
     )
-    repair_context["retrieval_query_seeds"] = query_seeds
+    workspace_context["retrieval_query_seeds"] = query_seeds
     if source_scope_ids:
-        repair_context["formal_source_scope_ids"] = list(source_scope_ids)
-    repair_context.setdefault(
+        workspace_context["formal_source_scope_ids"] = list(source_scope_ids)
+    workspace_context.setdefault(
         "retrieval_boundary",
         (
             "Retrieved declarations are prompt context only; the exact generated "
             "artifact must still pass active-project Lean/kernel verification."
         ),
     )
-    payload["proofengineer_repair_context"] = repair_context
+    payload["formalizer_workspace_context"] = workspace_context
     payload.setdefault(
         "feedback_type",
         "formalizer_task_bound_formal_source_context",

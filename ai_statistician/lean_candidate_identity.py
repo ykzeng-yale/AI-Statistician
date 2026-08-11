@@ -3,10 +3,26 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Mapping, Sequence
+
+from .fingerprint import stable_hash
 
 
 TRUSTED_LEAN_AXIOMS = frozenset({"propext", "Quot.sound", "Classical.choice"})
+LEAN_TARGET_STATEMENT_HASH_ALGORITHM = (
+    "stable_hash:lean_whitespace_normalized_signature:v1"
+)
+
+
+def lean_target_statement_hash(source: str) -> str:
+    """Hash a Lean target without making any syntactic or semantic decision."""
+
+    normalized = re.sub(r"\s+", " ", str(source or "").strip())
+    return stable_hash(normalized)
+
+
+def lean_source_lineage_id(payload: Mapping[str, Any]) -> str:
+    return "lean_source_lineage:" + stable_hash(dict(payload))[:20]
 
 
 def _lean_axioms_from_report(report: str) -> tuple[bool, tuple[str, ...]]:

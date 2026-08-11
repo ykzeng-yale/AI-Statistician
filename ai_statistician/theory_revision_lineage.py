@@ -353,7 +353,7 @@ def consume_architect_routed_theory_revision(
         "runtime_feedback_loop",
         "runtime_generated_code_semantic_review_replan",
         "formal_target_semantic_review_replan",
-        "runtime_coding_agent_revision_budget_replan",
+        "workspace_replan",
         "runtime_metric_gate_replan",
         "runtime_packet_validation_replan",
         "accepted_algorithm_handoff",

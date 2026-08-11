@@ -22,7 +22,7 @@ from ai_statistician.cli import (
     build_parser,
     main,
 )
-from ai_statistician.llm_json_repair import PacketValidationError
+from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.estimator_interface_contract import (
     ESTIMATOR_REQUEST_BINDINGS,
     estimator_interface_contract_id,
@@ -45,7 +45,6 @@ from ai_statistician.metric_protocol_stage import (
 from ai_statistician.research_architect import (
     KERNEL_PROOF_BOUNDARY,
     LLMTheoryDeveloperAgent,
-    LLMTheoryDeveloperRepairHandler,
     ResearchArchitectAgent,
     ResearchArchitectConfig,
     StaticArchitectLLMProvider,
@@ -54,13 +53,7 @@ from ai_statistician.research_architect import (
     build_theory_developer_prompt,
     validate_theory_packet,
 )
-from ai_statistician.research_lab import (
-    ProblemFormalizer,
-    ResearchSimulator,
-    TheoryPlanner,
-    load_open_research_questions,
-)
-from ai_statistician.research_loop import ResearchLoopCoordinator
+from ai_statistician.research_lab import load_open_research_questions
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.theory_proposal import GeneratorTheoryProposer
 from ai_statistician.theory_revision_lineage import (
@@ -779,7 +772,7 @@ def test_capability_theory_mode_requires_deeper_equation_trace(
         provider=provider,
         config=ResearchArchitectConfig(
             provider_name="anthropic",
-            max_repair_attempts=0,
+            max_validation_retries=0,
         ),
     )
 
@@ -842,7 +835,7 @@ def test_theory_developer_anthropic_request_uses_structured_output() -> None:
             provider_name="anthropic",
             model="claude-haiku-4-5-20251001",
             model_tier="haiku",
-            max_repair_attempts=0,
+            max_validation_retries=0,
         ),
     )
 
@@ -892,7 +885,7 @@ def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> Non
             provider_name="anthropic",
             model="claude-haiku-4-5-20251001",
             model_tier="haiku",
-            max_repair_attempts=0,
+            max_validation_retries=0,
         ),
     )
 
@@ -979,7 +972,7 @@ def test_interface_authoring_cannot_replace_frozen_outputs_with_status_rows() ->
             provider_name="anthropic",
             model="claude-haiku-4-5-20251001",
             model_tier="haiku",
-            max_repair_attempts=0,
+            max_validation_retries=0,
         ),
     )
 
@@ -1041,7 +1034,7 @@ def test_theory_revision_regenerates_complete_packet_with_raw_feedback() -> None
             model_tier="haiku",
             serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             serious_model_tier="haiku",
-            max_repair_attempts=1,
+            max_validation_retries=1,
         ),
     )
 
@@ -1073,7 +1066,7 @@ def test_theory_revision_regenerates_complete_packet_with_raw_feedback() -> None
     assert retry_prompt["original_request"] == first_request.user_prompt
     assert json.loads(retry_prompt["previous_candidate"]) == invalid_core
     assert "subsystem_repair_context" not in retry_prompt
-    assert retry_request.metadata["json_repair_mode"] == "full_packet_regeneration"
+    assert retry_request.metadata["structured_output_retry_mode"] == "full_packet_regeneration"
     assert interface_request.metadata["theory_developer_phase"] == (
         "estimator_interface_authoring"
     )
@@ -1141,7 +1134,7 @@ def test_theory_revision_does_not_invoke_client_edit_tools() -> None:
             model_tier="haiku",
             serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             serious_model_tier="haiku",
-            max_repair_attempts=0,
+            max_validation_retries=0,
         ),
     )
 
@@ -1305,7 +1298,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
             model_tier="haiku",
             serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             serious_model_tier="haiku",
-            max_repair_attempts=1,
+            max_validation_retries=1,
         ),
     )
 
@@ -1325,7 +1318,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
         "estimator_interface_authoring",
         "estimator_interface_authoring",
     ]
-    assert first_provider.requests[2].metadata["json_repair_mode"] == (
+    assert first_provider.requests[2].metadata["structured_output_retry_mode"] == (
         "full_packet_regeneration"
     )
     assert "allowed_semantic_reference_ids" in first_provider.requests[2].user_prompt
@@ -1378,7 +1371,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
             model_tier="haiku",
             serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             serious_model_tier="haiku",
-            max_repair_attempts=1,
+            max_validation_retries=1,
         ),
     )
 
@@ -1448,7 +1441,7 @@ def test_theory_developer_uses_shared_full_packet_regeneration(
             provider_name="sequential_test",
             model="claude-haiku-4-5-20251001",
             model_tier="haiku",
-            max_repair_attempts=2,
+            max_validation_retries=2,
         ),
     )
 
@@ -1465,7 +1458,7 @@ def test_theory_developer_uses_shared_full_packet_regeneration(
     assert "allow_progress_repair_extension" not in captured
     assert "repair_context_builder" not in captured
     assert "retry_prompt_builder" not in captured
-    assert captured["max_repair_attempts"] == 2
+    assert captured["max_validation_retries"] == 2
 
 
 def test_theory_developer_truncation_recovery_is_serious_and_bounded() -> None:
@@ -1480,7 +1473,7 @@ def test_theory_developer_truncation_recovery_is_serious_and_bounded() -> None:
         config=ResearchArchitectConfig(
             provider_name="sequential_test",
             model="repair-test-model",
-            max_repair_attempts=2,
+            max_validation_retries=2,
         ),
     )
     context = {
@@ -1508,7 +1501,7 @@ def test_theory_developer_truncation_recovery_is_serious_and_bounded() -> None:
     assert len(provider.requests) == 2
     request = provider.requests[0]
     assert request.metadata["transport_recovery"] is True
-    assert request.metadata["effective_max_repair_attempts"] == 1
+    assert request.metadata["effective_max_validation_retries"] == 1
     derivation_schema = request.schema["properties"][
         "theory_derivation_packet"
     ]["properties"]
@@ -1537,7 +1530,7 @@ def test_llm_theory_developer_repairs_invalid_json_packet_before_accepting() -> 
         config=ResearchArchitectConfig(
             provider_name="sequential_test",
             model="repair-test-model",
-            max_repair_attempts=1,
+            max_validation_retries=1,
         ),
     )
 
@@ -1551,13 +1544,13 @@ def test_llm_theory_developer_repairs_invalid_json_packet_before_accepting() -> 
     )
 
     assert packet["ok"] is True
-    assert packet["llm_json_repair_attempts"] == 1
-    assert len(packet["llm_json_repair_history"]) == 2
-    assert packet["llm_json_repair_history"][0]["ok"] is False
-    assert "missing or empty field" in " ".join(packet["llm_json_repair_history"][0]["errors"])
-    assert packet["llm_json_repair_history"][1]["ok"] is True
+    assert packet["structured_output_retry_attempts"] == 1
+    assert len(packet["structured_output_retry_history"]) == 2
+    assert packet["structured_output_retry_history"][0]["ok"] is False
+    assert "missing or empty field" in " ".join(packet["structured_output_retry_history"][0]["errors"])
+    assert packet["structured_output_retry_history"][1]["ok"] is True
     assert len(provider.requests) == 2
-    assert provider.requests[1].metadata["json_repair_attempt"] == 1
+    assert provider.requests[1].metadata["structured_output_retry_attempt"] == 1
     assert "Your previous response failed AI Statistician local validation" in provider.requests[1].user_prompt
     assert "required_output_contract" in provider.requests[1].user_prompt
     assert "Rewrite the full JSON object from scratch" in provider.requests[1].user_prompt
@@ -1590,23 +1583,23 @@ def test_llm_theory_developer_default_repair_budget_allows_two_repairs() -> None
     )
 
     assert packet["ok"] is True
-    assert packet["llm_json_repair_attempts"] == 2
-    assert len(packet["llm_json_repair_history"]) == 3
-    assert [row["ok"] for row in packet["llm_json_repair_history"]] == [
+    assert packet["structured_output_retry_attempts"] == 2
+    assert len(packet["structured_output_retry_history"]) == 3
+    assert [row["ok"] for row in packet["structured_output_retry_history"]] == [
         False,
         False,
         True,
     ]
     assert len(provider.requests) == 3
-    assert provider.requests[1].metadata["json_repair_max_attempts"] == 2
-    assert provider.requests[2].metadata["json_repair_attempt"] == 2
+    assert provider.requests[1].metadata["structured_output_retry_max_attempts"] == 2
+    assert provider.requests[2].metadata["structured_output_retry_attempt"] == 2
     assert all(
         row["response_text_chars"] > 0
-        for row in packet["llm_json_repair_history"]
+        for row in packet["structured_output_retry_history"]
     )
     assert all(
         row["response_metadata"]["provider_stop_reason"] == "end_turn"
-        for row in packet["llm_json_repair_history"]
+        for row in packet["structured_output_retry_history"]
     )
 
 
@@ -1914,7 +1907,6 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     parser = build_parser()
     architect_args = parser.parse_args(["research-architect-theory"])
     runtime_args = parser.parse_args(["research-agent-runtime"])
-    loop_args = parser.parse_args(["research-loop"])
     intake_args = parser.parse_args(["theory-intake", "--question-file", "examples/questions.json"])
 
     assert architect_args.provider == "anthropic"
@@ -1943,13 +1935,6 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         runtime_args.serious_theory_llm_model,
         model_tier=runtime_args.serious_theory_model_tier,
     ) == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
-    assert loop_args.llm_theory_provider == "anthropic"
-    assert loop_args.llm_theory_model == ""
-    assert default_generator_model(
-        loop_args.llm_theory_provider,
-        loop_args.llm_theory_model,
-        model_tier="sonnet",
-    ) == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert intake_args.llm_provider == "anthropic"
     assert intake_args.llm_model == ""
     assert default_generator_model(
@@ -1973,7 +1958,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         default_model=runtime_default_model,
     )
     assert algorithm_engineer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
-    assert algorithm_engineer.config.max_repair_attempts == 0
+    assert algorithm_engineer.config.max_validation_retries == 0
     assert (
         _build_formalizer_agent_from_args(
             runtime_args,
@@ -1986,7 +1971,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         default_model=runtime_default_model,
     )
     assert simulation_engineer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
-    assert simulation_engineer.config.max_repair_attempts == 0
+    assert simulation_engineer.config.max_validation_retries == 0
     assert (
         _build_critic_evaluator_agent_from_args(
             runtime_args,
@@ -2044,8 +2029,6 @@ def test_live_evaluation_builders_are_pinned_to_current_haiku(
     assert args.evaluation_claude_model == expected_model
     assert args.theory_model_tier == "haiku"
     assert args.serious_theory_model_tier == "haiku"
-    assert args.formalization_gap_planner_live_model_tier == "haiku"
-    assert args.pseudo_formal_block_verifier_runtime_model_tier == "haiku"
     default_model = default_generator_model(
         args.provider,
         model_tier=args.evaluation_claude_model_tier,
@@ -2083,8 +2066,8 @@ def test_live_evaluation_builders_are_pinned_to_current_haiku(
     assert all(agent is not None for agent in agents)
     assert all(agent.config.model_tier == "haiku" for agent in agents)
     assert all(agent.config.model == expected_model for agent in agents)
-    assert agents[1].config.max_repair_attempts == 0
-    assert agents[2].config.max_repair_attempts == 0
+    assert agents[1].config.max_validation_retries == 0
+    assert agents[2].config.max_validation_retries == 0
     assert agents[5].config.max_validation_retries == 2
     architect = agents[0]
     assert architect.metric_semantic_reviewer.config.model_tier == "haiku"
@@ -2122,83 +2105,34 @@ def test_live_llm_backend_rejects_codex_provider_for_main_cli() -> None:
         _build_theory_generator_backend(provider_name="codex")
 
 
-def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
-    long_signature = "theorem very_long " + ("x " * 600)
+
+def test_theory_prompt_uses_current_sources_without_historical_routing_memory() -> None:
     prompt = build_theory_developer_prompt(
         OpenResearchQuestion(
-            id="conformal_prompt_compaction",
+            id="generic_prompt_compaction",
             title="Prompt compaction",
-            description="Check bounded retrieval context.",
-            tags=("conformal",),
+            description="Use current task evidence without historical route recipes.",
+            tags=("statistics",),
         ),
         architect_context={
             "runtime_task": {
-                "task_id": "theory:test",
+                "task_id": "theory:current",
                 "owner_subsystem": "TheoryDeveloper",
-                "objective": "derive theory",
-                "inputs": {"large": "do not include"},
+                "objective": "derive the current theory",
+                "inputs": {"large_private_payload": "do not include"},
             },
             "retrieval_context": {
-                "knowledge_cards": [
-                    {
-                        "id": "split_conformal",
-                        "title": "Split conformal",
-                        "source_type": "method",
-                        "summary": "coverage " * 100,
-                        "tags": ["conformal", "coverage"],
-                    }
-                ],
-                "paper_sources": [],
                 "formal_source_hits": [
                     {
-                        "theorem_goal_id": "coverage",
+                        "theorem_goal_id": "current_goal",
                         "hits": [
                             {
-                                "source_id": "mathlib",
-                                "path": "Mathlib/Probability.lean",
-                                "line": 10,
-                                "kind": "theorem",
-                                "name": "Probability.coverage",
-                                "signature": long_signature,
-                                "declaration_doc": (
-                                    "Direct maximal inequality with the target event "
-                                    "and its required hypotheses."
-                                ),
-                                "module_summary": (
-                                    "The module derives uniform control from a "
-                                    "nonnegative process without proof bodies."
-                                ),
-                                "reference": "Source theorem 2.1",
-                                "matched_terms": ["probability"],
-                            },
-                            {
-                                "source_id": "formal_slt",
-                                "path": "AnytimeValid/Bridge.lean",
-                                "line": 24,
-                                "kind": "theorem",
-                                "name": "FormalSLT.IndirectBridge",
-                                "namespace": "FormalSLT",
-                                "signature": "theorem IndirectBridge (h : True) : True",
-                                "declaration_doc": "Secondary prose must be omitted.",
-                            },
-                            {
-                                "source_id": "lean_stat_learning_theory",
-                                "path": "SLT/DirectBound.lean",
-                                "line": 42,
-                                "kind": "theorem",
-                                "name": "DirectBound.target_bound",
-                                "namespace": "DirectBound",
-                                "signature": "theorem target_bound (h : True) : True",
-                                "declaration_doc": "Third-ranked prose must be omitted.",
-                            },
-                            {
-                                "source_id": "mathlib",
-                                "path": "Mathlib/Unused.lean",
-                                "line": 99,
-                                "kind": "theorem",
-                                "name": "Unused.fourth",
-                                "signature": "theorem fourth : True",
-                            },
+                                "source_id": "statlib",
+                                "path": "Statlib/Current.lean",
+                                "name": "Statlib.current_bound",
+                                "signature": "theorem current_bound (h : P) : Q",
+                                "declaration_doc": "Current task declaration.",
+                            }
                         ],
                     }
                 ],
@@ -2206,273 +2140,33 @@ def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
             },
             "environment_feedback": {
                 "feedback_source": "CriticEvaluator",
-                "critic_repair_round": 0,
-                "next_critic_repair_round": 1,
-                "max_critic_repair_rounds": 1,
-                "formalization_counts": {"formal_gap": 2, "kernel_verified": 0},
-                "high_priority_agenda": [
-                    {
-                        "id": "formal_gap:proof_bank_expansion",
-                        "action": "expand proof-bank primitives " + ("detail " * 100),
-                        "acceptance_gate": "AXLE/local Lean kernel verifies the promoted obligation",
-                    }
-                ],
                 "formal_subclaim_feedback": [
                     {
-                        "id": "coverage_bridge",
+                        "id": "current_gap",
                         "status": "FORMAL_GAP",
-                        "gap_reason": "missing exchangeability bridge",
+                        "gap_reason": "current task assumption is unresolved",
                     }
                 ],
-                "required_revision": "Revise theorem statements and assumptions from critic feedback.",
-                "proof_evidence_boundary": "Lean kernel evidence only.",
             },
             "runtime_learning_memory": {
-                "source_paths": ["runs/previous/runtime_learning_rows.jsonl"],
                 "rows": [
                     {
-                        "question_id": "previous_frontier_case",
-                        "learning_task": "next_action_routing",
-                        "input_summary": {"trigger": "FORMAL_GAP"},
-                        "target_behavior": "route non-kernel proof rows to local Lean rerun",
-                        "acceptance_gate": "kernel evidence only from local Lean or AXLE",
-                    },
-                    {
-                        "question_id": "conformal_prediction_coverage",
-                        "learning_task": "source_to_bridge_premise_derivation_feedback",
-                        "input_summary": {
-                            "trigger": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK",
-                            "target_theorem_name": "split_conformal_coverage",
-                            "premise_name": "hGoodCovered",
-                            "premise_target_status": "ADAPTER_PREMISE_TARGET_EXTRACTED",
-                            "premise_target_type": "{ω | rank ω ∈ BadRanks}ᶜ ⊆ covered",
-                            "premise_derivation_gap_kind": (
-                                "concrete_premise_target_lacks_nonvacuous_derivation_candidate"
-                            ),
-                            "premise_derivation_gap_summary": (
-                                "Concrete target known but no non-vacuous derivation candidate."
-                            ),
-                        },
-                        "target_behavior": "revise source theorem semantics or prove the listed bridge premise",
-                        "acceptance_gate": "local Lean verifies the concrete premise derivation",
-                    },
-                    {
-                        "question_id": "conformal_prediction_coverage",
-                        "learning_task": (
-                            "source_to_bridge_premise_semantic_repair_feedback"
-                        ),
-                        "input_summary": {
-                            "trigger": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
-                            "target_theorem_name": "split_conformal_coverage",
-                            "premise_name": "hRank",
-                            "premise_target_status": "ADAPTER_PREMISE_TARGET_EXTRACTED",
-                            "premise_target_type": (
-                                "∀ r ∈ BadRanks, P {ω | rank ω = r} ≤ α r"
-                            ),
-                            "premise_derivation_gap_kind": (
-                                "concrete_premise_target_lacks_nonvacuous_derivation_candidate"
-                            ),
-                            "premise_derivation_gap_summary": (
-                                "Concrete target known but no non-vacuous derivation candidate."
-                            ),
-                        },
-                        "target_behavior": (
-                            "route upstream to repair source theorem semantics for hRank"
-                        ),
-                        "acceptance_gate": (
-                            "local Lean verifies the concrete premise derivation"
-                        ),
-                    },
-                    {
-                        "question_id": "conformal_prediction_coverage",
-                        "learning_task": (
-                            "formalization_gap_planner_live_route_planner_contract_feedback"
-                        ),
-                        "input_summary": {
-                            "trigger": (
-                                "FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR"
-                            ),
-                            "route_planner_contract_feedback_id": (
-                                "route-feedback:staged-assembly"
-                            ),
-                            "failure_classification": (
-                                "formalization_gap_planner_live_route_planner_staged_assembly_contract_failed"
-                            ),
-                            "target_ids": ["split_conformal_coverage"],
-                            "contract_counts": {
-                                "staged_followup_assembled_responses": 1,
-                                "staged_followup_assembled_response_contract_ok": 0,
-                            },
-                            "provider_token_counts": {
-                                "provider_total_tokens_including_staged_followups": 8123
-                            },
-                            "staged_followup_assembly_error_preview": [
-                                "formal_attempt_queue[0] does not resolve to a seed route"
-                            ],
-                        },
-                        "target_behavior": (
-                            "rerun the compact route planner with exact schema feedback"
-                        ),
-                        "acceptance_gate": (
-                            "schema-valid route response before target-prover replay"
-                        ),
-                    },
-                ],
-                "counts": {"rows_loaded": 4},
-                "boundary": "Prior learning rows are orchestration memory, not proof evidence.",
+                        "question_id": "historical_task_must_not_leak",
+                        "target_behavior": "historical routing recipe",
+                    }
+                ]
             },
         },
     )
 
-    assert "full retrieval artifacts remain" in prompt.lower()
-    assert "concise_output_budget" in prompt
-    assert '"min_derivation_steps":3' in prompt
-    assert '"max_derivation_steps":5' in prompt
-    assert '"min_equation_chain_steps":2' in prompt
-    assert '"max_next_actions":1' in prompt
-    assert "focused first-pass discovery packet" in prompt
-    assert "assumption_ledger" in prompt
-    assert "formalization_handoff" in prompt
-    assert "equation_chain" in prompt
-    assert "You own all mathematical content" in prompt
-    assert "runtime does not provide issue-specific corrections" in prompt
-    assert "at least three derivation steps" in prompt
-    assert "Probability.coverage" in prompt
-    assert '"signature":' in prompt
-    assert '"proof_body_included":false' in prompt
-    assert "Direct maximal inequality" in prompt
-    assert "Source theorem 2.1" in prompt
-    assert "DirectBound.target_bound" in prompt
-    assert "Unused.fourth" not in prompt
-    assert "Secondary prose must be omitted" not in prompt
-    assert "Third-ranked prose must be omitted" not in prompt
-    assert "The module derives uniform control" not in prompt
-    assert "Three ranked qualified declaration signatures" in prompt
-    assert long_signature not in prompt
-    assert '"large":"do not include"' not in prompt
-    assert '"formal_source_hits":4' in prompt
-    assert "CriticEvaluator" in prompt
-    assert "formal_gap:proof_bank_expansion" in prompt
-    assert "missing exchangeability bridge" in prompt
-    assert "Revise theorem statements and assumptions" not in prompt
-    assert "previous_frontier_case" in prompt
-    assert "route non-kernel proof rows" not in prompt
-    assert "source_to_bridge_premise_derivation_feedback" in prompt
-    assert "source_to_bridge_premise_semantic_repair_feedback" in prompt
-    assert "hGoodCovered" in prompt
-    assert "hRank" in prompt
-    assert "premise_target_type" in prompt
-    assert "{ω | rank ω ∈ BadRanks}ᶜ ⊆ covered" in prompt
-    assert "∀ r ∈ BadRanks, P {ω | rank ω = r} ≤ α r" in prompt
-    assert "concrete_premise_target_lacks_nonvacuous_derivation_candidate" in prompt
-    assert "route-feedback:staged-assembly" in prompt
-    assert "staged_followup_assembly_error_preview" in prompt
-    assert "formal_attempt_queue[0] does not resolve to a seed route" in prompt
-    assert "actual conclusion and hypotheses" not in prompt
-    assert "direct target-matching result" not in prompt
-    assert "routing proposal, not mathematical authority" not in prompt
-    assert "provider_total_tokens_including_staged_followups" in prompt
-    assert "orchestration memory, not proof evidence" in prompt
+    assert "Statlib.current_bound" in prompt
+    assert "theorem current_bound (h : P) : Q" in prompt
+    assert "current task assumption is unresolved" in prompt
+    assert "Retrieval hits are not proof evidence" in prompt
+    assert "historical_task_must_not_leak" not in prompt
+    assert "historical routing recipe" not in prompt
+    assert "large_private_payload" not in prompt
 
-
-def test_research_loop_uses_llm_theory_developer_repair_handler() -> None:
-    out_dir = Path("runs/test_research_loop_llm_theory_repair")
-    shutil.rmtree(out_dir, ignore_errors=True)
-    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
-    problem = ProblemFormalizer().formalize(question)
-    procedures, theorem_goals = TheoryPlanner().plan(problem)
-    bad_sim = ResearchSimulator(n_runs=25, seed=13).run(problem, procedures)[0]
-    bad_sim.passed = False
-    bad_sim.diagnosis.status = "THEORY_OR_PROCEDURE_ISSUE"
-    bad_sim.diagnosis.escalate_to = "theory_developer"
-    bad_sim.diagnosis.failed_diagnostics = ("coverage",)
-    bad_sim.diagnosis.rationale = "test forces LLM theory repair"
-    ok_sim = ResearchSimulator(n_runs=25, seed=14).run(problem, procedures)[0]
-    ok_sim.passed = True
-    ok_sim.diagnosis.status = "OK"
-    ok_sim.diagnosis.escalate_to = "none"
-    ok_sim.diagnosis.rationale = "test LLM theory repair second round passes"
-
-    first_report = _research_report(
-        question=question,
-        problem=problem,
-        procedures=procedures,
-        theorem_goals=theorem_goals,
-        simulation=bad_sim,
-        agenda_item={
-            "id": "simulation:llm-theory",
-            "owner_agent": "theory_developer",
-            "trigger": "THEORY_OR_PROCEDURE_ISSUE",
-            "action": "ask_llm_theory_developer_for_derivation_backed_revision",
-            "evidence": "coverage below threshold",
-            "failed_diagnostics": ["coverage"],
-            "target_procedure": procedures[0].id,
-        },
-        status="SIMULATION_FLAGGED_WITH_FORMAL_GAPS",
-    )
-    second_report = _research_report(
-        question=question,
-        problem=problem,
-        procedures=procedures,
-        theorem_goals=theorem_goals,
-        simulation=ok_sim,
-        agenda_item={
-            "id": "monitor:llm-theory",
-            "owner_agent": "research_coordinator",
-            "trigger": "NO_BLOCKING_GAPS_OR_FAILED_SIMULATIONS",
-            "action": "archive_trace_or_expand_benchmark_stress_tests",
-            "evidence": "test monitor",
-        },
-        status="RESEARCH_TRACE_READY_WITH_FORMAL_GAPS",
-    )
-    reports = [first_report, second_report]
-
-    class FakeLab:
-        def __init__(self, report):
-            self.report = report
-
-        async def run(self, question):
-            return self.report
-
-    def factory(n_runs, seed):
-        return FakeLab(reports.pop(0))
-
-    developer = LLMTheoryDeveloperAgent(
-        provider=StaticArchitectLLMProvider(_sample_response()),
-        config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
-    )
-    result = asyncio.run(
-        ResearchLoopCoordinator(
-            n_runs=25,
-            seed=13,
-            lab_factory=factory,
-            repair_handlers={
-                "THEORY_OR_PROCEDURE_ISSUE": LLMTheoryDeveloperRepairHandler(
-                    theory_developer=developer,
-                    out_dir=out_dir,
-                )
-            },
-        ).iterate(question, max_rounds=2)
-    )
-
-    assert result["status"] == "CONVERGED_MONITOR_READY"
-    assert result["honesty_boundary"]["executes_registered_live_repair_handlers"]
-    assert "executes_default_theory_developer_revision_handler" not in result[
-        "honesty_boundary"
-    ]
-    action = result["rounds"][0]["actions"][0]
-    assert action["execution_status"] == "EXECUTED_LLM_THEORY_DEVELOPER_REPAIR"
-    assert action["live_repair_handler"] == "LLMTheoryDeveloperRepairHandler"
-    assert action["repair_contract_ok"]
-    assert action["rerun_requested"]
-    artifact = action["repair_artifact"]
-    assert artifact["kernel_verified"] is False
-    assert artifact["proof_evidence_status"] == THEORY_DERIVATION_NOT_PROOF_EVIDENCE
-    assert artifact["llm_theory_derivation_packet"]["source_agent"] == "LLMTheoryDeveloperAgent"
-    assert Path(action["llm_theory_artifacts"]["manifest"]).exists()
-    assert result["n_theory_revisions"] == 1
-    assert result["theory_revisions"][0]["live_repair_handler"] == "LLMTheoryDeveloperRepairHandler"
-    assert result["rounds"][1]["actions"][0]["execution_status"] == "EXECUTED_MONITOR"
 
 
 def test_llm_theory_developer_rejects_kernel_verified_claims() -> None:

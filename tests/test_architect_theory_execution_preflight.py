@@ -25,7 +25,7 @@ from ai_statistician.architect_theory_execution_preflight import (
     validate_architect_theory_execution_preflight_packet,
 )
 from ai_statistician.fingerprint import stable_hash
-from ai_statistician.llm_json_repair import PacketValidationError
+from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.evaluation_protocol_revision import (
     architect_preexecution_metric_protocol_rejection_result,
 )
@@ -398,7 +398,7 @@ def _review(*, accept: bool):
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_repair_attempts=0,
+        max_validation_retries=0,
     )
     return packet, backend
 
@@ -417,7 +417,7 @@ def _tool_review(backend, *, source_retriever=None, prior_finding_ledger=()):
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_repair_attempts=0,
+        max_validation_retries=0,
         source_retriever=source_retriever,
         prior_finding_ledger=prior_finding_ledger,
     )
@@ -1046,7 +1046,7 @@ def test_preflight_full_regeneration_returns_raw_validation_feedback() -> None:
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_repair_attempts=1,
+        max_validation_retries=1,
     )
 
     assert "subsystem_repair_context" not in backend.repair_payload
@@ -1059,7 +1059,7 @@ def test_preflight_full_regeneration_returns_raw_validation_feedback() -> None:
     )
     assert "unknown.anchor" in backend.repair_payload["previous_candidate"]
     assert packet["overall_verdict"] == "REVISE"
-    assert packet["llm_json_repair_history"][1]["repair_mode"] == (
+    assert packet["structured_output_retry_history"][1]["retry_mode"] == (
         "full_packet_regeneration"
     )
 
@@ -1233,7 +1233,7 @@ def test_preflight_preserves_primitive_summary_conflict_without_retry() -> None:
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_repair_attempts=1,
+        max_validation_retries=1,
     )
     material = build_architect_theory_execution_preflight_material(
         question=_question(),
@@ -1321,7 +1321,7 @@ def test_preflight_returns_inconsistent_estimator_pass_to_same_model() -> None:
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_repair_attempts=1,
+        max_validation_retries=1,
     )
     material = build_architect_theory_execution_preflight_material(
         question=_question(),
@@ -1341,7 +1341,7 @@ def test_preflight_returns_inconsistent_estimator_pass_to_same_model() -> None:
         "unestablished_theorem_hypothesis"
     )
     assert packet["runtime_estimator_status_normalizations"] == []
-    assert packet["llm_json_repair_attempts"] == 1
+    assert packet["structured_output_retry_attempts"] == 1
     assert validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
@@ -1391,12 +1391,12 @@ def test_preflight_regenerates_all_pass_finding_conflict_with_same_model() -> No
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_repair_attempts=1,
+        max_validation_retries=1,
     )
 
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["findings"] == []
-    assert packet["llm_json_repair_attempts"] == 1
+    assert packet["structured_output_retry_attempts"] == 1
     assert len(backend.requests) == 2
     assert {request.model for request in backend.requests} == {TEST_HAIKU_MODEL}
     assert any(
@@ -1448,7 +1448,7 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_repair_attempts=0,
+        max_validation_retries=0,
         prior_finding_ledger=prior_ledger,
     )
 
@@ -1535,7 +1535,7 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_index() -> None:
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_repair_attempts=0,
+        max_validation_retries=0,
         prior_finding_ledger=prior_ledger,
     )
 
@@ -1682,7 +1682,7 @@ def test_preflight_deduplicates_model_restatement_of_prior_finding() -> None:
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_repair_attempts=1,
+        max_validation_retries=1,
         prior_finding_ledger=prior_ledger,
     )
 
@@ -1699,7 +1699,7 @@ def test_preflight_deduplicates_model_restatement_of_prior_finding() -> None:
     assert packet["runtime_prior_finding_identity_bindings"][0][
         "runtime_selected_semantics"
     ] is False
-    assert packet["llm_json_repair_attempts"] == 0
+    assert packet["structured_output_retry_attempts"] == 0
 
 
 def test_preflight_regenerates_missing_ordered_prior_row() -> None:
@@ -1765,7 +1765,7 @@ def test_preflight_regenerates_missing_ordered_prior_row() -> None:
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_repair_attempts=1,
+        max_validation_retries=1,
         prior_finding_ledger=prior_ledger,
     )
 
@@ -1779,7 +1779,7 @@ def test_preflight_regenerates_missing_ordered_prior_row() -> None:
         row["finding_id"] for row in packet["prior_finding_reviews"]
     ] == prior_finding_ids
     assert packet["overall_verdict"] == "ACCEPT"
-    assert packet["llm_json_repair_attempts"] == 1
+    assert packet["structured_output_retry_attempts"] == 1
 
 
 def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
@@ -1807,14 +1807,14 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
             provider=provider,
             config=ArchitectMetricContractAuthoringConfig(
                 model_tier="haiku",
-                max_repair_attempts=0,
+                max_validation_retries=0,
                 metric_semantic_reviewer_max_revisions=0,
             ),
             request_model=TEST_HAIKU_MODEL,
             semantic_reviewer=Reviewer(),  # type: ignore[arg-type]
             question=_question(),
             runtime_contract={
-                "capability_eval_requires_typed_metric_contracts": True,
+                "research_evaluation_requires_typed_metric_contracts": True,
                 "empirical_metric_requirements": [],
                 "empirical_metric_protocol_phase": (
                     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED

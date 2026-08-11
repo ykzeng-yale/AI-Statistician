@@ -1,102 +1,67 @@
 # AI Statistician Objective
 
-Build the next-generation fully autonomous AI Statistical Theory Lab in
-`/Users/yukangzengcmac/AI-Statistician`: a powerful open-statistical-research
-development system that can ingest arbitrary JASA/AOAS/frontier-style
-statistical theory questions, propose and iterate new
-theory/estimators/tests/procedures, retrieve paper/Lean/Mathlib/StatInference/
-OpenProver knowledge with efficient hybrid search, expand reusable Lean proof
-libraries and prove progressively stronger theorem families in AXLE/Lean,
-implement and stress-test algorithms/simulations, distinguish proved subclaims
-from formal gaps honestly, learn from proof/simulation traces, and evaluate the
-system on broader frontier benchmarks with real AXLE/kernel evidence.
+Build a fully autonomous AI Statistical Theory Lab in this repository. It should
+ingest fresh JASA/AOAS/frontier-style questions or papers, develop rigorous new
+statistical theory, implement and stress-test methods in Python and R, formalize
+exact theorem targets in Lean, reuse the strongest available formal libraries and
+RAG infrastructure, learn from execution/proof traces, and report evidence and
+remaining gaps honestly.
 
-## Generalization And Evaluation Invariants
+## Generalization Invariants
 
-The system is not optimized around one conformal, FDR, causal, or other named
-question. A single question may be used as a diagnostic canary, but it cannot
-define a runtime rule or establish general AI Statistician capability.
+1. Core runtime and prompts are domain-neutral. A named statistical family may
+   appear in benchmark data or retrieved source, never as a runtime branch.
+2. The LLM owns theory and complete Python/R/Lean source. The harness returns raw
+   environment observations and never writes a content patch.
+3. Local compiler, simulation, and ABI failures return to the same source-owning
+   model. Architect handles only cross-workspace planning or exhausted budgets.
+4. Candidate generation and acceptance are independent. A source agent cannot
+   weaken its own gate or promote its own proof.
+5. Confirmatory empirical authority is frozen before results. A failed candidate
+   cannot revise its own threshold and reuse the same observations.
+6. Formal RAG reuses Mathlib, Statlib/StatInference,
+   `lean-stat-learning-theory`, `EmpericalProcessLEAN`, OpenProver, and
+   CodexProver conventions and declarations. Retrieved content is context, not
+   proof, until checked in the active project.
+7. Independent reviewers report findings but do not choose repair owners or
+   routes. The source model revises locally; Architect routes globally.
+8. Only exact target-bound Lean kernel promotion proves the requested theorem.
+   Compiled helpers and weakened targets remain scoped candidate evidence.
+9. Tests and evaluations use exactly `claude-haiku-4-5-20251001`; production may
+   use Haiku or Sonnet, never Opus.
+10. Development uses multiple unrelated families. Held-out tasks remain sealed
+    and cannot be used to create vocabulary, theorem, metric, or Lean rules.
 
-Every central change must therefore satisfy all of the following:
+## Completion Contract
 
-1. The implementation and acceptance contract are domain-neutral. Core runtime
-   code must not branch on a statistical family, theorem name, metric name,
-   generated output key, Lean grammar fragment, or benchmark-specific alias.
-2. Development evidence uses at least two unrelated statistical families under
-   the same code and configuration. A disjoint panel with at least two further
-   frozen families is withheld from prompt/rule changes and used to test
-   transfer.
-3. The split between development, cross-family regression, and held-out tasks is
-   recorded before the held-out run. A failure may improve the general agent,
-   feedback, retrieval, sandbox, or evaluator interface, but may not add a rule
-   that recognizes that task's vocabulary or expected answer.
-4. Coding agents generate theory, Python/R implementations, simulations, and
-   Lean candidates from LLM context. Runtime code supplies typed artifact,
-   security, resource, lineage, and evidence contracts plus exact execution or
-   compiler feedback; it does not repair statistical formulas or Lean proofs by
-   hand.
-5. Candidate generation and acceptance are independent. A coding agent cannot
-   author or weaken its own required gate, retrieval cannot verify a theorem,
-   and component calibration cannot substitute for evidence consumed inside the
-   one Architect-owned AgentRuntime.
-6. Completion still requires two unrelated fresh families to close the full
-   theory, implementation/simulation, formal RAG, iterative Lean feedback,
-   Critic, and exact source-theorem kernel loop. Broader held-out failures remain
-   visible and cannot be hidden by an aggregate checklist score.
-7. Two-family S14 closure is a required integration milestone, not sufficient
-   evidence that the general lab is complete. Product-level readiness also
-   requires breadth across the 10 canonical S1 tasks, blind target recovery on
-   the 12-topic/60-question frontier suite, transfer to the frozen held-out
-   families, serious long-form theory derivation, scientific Python and R
-   execution, arbitrary-paper ingestion, and reusable proof progress beyond
-   support lemmas. No single task or two-task panel can satisfy those claims.
-8. Executability and scalar metrics are necessary but not semantic review. A
-   distinct LLM reviewer must compare generated algorithms and simulations with
-   the question, rigorous theory trace, frozen experiment contract, exact code,
-   executed runtime arguments, and returned metrics. Review findings are typed
-   non-proof observations routed to the originating coding agent for complete
-   same-agent regeneration and a fresh run.
-   Formal targets require the analogous immutable semantic-claim contract and
-   independent review; matching a declaration name is not enough to preserve a
-   theorem.
+For each evaluated task, the same run must contain:
 
-## Current Milestone Status
+- a fresh plan and artifact-backed theory derivation;
+- model-authored scientific source and isolated execution;
+- independent semantic acceptance;
+- a pre-result frozen simulation protocol and fresh measurements;
+- an exact Lean statement and complete model-authored source;
+- task-bound retrieval and live Lean feedback used by the prover model;
+- independent statement-faithfulness acceptance;
+- exact source-theorem kernel closure;
+- final critic acceptance with no hidden formal gap.
 
-The domain-neutral generated-code semantic-review loop is now part of the one
-AgentRuntime. It is required by full capability evaluation and is scored only
-when both generated algorithm and generated simulation artifacts receive
-lineage-valid independent acceptance from a separate agent invocation. Every
-provider-backed evaluation agent, including the reviewer, is pinned to exact
-`claude-haiku-4-5-20251001`; production may use Sonnet but never Opus.
-This closes the specific
-"runnable-but-vacuous experiment" design gap exposed by the frozen survival and
-sequential development panel; it does not close S14 or establish theorem proof.
+Two development families must close before held-out evaluation begins. That is an
+integration milestone, not complete product readiness: broader arbitrary-paper
+ingestion, theory depth, library growth, and cross-task policy learning must also
+be demonstrated.
 
-The analogous whole-formal-target review loop is now also part of the typed
-AgentRuntime path. A Formalizer-generated exact theorem is bound to its complete
-Lean source, exact statement, question, TheoryDeveloper packet, Formalizer
-proposal, semantic constraints, and immutable hashes. An independent reviewer
-invocation must accept its mathematical faithfulness, plausibility, quantifiers,
-assumptions, conclusion, and non-vacuity before ProofEngineer or OpenProver can
-search it. Rejection returns typed feedback to Formalizer or TheoryDeveloper;
-acceptance opens proof-search eligibility only and remains non-proof evidence.
-Full-live evaluation requires this stage and audits its independent lineage.
+## Current Status
 
-This closes the design hole exposed by the first survival live run, where a
-syntactically concrete but false and semantically weakened fixed-constant target
-reached prover search. It is not yet cross-family success evidence: survival and
-sequential must both pass fresh end-to-end runs under the same configuration,
-after which PCA and extreme-tail remain untouched held-out transfer tests.
+The evidence boundary, direct Python/R source loop, direct Lean source loop,
+content-addressed lineage, and single runtime endpoint are implemented and covered
+by deterministic tests. The old repair/bridge/planner side systems have been
+removed from the canonical package.
 
-The next central gaps remain: demote the named-family `research_lab` registry to
-an optional baseline provider; add serious long-form equation/lemma-DAG theory
-development with critic revision; provide broad scientific Python and R coding
-environments; exercise the whole-target review/revision loop on fresh exact
-targets from both development families; and complete iterative exact-source Lean
-proof search with local compiler/LSP/kernel feedback on both development families before touching
-the held-out panel.
+The latest authoritative live development panel still has 0/2 exact theorem
+closures, and no post-simplification full live panel has run. The system therefore
+must not be described as fully end to end.
 
-For the operational multi-worker contract, see
-[`docs/ai_statistician_multi_codex_blueprint.md`](ai_statistician_multi_codex_blueprint.md).
-The current frozen S14 split is machine-readable at
+The machine-readable frozen split is
 [`benchmarks/autonomous_cross_family_e2e_protocol_20260713.json`](../benchmarks/autonomous_cross_family_e2e_protocol_20260713.json).
+The active architecture is [production_design.md](production_design.md).

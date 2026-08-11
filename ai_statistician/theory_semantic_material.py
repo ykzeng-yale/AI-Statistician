@@ -32,8 +32,8 @@ THEORY_SEMANTIC_MATERIAL_PROOF_STATUSES = frozenset(
 _THEORY_PACKET_NON_SEMANTIC_FIELDS = frozenset(
     {
         "created_at",
-        "llm_json_repair_attempts",
-        "llm_json_repair_history",
+        "structured_output_retry_attempts",
+        "structured_output_retry_history",
         "ok",
         "raw_response",
         "raw_response_fingerprint",

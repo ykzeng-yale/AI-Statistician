@@ -12,10 +12,6 @@ from ai_statistician.architect_coordinator_llm import (
     _architect_runtime_evaluation_contract,
     _required_architect_plan_subsystems,
 )
-from ai_statistician.architect_metric_contract_authoring import (
-    _fresh_candidate_requirement_set_errors,
-    _metric_candidate_repair_available,
-)
 from ai_statistician.cli import (
     _apply_research_agent_runtime_evaluation_model_policy,
     _apply_research_agent_runtime_research_eval_profile,
@@ -32,8 +28,6 @@ from ai_statistician.model_backend import (
 )
 from ai_statistician.research_agent_runtime import (
     ResearchAgentRuntimeConfig,
-    _architect_candidate_seed,
-    _coding_agent_packet_validation_state,
     _post_empirical_evidence_task,
     _runtime_retire_resolved_generated_code_semantic_review_replan,
     _runtime_requested_evidence_contract,
@@ -60,18 +54,14 @@ def test_research_eval_contract_requires_research_lane_without_formalizer() -> N
         {"evaluation_mode": "capability_eval", "n_runs": 100}
     )
 
-    assert research["capability_eval_requires_generated_algorithm_code"] is True
-    assert research["capability_eval_requires_generated_simulation_code"] is True
-    assert research["capability_eval_requires_generated_code_semantic_review"] is True
-    assert research["capability_eval_requires_typed_metric_contracts"] is True
     assert research["research_evaluation_requires_generated_algorithm_code"] is True
     assert research["research_evaluation_requires_generated_simulation_code"] is True
     assert research[
         "research_evaluation_requires_generated_code_semantic_review"
     ] is True
     assert research["research_evaluation_requires_typed_metric_contracts"] is True
-    assert research["capability_eval_requires_formalizer_lean_candidate"] is False
-    assert strict["capability_eval_requires_formalizer_lean_candidate"] is True
+    assert research["formal_evaluation_requires_formalizer_lean_candidate"] is False
+    assert strict["formal_evaluation_requires_formalizer_lean_candidate"] is True
 
     required = set(_required_architect_plan_subsystems(research))
     assert {
@@ -83,19 +73,6 @@ def test_research_eval_contract_requires_research_lane_without_formalizer() -> N
         "CriticEvaluator",
     } <= required
     assert "FormalizationEvaluator" not in required
-    assert "ProofEngineer" not in required
-
-
-def test_mixed_metric_findings_keep_bounded_candidate_repair_available() -> None:
-    assert _metric_candidate_repair_available(
-        [
-            {"repair_scope": "upstream_theory"},
-            {"repair_scope": "metric_contract"},
-        ]
-    ) is True
-    assert _metric_candidate_repair_available(
-        [{"repair_scope": "upstream_theory"}]
-    ) is False
 
 
 def test_fresh_accepted_artifact_retires_only_its_exact_stale_replan() -> None:
@@ -202,16 +179,16 @@ def test_research_eval_keeps_serious_theory_and_independent_review_gate(
         recommended_research_path="simulation_first",
         evaluation_mode="research_eval",
     )
-    assert contract["capability_eval_requires_generated_algorithm_code"] is True
-    assert contract["capability_eval_requires_generated_simulation_code"] is True
-    assert contract["capability_eval_requires_generated_code_semantic_review"] is True
+    assert contract["research_evaluation_requires_generated_algorithm_code"] is True
+    assert contract["research_evaluation_requires_generated_simulation_code"] is True
+    assert contract["research_evaluation_requires_generated_code_semantic_review"] is True
     assert contract["research_evaluation_requires_generated_algorithm_code"] is True
     assert contract["research_evaluation_requires_generated_simulation_code"] is True
     assert contract[
         "research_evaluation_requires_generated_code_semantic_review"
     ] is True
     assert contract["research_evaluation_requires_typed_metric_contracts"] is True
-    assert contract["capability_eval_requires_formalizer_lean_candidate"] is False
+    assert contract["formal_evaluation_requires_formalizer_lean_candidate"] is False
     assert (
         _theory_developer_prompt_mode(
             {
@@ -260,12 +237,13 @@ def test_research_eval_returns_before_formal_postprocessing(tmp_path) -> None:
         config=ResearchAgentRuntimeConfig(evaluation_mode="research_eval"),
     )
 
-    assert manifest["research_eval_typed_endpoint_reached"] is True
-    assert manifest["post_runtime_formal_workflow_executed"] is False
-    assert manifest["post_runtime_formal_workflow_skip_reason"] == (
-        "research_eval_typed_endpoint"
+    assert manifest["runtime_endpoint"] == "typed_agent_runtime"
+    assert manifest["runtime_formal_capability_source"] == (
+        "integrated_agent_runtime_only"
     )
-    assert "formalization" not in manifest["runtime_stage"]
+    assert not any(key.startswith("post_runtime_") for key in manifest)
+    assert manifest["runtime_evaluation_mode"] == "research_eval"
+    assert "runtime_stage" not in manifest
     assert "runtime_theorem_reduction_closure_work_orders_jsonl" not in (
         manifest["artifacts"]
     )
@@ -328,10 +306,13 @@ def test_research_eval_exports_pending_continuations_for_every_question(
     )
 
     assert manifest["n_incomplete_pending_next_tasks"] == 2
-    assert set(manifest["incomplete_pending_next_task_by_question"]) == {
+    pending = manifest["incomplete_pending_next_tasks"]
+    assert {row["question_id"] for row in pending} == {
         "pending_q1",
         "pending_q2",
     }
+    assert all(row["pending_next_task"]["artifact_kind"] == "AgentTaskRef" for row in pending)
+    assert all("inputs" not in row["pending_next_task"] for row in pending)
     pending_rows = [
         json.loads(line)
         for line in Path(
@@ -347,12 +328,6 @@ def test_research_eval_exports_pending_continuations_for_every_question(
         row["pending_next_task"]["owner_subsystem"] == "TheoryDeveloper"
         for row in pending_rows
     )
-    legacy_pending = json.loads(
-        Path(
-            manifest["artifacts"]["runtime_pending_next_task_json"]
-        ).read_text(encoding="utf-8")
-    )
-    assert legacy_pending == pending_rows[0]
 
 
 def test_research_eval_profile_enables_live_research_agents_only() -> None:
@@ -395,8 +370,6 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     assert args.llm_timeout_seconds == 360.0
     assert args.max_iterations == 24
     assert args.architect_metric_protocol_max_upstream_theory_revisions == 2
-    assert args.architect_metric_protocol_max_fresh_candidate_revisions == 1
-    assert args.coding_agent_packet_validation_max_lineage_failures == 2
 
     parsed = build_parser().parse_args(
         ["research-agent-runtime", "--research-eval"]
@@ -404,7 +377,6 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     assert parsed.research_eval is True
     assert parsed.capability_eval is False
     assert parsed.architect_metric_protocol_max_upstream_theory_revisions == 1
-    assert parsed.architect_metric_protocol_max_fresh_candidate_revisions == 0
     with pytest.raises(SystemExit):
         build_parser().parse_args(
             [
@@ -413,173 +385,6 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
                 "--capability-eval",
             ]
         )
-
-
-def test_fresh_candidate_seed_override_is_explicit_and_bounded() -> None:
-    assert _architect_candidate_seed(
-        architect_context={"runtime_candidate_seed": 8128},
-        default_seed=41,
-    ) == 8128
-    assert _architect_candidate_seed(
-        architect_context={"runtime_candidate_seed": -1},
-        default_seed=41,
-    ) == 41
-
-
-def test_fresh_candidate_must_change_the_rejected_requirement_set() -> None:
-    context = {"source_requirement_set_id": "requirements:rejected"}
-    assert _fresh_candidate_requirement_set_errors(
-        candidate_requirement_set_id="requirements:rejected",
-        fresh_candidate_revision_context=context,
-    )
-    assert _fresh_candidate_requirement_set_errors(
-        candidate_requirement_set_id="requirements:fresh",
-        fresh_candidate_revision_context=context,
-    ) == []
-
-
-def test_packet_validation_budget_survives_theory_revision_then_requires_architect() -> None:
-    base_inputs = {
-        "question": {"id": "generic_packet_budget"},
-        "theory_packet_id": "theory:stable",
-        "architect_context": {},
-    }
-    first_task = AgentTask(
-        task_id="algorithm:first",
-        owner_subsystem="AlgorithmEngineer",
-        objective="validate generated packet",
-        inputs=base_inputs,
-    )
-    first = _coding_agent_packet_validation_state(
-        task=first_task,
-        feedback_type="algorithm_engineer_packet_validation_feedback",
-        validation_label="AlgorithmEngineer packet",
-        validation_errors=["missing required implementation binding"],
-        replan_after_attempts=2,
-        max_lineage_failures=3,
-    )
-    assert first["lineage_packet_validation_round"] == 1
-    assert first["packet_validation_replan_required"] is False
-    assert first["packet_validation_source_retry_escalated"] is False
-
-    replanned_context = {
-        "runtime_packet_validation_attempt_ledger": first[
-            "packet_validation_attempt_ledger"
-        ]
-    }
-    second_task = AgentTask(
-        task_id="algorithm:after-architect",
-        owner_subsystem="AlgorithmEngineer",
-        objective="retry after Architect replan",
-        inputs={
-            **base_inputs,
-            "theory_packet_id": "theory:revised",
-            "architect_context": replanned_context,
-        },
-    )
-    second = _coding_agent_packet_validation_state(
-        task=second_task,
-        feedback_type="algorithm_engineer_packet_validation_feedback",
-        validation_label="AlgorithmEngineer packet",
-        validation_errors=["missing required implementation binding"],
-        replan_after_attempts=2,
-        max_lineage_failures=3,
-    )
-    assert second["lineage_packet_validation_round"] == 2
-    assert second["packet_validation_lineage_key"] == first[
-        "packet_validation_lineage_key"
-    ]
-    assert second["packet_validation_replan_required"] is False
-    assert second["packet_validation_source_retry_escalated"] is True
-    assert "packet_validation_repair_owner" not in second
-    assert "packet_validation_repair_owner_basis" not in second
-
-    third_task = AgentTask(
-        task_id="algorithm:after-second-architect",
-        owner_subsystem="AlgorithmEngineer",
-        objective="bounded final retry",
-        inputs={
-            **base_inputs,
-            "theory_packet_id": "theory:revised-again",
-            "architect_context": {
-                "runtime_packet_validation_attempt_ledger": second[
-                    "packet_validation_attempt_ledger"
-                ]
-            },
-        },
-    )
-    third = _coding_agent_packet_validation_state(
-        task=third_task,
-        feedback_type="algorithm_engineer_packet_validation_feedback",
-        validation_label="AlgorithmEngineer packet",
-        validation_errors=["missing required implementation binding"],
-        replan_after_attempts=2,
-        max_lineage_failures=3,
-    )
-    assert third["lineage_packet_validation_round"] == 3
-    assert third["packet_validation_lineage_budget_exhausted"] is True
-    assert third["packet_validation_replan_required"] is True
-    assert third["packet_validation_source_retry_escalated"] is False
-    lineage_row = third["packet_validation_attempt_ledger"][
-        third["packet_validation_lineage_key"]
-    ]
-    assert lineage_row["observed_theory_packet_ids"] == [
-        "theory:stable",
-        "theory:revised",
-        "theory:revised-again",
-    ]
-
-
-def test_packet_validation_lineage_does_not_reset_when_error_text_changes() -> None:
-    first_task = AgentTask(
-        task_id="algorithm:first",
-        owner_subsystem="AlgorithmEngineer",
-        objective="validate generated packet",
-        inputs={
-            "question": {"id": "generic_packet_budget"},
-            "theory_packet_id": "theory:stable",
-            "architect_context": {},
-        },
-    )
-    first = _coding_agent_packet_validation_state(
-        task=first_task,
-        feedback_type="algorithm_engineer_packet_validation_feedback",
-        validation_label="AlgorithmEngineer packet",
-        validation_errors=["JSON ended at byte 100"],
-        replan_after_attempts=2,
-        max_lineage_failures=2,
-    )
-    second_task = AgentTask(
-        task_id="algorithm:second",
-        owner_subsystem="AlgorithmEngineer",
-        objective="validate regenerated packet",
-        inputs={
-            **first_task.inputs,
-            "architect_context": {
-                "runtime_packet_validation_attempt_ledger": first[
-                    "packet_validation_attempt_ledger"
-                ]
-            },
-        },
-    )
-    second = _coding_agent_packet_validation_state(
-        task=second_task,
-        feedback_type="algorithm_engineer_packet_validation_feedback",
-        validation_label="AlgorithmEngineer packet",
-        validation_errors=["JSON ended at byte 101"],
-        replan_after_attempts=2,
-        max_lineage_failures=2,
-    )
-
-    assert second["packet_validation_lineage_key"] == first[
-        "packet_validation_lineage_key"
-    ]
-    assert second["lineage_packet_validation_round"] == 2
-    assert second["packet_validation_lineage_budget_exhausted"] is True
-    lineage_row = second["packet_validation_attempt_ledger"][
-        second["packet_validation_lineage_key"]
-    ]
-    assert len(lineage_row["observed_validation_error_fingerprints"]) == 2
 
 
 def test_simulation_guard_blocks_before_proposal_or_execution() -> None:
@@ -605,7 +410,7 @@ def test_simulation_guard_blocks_before_proposal_or_execution() -> None:
     context = {
         "architect_runtime_plan": {
             "evidence_contract": {
-                "capability_eval_requires_typed_metric_contracts": True,
+                "research_evaluation_requires_typed_metric_contracts": True,
                 "empirical_metric_requirements": [],
                 "metric_protocol_execution_authorized": False,
             }

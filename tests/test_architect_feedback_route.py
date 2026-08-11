@@ -70,7 +70,7 @@ def test_bridge_only_gap_planner_is_not_a_generic_feedback_owner() -> None:
     )
 
 
-def test_formal_requirement_does_not_force_bridge_only_gap_planner() -> None:
+def test_formal_requirement_selects_the_single_formalization_workspace() -> None:
     prompt = build_architect_coordinator_prompt(
         question=_question(),
         architect_context={},
@@ -82,7 +82,6 @@ def test_formal_requirement_does_not_force_bridge_only_gap_planner() -> None:
     payload = json.loads(prompt.rsplit("\n\n", 1)[1])
     required = payload["execution_plan_contract"]["required_subsystems"]
     assert "FormalizationEvaluator" in required
-    assert "ProofEngineer" in required
     assert "FormalizationGapPlanner" not in required
     path_semantics = payload["requested_evidence_contract"][
         "research_path_semantics"
@@ -193,7 +192,7 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
                 "recent_handoffs": [],
                 "active_blockers": [],
             },
-            "runtime_coding_agent_revision_budget_replan": {
+            "workspace_replan": {
                 "historical_context": "y" * 100_000,
             },
         },
@@ -352,7 +351,7 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
             provider_name="anthropic",
             model=EXACT_HAIKU_MODEL,
             model_tier="haiku",
-            max_repair_attempts=1,
+            max_validation_retries=1,
         ),
     ).route_environment_feedback(
         question=_question(),
@@ -542,11 +541,9 @@ def test_architect_feedback_route_can_record_model_blocker() -> None:
 def test_runtime_routes_formal_feedback_to_critic_without_restarting_theory() -> None:
     question = _question()
     full_feedback = {
-        "feedback_type": "formalizer_proof_state_feedback",
-        "failure_classification": (
-            "formalizer_proof_state_revision_budget_architect_replan"
-        ),
-        "proof_state_feedback_rows": [
+        "feedback_type": "formalizer_workspace_observations",
+        "failure_classification": "formalizer_workspace_exhausted",
+        "candidate_diagnostics": [
             {
                 "subclaim_id": "generic:target",
                 "diagnostics": ["exact compiler observation"],

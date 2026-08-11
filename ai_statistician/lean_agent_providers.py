@@ -20,7 +20,7 @@ from .formal_source_topology import (
     expand_formal_source_scope_ids,
 )
 from .lean_proof_agent_contract import llm_proof_body_generation_contract
-from .llm_json_repair import generate_validated_json_packet
+from .structured_output_retry import generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest
 
 
@@ -904,7 +904,7 @@ class OpenProverHLMConfig:
     verifier_timeout_s: int = 120
     require_lake_project: bool = True
     task_normalization_max_tokens: int = 1800
-    task_normalization_max_repair_attempts: int = 1
+    task_normalization_max_validation_retries: int = 1
 
 
 class GeneratorBackendCandidatePolicy:
@@ -1030,33 +1030,19 @@ class GeneratorBackendCandidatePolicy:
                 if str(value).strip()
             )
         )[:n]
-        accepted_candidates = [
-            candidate for candidate in candidates if not _forbidden_proof_body(candidate)
-        ]
-        rejected_candidates = [
-            candidate for candidate in candidates if _forbidden_proof_body(candidate)
-        ]
         self.last_diagnostics = {
-            "status": (
-                "ok"
-                if not rejected_candidates
-                else "partial_contract_rejection"
-                if accepted_candidates
-                else "contract_rejected"
-            ),
+            "status": "ok",
             "provider": response.provider,
             "model": response.model,
             "requested_candidates": n,
             "extracted_candidates": len(candidates),
-            "accepted_candidates": len(accepted_candidates),
-            "rejected_candidates": len(candidates) - len(accepted_candidates),
-            "candidate_contract_violations": [
-                {
-                    "candidate_hash": stable_hash(candidate),
-                    "violations": ["forbidden proof-evidence token"],
-                }
-                for candidate in rejected_candidates[:12]
-            ],
+            "accepted_candidates": len(candidates),
+            "rejected_candidates": 0,
+            "candidate_contract_violations": [],
+            "candidate_authority": (
+                "Model-visible suggestions only; exact model-owned source must pass "
+                "the configured Lean identity and kernel gate."
+            ),
             "response_contract": "json_schema",
             "retrieval_context_keys": retrieval_context_keys,
             "retrieval_context_fingerprint": retrieval_context_fingerprint,
@@ -1064,7 +1050,7 @@ class GeneratorBackendCandidatePolicy:
                 dict(response.metadata) if isinstance(response.metadata, Mapping) else {}
             ),
         }
-        return accepted_candidates
+        return candidates
 
 
 class OpenProverHLMProofSearchProvider:
@@ -1399,8 +1385,8 @@ class OpenProverHLMProofSearchProvider:
                     build_packet=build_packet,
                     validate_packet=validate_packet,
                     validation_label="OpenProver structured task normalization",
-                    max_repair_attempts=(
-                        self.config.task_normalization_max_repair_attempts
+                    max_validation_retries=(
+                        self.config.task_normalization_max_validation_retries
                     ),
                 )
             except Exception as exc:
@@ -1410,11 +1396,11 @@ class OpenProverHLMProofSearchProvider:
             payload = dict(packet)
             source = "llm_structured_json"
             response_metadata = dict(packet.get("normalization_response", {}) or {})
-            response_metadata["llm_json_repair_attempts"] = int(
-                packet.get("llm_json_repair_attempts", 0) or 0
+            response_metadata["structured_output_retry_attempts"] = int(
+                packet.get("structured_output_retry_attempts", 0) or 0
             )
-            response_metadata["llm_json_repair_history"] = list(
-                packet.get("llm_json_repair_history", []) or []
+            response_metadata["structured_output_retry_history"] = list(
+                packet.get("structured_output_retry_history", []) or []
             )
         raw_context = payload.get("context", [])
         target = str(payload.get("target", "") or "").strip()
@@ -1701,19 +1687,13 @@ def _openprover_direct_proof_bodies(report: Mapping[str, Any]) -> list[str]:
             continue
         for key in ("proof", "script", "proof_body", "candidate"):
             value = str(source.get(key, "") or "").strip()
-            if not value or _forbidden_proof_body(value):
+            if not value:
                 continue
             if value not in candidates:
                 candidates.append(value)
             if len(candidates) >= 8:
                 return candidates
     return candidates
-
-
-def _forbidden_proof_body(source: str) -> bool:
-    return bool(re.search(r"\b(sorry|admit|axiom|unsafe)\b", source, flags=re.I))
-
-
 def _compact_openprover_asset(row: Mapping[str, Any]) -> dict[str, Any]:
     return {
         key: row.get(key)

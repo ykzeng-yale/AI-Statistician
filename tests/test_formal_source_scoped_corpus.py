@@ -22,8 +22,8 @@ from ai_statistician.lean_agent_providers import (
     CompositeFormalSourceRetriever,
 )
 from ai_statistician.research_agent_runtime import (
-    _proofengineer_formal_source_grounding_hit_groups,
-    _proofengineer_formal_source_scope_ids,
+    _formalizer_formal_source_grounding_hit_groups,
+    _formalizer_formal_source_scope_ids,
 )
 
 
@@ -284,7 +284,7 @@ def test_scoped_corpus_activates_only_for_matching_source_scope(
     )
 
 
-def test_proofengineer_recovers_source_scope_from_target_provenance() -> None:
+def test_formalizer_recovers_source_scope_from_target_provenance() -> None:
     calls: list[tuple[str, tuple[str, ...], int]] = []
 
     class Retriever:
@@ -307,21 +307,17 @@ def test_proofengineer_recovers_source_scope_from_target_provenance() -> None:
 
     retriever = Retriever()
     context = {
-        "candidate_rerun_specs": [
-            {
-                "source_theorem_target_provenance": {
-                    "source_id": "lean_stat_learning_theory",
-                }
-            }
-        ],
+        "source_theorem_target_provenance": {
+            "source_id": "lean_stat_learning_theory",
+        },
         "unrelated": {"source_id": "other_corpus"},
     }
-    scope_ids = _proofengineer_formal_source_scope_ids(
+    scope_ids = _formalizer_formal_source_scope_ids(
         context,
     )
 
     assert scope_ids == ("lean_stat_learning_theory",)
-    groups = _proofengineer_formal_source_grounding_hit_groups(
+    groups = _formalizer_formal_source_grounding_hit_groups(
         retriever,
         query_seeds=("integral monotonicity",),
         source_scope_ids=scope_ids,
@@ -466,7 +462,7 @@ def test_composite_runtime_preserves_three_book_dependency_context() -> None:
         (StructuredProvider(), UnscopedDistractorProvider())
     )
 
-    groups = _proofengineer_formal_source_grounding_hit_groups(
+    groups = _formalizer_formal_source_grounding_hit_groups(
         retriever,
         query_seeds=("localized least squares master error bound",),
         source_scope_ids=(source_id,),
@@ -565,7 +561,7 @@ def test_runtime_filters_source_scope_when_retriever_has_no_scoped_api() -> None
                 FormalSourceHit(allowed, 1.0, ("target",)),
             ][:k]
 
-    groups = _proofengineer_formal_source_grounding_hit_groups(
+    groups = _formalizer_formal_source_grounding_hit_groups(
         UnscopedRetriever(),
         query_seeds=("target",),
         source_scope_ids=("source_library",),

@@ -197,7 +197,7 @@ def test_agent_runtime_dispatches_subsystems_and_records_observations() -> None:
     assert finish_rows[0]["handoff_id"] == handoff.handoff_id
     assert finish_rows[0]["next_task_id"] == "simulate:q1"
     assert finish_rows[1]["handoff_id"] == ""
-    payload = result.to_json()
+    payload = result.to_json(include_task_payloads=True)
     assert payload["traces"][0]["next_task"]["task_id"] == "simulate:q1"
     assert payload["traces"][0]["next_task"]["inputs"] == {
         "theory_packet": "theory_packet:q1"
@@ -206,7 +206,7 @@ def test_agent_runtime_dispatches_subsystems_and_records_observations() -> None:
     assert payload["blackboard"]["handoff_ledger"][0]["to_subsystem"] == "SimulatorDesigner"
     assert payload["traces"][1]["observations"][0]["observation_type"] == "simulation_result"
 
-    compact_payload = result.to_json(include_task_payloads=False)
+    compact_payload = result.to_json()
     task_ref = compact_payload["traces"][0]["task"]
     next_task_ref = compact_payload["traces"][0]["next_task"]
     assert task_ref["artifact_kind"] == "AgentTaskRef"

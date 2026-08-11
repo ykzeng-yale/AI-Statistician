@@ -11,7 +11,7 @@ from ai_statistician.lean_candidate_identity import (
     TRUSTED_LEAN_AXIOMS,
     _lean_axioms_from_report,
 )
-from ai_statistician.llm_json_repair import PacketValidationError
+from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     ClientToolCall,
@@ -181,6 +181,145 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
         "successful_model_requested_check"
     )
     assert result.evidence["model_explicit_submit"] is False
+
+
+def test_prover_candidates_are_observations_and_only_model_replaces_source() -> None:
+    initial = "theorem target : True := by\n  sorry\n"
+    model_source = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "prove-1",
+                    "search_proof_candidates",
+                    {"query": "close target from current goal", "max_results": 2},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "edit-1",
+                    "replace_lean_source",
+                    {"lean_source": model_source},
+                ),
+                ClientToolCall("check-1", "check_lean_source", {}),
+            ),
+        ]
+    )
+    proof_search_calls: list[tuple[str, str, int, dict]] = []
+    checked_sources: list[str] = []
+
+    def search(source: str, query: str, k: int, last_check):
+        proof_search_calls.append((source, query, k, dict(last_check)))
+        return {
+            "candidates": [{"candidate_proof_body": "by exact True.intro"}],
+            "provider": "openprover",
+        }
+
+    def check(source: str):
+        checked_sources.append(source)
+        return {"source_hash": stable_hash(source), "compiled": source == model_source}
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Prove this target.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_source_updates=1,
+        max_searches=1,
+        max_proof_searches=1,
+        max_checks=1,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=initial,
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+        search_proof_candidates=search,
+    )
+
+    assert proof_search_calls == [
+        (initial, "close target from current goal", 2, {})
+    ]
+    assert checked_sources == [model_source]
+    assert result.lean_source == model_source
+    assert result.evidence["proof_candidate_searches"] == 1
+    assert result.evidence["runtime_selected_lean_code"] is False
+    assert result.evidence["model_owned_lean_code"] is True
+    assert "search_proof_candidates" in result.evidence["tool_names"]
+
+
+def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
+    initial = "theorem target : True := by\n  exact missing\n"
+    revised = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(ClientToolCall("check-1", "check_lean_source", {})),
+            _response(ClientToolCall("state-1", "inspect_lean_state", {})),
+            _response(
+                ClientToolCall(
+                    "edit-1",
+                    "replace_lean_source",
+                    {"lean_source": revised},
+                ),
+                ClientToolCall("check-2", "check_lean_source", {}),
+            ),
+        ]
+    )
+    inspections: list[tuple[str, dict]] = []
+
+    def check(source: str):
+        compiled = source == revised
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": compiled,
+            "local_lean_stderr": "unknown identifier 'missing'" if not compiled else "",
+        }
+
+    def inspect(source: str, last_check):
+        inspections.append((source, dict(last_check)))
+        return {
+            "provider": "lean_lsp_mcp",
+            "goals": ["|- True"],
+            "executed_tools": ["lean_lsp_mcp.lean_goal"],
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Inspect and revise the exact source.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=4,
+        max_source_updates=1,
+        max_searches=1,
+        max_state_inspections=1,
+        max_checks=2,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=initial,
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+        inspect_lean_state=inspect,
+    )
+
+    assert inspections[0][0] == initial
+    assert inspections[0][1]["source_hash"] == stable_hash(initial)
+    assert result.lean_source == revised
+    assert result.evidence["lean_state_inspections"] == 1
+    assert "inspect_lean_state" in result.evidence["tool_names"]
+    assert "inspect_lean_state" not in {
+        tool.name for tool in backend.requests[0].tools
+    }
+    assert "inspect_lean_state" in {
+        tool.name for tool in backend.requests[1].tools
+    }
 
 
 def test_lean_candidate_tool_loop_hides_exhausted_actions_before_next_turn() -> None:
@@ -383,7 +522,7 @@ def test_lean_candidate_tool_loop_does_not_hide_a_check_at_turn_budget() -> None
         assert checkpoint["latest_check_observation"]["source_hash"] == (
             stable_hash(initial)
         )
-        assert checkpoint["reviewed_parent_source_hash"] == stable_hash(initial)
+        assert checkpoint["parent_source_hash"] == stable_hash(initial)
         assert "final_runtime_check_performed" not in checkpoint
     else:
         raise AssertionError("unsubmitted final source was accepted")
@@ -440,7 +579,7 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
         assert checkpoint["current_source_hash"] == stable_hash(latest)
         assert checkpoint["last_check"] == {}
         assert checkpoint["latest_check_observation"] == {}
-        assert checkpoint["reviewed_parent_source_hash"] == stable_hash(initial)
+        assert checkpoint["parent_source_hash"] == stable_hash(initial)
         assert "final_runtime_check_performed" not in checkpoint
         assert checkpoint["model_owned_lean_code"] is True
         assert checkpoint["kernel_verified"] is False
@@ -471,7 +610,7 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
             "feedback_type": "formal_target_semantic_review_feedback",
             "overall_verdict": "ACCEPT",
             "candidate_id": "target-candidate",
-            "proofengineer_repair_context": {
+            "formalizer_workspace_context": {
                 "target_lean_declaration": "target",
                 "target_theorem_statement": "theorem target : True",
                 "target_theorem_statement_hash": "target-hash",
@@ -497,7 +636,6 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
                 "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
                 "candidate_id": "target-candidate",
                 "candidate_lean_declaration": "target",
-                "reviewed_parent_source_hash": "reviewed-source-hash",
                 "current_source_hash": stable_hash(initial_source),
                 "current_source": initial_source,
                 "model_owned_lean_code": True,
@@ -523,13 +661,13 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
     assert checkpoint["current_source_hash"] == stable_hash(initial_source)
     assert "current_source" not in checkpoint
     assert "EXACT_MIDDLE_LEAN_OBSERVATION" in prompt
-    assert "proofengineer_repair_context" not in feedback
+    assert "formalizer_workspace_context" not in feedback
     assert "required_repair" not in prompt
     assert "recommended_repair" not in prompt
     assert len(prompt) < 20000
 
 
-def test_formalizer_validation_failure_routes_model_source_checkpoint() -> None:
+def test_formalizer_validation_failure_routes_checkpoint_to_architect() -> None:
     latest = "theorem target : True := by\n  exact True.intro\n"
     checkpoint = {
         "schema_version": 1,
@@ -548,26 +686,25 @@ def test_formalizer_validation_failure_routes_model_source_checkpoint() -> None:
         "runtime_selected_lean_code": False,
         "kernel_verified": False,
         "proof_evidence_status": (
-            "CLIENT_TOOL_REPAIR_CHECKPOINT_NOT_PROOF_EVIDENCE"
+            "CLIENT_TOOL_ITERATION_CHECKPOINT_NOT_PROOF_EVIDENCE"
         ),
     }
     question = OpenResearchQuestion(
         id="checkpoint-routing",
         title="Route model source checkpoint",
-        description="Preserve the latest model candidate across bounded repair tasks.",
+        description="Preserve the latest model candidate after a bounded tool loop.",
     )
     result = runtime_module._formalizer_packet_validation_failure_result(
         task=AgentTask(
             task_id="formalize:checkpoint-routing",
             owner_subsystem="FormalizationEvaluator",
-            objective="Continue the bounded model repair.",
+            objective="Run the bounded model-owned Lean workspace.",
             inputs={"environment_feedback": {}},
         ),
         question=question,
         theory_packet_id="theory:checkpoint",
         simulation_manifest_id="simulation:checkpoint",
         algorithm_sandbox_manifest_id="algorithm:checkpoint",
-        proof_bank_runtime_memory_summary={},
         exc=PacketValidationError(
             validation_label="LLM Formalizer Lean candidate client-tool revision",
             attempts=2,
@@ -577,27 +714,31 @@ def test_formalizer_validation_failure_routes_model_source_checkpoint() -> None:
         ),
     )
 
+    assert result.status == "REROUTE"
     assert result.next_task is not None
-    routed = result.next_task.inputs["environment_feedback"][
-        "formalizer_recovery_checkpoint"
-    ]
-    assert routed == checkpoint
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.task_id.startswith("architect-workspace-replan:")
+    assert "formalizer-regenerate:" not in result.next_task.task_id
     failure = next(iter(result.produced_artifacts.values()))
+    routed = result.next_task.inputs["environment_feedback"]
+    assert routed["artifact_kind"] == "RuntimeWorkspaceObservationRef"
+    assert routed["source_artifact_id"] == failure["failure_id"]
+    assert "formalizer_recovery_checkpoint" not in routed
     assert failure["formalizer_recovery_checkpoint"]["current_source"] == latest
     assert failure["rejected_candidate_complete"] is False
     assert failure["complete_current_source_checkpoint_provided"] is True
-    assert failure["regeneration_contract"][
+    assert failure["validation_boundary"][
         "complete_rejected_candidate_provided"
     ] is False
-    assert failure["regeneration_contract"][
+    assert failure["validation_boundary"][
         "complete_current_source_checkpoint_provided"
     ] is True
-    assert "complete current model-authored source checkpoint" in result.rationale
-    assert "complete rejected packet" not in result.rationale.lower()
+    assert "current-source checkpoint" in result.rationale
+    assert "same-owner regeneration task" in result.rationale
     assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
 
 
-def test_runtime_client_tool_revision_requires_hash_bound_semantic_review(
+def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -607,10 +748,6 @@ def test_runtime_client_tool_revision_requires_hash_bound_semantic_review(
     parent_packet_id = "formalizer_proposal:parent"
     materialization_id = "formalizer_lean_candidate_materialization:parent"
     candidate_id = "target-candidate"
-    target_statement = "True"
-    target_statement_hash = runtime_module._external_exact_target_statement_hash(
-        target_statement
-    )
     parent_packet = {
         "artifact_kind": "FormalizerProofEngineerProposalPacket",
         "packet_id": parent_packet_id,
@@ -626,93 +763,39 @@ def test_runtime_client_tool_revision_requires_hash_bound_semantic_review(
                 "source_field": "formal_targets",
                 "artifact_path": str(artifact_path),
                 "source_hash": stable_hash(source),
-                "candidate_metadata": {},
             }
         ],
-    }
-    review_packet_id = "formal_target_semantic_review:accepted"
-    review_packet = {
-        "artifact_kind": "FormalTargetSemanticReviewPacket",
-        "packet_id": review_packet_id,
-        "question_id": "q",
-        "overall_verdict": "ACCEPT",
-        "candidate_materialization_id": materialization_id,
-        "candidate_materialization_hash": stable_hash(materialization),
-        "proposal_packet_id": parent_packet_id,
-        "proposal_packet_hash": stable_hash(parent_packet),
-        "candidate_id": candidate_id,
-        "candidate_source_hash": stable_hash(source),
-        "target_theorem_statement_hash": target_statement_hash,
-    }
-    review_packet_hash = stable_hash(review_packet)
-    review_execution_id = "formal_target_semantic_review_execution:accepted"
-    review_execution = {
-        "artifact_kind": "RuntimeFormalTargetSemanticReviewExecutionManifest",
-        "execution_id": review_execution_id,
-        "question_id": "q",
-        "candidate_materialization_id": materialization_id,
-        "candidate_id": candidate_id,
-        "candidate_source_hash": stable_hash(source),
-        "review_packet_id": review_packet_id,
-        "review_packet_hash": review_packet_hash,
-        "overall_verdict": "ACCEPT",
-        "semantic_review_accepted": True,
     }
     blackboard = BlackboardState(
         project_id="lean-client-tool-runtime",
         artifacts={
             parent_packet_id: parent_packet,
             materialization_id: materialization,
-            review_packet_id: review_packet,
-            review_execution_id: review_execution,
         },
     )
     task = AgentTask(
-        task_id="formal-target-review-accepted:q:1234",
-        owner_subsystem="ProofEngineer",
-        objective="Repair exact candidate.",
+        task_id="formalize:q:1234",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Continue the current Lean workspace.",
     )
     question = OpenResearchQuestion(
         id="q",
-        title="Runtime client-tool repair",
-        description="Exercise accepted target routing.",
+        title="Runtime client-tool iteration",
+        description="Exercise direct source and Lean feedback iteration.",
     )
     feedback = {
-        "candidate_materialization_id": materialization_id,
-        "candidate_id": candidate_id,
-        "candidate_source_hash": stable_hash(source),
-        "semantic_review_execution_id": review_execution_id,
-        "semantic_review_packet_id": review_packet_id,
-        "semantic_review_packet_hash": review_packet_hash,
-        "overall_verdict": "ACCEPT",
-        "proofengineer_repair_context": {
-            "formalizer_candidate_semantic_review_status": (
-                "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"
-            ),
-            "candidate_artifact_path": str(artifact_path),
-            "lineage_candidate_artifact_hash": stable_hash(source),
+        "source_manifest_id": materialization_id,
+        "candidate_diagnostics": [
+            {
+                "candidate_id": candidate_id,
+                "source_hash": stable_hash(source),
+                "local_lean_attempted": True,
+                "local_lean_compiled": False,
+                "local_lean_stderr": "type mismatch",
+            }
+        ],
+        "formalizer_workspace_context": {
             "target_lean_declaration": "target",
-            "target_theorem_statement": target_statement,
-            "target_theorem_statement_hash": target_statement_hash,
-            "target_theorem_statement_hash_algorithm": (
-                runtime_module.EXACT_TARGET_STATEMENT_HASH_ALGORITHM
-            ),
-            "formalizer_candidate_semantic_review_execution_id": (
-                review_execution_id
-            ),
-            "formalizer_candidate_semantic_review_packet_id": review_packet_id,
-            "formalizer_candidate_semantic_review_packet_hash": (
-                review_packet_hash
-            ),
-            "formalizer_candidate_semantic_review_candidate_source_hash": (
-                stable_hash(source)
-            ),
-            "formalizer_candidate_semantic_review_target_statement_hash": (
-                target_statement_hash
-            ),
-            "formalizer_candidate_semantic_review_target_statement_hash_algorithm": (
-                runtime_module.EXACT_TARGET_STATEMENT_HASH_ALGORITHM
-            ),
         },
     }
 
@@ -730,39 +813,29 @@ def test_runtime_client_tool_revision_requires_hash_bound_semantic_review(
         def __init__(self, expected_source: str = source) -> None:
             self.expected_source = expected_source
             self.check_result = {}
-            self.search_result = {}
 
         def revise_lean_candidate_with_client_tools(self, **kwargs):
             assert kwargs["candidate_id"] == candidate_id
             assert kwargs["initial_source"] == self.expected_source
-            assert kwargs["reviewed_parent_source_hash"] == stable_hash(source)
+            assert "reviewed_parent_source_hash" not in kwargs
             self.check_result = dict(
                 kwargs["check_candidate"](self.expected_source)
             )
-            self.search_result = kwargs["search_formal_environment"](
-                "target declaration",
-                3,
-            )
             return (
-                {"packet_id": "formalizer_proposal:repaired"},
+                {"packet_id": "formalizer_proposal:revised"},
                 {
                     "artifact_kind": "LeanCandidateRevisionClientToolLoop",
                     "candidate_id": candidate_id,
                     "model": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
                     "model_tier": "haiku",
                     "submitted_source_hash": stable_hash(self.expected_source),
-                    "runtime_executed_tool_calls": 2,
+                    "runtime_executed_tool_calls": 1,
                     "proof_evidence_status": (
                         "LEAN_CANDIDATE_CLIENT_TOOL_LOOP_RECORDED_NOT_PROOF_EVIDENCE"
                     ),
                 },
             )
 
-    monkeypatch.setattr(
-        runtime_module,
-        "_formalizer_lean_candidate_precheck_errors",
-        lambda *args, **kwargs: [],
-    )
     monkeypatch.setattr(
         runtime_module,
         "_run_formalizer_lean_candidate_local_check",
@@ -785,8 +858,8 @@ def test_runtime_client_tool_revision_requires_hash_bound_semantic_review(
         blackboard=blackboard,
         theory_packet={},
         environment_feedback=feedback,
-        proof_bank_runtime_memory_summary={},
         formal_source_retriever=None,
+        proof_search_provider=None,
         lean_candidate_root=tmp_path / "candidates",
         lean_candidate_local_lean=True,
         lean_candidate_lean_project=tmp_path,
@@ -795,15 +868,9 @@ def test_runtime_client_tool_revision_requires_hash_bound_semantic_review(
 
     assert result is not None
     packet, evidence = result
-    assert packet["packet_id"] == "formalizer_proposal:repaired"
+    assert packet["packet_id"] == "formalizer_proposal:revised"
     assert agent.check_result["compiled"] is True
-    assert agent.check_result["source_hash"] == stable_hash(source)
-    assert agent.search_result["retrieval_status"] == (
-        "formal_source_retriever_unavailable"
-    )
-    assert evidence["parent_materialization_manifest_id"] == materialization_id
-    assert evidence["parent_formalizer_packet_id"] == parent_packet_id
-    assert evidence["model"] == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
+    assert evidence["parent_candidate_source_hash"] == stable_hash(source)
     assert evidence["resumed_from_model_checkpoint"] is False
 
     resumed_source = "theorem target : True := by\n  exact True.intro\n"
@@ -815,7 +882,6 @@ def test_runtime_client_tool_revision_requires_hash_bound_semantic_review(
             "candidate_id": candidate_id,
             "candidate_lean_declaration": "target",
             "parent_source_hash": stable_hash(source),
-            "reviewed_parent_source_hash": stable_hash(source),
             "current_source_hash": stable_hash(resumed_source),
             "current_source": resumed_source,
             "transcript_fingerprint": "prior-model-transcript",
@@ -824,16 +890,15 @@ def test_runtime_client_tool_revision_requires_hash_bound_semantic_review(
             "kernel_verified": False,
         },
     }
-    resume_agent = FakeAgent(resumed_source)
     resumed = runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
-        proposal_agent=resume_agent,
+        proposal_agent=FakeAgent(resumed_source),
         question=question,
         task=task,
         blackboard=blackboard,
         theory_packet={},
         environment_feedback=resume_feedback,
-        proof_bank_runtime_memory_summary={},
         formal_source_retriever=None,
+        proof_search_provider=None,
         lean_candidate_root=tmp_path / "candidates",
         lean_candidate_local_lean=True,
         lean_candidate_lean_project=tmp_path,
@@ -844,9 +909,8 @@ def test_runtime_client_tool_revision_requires_hash_bound_semantic_review(
     assert resumed[1]["resume_checkpoint_source_hash"] == stable_hash(
         resumed_source
     )
-    assert resumed[1]["parent_candidate_source_hash"] == stable_hash(source)
 
-    stale_resume_feedback = {
+    stale_feedback = {
         **resume_feedback,
         "formalizer_recovery_checkpoint": {
             **resume_feedback["formalizer_recovery_checkpoint"],
@@ -855,148 +919,23 @@ def test_runtime_client_tool_revision_requires_hash_bound_semantic_review(
     }
     try:
         runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
-            proposal_agent=resume_agent,
+            proposal_agent=FakeAgent(resumed_source),
             question=question,
             task=task,
             blackboard=blackboard,
             theory_packet={},
-            environment_feedback=stale_resume_feedback,
-            proof_bank_runtime_memory_summary={},
+            environment_feedback=stale_feedback,
             formal_source_retriever=None,
+            proof_search_provider=None,
             lean_candidate_root=tmp_path / "candidates",
             lean_candidate_local_lean=True,
             lean_candidate_lean_project=tmp_path,
             lean_candidate_lean_timeout=5,
         )
     except PacketValidationError as exc:
-        assert exc.validation_label == (
-            "Lean candidate revision checkpoint lineage"
-        )
+        assert exc.validation_label == "Lean workspace checkpoint lineage"
     else:
         raise AssertionError("stale model checkpoint source was not rejected")
-
-    monkeypatch.setattr(
-        runtime_module,
-        "_proofengineer_formal_source_grounding_hit_groups",
-        lambda *args, **kwargs: [
-            {
-                "query": "target declaration",
-                "query_role": "model_selected_lean_repair_query",
-                "hits": [
-                    {
-                        "source_id": "active-project",
-                        "path": "/tmp/Target.lean",
-                        "line": 7,
-                        "name": "Target.support",
-                        "signature": "Target.support (h : True) : True",
-                        "documentation": "large provenance " * 5000,
-                    }
-                ],
-            }
-        ],
-    )
-    compact_agent = FakeAgent()
-    compact_result = runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
-        proposal_agent=compact_agent,
-        question=question,
-        task=task,
-        blackboard=blackboard,
-        theory_packet={},
-        environment_feedback=feedback,
-        proof_bank_runtime_memory_summary={},
-        formal_source_retriever=object(),
-        lean_candidate_root=tmp_path / "candidates",
-        lean_candidate_local_lean=True,
-        lean_candidate_lean_project=tmp_path,
-        lean_candidate_lean_timeout=5,
-    )
-    assert compact_result is not None
-    assert compact_agent.search_result["retrieval_status"] == (
-        "prompt_safe_signature_hits"
-    )
-    assert compact_agent.search_result["hits"][0]["signature"] == (
-        "Target.support (h : True) : True"
-    )
-    assert "documentation" not in compact_agent.search_result["hits"][0]
-    assert len(json.dumps(compact_agent.search_result)) < 5600
-
-    revise_packet_id = "formal_target_semantic_review:revise"
-    revise_packet = {
-        **review_packet,
-        "packet_id": revise_packet_id,
-        "overall_verdict": "REVISE",
-    }
-    revise_packet_hash = stable_hash(revise_packet)
-    revise_execution_id = "formal_target_semantic_review_execution:revise"
-    revise_execution = {
-        **review_execution,
-        "execution_id": revise_execution_id,
-        "review_packet_id": revise_packet_id,
-        "review_packet_hash": revise_packet_hash,
-        "overall_verdict": "REVISE",
-        "semantic_review_accepted": False,
-    }
-    blackboard.artifacts[revise_packet_id] = revise_packet
-    blackboard.artifacts[revise_execution_id] = revise_execution
-    revise_context = {
-        **feedback["proofengineer_repair_context"],
-        "formalizer_candidate_semantic_review_status": (
-            "INDEPENDENT_SEMANTIC_REVIEW_REVISE_NOT_PROOF_EVIDENCE"
-        ),
-        "formalizer_candidate_semantic_review_execution_id": revise_execution_id,
-        "formalizer_candidate_semantic_review_packet_id": revise_packet_id,
-        "formalizer_candidate_semantic_review_packet_hash": revise_packet_hash,
-    }
-    revise_feedback = {
-        **feedback,
-        "overall_verdict": "REVISE",
-        "semantic_review_execution_id": revise_execution_id,
-        "semantic_review_packet_id": revise_packet_id,
-        "semantic_review_packet_hash": revise_packet_hash,
-        "proofengineer_repair_context": revise_context,
-    }
-    revised = runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
-        proposal_agent=agent,
-        question=question,
-        task=task,
-        blackboard=blackboard,
-        theory_packet={},
-        environment_feedback=revise_feedback,
-        proof_bank_runtime_memory_summary={},
-        formal_source_retriever=None,
-        lean_candidate_root=tmp_path / "candidates",
-        lean_candidate_local_lean=True,
-        lean_candidate_lean_project=tmp_path,
-        lean_candidate_lean_timeout=5,
-    )
-    assert revised is not None
-    assert revised[1]["parent_candidate_source_hash"] == stable_hash(source)
-
-    blackboard.artifacts[review_packet_id] = {
-        **review_packet,
-        "candidate_source_hash": "tampered",
-    }
-    try:
-        runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
-            proposal_agent=agent,
-            question=question,
-            task=task,
-            blackboard=blackboard,
-            theory_packet={},
-            environment_feedback=feedback,
-            proof_bank_runtime_memory_summary={},
-            formal_source_retriever=None,
-            lean_candidate_root=tmp_path / "candidates",
-            lean_candidate_local_lean=True,
-            lean_candidate_lean_project=tmp_path,
-            lean_candidate_lean_timeout=5,
-        )
-    except PacketValidationError as exc:
-        assert exc.validation_label == (
-            "Formalizer Lean candidate semantic-review lineage"
-        )
-    else:
-        raise AssertionError("tampered accepted review lineage was not rejected")
 
 
 def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
@@ -1026,7 +965,6 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
     )
     for name in (
         "validate_formalizer_packet",
-        "_validate_indexed_lean_environment_candidate_bindings",
         "_validate_capability_eval_formalizer_lean_candidate_packet",
     ):
         monkeypatch.setattr(formalizer_module, name, lambda *args, **kwargs: [])
@@ -1072,14 +1010,13 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
         "lemma_dependency_plan": [],
         "retrieval_queries": [],
         "proof_search_plan": {},
-        "proof_bank_obligation_requests": [],
         "gap_taxonomy": [],
         "critic_findings": [],
         "next_actions": [],
     }
     feedback = {
         "overall_verdict": "ACCEPT",
-        "proofengineer_repair_context": {
+        "formalizer_workspace_context": {
             "formalizer_candidate_semantic_review_status": (
                 "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"
             )
@@ -1095,7 +1032,6 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
         candidate_lean_declaration="target",
         initial_source=original,
         environment_feedback=feedback,
-        proof_bank_runtime_memory_summary={},
         check_candidate=lambda source: {
             "source_hash": stable_hash(source),
             "compiled": source == repaired,

@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
-from .model_backend import is_live_generator_backend
 from .research_schema import OpenResearchQuestion, ResearchProblemSpec, TheoremGoal
 
 
@@ -72,43 +71,13 @@ def runtime_llm_research_authority_required(
     context: Mapping[str, Any],
     theory_packet: Mapping[str, Any] | None = None,
 ) -> bool:
+    """Keep task-family registries out of the canonical runtime by default."""
+
+    del theory_packet
     authority_mode = str(
         context.get("research_problem_authority_mode", "") or ""
     ).strip().lower()
-    if authority_mode == "legacy_baseline":
-        return False
-    if authority_mode in {"agentic", "llm_agentic"}:
-        return True
-    packet = _mapping(theory_packet or {})
-    packet_provider = str(packet.get("provider", "") or "")
-    packet_backend_provider = str(
-        packet.get("backend_provider", "")
-        or packet.get("backend_provider_name", "")
-        or packet_provider
-    )
-    if (
-        str(packet.get("source_agent", "") or "").startswith("LLM")
-        and is_live_generator_backend(
-            packet_provider,
-            packet_backend_provider,
-        )
-        and str(packet.get("model", "") or "")
-        and packet.get("ok") is True
-        and (packet.get("problem_card") or packet.get("theorem_cards"))
-    ):
-        return True
-    plan = _architect_plan(context)
-    if plan.get("problem_analysis") or plan.get("stat_knowledge_bank_plan"):
-        return True
-    contracts = (
-        _mapping(context.get("runtime_requested_evidence_contract", {})),
-        _mapping(context.get("evidence_contract", {})),
-        _mapping(plan.get("evidence_contract", {})),
-    )
-    return any(
-        str(contract.get("evaluation_mode", "") or "") == "capability_eval"
-        for contract in contracts
-    )
+    return authority_mode != "legacy_baseline"
 
 
 def derive_runtime_research_problem(

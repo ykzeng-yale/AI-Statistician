@@ -18,7 +18,7 @@ from .generated_metric_contract import (
     generated_metric_evaluator_certificate,
     generated_metric_semantic_pointer_locator_id,
 )
-from .llm_json_repair import extract_json_object, generate_validated_json_packet
+from .structured_output_retry import extract_json_object, generate_validated_json_packet
 from .metric_protocol_finding_ledger import (
     METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT,
     METRIC_PROTOCOL_FINDING_RESOLVED,
@@ -31,7 +31,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 14
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 15
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -69,12 +69,6 @@ ARCHITECT_METRIC_FOUNDATIONAL_CLAIM_CHECK_TYPES = (
 ARCHITECT_METRIC_THEORY_SCOPE_AUTHORITY_KINDS = (
     "theory_derived",
     "theory_parameter_instantiation",
-)
-ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT = "metric_contract"
-ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY = "upstream_theory"
-ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPES = (
-    ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT,
-    ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY,
 )
 ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS = (
     "requirement_schema.required",
@@ -527,30 +521,6 @@ def _architect_metric_response_identity_rows(
     return rows
 
 
-def architect_metric_semantic_recommended_repair_scope(
-    *,
-    verdict: str,
-    findings: Any,
-    response_identity_checks: Any = (),
-) -> str:
-    if str(verdict or "").strip().upper() == "ACCEPT":
-        return "none"
-    if any(
-        isinstance(row, Mapping)
-        and str(row.get("verdict", "") or "").strip().upper() == "FAIL"
-        for row in response_identity_checks or []
-    ):
-        return ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
-    scopes = {
-        str(row.get("repair_scope", "") or "").strip()
-        for row in findings
-        if isinstance(row, Mapping)
-    } if isinstance(findings, list) else set()
-    if ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY in scopes:
-        return ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
-    return ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT
-
-
 def _architect_metric_semantic_review_derived_verdict(
     *,
     dimension_reviews: Any,
@@ -626,7 +596,7 @@ class ArchitectMetricSemanticReviewerConfig:
     max_tokens: int = 7000
     temperature: float = 0.0
     provider_name: str = "anthropic"
-    max_repair_attempts: int = 1
+    max_validation_retries: int = 1
 
 
 def _active_prior_finding_ledger(
@@ -1507,7 +1477,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
             provider_name=self.config.provider_name,
-            max_repair_attempts=self.config.max_repair_attempts,
+            max_validation_retries=self.config.max_validation_retries,
             prior_finding_ledger=prior_finding_ledger,
             source_retriever=self.source_retriever,
         )
@@ -1597,10 +1567,10 @@ class LLMArchitectMetricSemanticReviewerAgent:
             build_packet=build_packet,
             validate_packet=validate_architect_metric_semantic_review_packet,
             validation_label="Architect metric semantic review packet",
-            max_repair_attempts=self.config.max_repair_attempts,
+            max_validation_retries=self.config.max_validation_retries,
         )
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 7
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 8
 ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
     (
         "Review only pre-execution artifacts. Do not use observed results, invent "
@@ -1612,7 +1582,7 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "fields; compare upstream_research_contract targets and test one boundary or "
         "numeric case. Expand expectations and probabilities over the full declared "
         "support; one branch is not the expectation. TheoryDeveloper derivations and "
-        "sanity checks are claims, not evidence; mismatch routes to upstream_theory."
+        "sanity checks are claims, not evidence; report any mismatch as a finding."
     ),
     (
         "Cover every metric_claim_check_contract.requirement_id and emit at least "
@@ -1669,16 +1639,10 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "must fail closed rather than bind to a different row."
     ),
     (
-        "Route a finding to upstream_theory only when the research semantics require "
-        "a changed estimand, procedure, DGP, assumption, derivation, or feasibility "
-        "argument. Route candidate-owned cutoff, normalization, measurement, or "
-        "portfolio defects to metric_contract."
-    ),
-    (
         "Emit every required dimension exactly once. UNCERTAIN is advisory only for "
         "low-severity residual uncertainty; invalid or unidentifiable contracts must "
-        "FAIL. AgentRuntime derives the overall verdict and repair scope, so do not "
-        "emit or relax them."
+        "FAIL. AgentRuntime derives the overall verdict. Report observations and "
+        "evidence only; do not select a repair owner, route, or next action."
     ),
 )
 
@@ -1738,7 +1702,6 @@ def _architect_metric_review_prompt_material(
             "theory_scope_check_contract",
             "metric_claim_check_contract",
             "upstream_research_contract",
-            "fresh_candidate_revision_context",
             "frozen_metric_protocol_theory_rebinding",
             "active_prior_finding_ledger",
             "active_prior_finding_current_evidence",
@@ -1937,8 +1900,6 @@ _FINDING_SCHEMA: dict[str, Any] = {
         "severity",
         "category",
         "summary",
-        "required_change",
-        "repair_scope",
         "evidence_refs",
     ],
     "properties": {
@@ -1950,11 +1911,6 @@ _FINDING_SCHEMA: dict[str, Any] = {
         },
         "category": {"type": "string", "minLength": 1},
         "summary": {"type": "string", "minLength": 1},
-        "required_change": {"type": "string", "minLength": 1},
-        "repair_scope": {
-            "type": "string",
-            "enum": list(ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPES),
-        },
         "evidence_refs": {
             "type": "array",
             "minItems": 1,
@@ -2230,7 +2186,6 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
         "claim_checks",
         "dimension_reviews",
         "findings",
-        "repair_instructions",
     ],
     "properties": {
         "prior_finding_reviews": {
@@ -2249,10 +2204,6 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
             "items": _DIMENSION_REVIEW_SCHEMA,
         },
         "findings": {"type": "array", "items": _FINDING_SCHEMA},
-        "repair_instructions": {
-            "type": "array",
-            "items": {"type": "string", "minLength": 1},
-        },
     },
 }
 
@@ -2265,7 +2216,6 @@ _ARCHITECT_METRIC_REVIEW_ARRAY_LIMITS = {
     "unresolved_conflicts": 4,
     "evidence_refs": 8,
     "findings": 8,
-    "repair_instructions": 8,
 }
 
 
@@ -3571,10 +3521,7 @@ def validate_architect_metric_semantic_review_packet(
             errors.append(f"{finding_path} has invalid severity")
         if severity in {"high", "critical"}:
             high_findings += 1
-        repair_scope = str(row.get("repair_scope", "") or "").strip()
-        if repair_scope not in ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPES:
-            errors.append(f"{finding_path} has invalid repair_scope")
-        for field in ("category", "summary", "required_change"):
+        for field in ("category", "summary"):
             if not str(row.get(field, "") or "").strip():
                 errors.append(f"{finding_path} missing {field}")
         evidence_refs = row.get("evidence_refs", [])
@@ -3695,12 +3642,6 @@ def validate_architect_metric_semantic_review_packet(
             "high/critical finding, or when any uncertainty is low-severity advisory "
             "only and no prior finding remains unresolved"
         )
-    repair_instructions = packet.get("repair_instructions", [])
-    if verdict == "REVISE" and (
-        not isinstance(repair_instructions, list)
-        or not any(str(value or "").strip() for value in repair_instructions)
-    ):
-        errors.append("REVISE Architect metric review requires repair_instructions")
     if (
         verdict == "REVISE"
         and not findings
@@ -3711,25 +3652,6 @@ def validate_architect_metric_semantic_review_packet(
             "REVISE Architect metric review requires typed findings or an "
             "unresolved prior finding"
         )
-    expected_repair_scope = architect_metric_semantic_recommended_repair_scope(
-        verdict=verdict,
-        findings=[
-            *findings,
-            *[
-                dict(row)
-                for row in packet.get("unresolved_prior_findings", []) or []
-                if isinstance(row, Mapping)
-            ],
-        ],
-        response_identity_checks=response_identity_checks,
-    )
-    if packet.get("recommended_repair_scope") != expected_repair_scope:
-        errors.append(
-            "recommended_repair_scope must route upstream_theory whenever any "
-            "finding requires upstream theory repair, metric_contract for other "
-            "REVISE packets, and none for ACCEPT"
-        )
-
     for field in (
         "authoring_packet_id",
         "authoring_packet_hash",
@@ -4075,28 +3997,6 @@ def _normalize_architect_metric_semantic_review_packet(
     body["model_requested_overall_verdict"] = str(
         body.pop("overall_verdict", "") or ""
     ).strip().upper()
-    failed_response_identity_checks = [
-        dict(row)
-        for row in body.get("response_identity_checks", []) or []
-        if isinstance(row, Mapping)
-        and str(row.get("verdict", "") or "").strip().upper() == "FAIL"
-    ]
-    audit_feedback = list(
-        dict.fromkeys(
-            str(value).strip()
-            for row in failed_response_identity_checks
-            for value in row.get("unresolved_conflicts", []) or []
-            if str(value).strip()
-        )
-    )
-    model_repair_instructions = [
-        str(value).strip()
-        for value in body.get("repair_instructions", []) or []
-        if str(value).strip()
-    ]
-    body["repair_instructions"] = list(
-        dict.fromkeys([*model_repair_instructions, *audit_feedback])
-    )
     verdict = _architect_metric_semantic_review_derived_verdict(
         dimension_reviews=body.get("dimension_reviews", []),
         findings=findings,
@@ -4104,13 +4004,6 @@ def _normalize_architect_metric_semantic_review_packet(
         response_identity_checks=body.get("response_identity_checks", []),
     )
     body["overall_verdict"] = verdict
-    body["recommended_repair_scope"] = (
-        architect_metric_semantic_recommended_repair_scope(
-            verdict=verdict,
-            findings=[*findings, *unresolved_prior_findings],
-            response_identity_checks=body.get("response_identity_checks", []),
-        )
-    )
     body["expected_prior_finding_ids"] = _active_prior_finding_ids(
         review_material
     )

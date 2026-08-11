@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
-from .llm_json_repair import extract_json_object, generate_validated_json_packet
+from .structured_output_retry import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
 
@@ -30,7 +30,7 @@ class CriticEvaluatorConfig:
     max_tokens: int = 5000
     temperature: float = 0.1
     provider_name: str = "anthropic"
-    max_repair_attempts: int = 1
+    max_validation_retries: int = 1
 
 
 class LLMCriticEvaluatorAgent:
@@ -103,7 +103,7 @@ class LLMCriticEvaluatorAgent:
             build_packet=build_packet,
             validate_packet=validate_critic_evaluator_packet,
             validation_label="LLM CriticEvaluator packet",
-            max_repair_attempts=self.config.max_repair_attempts,
+            max_validation_retries=self.config.max_validation_retries,
         )
 
 
@@ -198,6 +198,11 @@ CRITIC_EVALUATOR_OUTPUT_CONTRACT: dict[str, Any] = {
             "missing evidence that is not asserted to cause the current failure"
         ],
     },
+    "coordination_assessment": {
+        "scope": "none | same_workspace | cross_workspace",
+        "conflicting_artifact_ids": ["artifact id or empty"],
+        "rationale": "short evidence-grounded explanation",
+    },
     "evidence_boundary_audit": [
         {
             "artifact_id": "string",
@@ -230,6 +235,7 @@ CRITIC_EVALUATOR_JSON_SCHEMA: dict[str, Any] = {
     ],
     "properties": {
         "current_observation_assessment": {"type": "object"},
+        "coordination_assessment": {"type": "object"},
         "evidence_boundary_audit": {"type": "array", "minItems": 1},
         "critic_findings": {"type": "array", "minItems": 1},
     },
@@ -249,6 +255,16 @@ def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
         if field in packet:
             errors.append(
                 f"{field} is outside the observation-only CriticEvaluator role"
+            )
+    coordination = packet.get("coordination_assessment", {})
+    if coordination and not isinstance(coordination, Mapping):
+        errors.append("coordination_assessment must be an object")
+    elif isinstance(coordination, Mapping):
+        scope = str(coordination.get("scope", "") or "").strip()
+        if scope and scope not in {"none", "same_workspace", "cross_workspace"}:
+            errors.append(
+                "coordination_assessment.scope must be none, same_workspace, or "
+                "cross_workspace"
             )
     if packet.get("proof_evidence_status") != CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE:
         errors.append("proof_evidence_status must preserve critic proposal boundary")

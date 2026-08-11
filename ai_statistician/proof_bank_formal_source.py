@@ -124,24 +124,22 @@ def build_default_formal_source_retriever(
     local_retriever: Any | None = None,
     proof_bank_retriever: Any | None = None,
 ) -> Any:
-    """Build the shared AgentRuntime retrieval topology."""
+    """Build the source-derived runtime topology; proof-bank data is opt-in."""
 
     from .lean_agent_providers import CompositeFormalSourceRetriever
 
-    return CompositeFormalSourceRetriever(
+    providers = [
         (
-            (
-                local_retriever
-                if local_retriever is not None
-                else build_formal_source_search_backend()
-            ),
-            (
-                proof_bank_retriever
-                if proof_bank_retriever is not None
-                else ProofBankFormalSourceRetriever()
-            ),
-            *tuple(additional_providers),
+            local_retriever
+            if local_retriever is not None
+            else build_formal_source_search_backend()
         )
+    ]
+    if proof_bank_retriever is not None:
+        providers.append(proof_bank_retriever)
+    providers.extend(additional_providers)
+    return CompositeFormalSourceRetriever(
+        tuple(providers)
     )
 
 

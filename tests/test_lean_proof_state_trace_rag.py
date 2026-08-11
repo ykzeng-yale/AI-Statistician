@@ -5,7 +5,6 @@ from pathlib import Path
 
 import ai_statistician.formalizer_llm as formalizer_module
 import ai_statistician.research_agent_runtime as runtime_module
-from ai_statistician.agent_runtime import AgentTask
 from ai_statistician.formal_source_index import (
     FormalDeclaration,
     FormalSourceRetriever,
@@ -20,7 +19,6 @@ from ai_statistician.lean_proof_state_trace_rag import (
     discover_ai4slt_proof_state_trace_retriever,
     proof_state_retrieval_query_parts,
 )
-from ai_statistician.research_schema import OpenResearchQuestion
 
 
 def test_ai4slt_trace_dataset_is_in_shared_source_inventory() -> None:
@@ -500,7 +498,7 @@ def test_nested_runtime_feedback_drives_live_proof_state_retrieval(
     ] == "leastSquares_excessRisk"
 
 
-def test_runtime_and_external_search_carry_trace_context(
+def test_formalizer_workspace_carries_trace_context_without_external_router(
     monkeypatch,
 ) -> None:
     calls: list[dict[str, object]] = []
@@ -529,7 +527,7 @@ def test_runtime_and_external_search_carry_trace_context(
         attach_fixture,
     )
     grounded = (
-        runtime_module._proofengineer_repair_context_with_formal_source_grounding(
+        runtime_module._formalizer_workspace_context_with_formal_source_grounding(
             {
                 "target_lean_declaration": "exact_source",
                 "target_theorem_statement": (
@@ -546,29 +544,7 @@ def test_runtime_and_external_search_carry_trace_context(
     assert grounded["proof_state_trace_rag"]["provider"] == (
         "fixture_trace_provider"
     )
-
-    question = OpenResearchQuestion(
-        "trace_context_fixture",
-        "Trace context fixture",
-        "Check typed proof-search transport.",
-        (),
-    )
-    request = runtime_module._runtime_external_proof_search_request(
-        task=AgentTask(
-            task_id="proofengineer:trace-context",
-            owner_subsystem="ProofEngineer",
-            objective="repair exact source theorem",
-            inputs={},
-        ),
-        question=question,
-        environment_feedback={
-            "proofengineer_repair_context": grounded,
-        },
-    )
-
-    assert request["proof_state_trace_rag"] == grounded[
-        "proof_state_trace_rag"
-    ]
+    assert not hasattr(runtime_module, "_runtime_external_proof_search_request")
 
 
 def test_formalizer_compaction_preserves_bounded_trace_states() -> None:
@@ -607,24 +583,10 @@ def test_formalizer_compaction_preserves_bounded_trace_states() -> None:
     assert trace["provider"] == "fixture_trace_provider"
     assert trace["declaration_rag_anchors"]["modules"] == ["SLT.Prior"]
     assert trace["n_declaration_aligned_hits"] == 1
-    assert trace["hits"][0]["state_before"] == state
+    compact_state = trace["hits"][0]["state_before"]
+    assert compact_state.startswith("h : p")
+    assert compact_state.endswith("⊢ p")
+    assert "chars omitted" in compact_state
     assert trace["proof_evidence_status"].endswith(
         "NOT_PROOF_EVIDENCE"
     )
-
-    instructions = formalizer_module._formalizer_mode_specific_instructions(
-        {},
-        {
-            "repair_owner_agent": "ProofEngineer",
-            "proofengineer_repair_context": {
-                "proof_state_trace_rag": trace,
-            },
-        },
-    )
-    trace_instruction = next(
-        row
-        for row in instructions
-        if "AI4SLT proof-state transitions" in row
-    )
-    assert "analogies" in trace_instruction
-    assert "rerun the exact current artifact" in trace_instruction

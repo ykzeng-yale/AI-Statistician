@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from .fingerprint import stable_hash
 from .generated_metric_contract import (
@@ -21,7 +21,7 @@ from .generated_metric_contract import (
     materialize_generated_metric_contract_bindings,
     validate_generated_metric_contracts,
 )
-from .llm_json_repair import extract_json_object, generate_validated_json_packet
+from .structured_output_retry import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
 from .semantic_review_feedback import coding_agent_observations_only
@@ -31,6 +31,10 @@ from .scientific_sandbox import (
     generated_python_syntax_errors,
     normalized_generated_code_language,
     scientific_sandbox_contract,
+)
+from .scientific_code_workspace import (
+    ScientificCodeWorkspaceResult,
+    run_scientific_code_workspace,
 )
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
@@ -57,7 +61,12 @@ class SimulationEngineerConfig:
     max_tokens: int = 8000
     temperature: float = 0.1
     provider_name: str = "anthropic"
-    max_repair_attempts: int = 1
+    max_validation_retries: int = 1
+    use_client_tool_code_workspace: bool = True
+    client_tool_code_max_turns: int = 8
+    client_tool_code_max_source_updates: int = 4
+    client_tool_code_max_checks: int = 4
+    client_tool_code_max_no_progress_turns: int = 2
 
 
 class LLMSimulationEngineerAgent:
@@ -225,7 +234,68 @@ class LLMSimulationEngineerAgent:
             build_packet=build_packet,
             validate_packet=validate_packet,
             validation_label="LLM SimulatorEngineer packet",
-            max_repair_attempts=self.config.max_repair_attempts,
+            max_validation_retries=self.config.max_validation_retries,
+        )
+
+    def iterate_code_with_tools(
+        self,
+        *,
+        question: OpenResearchQuestion,
+        artifact_id: str,
+        code_draft: Mapping[str, Any],
+        initial_observation: Mapping[str, Any],
+        workspace_context: Mapping[str, Any],
+        check_candidate: Callable[[Mapping[str, Any]], Mapping[str, Any]],
+    ) -> ScientificCodeWorkspaceResult:
+        """Run one direct model -> sandbox -> same-model source loop."""
+
+        if not self.config.use_client_tool_code_workspace:
+            raise ValueError("SimulationEngineer client-tool code workspace is disabled")
+        model = resolve_generator_model(
+            provider_name=self.config.provider_name,
+            requested_model=self.config.model,
+            model_tier=self.config.model_tier,
+        )
+        return run_scientific_code_workspace(
+            provider=self.provider,
+            system_prompt=SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
+            user_prompt=(
+                "Continue the bound simulation workspace for this research task. The "
+                "runtime executes source unchanged and supplies no correction rule.\n"
+                + json.dumps(
+                    {
+                        "question": {
+                            "id": question.id,
+                            "title": question.title,
+                            "description": question.description,
+                        },
+                        "workspace_context": dict(workspace_context),
+                    },
+                    separators=(",", ":"),
+                    default=str,
+                )
+            ),
+            model=model,
+            model_tier=self.config.model_tier,
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+            max_turns=max(1, self.config.client_tool_code_max_turns),
+            max_source_updates=max(
+                1, self.config.client_tool_code_max_source_updates
+            ),
+            max_checks=max(1, self.config.client_tool_code_max_checks),
+            max_no_progress_turns=max(
+                1, self.config.client_tool_code_max_no_progress_turns
+            ),
+            artifact_id=artifact_id,
+            initial_code_draft=code_draft,
+            initial_check_result=initial_observation,
+            check_candidate=check_candidate,
+            request_metadata={
+                "subsystem": "SimulationEvaluator",
+                "agent": "LLMSimulationEngineerAgent",
+                "phase": "scientific_code_workspace",
+            },
         )
 
 
@@ -482,6 +552,16 @@ Your job is to design rigorous ADeMP-style simulation diagnostics, stress tests,
 metrics, and failure interpretation for proposed statistical theory. You are a
 generator, not the executor. Do not run code, do not report simulated results,
 and do not claim proof evidence.
+"""
+
+
+SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT = """\
+You are the SimulationEngineer source owner inside an AI Statistician workspace.
+Own one complete executable Python or R simulation candidate. Use the supplied
+client tools to replace and run the exact source. Read every raw sandbox and metric
+observation and choose every source change yourself. The runtime executes source
+unchanged and never supplies a correction rule. Do not answer with prose, delegate
+an edit, weaken the frozen metric contract, or claim theorem-proof evidence.
 """
 
 
@@ -1140,7 +1220,7 @@ def _feedback_requires_generated_simulation_code(feedback: Mapping[str, Any]) ->
     )
     return any(
         isinstance(contract, Mapping)
-        and contract.get("capability_eval_requires_generated_simulation_code") is True
+        and contract.get("research_evaluation_requires_generated_simulation_code") is True
         for contract in contract_candidates
     )
 

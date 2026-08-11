@@ -27,7 +27,7 @@ from ai_statistician.generated_metric_contract import (
     generated_metric_evaluation_semantics_contract,
     generated_metric_requirement_set_id,
 )
-from ai_statistician.llm_json_repair import PacketValidationError
+from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.model_backend import GeneratorResponse
 from ai_statistician.research_schema import OpenResearchQuestion
 
@@ -168,21 +168,11 @@ def _review_payload(*, accept: bool) -> dict[str, object]:
                     "severity": "high",
                     "category": "finite_sample_calibration",
                     "summary": "The gate lacks a finite-sample justification.",
-                    "required_change": (
-                        "Regenerate the contract from an analytically justified "
-                        "finite-sample target."
-                    ),
-                    "repair_scope": "metric_contract",
                     "evidence_refs": ["requirement:generic_gate"],
                 }
             ]
         ),
         "overall_verdict": "ACCEPT" if accept else "REVISE",
-        "repair_instructions": (
-            []
-            if accept
-            else ["Re-derive and rewrite the full candidate contract."]
-        ),
     }
 
 
@@ -263,7 +253,7 @@ def _review(
             provider_name="anthropic",
             model=reviewer_model,
             model_tier="haiku",
-            max_repair_attempts=0,
+            max_validation_retries=0,
         ),
     ).review(
         question=OpenResearchQuestion(
@@ -350,12 +340,11 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
         "normalization_reconstruction",
         "sample_size_order_derivation",
         "runtime_evaluator_certificate",
-        "gate_field_authorities",
-        "theory_scope_checks",
-        "active prior finding",
-        "upstream_theory",
-        "metric_contract",
-        "AgentRuntime derives the overall verdict",
+            "gate_field_authorities",
+            "theory_scope_checks",
+            "active prior finding",
+            "AgentRuntime derives the overall verdict",
+            "do not select a repair owner",
         "full declared support",
         "Finite-sample evaluation",
         "nonasymptotic guarantee",
@@ -469,7 +458,7 @@ def test_metric_reviewer_derives_verdict_from_granular_judgments() -> None:
     assert "overall_verdict" not in backend.requests[0].schema["properties"]
     assert packet["model_requested_overall_verdict"] == "REVISE"
     assert packet["overall_verdict"] == "ACCEPT"
-    assert packet["recommended_repair_scope"] == "none"
+    assert "recommended_repair_scope" not in packet
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
 
@@ -477,10 +466,11 @@ def test_preexecution_metric_reviewer_returns_typed_revision_feedback() -> None:
     packet, _, _ = _review(accept=False)
 
     assert packet["overall_verdict"] == "REVISE"
-    assert packet["repair_instructions"]
     assert packet["findings"][0]["severity"] == "high"
-    assert packet["findings"][0]["repair_scope"] == "metric_contract"
-    assert packet["recommended_repair_scope"] == "metric_contract"
+    assert "required_change" not in packet["findings"][0]
+    assert "repair_scope" not in packet["findings"][0]
+    assert "repair_instructions" not in packet
+    assert "recommended_repair_scope" not in packet
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
 
@@ -633,7 +623,7 @@ def test_metric_reviewer_binds_omitted_protocol_expressions_without_retry() -> N
             provider_name="anthropic",
             model=TEST_HAIKU_MODEL,
             model_tier="haiku",
-            max_repair_attempts=0,
+            max_validation_retries=0,
         ),
     ).review(
         question=OpenResearchQuestion(
@@ -657,7 +647,7 @@ def test_metric_reviewer_binds_omitted_protocol_expressions_without_retry() -> N
     )
 
     assert len(backend.requests) == 1
-    assert packet["llm_json_repair_attempts"] == 0
+    assert packet["structured_output_retry_attempts"] == 0
     assert [
         row["normalization_reconstruction"]["protocol_expression"]
         for row in packet["claim_checks"]
@@ -1082,10 +1072,6 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
     ]
     failed_audit["verdict"] = "FAIL"
     failed_audit_payload["overall_verdict"] = "REVISE"
-    failed_audit_payload["repair_instructions"] = [
-        "Regenerate the complete upstream theory packet using this audit conflict."
-    ]
-
     failed_audit_packet, _, _ = _review(
         accept=False,
         payload=failed_audit_payload,
@@ -1098,7 +1084,7 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
         row["status"] == "PASS"
         for row in failed_audit_packet["dimension_reviews"]
     )
-    assert failed_audit_packet["recommended_repair_scope"] == "upstream_theory"
+    assert "recommended_repair_scope" not in failed_audit_packet
     assert failed_audit_packet["response_identity_checks"][0]["verdict"] == "FAIL"
     assert validate_architect_metric_semantic_review_packet(failed_audit_packet) == []
 
@@ -1289,8 +1275,6 @@ def test_preexecution_metric_reviewer_accepts_low_severity_advisory_uncertainty(
             "severity": "low",
             "category": "redundant_gate",
             "summary": "One row duplicates a stronger gate.",
-            "required_change": "Remove the redundant row in later cleanup.",
-            "repair_scope": "metric_contract",
             "evidence_refs": ["requirement:generic_gate"],
         }
     ]
@@ -1298,15 +1282,14 @@ def test_preexecution_metric_reviewer_accepts_low_severity_advisory_uncertainty(
     packet, backend, _ = _review(accept=True, payload=payload)
 
     assert packet["overall_verdict"] == "ACCEPT"
-    assert packet["recommended_repair_scope"] == "none"
+    assert "recommended_repair_scope" not in packet
     assert packet["findings"][0]["severity"] == "low"
     assert validate_architect_metric_semantic_review_packet(packet) == []
     assert "UNCERTAIN is advisory" in backend.requests[0].user_prompt
 
 
-def test_preexecution_metric_reviewer_routes_missing_semantics_upstream() -> None:
+def test_preexecution_metric_reviewer_reports_without_selecting_owner() -> None:
     payload = _review_payload(accept=False)
-    payload["findings"][0]["repair_scope"] = "upstream_theory"
     backend = _Backend(payload)
     packet = LLMArchitectMetricSemanticReviewerAgent(
         provider=backend,
@@ -1314,7 +1297,7 @@ def test_preexecution_metric_reviewer_routes_missing_semantics_upstream() -> Non
             provider_name="anthropic",
             model=TEST_HAIKU_MODEL,
             model_tier="haiku",
-            max_repair_attempts=0,
+            max_validation_retries=0,
         ),
     ).review(
         question=OpenResearchQuestion(
@@ -1339,7 +1322,8 @@ def test_preexecution_metric_reviewer_routes_missing_semantics_upstream() -> Non
         },
     )
 
-    assert packet["recommended_repair_scope"] == "upstream_theory"
+    assert "recommended_repair_scope" not in packet
+    assert "repair_scope" not in packet["findings"][0]
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
 
@@ -1422,7 +1406,7 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
             provider_name="anthropic",
             model=TEST_HAIKU_MODEL,
             model_tier="haiku",
-            max_repair_attempts=1,
+            max_validation_retries=1,
         ),
     ).review(
         question=OpenResearchQuestion(
@@ -1468,7 +1452,7 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
         for finding_id in expected_ids
     )
     assert repair_payload["local_validation_errors"]
-    assert backend.requests[1].metadata["json_repair_mode"] == (
+    assert backend.requests[1].metadata["structured_output_retry_mode"] == (
         "full_packet_regeneration"
     )
     assert backend.requests[1].model == TEST_HAIKU_MODEL
@@ -1476,7 +1460,7 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
     assert [row["finding_id"] for row in packet["prior_finding_reviews"]] == (
         expected_ids
     )
-    assert packet["llm_json_repair_attempts"] == 1
+    assert packet["structured_output_retry_attempts"] == 1
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
 
@@ -1533,7 +1517,7 @@ def test_metric_reviewer_regenerates_complete_packet_in_one_retry() -> None:
             provider_name="anthropic",
             model=TEST_HAIKU_MODEL,
             model_tier="haiku",
-            max_repair_attempts=1,
+            max_validation_retries=1,
         ),
     ).review(
         question=OpenResearchQuestion(
@@ -1559,10 +1543,10 @@ def test_metric_reviewer_regenerates_complete_packet_in_one_retry() -> None:
     )
 
     assert len(backend.requests) == 2
-    assert backend.requests[1].metadata["json_repair_mode"] == (
+    assert backend.requests[1].metadata["structured_output_retry_mode"] == (
         "full_packet_regeneration"
     )
-    assert packet["llm_json_repair_attempts"] == 1
+    assert packet["structured_output_retry_attempts"] == 1
     assert {
         row["requirement_id"] for row in packet["claim_checks"]
     } == {"generic_gate", "second_gate"}
@@ -1578,7 +1562,7 @@ def test_metric_reviewer_regenerates_invalid_finding_from_full_context() -> None
         }
     )
     invalid_payload = _review_payload(accept=False)
-    invalid_payload["findings"][0]["repair_scope"] = "algorithm_code"
+    invalid_payload["findings"][0]["severity"] = "urgent"
     invalid_payload["findings"][0]["evidence_refs"] = []
     captured_repair_request: dict[str, object] = {}
 
@@ -1586,7 +1570,7 @@ def test_metric_reviewer_regenerates_invalid_finding_from_full_context() -> None
         repair_request = json.loads(request.user_prompt.split("\n\n", 1)[1])
         captured_repair_request.update(repair_request)
         repaired = deepcopy(invalid_payload)
-        repaired["findings"][0]["repair_scope"] = "metric_contract"
+        repaired["findings"][0]["severity"] = "high"
         repaired["findings"][0]["evidence_refs"] = [
             "requirement:generic_gate"
         ]
@@ -1599,7 +1583,7 @@ def test_metric_reviewer_regenerates_invalid_finding_from_full_context() -> None
             provider_name="anthropic",
             model=TEST_HAIKU_MODEL,
             model_tier="haiku",
-            max_repair_attempts=1,
+            max_validation_retries=1,
         ),
     ).review(
         question=OpenResearchQuestion(
@@ -1624,10 +1608,11 @@ def test_metric_reviewer_regenerates_invalid_finding_from_full_context() -> None
         },
     )
 
-    assert captured_repair_request["local_validation_errors"] == [
-        "findings[0] has invalid repair_scope",
+    assert set(captured_repair_request["local_validation_errors"]) == {
+        "a failed claim check requires a high or critical typed finding",
+        "findings[0] has invalid severity",
         "findings[0] missing evidence_refs",
-    ]
+    }
     assert "subsystem_repair_context" not in captured_repair_request
     assert json.loads(
         captured_repair_request["previous_candidate"]
@@ -1635,7 +1620,7 @@ def test_metric_reviewer_regenerates_invalid_finding_from_full_context() -> None
     assert captured_repair_request["original_request"] == (
         backend.requests[0].user_prompt
     )
-    assert packet["findings"][0]["repair_scope"] == "metric_contract"
+    assert packet["findings"][0]["severity"] == "high"
     assert packet["findings"][0]["evidence_refs"] == [
         "requirement:generic_gate"
     ]
@@ -1690,7 +1675,6 @@ def test_metric_reviewer_reuses_prior_identity_for_persistent_finding() -> None:
                 "finding": {
                     "category": "finite_sample_calibration",
                     "summary": "The same finite-sample issue remains open.",
-                    "repair_scope": "metric_contract",
                 },
             }
         ],
@@ -1723,8 +1707,6 @@ def test_metric_reviewer_materializes_current_theory_evidence_for_prior_finding(
                 "finding": {
                     "category": "generic_bound",
                     "summary": "The prior theory used old_limit.",
-                    "required_change": "Replace old_limit with a justified value.",
-                    "repair_scope": "upstream_theory",
                     "evidence_refs": [evidence_ref],
                 },
             }
@@ -1805,8 +1787,6 @@ def test_metric_reviewer_runtime_binds_candidate_evidence_for_resolved_status() 
                 "finding": {
                     "category": "generic_threshold",
                     "summary": "The prior candidate used the wrong threshold.",
-                    "required_change": "Replace the candidate threshold.",
-                    "repair_scope": "metric_contract",
                     "evidence_refs": [evidence_ref],
                 },
             }
@@ -1876,8 +1856,6 @@ def test_metric_reviewer_materializes_current_candidate_pointer_evidence(
                 "finding": {
                     "category": "generic_candidate_defect",
                     "summary": "The prior candidate field was defective.",
-                    "required_change": "Recheck the exact current candidate field.",
-                    "repair_scope": "metric_contract",
                     "evidence_refs": [evidence_ref],
                 },
             }
@@ -1938,8 +1916,6 @@ def test_metric_finding_tracks_named_row_across_list_reordering() -> None:
                 "finding_id": finding_id,
                 "category": "generic_identity",
                 "summary": "The named row is defective.",
-                "required_change": "Repair that exact named row.",
-                "repair_scope": "upstream_theory",
                 "evidence_refs": [evidence_ref],
             }
         ],
@@ -2016,8 +1992,6 @@ def test_metric_finding_rejects_stale_positional_row_rebinding() -> None:
                 "finding_id": finding_id,
                 "category": "generic_identity",
                 "summary": "The named row is defective.",
-                "required_change": "Repair that exact named row.",
-                "repair_scope": "upstream_theory",
                 "evidence_refs": [evidence_ref],
             }
         ],
@@ -2071,8 +2045,6 @@ def test_metric_reviewer_rejects_unresolved_prior_without_existing_snapshot() ->
                 "finding": {
                     "category": "generic_bound",
                     "summary": "The prior theory used an unsupported bound.",
-                    "required_change": "Ground the bound in current theory.",
-                    "repair_scope": "upstream_theory",
                     "evidence_refs": [evidence_ref],
                 },
             }
@@ -2138,8 +2110,6 @@ def test_metric_reviewer_runtime_binds_snapshot_to_underlying_ref() -> None:
                 "finding": {
                     "category": "generic_operator",
                     "summary": "The candidate operator is incorrect.",
-                    "required_change": "Repair the exact candidate operator.",
-                    "repair_scope": "metric_contract",
                     "evidence_refs": [evidence_ref],
                 },
             }
@@ -2206,8 +2176,6 @@ def test_metric_reviewer_runtime_carries_forward_unresolved_prior_finding() -> N
                     "severity": "high",
                     "category": "generic_operator",
                     "summary": "The candidate operator is still incorrect.",
-                    "required_change": "Repair the exact candidate operator.",
-                    "repair_scope": "metric_contract",
                     "evidence_refs": evidence_refs,
                 },
             }
@@ -2273,8 +2241,6 @@ def test_metric_reviewer_runtime_owns_prior_snapshot_identity_transport() -> Non
                     "severity": "high",
                     "category": "generic_operator",
                     "summary": "The candidate operator remains inconsistent.",
-                    "required_change": "Repair the candidate-owned operator.",
-                    "repair_scope": "metric_contract",
                     "evidence_refs": [evidence_ref],
                 },
             }

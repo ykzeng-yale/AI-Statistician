@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from .client_tool_loop import (
@@ -12,12 +11,14 @@ from .client_tool_loop import (
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
-from .llm_json_repair import PacketValidationError
+from .structured_output_retry import PacketValidationError
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
 
 
 LeanCandidateCheck = Callable[[str], Mapping[str, Any]]
 FormalEnvironmentSearch = Callable[[str, int], Any]
+ProofCandidateSearch = Callable[[str, str, int, Mapping[str, Any]], Any]
+LeanStateInspection = Callable[[str, Mapping[str, Any]], Any]
 
 
 @dataclass(frozen=True)
@@ -28,53 +29,37 @@ class LeanCandidateRevisionToolLoopResult:
     evidence: Mapping[str, Any]
 
 
-@dataclass(frozen=True)
-class ReviewedLeanCandidateRevisionBinding:
-    materialization_id: str
-    materialization: Mapping[str, Any]
-    parent_packet_id: str
-    parent_packet: Mapping[str, Any]
-    candidate_id: str
-    candidate_lean_declaration: str
-    candidate_source_field: str
-    candidate_artifact_path: Path
-    candidate_source_hash: str
-    initial_source: str
-    candidate_metadata: Mapping[str, Any]
-    revision_context: Mapping[str, Any]
-
-
-def resolve_lean_candidate_revision_start_source(
+def resolve_lean_workspace_start_source(
     *,
-    binding: ReviewedLeanCandidateRevisionBinding,
+    candidate_id: str,
+    candidate_lean_declaration: str,
+    parent_source: str,
     environment_feedback: Mapping[str, Any],
 ) -> tuple[str, dict[str, Any]]:
-    """Resume from an exact model checkpoint without changing its source bytes."""
+    """Resume an exact model-owned source checkpoint when its hashes still bind."""
 
+    parent_source_hash = stable_hash(parent_source)
     checkpoint = environment_feedback.get("formalizer_recovery_checkpoint", {})
     if not isinstance(checkpoint, Mapping) or not checkpoint:
-        return binding.initial_source, {
+        return parent_source, {
             "resumed_from_model_checkpoint": False,
-            "reviewed_parent_source_hash": binding.candidate_source_hash,
+            "parent_source_hash": parent_source_hash,
         }
+
     errors: list[str] = []
     if str(checkpoint.get("artifact_kind", "") or "") != (
         "LeanCandidateRevisionRecoveryCheckpoint"
     ):
-        errors.append("checkpoint artifact kind is not a Lean revision checkpoint")
-    if str(checkpoint.get("candidate_id", "") or "") != binding.candidate_id:
-        errors.append("checkpoint candidate id does not match reviewed lineage")
+        errors.append("checkpoint artifact kind is not a Lean workspace checkpoint")
+    if str(checkpoint.get("candidate_id", "") or "") != candidate_id:
+        errors.append("checkpoint candidate id does not match the active workspace")
     if str(checkpoint.get("candidate_lean_declaration", "") or "") != (
-        binding.candidate_lean_declaration
+        candidate_lean_declaration
     ):
-        errors.append("checkpoint declaration does not match reviewed lineage")
-    reviewed_parent_hash = str(
-        checkpoint.get("reviewed_parent_source_hash", "")
-        or checkpoint.get("parent_source_hash", "")
-        or ""
-    )
-    if reviewed_parent_hash != binding.candidate_source_hash:
-        errors.append("checkpoint root source hash does not match reviewed lineage")
+        errors.append("checkpoint declaration does not match the active workspace")
+    if str(checkpoint.get("parent_source_hash", "") or "") != parent_source_hash:
+        errors.append("checkpoint parent source hash does not match the active workspace")
+
     source = str(checkpoint.get("current_source", "") or "")
     source_hash = str(checkpoint.get("current_source_hash", "") or "")
     if not source.strip() or source_hash != stable_hash(source):
@@ -84,12 +69,12 @@ def resolve_lean_candidate_revision_start_source(
     if checkpoint.get("model_owned_lean_code") is not True:
         errors.append("checkpoint is not marked as model-owned Lean source")
     if checkpoint.get("runtime_selected_lean_code") is not False:
-        errors.append("checkpoint permits a runtime-selected Lean source")
+        errors.append("checkpoint permits runtime-selected Lean source")
     if checkpoint.get("kernel_verified") is not False:
         errors.append("checkpoint incorrectly claims kernel verification")
     if errors:
         raise PacketValidationError(
-            validation_label="Lean candidate revision checkpoint lineage",
+            validation_label="Lean workspace checkpoint lineage",
             attempts=1,
             errors=errors,
             history=[],
@@ -97,281 +82,12 @@ def resolve_lean_candidate_revision_start_source(
         )
     return source, {
         "resumed_from_model_checkpoint": True,
-        "reviewed_parent_source_hash": binding.candidate_source_hash,
+        "parent_source_hash": parent_source_hash,
         "resume_checkpoint_source_hash": source_hash,
         "resume_checkpoint_transcript_fingerprint": str(
             checkpoint.get("transcript_fingerprint", "") or ""
         ),
     }
-
-
-def resolve_reviewed_lean_candidate_revision_binding(
-    *,
-    question_id: str,
-    artifacts: Mapping[str, Any],
-    environment_feedback: Mapping[str, Any],
-    exact_target_statement_hash: Callable[[str], str],
-    target_statement_hash_algorithm: str,
-) -> ReviewedLeanCandidateRevisionBinding | None:
-    """Resolve one exact candidate and its immutable semantic-review lineage."""
-
-    revision_context = environment_feedback.get("proofengineer_repair_context", {})
-    if not isinstance(revision_context, Mapping):
-        return None
-    review_verdict = str(
-        environment_feedback.get("overall_verdict", "") or ""
-    ).upper()
-    review_status = str(
-        revision_context.get(
-            "formalizer_candidate_semantic_review_status",
-            "",
-        )
-        or ""
-    )
-    expected_review_status = {
-        "ACCEPT": "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE",
-        "REVISE": "INDEPENDENT_SEMANTIC_REVIEW_REVISE_NOT_PROOF_EVIDENCE",
-    }.get(review_verdict, "")
-    if not expected_review_status or review_status != expected_review_status:
-        return None
-
-    errors: list[str] = []
-
-    def require_equal(label: str, observed: Any, expected: Any) -> None:
-        if str(observed or "") != str(expected or ""):
-            errors.append(f"semantic review {label} does not match current lineage")
-
-    materialization_id = str(
-        environment_feedback.get("candidate_materialization_id", "")
-        or environment_feedback.get("source_manifest_id", "")
-        or ""
-    ).strip()
-    materialization = artifacts.get(materialization_id, {})
-    if not isinstance(materialization, Mapping) or str(
-        materialization.get("artifact_kind", "") or ""
-    ) != "RuntimeFormalizerLeanCandidateMaterialization":
-        errors.append("semantic review candidate materialization is missing")
-        materialization = {}
-
-    candidate_id = str(
-        environment_feedback.get("candidate_id", "") or ""
-    ).strip()
-    candidate_rows = [
-        row
-        for row in materialization.get("candidate_rows", []) or []
-        if isinstance(row, Mapping)
-        and str(row.get("candidate_id", "") or "") == candidate_id
-    ]
-    if len(candidate_rows) != 1:
-        errors.append("semantic review candidate does not resolve uniquely")
-        candidate: Mapping[str, Any] = {}
-    else:
-        candidate = candidate_rows[0]
-    declaration = str(
-        candidate.get("candidate_lean_declaration", "")
-        or candidate.get("target_lean_declaration", "")
-        or ""
-    ).strip()
-    source_field = str(candidate.get("source_field", "") or "").strip()
-    artifact_path = Path(str(candidate.get("artifact_path", "") or ""))
-    source_hash = str(candidate.get("source_hash", "") or "").strip()
-    if not declaration:
-        errors.append("semantic review candidate declaration is missing")
-    if source_field not in {
-        "formal_targets",
-        "source_to_bridge_premise_derivation_candidates",
-    }:
-        errors.append("semantic review candidate source field is unsupported")
-    try:
-        initial_source = artifact_path.read_text(encoding="utf-8")
-    except OSError:
-        initial_source = ""
-        errors.append("semantic review candidate artifact is unreadable")
-    if not source_hash or stable_hash(initial_source) != source_hash:
-        errors.append("semantic review candidate artifact hash is stale")
-
-    parent_packet_id = str(
-        materialization.get("source_formalizer_packet_id", "") or ""
-    ).strip()
-    parent_packet = artifacts.get(parent_packet_id, {})
-    if not isinstance(parent_packet, Mapping) or str(
-        parent_packet.get("packet_id", "") or ""
-    ) != parent_packet_id:
-        errors.append("semantic review parent Formalizer packet is missing")
-        parent_packet = {}
-
-    require_equal(
-        "candidate_materialization_id",
-        environment_feedback.get("candidate_materialization_id", ""),
-        materialization_id,
-    )
-    require_equal("candidate_id", candidate_id, candidate.get("candidate_id", ""))
-    require_equal(
-        "candidate_source_hash",
-        environment_feedback.get("candidate_source_hash", ""),
-        source_hash,
-    )
-    require_equal(
-        "reviewed candidate source hash",
-        revision_context.get(
-            "formalizer_candidate_semantic_review_candidate_source_hash",
-            "",
-        ),
-        source_hash,
-    )
-    require_equal(
-        "lineage candidate source hash",
-        revision_context.get("lineage_candidate_artifact_hash", "")
-        or revision_context.get("target_declaration_source_hash", ""),
-        source_hash,
-    )
-    require_equal(
-        "candidate artifact path",
-        revision_context.get("candidate_artifact_path", "")
-        or revision_context.get("source_candidate_artifact_path", ""),
-        str(artifact_path),
-    )
-    require_equal(
-        "target Lean declaration",
-        revision_context.get("target_lean_declaration", "")
-        or revision_context.get("target_theorem_name", ""),
-        declaration,
-    )
-
-    target_statement = str(
-        revision_context.get("target_theorem_statement", "") or ""
-    ).strip()
-    target_hash = str(
-        revision_context.get("target_theorem_statement_hash", "") or ""
-    ).strip()
-    if (
-        not target_statement
-        or not target_hash
-        or exact_target_statement_hash(target_statement) != target_hash
-        or str(
-            revision_context.get("target_theorem_statement_hash_algorithm", "")
-            or ""
-        )
-        != target_statement_hash_algorithm
-    ):
-        errors.append("semantic review target statement identity is missing or stale")
-    require_equal(
-        "reviewed target statement hash",
-        revision_context.get(
-            "formalizer_candidate_semantic_review_target_statement_hash",
-            "",
-        ),
-        target_hash,
-    )
-    require_equal(
-        "reviewed target statement hash algorithm",
-        revision_context.get(
-            "formalizer_candidate_semantic_review_target_statement_hash_algorithm",
-            "",
-        ),
-        target_statement_hash_algorithm,
-    )
-
-    review_packet_id = str(
-        revision_context.get(
-            "formalizer_candidate_semantic_review_packet_id",
-            "",
-        )
-        or environment_feedback.get("semantic_review_packet_id", "")
-        or ""
-    ).strip()
-    review_packet_hash = str(
-        revision_context.get(
-            "formalizer_candidate_semantic_review_packet_hash",
-            "",
-        )
-        or environment_feedback.get("semantic_review_packet_hash", "")
-        or ""
-    ).strip()
-    review_packet = artifacts.get(review_packet_id, {})
-    if (
-        not review_packet_id
-        or not review_packet_hash
-        or not isinstance(review_packet, Mapping)
-        or stable_hash(review_packet) != review_packet_hash
-    ):
-        errors.append("semantic review packet artifact/hash is missing or stale")
-    else:
-        for label, field, expected in (
-            ("packet question", "question_id", question_id),
-            ("packet verdict", "overall_verdict", review_verdict),
-            ("packet materialization", "candidate_materialization_id", materialization_id),
-            (
-                "packet materialization hash",
-                "candidate_materialization_hash",
-                stable_hash(materialization),
-            ),
-            ("packet proposal", "proposal_packet_id", parent_packet_id),
-            ("packet proposal hash", "proposal_packet_hash", stable_hash(parent_packet)),
-            ("packet candidate", "candidate_id", candidate_id),
-            ("packet candidate hash", "candidate_source_hash", source_hash),
-            ("packet target hash", "target_theorem_statement_hash", target_hash),
-        ):
-            require_equal(label, review_packet.get(field, ""), expected)
-
-    review_execution_id = str(
-        revision_context.get(
-            "formalizer_candidate_semantic_review_execution_id",
-            "",
-        )
-        or environment_feedback.get("semantic_review_execution_id", "")
-        or ""
-    ).strip()
-    review_execution = artifacts.get(review_execution_id, {})
-    if not review_execution_id or not isinstance(review_execution, Mapping):
-        errors.append("semantic review execution artifact is missing")
-    else:
-        for label, field, expected in (
-            ("execution question", "question_id", question_id),
-            ("execution materialization", "candidate_materialization_id", materialization_id),
-            ("execution candidate", "candidate_id", candidate_id),
-            ("execution candidate hash", "candidate_source_hash", source_hash),
-            ("execution review packet", "review_packet_id", review_packet_id),
-            ("execution review packet hash", "review_packet_hash", review_packet_hash),
-            ("execution verdict", "overall_verdict", review_verdict),
-        ):
-            require_equal(label, review_execution.get(field, ""), expected)
-        if bool(review_execution.get("semantic_review_accepted", False)) != (
-            review_verdict == "ACCEPT"
-        ):
-            errors.append("semantic review execution verdict flag is inconsistent")
-
-    if errors:
-        raise PacketValidationError(
-            validation_label="Formalizer Lean candidate semantic-review lineage",
-            attempts=1,
-            errors=sorted(set(errors)),
-            history=[],
-            recovery_checkpoint={
-                "candidate_materialization_id": materialization_id,
-                "parent_formalizer_packet_id": parent_packet_id,
-                "candidate_id": candidate_id,
-                "candidate_source_hash": source_hash,
-                "proof_evidence_status": (
-                    "STALE_OR_INCOMPLETE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
-                ),
-            },
-        )
-    metadata = candidate.get("candidate_metadata", {})
-    return ReviewedLeanCandidateRevisionBinding(
-        materialization_id=materialization_id,
-        materialization=materialization,
-        parent_packet_id=parent_packet_id,
-        parent_packet=parent_packet,
-        candidate_id=candidate_id,
-        candidate_lean_declaration=declaration,
-        candidate_source_field=source_field,
-        candidate_artifact_path=artifact_path,
-        candidate_source_hash=source_hash,
-        initial_source=initial_source,
-        candidate_metadata=(metadata if isinstance(metadata, Mapping) else {}),
-        revision_context=revision_context,
-    )
 
 
 def run_lean_candidate_revision_tool_loop(
@@ -386,14 +102,17 @@ def run_lean_candidate_revision_tool_loop(
     max_turns: int,
     max_source_updates: int,
     max_searches: int,
+    max_proof_searches: int = 1,
+    max_state_inspections: int = 2,
     max_checks: int,
     max_no_progress_turns: int,
     candidate_id: str,
     candidate_lean_declaration: str,
     initial_source: str,
-    reviewed_parent_source_hash: str = "",
     check_candidate: LeanCandidateCheck,
     search_formal_environment: FormalEnvironmentSearch,
+    search_proof_candidates: ProofCandidateSearch | None = None,
+    inspect_lean_state: LeanStateInspection | None = None,
     request_metadata: Mapping[str, Any] | None = None,
 ) -> LeanCandidateRevisionToolLoopResult:
     """Let the model edit, search, and compile one immutable-bound Lean target."""
@@ -411,22 +130,29 @@ def run_lean_candidate_revision_tool_loop(
     ):
         if value < 1:
             raise ValueError(f"Lean candidate {label} budget must be positive")
+    if search_proof_candidates is not None and max_proof_searches < 1:
+        raise ValueError("Lean candidate proof-search budget must be positive")
+    if inspect_lean_state is not None and max_state_inspections < 1:
+        raise ValueError("Lean state-inspection budget must be positive")
 
     parent_source = str(initial_source)
     parent_source_hash = stable_hash(parent_source)
-    reviewed_parent_source_hash = str(
-        reviewed_parent_source_hash or parent_source_hash
-    )
     state: dict[str, Any] = {
         "source": parent_source,
         "source_hash": parent_source_hash,
         "source_updates": 0,
         "searches": 0,
+        "proof_searches": 0,
+        "state_inspections": 0,
         "checks": 0,
         "last_check": {},
         "latest_check_observation": {},
+        "latest_state_inspection": {},
     }
-    tools = _lean_candidate_revision_tools()
+    tools = _lean_candidate_revision_tools(
+        include_proof_search=search_proof_candidates is not None,
+        include_state_inspection=inspect_lean_state is not None,
+    )
 
     def check_current_source() -> dict[str, Any]:
         if state["checks"] >= max_checks:
@@ -529,6 +255,106 @@ def run_lean_candidate_revision_tool_loop(
                 ),
             )
 
+        if call.name == "search_proof_candidates":
+            if search_proof_candidates is None:
+                raise ClientToolInputError("proof-candidate search is unavailable")
+            if set(tool_input) - {"query", "max_results"}:
+                raise ClientToolInputError(
+                    "search_proof_candidates accepts query and optional max_results"
+                )
+            if state["proof_searches"] >= max_proof_searches:
+                raise ClientToolInputError(
+                    "proof-candidate search budget is exhausted; revise or check the "
+                    "current source from the observations already returned"
+                )
+            query = tool_input.get("query")
+            if not isinstance(query, str) or not query.strip():
+                raise ClientToolInputError("proof-search query must be a nonempty string")
+            requested_k = tool_input.get("max_results", 4)
+            if isinstance(requested_k, bool) or not isinstance(requested_k, int):
+                raise ClientToolInputError("max_results must be an integer")
+            k = max(1, min(8, requested_k))
+            state["proof_searches"] += 1
+            results = search_proof_candidates(
+                str(state["source"]),
+                query.strip(),
+                k,
+                deepcopy(dict(state["last_check"])),
+            )
+            content = {
+                "ok": True,
+                "query": query.strip(),
+                "results": deepcopy(results),
+                "proof_searches": state["proof_searches"],
+                "maximum_proof_searches": max_proof_searches,
+                "remaining_proof_searches": (
+                    max_proof_searches - state["proof_searches"]
+                ),
+                "proof_evidence_status": (
+                    "PROOF_SEARCH_RESULT_NOT_PROOF_EVIDENCE"
+                ),
+                "source_ownership": (
+                    "The model must choose and submit the complete next Lean source; "
+                    "the runtime does not splice returned proof bodies."
+                ),
+            }
+            return ClientToolExecutionResult(
+                content=content,
+                observation_key="proof-search:"
+                + stable_hash(
+                    {
+                        "source_hash": state["source_hash"],
+                        "query": content["query"],
+                        "results": content["results"],
+                    }
+                ),
+            )
+
+        if call.name == "inspect_lean_state":
+            if inspect_lean_state is None:
+                raise ClientToolInputError("Lean state inspection is unavailable")
+            if tool_input:
+                raise ClientToolInputError("inspect_lean_state takes an empty object")
+            if state["state_inspections"] >= max_state_inspections:
+                raise ClientToolInputError(
+                    "Lean state-inspection budget is exhausted; revise or check the "
+                    "current source from the observations already returned"
+                )
+            if not state["last_check"]:
+                raise ClientToolInputError(
+                    "check_lean_source must run before inspect_lean_state so the "
+                    "inspection is bound to the exact current source and diagnostics"
+                )
+            state["state_inspections"] += 1
+            result = inspect_lean_state(
+                str(state["source"]),
+                deepcopy(dict(state["last_check"])),
+            )
+            state["latest_state_inspection"] = deepcopy(result)
+            content = {
+                "ok": True,
+                "source_hash": state["source_hash"],
+                "observation": deepcopy(result),
+                "state_inspections": state["state_inspections"],
+                "maximum_state_inspections": max_state_inspections,
+                "remaining_state_inspections": (
+                    max_state_inspections - state["state_inspections"]
+                ),
+                "proof_evidence_status": (
+                    "LEAN_STATE_INSPECTION_NOT_PROOF_EVIDENCE"
+                ),
+            }
+            return ClientToolExecutionResult(
+                content=content,
+                observation_key="lean-state:"
+                + stable_hash(
+                    {
+                        "source_hash": state["source_hash"],
+                        "observation": content["observation"],
+                    }
+                ),
+            )
+
         if call.name == "check_lean_source":
             if tool_input:
                 raise ClientToolInputError("check_lean_source takes an empty object")
@@ -591,7 +417,6 @@ def run_lean_candidate_revision_tool_loop(
             "candidate_id": candidate_id,
             "candidate_lean_declaration": candidate_lean_declaration,
             "parent_source_hash": parent_source_hash,
-            "reviewed_parent_source_hash": reviewed_parent_source_hash,
         },
     )
 
@@ -602,6 +427,15 @@ def run_lean_candidate_revision_tool_loop(
         remaining = {
             "replace_lean_source": state["source_updates"] < max_source_updates,
             "search_formal_environment": state["searches"] < max_searches,
+            "search_proof_candidates": (
+                search_proof_candidates is not None
+                and state["proof_searches"] < max_proof_searches
+            ),
+            "inspect_lean_state": (
+                inspect_lean_state is not None
+                and state["state_inspections"] < max_state_inspections
+                and bool(state["last_check"])
+            ),
             "check_lean_source": state["checks"] < max_checks,
         }
         selected = tuple(
@@ -619,7 +453,11 @@ def run_lean_candidate_revision_tool_loop(
     # the turn budget is also a strict bound while leaving room for rejected calls.
     max_tool_calls = max(
         max_turns,
-        max_source_updates + max_searches + max_checks,
+        max_source_updates
+        + max_searches
+        + (max_proof_searches if search_proof_candidates is not None else 0)
+        + (max_state_inspections if inspect_lean_state is not None else 0)
+        + max_checks,
     )
     try:
         loop = run_bounded_client_tool_loop(
@@ -643,15 +481,19 @@ def run_lean_candidate_revision_tool_loop(
                 "candidate_id": candidate_id,
                 "candidate_lean_declaration": candidate_lean_declaration,
                 "parent_source_hash": parent_source_hash,
-                "reviewed_parent_source_hash": reviewed_parent_source_hash,
                 "current_source_hash": state["source_hash"],
                 "current_source": state["source"],
                 "source_updates": state["source_updates"],
                 "searches": state["searches"],
+                "proof_searches": state["proof_searches"],
+                "state_inspections": state["state_inspections"],
                 "checks": state["checks"],
                 "last_check": deepcopy(state["last_check"]),
                 "latest_check_observation": deepcopy(
                     state["latest_check_observation"]
+                ),
+                "latest_state_inspection": deepcopy(
+                    state["latest_state_inspection"]
                 ),
                 "turns": exc.turns,
                 "tool_calls": exc.tool_calls,
@@ -693,7 +535,6 @@ def run_lean_candidate_revision_tool_loop(
         candidate_id=candidate_id,
         candidate_lean_declaration=candidate_lean_declaration,
         parent_source_hash=parent_source_hash,
-        reviewed_parent_source_hash=reviewed_parent_source_hash,
         tools=tools,
         max_turns=max_turns,
         max_tool_calls=max_tool_calls,
@@ -719,7 +560,6 @@ def _lean_candidate_revision_success_result(
     candidate_id: str,
     candidate_lean_declaration: str,
     parent_source_hash: str,
-    reviewed_parent_source_hash: str,
     tools: tuple[ClientToolDefinition, ...],
     max_turns: int,
     max_tool_calls: int,
@@ -736,6 +576,9 @@ def _lean_candidate_revision_success_result(
     transcript_fingerprint: str,
 ) -> LeanCandidateRevisionToolLoopResult:
     source_hash = stable_hash(source)
+    state_provider_tools = _lean_state_executed_tools(
+        state.get("latest_state_inspection", {})
+    )
     evidence = {
         "schema_version": 1,
         "artifact_kind": "LeanCandidateRevisionClientToolLoop",
@@ -743,7 +586,6 @@ def _lean_candidate_revision_success_result(
         "candidate_id": candidate_id,
         "candidate_lean_declaration": candidate_lean_declaration,
         "parent_source_hash": parent_source_hash,
-        "reviewed_parent_source_hash": reviewed_parent_source_hash,
         "submitted_source_hash": source_hash,
         "source_changed": source_hash != parent_source_hash,
         "turns": turns,
@@ -756,6 +598,12 @@ def _lean_candidate_revision_success_result(
         "tool_names": [tool.name for tool in tools],
         "source_updates": state["source_updates"],
         "formal_environment_searches": state["searches"],
+        "proof_candidate_searches": state["proof_searches"],
+        "lean_state_inspections": state["state_inspections"],
+        "lean_state_provider_tools": list(state_provider_tools),
+        "lean_lsp_mcp_live_called": any(
+            tool.startswith("lean_lsp_mcp.") for tool in state_provider_tools
+        ),
         "local_lean_checks": state["checks"],
         "latest_check_compiled": True,
         "provider": provider,
@@ -791,8 +639,39 @@ def _lean_candidate_revision_success_result(
     )
 
 
-def _lean_candidate_revision_tools() -> tuple[ClientToolDefinition, ...]:
-    return (
+def _lean_state_executed_tools(value: Any) -> tuple[str, ...]:
+    tools: list[str] = []
+
+    def visit(item: Any, *, depth: int = 0) -> None:
+        if depth > 8:
+            return
+        if isinstance(item, Mapping):
+            executed = item.get("executed_tools", [])
+            if isinstance(executed, (list, tuple, set)):
+                tools.extend(str(tool) for tool in executed if str(tool).strip())
+            trace = item.get("tool_call_trace", [])
+            if isinstance(trace, (list, tuple)):
+                for row in trace:
+                    if isinstance(row, Mapping):
+                        tool = str(row.get("tool", "") or "").strip()
+                        if tool:
+                            tools.append(tool)
+            for child in item.values():
+                visit(child, depth=depth + 1)
+        elif isinstance(item, (list, tuple)):
+            for child in item:
+                visit(child, depth=depth + 1)
+
+    visit(value)
+    return tuple(dict.fromkeys(tools))
+
+
+def _lean_candidate_revision_tools(
+    *,
+    include_proof_search: bool = False,
+    include_state_inspection: bool = False,
+) -> tuple[ClientToolDefinition, ...]:
+    tools = [
         ClientToolDefinition(
             name="replace_lean_source",
             description=(
@@ -842,4 +721,49 @@ def _lean_candidate_revision_tools() -> tuple[ClientToolDefinition, ...]:
             },
             terminal=True,
         ),
-    )
+    ]
+    if include_proof_search:
+        tools.insert(
+            2,
+            ClientToolDefinition(
+                name="search_proof_candidates",
+                description=(
+                    "Ask the configured prover for candidate proof bodies and raw "
+                    "diagnostics for the exact current target. Results are suggestions "
+                    "only: choose any useful idea yourself, replace the complete source, "
+                    "and check that exact source with Lean."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["query"],
+                    "properties": {
+                        "query": {"type": "string"},
+                        "max_results": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 8,
+                        },
+                    },
+                },
+            ),
+        )
+    if include_state_inspection:
+        tools.insert(
+            -1,
+            ClientToolDefinition(
+                name="inspect_lean_state",
+                description=(
+                    "Inspect the exact current source through the configured Lean "
+                    "LSP/MCP or local proof-state provider after a failed check. "
+                    "Returns raw diagnostic and goal observations; it never edits "
+                    "or promotes the source."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {},
+                },
+            ),
+        )
+    return tuple(tools)

@@ -199,8 +199,6 @@ def _compact_tool_observation(row: Mapping[str, Any]) -> dict[str, Any]:
         "kernel_check_artifact_path",
         "proof_state_artifact_path",
         "target_lean_file",
-        "target_lean_line",
-        "target_lean_column",
         "target_lean_declaration",
         "target_ids",
         "target_theorem_goal_ids",
@@ -233,10 +231,6 @@ def _compact_rejected_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
         return {}
     preferred_keys = (
         "formal_targets",
-        "pseudo_formal_proof_packets",
-        "source_to_bridge_premise_derivation_candidates",
-        "source_to_bridge_premise_derivation_candidate_requests",
-        "proof_bank_obligation_requests",
         "lemma_dependency_plan",
         "retrieval_queries",
         "proof_search_plan",

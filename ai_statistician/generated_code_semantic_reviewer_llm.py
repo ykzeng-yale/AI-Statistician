@@ -9,7 +9,7 @@ from typing import Any, Mapping, Sequence
 from urllib.parse import unquote
 
 from .fingerprint import stable_hash
-from .llm_json_repair import extract_json_object, generate_validated_json_packet
+from .structured_output_retry import extract_json_object, generate_validated_json_packet
 from .metric_protocol_finding_ledger import (
     METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT,
     METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_ARTIFACT,
@@ -799,7 +799,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 review_material=review_material,
             ),
             validation_label="generated-code semantic review packet",
-            max_repair_attempts=max(0, int(self.config.max_validation_retries)),
+            max_validation_retries=max(0, int(self.config.max_validation_retries)),
         )
 
 

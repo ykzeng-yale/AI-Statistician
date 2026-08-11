@@ -61,8 +61,6 @@ def test_formalizer_prompt_carries_exact_feedback_without_runtime_repair_recipe(
         algorithm_manifest={"manifest_id": "algorithm:generic-repair"},
         registered_problem={"question_id": "generic_formalizer_repair"},
         theorem_goals=[],
-        proof_bank_obligation_catalog=[],
-        proof_bank_runtime_memory_summary={},
         environment_feedback={
             "failure_classification": "formalizer_packet_validation_failed",
             "formalizer_validation_feedback": feedback,
@@ -107,8 +105,6 @@ def test_repeated_parser_failure_is_observation_not_runtime_lane_policy() -> Non
         "algorithm_manifest": {},
         "registered_problem": {},
         "theorem_goals": [],
-        "proof_bank_obligation_catalog": [],
-        "proof_bank_runtime_memory_summary": {},
     }
     baseline = build_formalizer_prompt(
         **common,

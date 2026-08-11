@@ -6,10 +6,10 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
-from .llm_json_repair import extract_json_object, generate_validated_json_packet
+from .structured_output_retry import extract_json_object, generate_validated_json_packet
 from .model_backend import (
     PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY,
-    PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY,
+    PROVIDER_STRUCTURED_OUTPUT_ON_RETRY_METADATA_KEY,
     GeneratorBackend,
     GeneratorRequest,
     resolve_generator_model,
@@ -37,7 +37,6 @@ FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS = (
 )
 FORMAL_TARGET_SEMANTIC_REVIEW_SOURCE_SUBSYSTEMS = (
     "FormalizationEvaluator",
-    "ProofEngineer",
 )
 FORMAL_TARGET_SEMANTIC_REVIEW_FINDING_SEVERITIES = (
     "low",
@@ -187,7 +186,7 @@ class LLMFormalTargetSemanticReviewerAgent:
                 "reviewer_emits_observations_only": True,
                 "architect_owns_routing": True,
                 PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY: True,
-                PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY: True,
+                PROVIDER_STRUCTURED_OUTPUT_ON_RETRY_METADATA_KEY: True,
             },
         )
 
@@ -212,7 +211,7 @@ class LLMFormalTargetSemanticReviewerAgent:
             build_packet=build_packet,
             validate_packet=validate_formal_target_semantic_review_packet,
             validation_label="formal-target semantic review packet",
-            max_repair_attempts=max(0, int(self.config.max_validation_retries)),
+            max_validation_retries=max(0, int(self.config.max_validation_retries)),
         )
 
 

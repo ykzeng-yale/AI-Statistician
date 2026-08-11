@@ -106,7 +106,6 @@ def _protocol_cli_args(**overrides: object) -> Namespace:
         "capability_eval_preset": "full-live",
         "resume_runtime_manifest": "",
         "context_json": "",
-        "learning_memory_jsonl": [],
         "capability_gap_routing_jsonl": [],
         "question_task_family": [],
         "question_id": [],
@@ -148,35 +147,17 @@ def test_cross_family_cli_rejects_single_question_override() -> None:
     assert any("must exactly match the frozen protocol panel" in error for error in errors)
 
 
-def test_cross_family_cli_rejects_resume_and_learning_memory() -> None:
+def test_cross_family_cli_rejects_resume() -> None:
     questions = load_open_research_questions(Path("examples/research_questions.json"))
 
     _, _, errors = _cross_family_eval_protocol_selection(
         _protocol_cli_args(
             resume_runtime_manifest="prior.json",
-            learning_memory_jsonl=["prior.jsonl"],
         ),
         questions,
     )
 
     assert "fresh cross-family protocol runs forbid --resume-runtime-manifest" in errors
-    assert "fresh cross-family protocol runs forbid --learning-memory-jsonl" in errors
-
-
-def test_cross_family_cli_rejects_legacy_repair_executors_and_formal_side_eval() -> None:
-    questions = load_open_research_questions(Path("examples/research_questions.json"))
-
-    _, _, errors = _cross_family_eval_protocol_selection(
-        _protocol_cli_args(
-            source_theorem_exact_semantic_definition_lean_repair_executor=True,
-            source_theorem_exact_semantic_definition_lean_environment_repair_executor=True,
-            run_formalizer_lean_candidate_repair_eval=True,
-        ),
-        questions,
-    )
-
-    assert len(errors) == 3
-    assert all("fresh cross-family protocol runs forbid" in error for error in errors)
 
 
 def test_runtime_manifest_summary_preserves_frozen_protocol_lineage() -> None:

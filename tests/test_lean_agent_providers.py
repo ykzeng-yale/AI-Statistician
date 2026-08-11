@@ -660,7 +660,7 @@ def test_generator_backend_candidate_policy_bounds_retrieval_context() -> None:
     assert len(prompt) < OPENPROVER_RETRIEVAL_CONTEXT_MAX_CHARS + 1000
 
 
-def test_generator_backend_candidate_policy_keeps_valid_siblings() -> None:
+def test_generator_backend_candidate_policy_returns_raw_model_suggestions() -> None:
     class Backend:
         provider_name = "anthropic"
 
@@ -681,13 +681,12 @@ def test_generator_backend_candidate_policy_keeps_valid_siblings() -> None:
 
     candidates = policy.propose(SimpleNamespace(), 2)
 
-    assert candidates == ["exact hp"]
-    assert policy.last_diagnostics["status"] == "partial_contract_rejection"
-    assert policy.last_diagnostics["accepted_candidates"] == 1
-    assert policy.last_diagnostics["rejected_candidates"] == 1
-    violations = policy.last_diagnostics["candidate_contract_violations"]
-    assert len(violations) == 1
-    assert violations[0]["violations"] == ["forbidden proof-evidence token"]
+    assert candidates == ["exact hp", "sorry"]
+    assert policy.last_diagnostics["status"] == "ok"
+    assert policy.last_diagnostics["accepted_candidates"] == 2
+    assert policy.last_diagnostics["rejected_candidates"] == 0
+    assert policy.last_diagnostics["candidate_contract_violations"] == []
+    assert "suggestions only" in policy.last_diagnostics["candidate_authority"]
 
 
 def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
@@ -899,9 +898,9 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
     assert "Fixture.prior_goal" in backend.generation_prompts[0]
     assert "state_before" in backend.generation_prompts[0]
     assert result["task_normalization"]["response"][
-        "llm_json_repair_attempts"
+        "structured_output_retry_attempts"
     ] == 1
     assert result["task_normalization"]["response"][
-        "llm_json_repair_history"
+        "structured_output_retry_history"
     ][0]["ok"] is False
     assert Path(result["report_path"]).exists()

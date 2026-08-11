@@ -66,7 +66,7 @@ def test_proof_bank_formal_source_recovers_cross_family_assets(
     assert expected_ids & {hit.declaration.name for hit in hits}
 
 
-def test_default_formal_source_topology_fuses_proof_bank_with_other_providers() -> None:
+def test_default_formal_source_topology_excludes_handwritten_proof_bank() -> None:
     @dataclass
     class EmptyProvider:
         name: str
@@ -82,23 +82,36 @@ def test_default_formal_source_topology_fuses_proof_bank_with_other_providers() 
 
     hits = retriever.search("bh_threshold_grid_mono", k=4)
 
+    assert hits == []
+    descriptor = retriever.descriptor()
+    assert [row["name"] for row in descriptor["providers"]] == [
+        "local",
+        "external",
+    ]
+    assert descriptor["boundary"]
+
+
+def test_proof_bank_can_be_added_as_an_explicit_baseline_provider() -> None:
+    @dataclass
+    class EmptyProvider:
+        name: str = "local"
+
+        def search(self, _query: str, *, k: int = 10):
+            del k
+            return []
+
+    retriever = build_default_formal_source_retriever(
+        local_retriever=EmptyProvider(),
+        proof_bank_retriever=ProofBankFormalSourceRetriever(),
+    )
+
+    hits = retriever.search("bh_threshold_grid_mono", k=4)
+
     assert hits
     assert hits[0].declaration.name == "bh_threshold_grid_mono"
     support = hits[0].provenance["provider_support"]
     assert support[0]["provider"] == "ai_statistician_proof_bank_formal_source"
-    proof_bank_provenance = support[0]["provenance"]
-    assert proof_bank_provenance["candidate_proof_body"]
-    assert proof_bank_provenance["proof_evidence_status"] == (
-        "PROOF_BANK_RETRIEVAL_NOT_PROOF_EVIDENCE"
-    )
-    assert "kernel_verified" not in proof_bank_provenance
-    descriptor = retriever.descriptor()
-    assert [row["name"] for row in descriptor["providers"]] == [
-        "local",
-        "ai_statistician_proof_bank_formal_source",
-        "external",
-    ]
-    assert descriptor["boundary"]
+    assert support[0]["provenance"]["candidate_proof_body"]
 
 
 def test_default_formal_source_topology_uses_rich_local_backend(
@@ -135,7 +148,7 @@ def test_default_formal_source_topology_uses_rich_local_backend(
     assert retriever.descriptor()["source_scoped_search"]
 
 
-def test_runtime_cli_uses_default_proof_bank_topology_without_external_rag(
+def test_runtime_cli_uses_source_derived_topology_without_external_rag(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:

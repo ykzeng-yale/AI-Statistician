@@ -154,7 +154,7 @@ STRICT_FORMAL_SUBSYSTEMS = frozenset(
         "SourceSemanticProofEngineer",
         "PseudoFormalBlockVerifier",
         "SourceTheoremPromotionProofEngineer",
-        "ProofEngineer",
+        "FormalizationEvaluator",
         "ExactSourceTheoremProver",
         "FormalizationGapPlanner",
     }
