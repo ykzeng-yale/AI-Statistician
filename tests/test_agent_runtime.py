@@ -17,6 +17,7 @@ from ai_statistician.agent_runtime import (
     agent_runtime_substage,
     materialize_agent_task_continuation,
     restore_agent_task_continuation,
+    runtime_artifact_reference,
 )
 from ai_statistician.fingerprint import stable_hash
 
@@ -172,6 +173,170 @@ def test_agent_task_continuation_rejects_tampered_input_artifact() -> None:
 
     with pytest.raises(ValueError, match="input mapping hash mismatch"):
         restore_agent_task_continuation(continuation, tampered)
+
+
+def test_agent_runtime_resolves_and_preserves_explicit_artifact_refs() -> None:
+    workspace = {
+        "artifact_kind": "RuntimeModelOwnedWorkspace",
+        "artifact_id": "workspace:q1",
+        "source": "x" * 10_000,
+    }
+
+    class Producer:
+        name = "Producer"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            return AgentStepResult(
+                status="REROUTE",
+                rationale="publish one authoritative workspace",
+                produced_artifacts={"workspace:q1": workspace},
+                next_task=AgentTask(
+                    task_id="consume:q1",
+                    owner_subsystem="Consumer",
+                    objective="consume the workspace",
+                    inputs={"workspace": workspace},
+                ),
+            )
+
+    class Consumer:
+        name = "Consumer"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            assert task.inputs["workspace"] == workspace
+            return AgentStepResult(
+                status="REROUTE",
+                rationale="forward the unchanged workspace",
+                next_task=AgentTask(
+                    task_id="finish:q1",
+                    owner_subsystem="Finisher",
+                    objective="finish from the same workspace",
+                    inputs={"workspace": task.inputs["workspace"]},
+                ),
+            )
+
+    class Finisher:
+        name = "Finisher"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            assert task.inputs["workspace"] == workspace
+            return AgentStepResult(status="ACCEPTED", rationale="workspace consumed")
+
+    result = AgentRuntime(
+        subsystems={
+            "Producer": Producer(),
+            "Consumer": Consumer(),
+            "Finisher": Finisher(),
+        },
+        blackboard=BlackboardState(project_id="artifact-ref-test"),
+    ).run(
+        AgentTask(
+            task_id="produce:q1",
+            owner_subsystem="Producer",
+            objective="publish the workspace",
+        ),
+        max_iterations=3,
+    )
+
+    assert result.status == "ACCEPTED"
+    for trace in result.traces[1:]:
+        reference = trace.task.inputs["workspace"]
+        assert reference["artifact_kind"] == "RuntimeArtifactRef"
+        assert reference["artifact_id"] == "workspace:q1"
+        assert "source" not in reference
+    assert result.traces[1].next_task is not None
+    assert result.traces[1].next_task.inputs["workspace"]["artifact_kind"] == (
+        "RuntimeArtifactRef"
+    )
+
+
+def test_agent_runtime_rejects_stale_artifact_ref_before_subsystem_call() -> None:
+    workspace = {
+        "artifact_kind": "RuntimeModelOwnedWorkspace",
+        "artifact_id": "workspace:q1",
+        "source": "original",
+    }
+    reference = runtime_artifact_reference("workspace:q1", workspace)
+    reference["content_hash"] = "stale"
+
+    class NeverCalled:
+        name = "Consumer"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            self.calls += 1
+            raise AssertionError("stale refs must fail before subsystem execution")
+
+    subsystem = NeverCalled()
+    result = AgentRuntime(
+        subsystems={"Consumer": subsystem},
+        blackboard=BlackboardState(
+            project_id="stale-artifact-ref-test",
+            artifacts={"workspace:q1": workspace},
+        ),
+    ).run(
+        AgentTask(
+            task_id="consume:q1",
+            owner_subsystem="Consumer",
+            objective="consume one workspace",
+            inputs={"workspace": reference},
+        )
+    )
+
+    assert result.status == "FAILED"
+    assert subsystem.calls == 0
+    assert result.traces[0].failure_classification == (
+        "task_artifact_reference_invalid"
+    )
+
+
+def test_agent_runtime_leaves_non_blackboard_artifact_refs_opaque() -> None:
+    identity_ref = {
+        "artifact_kind": "RuntimeArtifactRef",
+        "artifact_id": "external:source",
+    }
+
+    class Consumer:
+        name = "Consumer"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            assert task.inputs["source_artifact_ref"] == identity_ref
+            return AgentStepResult(status="ACCEPTED", rationale="identity preserved")
+
+    result = AgentRuntime(
+        subsystems={"Consumer": Consumer()},
+        blackboard=BlackboardState(project_id="opaque-artifact-ref-test"),
+    ).run(
+        AgentTask(
+            task_id="consume:external-source",
+            owner_subsystem="Consumer",
+            objective="consume an opaque source identity",
+            inputs={"source_artifact_ref": identity_ref},
+        )
+    )
+
+    assert result.status == "ACCEPTED"
 
 
 def test_agent_runtime_exposes_compound_substage_progress_without_new_scheduler() -> None:

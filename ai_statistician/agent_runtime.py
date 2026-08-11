@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from contextvars import ContextVar
 from copy import deepcopy
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any, Callable, Iterator, Literal, Mapping, Protocol
@@ -53,6 +53,171 @@ class AgentTask:
     expected_artifacts: tuple[str, ...] = ()
     acceptance_gate: str = ""
     stop_condition: str = ""
+
+
+class RuntimeArtifactReferenceError(ValueError):
+    """A task-bound artifact reference is missing, stale, or cyclic."""
+
+
+def runtime_artifact_reference(
+    artifact_id: str,
+    artifact: Any,
+) -> dict[str, Any]:
+    """Reference one authoritative blackboard artifact without copying it."""
+
+    normalized_id = str(artifact_id or "").strip()
+    if not normalized_id:
+        raise ValueError("runtime artifact reference requires an artifact_id")
+    return {
+        "artifact_kind": "RuntimeArtifactRef",
+        "reference_scope": "runtime_blackboard",
+        "artifact_id": normalized_id,
+        "content_hash": stable_hash(artifact),
+        "payload_kind": (
+            str(artifact.get("artifact_kind", "") or "")
+            if isinstance(artifact, Mapping)
+            else ""
+        ),
+        "evidence_status": "REFERENCE_ONLY_NOT_EVIDENCE",
+    }
+
+
+def _resolve_runtime_artifact_references(
+    value: Any,
+    artifacts: Mapping[str, Any],
+    *,
+    bindings: dict[str, dict[str, Any]] | None = None,
+) -> Any:
+    active: set[str] = set()
+
+    def resolve(child: Any) -> Any:
+        if isinstance(child, Mapping):
+            if (
+                child.get("artifact_kind") == "RuntimeArtifactRef"
+                and child.get("reference_scope") == "runtime_blackboard"
+            ):
+                artifact_id = str(child.get("artifact_id", "") or "").strip()
+                expected_hash = str(child.get("content_hash", "") or "").strip()
+                if not artifact_id or not expected_hash:
+                    raise RuntimeArtifactReferenceError(
+                        "runtime artifact reference is missing identity or hash"
+                    )
+                if artifact_id in active:
+                    raise RuntimeArtifactReferenceError(
+                        "cyclic runtime artifact reference"
+                    )
+                artifact = artifacts.get(artifact_id)
+                if artifact is None or stable_hash(artifact) != expected_hash:
+                    raise RuntimeArtifactReferenceError(
+                        f"runtime artifact reference unavailable or stale: {artifact_id}"
+                    )
+                payload_kind = str(child.get("payload_kind", "") or "")
+                if (
+                    payload_kind
+                    and isinstance(artifact, Mapping)
+                    and str(artifact.get("artifact_kind", "") or "")
+                    != payload_kind
+                ):
+                    raise RuntimeArtifactReferenceError(
+                        f"runtime artifact reference kind mismatch: {artifact_id}"
+                    )
+                active.add(artifact_id)
+                try:
+                    resolved_artifact = resolve(deepcopy(artifact))
+                finally:
+                    active.remove(artifact_id)
+                if bindings is not None:
+                    bindings.setdefault(
+                        stable_hash(resolved_artifact),
+                        deepcopy(dict(child)),
+                    )
+                return resolved_artifact
+            return {str(key): resolve(item) for key, item in child.items()}
+        if isinstance(child, list):
+            return [resolve(item) for item in child]
+        if isinstance(child, tuple):
+            return tuple(resolve(item) for item in child)
+        return deepcopy(child)
+
+    return resolve(value)
+
+
+def resolve_runtime_artifact_references(
+    value: Any,
+    artifacts: Mapping[str, Any],
+) -> Any:
+    """Resolve explicit refs for a subsystem-owned restored task."""
+
+    return _resolve_runtime_artifact_references(value, artifacts)
+
+
+def _reapply_runtime_artifact_references(
+    value: Any,
+    bindings: Mapping[str, Mapping[str, Any]],
+) -> Any:
+    """Preserve existing refs when a subsystem forwards an unchanged payload."""
+
+    def compact(child: Any) -> Any:
+        if isinstance(child, Mapping):
+            if child.get("artifact_kind") == "RuntimeArtifactRef":
+                return deepcopy(dict(child))
+            reference = bindings.get(stable_hash(dict(child)))
+            if isinstance(reference, Mapping):
+                return deepcopy(dict(reference))
+            return {str(key): compact(item) for key, item in child.items()}
+        if isinstance(child, list):
+            return [compact(item) for item in child]
+        if isinstance(child, tuple):
+            return tuple(compact(item) for item in child)
+        return deepcopy(child)
+
+    return compact(value)
+
+
+def compact_runtime_artifact_references(
+    value: Any,
+    artifacts: Mapping[str, Any],
+    *,
+    artifact_kinds: frozenset[str] | None = None,
+) -> Any:
+    """Replace exact authoritative payload copies with existing artifact refs."""
+
+    candidate_kinds = set(artifact_kinds or ())
+    if artifact_kinds is None:
+        def collect_kinds(child: Any) -> None:
+            if isinstance(child, Mapping):
+                artifact_kind = str(child.get("artifact_kind", "") or "")
+                if artifact_kind and artifact_kind != "RuntimeArtifactRef":
+                    candidate_kinds.add(artifact_kind)
+                for item in child.values():
+                    collect_kinds(item)
+            elif isinstance(child, (list, tuple)):
+                for item in child:
+                    collect_kinds(item)
+
+        collect_kinds(value)
+    if not candidate_kinds:
+        return deepcopy(value)
+    bindings: dict[str, dict[str, Any]] = {}
+    for raw_artifact_id, artifact in sorted(
+        artifacts.items(),
+        key=lambda item: str(item[0]),
+    ):
+        if not isinstance(artifact, Mapping):
+            continue
+        if str(
+            artifact.get("artifact_kind", "") or ""
+        ) not in candidate_kinds:
+            continue
+        try:
+            resolved = _resolve_runtime_artifact_references(artifact, artifacts)
+        except RuntimeArtifactReferenceError:
+            continue
+        bindings.setdefault(
+            stable_hash(resolved),
+            runtime_artifact_reference(str(raw_artifact_id), artifact),
+        )
+    return _reapply_runtime_artifact_references(value, bindings)
 
 
 def agent_task_reference(task: AgentTask | None) -> dict[str, Any] | None:
@@ -503,6 +668,8 @@ class AgentRuntime:
 
         for iteration in range(1, max_iterations + 1):
             subsystem = self.subsystems.get(task.owner_subsystem)
+            execution_task = task
+            task_artifact_bindings: dict[str, dict[str, Any]] = {}
             self.blackboard.task_history.append(task.task_id)
             _emit_progress(
                 progress_callback,
@@ -554,7 +721,16 @@ class AgentRuntime:
                     }
                 )
                 try:
-                    result = subsystem.run(task, self.blackboard)
+                    execution_inputs = _resolve_runtime_artifact_references(
+                        task.inputs,
+                        self.blackboard.artifacts,
+                        bindings=task_artifact_bindings,
+                    )
+                    execution_task = replace(
+                        task,
+                        inputs=execution_inputs,
+                    )
+                    result = subsystem.run(execution_task, self.blackboard)
                     if retry_observations:
                         result = AgentStepResult(
                             status=result.status,
@@ -600,18 +776,28 @@ class AgentRuntime:
                             max_retries=max_retries,
                         )
                         continue
-                    failure_classification = (
-                        "transient_subsystem_exception_exhausted"
-                        if retry_observations and retryable
-                        else "subsystem_exception"
+                    artifact_reference_failure = isinstance(
+                        exc,
+                        RuntimeArtifactReferenceError,
                     )
+                    failure_classification = "subsystem_exception"
+                    rationale = f"subsystem raised {exc.__class__.__name__}: {exc}"
+                    observation_type = "subsystem_exception"
+                    if retry_observations and retryable:
+                        failure_classification = (
+                            "transient_subsystem_exception_exhausted"
+                        )
+                    if artifact_reference_failure:
+                        failure_classification = "task_artifact_reference_invalid"
+                        rationale = f"task artifact reference invalid: {exc}"
+                        observation_type = "task_artifact_reference_invalid"
                     result = AgentStepResult(
                         status="FAILED",
-                        rationale=f"subsystem raised {exc.__class__.__name__}: {exc}",
+                        rationale=rationale,
                         observations=tuple(retry_observations)
                         + (
                             EnvironmentObservation(
-                                observation_type="subsystem_exception",
+                                observation_type=observation_type,
                                 summary=str(exc),
                                 payload={
                                     "exception_type": exc.__class__.__name__,
@@ -644,10 +830,31 @@ class AgentRuntime:
             if self.handoff_policy is not None:
                 result = self.handoff_policy(
                     iteration=iteration,
-                    task=task,
+                    task=execution_task,
                     subsystem_name=subsystem_name,
                     result=result,
                     blackboard=self.blackboard,
+                )
+
+            if result.next_task is not None:
+                next_inputs = result.next_task.inputs
+                if task_artifact_bindings:
+                    next_inputs = _reapply_runtime_artifact_references(
+                        next_inputs,
+                        task_artifact_bindings,
+                    )
+                result = replace(
+                    result,
+                    next_task=replace(
+                        result.next_task,
+                        inputs=compact_runtime_artifact_references(
+                            next_inputs,
+                            {
+                                **self.blackboard.artifacts,
+                                **result.produced_artifacts,
+                            },
+                        ),
+                    ),
                 )
 
             result = _snapshot_agent_step_result(result)

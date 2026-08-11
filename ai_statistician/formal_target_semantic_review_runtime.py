@@ -13,7 +13,9 @@ from .agent_runtime import (
     EvidenceLedgerEntry,
     ToolCallRecord,
     agent_task_reference,
+    compact_runtime_artifact_references,
     materialize_agent_task_continuation,
+    resolve_runtime_artifact_references,
     restore_agent_task_continuation,
 )
 from .fingerprint import stable_hash
@@ -87,6 +89,7 @@ def _runtime_formal_target_semantic_review_dispatch(
     candidate_feedback: Mapping[str, Any],
     architect_context: Mapping[str, Any],
     deferred_next_task: AgentTask,
+    blackboard_artifacts: Mapping[str, Any],
     max_revisions: int,
 ) -> dict[str, Any] | None:
     target_context = (
@@ -216,12 +219,19 @@ def _runtime_formal_target_semantic_review_dispatch(
     work_order_id = "formal_target_semantic_review_work_order:" + stable_hash(
         work_order_seed
     )[:20]
+    persisted_deferred_task = replace(
+        deferred_next_task,
+        inputs=compact_runtime_artifact_references(
+            deferred_next_task.inputs,
+            blackboard_artifacts,
+        ),
+    )
     (
         deferred_task_continuation_id,
         deferred_task_continuation,
         deferred_task_artifacts,
     ) = materialize_agent_task_continuation(
-        deferred_next_task,
+        persisted_deferred_task,
         schema_version=RUNTIME_SCHEMA_VERSION,
     )
     work_order = {
@@ -297,7 +307,9 @@ def _runtime_formal_target_semantic_review_dispatch(
         "dispatch_validation_errors": sorted(
             set(dispatch_validation_errors)
         ),
-        "deferred_next_task_ref": agent_task_reference(deferred_next_task),
+        "deferred_next_task_ref": agent_task_reference(
+            persisted_deferred_task
+        ),
         "deferred_next_task_continuation_id": (
             deferred_task_continuation_id
         ),
@@ -657,24 +669,35 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 "formal-target review deferred task continuation ref mismatch"
             )
         try:
-            deferred_task = restore_agent_task_continuation(
+            persisted_deferred_task = restore_agent_task_continuation(
                 deferred_task_continuation,
                 blackboard.artifacts,
             )
         except ValueError as exc:
             validation_errors.append(str(exc))
             deferred_task = None
-        if deferred_task is not None and (
-            deferred_task.owner_subsystem != "FormalizationEvaluator"
-        ):
-            validation_errors.append(
-                "formal-target review deferred task is not FormalizationEvaluator"
-            )
-        if (
-            deferred_task is not None
-            and agent_task_reference(deferred_task) != deferred_task_ref
-        ):
-            validation_errors.append("formal-target review deferred task ref mismatch")
+        else:
+            if persisted_deferred_task.owner_subsystem != (
+                "FormalizationEvaluator"
+            ):
+                validation_errors.append(
+                    "formal-target review deferred task is not FormalizationEvaluator"
+                )
+            if agent_task_reference(persisted_deferred_task) != deferred_task_ref:
+                validation_errors.append(
+                    "formal-target review deferred task ref mismatch"
+                )
+            try:
+                deferred_task = replace(
+                    persisted_deferred_task,
+                    inputs=resolve_runtime_artifact_references(
+                        persisted_deferred_task.inputs,
+                        blackboard.artifacts,
+                    ),
+                )
+            except ValueError as exc:
+                validation_errors.append(str(exc))
+                deferred_task = None
 
         review_material: dict[str, Any] = {}
         if not validation_errors:

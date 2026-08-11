@@ -22,8 +22,11 @@ from .agent_runtime import (
     agent_task_from_payload as _agent_task_from_runtime_payload,
     agent_task_reference,
     agent_runtime_substage,
+    compact_runtime_artifact_references,
     materialize_agent_task_continuation,
+    resolve_runtime_artifact_references,
     restore_agent_task_continuation,
+    runtime_artifact_reference,
 )
 from .architect_coordinator_llm import (
     ARCHITECT_COORDINATOR_BOUNDARY,
@@ -614,7 +617,10 @@ def _architect_theory_preflight_accepted_result(
         "source_theory_packet_hash": theory_packet_hash,
         "preflight_packet_id": preflight_packet_id,
         "preflight_packet_hash": preflight_packet_hash,
-        "theory_execution_preflight_packet": dict(preflight_packet),
+        "theory_execution_preflight_packet": runtime_artifact_reference(
+            preflight_packet_id,
+            preflight_packet,
+        ),
         "execution_results_observed": False,
         "full_metric_authoring_completed": False,
         "algorithm_execution_available": True,
@@ -633,12 +639,18 @@ def _architect_theory_preflight_accepted_result(
             "simulation, accept statistical performance, or prove a theorem."
         ),
     }
+    acceptance_identity_payload = deepcopy(acceptance)
+    acceptance_identity_payload["theory_execution_preflight_packet"] = dict(
+        preflight_packet
+    )
     acceptance_id = (
         "architect_theory_execution_preflight_acceptance:"
-        + stable_hash(acceptance)[:20]
+        + stable_hash(acceptance_identity_payload)[:20]
     )
     acceptance["acceptance_id"] = acceptance_id
-    context["architect_theory_execution_preflight_acceptance"] = acceptance
+    context["architect_theory_execution_preflight_acceptance"] = (
+        runtime_artifact_reference(acceptance_id, acceptance)
+    )
     context["empirical_evaluation_phase"] = (
         EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
     )
@@ -2186,6 +2198,18 @@ def _architect_metric_protocol_prior_rejection_context(
             and not final_review.get("empirical_metric_requirements")
         ):
             continue
+        final_review_context = deepcopy(dict(final_review))
+        embedded_preflight = final_review_context.pop(
+            "theory_execution_preflight_packet",
+            {},
+        )
+        if isinstance(embedded_preflight, Mapping) and embedded_preflight:
+            final_review_context["theory_execution_preflight_packet_id"] = str(
+                embedded_preflight.get("packet_id", "") or ""
+            )
+            final_review_context["theory_execution_preflight_packet_hash"] = (
+                stable_hash(dict(embedded_preflight))
+            )
         return {
             "artifact_kind": (
                 "RuntimeArchitectMetricProtocolPriorRejectionContext"
@@ -2200,11 +2224,8 @@ def _architect_metric_protocol_prior_rejection_context(
                 current_theory_material.get("source_theory_packet_hash", "")
                 or ""
             ),
-            "semantic_review_history": [
-                deepcopy(dict(row))
-                for row in history
-                if isinstance(row, Mapping)
-            ],
+            "semantic_review_history_count": len(history),
+            "semantic_review_history_fingerprint": stable_hash(history),
             "cumulative_finding_ledger": [
                 deepcopy(dict(row))
                 for row in final_review.get(
@@ -2213,7 +2234,7 @@ def _architect_metric_protocol_prior_rejection_context(
                 or []
                 if isinstance(row, Mapping)
             ],
-            "final_review": deepcopy(dict(final_review)),
+            "final_review": final_review_context,
             "execution_results_available": False,
             "current_candidate_acceptance_eligible": False,
             "proof_evidence_status": (
@@ -3910,8 +3931,7 @@ class RetrievalMemoryRuntimeSubsystem:
                 "architect_acceptance_gate": retrieval_control.get("acceptance_gate", ""),
             },
         )
-        context["retrieval_memory_manifest_id"] = manifest_id
-        context["retrieval_context"] = {
+        retrieval_context_body = {
             "knowledge_cards": manifest["knowledge_cards"],
             "paper_sources": manifest["paper_sources"],
             "formal_source_hits": manifest["formal_source_hits"],
@@ -3920,6 +3940,21 @@ class RetrievalMemoryRuntimeSubsystem:
             "research_problem_authority": problem_authority,
             "boundary": manifest["boundary"],
         }
+        retrieval_context_id = (
+            "retrieval_context:"
+            + stable_hash([manifest_id, retrieval_context_body])[:20]
+        )
+        retrieval_context = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeRetrievalContext",
+            "context_id": retrieval_context_id,
+            "source_retrieval_memory_manifest_id": manifest_id,
+            "source_retrieval_memory_manifest_hash": stable_hash(manifest),
+            **retrieval_context_body,
+            "proof_evidence_status": "RETRIEVAL_CONTEXT_NOT_PROOF_EVIDENCE",
+        }
+        context["retrieval_memory_manifest_id"] = manifest_id
+        context["retrieval_context"] = retrieval_context
         if return_owner == "TheoryDeveloper":
             next_task = AgentTask(
                 task_id=f"theory:{question.id}:{stable_hash(manifest_id)[:8]}",
@@ -3985,7 +4020,10 @@ class RetrievalMemoryRuntimeSubsystem:
                 "Runtime retrieval memory recorded paper, knowledge, and "
                 f"formal-source context for {return_owner}."
             ),
-            produced_artifacts={manifest_id: manifest},
+            produced_artifacts={
+                manifest_id: manifest,
+                retrieval_context_id: retrieval_context,
+            },
             observations=(
                 EnvironmentObservation(
                     observation_type="retrieval_memory",
@@ -4492,9 +4530,6 @@ class TheoryDeveloperRuntimeSubsystem:
                     or ""
                 ),
             )
-        simulation_inputs = dict(simulation_task.inputs)
-        simulation_inputs["architect_context"] = context
-        simulation_task = replace(simulation_task, inputs=simulation_inputs)
         implementation_gaps = _implementation_gaps(
             packet,
             [],
@@ -4506,6 +4541,38 @@ class TheoryDeveloperRuntimeSubsystem:
             evidence_contract=evidence_contract,
             architect_context=context,
         )
+        theory_material_artifacts: dict[str, dict[str, Any]] = {}
+        current_theory_material_id = (
+            "theory_metric_protocol_material:"
+            + stable_hash(current_theory_material)[:20]
+        )
+        theory_material_artifacts[current_theory_material_id] = dict(
+            current_theory_material
+        )
+        context["architect_metric_protocol_theory_material"] = (
+            current_theory_material
+        )
+        prior_theory_material = context.get(
+            "metric_protocol_prior_theory_material", {}
+        )
+        if (
+            isinstance(prior_theory_material, Mapping)
+            and prior_theory_material.get("artifact_kind")
+            == "RuntimeTheoryInformedMetricProtocolMaterial"
+        ):
+            prior_theory_material_id = (
+                "theory_metric_protocol_material:"
+                + stable_hash(dict(prior_theory_material))[:20]
+            )
+            theory_material_artifacts[prior_theory_material_id] = dict(
+                prior_theory_material
+            )
+            context["metric_protocol_prior_theory_material"] = (
+                prior_theory_material
+            )
+        simulation_inputs = dict(simulation_task.inputs)
+        simulation_inputs["architect_context"] = context
+        simulation_task = replace(simulation_task, inputs=simulation_inputs)
         architect_route_artifacts: dict[str, dict[str, Any]] = {}
         if requires_metric_protocol_gate:
             prior_metric_gate = context.get(
@@ -4528,7 +4595,7 @@ class TheoryDeveloperRuntimeSubsystem:
                 if str(value).strip()
             ]
             context["theory_packet_id"] = packet_id
-            context["architect_metric_protocol_theory_material"] = dict(
+            context["architect_metric_protocol_theory_material"] = (
                 current_theory_material
             )
             context["architect_metric_protocol_gate"] = {
@@ -4692,7 +4759,11 @@ class TheoryDeveloperRuntimeSubsystem:
                     "available evidence worker."
                 )
             ),
-            produced_artifacts={packet_id: packet, **architect_route_artifacts},
+            produced_artifacts={
+                packet_id: packet,
+                **theory_material_artifacts,
+                **architect_route_artifacts,
+            },
             observations=(
                 EnvironmentObservation(
                     observation_type="llm_theory_derivation_packet",
@@ -5180,6 +5251,7 @@ def _runtime_generated_code_semantic_review_dispatch(
     proposal_packet: Mapping[str, Any] | None,
     architect_context: Mapping[str, Any],
     deferred_next_task: AgentTask,
+    blackboard_artifacts: Mapping[str, Any],
     max_revisions: int,
 ) -> dict[str, Any] | None:
     review_rows = _runtime_generated_code_semantic_review_rows(
@@ -5254,13 +5326,27 @@ def _runtime_generated_code_semantic_review_dispatch(
     work_order_id = "generated_code_semantic_review_work_order:" + stable_hash(
         [task.task_id, manifest_id, reviewed_artifacts, review_revision_count]
     )[:20]
-    deferred_task_payload = asdict(deferred_next_task)
+    persisted_source_task = replace(
+        task,
+        inputs=compact_runtime_artifact_references(
+            task.inputs,
+            blackboard_artifacts,
+        ),
+    )
+    persisted_deferred_task = replace(
+        deferred_next_task,
+        inputs=compact_runtime_artifact_references(
+            deferred_next_task.inputs,
+            blackboard_artifacts,
+        ),
+    )
+    deferred_task_payload = asdict(persisted_deferred_task)
     (
         deferred_task_continuation_id,
         deferred_task_continuation,
         deferred_task_artifacts,
     ) = materialize_agent_task_continuation(
-        deferred_next_task,
+        persisted_deferred_task,
         schema_version=RUNTIME_SCHEMA_VERSION,
     )
     deferred_task_continuation_ref = agent_task_continuation_reference(
@@ -5271,7 +5357,7 @@ def _runtime_generated_code_semantic_review_dispatch(
         source_task_continuation,
         source_task_artifacts,
     ) = materialize_agent_task_continuation(
-        task,
+        persisted_source_task,
         schema_version=RUNTIME_SCHEMA_VERSION,
         linked_input_references={
             stable_hash(deferred_task_payload): deferred_task_continuation_ref,
@@ -5314,8 +5400,10 @@ def _runtime_generated_code_semantic_review_dispatch(
         "confirmatory_empirical_evidence_eligible": (
             confirmatory_empirical_evidence_eligible
         ),
-        "source_task_ref": agent_task_reference(task),
-        "deferred_next_task_ref": agent_task_reference(deferred_next_task),
+        "source_task_ref": agent_task_reference(persisted_source_task),
+        "deferred_next_task_ref": agent_task_reference(
+            persisted_deferred_task
+        ),
         "source_task_continuation_id": source_task_continuation_id,
         "source_task_continuation_hash": stable_hash(
             source_task_continuation
@@ -6021,35 +6109,52 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         source_task: AgentTask | None = None
         deferred_task: AgentTask | None = None
         try:
-            source_task = restore_agent_task_continuation(
+            persisted_source_task = restore_agent_task_continuation(
                 source_task_continuation,
                 blackboard.artifacts,
             )
-            deferred_task = restore_agent_task_continuation(
+            persisted_deferred_task = restore_agent_task_continuation(
                 deferred_task_continuation,
                 blackboard.artifacts,
             )
         except ValueError as exc:
             validation_errors.append(str(exc))
         else:
-            if source_task.owner_subsystem != source_subsystem:
+            if persisted_source_task.owner_subsystem != source_subsystem:
                 validation_errors.append(
                     "semantic review source task owner mismatch"
                 )
-            if source_task.task_id != str(
+            if persisted_source_task.task_id != str(
                 work_order.get("source_task_id", "") or ""
             ):
                 validation_errors.append(
                     "semantic review source task identity mismatch"
                 )
-            if agent_task_reference(source_task) != work_order.get(
+            if agent_task_reference(persisted_source_task) != work_order.get(
                 "source_task_ref"
             ):
                 validation_errors.append("semantic review source task ref mismatch")
-            if agent_task_reference(deferred_task) != work_order.get(
+            if agent_task_reference(persisted_deferred_task) != work_order.get(
                 "deferred_next_task_ref"
             ):
                 validation_errors.append("semantic review deferred task ref mismatch")
+            try:
+                source_task = replace(
+                    persisted_source_task,
+                    inputs=resolve_runtime_artifact_references(
+                        persisted_source_task.inputs,
+                        blackboard.artifacts,
+                    ),
+                )
+                deferred_task = replace(
+                    persisted_deferred_task,
+                    inputs=resolve_runtime_artifact_references(
+                        persisted_deferred_task.inputs,
+                        blackboard.artifacts,
+                    ),
+                )
+            except ValueError as exc:
+                validation_errors.append(str(exc))
         source_task_payload = asdict(source_task) if source_task is not None else {}
         deferred_task_payload = (
             asdict(deferred_task) if deferred_task is not None else {}
@@ -8676,6 +8781,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         proposal_packet=proposal_packet,
                         architect_context=effective_context,
                         deferred_next_task=next_task,
+                        blackboard_artifacts=blackboard.artifacts,
                         max_revisions=self.semantic_review_max_revisions,
                     )
                 )
@@ -9519,6 +9625,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 proposal_packet=proposal_packet,
                 architect_context=effective_context,
                 deferred_next_task=next_task,
+                blackboard_artifacts=blackboard.artifacts,
                 max_revisions=self.semantic_review_max_revisions,
             )
             if semantic_review_dispatch is not None:
@@ -11289,6 +11396,7 @@ class FormalizerWorkspaceRuntimeSubsystem:
                             source_artifact_id=manifest_id,
                         )
                     ),
+                    blackboard_artifacts=blackboard.artifacts,
                     max_revisions=(
                         self.formal_target_semantic_review_max_revisions
                     ),
@@ -11469,6 +11577,7 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         candidate_feedback=compiled_exact_review_feedback,
                         architect_context=context,
                         deferred_next_task=compiled_exact_proofengineer_task,
+                        blackboard_artifacts=blackboard.artifacts,
                         max_revisions=(
                             self.formal_target_semantic_review_max_revisions
                         ),
@@ -12993,6 +13102,17 @@ def _runtime_task_hash_bound_artifact_ids(
     def bound_references(value: Any) -> list[str]:
         references: list[str] = []
         if isinstance(value, Mapping):
+            if value.get("artifact_kind") == "RuntimeArtifactRef":
+                artifact_id = str(value.get("artifact_id", "") or "").strip()
+                content_hash = str(value.get("content_hash", "") or "").strip()
+                artifact = artifacts.get(artifact_id)
+                if (
+                    artifact_id
+                    and content_hash
+                    and artifact is not None
+                    and stable_hash(artifact) == content_hash
+                ):
+                    references.append(artifact_id)
             for raw_key, raw_id in value.items():
                 key = str(raw_key)
                 if not key.endswith("_id"):

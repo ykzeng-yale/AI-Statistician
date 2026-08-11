@@ -261,6 +261,11 @@ def _runtime_fixture(
         candidate_feedback=candidate_feedback,
         architect_context=source_task.inputs["architect_context"],
         deferred_next_task=deferred_task,
+        blackboard_artifacts={
+            theory_packet["packet_id"]: theory_packet,
+            proposal_packet["packet_id"]: proposal_packet,
+            candidate_materialization["manifest_id"]: candidate_materialization,
+        },
         max_revisions=max_revisions,
     )
     assert dispatch is not None

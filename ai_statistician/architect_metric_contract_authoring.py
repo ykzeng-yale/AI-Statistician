@@ -1788,15 +1788,21 @@ def author_reviewed_architect_metric_requirements(
     )
     cumulative_finding_ledger: list[dict[str, Any]] = []
     if carry_forward_valid:
-        carried_history = carry_forward.get("semantic_review_history", [])
-        if not isinstance(carried_history, list) or not carried_history:
-            carried_history = [dict(carried_review)]
-        cumulative_finding_ledger = (
-            metric_protocol_finding_ledger_from_review_history(
-                question_id=question.id,
-                semantic_review_history=carried_history,
+        cumulative_finding_ledger = [
+            dict(row)
+            for row in carry_forward.get("cumulative_finding_ledger", []) or []
+            if isinstance(row, Mapping)
+        ]
+        if not cumulative_finding_ledger:
+            carried_history = carry_forward.get("semantic_review_history", [])
+            if not isinstance(carried_history, list) or not carried_history:
+                carried_history = [dict(carried_review)]
+            cumulative_finding_ledger = (
+                metric_protocol_finding_ledger_from_review_history(
+                    question_id=question.id,
+                    semantic_review_history=carried_history,
+                )
             )
-        )
         prior_authoring_packet = {
             "packet_id": str(
                 carried_review.get("authoring_packet_id", "") or ""

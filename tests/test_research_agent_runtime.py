@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 import json
-from dataclasses import asdict, fields
+from dataclasses import asdict, fields, replace
 
 import pytest
 
@@ -13,6 +13,8 @@ from ai_statistician.agent_runtime import (
     BlackboardState,
     TaskHandoffRecord,
     restore_agent_task_continuation,
+    resolve_runtime_artifact_references,
+    runtime_artifact_reference,
 )
 from ai_statistician.algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
@@ -697,7 +699,13 @@ def test_generated_code_review_dispatch_uses_content_addressed_task_refs() -> No
         description="Check whether executed code implements the stated estimator.",
         tags=("coding", "semantic-review"),
     )
-    large_context = {"theory_workspace": "context-payload-" + "x" * 100_000}
+    context_artifact_id = "retrieval_context:generic-code-review"
+    context_artifact = {
+        "artifact_kind": "RuntimeRetrievalContext",
+        "context_id": context_artifact_id,
+        "theory_workspace": "context-payload-" + "x" * 100_000,
+    }
+    large_context = {"retrieval_context": context_artifact}
     deferred_task = AgentTask(
         task_id="formalize:generic-code-review",
         owner_subsystem="FormalizationEvaluator",
@@ -755,6 +763,7 @@ def test_generated_code_review_dispatch_uses_content_addressed_task_refs() -> No
         proposal_packet=proposal_packet,
         architect_context={},
         deferred_next_task=deferred_task,
+        blackboard_artifacts={context_artifact_id: context_artifact},
         max_revisions=1,
     )
 
@@ -780,21 +789,125 @@ def test_generated_code_review_dispatch_uses_content_addressed_task_refs() -> No
         source_task.task_id,
         deferred_task.task_id,
     }
+    all_artifacts = {
+        context_artifact_id: context_artifact,
+        **dispatch["artifacts"],
+    }
     restored = {
-        row["task_ref"]["task_id"]: restore_agent_task_continuation(
-            row,
-            dispatch["artifacts"],
+        row["task_ref"]["task_id"]: replace(
+            restored_task,
+            inputs=resolve_runtime_artifact_references(
+                restored_task.inputs,
+                all_artifacts,
+            ),
         )
         for row in continuations
+        for restored_task in (
+            restore_agent_task_continuation(row, all_artifacts),
+        )
     }
     assert restored[source_task.task_id] == source_task
     assert restored[deferred_task.task_id] == deferred_task
     serialized = json.dumps(dispatch["artifacts"], sort_keys=True)
-    assert serialized.count(large_context["theory_workspace"]) == 1
-    assert len(serialized) < 150_000
+    assert context_artifact["theory_workspace"] not in serialized
+    assert len(serialized) < 50_000
     assert "RuntimeAgentTaskSnapshot" not in serialized
     protected = runtime_module._runtime_task_hash_bound_artifact_ids(
         dispatch["next_task"],
-        dispatch["artifacts"],
+        all_artifacts,
     )
-    assert protected == frozenset(dispatch["artifacts"])
+    assert protected == frozenset(all_artifacts)
+
+
+def test_metric_prior_rejection_context_does_not_copy_source_history() -> None:
+    preflight_packet = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightPacket",
+        "packet_id": "preflight:q1",
+        "source": "x" * 100_000,
+    }
+    final_review = {
+        "review_stage": "theory_execution_preflight",
+        "source_theory_packet_id": "theory:q1",
+        "source_theory_packet_hash": "theory-hash",
+        "theory_execution_preflight_packet": preflight_packet,
+        "cumulative_finding_ledger": [
+            {
+                "finding_id": "finding:q1",
+                "status": "ACTIVE",
+                "summary": "one unresolved theory finding",
+            }
+        ],
+        "findings": [
+            {
+                "finding_id": "finding:q1",
+                "summary": "one unresolved theory finding",
+            }
+        ],
+    }
+    rejection_id = "metric_protocol_rejection:q1"
+    rejection = {
+        "artifact_kind": "RuntimeArchitectMetricProtocolPreExecutionRejection",
+        "feedback_reusable_for_fresh_preexecution_authoring": True,
+        "execution_authorized": False,
+        "semantic_review_history": [final_review],
+    }
+    material = {
+        "source_theory_packet_id": "theory:q1",
+        "source_theory_packet_hash": "theory-hash",
+    }
+
+    context = runtime_module._architect_metric_protocol_prior_rejection_context(
+        architect_context={
+            "architect_metric_protocol_gate": {
+                "rejection_manifest_ids": [rejection_id]
+            }
+        },
+        blackboard=BlackboardState(
+            project_id="prior-rejection-context-test",
+            artifacts={rejection_id: rejection},
+        ),
+        current_theory_material=material,
+    )
+
+    assert context["source_rejection_manifest_id"] == rejection_id
+    assert context["source_rejection_manifest_hash"] == runtime_module.stable_hash(
+        rejection
+    )
+    assert context["semantic_review_history_count"] == 1
+    assert "semantic_review_history" not in context
+    projected_review = context["final_review"]
+    assert "theory_execution_preflight_packet" not in projected_review
+    assert projected_review["theory_execution_preflight_packet_id"] == (
+        "preflight:q1"
+    )
+    assert projected_review["theory_execution_preflight_packet_hash"] == (
+        runtime_module.stable_hash(preflight_packet)
+    )
+    assert context["cumulative_finding_ledger"] == (
+        final_review["cumulative_finding_ledger"]
+    )
+    assert len(json.dumps(context, sort_keys=True)) < 5_000
+
+
+def test_runtime_artifact_ref_is_protected_by_resume_closure() -> None:
+    artifact_id = "workspace:q1"
+    artifact = {
+        "artifact_kind": "RuntimeModelOwnedWorkspace",
+        "artifact_id": artifact_id,
+        "source": "current model-authored source",
+    }
+    task = AgentTask(
+        task_id="continue:q1",
+        owner_subsystem="FormalizationEvaluator",
+        objective="continue the same workspace",
+        inputs={
+            "workspace": runtime_artifact_reference(artifact_id, artifact)
+        },
+    )
+
+    protected = runtime_module._runtime_task_hash_bound_artifact_ids(
+        task,
+        {artifact_id: artifact},
+    )
+
+    assert protected == frozenset({artifact_id})
