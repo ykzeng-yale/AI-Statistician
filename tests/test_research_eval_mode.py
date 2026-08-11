@@ -320,6 +320,11 @@ def test_research_eval_exports_pending_continuations_for_every_question(
         == "RuntimeAgentTaskContinuationRef"
         for row in pending
     )
+    assert all(
+        row["pending_task_checkpoint_reason"]
+        == "outer_iteration_budget_exhausted"
+        for row in pending
+    )
     pending_rows = [
         json.loads(line)
         for line in Path(

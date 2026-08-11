@@ -19080,8 +19080,16 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
             )
             else {}
         )
+        pending_task_checkpoint_reason = str(
+            result.get("pending_task_checkpoint_reason", "") or ""
+        )
         failure_classification = str(final_trace.get("failure_classification", "") or "")
-        last_task_id = str(final_trace.get("task_id", "") or "")
+        final_task_payload = (
+            final_trace.get("task", {})
+            if isinstance(final_trace.get("task"), Mapping)
+            else {}
+        )
+        last_task_id = str(final_task_payload.get("task_id", "") or "")
         max_iterations_reached = status == "MAX_ITERATIONS_REACHED"
         budget_exhausted_with_pending = bool(max_iterations_reached and pending_next_task_id)
         budget_exhausted_after_revision = bool(
@@ -19159,6 +19167,9 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
                 "pending_next_task": pending_next_task,
                 "pending_task_continuation_ref": (
                     pending_task_continuation_ref
+                ),
+                "pending_task_checkpoint_reason": (
+                    pending_task_checkpoint_reason
                 ),
                 "max_iterations_reached": max_iterations_reached,
                 "budget_exhausted_with_pending_next_task": budget_exhausted_with_pending,
@@ -19337,6 +19348,9 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
             )
             else {}
         ),
+        "pending_task_checkpoint_reason": str(
+            first_pending.get("pending_task_checkpoint_reason", "") or ""
+        ),
         "payload_policy": "content_addressed_task_continuations",
         "boundary": (
             "Runtime terminal status is an orchestration diagnostic. Budget exhaustion "
@@ -19395,6 +19409,13 @@ def _runtime_pending_next_task_rows(
                 "pending_next_task_id": pending_next_task_id,
                 "pending_next_task": dict(pending_next_task),
                 "pending_task_continuation_ref": dict(continuation_ref),
+                "pending_task_checkpoint_reason": str(
+                    completion_row.get(
+                        "pending_task_checkpoint_reason",
+                        "",
+                    )
+                    or ""
+                ),
                 "payload_policy": "content_addressed_task_continuations",
                 "terminal_kind": str(
                     completion_row.get("terminal_kind", "") or ""

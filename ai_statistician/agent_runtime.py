@@ -628,6 +628,7 @@ class AgentRuntimeResult:
     traces: tuple[RuntimeIterationTrace, ...]
     pending_task: AgentTask | None = None
     pending_task_continuation_ref: dict[str, Any] = field(default_factory=dict)
+    pending_task_checkpoint_reason: str = ""
 
     def to_json(self, *, include_task_payloads: bool = False) -> dict[str, Any]:
         return {
@@ -640,6 +641,9 @@ class AgentRuntimeResult:
             ),
             "pending_task_continuation_ref": deepcopy(
                 self.pending_task_continuation_ref
+            ),
+            "pending_task_checkpoint_reason": (
+                self.pending_task_checkpoint_reason
             ),
             "blackboard": self.blackboard.to_json(),
             "traces": [
@@ -932,10 +936,22 @@ class AgentRuntime:
                 break
             task = deepcopy(result.next_task)
 
+        terminal_failure_classification = (
+            traces[-1].failure_classification if traces else ""
+        )
+        pending_task_checkpoint_reason = ""
+        if final_status == "MAX_ITERATIONS_REACHED":
+            pending_task_checkpoint_reason = "outer_iteration_budget_exhausted"
+        elif (
+            final_status == "FAILED"
+            and terminal_failure_classification
+            == "transient_subsystem_exception_exhausted"
+        ):
+            pending_task_checkpoint_reason = (
+                "transient_subsystem_exception_exhausted"
+            )
         pending_task = (
-            deepcopy(task)
-            if final_status == "MAX_ITERATIONS_REACHED"
-            else None
+            deepcopy(task) if pending_task_checkpoint_reason else None
         )
         pending_task_continuation_ref: dict[str, Any] = {}
         if pending_task is not None:
@@ -956,6 +972,7 @@ class AgentRuntime:
             traces=tuple(traces),
             pending_task=pending_task,
             pending_task_continuation_ref=pending_task_continuation_ref,
+            pending_task_checkpoint_reason=pending_task_checkpoint_reason,
         )
 
 

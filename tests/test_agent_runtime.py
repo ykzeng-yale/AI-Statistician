@@ -472,6 +472,9 @@ def test_agent_runtime_checkpoints_exact_pending_task_at_budget_boundary() -> No
     )
 
     assert result.status == "MAX_ITERATIONS_REACHED"
+    assert result.pending_task_checkpoint_reason == (
+        "outer_iteration_budget_exhausted"
+    )
     assert result.pending_task is not None
     assert result.pending_task.task_id == "simulate:q1"
     continuation_ref = result.pending_task_continuation_ref
@@ -725,6 +728,59 @@ def test_agent_runtime_retries_provider_api_timeout_once() -> None:
     assert retry_row["max_retries"] == 1
     assert finish_row["retry_attempt"] == 1
     assert finish_row["max_retries"] == 1
+
+
+def test_agent_runtime_checkpoints_transient_provider_exhaustion() -> None:
+    class APIOverloadedError(Exception):
+        pass
+
+    APIOverloadedError.__module__ = "anthropic"
+
+    class OverloadedProviderSubsystem:
+        name = "TheoryDeveloper"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            self.calls += 1
+            raise APIOverloadedError("provider overloaded")
+
+    subsystem = OverloadedProviderSubsystem()
+    initial_task = AgentTask(
+        task_id="theory:q1",
+        owner_subsystem="TheoryDeveloper",
+        objective="preserve an externally interrupted model task",
+        inputs={"question": {"id": "q1"}},
+    )
+    result = AgentRuntime(
+        subsystems={"TheoryDeveloper": subsystem},
+        blackboard=BlackboardState(project_id="provider-overload-test"),
+    ).run(
+        initial_task,
+        max_transient_subsystem_retries=1,
+    )
+
+    assert result.status == "FAILED"
+    assert subsystem.calls == 2
+    assert result.traces[-1].failure_classification == (
+        "transient_subsystem_exception_exhausted"
+    )
+    assert result.pending_task == initial_task
+    assert result.pending_task_checkpoint_reason == (
+        "transient_subsystem_exception_exhausted"
+    )
+    continuation = result.blackboard.artifacts[
+        result.pending_task_continuation_ref["continuation_id"]
+    ]
+    assert restore_agent_task_continuation(
+        continuation,
+        result.blackboard.artifacts,
+    ) == initial_task
 
 
 def test_agent_runtime_blocks_missing_subsystem() -> None:
