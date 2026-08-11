@@ -19,9 +19,15 @@ from ai_statistician.agent_runtime import (
 from ai_statistician.algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
 )
+from ai_statistician.generated_code_semantic_reviewer_llm import (
+    GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
+    GeneratedCodeSemanticReviewerConfig,
+    LLMGeneratedCodeSemanticReviewerAgent,
+)
 from ai_statistician.model_backend import (
     LIVE_EVALUATION_CLAUDE_MODEL,
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    StaticJSONGeneratorBackend,
 )
 from ai_statistician.research_agent_runtime import (
     CriticEvaluatorRuntimeSubsystem,
@@ -1097,6 +1103,212 @@ def test_independent_semantic_review_escalation_keeps_source_out_of_task_payload
     assert "rejected_candidate" not in routed
     assert "environment_feedback" not in next_task.inputs["architect_context"]
     assert complete_source not in repr(next_task.inputs)
+
+
+def test_cross_artifact_review_assessment_can_escalate_before_budget_exhaustion() -> None:
+    question = OpenResearchQuestion(
+        id="cross-artifact-review",
+        title="Resolve a cross-artifact semantic conflict",
+        description="A source-only edit cannot reconcile immutable artifacts.",
+    )
+    source_task = AgentTask(
+        task_id="algorithm:cross-artifact-review",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Own and execute the complete source.",
+        inputs={"question": runtime_module._question_to_payload(question)},
+    )
+    next_task = runtime_module._independent_semantic_review_architect_escalation_task(
+        task=source_task,
+        question=question,
+        context={},
+        revision_feedback={
+            "feedback_id": "feedback:cross-artifact",
+            "feedback_source": "GeneratedCodeSemanticReviewer",
+            "failure_classification": (
+                "generated_code_semantic_review_requires_cross_artifact_resolution"
+            ),
+            "semantic_review_packet_id": "review:cross-artifact",
+            "source_revision_assessment": {
+                "current_source_edit_sufficient": False,
+                "rationale": "The immutable theory and protocol conflict.",
+                "evidence_refs": [
+                    "/review_material/theory_packet",
+                    "/review_material/architect_frozen_evidence_contract",
+                ],
+            },
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        },
+        source_artifact_id="algorithm_manifest:cross-artifact",
+    )
+
+    assert next_task.owner_subsystem == "ArchitectCoordinator"
+    observation = next_task.inputs["environment_feedback"]
+    assert observation["failure_classification"] == (
+        "generated_code_semantic_review_requires_cross_artifact_resolution"
+    )
+    assert observation["source_artifact_id"] == (
+        "algorithm_manifest:cross-artifact"
+    )
+    assert next_task.inputs["architect_context"]["workspace_replan"][
+        "failure_classification"
+    ] == observation["failure_classification"]
+
+
+def test_cross_artifact_review_skips_another_source_regeneration(tmp_path) -> None:
+    question = OpenResearchQuestion(
+        id="cross-artifact-runtime-review",
+        title="Resolve a cross-artifact semantic conflict",
+        description="Review exact generated code against immutable parents.",
+    )
+    source = "def run_sandbox(seed, replicates):\n    return {'estimate': 1.0}\n"
+    result_payload = {"estimate": 1.0}
+    source_path = tmp_path / "candidate.py"
+    result_path = tmp_path / "result.json"
+    source_path.write_text(source, encoding="utf-8")
+    result_path.write_text(json.dumps(result_payload), encoding="utf-8")
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory:cross-artifact-runtime-review",
+        "claim": "The frozen meaning conflicts with the implemented statistic.",
+    }
+    proposal_packet = {
+        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "packet_id": "proposal:cross-artifact-runtime-review",
+        "source_agent": "LLMAlgorithmEngineerAgent",
+        "model": "static-author",
+        "model_tier": "haiku",
+    }
+    source_manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": "algorithm_manifest:cross-artifact-runtime-review",
+        "prototypes": [
+            {
+                "estimator_id": "candidate",
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+                "script_path": str(source_path),
+                "script_hash": runtime_module.stable_hash(source),
+                "result_path": str(result_path),
+                "result_hash": runtime_module.stable_hash(result_payload),
+                "metrics": result_payload,
+                "runtime_seed": 7,
+                "runtime_replicates": 20,
+            }
+        ],
+    }
+    deferred_task = AgentTask(
+        task_id="formalize:cross-artifact-runtime-review",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Continue only after accepted generated code.",
+        inputs={"question": runtime_module._question_to_payload(question)},
+    )
+    source_task = AgentTask(
+        task_id="algorithm:cross-artifact-runtime-review",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Author and execute the complete estimator source.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {},
+        },
+    )
+    base_artifacts = {
+        theory_packet["packet_id"]: theory_packet,
+        proposal_packet["packet_id"]: proposal_packet,
+        source_manifest["manifest_id"]: source_manifest,
+    }
+    dispatch = _runtime_generated_code_semantic_review_dispatch(
+        task=source_task,
+        question=question,
+        source_subsystem="AlgorithmEngineer",
+        source_manifest=source_manifest,
+        theory_packet=theory_packet,
+        proposal_packet=proposal_packet,
+        architect_context={},
+        deferred_next_task=deferred_task,
+        blackboard_artifacts=base_artifacts,
+        max_revisions=3,
+    )
+    assert dispatch is not None
+    response = {
+        "prior_finding_reviews": [],
+        "dimension_reviews": {
+            dimension: {
+                "status": (
+                    "FAIL" if dimension == "metric_semantics_alignment" else "PASS"
+                ),
+                "rationale": "The cited artifacts establish this judgment.",
+                "evidence_refs": [
+                    "/exact_executed_artifacts/0/exact_source_code"
+                ],
+            }
+            for dimension in GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
+        },
+        "findings": [
+            {
+                "severity": "high",
+                "category": "cross_artifact_conflict",
+                "summary": "The immutable theory and frozen meaning conflict.",
+                "observed_behavior": "Source implements one supplied meaning.",
+                "expected_behavior": "The parent artifacts must identify one meaning.",
+                "evidence_refs": [
+                    "/theory_packet",
+                    "/architect_frozen_evidence_contract",
+                ],
+            }
+        ],
+        "source_revision_assessment": {
+            "current_source_edit_sufficient": False,
+            "rationale": "Editing this source cannot reconcile immutable parents.",
+            "evidence_refs": [
+                "/theory_packet",
+                "/architect_frozen_evidence_contract",
+            ],
+        },
+    }
+    reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model="static-reviewer",
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+    blackboard = BlackboardState(project_id="cross-artifact-runtime-review")
+    blackboard.artifacts.update(base_artifacts)
+    blackboard.artifacts.update(dispatch["artifacts"])
+
+    outcome = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=reviewer,
+        max_revisions=3,
+    ).run(dispatch["next_task"], blackboard)
+
+    assert outcome.status == "REROUTE"
+    assert outcome.failure_classification == (
+        "generated_code_semantic_review_requires_cross_artifact_resolution"
+    )
+    assert outcome.next_task is not None
+    assert outcome.next_task.owner_subsystem == "ArchitectCoordinator"
+    unresolved_feedback = outcome.next_task.inputs["environment_feedback"]
+    assert unresolved_feedback["observation_artifact_ref"]["artifact_kind"] == (
+        "RuntimeArtifactRef"
+    )
+    resolved_feedback = resolve_runtime_artifact_references(
+        unresolved_feedback,
+        {**blackboard.artifacts, **outcome.produced_artifacts},
+    )
+    assert resolved_feedback["observation_artifact_ref"][
+        "source_revision_assessment"
+    ]["current_source_edit_sufficient"] is False
+    execution = next(
+        artifact
+        for artifact in outcome.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+    )
+    assert execution["semantic_review_lineage_budget"]["selected_action"] == (
+        "architect_replan"
+    )
 
 
 def test_generated_code_review_dispatch_uses_content_addressed_task_refs() -> None:

@@ -27,7 +27,7 @@ from .model_backend import (
 from .research_schema import OpenResearchQuestion
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 19
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 20
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -579,11 +579,36 @@ def _finding_schema() -> dict[str, Any]:
     }
 
 
+def _source_revision_assessment_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "current_source_edit_sufficient",
+            "rationale",
+            "evidence_refs",
+        ],
+        "properties": {
+            "current_source_edit_sufficient": {"type": "boolean"},
+            "rationale": {"type": "string", "minLength": 1},
+            "evidence_refs": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 1},
+            },
+        },
+    }
+
+
 GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "additionalProperties": False,
-    "required": ["prior_finding_reviews", "dimension_reviews", "findings"],
+    "required": [
+        "prior_finding_reviews",
+        "dimension_reviews",
+        "findings",
+        "source_revision_assessment",
+    ],
     "properties": {
         "prior_finding_reviews": {
             "type": "array",
@@ -603,6 +628,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
             "maxItems": GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS,
             "items": _finding_schema(),
         },
+        "source_revision_assessment": _source_revision_assessment_schema(),
     },
 }
 
@@ -636,6 +662,9 @@ def generated_code_semantic_review_json_schema(
                 "properties"
             ]["evidence_refs"]["items"]["enum"] = valid_refs
         schema["properties"]["findings"]["items"]["properties"][
+            "evidence_refs"
+        ]["items"]["enum"] = valid_refs
+        schema["properties"]["source_revision_assessment"]["properties"][
             "evidence_refs"
         ]["items"]["enum"] = valid_refs
     return schema
@@ -682,6 +711,12 @@ def build_generated_code_semantic_review_prompt(
         "Each finding must describe "
         "observed_behavior and expected_behavior and correspond to at least one FAIL "
         "or UNCERTAIN dimension. If every dimension is PASS, findings must be empty. "
+        "For source_revision_assessment, answer only the counterfactual question: "
+        "could editing the current exact source alone close every active finding while "
+        "holding the supplied theory, frozen contract, and runtime interface fixed? "
+        "Set current_source_edit_sufficient=false when those immutable artifacts are "
+        "themselves contradictory, incomplete, or require a cross-artifact decision, "
+        "and cite that evidence. This assessment is not a repair plan or owner choice. "
         "Do not propose source edits, tactics, repair rules, owners, routes, or plans; "
         "ArchitectCoordinator decides what subsystem acts next. Do not infer omitted "
         "array values from a bounded projection. Review every prior finding exactly "
@@ -701,8 +736,9 @@ def build_generated_code_semantic_review_prompt(
 GENERATED_CODE_SEMANTIC_REVIEW_SYSTEM_PROMPT = """\
 You are an independent semantic reviewer inside an AI Statistician runtime.
 Judge what executed generated code actually measures and implements. Ground every
-blocking observation in the supplied artifacts. Do not choose a repair owner or
-write replacement code. Never claim statistical acceptance or theorem proof.
+blocking observation in the supplied artifacts. Assess whether current-source-only
+revision is sufficient, but do not choose a repair owner or write replacement code.
+Never claim statistical acceptance or theorem proof.
 """
 
 
@@ -857,6 +893,26 @@ def _normalize_prior_reviews(
     return rows
 
 
+def _normalize_source_revision_assessment(
+    value: Any,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or "current_source_edit_sufficient" not in value:
+        return {
+            "current_source_edit_sufficient": True,
+            "rationale": (
+                "No cross-artifact conflict was asserted by the reviewer."
+            ),
+            "evidence_refs": [],
+        }
+    return {
+        "current_source_edit_sufficient": (
+            value.get("current_source_edit_sufficient") is True
+        ),
+        "rationale": str(value.get("rationale", "") or "").strip(),
+        "evidence_refs": _evidence_ref_list(value.get("evidence_refs", [])),
+    }
+
+
 def _derived_verdict(
     dimensions: Sequence[Mapping[str, Any]],
     findings: Sequence[Mapping[str, Any]],
@@ -901,6 +957,9 @@ def _normalize_generated_code_semantic_review_packet(
         findings=payload.get("findings", []),
         preserve_existing_ids=False,
     )
+    source_revision_assessment = _normalize_source_revision_assessment(
+        payload.get("source_revision_assessment", {})
+    )
     verdict = _derived_verdict(dimensions, findings, prior_reviews)
     review_event_id = "generated_code_semantic_review_event:" + stable_hash(
         {
@@ -932,6 +991,7 @@ def _normalize_generated_code_semantic_review_packet(
         "prior_finding_reviews": prior_reviews,
         "dimension_reviews": dimensions,
         "findings": findings,
+        "source_revision_assessment": source_revision_assessment,
         "overall_verdict": verdict,
         "finding_ledger_review_event_id": review_event_id,
         "cumulative_finding_ledger": ledger,
@@ -1128,6 +1188,39 @@ def validate_generated_code_semantic_review_packet(
     )
     if packet.get("overall_verdict") != expected_verdict:
         errors.append("overall_verdict must be derived from dimensions and findings")
+    assessment = packet.get("source_revision_assessment", {})
+    if not isinstance(assessment, Mapping):
+        errors.append("source_revision_assessment must be an object")
+    else:
+        if not isinstance(
+            assessment.get("current_source_edit_sufficient"), bool
+        ):
+            errors.append(
+                "source_revision_assessment requires a boolean sufficiency decision"
+            )
+        if not str(assessment.get("rationale", "") or "").strip():
+            errors.append("source_revision_assessment is missing rationale")
+        assessment_refs = _string_list(assessment.get("evidence_refs", []))
+        for ref in assessment_refs:
+            if not _json_pointer_exists(evidence_document, ref):
+                errors.append(
+                    "source_revision_assessment cites missing evidence ref: " + ref
+                )
+        if (
+            expected_verdict == "REVISE"
+            and assessment.get("current_source_edit_sufficient") is False
+            and not assessment_refs
+        ):
+            errors.append(
+                "cross-artifact source revision assessment requires evidence refs"
+            )
+        if (
+            expected_verdict == "ACCEPT"
+            and assessment.get("current_source_edit_sufficient") is not True
+        ):
+            errors.append(
+                "accepted review cannot assert an unresolved cross-artifact conflict"
+            )
     for field in (
         "work_order_id",
         "work_order_hash",

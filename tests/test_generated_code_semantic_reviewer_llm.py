@@ -151,6 +151,8 @@ def test_prompt_is_observation_only_and_preserves_complete_source() -> None:
     assert "def run_sandbox" in prompt
     assert "Do not propose source edits" in prompt
     assert "ArchitectCoordinator decides what subsystem acts next" in prompt
+    assert "counterfactual question" in prompt
+    assert "current_source_edit_sufficient=false" in prompt
     assert "Monte Carlo uncertainty" in prompt
     assert "belong exclusively to the empirical evaluator" in prompt
     assert "cannot create a semantic source finding" in prompt
@@ -245,6 +247,9 @@ def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:
     assert not _contains_key(
         generated_code_semantic_review_json_schema(_review_material()),
         forbidden,
+    )
+    assert "source_revision_assessment" in (
+        GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["required"]
     )
 
 
@@ -354,6 +359,65 @@ def test_reviewer_reports_evidence_bound_defect_without_source_edit() -> None:
         "The executed source"
     )
     assert "required_change" not in packet["findings"][0]
+    assert packet["source_revision_assessment"][
+        "current_source_edit_sufficient"
+    ] is True
+    assert validate_generated_code_semantic_review_packet(
+        packet,
+        review_material=_review_material(),
+    ) == []
+
+
+def test_reviewer_can_flag_cross_artifact_conflict_without_selecting_owner() -> None:
+    response = {
+        "prior_finding_reviews": [],
+        "dimension_reviews": _dimension_rows(
+            failed="metric_semantics_alignment"
+        ),
+        "findings": [
+            {
+                "severity": "high",
+                "category": "contract_conflict",
+                "summary": "The frozen meaning contradicts the supplied theory.",
+                "observed_behavior": (
+                    "The source implements the frozen meaning exactly."
+                ),
+                "expected_behavior": (
+                    "The theory and frozen meaning must identify one statistic."
+                ),
+                "evidence_refs": [
+                    "/theory_packet",
+                    "/architect_frozen_evidence_contract",
+                ],
+            }
+        ],
+        "source_revision_assessment": {
+            "current_source_edit_sufficient": False,
+            "rationale": (
+                "Changing source alone cannot satisfy two contradictory immutable "
+                "artifact meanings."
+            ),
+            "evidence_refs": [
+                "/theory_packet",
+                "/architect_frozen_evidence_contract",
+            ],
+        },
+    }
+
+    packet = _agent(response).review(
+        question=_question(),
+        review_material=_review_material(),
+        trusted_lineage=_trusted_lineage(),
+    )
+
+    assessment = packet["source_revision_assessment"]
+    assert packet["overall_verdict"] == "REVISE"
+    assert assessment["current_source_edit_sufficient"] is False
+    assert assessment["evidence_refs"] == [
+        "/review_material/theory_packet",
+        "/review_material/architect_frozen_evidence_contract",
+    ]
+    assert not _contains_key(packet, {"repair_owner", "repair_plan"})
     assert validate_generated_code_semantic_review_packet(
         packet,
         review_material=_review_material(),

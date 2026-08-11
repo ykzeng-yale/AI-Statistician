@@ -6765,6 +6765,16 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             for row in review_packet.get("findings", []) or []
             if isinstance(row, Mapping)
         ]
+        source_revision_assessment = dict(
+            review_packet.get("source_revision_assessment", {}) or {}
+        )
+        cross_artifact_revision_required = bool(
+            reviewer_verdict == "REVISE"
+            and source_revision_assessment.get(
+                "current_source_edit_sufficient"
+            )
+            is False
+        )
         reviewer_model = str(review_packet.get("model", "") or "")
         reviewer_tier = str(review_packet.get("model_tier", "") or "")
         reviewer_agent = str(review_packet.get("source_agent", "") or "")
@@ -6935,7 +6945,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             ],
             "source_lineage_fingerprint": stable_hash(source_lineage),
             "routing_authority_on_revise": (
-                "immutable_source_producer_lineage"
+                "architect_model_after_source_sufficiency_observation"
+                if cross_artifact_revision_required
+                else "immutable_source_producer_lineage"
             ),
             "runtime_selected_owner": False,
             "reviewer_packet_accepted": reviewer_verdict == "ACCEPT",
@@ -6985,7 +6997,11 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "reviewer_overall_verdict": reviewer_verdict,
             "overall_verdict": verdict,
             "workflow_verdict": verdict,
-            "routing_authority": "immutable_source_producer_lineage",
+            "routing_authority": (
+                "architect_model_after_source_sufficiency_observation"
+                if cross_artifact_revision_required
+                else "immutable_source_producer_lineage"
+            ),
             "runtime_selected_owner": False,
             "empirical_evaluation_phase": empirical_evaluation_phase,
             "confirmatory_empirical_evidence_eligible": (
@@ -7011,6 +7027,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 review_packet.get("active_unresolved_finding_ids", []) or []
             ),
             "findings": routed_findings,
+            "source_revision_assessment": source_revision_assessment,
             "reviewed_source_artifacts": reviewed_source_artifacts,
             "source_lineage": source_lineage,
             "model_route_required_for_cross_owner_revision": True,
@@ -7264,7 +7281,32 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     "source_artifact_remains_unaccepted": True,
                 },
             }
-            if lineage_budget_state.get("lineage_budget_exhausted") is True:
+            lineage_budget_exhausted = (
+                lineage_budget_state.get("lineage_budget_exhausted") is True
+            )
+            if cross_artifact_revision_required or lineage_budget_exhausted:
+                if cross_artifact_revision_required:
+                    failure_classification = (
+                        "generated_code_semantic_review_requires_cross_artifact_resolution"
+                    )
+                    rationale = (
+                        "Independent semantic review found that editing the current "
+                        "source alone cannot close the evidence-bound findings while "
+                        "its upstream artifacts remain fixed. The cross-artifact "
+                        "conflict is routed to Architect without a wasted source "
+                        "regeneration or runtime-authored edit."
+                    )
+                else:
+                    failure_classification = (
+                        "generated_code_semantic_review_lineage_budget_exhausted"
+                    )
+                    rationale = (
+                        "The generated-code semantic review exhausted its global "
+                        "same-producer candidate-regeneration budget. The complete "
+                        "rejected artifact and exact observations are routed to the "
+                        "Architect model to select theory, interface, environment, or "
+                        "implementation work without a runtime-authored source change."
+                    )
                 lineage_ledger = (
                     record_generated_code_semantic_review_lineage_action(
                         lineage_budget_state,
@@ -7290,43 +7332,68 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 source_context[
                     GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
                 ] = lineage_ledger
-                architect_feedback = {
-                    **revision_feedback,
-                    "failure_classification": (
-                        "generated_code_semantic_review_lineage_budget_exhausted"
+                architect_observation_payload = {
+                    "schema_version": RUNTIME_SCHEMA_VERSION,
+                    "artifact_kind": "RuntimeWorkspaceObservation",
+                    "source_feedback_id": str(
+                        feedback.get("feedback_id", "") or ""
                     ),
-                    "semantic_review_lineage_budget": lineage_budget_summary,
-                    "semantic_review_execution_id": execution_id,
-                    "semantic_review_packet_id": review_packet_id,
+                    "feedback_source": GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+                    "question_id": question.id,
+                    "source_task_id": source_task.task_id,
+                    "source_subsystem": source_subsystem,
                     "source_manifest_id": str(
                         work_order.get("source_manifest_id", "") or ""
                     ),
-                    "routing_authority_on_revise": (
-                        "architect_model_after_candidate_budget"
+                    "source_theory_packet_id": str(
+                        work_order.get("theory_packet_id", "") or ""
+                    ),
+                    "failure_classification": failure_classification,
+                    "semantic_review_lineage_budget": lineage_budget_summary,
+                    "semantic_review_execution_id": execution_id,
+                    "semantic_review_packet_id": review_packet_id,
+                    "semantic_review_packet_hash": review_packet_hash,
+                    "source_revision_assessment": deepcopy(
+                        source_revision_assessment
+                    ),
+                    "findings": deepcopy(routed_findings),
+                    "dimension_reviews": deepcopy(
+                        list(review_packet.get("dimension_reviews", []) or [])
+                    ),
+                    "active_unresolved_finding_ids": deepcopy(
+                        list(
+                            review_packet.get(
+                                "active_unresolved_finding_ids",
+                                [],
+                            )
+                            or []
+                        )
                     ),
                     "runtime_selected_source_edit": False,
-                    "model_owned_source_revision": True,
+                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                 }
+                architect_observation_id = (
+                    "runtime_workspace_observation:"
+                    + stable_hash(architect_observation_payload)[:20]
+                )
+                architect_observation = {
+                    **architect_observation_payload,
+                    "observation_id": architect_observation_id,
+                    "feedback_id": architect_observation_id,
+                }
+                produced_artifacts[architect_observation_id] = (
+                    architect_observation
+                )
                 next_task = _independent_semantic_review_architect_escalation_task(
                     task=source_task,
                     question=question,
                     context=source_context,
-                    revision_feedback=architect_feedback,
+                    revision_feedback=architect_observation,
                     source_artifact_id=str(
                         work_order.get("source_manifest_id", "") or ""
                     ),
                 )
                 status = "REROUTE"
-                rationale = (
-                    "The generated-code semantic review exhausted its global "
-                    "same-producer candidate-regeneration budget. The complete "
-                    "rejected artifact and exact observations are routed to the "
-                    "Architect model to select theory, interface, environment, or "
-                    "implementation work without a runtime-authored source change."
-                )
-                failure_classification = (
-                    "generated_code_semantic_review_lineage_budget_exhausted"
-                )
             else:
                 lineage_ledger = (
                     record_generated_code_semantic_review_lineage_action(
@@ -7381,7 +7448,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 ),
                 "overall_verdict": verdict,
                 "routing_authority_on_revise": (
-                    "architect_model_after_candidate_budget"
+                    "architect_model_after_source_sufficiency_observation"
+                    if cross_artifact_revision_required
+                    else "architect_model_after_candidate_budget"
                     if lineage_budget_state.get("lineage_budget_exhausted") is True
                     else "immutable_source_producer_lineage"
                 ),
@@ -9999,23 +10068,35 @@ def _independent_semantic_review_architect_escalation_task(
     revision_feedback: Mapping[str, Any],
     source_artifact_id: str,
 ) -> AgentTask:
-    """Escalate only an independently reviewed, budget-exhausted semantic conflict."""
+    """Escalate an independently reviewed cross-artifact semantic conflict."""
 
-    if (
-        revision_feedback.get("feedback_source")
-        != GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
-        or revision_feedback.get("failure_classification")
-        != "generated_code_semantic_review_lineage_budget_exhausted"
-    ):
-        raise ValueError(
-            "Architect escalation requires an independent semantic-review conflict "
-            "after the source-candidate lineage budget is exhausted"
-        )
-    replan_context = dict(context)
-    replan_context.pop("environment_feedback", None)
     failure_classification = str(
         revision_feedback.get("failure_classification", "") or ""
     )
+    if (
+        revision_feedback.get("feedback_source")
+        != GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        or failure_classification
+        not in {
+            "generated_code_semantic_review_lineage_budget_exhausted",
+            "generated_code_semantic_review_requires_cross_artifact_resolution",
+        }
+    ):
+        raise ValueError(
+            "Architect escalation requires an independent semantic-review conflict "
+            "with cross-artifact evidence"
+        )
+    replan_context = dict(context)
+    replan_context.pop("environment_feedback", None)
+    observation_artifact_id = str(
+        revision_feedback.get("observation_id", "")
+        or revision_feedback.get("feedback_id", "")
+        or ""
+    ).strip()
+    if not observation_artifact_id:
+        raise ValueError(
+            "Architect escalation requires a content-addressed observation identity"
+        )
     observation_ref = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeWorkspaceObservationRef",
@@ -10025,6 +10106,10 @@ def _independent_semantic_review_architect_escalation_task(
         "source_subsystem": task.owner_subsystem,
         "source_artifact_id": source_artifact_id,
         "source_observation_hash": stable_hash(dict(revision_feedback)),
+        "observation_artifact_ref": runtime_artifact_reference(
+            observation_artifact_id,
+            revision_feedback,
+        ),
         "failure_classification": failure_classification,
         "source_failure_classification": str(
             revision_feedback.get("source_failure_classification", "") or ""
@@ -10049,8 +10134,9 @@ def _independent_semantic_review_architect_escalation_task(
         ),
         "boundary": (
             "This compact control-plane reference identifies the immutable source "
-            "artifact and failure class. Complete source and tool observations stay "
-            "in the artifact store; Architect does not receive or author a patch."
+            "artifact and failure class. AgentRuntime resolves the hash-bound, bounded "
+            "reviewer observation for Architect, while complete source remains in the "
+            "artifact store and Architect does not receive or author a patch."
         ),
     }
     replan_context["workspace_replan"] = {
@@ -10088,7 +10174,7 @@ def _independent_semantic_review_architect_escalation_task(
         owner_subsystem="ArchitectCoordinator",
         objective=(
             "Resolve a cross-workspace semantic conflict independently established "
-            "after the model-owned source-candidate budget was exhausted."
+            "by source review."
         ),
         inputs={
             "question": _question_to_payload(question),
