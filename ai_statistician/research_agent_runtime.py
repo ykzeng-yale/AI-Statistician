@@ -147,6 +147,7 @@ from .formalizer_feedback import (
 from .formalizer_candidate_identity import (
     build_candidate_lineage_contract,
     evaluate_candidate_lineage,
+    source_theorem_explicit_target_ids,
 )
 from .structured_output_retry import PacketValidationError
 from .semantic_review_feedback import (
@@ -1392,16 +1393,11 @@ class ArchitectCoordinatorRuntimeSubsystem:
         context["architect_runtime_plan"] = {
             field: deepcopy(packet.get(field))
             for field in (
-                "intake_assessment",
                 "problem_analysis",
-                "stat_knowledge_bank_plan",
-                "literature_fair_comparison_plan",
                 "evidence_contract",
                 "subsystem_execution_plan",
                 "retrieval_strategy",
                 "iteration_policy",
-                "evidence_gates",
-                "risk_register",
                 "next_actions",
             )
         }
@@ -2490,7 +2486,7 @@ def _architect_initial_routing_decision(
             ),
             "record": record,
             "rationale": (
-                "ArchitectCoordinator recorded a top-level execution plan and "
+                "ArchitectCoordinator recorded a compact research decision and "
                 "is routing to TheoryDeveloper as the earliest feasible next "
                 "subsystem for the selected obligation."
             ),
@@ -2547,7 +2543,7 @@ def _architect_initial_routing_decision(
             )
         else:
             routing_rationale = (
-                "ArchitectCoordinator recorded a top-level execution plan and "
+                "ArchitectCoordinator recorded a compact research decision and "
                 "is routing directly to SimulationEvaluator because the model "
                 "selected that worker and its required handoff artifacts exist."
             )
@@ -2746,7 +2742,7 @@ def _architect_initial_routing_decision(
             ),
             "record": record,
             "rationale": (
-                "ArchitectCoordinator recorded a top-level execution plan and "
+                "ArchitectCoordinator recorded a compact research decision and "
                 "is routing directly to AlgorithmEngineer because the model selected "
                 "that worker and its required handoff artifacts exist."
             ),
@@ -2818,7 +2814,7 @@ def _architect_initial_routing_decision(
             ),
             "record": record,
             "rationale": (
-                "ArchitectCoordinator recorded a top-level execution plan and is "
+                "ArchitectCoordinator recorded a compact research decision and is "
                 "routing directly to FormalizationEvaluator because the model "
                 "selected that worker and its required handoff artifacts exist."
             ),
@@ -2920,7 +2916,7 @@ def _architect_initial_routing_decision(
         ),
         "record": record,
         "rationale": (
-            "ArchitectCoordinator recorded a top-level execution plan and "
+            "ArchitectCoordinator recorded a compact research decision and "
             "is routing to RetrievalMemory for source and formal context."
         ),
     }
@@ -3309,157 +3305,256 @@ def _runtime_research_workspace(value: Any) -> str:
     )
 
 
-def _architect_terminal_acceptance_review_policy(
+RUNTIME_PRIMARY_EVIDENCE_SUBSYSTEMS = (
+    "AlgorithmEngineer",
+    "SimulationEvaluator",
+    "FormalizationEvaluator",
+)
+
+
+def _runtime_outer_graph_plan(
+    architect_context: Mapping[str, Any],
+) -> tuple[list[str], dict[str, Any]]:
+    plan = _architect_runtime_plan(architect_context)
+    planned = list(
+        dict.fromkeys(
+            _runtime_research_subsystem(row.get("subsystem"))
+            for row in plan.get("subsystem_execution_plan", []) or []
+            if isinstance(row, Mapping)
+            and _runtime_research_subsystem(row.get("subsystem"))
+        )
+    )
+    primary = [
+        subsystem
+        for subsystem in planned
+        if subsystem in RUNTIME_PRIMARY_EVIDENCE_SUBSYSTEMS
+    ]
+    contract = plan.get("evidence_contract", {})
+    contract = dict(contract) if isinstance(contract, Mapping) else {}
+    if str(contract.get("recommended_research_path", "") or "") == "proof_first":
+        primary = [
+            subsystem
+            for subsystem in (
+                "FormalizationEvaluator",
+                "AlgorithmEngineer",
+                "SimulationEvaluator",
+            )
+            if subsystem in primary
+        ]
+    return primary, {
+        "plan": plan,
+        "planned_subsystems": planned,
+        "evidence_contract": contract,
+    }
+
+
+def _runtime_executed_subsystems(
+    blackboard: BlackboardState,
+    *,
+    current_subsystem: str,
+) -> set[str]:
+    return {
+        current_subsystem,
+        *(
+            handoff.from_subsystem
+            for handoff in blackboard.handoff_ledger
+            if handoff.from_subsystem
+        ),
+    }
+
+
+def _runtime_outer_graph_context(
+    *,
+    task: AgentTask,
+    context_task: AgentTask | None = None,
+    result: AgentStepResult,
+    subsystem_name: str,
+    iteration: int,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    context_inputs = (context_task or task).inputs
+    inputs = context_inputs if isinstance(context_inputs, Mapping) else {}
+    raw_context = inputs.get("architect_context", {})
+    context = dict(raw_context) if isinstance(raw_context, Mapping) else {}
+    context.pop("environment_feedback", None)
+    context.pop("architect_feedback_route_decision", None)
+    for field in (
+        "theory_packet_id",
+        "simulation_manifest_id",
+        "algorithm_sandbox_manifest_id",
+        "formalization_manifest_id",
+    ):
+        value = str(inputs.get(field, "") or "").strip()
+        if value:
+            context[field] = value
+    context_field_by_kind = {
+        "TheoryDerivationPacket": "theory_packet_id",
+        "RuntimeTheoryDerivationPacket": "theory_packet_id",
+        "RuntimeAlgorithmSandboxManifest": "algorithm_sandbox_manifest_id",
+        "RuntimeSimulationManifest": "simulation_manifest_id",
+        "RuntimeFormalizationManifest": "formalization_manifest_id",
+    }
+    for artifact_id, artifact in result.produced_artifacts.items():
+        if not isinstance(artifact, Mapping):
+            continue
+        context_field = context_field_by_kind.get(
+            str(artifact.get("artifact_kind", "") or "")
+        )
+        if context_field:
+            context[context_field] = str(artifact_id)
+    outcome = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeOuterGraphWorkspaceOutcome",
+        "source_iteration": iteration,
+        "source_task_id": task.task_id,
+        "source_subsystem": subsystem_name,
+        "local_status": result.status,
+        "failure_classification": result.failure_classification,
+        "rationale": result.rationale,
+        "produced_artifact_ids": list(result.produced_artifacts),
+        "runtime_authored_research_content": False,
+        "proof_evidence_status": "OUTER_GRAPH_WORKSPACE_OUTCOME_NOT_PROOF_EVIDENCE",
+    }
+    prior_outcomes = [
+        dict(row)
+        for row in context.get("runtime_outer_graph_workspace_outcomes", []) or []
+        if isinstance(row, Mapping)
+    ]
+    outcome_key = (
+        outcome["source_task_id"],
+        outcome["source_subsystem"],
+        outcome["local_status"],
+    )
+    if not any(
+        (
+            row.get("source_task_id"),
+            row.get("source_subsystem"),
+            row.get("local_status"),
+        )
+        == outcome_key
+        for row in prior_outcomes
+    ):
+        prior_outcomes.append(outcome)
+    context["runtime_outer_graph_workspace_outcomes"] = prior_outcomes[-12:]
+    return context, outcome
+
+
+def _runtime_outer_graph_continuation(
     *,
     iteration: int,
     task: AgentTask,
     subsystem_name: str,
     result: AgentStepResult,
-) -> AgentStepResult:
-    if result.status != "ACCEPTED" or subsystem_name == "CriticEvaluator":
-        return result
-    inputs = task.inputs if isinstance(task.inputs, Mapping) else {}
-    architect_context = (
-        inputs.get("architect_context", {})
-        if isinstance(inputs.get("architect_context", {}), Mapping)
-        else {}
+    blackboard: BlackboardState,
+    runtime_config: ResearchAgentRuntimeConfig | None,
+    proposed_next_task: AgentTask | None = None,
+) -> AgentStepResult | None:
+    if runtime_config is None or subsystem_name in {
+        "ArchitectCoordinator",
+        "CriticEvaluator",
+    }:
+        return None
+    context, outcome = _runtime_outer_graph_context(
+        task=task,
+        context_task=proposed_next_task,
+        result=result,
+        subsystem_name=subsystem_name,
+        iteration=iteration,
     )
-    plan = (
-        architect_context.get("architect_runtime_plan", {})
-        if isinstance(
-            architect_context.get("architect_runtime_plan", {}), Mapping
+    primary, plan_context = _runtime_outer_graph_plan(context)
+    planned = plan_context["planned_subsystems"]
+    if not planned:
+        return None
+    executed = _runtime_executed_subsystems(
+        blackboard,
+        current_subsystem=subsystem_name,
+    )
+    remaining = [subsystem for subsystem in primary if subsystem not in executed]
+    next_owner = remaining[0] if remaining else ""
+    if not next_owner and "CriticEvaluator" in planned and (
+        "CriticEvaluator" not in executed
+    ):
+        next_owner = "CriticEvaluator"
+    if not next_owner:
+        return None
+    theory_packet_id = _architect_context_theory_packet_id(context)
+    theory_artifact_available = bool(
+        theory_packet_id
+        and (
+            theory_packet_id in result.produced_artifacts
+            or _architect_blackboard_artifact_present(
+                blackboard,
+                theory_packet_id,
+            )
         )
-        else {}
     )
-    stages = plan.get("subsystem_execution_plan", [])
-    planned_subsystems = [
-        _runtime_research_subsystem(stage.get("subsystem"))
-        for stage in stages
-        if isinstance(stage, Mapping)
-    ]
-    planned_subsystems = [item for item in planned_subsystems if item]
-    if "CriticEvaluator" not in planned_subsystems:
-        return result
-    question_payload = (
-        inputs.get("question", {})
-        if isinstance(inputs.get("question", {}), Mapping)
-        else {}
+    if (
+        next_owner in RUNTIME_PRIMARY_EVIDENCE_SUBSYSTEMS
+        and not theory_artifact_available
+    ):
+        return None
+
+    question_inputs = (proposed_next_task or task).inputs
+    question_payload = question_inputs.get("question", {})
+    if not isinstance(question_payload, Mapping) or not question_payload:
+        return None
+    question = _question_from_payload(question_payload)
+    plan = plan_context["plan"]
+    routing = _architect_initial_routing_decision(
+        question=question,
+        packet=plan,
+        architect_context=context,
+        packet_id=str(
+            context.get("architect_coordinator_proposal_id", "")
+            or plan.get("packet_id", "")
+            or stable_hash(plan)[:20]
+        ),
+        runtime_config=runtime_config,
+        blackboard=blackboard,
+        requested_subsystem_override=next_owner,
+        routing_source_override="runtime_required_evidence_topology",
+        honor_requested_subsystem=True,
     )
-    question_id = str(question_payload.get("id", "") or "").strip()
-    if not question_id:
-        question_id = stable_hash([task.task_id, subsystem_name])[:12]
-    review_id = (
-        "architect_terminal_acceptance_review:"
-        + stable_hash(
-            [
-                iteration,
-                task.task_id,
-                subsystem_name,
-                result.rationale,
-                sorted(result.produced_artifacts),
-                planned_subsystems,
-            ]
-        )[:20]
-    )
-    completion_feedback = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "RuntimeIntermediateAcceptanceReviewFeedback",
-        "review_id": review_id,
-        "accepted_intermediate_task_id": task.task_id,
-        "accepted_intermediate_subsystem": subsystem_name,
-        "accepted_intermediate_artifact_ids": list(result.produced_artifacts),
-        "accepted_intermediate_rationale": result.rationale,
-        "required_final_owner_subsystem": "CriticEvaluator",
-        "failure_classification": (
-            "architect_terminal_completion_review_required"
-        ),
-        "proof_evidence_status": (
-            "INTERMEDIATE_SUBSYSTEM_ACCEPTANCE_NOT_FINAL_RESEARCH_EVIDENCE"
-        ),
-        "boundary": (
-            "An intermediate worker completed its local acceptance gate. Only "
-            "CriticEvaluator may issue final research-candidate acceptance after "
-            "reviewing the complete Architect evidence contract."
-        ),
-    }
-    context = dict(architect_context)
-    context["runtime_intermediate_acceptance_review"] = completion_feedback
-    critic_task = AgentTask(
-        task_id=(
-            f"critic-completion-review:{question_id}:"
-            f"{stable_hash([review_id, task.task_id])[:8]}"
-        ),
-        owner_subsystem="CriticEvaluator",
-        objective=(
-            "Review all current theory, generated code, simulation, retrieval, "
-            "formalization, compiler/proof-state, and source-theorem evidence "
-            "against the Architect contract before any terminal acceptance."
-        ),
-        inputs={
-            "question": dict(question_payload),
-            "architect_context": context,
-            "environment_feedback": completion_feedback,
-            "n_runs": inputs.get("n_runs", 100),
-            "seed": inputs.get("seed", 20260528),
-        },
-        allowed_tools=("model_backend", "blackboard"),
-        expected_artifacts=("RuntimeCriticEvaluatorManifest",),
-        acceptance_gate=(
-            "CriticEvaluator applies the complete Architect evidence contract; "
-            "required formal evidence must fail closed when absent."
-        ),
-        stop_condition=(
-            "CriticEvaluator accepts, blocks, or emits a typed revision task."
-        ),
-    )
-    review_artifact = {
-        **completion_feedback,
-        "artifact_id": review_id,
-        "source_iteration": iteration,
-        "architect_plan_subsystems": list(dict.fromkeys(planned_subsystems)),
-        "pending_critic_task_id": critic_task.task_id,
-    }
+    next_task = routing["task"]
+    if next_owner == "CriticEvaluator":
+        critic_inputs = dict(next_task.inputs)
+        critic_context = dict(critic_inputs.get("architect_context", {}) or {})
+        critic_context["environment_feedback"] = outcome
+        critic_inputs["architect_context"] = critic_context
+        critic_inputs["environment_feedback"] = outcome
+        next_task = replace(next_task, inputs=critic_inputs)
+    if result.status in {"BLOCKED", "FAILED"} and result.rationale:
+        blackboard.active_blockers.append(result.rationale)
     observation = EnvironmentObservation(
-        observation_type="architect_terminal_acceptance_review",
+        observation_type="runtime_required_evidence_lane_continuation",
         summary=(
-            f"{subsystem_name} satisfied a local gate; the runtime is routing "
-            "the full evidence state directly to the planned CriticEvaluator."
+            f"{subsystem_name} ended locally with {result.status}; outer runtime "
+            f"continues the frozen evidence topology at {next_owner}."
         ),
-        payload=review_artifact,
-    )
-    evidence = EvidenceLedgerEntry(
-        evidence_id="evidence:" + stable_hash([task.task_id, review_id])[:20],
-        task_id=task.task_id,
-        artifact_id=review_id,
-        evidence_type="architect_terminal_acceptance_review",
-        status="INTERMEDIATE_ACCEPTANCE_ROUTED_TO_FINAL_CRITIC",
-        boundary=str(completion_feedback["boundary"]),
         payload={
+            "source_task_id": task.task_id,
             "source_subsystem": subsystem_name,
-            "pending_critic_task_id": critic_task.task_id,
-            "proof_evidence_status": completion_feedback[
-                "proof_evidence_status"
-            ],
+            "local_status": result.status,
+            "local_failure_classification": result.failure_classification,
+            "executed_subsystems": sorted(executed),
+            "remaining_primary_subsystems": remaining,
+            "next_owner_subsystem": next_owner,
+            "model_routing_call_used": False,
+            "runtime_authored_research_content": False,
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
         },
     )
     return AgentStepResult(
         status="REROUTE",
         rationale=(
-            f"Architect completion guard intercepted terminal ACCEPTED from "
-            f"{subsystem_name} and routed directly to the already planned "
-            "CriticEvaluator for the complete evidence-contract decision."
+            "AgentRuntime preserved the local workspace outcome and continued an "
+            "unvisited workspace required by the already frozen evidence topology."
         ),
-        produced_artifacts={
-            **dict(result.produced_artifacts),
-            review_id: review_artifact,
-        },
+        produced_artifacts=result.produced_artifacts,
         observations=result.observations + (observation,),
         tool_calls=result.tool_calls,
-        evidence_entries=result.evidence_entries + (evidence,),
-        next_task=critic_task,
-        failure_classification=(
-            "architect_terminal_completion_review_required"
-        ),
+        evidence_entries=result.evidence_entries,
+        next_task=next_task,
+        failure_classification="runtime_required_evidence_lane_continuation",
     )
 
 
@@ -3554,21 +3649,51 @@ def _runtime_transition_policy(
     subsystem_name: str,
     result: AgentStepResult,
     blackboard: BlackboardState,
+    runtime_config: ResearchAgentRuntimeConfig | None = None,
 ) -> AgentStepResult:
     next_task = result.next_task
     if next_task is None:
-        return _architect_terminal_acceptance_review_policy(
+        continuation = _runtime_outer_graph_continuation(
             iteration=iteration,
             task=task,
             subsystem_name=subsystem_name,
             result=result,
+            blackboard=blackboard,
+            runtime_config=runtime_config,
         )
+        return continuation or result
     if subsystem_name == "ArchitectCoordinator":
         return result
     if next_task.owner_subsystem == "ArchitectCoordinator":
         return result
     if next_task.owner_subsystem == subsystem_name:
         return result
+    prior_workspace_outcomes = (
+        next_task.inputs.get("architect_context", {}).get(
+            "runtime_outer_graph_workspace_outcomes",
+            [],
+        )
+        if isinstance(next_task.inputs.get("architect_context", {}), Mapping)
+        else []
+    )
+    completed_next_lane = any(
+        isinstance(row, Mapping)
+        and str(row.get("source_subsystem", "") or "")
+        == next_task.owner_subsystem
+        for row in prior_workspace_outcomes or []
+    )
+    if completed_next_lane and subsystem_name != "CriticEvaluator":
+        continuation = _runtime_outer_graph_continuation(
+            iteration=iteration,
+            task=task,
+            subsystem_name=subsystem_name,
+            result=result,
+            blackboard=blackboard,
+            runtime_config=runtime_config,
+            proposed_next_task=next_task,
+        )
+        if continuation is not None:
+            return continuation
     reviewer_source_revision = (
         subsystem_name == GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
         and result.status == "REVISE"
@@ -9614,6 +9739,55 @@ def _workspace_architect_replan_task(
     )
 
 
+def _formalizer_semantic_review_continuation_task(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    context: Mapping[str, Any],
+    workspace_feedback: Mapping[str, Any],
+    source_artifact_id: str,
+) -> AgentTask:
+    """Return independent target-review observations to the same Lean workspace."""
+
+    continuation_context = dict(context)
+    continuation_context["environment_feedback"] = deepcopy(
+        dict(workspace_feedback)
+    )
+    continuation_inputs = dict(task.inputs)
+    continuation_inputs.update(
+        {
+            "question": _question_to_payload(question),
+            "architect_context": continuation_context,
+            "environment_feedback": deepcopy(dict(workspace_feedback)),
+        }
+    )
+    return replace(
+        task,
+        task_id=(
+            f"formalizer-semantic-review-continuation:{question.id}:"
+            f"{stable_hash([task.task_id, source_artifact_id, workspace_feedback])[:8]}"
+        ),
+        owner_subsystem="FormalizationEvaluator",
+        objective=(
+            "Continue the same model-owned Lean workspace from the exact source, "
+            "raw Lean observations, and independent target-semantic review."
+        ),
+        inputs=continuation_inputs,
+        allowed_tools=tuple(
+            dict.fromkeys(
+                (
+                    *task.allowed_tools,
+                    "model_backend",
+                    "local_lean",
+                    "lean_lsp_mcp",
+                    "formal_source_retrieval",
+                    "proof_search",
+                )
+            )
+        ),
+    )
+
+
 def _simulation_engineer_packet_validation_failure_result(
     *,
     task: AgentTask,
@@ -9982,6 +10156,69 @@ class FormalizerWorkspaceRuntimeSubsystem:
             if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
             else {}
         )
+        if str(environment_feedback.get("artifact_kind", "") or "") == (
+            "RuntimeWorkspaceObservationRef"
+        ):
+            source_artifact_id = str(
+                environment_feedback.get("source_artifact_id", "") or ""
+            )
+            stored_feedback = blackboard.artifacts.get(source_artifact_id, {})
+            expected_source_artifact_hash = str(
+                environment_feedback.get("source_artifact_hash", "") or ""
+            )
+            stored_feedback_valid = bool(
+                isinstance(stored_feedback, Mapping)
+                and stored_feedback
+                and (
+                    not expected_source_artifact_hash
+                    or stable_hash(stored_feedback)
+                    == expected_source_artifact_hash
+                )
+            )
+            if stored_feedback_valid:
+                environment_feedback = stored_feedback
+                resolved_inputs = dict(task.inputs)
+                resolved_inputs["environment_feedback"] = deepcopy(
+                    dict(stored_feedback)
+                )
+                task = replace(task, inputs=resolved_inputs)
+            else:
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "Formalizer workspace continuation could not resolve its "
+                        "exact hash-bound observation artifact."
+                    ),
+                    observations=(
+                        EnvironmentObservation(
+                            observation_type=(
+                                "formalizer_workspace_observation_ref_rejected"
+                            ),
+                            summary=(
+                                "The referenced workspace observation was missing "
+                                "or did not match its recorded artifact hash."
+                            ),
+                            payload={
+                                "source_artifact_id": source_artifact_id,
+                                "source_artifact_present": bool(stored_feedback),
+                                "source_artifact_hash_expected": (
+                                    expected_source_artifact_hash
+                                ),
+                                "source_artifact_hash_observed": (
+                                    stable_hash(stored_feedback)
+                                    if isinstance(stored_feedback, Mapping)
+                                    and stored_feedback
+                                    else ""
+                                ),
+                                "runtime_edits_candidate": False,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        ),
+                    ),
+                    failure_classification=(
+                        "formalizer_workspace_observation_ref_invalid"
+                    ),
+                )
         if environment_feedback:
             context["environment_feedback"] = environment_feedback
         context = _runtime_context_with_environment_feedback_contract(
@@ -11062,42 +11299,6 @@ class FormalizerWorkspaceRuntimeSubsystem:
                 "formalizer_workspace_observations:"
                 + stable_hash(workspace_feedback)[:20]
             )
-            next_task = _workspace_architect_replan_task(
-                task=task,
-                question=question,
-                context=context,
-                revision_feedback=workspace_feedback,
-                source_artifact_id=manifest_id,
-            )
-            observations.append(
-                EnvironmentObservation(
-                    observation_type="formalizer_workspace_architect_replan",
-                    summary=(
-                        "The bounded model-owned Lean workspace ended without an "
-                        "accepted exact-target candidate. Exact source and raw Lean "
-                        "observations are routed to ArchitectCoordinator."
-                    ),
-                    payload={
-                        "formalization_manifest_id": manifest_id,
-                        "source_failure_classification": str(
-                            lean_candidate_revision_feedback.get(
-                                "failure_classification",
-                                "",
-                            )
-                            or ""
-                        ),
-                        "runtime_edited_source": False,
-                        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                    },
-                )
-            )
-            result_status = "REROUTE"
-            result_rationale = (
-                "The Formalizer consumed local Lean/proof-state feedback inside its "
-                "direct full-source tool loop and ended without kernel-eligible "
-                "source; the unchanged blocker is routed for cross-workspace replan."
-            )
-            failure_classification = "formalizer_workspace_architect_replan"
             formal_target_review_dispatch = (
                 _runtime_formal_target_semantic_review_dispatch(
                     task=task,
@@ -11118,7 +11319,15 @@ class FormalizerWorkspaceRuntimeSubsystem:
                     ),
                     candidate_feedback=lean_candidate_revision_feedback,
                     architect_context=context,
-                    deferred_next_task=next_task,
+                    deferred_next_task=(
+                        _formalizer_semantic_review_continuation_task(
+                            task=task,
+                            question=question,
+                            context=context,
+                            workspace_feedback=workspace_feedback,
+                            source_artifact_id=manifest_id,
+                        )
+                    ),
                     max_revisions=(
                         self.formal_target_semantic_review_max_revisions
                     ),
@@ -11166,12 +11375,50 @@ class FormalizerWorkspaceRuntimeSubsystem:
                     result_rationale = (
                         "Runtime materialized a hash-bound exact theorem target; "
                         "independent mathematical semantic review must accept the "
-                        "statement before the unresolved workspace blocker reaches "
-                        "ArchitectCoordinator."
+                        "statement before kernel promotion or any cross-workspace "
+                        "decision."
                     )
                     failure_classification = (
                         "formal_target_semantic_review_required_before_replan"
                     )
+            else:
+                next_task = _workspace_architect_replan_task(
+                    task=task,
+                    question=question,
+                    context=context,
+                    revision_feedback=workspace_feedback,
+                    source_artifact_id=manifest_id,
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type="formalizer_workspace_architect_replan",
+                        summary=(
+                            "The bounded model-owned Lean workspace ended without an "
+                            "accepted exact-target candidate. Exact source and raw Lean "
+                            "observations are routed to ArchitectCoordinator."
+                        ),
+                        payload={
+                            "formalization_manifest_id": manifest_id,
+                            "source_failure_classification": str(
+                                lean_candidate_revision_feedback.get(
+                                    "failure_classification",
+                                    "",
+                                )
+                                or ""
+                            ),
+                            "runtime_edited_source": False,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    )
+                )
+                result_status = "REROUTE"
+                result_rationale = (
+                    "The Formalizer consumed local Lean/proof-state feedback inside "
+                    "its direct full-source tool loop and ended without "
+                    "kernel-eligible source; the unchanged blocker is routed for a "
+                    "cross-workspace decision."
+                )
+                failure_classification = "formalizer_workspace_architect_replan"
         else:
             critic_task = AgentTask(
                 task_id=f"critic:{question.id}:{stable_hash(manifest_id)[:8]}",
@@ -11481,7 +11728,7 @@ def _formalizer_packet_validation_failure_result(
     exc: PacketValidationError,
     environment_feedback: Mapping[str, Any] | None = None,
 ) -> AgentStepResult:
-    """Record exhausted in-call validation and request cross-workspace replan."""
+    """Record exhausted validation without inventing a source-level repair."""
     validation_errors = [str(error) for error in exc.errors if str(error)]
     prior_feedback = (
         environment_feedback
@@ -11552,6 +11799,24 @@ def _formalizer_packet_validation_failure_result(
         "local_validators_unchanged": True,
         "kernel_gate_unchanged": True,
     }
+    lean_workspace_checkpoint_available = bool(
+        complete_current_source_checkpoint_provided
+        and str(recovery_checkpoint.get("artifact_kind", "") or "")
+        == "LeanCandidateRevisionRecoveryCheckpoint"
+    )
+    workspace_continuation_attempt = max(
+        0,
+        _int_like(task.inputs.get("formalizer_workspace_continuation_attempt", 0)),
+    )
+    workspace_continuation_allowed = bool(
+        lean_workspace_checkpoint_available
+        and workspace_continuation_attempt < 1
+    )
+    failure_classification = (
+        "formalizer_client_tool_loop_exhausted"
+        if lean_workspace_checkpoint_available
+        else "formalizer_packet_validation_failed"
+    )
     feedback = {
         **deepcopy(dict(prior_observations)),
         "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -11559,7 +11824,7 @@ def _formalizer_packet_validation_failure_result(
         "feedback_type": "formalizer_packet_validation_observations",
         "feedback_id": str(validation_feedback["feedback_id"]),
         "failure_id": failure_id,
-        "failure_classification": "formalizer_packet_validation_failed",
+        "failure_classification": failure_classification,
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
         "formalizer_validation_feedback": validation_feedback,
@@ -11570,6 +11835,8 @@ def _formalizer_packet_validation_failure_result(
         "complete_current_source_checkpoint_provided": (
             complete_current_source_checkpoint_provided
         ),
+        "workspace_continuation_attempt": workspace_continuation_attempt,
+        "workspace_continuation_allowed": workspace_continuation_allowed,
         "attempt_history": [deepcopy(dict(row)) for row in exc.history],
         "prior_environment_observations": prior_observations,
         "validation_boundary": validation_boundary,
@@ -11606,13 +11873,46 @@ def _formalizer_packet_validation_failure_result(
         if isinstance(task.inputs.get("architect_context", {}), Mapping)
         else {}
     )
-    next_task = _workspace_architect_replan_task(
-        task=task,
-        question=question,
-        context=architect_context,
-        revision_feedback=feedback,
-        source_artifact_id=failure_id,
-    )
+    if workspace_continuation_allowed:
+        next_inputs = dict(task.inputs)
+        next_inputs["environment_feedback"] = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeWorkspaceObservationRef",
+            "feedback_type": "same_workspace_observation_ref",
+            "feedback_id": str(feedback["feedback_id"]),
+            "source_task_id": task.task_id,
+            "source_subsystem": task.owner_subsystem,
+            "source_artifact_id": failure_id,
+            "source_artifact_hash": stable_hash(failure_artifact),
+            "failure_classification": failure_classification,
+            "runtime_edits_candidate": False,
+            "proof_evidence_status": str(feedback["proof_evidence_status"]),
+        }
+        next_inputs["formalizer_workspace_continuation_attempt"] = (
+            workspace_continuation_attempt + 1
+        )
+        next_task = replace(
+            task,
+            task_id=(
+                f"formalizer-workspace-continuation:{question.id}:"
+                f"{stable_hash([failure_id, workspace_continuation_attempt])[:8]}"
+            ),
+            objective=(
+                "Continue the same model-owned Lean workspace from the exact "
+                "source checkpoint and raw final tool observation."
+            ),
+            inputs=next_inputs,
+        )
+    elif lean_workspace_checkpoint_available:
+        next_task = None
+    else:
+        next_task = _workspace_architect_replan_task(
+            task=task,
+            question=question,
+            context=architect_context,
+            revision_feedback=feedback,
+            source_artifact_id=failure_id,
+        )
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
         task_id=task.task_id,
@@ -11623,6 +11923,7 @@ def _formalizer_packet_validation_failure_result(
         payload={
             "validation_errors": validation_errors,
             "same_owner_subsystem": task.owner_subsystem,
+            "workspace_continuation_allowed": workspace_continuation_allowed,
             "runtime_edits_candidate": False,
             "proof_evidence_status": (
                 "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
@@ -11630,12 +11931,25 @@ def _formalizer_packet_validation_failure_result(
         },
     )
     return AgentStepResult(
-        status="REROUTE",
+        status=(
+            "REVISE"
+            if workspace_continuation_allowed
+            else "BLOCKED"
+            if lean_workspace_checkpoint_available
+            else "REROUTE"
+        ),
         rationale=(
-            "Formalizer exhausted its in-call structured-output validation. The "
-            "complete available model artifact, current-source checkpoint, and raw "
-            "observations are routed to ArchitectCoordinator without an outer "
-            "same-owner regeneration task."
+            "The bounded Lean tool loop returned its exact model-owned source "
+            "checkpoint and raw final observation directly to the same Formalizer "
+            "workspace for one continuation."
+            if workspace_continuation_allowed
+            else "The same Formalizer workspace exhausted its single continuation "
+            "without a compiling exact-target source. The runtime stopped without "
+            "adding an Architect or Critic routing loop."
+            if lean_workspace_checkpoint_available
+            else "Formalizer exhausted its in-call packet validation. The complete "
+            "available model artifact and raw validation observations are routed for "
+            "cross-workspace planning without any runtime-authored source edit."
         ),
         produced_artifacts={failure_id: failure_artifact},
         observations=(
@@ -11646,6 +11960,9 @@ def _formalizer_packet_validation_failure_result(
                     "failure_id": failure_id,
                     "validation_errors": validation_errors,
                     "same_owner_subsystem": task.owner_subsystem,
+                    "workspace_continuation_allowed": (
+                        workspace_continuation_allowed
+                    ),
                     "runtime_edits_candidate": False,
                     "proof_evidence_status": (
                         "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
@@ -11655,7 +11972,11 @@ def _formalizer_packet_validation_failure_result(
         ),
         evidence_entries=(evidence,),
         next_task=next_task,
-        failure_classification="formalizer_packet_validation_failed",
+        failure_classification=(
+            failure_classification
+            if next_task is not None
+            else "formalizer_workspace_continuation_exhausted"
+        ),
     )
 
 
@@ -13014,7 +13335,7 @@ def _formalizer_lean_candidate_target_context(
         ),
     )
     source_target_provenance = _source_theorem_target_provenance_from_row(target_row)
-    theorem_goal_ids = _source_theorem_explicit_target_ids_from_row(target_row)
+    theorem_goal_ids = source_theorem_explicit_target_ids(target_row)
     if not theorem_goal_ids:
         theorem_goal_ids = [
             str(value).strip()
@@ -15872,7 +16193,12 @@ def run_research_agent_runtime(
             subsystems=subsystems,
             blackboard=blackboard,
             handoff_policy=(
-                _runtime_transition_policy
+                (
+                    lambda **kwargs: _runtime_transition_policy(
+                        **kwargs,
+                        runtime_config=config,
+                    )
+                )
                 if architect_coordinator is not None
                 else None
             ),
@@ -17835,16 +18161,9 @@ def _architect_control_payload(context: Mapping[str, Any], subsystem: str) -> di
     row = deepcopy(_architect_subsystem_plan(context, subsystem))
     if not plan and not row:
         return {}
-    evidence_gates = [
-        deepcopy(dict(item))
-        for item in plan.get("evidence_gates", []) or []
-        if isinstance(item, Mapping)
-    ]
     iteration_policy = plan.get("iteration_policy", {})
     retrieval_strategy = plan.get("retrieval_strategy", {})
     problem_analysis = plan.get("problem_analysis", {})
-    knowledge_bank_plan = plan.get("stat_knowledge_bank_plan", {})
-    fair_comparison_plan = plan.get("literature_fair_comparison_plan", [])
     evidence_contract = plan.get("evidence_contract", {})
     if not isinstance(evidence_contract, Mapping):
         evidence_contract = {}
@@ -17860,16 +18179,9 @@ def _architect_control_payload(context: Mapping[str, Any], subsystem: str) -> di
             for item in row.get("expected_artifacts", []) or []
             if str(item).strip()
         ],
-        "evidence_gates": evidence_gates,
         "iteration_policy": deepcopy(dict(iteration_policy)) if isinstance(iteration_policy, Mapping) else {},
         "retrieval_strategy": deepcopy(dict(retrieval_strategy)) if isinstance(retrieval_strategy, Mapping) else {},
         "problem_analysis": deepcopy(dict(problem_analysis)) if isinstance(problem_analysis, Mapping) else {},
-        "stat_knowledge_bank_plan": deepcopy(dict(knowledge_bank_plan)) if isinstance(knowledge_bank_plan, Mapping) else {},
-        "literature_fair_comparison_plan": [
-            deepcopy(dict(item))
-            for item in fair_comparison_plan
-            if isinstance(item, Mapping)
-        ],
         "evidence_contract": deepcopy(dict(evidence_contract)),
         "formal_verification_policy": str(
             evidence_contract.get("formal_verification_policy", "") or ""
@@ -18374,7 +18686,7 @@ def _source_theorem_target_ids_from_row(
         if isinstance(nested, Mapping):
             sources.append(nested)
 
-    target_ids: list[str] = _source_theorem_explicit_target_ids_from_row(row)
+    target_ids: list[str] = source_theorem_explicit_target_ids(row)
     if not target_ids:
         for source in sources:
             for value in _str_tuple(source.get("target_theorem_goal_ids", [])):

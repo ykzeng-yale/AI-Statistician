@@ -239,7 +239,10 @@ def _bundle_from_architect_plan(
             else question.description
         ),
         estimand=theorem_family or question.description,
-        assumptions=_strings(knowledge_plan.get("assumption_dimensions", [])),
+        assumptions=(
+            _strings(analysis.get("assumption_dimensions", []))
+            or _strings(knowledge_plan.get("assumption_dimensions", []))
+        ),
         asymptotic_regime=theorem_family,
         diagnostics=tuple(dict.fromkeys(diagnostics)),
         stress_tests=_strings(evidence_contract.get("simulation_targets", [])),

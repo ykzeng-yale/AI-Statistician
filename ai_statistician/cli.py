@@ -175,7 +175,7 @@ _OPERATOR_DOTENV_FILENAMES = (
 )
 FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS = 24
 RESEARCH_EVAL_MIN_AGENT_RUNTIME_ITERATIONS = 24
-LIVE_EVALUATION_MIN_ARCHITECT_MAX_TOKENS = 8000
+LIVE_EVALUATION_MIN_ARCHITECT_MAX_TOKENS = 3000
 LIVE_EVALUATION_MIN_METRIC_REVIEWER_MAX_TOKENS = 16000
 LIVE_EVALUATION_MIN_SERIOUS_THEORY_MAX_TOKENS = 16000
 SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS = (
@@ -1347,7 +1347,7 @@ def _build_architect_coordinator_agent_from_args(
         config=ArchitectCoordinatorConfig(
             model=model,
             model_tier=model_tier,
-            max_tokens=getattr(args, "architect_max_tokens", 5000),
+            max_tokens=getattr(args, "architect_max_tokens", 3000),
             temperature=getattr(args, "architect_temperature", 0.1),
             provider_name=provider_name,
             metric_semantic_reviewer_model=_runtime_evaluation_model_name(
@@ -4667,7 +4667,7 @@ def _research_agent_runtime_capability_config_errors(
         ):
             errors.append(
                 "capability eval preset full-live requires bounded formal-target "
-                "semantic-review repair; set "
+                "semantic-review revision; set "
                 "--formal-target-semantic-review-max-revisions > 0"
             )
     if (
@@ -6395,7 +6395,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="model name for ArchitectCoordinator proposals; Anthropic defaults to Claude Sonnet 4.6",
     )
-    research_agent_runtime.add_argument("--architect-max-tokens", type=int, default=5000)
+    research_agent_runtime.add_argument("--architect-max-tokens", type=int, default=3000)
     research_agent_runtime.add_argument("--architect-temperature", type=float, default=0.1)
     research_agent_runtime.add_argument(
         "--architect-metric-semantic-reviewer-llm-model",
@@ -6576,7 +6576,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "run the configured OpenProver verifier-backed HLM controller on "
-            "lineage-bound whole-theorem ProofEngineer repair tasks, then "
+            "lineage-bound whole-theorem Formalizer search requests, then "
             "deterministically rerun direct candidates under the exact local "
             "AI-Statistician Lean gate before any LLM rewrite"
         ),
@@ -6775,7 +6775,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "wall-clock budget for one full generated simulation sandbox run; "
             "the exact budget is supplied to SimulationEngineer and recorded in "
-            "its repair contract"
+            "its execution contract"
         ),
     )
     research_agent_runtime.add_argument("--max-iterations", type=int, default=12)

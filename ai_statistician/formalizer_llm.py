@@ -52,6 +52,7 @@ FORMALIZER_MAX_THEORY_ROWS = 3
 FORMALIZER_MAX_THEOREM_GOALS = 4
 FORMALIZER_MAX_INDEXED_ENVIRONMENT_CANDIDATES = 6
 FORMALIZER_MAX_TEXT_CHARS = 200
+FORMALIZER_MAX_ACTIVE_TARGETS = 1
 FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE = "SOURCE_THEOREM_CANDIDATE"
 FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP = "SOURCE_THEOREM_FORMAL_GAP"
 FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT = "HELPER_OR_SUPPORT"
@@ -98,12 +99,12 @@ class FormalizerConfig:
     provider_name: str = "anthropic"
     max_validation_retries: int = 1
     use_client_tool_lean_candidate_revision: bool = True
-    client_tool_lean_candidate_max_turns: int = 10
+    client_tool_lean_candidate_max_turns: int = 12
     client_tool_lean_candidate_max_source_updates: int = 3
     client_tool_lean_candidate_max_searches: int = 3
     client_tool_lean_candidate_max_proof_searches: int = 1
     client_tool_lean_candidate_max_state_inspections: int = 2
-    client_tool_lean_candidate_max_checks: int = 3
+    client_tool_lean_candidate_max_checks: int = 4
     client_tool_lean_candidate_max_no_progress_turns: int = 2
 
 
@@ -267,6 +268,25 @@ class LLMFormalizerProofEngineerAgent:
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
         )
+        effective_max_checks = max(
+            self.config.client_tool_lean_candidate_max_checks,
+            self.config.client_tool_lean_candidate_max_source_updates + 1,
+        )
+        available_action_budget = (
+            self.config.client_tool_lean_candidate_max_source_updates
+            + self.config.client_tool_lean_candidate_max_searches
+            + effective_max_checks
+            + (
+                self.config.client_tool_lean_candidate_max_proof_searches
+                if search_proof_candidates is not None
+                else 0
+            )
+            + (
+                self.config.client_tool_lean_candidate_max_state_inspections
+                if inspect_lean_state is not None
+                else 0
+            )
+        )
         loop = run_lean_candidate_revision_tool_loop(
             provider=self.provider,
             system_prompt=(
@@ -291,7 +311,11 @@ class LLMFormalizerProofEngineerAgent:
             model_tier=self.config.model_tier,
             temperature=self.config.temperature,
             max_tokens=self.config.max_tokens,
-            max_turns=max(1, self.config.client_tool_lean_candidate_max_turns),
+            max_turns=max(
+                1,
+                self.config.client_tool_lean_candidate_max_turns,
+                available_action_budget,
+            ),
             max_source_updates=max(
                 1,
                 self.config.client_tool_lean_candidate_max_source_updates,
@@ -305,7 +329,7 @@ class LLMFormalizerProofEngineerAgent:
                 1,
                 self.config.client_tool_lean_candidate_max_state_inspections,
             ),
-            max_checks=max(1, self.config.client_tool_lean_candidate_max_checks),
+            max_checks=max(1, effective_max_checks),
             max_no_progress_turns=max(
                 1,
                 self.config.client_tool_lean_candidate_max_no_progress_turns,
@@ -968,6 +992,7 @@ def build_formalizer_prompt(
         "prompt_mode": {
             "mode": "target_bound_formalization_specification",
             "max_items_per_list": 3,
+            "active_formal_target_count": FORMALIZER_MAX_ACTIVE_TARGETS,
             "list_scope": "current_active_frontier_only",
             "lemma_dependency_plan_scope": "current_packet_only",
             "do_not_merge_unrelated_obligations_to_fit_transport_cap": True,
@@ -1110,12 +1135,18 @@ def build_formalizer_prompt(
 FORMALIZER_SYSTEM_PROMPT = """\
 You are the LLM Formalizer/ProofEngineer inside an AI Statistician AgentRuntime.
 
-Your job is to own the complete Lean source for the unchanged task-bound target.
-Use the supplied theory, retrieved declarations, current source, and raw verifier
-observations to choose every definition, import, decomposition, tactic, query, and
-source revision. AgentRuntime executes tools and preserves identity, budgets, and
-evidence; it never writes Lean for you. Do not report a proof as checked unless the
-exact source has matching local Lean/kernel evidence.
+Your job is to own one complete Lean source for one unchanged task-bound target at
+a time. Ground imports, namespaces, declarations, and signatures in the supplied
+active-project retrieval context or inspect them with the available search tools
+before relying on them. Use the supplied theory, independent-review findings,
+current source, and raw verifier observations to choose every definition, import,
+decomposition, tactic, query, and source revision. Do not weaken the target, replace
+a mathematical assumption with a vacuous placeholder, or submit an admitted proof.
+When the active libraries lack a required primitive, report the precise formal gap
+instead of inventing an API or proving a weaker statement. AgentRuntime executes
+tools and preserves identity, budgets, and evidence; it never writes Lean for you.
+Do not report a proof as checked unless the exact source has matching local
+Lean/kernel evidence.
 """
 
 
@@ -1241,6 +1272,7 @@ FORMALIZER_JSON_SCHEMA: dict[str, Any] = {
         "formal_targets": {
             "type": "array",
             "minItems": 1,
+            "maxItems": FORMALIZER_MAX_ACTIVE_TARGETS,
             "items": FORMAL_TARGET_PROVIDER_JSON_SCHEMA,
         },
         "retrieval_queries": {"type": "array"},
@@ -1387,6 +1419,12 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     if packet.get("formal_targets") in (None, "", [], {}):
         errors.append("missing or empty field: formal_targets")
+    elif not isinstance(packet.get("formal_targets"), list):
+        errors.append("formal_targets must be an array")
+    elif len(packet["formal_targets"]) != FORMALIZER_MAX_ACTIVE_TARGETS:
+        errors.append(
+            "Formalizer workspace must own exactly one active formal target"
+        )
     for field in ("retrieval_queries", "gap_taxonomy"):
         if not isinstance(packet.get(field), list):
             errors.append(f"missing or invalid field: {field}")

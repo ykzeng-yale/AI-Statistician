@@ -4,13 +4,16 @@ import json
 
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.architect_coordinator_llm import (
+    ARCHITECT_COORDINATOR_JSON_SCHEMA,
     ARCHITECT_FEEDBACK_ROUTE_JSON_SCHEMA,
     ARCHITECT_FEEDBACK_ROUTE_OPERATION,
     ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS,
     ArchitectCoordinatorConfig,
     LLMArchitectCoordinatorAgent,
+    _normalize_architect_packet,
     build_architect_coordinator_prompt,
     build_architect_feedback_route_prompt,
+    validate_architect_coordinator_packet,
     validate_architect_feedback_route_packet,
 )
 from ai_statistician.fingerprint import stable_hash
@@ -70,7 +73,7 @@ def test_bridge_only_gap_planner_is_not_a_generic_feedback_owner() -> None:
     )
 
 
-def test_formal_requirement_selects_the_single_formalization_workspace() -> None:
+def test_formal_requirement_keeps_workspace_topology_runtime_owned() -> None:
     prompt = build_architect_coordinator_prompt(
         question=_question(),
         architect_context={},
@@ -80,14 +83,106 @@ def test_formal_requirement_selects_the_single_formalization_workspace() -> None
         },
     )
     payload = json.loads(prompt.rsplit("\n\n", 1)[1])
-    required = payload["execution_plan_contract"]["required_subsystems"]
-    assert "FormalizationEvaluator" in required
-    assert "FormalizationGapPlanner" not in required
+    assert "execution_plan_contract" not in payload
+    orchestration = payload["orchestration_contract"]
+    assert "required workspace topology" in orchestration["runtime_owns"]
+    assert "Do not enumerate a global subsystem schedule" in orchestration[
+        "planning_rule"
+    ]
+    assert "subsystem_execution_plan" not in payload["required_output_contract"]
     path_semantics = payload["requested_evidence_contract"][
         "research_path_semantics"
     ]
     assert "not prerequisites" in path_semantics["proof_first"]
     assert "neither lane is a prerequisite" in path_semantics["dual_track"]
+
+
+def test_compact_architect_decision_builds_runtime_workspace_topology() -> None:
+    compact_decision = {
+        "problem_analysis": {
+            "theorem_family": "generic limit theorem",
+            "statistical_objects": ["estimator"],
+            "assumption_dimensions": ["sampling law"],
+            "likely_analogy_classes": ["empirical process"],
+            "key_obstacles": ["unknown sharp condition"],
+            "missing_information": ["source theorem"],
+        },
+        "evidence_contract": {
+            "recommended_research_path": "dual_track",
+            "formal_targets": [
+                "For every admissible law, the estimator converges to its estimand."
+            ],
+            "simulation_targets": ["Evaluate finite-sample calibration."],
+        },
+        "retrieval_strategy": {
+            "paper_queries": ["generic estimator limit theorem"],
+            "formal_source_queries": ["convergence in probability"],
+            "lean_rag_priorities": ["Statlib inference"],
+        },
+        "iteration_policy": {
+            "max_revision_rounds": 2,
+            "stop_conditions": ["requested evidence is accepted"],
+        },
+        "next_actions": [
+            {
+                "owner_agent": "RetrievalMemory",
+                "action": "Retrieve mathematical and formal sources.",
+                "acceptance_gate": "Relevant sources and assumptions are recorded.",
+            }
+        ],
+    }
+
+    packet = _normalize_architect_packet(
+        compact_decision,
+        question=_question(),
+        model=EXACT_HAIKU_MODEL,
+        model_tier="haiku",
+        provider_name="anthropic",
+        raw_response=json.dumps(compact_decision),
+        runtime_config={
+            "evaluation_mode": "capability_eval",
+            "formal_verification_policy": "required",
+            "formal_required_for_final": True,
+            "formal_target_semantic_review_required": True,
+            "n_runs": 10,
+        },
+        architect_context={
+            "runtime_requested_evidence_contract": {
+                "acceptance_modes": ["independent review and runtime execution"],
+                "disclosure_requirements": ["report unresolved formal gaps"],
+            }
+        },
+    )
+
+    planned = [row["subsystem"] for row in packet["subsystem_execution_plan"]]
+    assert planned == [
+        "RetrievalMemory",
+        "TheoryDeveloper",
+        "AlgorithmEngineer",
+        "SimulationEvaluator",
+        "GeneratedCodeSemanticReviewer",
+        "FormalizationEvaluator",
+        "FormalTargetSemanticReviewer",
+        "CriticEvaluator",
+    ]
+    assert packet["subsystem_execution_plan_provenance"][
+        "runtime_owns_required_workspace_topology"
+    ] is True
+    assert packet["subsystem_execution_plan_provenance"][
+        "llm_authored_subsystems"
+    ] == []
+    assert validate_architect_coordinator_packet(packet) == []
+
+
+def test_architect_provider_schema_is_compact_and_has_one_action() -> None:
+    encoded = json.dumps(ARCHITECT_COORDINATOR_JSON_SCHEMA, separators=(",", ":"))
+    assert len(encoded) < 3000
+    assert "subsystem_execution_plan" not in ARCHITECT_COORDINATOR_JSON_SCHEMA[
+        "properties"
+    ]
+    assert ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"]["next_actions"][
+        "maxItems"
+    ] == 1
 
 
 class _RouteBackend:

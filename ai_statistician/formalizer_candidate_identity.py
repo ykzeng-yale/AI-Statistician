@@ -15,6 +15,38 @@ def _text_list(value: Any) -> list[str]:
     return list(dict.fromkeys(str(item).strip() for item in value if str(item).strip()))
 
 
+def _text_values(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    return _text_list(value)
+
+
+def source_theorem_explicit_target_ids(row: Mapping[str, Any]) -> list[str]:
+    """Read explicit theorem identities without inferring a fallback target."""
+
+    sources: list[Mapping[str, Any]] = [row]
+    for nested_key in (
+        "source_theorem_target_provenance",
+        "source_theorem_target_context",
+        "kernel_overlay_context",
+        "overlay_row",
+        "input_summary",
+    ):
+        nested = row.get(nested_key, {})
+        if isinstance(nested, Mapping):
+            sources.append(nested)
+    for source in tuple(sources):
+        nested = source.get("source_theorem_target_provenance", {})
+        if isinstance(nested, Mapping):
+            sources.append(nested)
+
+    target_ids: list[str] = []
+    for source in sources:
+        for key in ("target_ids", "target_id", "source_theorem_goal_id"):
+            target_ids.extend(_text_values(source.get(key, [])))
+    return list(dict.fromkeys(target_ids))
+
+
 def _candidate_binding(row: Mapping[str, Any]) -> dict[str, Any]:
     provenance = _mapping(row.get("source_theorem_target_provenance", {}))
     candidate_id = str(row.get("candidate_id", "") or "").strip()

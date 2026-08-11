@@ -482,7 +482,12 @@ def _scorecard(
         ),
         (
             "source_producer_owns_code_revision",
-            algorithm_revision_ok and simulation_revision_ok,
+            all_have(algorithm_questions)
+            and all_have(simulation_questions)
+            and algorithm_revision_ok
+            and simulation_revision_ok,
+            f"algorithm_executed={sorted(algorithm_questions)}; "
+            f"simulation_executed={sorted(simulation_questions)}; "
             "algorithm_failures="
             f"{algorithm_failures} revisions={algorithm_revisions}; "
             f"simulation_failures={simulation_failures} revisions={simulation_revisions}",

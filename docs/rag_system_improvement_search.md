@@ -2,6 +2,12 @@
 
 Date: 2026-06-02.
 
+> Historical research record. The planner, replay, adapter, and repair commands
+> documented later in this note were retired from the canonical runtime in
+> August 2026. They must not be treated as supported interfaces or reintroduced
+> into the live path. See `docs/production_design.md` for the current
+> model-owned Formalizer workspace and source-retrieval design.
+
 This note records the next RAG/prover-search improvement direction after the
 local source inventory reached Mathlib, StatInference, EmpiricalProcessLEAN,
 Atlas, FormalSLT, lean-rademacher, Lean Machine Learning, BrownianMotion,

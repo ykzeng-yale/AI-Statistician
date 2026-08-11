@@ -6,7 +6,12 @@ from dataclasses import fields
 import pytest
 
 import ai_statistician.research_agent_runtime as runtime_module
-from ai_statistician.agent_runtime import AgentTask
+from ai_statistician.agent_runtime import (
+    AgentStepResult,
+    AgentTask,
+    BlackboardState,
+    TaskHandoffRecord,
+)
 from ai_statistician.algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
 )
@@ -18,6 +23,7 @@ from ai_statistician.research_agent_runtime import (
     ResearchAgentRuntimeConfig,
     _normalized_runtime_evaluation_model_config,
     _runtime_generated_code_semantic_review_dispatch,
+    _runtime_transition_policy,
     formalizer_workspace_runtime_bindings,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
@@ -130,6 +136,288 @@ def test_unreviewed_compiled_lean_candidate_cannot_claim_generic_kernel_proof() 
     assert fields["kernel_verified"] is False
     assert fields["candidate_kernel_verified"] is True
     assert fields["candidate_kernel_verified_scope"] == "candidate_artifact_only"
+
+
+def _full_evidence_context(question_id: str) -> dict[str, object]:
+    return {
+        "architect_coordinator_proposal_id": "architect:generic",
+        "theory_packet_id": "theory:generic",
+        "implementation_gaps": [{"estimator_id": "estimator:generic"}],
+        "empirical_evaluation_phase": "exploratory",
+        "architect_metric_protocol_gate": {
+            "algorithm_execution_available": True,
+            "confirmatory_simulation_authorized": False,
+            "execution_authorized": False,
+            "preflight_acceptance_id": "preflight:generic",
+        },
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "evaluation_mode": "capability_eval",
+                "formal_verification_policy": "required",
+                "formal_required_for_final": True,
+                "recommended_research_path": "proof_first",
+                "research_evaluation_requires_generated_algorithm_code": True,
+                "research_evaluation_requires_generated_simulation_code": True,
+            },
+            "subsystem_execution_plan": [
+                {"subsystem": "AlgorithmEngineer"},
+                {"subsystem": "SimulationEvaluator"},
+                {"subsystem": "FormalizationEvaluator"},
+                {"subsystem": "CriticEvaluator"},
+            ],
+            "question_id": question_id,
+        },
+    }
+
+
+def test_formal_blocker_does_not_starve_unvisited_empirical_lanes() -> None:
+    question = OpenResearchQuestion(
+        id="generic-cross-lane-task",
+        title="Generic cross-lane task",
+        description="Collect independent empirical and formal evidence.",
+    )
+    task = AgentTask(
+        task_id="formalize:generic-cross-lane-task",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Attempt the exact formal target.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "architect_context": _full_evidence_context(question.id),
+        },
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={"theory:generic": {"packet_id": "theory:generic"}},
+    )
+
+    continued = _runtime_transition_policy(
+        iteration=4,
+        task=task,
+        subsystem_name="FormalizationEvaluator",
+        result=AgentStepResult(
+            status="BLOCKED",
+            rationale="Lean workspace budget exhausted.",
+            failure_classification="formalizer_workspace_continuation_exhausted",
+        ),
+        blackboard=blackboard,
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert continued.status == "REROUTE"
+    assert continued.next_task is not None
+    assert continued.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert "Lean workspace budget exhausted." in blackboard.active_blockers
+    outcomes = continued.next_task.inputs["architect_context"][
+        "runtime_outer_graph_workspace_outcomes"
+    ]
+    assert outcomes[-1]["source_subsystem"] == "FormalizationEvaluator"
+    assert outcomes[-1]["local_status"] == "BLOCKED"
+    assert continued.observations[-1].payload["model_routing_call_used"] is False
+
+
+def test_outer_graph_does_not_bypass_missing_theory_prerequisite() -> None:
+    question = OpenResearchQuestion(
+        id="generic-missing-theory",
+        title="Generic missing theory prerequisite",
+        description="Do not enter evidence workspaces before theory exists.",
+    )
+    context = _full_evidence_context(question.id)
+    context.pop("theory_packet_id", None)
+    task = AgentTask(
+        task_id="retrieval:generic-missing-theory",
+        owner_subsystem="RetrievalMemory",
+        objective="Collect source context before theory development.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": context,
+        },
+    )
+
+    blocked = _runtime_transition_policy(
+        iteration=2,
+        task=task,
+        subsystem_name="RetrievalMemory",
+        result=AgentStepResult(
+            status="BLOCKED",
+            rationale="No source context was available.",
+            failure_classification="retrieval_unavailable",
+        ),
+        blackboard=BlackboardState(project_id=question.id),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert blocked.status == "BLOCKED"
+    assert blocked.next_task is None
+
+
+def test_outer_graph_sends_all_observed_lanes_to_final_critic() -> None:
+    question = OpenResearchQuestion(
+        id="generic-final-review",
+        title="Generic final review",
+        description="Aggregate completed and blocked workspace outcomes.",
+    )
+    context = _full_evidence_context(question.id)
+    context["runtime_outer_graph_workspace_outcomes"] = [
+        {
+            "source_task_id": "formalize:generic-final-review",
+            "source_subsystem": "FormalizationEvaluator",
+            "local_status": "BLOCKED",
+        }
+    ]
+    task = AgentTask(
+        task_id="simulation:generic-final-review",
+        owner_subsystem="SimulationEvaluator",
+        objective="Run the final independent empirical lane.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "algorithm_sandbox_manifest_id": "algorithm:generic",
+            "simulation_manifest_id": "simulation:generic",
+            "architect_context": context,
+        },
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={"theory:generic": {"packet_id": "theory:generic"}},
+    )
+    blackboard.handoff_ledger.extend(
+        [
+            TaskHandoffRecord(
+                handoff_id="handoff:formal-algorithm",
+                from_task_id="formalize:generic-final-review",
+                to_task_id="algorithm:generic-final-review",
+                from_subsystem="FormalizationEvaluator",
+                to_subsystem="AlgorithmEngineer",
+                status="REROUTE",
+                rationale="continue required lane",
+            ),
+            TaskHandoffRecord(
+                handoff_id="handoff:algorithm-simulation",
+                from_task_id="algorithm:generic-final-review",
+                to_task_id=task.task_id,
+                from_subsystem="AlgorithmEngineer",
+                to_subsystem="SimulationEvaluator",
+                status="REROUTE",
+                rationale="continue required lane",
+            ),
+        ]
+    )
+
+    continued = _runtime_transition_policy(
+        iteration=8,
+        task=task,
+        subsystem_name="SimulationEvaluator",
+        result=AgentStepResult(
+            status="BLOCKED",
+            rationale="Simulation workspace recorded a typed blocker.",
+            failure_classification="simulation_workspace_exhausted",
+        ),
+        blackboard=blackboard,
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert continued.status == "REROUTE"
+    assert continued.next_task is not None
+    assert continued.next_task.owner_subsystem == "CriticEvaluator"
+    feedback = continued.next_task.inputs["environment_feedback"]
+    assert feedback["source_subsystem"] == "SimulationEvaluator"
+    assert feedback["local_status"] == "BLOCKED"
+
+
+def test_outer_graph_skips_a_downstream_repeat_of_an_exhausted_lane() -> None:
+    question = OpenResearchQuestion(
+        id="generic-no-repeat",
+        title="Generic no-repeat task",
+        description="Do not reopen an exhausted lane without Critic feedback.",
+    )
+    context = _full_evidence_context(question.id)
+    context["runtime_outer_graph_workspace_outcomes"] = [
+        {
+            "source_task_id": "formalize:exhausted",
+            "source_subsystem": "FormalizationEvaluator",
+            "local_status": "BLOCKED",
+        }
+    ]
+    task = AgentTask(
+        task_id="simulation:complete",
+        owner_subsystem="SimulationEvaluator",
+        objective="Complete empirical evidence.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": context,
+        },
+    )
+    repeated_formal_task = AgentTask(
+        task_id="formalize:automatic-repeat",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Automatically revisit formalization.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "algorithm_sandbox_manifest_id": "algorithm:generic",
+            "simulation_manifest_id": "simulation:generic",
+            "architect_context": context,
+        },
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={"theory:generic": {"packet_id": "theory:generic"}},
+    )
+    blackboard.handoff_ledger.extend(
+        [
+            TaskHandoffRecord(
+                handoff_id="handoff:formal-algorithm",
+                from_task_id="formalize:exhausted",
+                to_task_id="algorithm:complete",
+                from_subsystem="FormalizationEvaluator",
+                to_subsystem="AlgorithmEngineer",
+                status="REROUTE",
+                rationale="continue required lane",
+            ),
+            TaskHandoffRecord(
+                handoff_id="handoff:algorithm-simulation",
+                from_task_id="algorithm:complete",
+                to_task_id=task.task_id,
+                from_subsystem="AlgorithmEngineer",
+                to_subsystem="SimulationEvaluator",
+                status="REROUTE",
+                rationale="continue required lane",
+            ),
+        ]
+    )
+
+    continued = _runtime_transition_policy(
+        iteration=9,
+        task=task,
+        subsystem_name="SimulationEvaluator",
+        result=AgentStepResult(
+            status="REROUTE",
+            rationale="Empirical lane proposed its conventional formal handoff.",
+            next_task=repeated_formal_task,
+        ),
+        blackboard=blackboard,
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert continued.next_task is not None
+    assert continued.next_task.owner_subsystem == "CriticEvaluator"
+    feedback = continued.next_task.inputs["environment_feedback"]
+    assert feedback["source_task_id"] == task.task_id
+    assert feedback["source_subsystem"] == "SimulationEvaluator"
+    assert feedback["local_status"] == "REROUTE"
 
 
 def test_workspace_replan_handoff_keeps_complete_source_out_of_task_payload() -> None:

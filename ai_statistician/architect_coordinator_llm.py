@@ -54,10 +54,11 @@ ARCHITECT_COORDINATOR_SCHEMA_VERSION = 1
 ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE = "LLM_ARCHITECT_COORDINATOR_PROPOSAL_NOT_PROOF_EVIDENCE"
 ARCHITECT_COORDINATOR_BOUNDARY = (
     "LLM ArchitectCoordinator packets are orchestration proposals only. They "
-    "can choose subsystem order, evidence gates, retrieval priorities, and "
-    "iteration policy, but they do not execute tools, validate simulations, "
-    "or prove theorems. Runtime validators and AXLE/local Lean remain the "
-    "authority gates."
+    "can choose the research path, mathematical targets, retrieval priorities, "
+    "iteration policy, and one next workspace action. Runtime owns mandatory "
+    "evidence topology, budgets, lineage, and authority gates. Architect packets "
+    "do not execute tools, validate simulations, or prove theorems; runtime "
+    "validators and AXLE/local Lean remain the authority gates."
 )
 ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "RetrievalMemory",
@@ -109,16 +110,10 @@ RESEARCH_EVAL_FORBIDDEN_FORMAL_SUBSYSTEMS = frozenset(
     }
 )
 ARCHITECT_REUSABLE_VALIDATED_PLAN_FIELDS = (
-    "intake_assessment",
     "problem_analysis",
-    "stat_knowledge_bank_plan",
-    "literature_fair_comparison_plan",
     "evidence_contract",
-    "subsystem_execution_plan",
     "retrieval_strategy",
     "iteration_policy",
-    "evidence_gates",
-    "risk_register",
     "next_actions",
 )
 ARCHITECT_VALIDATED_PLAN_REUSE_METADATA_KIND = (
@@ -206,7 +201,7 @@ def architect_formal_target_is_completion_placeholder(value: Any) -> bool:
 class ArchitectCoordinatorConfig:
     model: str = ""
     model_tier: str = "sonnet"
-    max_tokens: int = 5000
+    max_tokens: int = 3000
     temperature: float = 0.1
     provider_name: str = "anthropic"
     max_validation_retries: int = 2
@@ -1013,15 +1008,6 @@ def _architect_packet_from_validated_plan_reuse(
         != str(reuse_metadata.get("validated_plan_fingerprint", "") or "")
     ):
         return None
-    plan_projection["subsystem_execution_plan"] = [
-        deepcopy(dict(row)) if isinstance(row, Mapping) else deepcopy(row)
-        for row in plan_projection["subsystem_execution_plan"]
-        if not (
-            isinstance(row, Mapping)
-            and row.get("llm_authored") is False
-            and row.get("runtime_defaults_required") is True
-        )
-    ]
     source_model = str(
         reuse_metadata.get("source_architect_model", "") or ""
     )
@@ -1652,12 +1638,6 @@ def build_architect_coordinator_prompt(
             ),
         },
     }
-    required_plan_subsystems = _required_architect_plan_subsystems(
-        requested_evidence_contract
-    )
-    evaluation_mode = str(
-        requested_evidence_contract.get("evaluation_mode", "debug") or "debug"
-    )
     model_architect_context = architect_observations_without_runtime_routing(
         architect_context
     )
@@ -1671,31 +1651,24 @@ def build_architect_coordinator_prompt(
         "architect_context": model_architect_context,
         "runtime_config": dict(runtime_config),
         "available_subsystems": list(ARCHITECT_RUNTIME_SUBSYSTEMS),
-        "execution_plan_contract": {
-            "required_subsystems": list(required_plan_subsystems),
-            "forbidden_subsystems": (
-                sorted(RESEARCH_EVAL_FORBIDDEN_FORMAL_SUBSYSTEMS)
-                if evaluation_mode == "research_eval"
-                else []
+        "orchestration_contract": {
+            "model_owns": (
+                "research analysis, lane choice, retrieval priorities, mathematical "
+                "targets, and exactly one next workspace action"
+            ),
+            "runtime_owns": (
+                "required workspace topology, evidence authority, budgets, artifact "
+                "lineage, execution, and terminal verification"
             ),
             "planning_rule": (
-                "author compact rows for the research path and any anticipated "
-                "worker; AgentRuntime will append provenance-marked empty plan "
-                "shells for mandatory evidence stages omitted by the proposal, "
-                "without inventing objectives, artifacts, statistical content, "
-                "code, or proof content. Order authored rows by intended execution "
-                "in the single-task runtime: there is no background parallel queue. "
-                "For proof_first, place FormalizationEvaluator before empirical "
-                "workers after theory review. Represent same-owner retries in "
-                "iteration_policy rather than duplicate stage rows. Treat "
-                "CriticEvaluator as the final cross-artifact acceptance gate, not "
-                "as routine post-theory review; source-specific review and direct "
-                "environment iteration stay inside the theory, scientific-code, "
-                "and formalization workspaces"
+                "Do not enumerate a global subsystem schedule. Choose one next "
+                "workspace action; later routing decisions will use fresh artifacts "
+                "and raw environment observations. Same-workspace iteration happens "
+                "inside that model-owned workspace."
             ),
             "resume_rule": (
-                "on plan repair or resume, return the complete amended remaining "
-                "worker graph, not only the pending worker"
+                "on a genuine cross-workspace replan, choose one next workspace from "
+                "the current evidence rather than regenerating the whole graph"
             ),
         },
         "authority_gates": [
@@ -1723,14 +1696,14 @@ def build_architect_coordinator_prompt(
         "edit recipe. When a model-authored artifact is rejected, route the complete "
         "artifact and exact observations to its owning model for full regeneration; "
         "do not prescribe a field-level patch or synthesize replacement content. "
-        "Obey execution_plan_contract, requested_evidence_contract, and the evidence "
+        "Obey orchestration_contract, requested_evidence_contract, and the evidence "
         "boundary. Preserve accepted targets, artifact identities, hashes, frozen gates, "
         "and lineage. Empirical metric requirements are authored by their dedicated "
         "model after theory and implementation context exists, so do not duplicate them. "
-        "Return the complete remaining graph on resume. Keep analysis inside the JSON "
+        "Keep analysis inside the JSON "
         "fields, and do not include Markdown, code, claimed executions, simulation "
-        "results, or proof claims. CriticEvaluator must be the final authored plan "
-        "row. Do not route a theory artifact through the global Critic merely to "
+        "results, or proof claims. Do not route a theory artifact through the global "
+        "Critic merely to "
         "review it before coding or formalization; the independent theory preflight "
         "already owns that local review.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
@@ -1742,44 +1715,29 @@ def _architect_gap_int(value: Any, *, fallback: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return int(fallback)
+
+
 ARCHITECT_COORDINATOR_SYSTEM_PROMPT = """\
 You are the top-level ArchitectCoordinator inside an AI Statistician AgentRuntime.
 
-Your job is to coordinate specialized LLM workers and runtime validators for an
-open statistical research task. You plan, route, and set evidence gates; you are
-not the executor or verifier. Keep proof, simulation, retrieval, and sandbox
-evidence boundaries explicit.
+Analyze the open statistical research task, choose its research path and targets,
+and select exactly one next specialized workspace action from current evidence.
+Do not enumerate a global subsystem schedule or act as a routine message router.
+Runtime owns mandatory evidence topology, budgets, artifact lineage, execution,
+and authority gates. You are not the executor or verifier; keep proof, simulation,
+retrieval, and sandbox evidence boundaries explicit.
 """
 
 
 ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
-    "intake_assessment": {
-        "problem_type": "string",
-        "frontier_difficulty": "low|medium|high",
-        "primary_success_criteria": ["one short string"],
-        "known_risks": ["one short string"],
-    },
     "problem_analysis": {
         "theorem_family": "one short string",
         "statistical_objects": ["one short string"],
+        "assumption_dimensions": ["one short string"],
         "likely_analogy_classes": ["one short string"],
         "key_obstacles": ["one short string"],
         "missing_information": ["one short string"],
     },
-    "stat_knowledge_bank_plan": {
-        "source_families_to_collect": ["one short string"],
-        "assumption_dimensions": ["one short string"],
-        "proof_skeletons_to_track": ["one short string"],
-        "failed_attempt_memory_policy": "one short string",
-    },
-    "literature_fair_comparison_plan": [
-        {
-            "candidate_source_family": "one short string",
-            "must_match": ["one short string"],
-            "likely_mismatches": ["one short string"],
-            "unsafe_transfer_risks": ["one short string"],
-        }
-    ],
     "evidence_contract": {
         "recommended_research_path": "simulation_first|proof_first|dual_track",
         "formal_targets": [
@@ -1790,35 +1748,15 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
         ],
         "simulation_targets": ["one short string"],
     },
-    "subsystem_execution_plan": [
-        {
-            "subsystem": "RetrievalMemory",
-            "objective": "one short string",
-            "inputs_needed": ["one short string"],
-            "expected_artifacts": ["one short string"],
-            "acceptance_gate": "one short string",
-        }
-    ],
     "retrieval_strategy": {
         "paper_queries": ["one short string"],
         "formal_source_queries": ["one short string"],
         "lean_rag_priorities": ["one short string"],
     },
     "iteration_policy": {
-        "reroute_triggers": ["one short string"],
         "max_revision_rounds": "integer",
         "stop_conditions": ["one short string"],
     },
-    "evidence_gates": [
-        {
-            "artifact_kind": "string",
-            "required_evidence": "one short string",
-            "not_evidence": "one short string",
-        }
-    ],
-    "risk_register": [
-        {"risk": "one short string", "mitigation": "one short string", "owner_subsystem": "string"}
-    ],
     "next_actions": [
         {"owner_agent": "RetrievalMemory", "action": "one short string", "acceptance_gate": "one short string"}
     ],
@@ -1830,50 +1768,20 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "required": [
-        "intake_assessment",
         "problem_analysis",
-        "stat_knowledge_bank_plan",
-        "literature_fair_comparison_plan",
         "evidence_contract",
-        "subsystem_execution_plan",
         "retrieval_strategy",
         "iteration_policy",
-        "evidence_gates",
-        "risk_register",
         "next_actions",
     ],
     "properties": {
-        "intake_assessment": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": [
-                "problem_type",
-                "frontier_difficulty",
-                "primary_success_criteria",
-                "known_risks",
-            ],
-            "properties": {
-                "problem_type": {"type": "string"},
-                "frontier_difficulty": {
-                    "type": "string",
-                    "enum": ["low", "medium", "high"],
-                },
-                "primary_success_criteria": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                },
-                "known_risks": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                },
-            },
-        },
         "problem_analysis": {
             "type": "object",
             "additionalProperties": False,
             "required": [
                 "theorem_family",
                 "statistical_objects",
+                "assumption_dimensions",
                 "likely_analogy_classes",
                 "key_obstacles",
                 "missing_information",
@@ -1882,77 +1790,33 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                 "theorem_family": {"type": "string"},
                 "statistical_objects": {
                     "type": "array",
-                    "items": {"type": "string"},
-                },
-                "likely_analogy_classes": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                },
-                "key_obstacles": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                },
-                "missing_information": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                },
-            },
-        },
-        "stat_knowledge_bank_plan": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": [
-                "source_families_to_collect",
-                "assumption_dimensions",
-                "proof_skeletons_to_track",
-                "failed_attempt_memory_policy",
-            ],
-            "properties": {
-                "source_families_to_collect": {
-                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 4,
                     "items": {"type": "string"},
                 },
                 "assumption_dimensions": {
                     "type": "array",
+                    "minItems": 1,
+                    "maxItems": 6,
                     "items": {"type": "string"},
                 },
-                "proof_skeletons_to_track": {
+                "likely_analogy_classes": {
                     "type": "array",
+                    "minItems": 1,
+                    "maxItems": 4,
                     "items": {"type": "string"},
                 },
-                "failed_attempt_memory_policy": {"type": "string"},
-            },
-        },
-        "literature_fair_comparison_plan": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 2,
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": [
-                    "candidate_source_family",
-                    "must_match",
-                    "likely_mismatches",
-                    "unsafe_transfer_risks",
-                ],
-                "properties": {
-                    "candidate_source_family": {"type": "string"},
-                    "must_match": {
-                        "type": "array",
-                        "minItems": 1,
-                        "items": {"type": "string"},
-                    },
-                    "likely_mismatches": {
-                        "type": "array",
-                        "minItems": 1,
-                        "items": {"type": "string"},
-                    },
-                    "unsafe_transfer_risks": {
-                        "type": "array",
-                        "minItems": 1,
-                        "items": {"type": "string"},
-                    },
+                "key_obstacles": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 5,
+                    "items": {"type": "string"},
+                },
+                "missing_information": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 5,
+                    "items": {"type": "string"},
                 },
             },
         },
@@ -1970,6 +1834,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                 "formal_targets": {
                     "type": "array",
                     "minItems": 1,
+                    "maxItems": 4,
                     "items": {
                         "type": "string",
                         "minLength": 1,
@@ -1983,35 +1848,8 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                 "simulation_targets": {
                     "type": "array",
                     "minItems": 1,
+                    "maxItems": 4,
                     "items": {"type": "string"},
-                },
-            },
-        },
-        "subsystem_execution_plan": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": [
-                    "subsystem",
-                    "objective",
-                    "inputs_needed",
-                    "expected_artifacts",
-                    "acceptance_gate",
-                ],
-                "properties": {
-                    "subsystem": {"type": "string"},
-                    "objective": {"type": "string"},
-                    "inputs_needed": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                    },
-                    "expected_artifacts": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                    },
-                    "acceptance_gate": {"type": "string"},
                 },
             },
         },
@@ -2026,14 +1864,20 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
             "properties": {
                 "paper_queries": {
                     "type": "array",
+                    "minItems": 1,
+                    "maxItems": 4,
                     "items": {"type": "string"},
                 },
                 "formal_source_queries": {
                     "type": "array",
+                    "minItems": 1,
+                    "maxItems": 4,
                     "items": {"type": "string"},
                 },
                 "lean_rag_priorities": {
                     "type": "array",
+                    "minItems": 1,
+                    "maxItems": 4,
                     "items": {"type": "string"},
                 },
             },
@@ -2042,59 +1886,32 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
             "type": "object",
             "additionalProperties": False,
             "required": [
-                "reroute_triggers",
                 "max_revision_rounds",
                 "stop_conditions",
             ],
             "properties": {
-                "reroute_triggers": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                },
-                "max_revision_rounds": {"type": "integer"},
+                "max_revision_rounds": {"type": "integer", "minimum": 0},
                 "stop_conditions": {
                     "type": "array",
+                    "minItems": 1,
+                    "maxItems": 5,
                     "items": {"type": "string"},
-                },
-            },
-        },
-        "evidence_gates": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["artifact_kind", "required_evidence", "not_evidence"],
-                "properties": {
-                    "artifact_kind": {"type": "string"},
-                    "required_evidence": {"type": "string"},
-                    "not_evidence": {"type": "string"},
-                },
-            },
-        },
-        "risk_register": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["risk", "mitigation", "owner_subsystem"],
-                "properties": {
-                    "risk": {"type": "string"},
-                    "mitigation": {"type": "string"},
-                    "owner_subsystem": {"type": "string"},
                 },
             },
         },
         "next_actions": {
             "type": "array",
             "minItems": 1,
+            "maxItems": 1,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
                 "required": ["owner_agent", "action", "acceptance_gate"],
                 "properties": {
-                    "owner_agent": {"type": "string"},
+                    "owner_agent": {
+                        "type": "string",
+                        "enum": list(ARCHITECT_RUNTIME_SUBSYSTEMS),
+                    },
                     "action": {"type": "string"},
                     "acceptance_gate": {"type": "string"},
                 },
@@ -2107,16 +1924,10 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
 def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     for field in (
-        "intake_assessment",
         "problem_analysis",
-        "stat_knowledge_bank_plan",
-        "literature_fair_comparison_plan",
         "evidence_contract",
-        "subsystem_execution_plan",
         "retrieval_strategy",
         "iteration_policy",
-        "evidence_gates",
-        "risk_register",
         "next_actions",
     ):
         if packet.get(field) in (None, "", [], {}):
@@ -2132,36 +1943,13 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
         for field in (
             "theorem_family",
             "statistical_objects",
+            "assumption_dimensions",
             "likely_analogy_classes",
             "key_obstacles",
             "missing_information",
         ):
             if problem_analysis.get(field) in (None, "", [], {}):
                 errors.append(f"problem_analysis missing or empty field: {field}")
-    knowledge_plan = packet.get("stat_knowledge_bank_plan", {})
-    if isinstance(knowledge_plan, Mapping):
-        for field in (
-            "source_families_to_collect",
-            "assumption_dimensions",
-            "proof_skeletons_to_track",
-            "failed_attempt_memory_policy",
-        ):
-            if knowledge_plan.get(field) in (None, "", [], {}):
-                errors.append(f"stat_knowledge_bank_plan missing or empty field: {field}")
-    for row in packet.get("literature_fair_comparison_plan", []) or []:
-        if not isinstance(row, Mapping):
-            errors.append("literature_fair_comparison_plan entries must be objects")
-            continue
-        for field in (
-            "candidate_source_family",
-            "must_match",
-            "likely_mismatches",
-            "unsafe_transfer_risks",
-        ):
-            if row.get(field) in (None, "", [], {}):
-                errors.append(
-                    f"literature_fair_comparison_plan entry missing or empty field: {field}"
-                )
     evaluation_mode = ""
     evidence_contract = packet.get("evidence_contract", {})
     if isinstance(evidence_contract, Mapping):
@@ -2395,37 +2183,6 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
             continue
         planned_subsystems.add(subsystem)
         planned_subsystem_sequence.append(subsystem)
-    duplicate_subsystems = sorted(
-        {
-            subsystem
-            for subsystem in planned_subsystem_sequence
-            if planned_subsystem_sequence.count(subsystem) > 1
-        }
-    )
-    if duplicate_subsystems:
-        errors.append(
-            "subsystem_execution_plan must not repeat subsystem rows; express "
-            "same-owner iteration in iteration_policy: "
-            + ", ".join(duplicate_subsystems)
-        )
-    if (
-        "CriticEvaluator" in planned_subsystem_sequence
-        and planned_subsystem_sequence[-1] != "CriticEvaluator"
-    ):
-        errors.append(
-            "subsystem_execution_plan must place CriticEvaluator last as the "
-            "final cross-artifact gate"
-        )
-    if (
-        "FormalizationEvaluator" in planned_subsystem_sequence
-        and "FormalTargetSemanticReviewer" in planned_subsystem_sequence
-        and planned_subsystem_sequence.index("FormalTargetSemanticReviewer")
-        < planned_subsystem_sequence.index("FormalizationEvaluator")
-    ):
-        errors.append(
-            "subsystem_execution_plan must place FormalTargetSemanticReviewer "
-            "after FormalizationEvaluator produces a target artifact"
-        )
     for subsystem in _required_architect_plan_subsystems(evidence_contract):
         if subsystem not in planned_subsystems:
             errors.append(
@@ -2712,8 +2469,7 @@ def _normalize_architect_packet(
     (
         body["subsystem_execution_plan"],
         body["subsystem_execution_plan_provenance"],
-    ) = _elaborate_architect_subsystem_execution_plan(
-        body.get("subsystem_execution_plan", []),
+    ) = _runtime_required_workspace_plan(
         evidence_contract=normalized_contract,
     )
     body["proof_evidence_status"] = ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE
@@ -2749,69 +2505,31 @@ def _normalize_architect_packet(
     }
 
 
-def _elaborate_architect_subsystem_execution_plan(
-    value: Any,
+def _runtime_required_workspace_plan(
     *,
     evidence_contract: Mapping[str, Any],
 ) -> tuple[list[Any], dict[str, Any]]:
-    """Compile mandatory evidence topology without synthesizing research content."""
+    """Build runtime-owned evidence topology without research content."""
 
-    source_rows = list(value) if isinstance(value, list) else []
-    plan_rows: list[Any] = [
-        dict(row) if isinstance(row, Mapping) else row for row in source_rows
+    required_subsystems = _required_architect_plan_subsystems(evidence_contract)
+    plan_rows = [
+        {
+            "subsystem": subsystem,
+            "objective": "",
+            "inputs_needed": [],
+            "expected_artifacts": [],
+            "acceptance_gate": "",
+            "plan_row_source": "runtime_required_evidence_contract",
+            "llm_authored": False,
+            "runtime_defaults_required": True,
+        }
+        for subsystem in required_subsystems
     ]
-    llm_authored_subsystems = [
-        str(row.get("subsystem", "") or "").strip()
-        for row in source_rows
-        if isinstance(row, Mapping)
-        and str(row.get("subsystem", "") or "").strip()
-    ]
-    planned_subsystems = set(llm_authored_subsystems)
-    runtime_elaborated_subsystems: list[str] = []
-    missing_rows: list[dict[str, Any]] = []
-    for subsystem in _required_architect_plan_subsystems(evidence_contract):
-        if subsystem in planned_subsystems:
-            continue
-        missing_rows.append(
-            {
-                "subsystem": subsystem,
-                "objective": "",
-                "inputs_needed": [],
-                "expected_artifacts": [],
-                "acceptance_gate": "",
-                "plan_row_source": "runtime_required_evidence_contract",
-                "llm_authored": False,
-                "runtime_defaults_required": True,
-            }
-        )
-        planned_subsystems.add(subsystem)
-        runtime_elaborated_subsystems.append(subsystem)
-    critic_index = next(
-        (
-            index
-            for index, row in enumerate(plan_rows)
-            if isinstance(row, Mapping)
-            and str(row.get("subsystem", "") or "").strip()
-            == "CriticEvaluator"
-        ),
-        len(plan_rows),
-    )
-    plan_rows[critic_index:critic_index] = [
-        row for row in missing_rows if row["subsystem"] != "CriticEvaluator"
-    ]
-    if any(row["subsystem"] == "CriticEvaluator" for row in missing_rows):
-        plan_rows.append(
-            next(
-                row
-                for row in missing_rows
-                if row["subsystem"] == "CriticEvaluator"
-            )
-        )
     provenance = {
         "artifact_kind": "ArchitectSubsystemExecutionPlanProvenance",
-        "llm_authored_subsystems": llm_authored_subsystems,
-        "runtime_elaborated_subsystems": runtime_elaborated_subsystems,
-        "runtime_elaboration_only_adds_empty_mandatory_stage_shells": True,
+        "llm_authored_subsystems": [],
+        "runtime_elaborated_subsystems": list(required_subsystems),
+        "runtime_owns_required_workspace_topology": True,
         "runtime_elaboration_may_generate_research_content": False,
         "evidence_contract_fingerprint": stable_hash(dict(evidence_contract)),
         "boundary": (

@@ -773,6 +773,8 @@ def _compact_architect_runtime_plan_for_prompt(plan: Mapping[str, Any]) -> dict[
             keys=(
                 "theorem_family",
                 "statistical_objects",
+                "assumption_dimensions",
+                "likely_analogy_classes",
                 "key_obstacles",
                 "missing_information",
             ),
@@ -782,19 +784,6 @@ def _compact_architect_runtime_plan_for_prompt(plan: Mapping[str, Any]) -> dict[
         "retrieval_strategy": _compact_prompt_mapping(
             plan.get("retrieval_strategy", {}),
             keys=("paper_queries", "formal_source_queries", "lean_rag_priorities"),
-            list_limit=3,
-            text_limit=180,
-        ),
-        "stat_knowledge_bank_plan": _compact_prompt_mapping(
-            plan.get("stat_knowledge_bank_plan", {}),
-            keys=("source_families_to_collect", "assumption_dimensions", "proof_skeletons_to_track"),
-            list_limit=3,
-            text_limit=220,
-        ),
-        "literature_fair_comparison_plan": _compact_prompt_rows(
-            plan.get("literature_fair_comparison_plan", []),
-            keys=("candidate_source_family", "must_match", "likely_mismatches", "unsafe_transfer_risks"),
-            limit=2,
             list_limit=3,
             text_limit=180,
         ),
@@ -812,23 +801,9 @@ def _compact_architect_runtime_plan_for_prompt(plan: Mapping[str, Any]) -> dict[
             list_limit=3,
             text_limit=220,
         ),
-        "subsystem_execution_plan": _compact_prompt_rows(
-            plan.get("subsystem_execution_plan", []),
-            keys=("subsystem", "objective", "expected_artifacts", "acceptance_gate"),
-            limit=3,
-            list_limit=3,
-            text_limit=220,
-        ),
-        "evidence_gates": _compact_prompt_rows(
-            plan.get("evidence_gates", []),
-            keys=("artifact_kind", "required_evidence", "not_evidence"),
-            limit=3,
-            list_limit=3,
-            text_limit=220,
-        ),
         "iteration_policy": _compact_prompt_mapping(
             plan.get("iteration_policy", {}),
-            keys=("reroute_triggers", "stop_conditions", "max_revision_rounds"),
+            keys=("stop_conditions", "max_revision_rounds"),
             list_limit=3,
             text_limit=220,
         ),

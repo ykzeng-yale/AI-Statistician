@@ -667,7 +667,7 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
     assert len(prompt) < 20000
 
 
-def test_formalizer_validation_failure_routes_checkpoint_to_architect() -> None:
+def test_formalizer_validation_failure_continues_same_workspace_once() -> None:
     latest = "theorem target : True := by\n  exact True.intro\n"
     checkpoint = {
         "schema_version": 1,
@@ -714,16 +714,17 @@ def test_formalizer_validation_failure_routes_checkpoint_to_architect() -> None:
         ),
     )
 
-    assert result.status == "REROUTE"
+    assert result.status == "REVISE"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
-    assert result.next_task.task_id.startswith("architect-workspace-replan:")
-    assert "formalizer-regenerate:" not in result.next_task.task_id
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert result.next_task.task_id.startswith("formalizer-workspace-continuation:")
     failure = next(iter(result.produced_artifacts.values()))
     routed = result.next_task.inputs["environment_feedback"]
     assert routed["artifact_kind"] == "RuntimeWorkspaceObservationRef"
     assert routed["source_artifact_id"] == failure["failure_id"]
+    assert routed["source_artifact_hash"] == stable_hash(failure)
     assert "formalizer_recovery_checkpoint" not in routed
+    assert result.next_task.inputs["formalizer_workspace_continuation_attempt"] == 1
     assert failure["formalizer_recovery_checkpoint"]["current_source"] == latest
     assert failure["rejected_candidate_complete"] is False
     assert failure["complete_current_source_checkpoint_provided"] is True
@@ -733,9 +734,156 @@ def test_formalizer_validation_failure_routes_checkpoint_to_architect() -> None:
     assert failure["validation_boundary"][
         "complete_current_source_checkpoint_provided"
     ] is True
-    assert "current-source checkpoint" in result.rationale
-    assert "same-owner regeneration task" in result.rationale
+    assert "same Formalizer" in result.rationale
     assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
+
+    exhausted = runtime_module._formalizer_packet_validation_failure_result(
+        task=result.next_task,
+        question=question,
+        theory_packet_id="theory:checkpoint",
+        simulation_manifest_id="simulation:checkpoint",
+        algorithm_sandbox_manifest_id="algorithm:checkpoint",
+        exc=PacketValidationError(
+            validation_label="LLM Formalizer Lean candidate client-tool revision",
+            attempts=2,
+            errors=["global client-tool turn budget exhausted"],
+            history=[],
+            recovery_checkpoint=checkpoint,
+        ),
+    )
+
+    assert exhausted.status == "BLOCKED"
+    assert exhausted.next_task is None
+    assert exhausted.failure_classification == (
+        "formalizer_workspace_continuation_exhausted"
+    )
+    assert "Architect or Critic" in exhausted.rationale
+
+
+def test_formalizer_workspace_hydrates_observation_ref_before_source_loop(
+    monkeypatch,
+) -> None:
+    question = OpenResearchQuestion(
+        id="hydrate-formalizer-checkpoint",
+        title="Hydrate a Formalizer checkpoint",
+        description="Resume exact model-owned source from the artifact store.",
+    )
+    source_artifact_id = "formalizer_validation_failure:checkpoint"
+    checkpoint = {
+        "schema_version": 1,
+        "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
+        "candidate_id": "target-candidate",
+        "candidate_lean_declaration": "target",
+        "parent_source_hash": "parent-hash",
+        "current_source_hash": stable_hash("theorem target : True"),
+        "current_source": "theorem target : True",
+        "model_owned_lean_code": True,
+        "runtime_selected_lean_code": False,
+        "kernel_verified": False,
+    }
+    stored_feedback = {
+        "artifact_kind": "RuntimeFormalizerValidationFailure",
+        "failure_id": source_artifact_id,
+        "failure_classification": "formalizer_client_tool_loop_exhausted",
+        "formalizer_recovery_checkpoint": checkpoint,
+        "candidate_materialization_id": "materialization:parent",
+    }
+    task = AgentTask(
+        task_id="formalizer-workspace-continuation:hydrate",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Continue the exact Lean workspace.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "environment_feedback": {
+                "artifact_kind": "RuntimeWorkspaceObservationRef",
+                "source_artifact_id": source_artifact_id,
+                "source_artifact_hash": stable_hash(stored_feedback),
+            },
+        },
+    )
+    blackboard = BlackboardState(
+        project_id="hydrate-formalizer-checkpoint",
+        artifacts={source_artifact_id: stored_feedback},
+    )
+    captured: dict[str, object] = {}
+
+    def capture_source_loop(**kwargs):
+        captured["environment_feedback"] = kwargs["environment_feedback"]
+        captured["task_environment_feedback"] = kwargs["task"].inputs[
+            "environment_feedback"
+        ]
+        raise RuntimeError("stop after hydration observation")
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_formalizer_lean_candidate_client_tool_revision",
+        capture_source_loop,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "evaluate_lean_kernel_promotion",
+        lambda **kwargs: None,
+    )
+    subsystem = runtime_module.FormalizerWorkspaceRuntimeSubsystem(
+        proposal_agent=object(),
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.failure_classification == "formalizer_provider_generation_failed"
+    assert captured["environment_feedback"]["formalizer_recovery_checkpoint"] == (
+        checkpoint
+    )
+    assert captured["task_environment_feedback"] == stored_feedback
+
+
+def test_formalizer_workspace_rejects_mismatched_observation_ref() -> None:
+    question = OpenResearchQuestion(
+        id="reject-formalizer-checkpoint",
+        title="Reject a mismatched Formalizer checkpoint",
+        description="Do not hydrate source state through an invalid artifact ref.",
+    )
+    source_artifact_id = "formalizer_validation_failure:mismatch"
+    stored_feedback = {
+        "artifact_kind": "RuntimeFormalizerValidationFailure",
+        "failure_id": source_artifact_id,
+        "formalizer_recovery_checkpoint": {
+            "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
+            "current_source": "theorem target : True := by trivial",
+        },
+    }
+    task = AgentTask(
+        task_id="formalizer-workspace-continuation:mismatch",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Continue the exact Lean workspace.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "environment_feedback": {
+                "artifact_kind": "RuntimeWorkspaceObservationRef",
+                "source_artifact_id": source_artifact_id,
+                "source_artifact_hash": "not-the-stored-artifact-hash",
+            },
+        },
+    )
+    subsystem = runtime_module.FormalizerWorkspaceRuntimeSubsystem(
+        proposal_agent=object(),
+    )
+
+    result = subsystem.run(
+        task,
+        BlackboardState(
+            project_id=question.id,
+            artifacts={source_artifact_id: stored_feedback},
+        ),
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "formalizer_workspace_observation_ref_invalid"
+    )
+    assert result.observations[0].payload["source_artifact_present"] is True
+    assert result.observations[0].payload["runtime_edits_candidate"] is False
 
 
 def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
@@ -1056,3 +1204,4 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
     assert packet["packet_id"] != parent_packet["packet_id"]
     assert packet["model"] == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
     assert evidence["runtime_selected_lean_code"] is False
+    assert backend.requests[0].metadata["client_tool_loop_max_turns"] == 12

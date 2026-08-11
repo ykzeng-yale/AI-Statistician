@@ -1054,7 +1054,7 @@ class GeneratorBackendCandidatePolicy:
 
 
 class OpenProverHLMProofSearchProvider:
-    """Drive OpenProver's verifier-backed HLM controller for a repair task."""
+    """Drive OpenProver's verifier-backed HLM controller for a proof search request."""
 
     name = "openprover_hlm_controller"
 

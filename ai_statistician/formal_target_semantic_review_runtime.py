@@ -709,7 +709,7 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             deferred_task.owner_subsystem != "FormalizationEvaluator"
         ):
             validation_errors.append(
-                "formal-target review deferred task is not ProofEngineer"
+                "formal-target review deferred task is not FormalizationEvaluator"
             )
         if (
             deferred_task is not None

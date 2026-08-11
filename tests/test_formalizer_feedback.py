@@ -5,11 +5,34 @@ import json
 
 import ai_statistician.formalizer_feedback as feedback_module
 from ai_statistician.fingerprint import stable_hash
-from ai_statistician.formalizer_llm import build_formalizer_prompt
+from ai_statistician.formalizer_llm import (
+    FORMALIZER_MAX_ACTIVE_TARGETS,
+    build_formalizer_prompt,
+    validate_formalizer_packet,
+)
 from ai_statistician.formalizer_feedback import (
     formalizer_validation_feedback_envelope,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
+
+
+def test_formalizer_packet_owns_exactly_one_active_target() -> None:
+    packet = {
+        "formal_targets": [
+            {"id": "target:one", "expected_status": "OPEN"},
+            {"id": "target:two", "expected_status": "OPEN"},
+        ],
+        "retrieval_queries": [],
+        "gap_taxonomy": [],
+        "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+    }
+
+    assert FORMALIZER_MAX_ACTIVE_TARGETS == 1
+    assert "Formalizer workspace must own exactly one active formal target" in (
+        validate_formalizer_packet(packet)
+    )
 
 
 def test_formalizer_repair_feedback_is_observation_not_rule_table() -> None:
