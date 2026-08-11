@@ -25,12 +25,12 @@ TheoryWorkspaceCandidateValidator = Callable[[Mapping[str, Any]], Sequence[str]]
 
 
 @dataclass(frozen=True)
-class TheoryWorkspaceRevisionResult:
+class TheoryWorkspaceResult:
     core_packet: Mapping[str, Any]
     evidence: Mapping[str, Any]
 
 
-def run_theory_revision_workspace(
+def run_theory_artifact_workspace(
     *,
     provider: Any,
     system_prompt: str,
@@ -45,21 +45,28 @@ def run_theory_revision_workspace(
     max_no_progress_turns: int,
     workspace_id: str,
     question_id: str,
-    revision_binding_id: str,
+    authoring_binding_id: str,
+    workspace_operation: str,
     initial_artifacts: Mapping[str, Any],
     read_only_artifacts: Mapping[str, Any] | None = None,
     build_candidate: TheoryWorkspaceCandidateBuilder,
     validate_candidate: TheoryWorkspaceCandidateValidator,
     request_metadata: Mapping[str, Any] | None = None,
-) -> TheoryWorkspaceRevisionResult:
-    """Let one model read and revise authoritative theory artifacts in place."""
+) -> TheoryWorkspaceResult:
+    """Let one model author authoritative theory artifacts in place."""
 
     if not all(
         str(value).strip()
-        for value in (workspace_id, question_id, revision_binding_id)
+        for value in (
+            workspace_id,
+            question_id,
+            authoring_binding_id,
+            workspace_operation,
+        )
     ):
         raise ValueError(
-            "theory workspace requires workspace, question, and revision identity"
+            "theory workspace requires workspace, question, authoring, and "
+            "operation identity"
         )
     for value, label in (
         (max_turns, "turn"),
@@ -171,18 +178,17 @@ def run_theory_revision_workspace(
                 ),
             )
 
-        if call.name == "submit_theory_workspace_revision":
+        if call.name == "submit_theory_artifacts":
             if state["submissions"] >= max_submissions:
                 raise ClientToolInputError(
                     "theory workspace submission budget is exhausted"
                 )
             if not tool_input:
                 raise ClientToolInputError(
-                    "submit_theory_workspace_revision requires at least one "
+                    "submit_theory_artifacts requires at least one "
                     "artifact-name field"
                 )
             candidate_artifacts = deepcopy(dict(state["artifacts"]))
-            replacement_names: list[str] = []
             for raw_name, raw_artifact in tool_input.items():
                 name = str(raw_name or "")
                 if name not in parent:
@@ -194,7 +200,6 @@ def run_theory_revision_workspace(
                     raise ClientToolInputError(
                         f"theory artifact {name} must remain {parent_shapes[name]}"
                     )
-                replacement_names.append(name)
                 candidate_artifacts[name] = artifact
 
             state["submissions"] += 1
@@ -309,7 +314,8 @@ def run_theory_revision_workspace(
             "model_tier": model_tier,
             "workspace_id": workspace_id,
             "question_id": question_id,
-            "revision_binding_id": revision_binding_id,
+            "authoring_binding_id": authoring_binding_id,
+            "workspace_operation": workspace_operation,
             "parent_workspace_hash": parent_hash,
         },
     )
@@ -317,7 +323,7 @@ def run_theory_revision_workspace(
     def select_tools(_turn_index, available_tools):
         enabled = {
             "read_theory_workspace": state["reads"] < max_reads,
-            "submit_theory_workspace_revision": (
+            "submit_theory_artifacts": (
                 state["submissions"] < max_submissions
             ),
         }
@@ -325,7 +331,7 @@ def run_theory_revision_workspace(
         return selected or tuple(
             tool
             for tool in available_tools
-            if tool.name == "submit_theory_workspace_revision"
+            if tool.name == "submit_theory_artifacts"
         )
 
     try:
@@ -345,7 +351,8 @@ def run_theory_revision_workspace(
             "artifact_kind": THEORY_WORKSPACE_CHECKPOINT_KIND,
             "workspace_id": workspace_id,
             "question_id": question_id,
-            "revision_binding_id": revision_binding_id,
+            "authoring_binding_id": authoring_binding_id,
+            "workspace_operation": workspace_operation,
             "parent_workspace_hash": parent_hash,
             "current_workspace_hash": stable_hash(current_artifacts),
             "current_artifacts": current_artifacts,
@@ -407,16 +414,23 @@ def run_theory_revision_workspace(
             last_invalid_packet=packet,
         )
 
-    evidence_id = "theory_workspace_revision:" + stable_hash(
-        [workspace_id, parent_hash, packet_hash, loop.transcript_fingerprint]
+    evidence_id = "theory_workspace:" + stable_hash(
+        [
+            workspace_id,
+            workspace_operation,
+            parent_hash,
+            packet_hash,
+            loop.transcript_fingerprint,
+        ]
     )[:20]
     evidence = {
         "schema_version": 1,
-        "artifact_kind": "TheoryDeveloperWorkspaceRevisionEvidence",
+        "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
         "artifact_id": evidence_id,
         "workspace_id": workspace_id,
         "question_id": question_id,
-        "revision_binding_id": revision_binding_id,
+        "authoring_binding_id": authoring_binding_id,
+        "workspace_operation": workspace_operation,
         "transport": "native_client_tools",
         "parent_workspace_hash": parent_hash,
         "submitted_workspace_hash": str(terminal.get("workspace_hash", "") or ""),
@@ -444,7 +458,7 @@ def run_theory_revision_workspace(
         "proof_evidence_status": "THEORY_WORKSPACE_NOT_PROOF_EVIDENCE",
         "kernel_verified": False,
     }
-    return TheoryWorkspaceRevisionResult(core_packet=packet, evidence=evidence)
+    return TheoryWorkspaceResult(core_packet=packet, evidence=evidence)
 
 
 def _theory_workspace_tools(
@@ -478,7 +492,7 @@ def _theory_workspace_tools(
             },
         ),
         ClientToolDefinition(
-            name="submit_theory_workspace_revision",
+            name="submit_theory_artifacts",
             description=(
                 "Submit a flat object whose keys are the theory artifacts to change "
                 "and whose values are their complete model-authored replacements. "

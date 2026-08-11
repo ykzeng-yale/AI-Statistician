@@ -49,6 +49,7 @@ from ai_statistician.research_architect import (
     ResearchArchitectAgent,
     ResearchArchitectConfig,
     StaticArchitectLLMProvider,
+    THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
     build_theory_developer_revision_inputs,
     build_theory_developer_prompt,
@@ -887,6 +888,103 @@ def test_theory_developer_anthropic_request_uses_structured_output() -> None:
     assert len(provider.requests) == 1
 
 
+def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
+    question = OpenResearchQuestion(
+        id="initial_theory_workspace",
+        title="Initial theory workspace",
+        description="Author initial theory through direct model-owned artifacts.",
+    )
+    core_response = _sample_response()
+    core_estimators = [dict(row) for row in core_response["estimator_specs"]]
+    expected_contract = core_estimators[0].pop(
+        "estimator_interface_contract"
+    )
+    core_response["estimator_specs"] = core_estimators
+    core_artifacts = {
+        field: core_response[field]
+        for field in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+    }
+    provider = ScriptedTheoryToolBackend(
+        tool_responses=[
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="read-initial-context",
+                    name="read_theory_workspace",
+                    input={
+                        "artifact_names": ["initial_authoring_context"]
+                    },
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="submit-initial-theory",
+                    name="submit_theory_artifacts",
+                    input=core_artifacts,
+                )
+            ),
+        ],
+        generator_responses=[
+            {
+                "interfaces": {
+                    core_estimators[0]["id"]: expected_contract
+                }
+            }
+        ],
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+
+    packet = developer.derive(question)
+
+    assert validate_theory_packet(packet) == []
+    assert len(provider.tool_requests) == 2
+    assert len(provider.generator_requests) == 1
+    first_request = provider.tool_requests[0]
+    assert first_request.metadata["theory_developer_phase"] == (
+        "initial_artifact_workspace"
+    )
+    assert first_request.metadata["authoring_mode"] == (
+        "model_owned_artifact_workspace"
+    )
+    assert {tool.name for tool in first_request.tools} == {
+        "read_theory_workspace",
+        "submit_theory_artifacts",
+    }
+    initial_prompt = str(first_request.messages[0]["content"])
+    assert core_response["problem_card"]["dgp"] not in initial_prompt
+    assert "Authoritative theory workspace catalog" in initial_prompt
+    assert "initial_authoring_context" in initial_prompt
+    assert "at most 3 submissions" in initial_prompt
+    assert question.description in str(provider.tool_requests[1].messages)
+    assert "desired_theorem_type" in str(
+        provider.tool_requests[1].messages
+    )
+    assert packet["problem_card"]["dgp"] == core_response["problem_card"][
+        "dgp"
+    ]
+    evidence = packet["llm_client_tool_loop"]
+    assert evidence["workspace_operation"] == "initial_discovery"
+    assert evidence["model_owned_theory"] is True
+    assert evidence["runtime_edited_theory"] is False
+    assert evidence["reads"] == 1
+    assert set(evidence["changed_artifact_names"]) == set(
+        THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+    )
+    assert packet["theory_generation_phases"][0]["phase"] == (
+        "initial_artifact_workspace"
+    )
+    assert provider.generator_requests[0].metadata[
+        "theory_developer_phase"
+    ] == "estimator_interface_authoring"
+
+
 def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> None:
     class AnthropicReplayBackend(SequentialGeneratorBackend):
         provider_name = "anthropic"
@@ -1082,7 +1180,7 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
             _theory_tool_response(
                 ClientToolCall(
                     call_id="submit-lemmas",
-                    name="submit_theory_workspace_revision",
+                    name="submit_theory_artifacts",
                     input={
                         "lemma_cards": revised_core["lemma_cards"],
                     },
@@ -1126,7 +1224,7 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     )
     assert {tool.name for tool in first_tool_request.tools} == {
         "read_theory_workspace",
-        "submit_theory_workspace_revision",
+        "submit_theory_artifacts",
     }
     first_prompt = str(first_tool_request.messages[0]["content"])
     assert json.dumps(revision_inputs["base_core_payload"]) not in first_prompt
@@ -1301,7 +1399,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
             _theory_tool_response(
                 ClientToolCall(
                     call_id="submit-revised-problem-card",
-                    name="submit_theory_workspace_revision",
+                    name="submit_theory_artifacts",
                     input={
                         "problem_card": revised_core["problem_card"],
                     },

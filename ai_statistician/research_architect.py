@@ -41,7 +41,7 @@ from .theory_revision_lineage import (
     build_theory_developer_revision_binding,
     theory_developer_revision_binding_errors,
 )
-from .theory_workspace import run_theory_revision_workspace
+from .theory_workspace import run_theory_artifact_workspace
 
 
 ARCHITECT_SCHEMA_VERSION = 1
@@ -242,6 +242,28 @@ class LLMTheoryDeveloperAgent:
                 max_tokens=effective_max_tokens,
                 max_turns=self.config.theory_workspace_max_turns,
                 max_reads=self.config.theory_workspace_max_reads,
+                max_submissions=self.config.theory_workspace_max_submissions,
+                max_no_progress_turns=(
+                    self.config.theory_workspace_max_no_progress_turns
+                ),
+            )
+        elif callable(
+            getattr(self.provider, "generate_client_tool_turn", None)
+        ):
+            core_packet = _generate_initial_theory_artifact_workspace(
+                provider=self.provider,
+                provider_name=self.config.provider_name,
+                question=question,
+                architect_context=context,
+                theory_prompt_mode=theory_prompt_mode,
+                request_model=request_model,
+                model_tier=effective_model_tier,
+                base_model_tier=self.config.model_tier,
+                configured_serious_model=self.config.serious_model,
+                serious_model_tier=self.config.serious_model_tier,
+                temperature=self.config.temperature,
+                max_tokens=effective_max_tokens,
+                max_turns=self.config.theory_workspace_max_turns,
                 max_submissions=self.config.theory_workspace_max_submissions,
                 max_no_progress_turns=(
                     self.config.theory_workspace_max_no_progress_turns
@@ -2223,6 +2245,96 @@ def _theory_workspace_read_only_observations(
     return observations
 
 
+def _empty_theory_core_workspace() -> dict[str, Any]:
+    """Return shape-only writable artifacts without seeded research content."""
+
+    workspace: dict[str, Any] = {}
+    for name, contract in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT.items():
+        if isinstance(contract, Mapping):
+            workspace[name] = {}
+        elif isinstance(contract, list):
+            workspace[name] = []
+        else:
+            raise TypeError(
+                f"unsupported theory workspace contract shape for {name}"
+            )
+    return workspace
+
+
+def _initial_theory_workspace_read_only_artifacts(
+    *,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    theory_prompt_mode: str,
+    max_submissions: int,
+) -> dict[str, Any]:
+    serious = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
+    return {
+        "initial_authoring_context": {
+            "research_question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "architect_context": _compact_architect_context_for_prompt(
+                architect_context
+            ),
+            "required_output_contract": deepcopy(
+                THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+            ),
+            "authoring_policy": {
+                "theory_prompt_mode": theory_prompt_mode,
+                "serious_theory_mode": serious,
+                "minimum_derivation_steps": (
+                    THEORY_SERIOUS_MIN_DERIVATION_STEPS
+                    if serious
+                    else THEORY_MIN_DERIVATION_STEPS
+                ),
+                "minimum_equation_chain_steps": (
+                    THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS
+                    if serious
+                    else THEORY_MIN_EQUATION_CHAIN_STEPS
+                ),
+                "minimum_independent_sanity_checks": (
+                    THEORY_SERIOUS_MIN_SANITY_CHECKS if serious else 1
+                ),
+                "maximum_submissions": max(1, int(max_submissions)),
+                "row_counts_are_not_quality_metrics": True,
+                "substantive_author": "TheoryDeveloper model",
+                "runtime_role": (
+                    "store exact replacements, validate structure and lineage, "
+                    "and return raw observations without editing research content"
+                ),
+                "proof_boundary": KERNEL_PROOF_BOUNDARY,
+            },
+        }
+    }
+
+
+def _initial_theory_workspace_prompt(
+    *,
+    question: OpenResearchQuestion,
+    theory_prompt_mode: str,
+    max_submissions: int,
+) -> str:
+    return (
+        "Author the initial TheoryDeveloper research workspace for the supplied "
+        f"question {question.id!r} in mode {theory_prompt_mode!r}. First read the "
+        "single initial_authoring_context artifact. Then use your own statistical "
+        "judgment to submit complete theory artifacts. You may submit a coherent "
+        "subset and use the raw validator observation to complete or revise the "
+        f"workspace in the same model session. You have at most {max(1, int(max_submissions))} "
+        "submissions: group related artifacts, and use the final submission to fill "
+        "every still-empty required artifact. Derive definitions and claims rather "
+        "than treating retrieval as an answer key. Keep assumptions, equations, "
+        "estimators, theorem cards, simulation semantics, and formal targets mutually "
+        "consistent. Record uncertainty explicitly. Do not claim execution, Lean "
+        "proof, or kernel verification. The runtime will not fill, patch, or rewrite "
+        "any substantive field."
+    )
+
+
 def _theory_workspace_revision_prompt(
     *,
     question: OpenResearchQuestion,
@@ -2460,6 +2572,135 @@ def _validate_theory_workspace_revision_packet(
     return list(dict.fromkeys(errors))
 
 
+def _generate_initial_theory_artifact_workspace(
+    *,
+    provider: GeneratorBackend,
+    provider_name: str,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    theory_prompt_mode: str,
+    request_model: str,
+    model_tier: str,
+    base_model_tier: str,
+    configured_serious_model: str,
+    serious_model_tier: str,
+    temperature: float,
+    max_tokens: int,
+    max_turns: int,
+    max_submissions: int,
+    max_no_progress_turns: int,
+) -> dict[str, Any]:
+    initial_artifacts = _empty_theory_core_workspace()
+    read_only_artifacts = _initial_theory_workspace_read_only_artifacts(
+        question=question,
+        architect_context=architect_context,
+        theory_prompt_mode=theory_prompt_mode,
+        max_submissions=max_submissions,
+    )
+    authoring_binding_id = "initial_theory_authoring:" + stable_hash(
+        [question.id, theory_prompt_mode, read_only_artifacts]
+    )[:20]
+    workspace_id = "theory_workspace:" + stable_hash(
+        [authoring_binding_id, initial_artifacts]
+    )[:20]
+
+    def build_candidate(
+        artifacts: Mapping[str, Any],
+        changed_artifact_names: tuple[str, ...],
+    ) -> dict[str, Any]:
+        raw_response = json.dumps(
+            {
+                "workspace_id": workspace_id,
+                "artifact_hashes": {
+                    name: stable_hash(value)
+                    for name, value in artifacts.items()
+                },
+                "changed_artifact_names": list(changed_artifact_names),
+            },
+            separators=(",", ":"),
+            default=str,
+            ensure_ascii=False,
+        )
+        return _normalize_theory_packet(
+            artifacts,
+            question=question,
+            model=request_model,
+            model_tier=model_tier,
+            provider_name=provider_name,
+            raw_response=raw_response,
+            theory_prompt_mode=theory_prompt_mode,
+        )
+
+    result = run_theory_artifact_workspace(
+        provider=provider,
+        system_prompt=(
+            THEORY_DEVELOPER_SYSTEM_PROMPT
+            + "\nUse the supplied client tools as the sole write path for the "
+            "current theory workspace."
+        ),
+        user_prompt=_initial_theory_workspace_prompt(
+            question=question,
+            theory_prompt_mode=theory_prompt_mode,
+            max_submissions=max_submissions,
+        ),
+        model=request_model,
+        model_tier=model_tier,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        max_turns=max(1, max_turns),
+        max_reads=1,
+        max_submissions=max(1, max_submissions),
+        max_no_progress_turns=max(1, max_no_progress_turns),
+        workspace_id=workspace_id,
+        question_id=question.id,
+        authoring_binding_id=authoring_binding_id,
+        workspace_operation="initial_discovery",
+        initial_artifacts=initial_artifacts,
+        read_only_artifacts=read_only_artifacts,
+        build_candidate=build_candidate,
+        validate_candidate=validate_theory_core_packet,
+        request_metadata={
+            "subsystem": "TheoryDeveloper",
+            "agent": "LLMTheoryDeveloperAgent",
+            "theory_developer_phase": "initial_artifact_workspace",
+            "provider_name": provider_name,
+            "model_tier": model_tier,
+            "base_model_tier": base_model_tier,
+            "configured_serious_model": configured_serious_model,
+            "serious_model_tier": serious_model_tier,
+            "theory_prompt_mode": theory_prompt_mode,
+            "serious_theory_mode": (
+                theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
+            ),
+            "resolved_model": request_model,
+            "authoring_mode": "model_owned_artifact_workspace",
+        },
+    )
+    packet = deepcopy(dict(result.core_packet))
+    workspace_evidence = deepcopy(dict(result.evidence))
+    packet["llm_client_tool_loop"] = workspace_evidence
+    errors = validate_theory_core_packet(packet)
+    changed = set(workspace_evidence.get("changed_artifact_names", []) or [])
+    expected = set(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT)
+    if changed != expected:
+        errors.append(
+            "initial theory workspace did not author every required artifact"
+        )
+    if workspace_evidence.get("workspace_operation") != "initial_discovery":
+        errors.append("initial theory workspace operation identity mismatch")
+    if workspace_evidence.get("runtime_edited_theory") is not False:
+        errors.append("runtime cannot edit initial theory workspace semantics")
+    if errors:
+        raise PacketValidationError(
+            validation_label="LLM TheoryDeveloper initial artifact workspace",
+            attempts=int(workspace_evidence.get("turns", 0) or 0),
+            errors=list(dict.fromkeys(errors)),
+            history=workspace_evidence.get("history", []),
+            last_invalid_packet=packet,
+        )
+    return packet
+
+
 def _generate_theory_workspace_revision(
     *,
     provider: GeneratorBackend,
@@ -2529,7 +2770,7 @@ def _generate_theory_workspace_revision(
             changed_artifact_names=changed_artifact_names,
         )
 
-    result = run_theory_revision_workspace(
+    result = run_theory_artifact_workspace(
         provider=provider,
         system_prompt=(
             THEORY_DEVELOPER_SYSTEM_PROMPT
@@ -2550,9 +2791,10 @@ def _generate_theory_workspace_revision(
         max_no_progress_turns=max(1, max_no_progress_turns),
         workspace_id=workspace_id,
         question_id=question.id,
-        revision_binding_id=str(
+        authoring_binding_id=str(
             revision_inputs.get("revision_binding_id", "") or ""
         ),
+        workspace_operation="targeted_revision",
         initial_artifacts=initial_artifacts,
         read_only_artifacts=_theory_workspace_read_only_observations(
             revision_inputs
@@ -2630,6 +2872,13 @@ The runtime validates shape and references but never computes or overwrites a ra
 
 
 def _theory_core_generation_phase(core_packet: Mapping[str, Any]) -> str:
+    client_tool_loop = core_packet.get("llm_client_tool_loop", {})
+    if (
+        isinstance(client_tool_loop, Mapping)
+        and client_tool_loop.get("workspace_operation")
+        == "initial_discovery"
+    ):
+        return "initial_artifact_workspace"
     transport = core_packet.get("theory_revision_transport", {})
     if not isinstance(transport, Mapping) or not transport:
         return "core_theory_workspace"

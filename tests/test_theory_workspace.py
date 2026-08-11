@@ -11,7 +11,7 @@ from ai_statistician.model_backend import (
 from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_CHECKPOINT_KIND,
-    run_theory_revision_workspace,
+    run_theory_artifact_workspace,
 )
 
 
@@ -64,7 +64,8 @@ def _run_workspace(backend, **overrides):
         "max_no_progress_turns": 2,
         "workspace_id": "theory-workspace:q1",
         "question_id": "q1",
-        "revision_binding_id": "revision-binding:q1",
+        "authoring_binding_id": "authoring-binding:q1",
+        "workspace_operation": "test_authoring",
         "initial_artifacts": {
             "problem_card": {"claim": "parent-private-claim"},
             "lemma_cards": [],
@@ -82,7 +83,7 @@ def _run_workspace(backend, **overrides):
         ),
     }
     kwargs.update(overrides)
-    return run_theory_revision_workspace(**kwargs)
+    return run_theory_artifact_workspace(**kwargs)
 
 
 def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
@@ -100,7 +101,7 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
             _response(
                 ClientToolCall(
                     call_id="submit-incomplete",
-                    name="submit_theory_workspace_revision",
+                    name="submit_theory_artifacts",
                     input={
                         "problem_card": {"claim": "revised claim"},
                     },
@@ -109,7 +110,7 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
             _response(
                 ClientToolCall(
                     call_id="submit-complete",
-                    name="submit_theory_workspace_revision",
+                    name="submit_theory_artifacts",
                     input={
                         "lemma_cards": [{"id": "lemma-1"}],
                     },
@@ -130,6 +131,10 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
     ]
     assert result.evidence["reads"] == 1
     assert result.evidence["submissions"] == 2
+    assert result.evidence["authoring_binding_id"] == (
+        "authoring-binding:q1"
+    )
+    assert result.evidence["workspace_operation"] == "test_authoring"
     assert result.evidence["model_owned_theory"] is True
     assert result.evidence["runtime_edited_theory"] is False
     initial_prompt = str(backend.requests[0].messages[0]["content"])
@@ -141,7 +146,7 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
     submission_schema = next(
         tool.input_schema
         for tool in backend.requests[0].tools
-        if tool.name == "submit_theory_workspace_revision"
+        if tool.name == "submit_theory_artifacts"
     )
     assert submission_schema["properties"]["problem_card"]["type"] == (
         "object"
@@ -153,7 +158,7 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
 def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     rejected_call = ClientToolCall(
         call_id="submit-rejected",
-        name="submit_theory_workspace_revision",
+        name="submit_theory_artifacts",
         input={
             "problem_card": {"claim": "still invalid"},
         },
@@ -173,6 +178,8 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
 
     checkpoint = exc_info.value.recovery_checkpoint
     assert checkpoint["artifact_kind"] == THEORY_WORKSPACE_CHECKPOINT_KIND
+    assert checkpoint["authoring_binding_id"] == "authoring-binding:q1"
+    assert checkpoint["workspace_operation"] == "test_authoring"
     assert checkpoint["current_artifacts"]["problem_card"] == {
         "claim": "still invalid"
     }

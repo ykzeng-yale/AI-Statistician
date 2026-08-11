@@ -4313,8 +4313,22 @@ class TheoryDeveloperRuntimeSubsystem:
             or getattr(theory_config, "provider_name", "")
             or ""
         ).strip().lower()
-        theory_revision_workspace_expected = bool(
-            context.get(THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY)
+        environment_feedback = context.get("environment_feedback", {})
+        recovery_checkpoint = (
+            environment_feedback.get("recovery_checkpoint", {})
+            if isinstance(environment_feedback, Mapping)
+            else {}
+        )
+        recovering_interface_stage = bool(
+            isinstance(recovery_checkpoint, Mapping)
+            and recovery_checkpoint.get("failed_phase")
+            == "estimator_interface_authoring"
+        )
+        theory_artifact_workspace_expected = bool(
+            callable(
+                getattr(theory_provider, "generate_client_tool_turn", None)
+            )
+            and not recovering_interface_stage
         )
         try:
             with agent_runtime_substage(
@@ -4328,10 +4342,10 @@ class TheoryDeveloperRuntimeSubsystem:
                     "provider": theory_provider_name,
                     "provider_structured_output_expected": bool(
                         theory_provider_name == "anthropic"
-                        and not theory_revision_workspace_expected
+                        and not theory_artifact_workspace_expected
                     ),
-                    "theory_revision_workspace_expected": (
-                        theory_revision_workspace_expected
+                    "theory_artifact_workspace_expected": (
+                        theory_artifact_workspace_expected
                     ),
                 },
             ):
@@ -4416,6 +4430,43 @@ class TheoryDeveloperRuntimeSubsystem:
         theory_derivation_contract = dict(
             packet.get("theory_derivation_contract", {}) or {}
         )
+        raw_theory_workspace = packet.get("llm_client_tool_loop", {})
+        theory_workspace_evidence = (
+            {
+                field: deepcopy(raw_theory_workspace.get(field))
+                for field in (
+                    "artifact_kind",
+                    "artifact_id",
+                    "workspace_id",
+                    "workspace_operation",
+                    "accepted",
+                    "model_owned_theory",
+                    "runtime_edited_theory",
+                    "reads",
+                    "submissions",
+                    "changed_artifact_names",
+                    "provider",
+                    "model",
+                    "model_tier",
+                    "transcript_fingerprint",
+                )
+                if field in raw_theory_workspace
+            }
+            if isinstance(raw_theory_workspace, Mapping)
+            else {}
+        )
+        theory_evidence_payload = {
+            "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+            "kernel_verified": False,
+            "architect_acceptance_gate": theory_control.get(
+                "acceptance_gate", ""
+            ),
+            "theory_derivation_contract": theory_derivation_contract,
+        }
+        if theory_workspace_evidence:
+            theory_evidence_payload["llm_client_tool_loop"] = (
+                theory_workspace_evidence
+            )
         evidence = EvidenceLedgerEntry(
             evidence_id="evidence:" + stable_hash([task.task_id, packet_id])[:20],
             task_id=task.task_id,
@@ -4423,12 +4474,7 @@ class TheoryDeveloperRuntimeSubsystem:
             evidence_type="llm_theory_derivation",
             status="PROPOSAL_RECORDED_REQUIRES_GATES",
             boundary=KERNEL_PROOF_BOUNDARY,
-            payload={
-                "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
-                "kernel_verified": False,
-                "architect_acceptance_gate": theory_control.get("acceptance_gate", ""),
-                "theory_derivation_contract": theory_derivation_contract,
-            },
+            payload=theory_evidence_payload,
         )
         simulation_task = AgentTask(
             task_id=f"simulation:{question.id}:{stable_hash(packet_id)[:8]}",

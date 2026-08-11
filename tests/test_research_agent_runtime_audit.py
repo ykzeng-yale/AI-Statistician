@@ -36,3 +36,77 @@ def test_code_revision_ownership_cannot_pass_without_executed_sources() -> None:
     assert ownership["passed"] is False
     assert "algorithm_executed=[]" in str(ownership["evidence"])
     assert "simulation_executed=[]" in str(ownership["evidence"])
+
+
+def _theory_evidence(*, with_workspace: bool) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "theory_derivation_contract": {
+            "n_derivation_steps": 5,
+            "n_equation_chain_steps": 4,
+            "n_assumption_ledger_rows": 3,
+        }
+    }
+    if with_workspace:
+        payload["llm_client_tool_loop"] = {
+            "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+            "workspace_operation": "initial_discovery",
+            "accepted": True,
+            "model_owned_theory": True,
+            "runtime_edited_theory": False,
+            "reads": 1,
+            "submissions": 1,
+            "changed_artifact_names": ["problem_card"],
+            "provider": "anthropic",
+            "model": "claude-haiku-4-5-20251001",
+        }
+    return {
+        "question_id": "task-one",
+        "evidence_type": "llm_theory_derivation",
+        "payload": payload,
+    }
+
+
+def test_rigorous_theory_requires_model_owned_initial_workspace() -> None:
+    common = {
+        "config": {"evaluation_mode": "capability_eval"},
+        "llm_topology_policy_ok": True,
+        "llm_runtime_topology": {"llm_agents": []},
+    }
+    integrity = {
+        "manifest_readable": True,
+        "canonical_runtime_endpoint": True,
+        "integrated_evidence_only": True,
+        "legacy_post_runtime_fallback_absent": True,
+        "runtime_streams_readable": True,
+    }
+    traces = [{"question_id": "task-one", "status": "BLOCKED"}]
+
+    without_workspace = _scorecard(
+        common,
+        traces,
+        [],
+        [_theory_evidence(with_workspace=False)],
+        integrity,
+    )
+    with_workspace = _scorecard(
+        common,
+        traces,
+        [],
+        [_theory_evidence(with_workspace=True)],
+        integrity,
+    )
+
+    rejected = _row(
+        without_workspace,
+        "rigorous_theory_derivation_observed",
+    )
+    accepted = _row(
+        with_workspace,
+        "rigorous_theory_derivation_observed",
+    )
+    assert rejected["passed"] is False
+    assert "content=['task-one']" in str(rejected["evidence"])
+    assert "model_owned_initial_workspace=[]" in str(
+        rejected["evidence"]
+    )
+    assert accepted["passed"] is True

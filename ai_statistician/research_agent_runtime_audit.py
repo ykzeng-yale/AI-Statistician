@@ -198,6 +198,30 @@ def _evidence_type(row: Mapping[str, Any]) -> str:
     return str(row.get("evidence_type", "") or "").strip()
 
 
+def _model_owned_theory_workspace(
+    payload: Mapping[str, Any],
+    *,
+    operation: str,
+) -> bool:
+    workspace = payload.get("llm_client_tool_loop", {})
+    if not isinstance(workspace, Mapping):
+        return False
+    changed = set(workspace.get("changed_artifact_names", []) or [])
+    return bool(
+        workspace.get("artifact_kind")
+        == "TheoryDeveloperWorkspaceEvidence"
+        and workspace.get("workspace_operation") == operation
+        and _bool(workspace.get("accepted", False))
+        and _bool(workspace.get("model_owned_theory", False))
+        and not _bool(workspace.get("runtime_edited_theory", True))
+        and _int(workspace.get("reads")) > 0
+        and _int(workspace.get("submissions")) > 0
+        and bool(changed)
+        and bool(str(workspace.get("provider", "") or "").strip())
+        and bool(str(workspace.get("model", "") or "").strip())
+    )
+
+
 def _has_direct_revision(
     evidence_rows: list[Mapping[str, Any]],
     *,
@@ -319,7 +343,7 @@ def _scorecard(
             for row in evidence_for(question_id, "llm_architect_coordinator_proposal")
         )
     }
-    theory_questions = {
+    theory_content_questions = {
         question_id
         for question_id in question_ids
         if any(
@@ -344,11 +368,37 @@ def _scorecard(
             for row in evidence_for(question_id, "llm_theory_derivation")
         )
     }
+    initial_theory_workspace_questions = {
+        question_id
+        for question_id in question_ids
+        if any(
+            _model_owned_theory_workspace(
+                _payload(row),
+                operation="initial_discovery",
+            )
+            for row in evidence_for(question_id, "llm_theory_derivation")
+        )
+    }
+    theory_questions = (
+        theory_content_questions & initial_theory_workspace_questions
+    )
+    targeted_theory_workspace_questions = {
+        question_id
+        for question_id in question_ids
+        if any(
+            _model_owned_theory_workspace(
+                _payload(row),
+                operation="targeted_revision",
+            )
+            for row in evidence_for(question_id, "llm_theory_derivation")
+        )
+    }
     theory_revision_questions = {
         question_id
         for question_id in question_ids
         if len(evidence_for(question_id, "llm_theory_derivation")) >= 2
         and bool(evidence_for(question_id, "llm_critic_evaluator_proposal"))
+        and question_id in targeted_theory_workspace_questions
     }
     algorithm_questions = {
         question_id
@@ -492,12 +542,16 @@ def _scorecard(
         (
             "rigorous_theory_derivation_observed",
             all_have(theory_questions),
-            f"questions={sorted(theory_questions)}",
+            f"content={sorted(theory_content_questions)} "
+            "model_owned_initial_workspace="
+            f"{sorted(initial_theory_workspace_questions)}",
         ),
         (
             "theory_critic_revision_observed",
             all_have(theory_revision_questions),
-            f"questions={sorted(theory_revision_questions)}",
+            f"questions={sorted(theory_revision_questions)} "
+            "model_owned_targeted_workspace="
+            f"{sorted(targeted_theory_workspace_questions)}",
         ),
         (
             "generated_algorithm_executed_and_passed",
