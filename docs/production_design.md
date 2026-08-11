@@ -115,6 +115,12 @@ than treating a small JSON packet as the theory itself. Its durable products are
 
 Compact structured packets are handoff indexes into this workspace. Fixed numbers
 of equations, lemmas, or characters are transport limits, never quality criteria.
+The workspace validator requires nonempty typed derivation, equation, assumption,
+and sanity-check structures plus a primary estimator, theorem target, and
+formalization request; it does not prescribe how many rows constitute a rigorous
+argument. Supporting lemma, critic-finding, and next-action lists may remain empty
+when the model has no justified item. Independent theory preflight and the final
+Critic, rather than schema cardinality, judge mathematical sufficiency.
 Initial discovery and targeted revision now share this model-owned workspace
 pattern. Initial discovery reads one content-addressed question/Architect/RAG/
 contract context and may author coherent artifact groups across bounded
@@ -324,6 +330,9 @@ The evidence-bound retraction state is now covered by deterministic tests but ha
 not been revalidated live. v334 was a deliberately stopped diagnostic, not an
 authoritative panel; it exposed duplicate Algorithm regeneration after independent
 acceptance, which is now prevented by current-parent review completion authority.
+After v336, commit `a8115c6f` removed the remaining fixed TheoryDeveloper minimum
+row counts. This is a deterministic design correction with no post-change live
+capability claim; v336 remains the latest authoritative panel.
 
 An exact-Haiku component diagnostic of the simplified preflight used three turns
 and four tool calls, including two independent searches in one turn, with no
