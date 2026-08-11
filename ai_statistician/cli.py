@@ -10,7 +10,11 @@ import subprocess
 import tempfile
 from typing import Any, Mapping
 
-from .agent_runtime import AgentTask
+from .agent_runtime import (
+    AgentTask,
+    agent_task_from_payload,
+    restore_agent_task_continuation,
+)
 from .algorithms import audit_algorithm_registry
 from .assumption_interface_export import export_assumption_interfaces
 from .autoform_harness import audit_autoform_harness
@@ -27,6 +31,7 @@ from .frontier_evaluation_triage import audit_frontier_evaluation_triage
 from .frontier_precision_audit import audit_frontier_precision
 from .frontier_simulation_rerun_audit import audit_frontier_simulation_reruns
 from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
+from .fingerprint import stable_hash
 from .frontier_theory_revision_formalization_audit import audit_frontier_theory_revision_formalization
 from .frontier_theory_revision_queue import export_frontier_theory_revision_queue
 from .frontier_theory_target_audit import audit_frontier_theory_targets
@@ -273,67 +278,46 @@ def _load_runtime_resume_task_from_manifest(
 ) -> tuple[str, AgentTask, dict[str, Any]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     artifact_kind = str(payload.get("artifact_kind", "") or "")
-    if artifact_kind == "RuntimePendingNextTask":
-        task_payload = payload.get("pending_next_task")
-    else:
-        task_payload = payload.get("incomplete_pending_next_task")
-        if not isinstance(task_payload, Mapping) or not task_payload:
-            artifacts = payload.get("artifacts", {})
-            pending_path_value = (
-                artifacts.get("runtime_pending_next_tasks_jsonl", "")
-                if isinstance(artifacts, Mapping)
-                else ""
-            )
-            pending_path = _resolve_runtime_resume_path(
-                str(pending_path_value or ""),
-                base_dir=path.parent,
-            )
-            pending_rows: list[Mapping[str, Any]] = []
-            if pending_path is not None:
-                for line in pending_path.read_text(encoding="utf-8").splitlines():
-                    if not line.strip():
-                        continue
-                    row = json.loads(line)
-                    if isinstance(row, Mapping):
-                        pending_rows.append(row)
+    if artifact_kind != "RuntimePendingNextTask":
+        artifacts = payload.get("artifacts", {})
+        pending_path_value = (
+            artifacts.get("runtime_pending_next_tasks_jsonl", "")
+            if isinstance(artifacts, Mapping)
+            else ""
+        )
+        pending_path = _resolve_runtime_resume_path(
+            str(pending_path_value or ""),
+            base_dir=path.parent,
+        )
+        pending_rows: list[Mapping[str, Any]] = []
+        if pending_path is not None:
+            for line in pending_path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                if isinstance(row, Mapping):
+                    pending_rows.append(row)
+        selected_rows = list(pending_rows)
+        if len(selected_rows) != 1:
             failure_summary = payload.get("runtime_failure_summary", {})
             terminal_question_id = str(
-                (
-                    failure_summary.get("terminal_question_id", "")
-                    if isinstance(failure_summary, Mapping)
-                    else ""
-                )
-                or ""
-            )
-            matching_rows = [
+                failure_summary.get("terminal_question_id", "") or ""
+            ) if isinstance(failure_summary, Mapping) else ""
+            selected_rows = [
                 row
                 for row in pending_rows
-                if not terminal_question_id
-                or str(row.get("question_id", "") or "")
+                if terminal_question_id
+                and str(row.get("question_id", "") or "")
                 == terminal_question_id
             ]
-            if len(matching_rows) == 1:
-                payload = dict(matching_rows[0])
-                artifact_kind = "RuntimePendingNextTask"
-                task_payload = payload.get("pending_next_task")
-    if not isinstance(task_payload, Mapping) or not task_payload:
-        raise ValueError(
-            f"{path} does not resolve to exactly one complete pending runtime task"
-        )
-    task_payload = _runtime_resume_task_payload_with_source_handoff(
-        task_payload,
-        resume_payload=payload,
-        resume_path=path,
-    )
-    question_id = _runtime_resume_task_question_id(task_payload)
-    if not question_id and artifact_kind == "RuntimePendingNextTask":
-        question_id = str(payload.get("question_id", "") or "")
-    if not question_id:
-        question_id = str(payload.get("runtime_failure_summary", {}).get("terminal_question_id", "") or "")
-    if not question_id:
-        question_ids = payload.get("question_ids")
-        if isinstance(question_ids, list) and len(question_ids) == 1:
-            question_id = str(question_ids[0] or "")
+        if len(selected_rows) != 1:
+            raise ValueError(
+                f"{path} does not resolve to exactly one pending runtime task"
+            )
+        payload = dict(selected_rows[0])
+        artifact_kind = "RuntimePendingNextTask"
+
+    question_id = str(payload.get("question_id", "") or "")
     if not question_id:
         raise ValueError(
             f"{path} pending task does not expose a question id; cannot resume safely"
@@ -343,117 +327,47 @@ def _load_runtime_resume_task_from_manifest(
         resume_payload=payload,
         question_id=question_id,
     )
-    return (
-        question_id,
-        _agent_task_from_payload(_normalize_runtime_resume_task_payload(task_payload)),
-        artifacts,
-    )
-
-
-def _runtime_resume_task_payload_with_source_handoff(
-    task_payload: Mapping[str, Any],
-    *,
-    resume_payload: Mapping[str, Any],
-    resume_path: Path,
-) -> dict[str, Any]:
-    normalized = dict(task_payload)
-    source_handoff = (
-        resume_payload.get("source_handoff", {})
-        if isinstance(resume_payload.get("source_handoff", {}), Mapping)
-        else resume_payload.get("incomplete_pending_next_task_source_handoff", {})
-        if isinstance(
-            resume_payload.get("incomplete_pending_next_task_source_handoff", {}),
-            Mapping,
+    continuation_ref = payload.get("pending_task_continuation_ref", {})
+    if isinstance(continuation_ref, Mapping) and continuation_ref:
+        continuation_id = str(
+            continuation_ref.get("continuation_id", "") or ""
         )
-        else {}
-    )
-    source_handoff_id = str(
-        resume_payload.get("source_handoff_id", "")
-        or resume_payload.get("incomplete_pending_next_task_source_handoff_id", "")
-        or source_handoff.get("handoff_id", "")
-        or ""
-    ).strip()
-    if not source_handoff_id:
-        return normalized
-    inputs = (
-        dict(normalized.get("inputs", {}))
-        if isinstance(normalized.get("inputs", {}), Mapping)
-        else {}
-    )
-    architect_context = (
-        dict(inputs.get("architect_context", {}))
-        if isinstance(inputs.get("architect_context", {}), Mapping)
-        else {}
-    )
-    if isinstance(architect_context.get("runtime_resume_source_handoff"), Mapping):
-        return normalized
-    source_manifest_path = str(
-        resume_payload.get("source_manifest_path", "")
-        or resume_payload.get("_manifest_path", "")
-        or resume_path
-    )
-    architect_context["runtime_resume_source_handoff"] = {
-        "artifact_kind": "RuntimeResumeSourceHandoff",
-        "handoff_id": source_handoff_id,
-        "from_task_id": str(source_handoff.get("from_task_id", "") or ""),
-        "to_task_id": str(source_handoff.get("to_task_id", "") or ""),
-        "from_subsystem": str(source_handoff.get("from_subsystem", "") or ""),
-        "to_subsystem": str(source_handoff.get("to_subsystem", "") or ""),
-        "status": str(source_handoff.get("status", "") or ""),
-        "failure_classification": str(
-            source_handoff.get("failure_classification", "") or ""
-        ),
-        "produced_artifact_ids": [
-            str(value)
-            for value in source_handoff.get("produced_artifact_ids", []) or []
-            if str(value).strip()
-        ],
-        "evidence_ids": [
-            str(value)
-            for value in source_handoff.get("evidence_ids", []) or []
-            if str(value).strip()
-        ],
-        "source_manifest_path": source_manifest_path,
-        "source_handoff_export_path": str(
-            resume_payload.get("runtime_task_handoffs_jsonl", "") or ""
-        ),
-        "proof_evidence_status": "RUNTIME_HANDOFF_LINEAGE_NOT_PROOF_EVIDENCE",
-        "boundary": (
-            "Runtime resume source handoff is orchestration lineage only. "
-            "It preserves why this pending task was scheduled, but it is not "
-            "statistical, simulation, generated-code, or proof evidence."
-        ),
-    }
-    inputs["architect_context"] = architect_context
-    normalized["inputs"] = inputs
-    return normalized
+        continuation = artifacts.get(continuation_id, {})
+        if not isinstance(continuation, Mapping) or (
+            continuation.get("artifact_kind")
+            != "RuntimeAgentTaskContinuation"
+        ):
+            raise ValueError(
+                f"{path} pending task continuation is unavailable"
+            )
+        if (
+            stable_hash(dict(continuation))
+            != str(continuation_ref.get("continuation_hash", "") or "")
+            or continuation.get("task_ref")
+            != continuation_ref.get("task_ref")
+        ):
+            raise ValueError(
+                f"{path} pending task continuation hash mismatch"
+            )
+        task = restore_agent_task_continuation(continuation, artifacts)
+    else:
+        task_payload = payload.get("pending_next_task", {})
+        if not isinstance(task_payload, Mapping) or not task_payload or (
+            task_payload.get("artifact_kind") == "AgentTaskRef"
+        ):
+            raise ValueError(
+                f"{path} pending task has no resumable continuation"
+            )
+        task = agent_task_from_payload(task_payload)
 
-
-
-
-def _normalize_runtime_resume_task_payload(
-    task_payload: Mapping[str, object],
-) -> dict[str, object]:
-    """Normalize persisted tasks without replaying legacy repair recipes."""
-
-    normalized = dict(task_payload)
-    inputs = (
-        dict(normalized.get("inputs", {}))
-        if isinstance(normalized.get("inputs", {}), Mapping)
-        else {}
+    task_question_id = _runtime_resume_task_question_id(
+        {"inputs": task.inputs}
     )
-    feedback = (
-        dict(inputs.get("environment_feedback", {}))
-        if isinstance(inputs.get("environment_feedback", {}), Mapping)
-        else {}
-    )
-    if str(feedback.get("feedback_source", "") or "") == "CriticEvaluator":
-        feedback.setdefault("failure_classification", "critic_requested_theory_revision")
-        feedback.pop("required_repair", None)
-        feedback.pop("required_revision", None)
-        inputs["environment_feedback"] = feedback
-        normalized["inputs"] = inputs
-    return normalized
+    if task_question_id and task_question_id != question_id:
+        raise ValueError(
+            f"{path} pending task question id does not match its checkpoint"
+        )
+    return question_id, task, artifacts
 
 
 def _runtime_resume_blackboard_artifacts(
@@ -493,10 +407,10 @@ def _runtime_resume_blackboard_artifacts(
         blackboard_artifacts = blackboard.get("artifacts", {})
         if not isinstance(blackboard_artifacts, Mapping):
             return {}
-        rehydrated_artifacts = {
-            str(artifact_id): deepcopy(artifact)
-            for artifact_id, artifact in blackboard_artifacts.items()
-        }
+        rehydrated_artifacts = _load_runtime_blackboard_artifact_payloads(
+            result_payload=result_payload,
+            result_path=result_path,
+        )
         rehydrated_artifacts.update(
             _runtime_resume_prior_ledger_artifacts(
                 result_payload,
@@ -509,6 +423,74 @@ def _runtime_resume_blackboard_artifacts(
         )
         return rehydrated_artifacts
     return {}
+
+
+def _load_runtime_blackboard_artifact_payloads(
+    *,
+    result_payload: Mapping[str, Any],
+    result_path: Path,
+) -> dict[str, Any]:
+    blackboard = result_payload.get("blackboard", {})
+    artifacts = (
+        blackboard.get("artifacts", {})
+        if isinstance(blackboard, Mapping)
+        else {}
+    )
+    if not isinstance(artifacts, Mapping):
+        raise ValueError(f"{result_path} has no runtime artifact map")
+    if (
+        result_payload.get("blackboard_artifact_payload_policy")
+        != "content_addressed_refs"
+    ):
+        return {
+            str(artifact_id): deepcopy(artifact)
+            for artifact_id, artifact in artifacts.items()
+        }
+
+    loaded: dict[str, Any] = {}
+    for raw_artifact_id, raw_reference in artifacts.items():
+        artifact_id = str(raw_artifact_id)
+        if not isinstance(raw_reference, Mapping) or (
+            raw_reference.get("artifact_kind") != "RuntimeArtifactRef"
+        ):
+            raise ValueError(
+                f"{result_path} artifact {artifact_id} is not a stored reference"
+            )
+        if str(raw_reference.get("artifact_id", "") or "") != artifact_id:
+            raise ValueError(
+                f"{result_path} artifact reference identity mismatch: {artifact_id}"
+            )
+        artifact_path = _resolve_runtime_resume_path(
+            str(raw_reference.get("path", "") or ""),
+            base_dir=result_path.parent,
+        )
+        if artifact_path is None:
+            raise ValueError(
+                f"{result_path} artifact payload is unavailable: {artifact_id}"
+            )
+        try:
+            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(
+                f"{result_path} artifact payload is unreadable: {artifact_id}"
+            ) from exc
+        if stable_hash(artifact) != str(
+            raw_reference.get("content_hash", "") or ""
+        ):
+            raise ValueError(
+                f"{result_path} artifact payload hash mismatch: {artifact_id}"
+            )
+        expected_kind = str(raw_reference.get("payload_kind", "") or "")
+        if expected_kind and (
+            not isinstance(artifact, Mapping)
+            or str(artifact.get("artifact_kind", "") or "")
+            != expected_kind
+        ):
+            raise ValueError(
+                f"{result_path} artifact payload kind mismatch: {artifact_id}"
+            )
+        loaded[artifact_id] = artifact
+    return loaded
 
 
 def _runtime_resume_prior_ledger_artifacts(
@@ -634,40 +616,6 @@ def _runtime_resume_task_question_id(task_payload: Mapping[str, object]) -> str:
     ):
         return str(environment_feedback.get("question_id", "") or "")
     return ""
-
-
-def _agent_task_from_payload(payload: Mapping[str, object]) -> AgentTask:
-    task_id = str(payload.get("task_id", "") or "")
-    owner_subsystem = str(payload.get("owner_subsystem", "") or "")
-    if not task_id or not owner_subsystem:
-        raise ValueError(
-            "pending resume task must include task_id and owner_subsystem"
-        )
-    return AgentTask(
-        task_id=task_id,
-        owner_subsystem=owner_subsystem,
-        objective=str(payload.get("objective", "") or ""),
-        inputs=dict(payload.get("inputs", {}) if isinstance(payload.get("inputs"), Mapping) else {}),
-        allowed_tools=tuple(
-            str(item)
-            for item in (
-                payload.get("allowed_tools", [])
-                if isinstance(payload.get("allowed_tools"), list | tuple)
-                else []
-            )
-        ),
-        budget=dict(payload.get("budget", {}) if isinstance(payload.get("budget"), Mapping) else {}),
-        expected_artifacts=tuple(
-            str(item)
-            for item in (
-                payload.get("expected_artifacts", [])
-                if isinstance(payload.get("expected_artifacts"), list | tuple)
-                else []
-            )
-        ),
-        acceptance_gate=str(payload.get("acceptance_gate", "") or ""),
-        stop_condition=str(payload.get("stop_condition", "") or ""),
-    )
 
 
 def _select_questions_by_id(

@@ -456,6 +456,41 @@ def test_agent_runtime_dispatches_subsystems_and_records_observations() -> None:
     assert "inputs" not in next_task_ref
 
 
+def test_agent_runtime_checkpoints_exact_pending_task_at_budget_boundary() -> None:
+    runtime = AgentRuntime(
+        subsystems={"TheoryDeveloper": TheorySubsystem()},
+        blackboard=BlackboardState(project_id="runtime-checkpoint-test"),
+    )
+
+    result = runtime.run(
+        AgentTask(
+            task_id="theory:q1",
+            owner_subsystem="TheoryDeveloper",
+            objective="derive candidate frontier theorem",
+        ),
+        max_iterations=1,
+    )
+
+    assert result.status == "MAX_ITERATIONS_REACHED"
+    assert result.pending_task is not None
+    assert result.pending_task.task_id == "simulate:q1"
+    continuation_ref = result.pending_task_continuation_ref
+    continuation = result.blackboard.artifacts[
+        continuation_ref["continuation_id"]
+    ]
+    assert stable_hash(continuation) == continuation_ref["continuation_hash"]
+    restored = restore_agent_task_continuation(
+        continuation,
+        result.blackboard.artifacts,
+    )
+    assert restored == result.pending_task
+
+    compact = result.to_json()
+    assert compact["pending_task"] == continuation_ref["task_ref"]
+    assert "inputs" not in compact["pending_task"]
+    assert compact["pending_task_continuation_ref"] == continuation_ref
+
+
 def test_agent_runtime_handoff_policy_can_rewrite_next_task() -> None:
     class ReviewSubsystem:
         name = "ReviewSubsystem"

@@ -626,11 +626,21 @@ class AgentRuntimeResult:
     final_task_id: str
     blackboard: BlackboardState
     traces: tuple[RuntimeIterationTrace, ...]
+    pending_task: AgentTask | None = None
+    pending_task_continuation_ref: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self, *, include_task_payloads: bool = False) -> dict[str, Any]:
         return {
             "status": self.status,
             "final_task_id": self.final_task_id,
+            "pending_task": (
+                asdict(self.pending_task)
+                if include_task_payloads and self.pending_task is not None
+                else agent_task_reference(self.pending_task)
+            ),
+            "pending_task_continuation_ref": deepcopy(
+                self.pending_task_continuation_ref
+            ),
             "blackboard": self.blackboard.to_json(),
             "traces": [
                 row.to_json(include_task_payloads=include_task_payloads)
@@ -922,11 +932,30 @@ class AgentRuntime:
                 break
             task = deepcopy(result.next_task)
 
+        pending_task = (
+            deepcopy(task)
+            if final_status == "MAX_ITERATIONS_REACHED"
+            else None
+        )
+        pending_task_continuation_ref: dict[str, Any] = {}
+        if pending_task is not None:
+            (
+                _continuation_id,
+                continuation,
+                continuation_artifacts,
+            ) = materialize_agent_task_continuation(pending_task)
+            self.blackboard.artifacts.update(continuation_artifacts)
+            pending_task_continuation_ref = agent_task_continuation_reference(
+                continuation
+            )
+
         return AgentRuntimeResult(
             status=final_status,
             final_task_id=task.task_id,
             blackboard=self.blackboard,
             traces=tuple(traces),
+            pending_task=pending_task,
+            pending_task_continuation_ref=pending_task_continuation_ref,
         )
 
 

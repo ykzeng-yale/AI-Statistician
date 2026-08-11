@@ -16043,54 +16043,6 @@ def _runtime_task_payload_reference(payload: Mapping[str, Any]) -> dict[str, Any
     }
 
 
-def _compact_runtime_completion_summary(
-    summary: Mapping[str, Any],
-) -> dict[str, Any]:
-    compact = dict(summary)
-    compact_rows: list[dict[str, Any]] = []
-    for raw_row in summary.get("rows", []) or []:
-        if not isinstance(raw_row, Mapping):
-            continue
-        row = dict(raw_row)
-        pending_task = row.pop("pending_next_task", {})
-        if isinstance(pending_task, Mapping) and pending_task:
-            row["pending_next_task"] = _runtime_task_payload_reference(
-                pending_task
-            )
-        compact_rows.append(row)
-    compact["rows"] = compact_rows
-    compact["payload_policy"] = "content_addressed_task_refs"
-    return compact
-
-
-def _compact_runtime_failure_summary(
-    summary: Mapping[str, Any],
-) -> dict[str, Any]:
-    compact = dict(summary)
-    pending_task = compact.get("pending_next_task", {})
-    if isinstance(pending_task, Mapping) and pending_task:
-        compact["pending_next_task"] = _runtime_task_payload_reference(
-            pending_task
-        )
-    compact["payload_policy"] = "content_addressed_task_refs"
-    return compact
-
-
-def _compact_pending_next_task_rows(
-    rows: Sequence[Mapping[str, Any]],
-) -> list[dict[str, Any]]:
-    compact_rows: list[dict[str, Any]] = []
-    for raw_row in rows:
-        row = dict(raw_row)
-        pending_task = row.get("pending_next_task", {})
-        if isinstance(pending_task, Mapping) and pending_task:
-            row["pending_next_task"] = _runtime_task_payload_reference(
-                pending_task
-            )
-        compact_rows.append(row)
-    return compact_rows
-
-
 def formalizer_workspace_runtime_bindings(
     workspace: FormalizerWorkspaceRuntimeSubsystem,
 ) -> dict[str, FormalizerWorkspaceRuntimeSubsystem]:
@@ -16667,33 +16619,16 @@ def run_research_agent_runtime(
     pending_next_task_rows = _runtime_pending_next_task_rows(
         completion_summary
     )
-    compact_runtime_payloads = True
-    completion_summary_path: Path | None = None
-    failure_summary_path: Path | None = None
-    if compact_runtime_payloads:
-        completion_summary_path = out_dir / "runtime_completion_summary.json"
-        failure_summary_path = out_dir / "runtime_failure_summary.json"
-        completion_summary_path.write_text(
-            json.dumps(completion_summary, indent=2, default=str),
-            encoding="utf-8",
-        )
-        failure_summary_path.write_text(
-            json.dumps(failure_summary, indent=2, default=str),
-            encoding="utf-8",
-        )
-        manifest_completion_summary = _compact_runtime_completion_summary(
-            completion_summary
-        )
-        manifest_failure_summary = _compact_runtime_failure_summary(
-            failure_summary
-        )
-        manifest_pending_next_task_rows = _compact_pending_next_task_rows(
-            pending_next_task_rows
-        )
-    else:
-        manifest_completion_summary = completion_summary
-        manifest_failure_summary = failure_summary
-        manifest_pending_next_task_rows = pending_next_task_rows
+    completion_summary_path = out_dir / "runtime_completion_summary.json"
+    failure_summary_path = out_dir / "runtime_failure_summary.json"
+    completion_summary_path.write_text(
+        json.dumps(completion_summary, indent=2, default=str),
+        encoding="utf-8",
+    )
+    failure_summary_path.write_text(
+        json.dumps(failure_summary, indent=2, default=str),
+        encoding="utf-8",
+    )
     latest_evidence: dict[tuple[str, str], Mapping[str, Any]] = {}
     for row in evidence_rows:
         payload = row.get("payload", {})
@@ -16798,11 +16733,10 @@ def run_research_agent_runtime(
         "per_question_results": [str(row["artifact_path"]) for row in results],
         "runtime_artifact_store_indexes": list(artifact_store_index_paths),
     }
-    if completion_summary_path is not None and failure_summary_path is not None:
-        artifacts["runtime_completion_summary_json"] = str(
-            completion_summary_path
-        )
-        artifacts["runtime_failure_summary_json"] = str(failure_summary_path)
+    artifacts["runtime_completion_summary_json"] = str(
+        completion_summary_path
+    )
+    artifacts["runtime_failure_summary_json"] = str(failure_summary_path)
 
     manifest = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -16840,8 +16774,8 @@ def run_research_agent_runtime(
             n_architect_coordinator_traces
         ),
         "status_counts": dict(sorted(status_counts.items())),
-        "runtime_completion_summary": manifest_completion_summary,
-        "runtime_failure_summary": manifest_failure_summary,
+        "runtime_completion_summary": completion_summary,
+        "runtime_failure_summary": failure_summary,
         "runtime_terminal_kind": failure_summary["terminal_kind"],
         "research_evaluation_summary": build_research_evaluation_summary(
             results,
@@ -16926,7 +16860,7 @@ def run_research_agent_runtime(
             exported_pending_rows
         )
         manifest["incomplete_pending_next_tasks"] = (
-            manifest_pending_next_task_rows
+            pending_next_task_rows
         )
         manifest["artifacts"]["runtime_pending_next_tasks_jsonl"] = str(
             pending_next_tasks_path
@@ -19119,10 +19053,31 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
                 final_acceptance_status_counts.get(final_acceptance_status, 0) + 1
             )
         status = str(result.get("status", "") or "")
-        pending_next_task_id = str(final_trace.get("next_task_id", "") or "")
+        pending_task_payload = (
+            result.get("pending_task", {})
+            if isinstance(result.get("pending_task"), Mapping)
+            else {}
+        )
+        if not pending_task_payload and status == "MAX_ITERATIONS_REACHED":
+            pending_task_payload = (
+                final_trace.get("next_task", {})
+                if isinstance(final_trace.get("next_task"), Mapping)
+                else {}
+            )
         pending_next_task = (
-            dict(final_trace.get("next_task", {}))
-            if isinstance(final_trace.get("next_task"), Mapping)
+            _runtime_task_payload_reference(pending_task_payload)
+            if pending_task_payload
+            else {}
+        )
+        pending_next_task_id = str(
+            pending_next_task.get("task_id", "") or ""
+        )
+        pending_task_continuation_ref = (
+            dict(result.get("pending_task_continuation_ref", {}))
+            if isinstance(
+                result.get("pending_task_continuation_ref", {}),
+                Mapping,
+            )
             else {}
         )
         failure_classification = str(final_trace.get("failure_classification", "") or "")
@@ -19202,6 +19157,9 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
                 "formal_gaps": _int_like(critic_decision.get("formal_gaps", 0)),
                 "pending_next_task_id": pending_next_task_id,
                 "pending_next_task": pending_next_task,
+                "pending_task_continuation_ref": (
+                    pending_task_continuation_ref
+                ),
                 "max_iterations_reached": max_iterations_reached,
                 "budget_exhausted_with_pending_next_task": budget_exhausted_with_pending,
                 "budget_exhausted_after_revision_request": budget_exhausted_after_revision,
@@ -19216,6 +19174,7 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
             sorted(final_acceptance_status_counts.items())
         ),
         "rows": rows,
+        "payload_policy": "content_addressed_task_continuations",
         "boundary": (
             "Runtime completion status describes orchestration progress and budget exhaustion only. "
             "final_acceptance_status records the Architect evidence-contract decision, "
@@ -19370,6 +19329,15 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
             if isinstance(first_pending.get("pending_next_task"), Mapping)
             else {}
         ),
+        "pending_task_continuation_ref": (
+            dict(first_pending.get("pending_task_continuation_ref", {}))
+            if isinstance(
+                first_pending.get("pending_task_continuation_ref"),
+                Mapping,
+            )
+            else {}
+        ),
+        "payload_policy": "content_addressed_task_continuations",
         "boundary": (
             "Runtime terminal status is an orchestration diagnostic. Budget exhaustion "
             "with a pending next task is incomplete work, not a subsystem failure. A "
@@ -19402,6 +19370,18 @@ def _runtime_pending_next_task_rows(
             Mapping,
         ) or not pending_next_task:
             continue
+        continuation_ref = completion_row.get(
+            "pending_task_continuation_ref",
+            {},
+        )
+        if not (
+            isinstance(continuation_ref, Mapping)
+            and continuation_ref.get("artifact_kind")
+            == "RuntimeAgentTaskContinuationRef"
+        ):
+            raise ValueError(
+                "pending runtime task is missing its content-addressed continuation"
+            )
         rows.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -19414,6 +19394,8 @@ def _runtime_pending_next_task_rows(
                 ),
                 "pending_next_task_id": pending_next_task_id,
                 "pending_next_task": dict(pending_next_task),
+                "pending_task_continuation_ref": dict(continuation_ref),
+                "payload_policy": "content_addressed_task_continuations",
                 "terminal_kind": str(
                     completion_row.get("terminal_kind", "") or ""
                 ),

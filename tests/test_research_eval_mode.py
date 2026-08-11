@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_statistician.agent_runtime import AgentTask
+from ai_statistician.agent_runtime import AgentTask, agent_task_reference
 from ai_statistician.architect_coordinator_llm import (
     _architect_metric_authoring_deferred_for_active_replan,
     _architect_runtime_evaluation_contract,
@@ -16,6 +16,7 @@ from ai_statistician.cli import (
     _apply_research_agent_runtime_evaluation_model_policy,
     _apply_research_agent_runtime_research_eval_profile,
     _lean_project_import_preflight_errors,
+    _load_runtime_resume_task_from_manifest,
     build_parser,
 )
 from ai_statistician.fingerprint import stable_hash
@@ -314,6 +315,11 @@ def test_research_eval_exports_pending_continuations_for_every_question(
     }
     assert all(row["pending_next_task"]["artifact_kind"] == "AgentTaskRef" for row in pending)
     assert all("inputs" not in row["pending_next_task"] for row in pending)
+    assert all(
+        row["pending_task_continuation_ref"]["artifact_kind"]
+        == "RuntimeAgentTaskContinuationRef"
+        for row in pending
+    )
     pending_rows = [
         json.loads(line)
         for line in Path(
@@ -329,6 +335,61 @@ def test_research_eval_exports_pending_continuations_for_every_question(
         row["pending_next_task"]["owner_subsystem"] == "TheoryDeveloper"
         for row in pending_rows
     )
+    assert len(json.dumps(pending_rows)) < 10_000
+
+    pending_q1 = next(
+        row for row in pending_rows if row["question_id"] == "pending_q1"
+    )
+    single_pending_path = tmp_path / "single_pending.jsonl"
+    single_pending_path.write_text(
+        json.dumps(pending_q1) + "\n",
+        encoding="utf-8",
+    )
+    resume_manifest = dict(manifest)
+    resume_manifest["runtime_failure_summary"] = {
+        "terminal_question_id": "unrelated_blocked_question"
+    }
+    resume_manifest["artifacts"] = {
+        **manifest["artifacts"],
+        "runtime_pending_next_tasks_jsonl": str(single_pending_path),
+    }
+    resume_manifest_path = tmp_path / "single_pending_manifest.json"
+    resume_manifest_path.write_text(
+        json.dumps(resume_manifest),
+        encoding="utf-8",
+    )
+    question_id, restored_task, restored_artifacts = (
+        _load_runtime_resume_task_from_manifest(resume_manifest_path)
+    )
+    assert question_id == "pending_q1"
+    assert restored_task.owner_subsystem == "TheoryDeveloper"
+    restored_ref = agent_task_reference(restored_task)
+    expected_ref = next(
+        row["pending_next_task"]
+        for row in pending_rows
+        if row["question_id"] == "pending_q1"
+    )
+    assert restored_ref == expected_ref
+    continuation_id = next(
+        row["pending_task_continuation_ref"]["continuation_id"]
+        for row in pending_rows
+        if row["question_id"] == "pending_q1"
+    )
+    assert restored_artifacts[continuation_id]["artifact_kind"] == (
+        "RuntimeAgentTaskContinuation"
+    )
+
+    q1_result = next(
+        json.loads(Path(result_path).read_text(encoding="utf-8"))
+        for result_path in manifest["artifacts"]["per_question_results"]
+        if "pending_q1" in Path(result_path).name
+    )
+    continuation_blob = Path(
+        q1_result["blackboard"]["artifacts"][continuation_id]["path"]
+    )
+    continuation_blob.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="artifact payload hash mismatch"):
+        _load_runtime_resume_task_from_manifest(resume_manifest_path)
 
 
 def test_research_eval_profile_enables_live_research_agents_only() -> None:

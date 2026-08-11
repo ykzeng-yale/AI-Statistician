@@ -49,7 +49,9 @@ model inspects objective and artifacts
 
 There is no post-runtime scheduler and no separate repair agent. A resumed run
 continues from content-addressed artifacts and workspace checkpoints in the same
-typed graph.
+typed graph. Outer-budget exhaustion atomically stores the exact pending
+`AgentTask`; manifests carry only its task and continuation refs, and resume
+hash-verifies and restores that task without rewriting its inputs.
 
 This deliberately adopts the minimal mechanism shared by
 [Numina-Lean-Agent](https://github.com/project-numina/numina-lean-agent) and
