@@ -350,6 +350,11 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
         "nonasymptotic guarantee",
         "tail behavior",
         "non-diagnostic",
+        "joint acceptance behavior",
+        "dependence",
+        "multiplicity",
+        "fixed execution budget",
+        "assumptions guaranteed by DGP construction",
     ):
         assert required_contract in protocol_text
     assert packet["runtime_evaluator_certificate_set_id"].startswith(

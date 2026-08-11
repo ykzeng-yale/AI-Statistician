@@ -80,11 +80,6 @@ def metric_protocol_preexecution_review_observation_errors(
             errors.append(f"feedback missing {field}")
     if feedback.get("execution_authorized") is not False:
         errors.append("feedback must keep generated execution unauthorized")
-    if feedback.get("architect_route_required") is not True:
-        errors.append("feedback must require an Architect model route")
-    if feedback.get("runtime_selected_owner") is not False:
-        errors.append("feedback must record that runtime did not select an owner")
-
     findings = feedback.get("findings", [])
     failed_response_identity_checks = feedback.get(
         "failed_response_identity_checks", []
@@ -705,7 +700,7 @@ def architect_preexecution_metric_protocol_rejection_result(
         or not prior_active_finding_ids
         or prior_finding_progress_made
     )
-    architect_route_available = bool(
+    revision_budget_available = bool(
         upstream_theory_revision_count < max_theory_revisions
     )
     failed_response_identity_checks = [
@@ -796,7 +791,10 @@ def architect_preexecution_metric_protocol_rejection_result(
         "upstream_theory_revision_count": upstream_theory_revision_count,
         "max_upstream_theory_revisions": max_theory_revisions,
         "upstream_theory_revision_routed": False,
-        "architect_route_requested": architect_route_available,
+        "architect_route_requested": bool(
+            revision_budget_available
+            and not theory_execution_preflight_rejected
+        ),
         "runtime_selected_owner": False,
         "proof_evidence_status": (
             "METRIC_PROTOCOL_PREEXECUTION_REJECTION_NOT_PROOF_EVIDENCE"
@@ -829,7 +827,7 @@ def architect_preexecution_metric_protocol_rejection_result(
     if (
         theory_execution_preflight_rejected
         and not preflight_revision_progressed
-        and not architect_route_available
+        and not revision_budget_available
     ):
         failure_classification = "architect_theory_execution_preflight_stalled"
         rationale = (
@@ -837,7 +835,7 @@ def architect_preexecution_metric_protocol_rejection_result(
             "findings and the global theory-revision budget is exhausted. No coding "
             "or simulation execution is authorized."
         )
-    if architect_route_available:
+    if revision_budget_available:
         next_revision_count = upstream_theory_revision_count + 1
         observed_findings = [
             {
@@ -889,8 +887,6 @@ def architect_preexecution_metric_protocol_rejection_result(
             "source_theory_packet_hash": source_theory_packet_hash,
             "upstream_theory_revision_count": next_revision_count,
             "max_upstream_theory_revisions": max_theory_revisions,
-            "architect_route_required": True,
-            "runtime_selected_owner": False,
             "dimension_reviews": [
                 dict(row)
                 for row in final_review.get("dimension_reviews", []) or []
@@ -907,9 +903,17 @@ def architect_preexecution_metric_protocol_rejection_result(
                 if str(value).strip()
             ],
             "acceptance_gate": (
-                "The existing Architect model selects one existing subsystem or BLOCK; "
-                "any new candidate then receives fresh independent pre-execution review "
-                "before generated execution."
+                (
+                    "The same TheoryDeveloper workspace revises its exact parent against "
+                    "the independent preflight observations; the new candidate then "
+                    "receives fresh independent review before generated execution."
+                )
+                if theory_execution_preflight_rejected
+                else (
+                    "The existing Architect model selects one existing subsystem or "
+                    "BLOCK; any new candidate then receives fresh independent "
+                    "pre-execution review before generated execution."
+                )
             ),
             "generated_code_observed": False,
             "simulation_results_observed": False,
@@ -933,9 +937,11 @@ def architect_preexecution_metric_protocol_rejection_result(
                 "runtime_selected_disposition": False,
             },
             "boundary": (
-                "This is current pre-execution semantic observation for an LLM Architect "
-                "routing decision. It contains no runtime-authored repair recipe or owner "
-                "selection and is not execution, statistical acceptance, or proof evidence."
+                "This is a current pre-execution semantic observation. A theory-stage "
+                "rejection returns to the source-producing TheoryDeveloper workspace by "
+                "stage ownership; other rejections remain available to the Architect. "
+                "It contains no runtime-authored repair recipe and is not execution, "
+                "statistical acceptance, or proof evidence."
             ),
         }
         produced_artifacts[feedback_id] = feedback
@@ -943,6 +949,9 @@ def architect_preexecution_metric_protocol_rejection_result(
         next_context.pop("architect_metric_protocol_theory_material", None)
         next_context["previous_theory_packet_id"] = source_theory_packet_id
         next_context["environment_feedback"] = feedback
+        if theory_execution_preflight_rejected:
+            next_context["theory_developer_source_environment_feedback"] = feedback
+            next_context.pop("architect_feedback_route_decision", None)
         prior_rejection_ids = [
             str(value)
             for value in metric_gate.get("rejection_manifest_ids", []) or []
@@ -958,53 +967,97 @@ def architect_preexecution_metric_protocol_rejection_result(
             ),
             "upstream_theory_revision_count": next_revision_count,
             "max_upstream_theory_revisions": max_theory_revisions,
-            "required_disposition": "ARCHITECT_MODEL_ROUTE_THEN_FRESH_PREEXECUTION_REVIEW",
+            "required_disposition": (
+                "SOURCE_THEORY_WORKSPACE_REVISION_THEN_FRESH_PREEXECUTION_REVIEW"
+                if theory_execution_preflight_rejected
+                else "ARCHITECT_MODEL_ROUTE_THEN_FRESH_PREEXECUTION_REVIEW"
+            ),
             "execution_authorized": False,
             "consumed": False,
             "proof_evidence_status": (
                 "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
             ),
         }
-        next_task = AgentTask(
-            task_id=(
-                f"architect-feedback-route:{question.id}:"
-                f"{stable_hash([feedback_id, next_revision_count])[:8]}"
-            ),
-            owner_subsystem="ArchitectCoordinator",
-            objective=(
-                "Choose the next existing evidence-producing subsystem, or BLOCK, from "
-                "the current independent pre-execution observations."
-            ),
-            inputs={
-                "question": {
-                    "id": question.id,
-                    "title": question.title,
-                    "description": question.description,
-                    "tags": list(question.tags),
-                },
-                "architect_context": next_context,
-                "environment_feedback": feedback,
-                "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
-                "theory_packet_id": source_theory_packet_id,
-            },
-            allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
-            expected_artifacts=("architect_feedback_route_decision",),
-            acceptance_gate=str(feedback["acceptance_gate"]),
-            stop_condition=(
-                "Architect model records one typed route to an existing subsystem or BLOCK"
-            ),
-        )
         status = "REROUTE"
-        failure_classification = (
-            "architect_metric_protocol_feedback_route_requested"
-        )
-        rationale = (
-            "Independent pre-execution review rejected the current candidate. The "
-            "complete observed lineage, including any same-lineage no-progress "
-            "observation, is preserved for the existing Architect model to select "
-            "the next owner or BLOCK; runtime authored no repair, owner route, or "
-            "stopping decision."
-        )
+        if theory_execution_preflight_rejected:
+            manifest["upstream_theory_revision_routed"] = True
+            next_task = AgentTask(
+                task_id=(
+                    f"theory-preflight-revision:{question.id}:"
+                    f"{stable_hash([feedback_id, next_revision_count])[:8]}"
+                ),
+                owner_subsystem="TheoryDeveloper",
+                objective=(
+                    "Revise the exact parent theory artifact against the independent "
+                    "source-grounded preflight observations."
+                ),
+                inputs={
+                    "question": {
+                        "id": question.id,
+                        "title": question.title,
+                        "description": question.description,
+                        "tags": list(question.tags),
+                    },
+                    "architect_context": next_context,
+                    "environment_feedback": feedback,
+                    "theory_packet_id": source_theory_packet_id,
+                },
+                allowed_tools=("model_backend", "rag_memory", "evidence_ledger"),
+                expected_artifacts=("theory_derivation_packet",),
+                acceptance_gate=str(feedback["acceptance_gate"]),
+                stop_condition=(
+                    "TheoryDeveloper emits one fresh parent-bound candidate or a typed "
+                    "workspace blocker"
+                ),
+            )
+            failure_classification = (
+                "theory_execution_preflight_returned_to_source_workspace"
+            )
+            rationale = (
+                "Independent theory preflight rejected the current source artifact. "
+                "The exact observations return directly to the same TheoryDeveloper "
+                "workspace under the bounded revision budget; no Architect routing "
+                "model call or runtime-authored repair is used."
+            )
+        else:
+            next_task = AgentTask(
+                task_id=(
+                    f"architect-feedback-route:{question.id}:"
+                    f"{stable_hash([feedback_id, next_revision_count])[:8]}"
+                ),
+                owner_subsystem="ArchitectCoordinator",
+                objective=(
+                    "Choose the next existing evidence-producing subsystem, or BLOCK, "
+                    "from the current independent pre-execution observations."
+                ),
+                inputs={
+                    "question": {
+                        "id": question.id,
+                        "title": question.title,
+                        "description": question.description,
+                        "tags": list(question.tags),
+                    },
+                    "architect_context": next_context,
+                    "environment_feedback": feedback,
+                    "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
+                    "theory_packet_id": source_theory_packet_id,
+                },
+                allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
+                expected_artifacts=("architect_feedback_route_decision",),
+                acceptance_gate=str(feedback["acceptance_gate"]),
+                stop_condition=(
+                    "Architect model records one typed route to an existing subsystem "
+                    "or BLOCK"
+                ),
+            )
+            failure_classification = (
+                "architect_metric_protocol_feedback_route_requested"
+            )
+            rationale = (
+                "Independent metric-protocol review rejected the current candidate. "
+                "The complete observed lineage is preserved for the existing Architect "
+                "model to select the next owner or BLOCK; runtime authored no repair."
+            )
 
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, manifest_id])[:20],
@@ -1012,8 +1065,10 @@ def architect_preexecution_metric_protocol_rejection_result(
         artifact_id=manifest_id,
         evidence_type="metric_protocol_preexecution_rejection",
         status=(
-            "PREEXECUTION_PROTOCOL_REJECTED_ARCHITECT_ROUTE_REQUESTED"
-            if architect_route_available
+            "THEORY_PREFLIGHT_REJECTED_SOURCE_WORKSPACE_REVISION_REQUESTED"
+            if revision_budget_available and theory_execution_preflight_rejected
+            else "PREEXECUTION_PROTOCOL_REJECTED_ARCHITECT_ROUTE_REQUESTED"
+            if revision_budget_available
             else "PREEXECUTION_PROTOCOL_REJECTED_NO_EXECUTION_AUTHORIZED"
         ),
         boundary=str(manifest["boundary"]),

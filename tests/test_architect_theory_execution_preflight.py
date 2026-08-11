@@ -11,9 +11,6 @@ from ai_statistician.architect_metric_contract_authoring import (
     ArchitectMetricSemanticReviewRejected,
     author_reviewed_architect_metric_requirements,
 )
-from ai_statistician.architect_coordinator_llm import (
-    ARCHITECT_FEEDBACK_ROUTE_OPERATION,
-)
 from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
@@ -132,12 +129,14 @@ class _PreflightToolBackend:
         submit_before_search: bool = False,
         submit_unknown_ref_once: bool = False,
         source_scope: str = "theory",
+        cite_sources: bool = True,
     ) -> None:
         self.accept = accept
         self.payload = deepcopy(payload) if payload is not None else None
         self.submit_before_search = submit_before_search
         self.submit_unknown_ref_once = submit_unknown_ref_once
         self.source_scope = source_scope
+        self.cite_sources = cite_sources
         self.requests = []
         self.hit_id = ""
         self.source_ref = ""
@@ -146,10 +145,11 @@ class _PreflightToolBackend:
         payload = deepcopy(self.payload) if self.payload is not None else _payload(
             accept=self.accept
         )
-        for finding in payload["findings"]:
-            finding["source_evidence_refs"] = [source_ref]
-        for review in payload.get("prior_finding_reviews", []) or []:
-            review["source_evidence_refs"] = [source_ref]
+        if self.cite_sources:
+            for finding in payload["findings"]:
+                finding["source_evidence_refs"] = [source_ref]
+            for review in payload.get("prior_finding_reviews", []) or []:
+                review["source_evidence_refs"] = [source_ref]
         return payload
 
     def generate_client_tool_turn(self, request):
@@ -431,7 +431,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_source_query_v5"
+        "client_tool_optional_source_query_v6"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
@@ -455,7 +455,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert backend.requests[0].tools[0].strict is False
     assert backend.requests[0].tools[1].strict is True
     assert backend.requests[0].metadata["model_tier"] == "haiku"
-    assert backend.requests[0].disable_parallel_tool_use is True
+    assert backend.requests[0].disable_parallel_tool_use is False
     first_result = json.loads(
         backend.requests[1].messages[-1]["content"][0]["content"]
     )
@@ -631,7 +631,7 @@ def test_preflight_client_tool_loop_returns_unknown_ref_error_for_model_repair()
     failed_submit = packet["client_tool_loop_history"][1]["tool_calls"][0]
     assert failed_submit["name"] == "submit_theory_preflight_review"
     assert failed_submit["is_error"] is True
-    assert "runtime-returned source refs" in failed_submit["result_excerpt"]
+    assert "not returned by the runtime" in failed_submit["result_excerpt"]
     assert "available handles: S1H1" in failed_submit["result_excerpt"]
     rejection = json.loads(failed_submit["result_excerpt"])
     assert rejection["error"] == "preflight_submission_rejected"
@@ -817,7 +817,7 @@ def test_preflight_recovers_from_rejected_final_submission() -> None:
     assert packet["client_tool_loop_turns"] == 5
 
 
-def test_preflight_client_tool_loop_rejects_submit_before_search() -> None:
+def test_preflight_client_tool_loop_allows_model_to_submit_without_search() -> None:
     backend = _PreflightToolBackend(
         accept=False,
         submit_before_search=True,
@@ -825,11 +825,24 @@ def test_preflight_client_tool_loop_rejects_submit_before_search() -> None:
 
     packet = _tool_review(backend)
 
-    assert len(backend.requests) == 3
+    assert len(backend.requests) == 1
     first_submit = packet["client_tool_loop_history"][0]["tool_calls"][0]
-    assert first_submit["is_error"] is True
-    assert "must run before submission" in first_submit["result_excerpt"]
+    assert first_submit["is_error"] is False
+    assert packet["preflight_source_search_count"] == 0
+    assert packet["source_grounding_required"] is False
+    assert "source_evidence_refs" not in packet["findings"][0]
+
+
+def test_preflight_search_does_not_force_every_finding_to_cite_rag() -> None:
+    backend = _PreflightToolBackend(accept=False, cite_sources=False)
+
+    packet = _tool_review(backend)
+
+    assert len(backend.requests) == 2
     assert packet["preflight_source_search_count"] == 1
+    assert packet["source_grounding_required"] is True
+    assert "source_evidence_refs" not in packet["findings"][0]
+    assert packet["source_grounding_bindings"] == []
 
 
 def test_preflight_client_tool_loop_failure_is_fail_closed() -> None:
@@ -1861,10 +1874,8 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
     )
     assert result.status == "REROUTE"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
-    assert result.next_task.inputs["runtime_architect_operation"] == (
-        ARCHITECT_FEEDBACK_ROUTE_OPERATION
-    )
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert "runtime_architect_operation" not in result.next_task.inputs
     assert manifest["disposition"] == "THEORY_EXECUTION_PREFLIGHT_REJECTED"
     assert manifest["preexecution_review_stage"] == "theory_execution_preflight"
     assert manifest["generated_code_observed"] is False
@@ -1878,7 +1889,15 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
     assert result.next_task.inputs["environment_feedback"][
         "preexecution_evidence_authority"
     ] == authority
-    assert result.next_task.inputs["environment_feedback"]["runtime_selected_owner"] is False
+    assert "architect_route_required" not in result.next_task.inputs[
+        "environment_feedback"
+    ]
+    assert "source_workspace_return_required" not in result.next_task.inputs[
+        "environment_feedback"
+    ]
+    assert "runtime_selected_owner" not in result.next_task.inputs[
+        "environment_feedback"
+    ]
 
 
 def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -> None:
@@ -1937,14 +1956,15 @@ def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -
 
     assert result.status == "REROUTE"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
     assert result.failure_classification == (
-        "architect_metric_protocol_feedback_route_requested"
+        "theory_execution_preflight_returned_to_source_workspace"
     )
     manifest = next(iter(result.produced_artifacts.values()))
     assert manifest["preflight_revision_stalled"] is True
-    assert manifest["upstream_theory_revision_routed"] is False
-    assert manifest["architect_route_requested"] is True
+    assert manifest["upstream_theory_revision_routed"] is True
+    assert manifest["architect_route_requested"] is False
+    assert "source_workspace_return_requested" not in manifest
     assert manifest["runtime_selected_owner"] is False
     progress = result.next_task.inputs["environment_feedback"][
         "progress_observation"
@@ -2046,13 +2066,14 @@ def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
 
     assert result.status == "REROUTE"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
     assert result.failure_classification == (
-        "architect_metric_protocol_feedback_route_requested"
+        "theory_execution_preflight_returned_to_source_workspace"
     )
     manifest = next(iter(result.produced_artifacts.values()))
     assert manifest["preflight_revision_progressed"] is False
     assert manifest["preflight_revision_stalled"] is True
-    assert manifest["upstream_theory_revision_routed"] is False
-    assert manifest["architect_route_requested"] is True
+    assert manifest["upstream_theory_revision_routed"] is True
+    assert manifest["architect_route_requested"] is False
+    assert "source_workspace_return_requested" not in manifest
     assert manifest["runtime_selected_owner"] is False

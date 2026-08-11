@@ -462,6 +462,101 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
     ]
 
 
+def test_rejected_algorithm_lineage_is_not_a_simulation_handoff() -> None:
+    feedback = {
+        "feedback_id": "feedback:algorithm-review-exhausted",
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "failure_classification": (
+            "generated_code_semantic_review_lineage_budget_exhausted"
+        ),
+    }
+    context = {
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "metric_protocol_execution_authorized": True,
+                "research_evaluation_requires_generated_algorithm_code": True,
+            }
+        },
+        "candidate_lineage_budget": {
+            "artifact_kind": "RuntimeCandidateLineageBudget",
+            "feedback_id": feedback["feedback_id"],
+            "failure_classification": feedback["failure_classification"],
+            "source_subsystem": "AlgorithmEngineer",
+            "attempts_used": 2,
+            "max_attempts": 2,
+            "budget_exhausted": True,
+        },
+        "algorithm_sandbox_manifest_id": "algorithm:executed-not-accepted",
+    }
+
+    prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context=context,
+        environment_feedback=feedback,
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+
+    assert "AlgorithmEngineer" not in payload["available_route_subsystems"]
+    assert "SimulationEvaluator" not in payload["available_route_subsystems"]
+    assert payload["unavailable_route_subsystems"] == [
+        "AlgorithmEngineer",
+        "SimulationEvaluator",
+    ]
+
+    context["upstream_algorithm_handoff"] = {
+        "handoff_id": "accepted_algorithm_handoff:generic",
+        "exact_algorithm_artifacts": [
+            {"estimator_id": "generic-estimator", "exact_source_hash": "abc"}
+        ],
+    }
+    accepted_prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context=context,
+        environment_feedback=feedback,
+    )
+    accepted_payload = json.loads(accepted_prompt.rsplit("\n\n", 1)[1])
+
+    assert "AlgorithmEngineer" not in accepted_payload[
+        "available_route_subsystems"
+    ]
+    assert "SimulationEvaluator" in accepted_payload[
+        "available_route_subsystems"
+    ]
+
+
+def test_exploratory_simulation_does_not_require_algorithm_handoff() -> None:
+    feedback = {
+        "feedback_id": "feedback:algorithm-exploration-exhausted",
+        "failure_classification": "algorithm_workspace_exhausted",
+    }
+    context = {
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "metric_protocol_execution_authorized": False,
+                "research_evaluation_requires_generated_algorithm_code": True,
+            }
+        },
+        "candidate_lineage_budget": {
+            "feedback_id": feedback["feedback_id"],
+            "failure_classification": feedback["failure_classification"],
+            "source_subsystem": "AlgorithmEngineer",
+            "attempts_used": 1,
+            "max_attempts": 1,
+            "budget_exhausted": True,
+        },
+    }
+
+    prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context=context,
+        environment_feedback=feedback,
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+
+    assert "AlgorithmEngineer" not in payload["available_route_subsystems"]
+    assert "SimulationEvaluator" in payload["available_route_subsystems"]
+
+
 def test_question_theory_revision_budget_does_not_reset_on_new_feedback() -> None:
     feedback = {
         "feedback_id": "feedback:new-post-simulation-observation",

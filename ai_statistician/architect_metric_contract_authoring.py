@@ -1682,8 +1682,13 @@ def author_reviewed_architect_metric_requirements(
                 "fixed runtime budget, and Monte Carlo uncertainty. "
                 "Every stochastic gate must measure the target statistic at the declared "
                 "transformation and aggregation, with a tolerance attainable under its "
-                "replicate budget, uncertainty, and tail behavior. An analytic identity "
-                "need not be a finite-run equality gate."
+                "replicate budget, uncertainty, and tail behavior. Compute the joint "
+                "acceptance behavior of the whole required portfolio, including dependence, "
+                "multiplicity, aggregation, and the probability of accepting a valid "
+                "candidate under the fixed budget. A DGP assumption imposed by construction "
+                "should be audited from that construction unless the objective explicitly "
+                "asks for a calibrated empirical diagnostic. An analytic identity need not "
+                "be a finite-run equality gate."
             ),
             (
                 "Use theory_developer_protocol_material for the estimand, DGP, method, "

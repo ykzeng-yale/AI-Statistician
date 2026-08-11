@@ -316,6 +316,8 @@ def test_source_workspace_prompts_give_tools_to_the_source_owner() -> None:
         assert "Use the supplied\nclient tools" in prompt
         assert "Do not run tools" not in prompt
         assert "never supplies a correction rule" in prompt
+    assert "request's data scope" in SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
+    assert "consumer control flow" in SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
 
 
 def test_unreviewed_compiled_lean_candidate_cannot_claim_generic_kernel_proof() -> None:

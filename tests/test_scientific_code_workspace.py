@@ -204,3 +204,72 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
         "replace_scientific_source",
         "run_scientific_source",
     }
+
+
+def test_byte_identical_replacement_is_returned_to_same_model_as_noop() -> None:
+    initial = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates):\n    return {'value': 0}\n",
+    }
+    revised = {
+        **initial,
+        "code": "def run_sandbox(seed, replicates):\n    return {'value': 1}\n",
+    }
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="noop-1",
+                    name="replace_scientific_source",
+                    input=initial,
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="replace-2",
+                    name="replace_scientific_source",
+                    input=revised,
+                ),
+                ClientToolCall(
+                    call_id="run-2",
+                    name="run_scientific_source",
+                    input={},
+                ),
+            ),
+        ]
+    )
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Revise the failed source.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_source_updates=2,
+        max_checks=2,
+        max_no_progress_turns=2,
+        artifact_id="question:no-op-replacement",
+        initial_code_draft=initial,
+        initial_check_result={
+            "code_draft_hash": stable_hash(initial),
+            "accepted": False,
+            "stderr": "assertion failed",
+        },
+        check_candidate=lambda candidate: {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": dict(candidate) == revised,
+        },
+    )
+
+    assert dict(result.code_draft) == revised
+    assert result.evidence["source_updates"] == 1
+    noop = result.evidence["history"][0]["tool_calls"][0]
+    assert noop["is_error"] is True
+    assert "byte-identical" in noop["result_excerpt"]
+    assert "byte-identical" in str(backend.requests[1].messages)

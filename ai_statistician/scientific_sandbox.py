@@ -125,6 +125,9 @@ class ScientificSandboxExecution:
     estimator_code_paths: dict[str, str] = field(default_factory=dict)
     estimator_code_hashes: dict[str, str] = field(default_factory=dict)
     estimator_invocation_counts: dict[str, int] = field(default_factory=dict)
+    estimator_invocation_samples: dict[str, list[dict[str, Any]]] = field(
+        default_factory=dict
+    )
     estimator_binding_hash: str = ""
     estimator_binding_errors: tuple[str, ...] = ()
     estimator_runtime_failure_ids: tuple[str, ...] = ()
@@ -1073,6 +1076,20 @@ def execute_scientific_sandbox(
         if isinstance(raw_invocation_counts, Mapping)
         else {}
     )
+    raw_invocation_samples = envelope.get("estimator_invocation_samples", {})
+    estimator_invocation_samples = (
+        {
+            str(key): [
+                dict(row)
+                for row in list(value)[:3]
+                if isinstance(row, Mapping)
+            ]
+            for key, value in raw_invocation_samples.items()
+            if isinstance(value, (list, tuple))
+        }
+        if isinstance(raw_invocation_samples, Mapping)
+        else {}
+    )
     if metrics:
         metrics_path.write_text(
             json.dumps(metrics, indent=2, sort_keys=True) + "\n",
@@ -1158,6 +1175,7 @@ def execute_scientific_sandbox(
         },
         estimator_code_hashes=estimator_code_hashes,
         estimator_invocation_counts=estimator_invocation_counts,
+        estimator_invocation_samples=estimator_invocation_samples,
         estimator_binding_hash=(
             stable_hash(estimator_code_hashes) if estimator_code_hashes else ""
         ),

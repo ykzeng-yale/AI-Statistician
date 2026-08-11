@@ -29,6 +29,134 @@ class ScientificCodeWorkspaceResult:
     evidence: Mapping[str, Any]
 
 
+def scientific_workspace_prototype_observation(
+    prototype: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project one persisted sandbox result into bounded model feedback."""
+
+    contracts = {
+        str(row.get("contract_id", "") or ""): row
+        for row in prototype.get("metric_contracts", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("contract_id", "") or "").strip()
+    }
+    evaluation = prototype.get("metric_contract_evaluation", {})
+    evaluation_rows = (
+        evaluation.get("evaluations", [])
+        if isinstance(evaluation, Mapping)
+        else []
+    )
+    failed_contracts: list[dict[str, Any]] = []
+    for row in evaluation_rows or []:
+        if not isinstance(row, Mapping) or row.get("passed") is True:
+            continue
+        contract_id = str(row.get("contract_id", "") or "").strip()
+        contract = contracts.get(contract_id, {})
+        failed_contracts.append(
+            {
+                key: _bounded_observation_value(value)
+                for key, value in {
+                    "contract_id": contract_id,
+                    "requirement_id": row.get("requirement_id", ""),
+                    "metric_path": row.get("metric_path", []),
+                    "metric_semantics": contract.get("metric_semantics", ""),
+                    "measurement_protocol": contract.get(
+                        "measurement_protocol", ""
+                    ),
+                    "operator": row.get("operator", contract.get("operator", "")),
+                    "aggregation": row.get(
+                        "aggregation", contract.get("aggregation", "")
+                    ),
+                    "threshold": contract.get("threshold"),
+                    "lower": contract.get("lower"),
+                    "upper": contract.get("upper"),
+                    "tolerance": contract.get("tolerance"),
+                    "observed": row.get("resolved_values_preview", []),
+                    "aggregate_value": row.get("aggregate_value"),
+                    "errors": row.get("errors", []),
+                }.items()
+                if value not in (None, "", [], {})
+            }
+        )
+    direct_fields = {
+        key: deepcopy(prototype[key])
+        for key in (
+            "prototype_status",
+            "execution_attempted",
+            "execution_smoke_passed",
+            "smoke_passed",
+            "returncode",
+            "runtime_errors",
+            "safety_errors",
+            "estimator_binding_errors",
+            "estimator_runtime_failure_ids",
+            "estimator_runtime_errors",
+            "result_parse_error",
+            "stderr_summary",
+            "stdout_summary",
+            "metric_gate_errors",
+            "required_estimator_ids",
+            "available_upstream_estimator_ids",
+            "estimator_invocation_counts",
+            "estimator_invocation_samples",
+            "mechanical_estimator_invocation_verified",
+            "script_hash",
+            "result_hash",
+            "execution_envelope_hash",
+        )
+        if prototype.get(key) not in (None, "", [], {})
+    }
+    return {
+        "artifact_kind": "ScientificSandboxWorkspaceObservation",
+        **{
+            key: _bounded_observation_value(value)
+            for key, value in direct_fields.items()
+        },
+        "failed_metric_contracts": failed_contracts,
+        "metrics_preview": _bounded_observation_value(prototype.get("metrics", {})),
+        "full_execution_artifact_persisted": True,
+        "source_replayed_to_model": False,
+        "proof_evidence_status": "SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE",
+    }
+
+
+def _bounded_observation_value(value: Any, *, depth: int = 0) -> Any:
+    if depth >= 8:
+        return {"preview": "depth_limit", "type": type(value).__name__}
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return value if len(value) <= 2_000 else value[:2_000] + "..."
+    if isinstance(value, Mapping):
+        items = list(value.items())
+        preview = {
+            str(key): _bounded_observation_value(child, depth=depth + 1)
+            for key, child in items[:24]
+        }
+        if len(items) > 24:
+            preview["truncated_key_count"] = len(items) - 24
+        return preview
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        rows = list(value)
+        if len(rows) <= 12:
+            return [
+                _bounded_observation_value(row, depth=depth + 1) for row in rows
+            ]
+        return {
+            "preview": "sequence",
+            "length": len(rows),
+            "head": [
+                _bounded_observation_value(row, depth=depth + 1)
+                for row in rows[:8]
+            ],
+            "tail": [
+                _bounded_observation_value(row, depth=depth + 1)
+                for row in rows[-2:]
+            ],
+        }
+    return str(value)[:2_000]
+
+
 def run_scientific_code_workspace(
     *,
     provider: Any,
@@ -105,22 +233,26 @@ def run_scientific_code_workspace(
             draft = _complete_code_draft(tool_input)
             draft_hash = stable_hash(draft)
             changed = draft_hash != state["code_draft_hash"]
-            if changed:
-                state["code_draft"] = draft
-                state["code_draft_hash"] = draft_hash
-                state["source_updates"] += 1
-                state["last_check"] = {}
+            if not changed:
+                raise ClientToolInputError(
+                    "replacement is byte-identical to the current scientific source; "
+                    "run the current source or submit a changed complete candidate"
+                )
+            state["code_draft"] = draft
+            state["code_draft_hash"] = draft_hash
+            state["source_updates"] += 1
+            state["last_check"] = {}
             return ClientToolExecutionResult(
                 content={
                     "ok": True,
-                    "changed": changed,
+                    "changed": True,
                     "code_draft_hash": draft_hash,
                     "source_updates": state["source_updates"],
                     "remaining_source_updates": (
                         max_source_updates - state["source_updates"]
                     ),
                 },
-                state_changed=changed,
+                state_changed=True,
                 observation_key="scientific-source:" + draft_hash,
             )
 
@@ -192,7 +324,15 @@ def run_scientific_code_workspace(
                     + _compact_json(parent_draft)
                 )
                 + "\n\nInitial workspace observation:\n"
-                + _compact_json(initial_check_result),
+                + _compact_json(initial_check_result)
+                + (
+                    "\n\nThe current candidate failed. Diagnose that exact observation "
+                    "before replacing source; resubmitting identical bytes against the "
+                    "same observation is not a new attempt."
+                    if initial_check_result.get("accepted") is not True
+                    and parent_draft
+                    else ""
+                ),
             },
         ),
         tools=tools,

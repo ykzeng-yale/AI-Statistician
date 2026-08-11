@@ -1570,7 +1570,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             max_validation_retries=self.config.max_validation_retries,
         )
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 8
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 9
 ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
     (
         "Review only pre-execution artifacts. Do not use observed results, invent "
@@ -1607,11 +1607,13 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "the affected dimension FAIL, and emit a high or critical typed finding."
     ),
     (
-        "Audit each runtime_evaluator_certificate as executable pass-set authority. "
-        "Reject ambiguous, vacuous, unidentifiable, or contradictory gates. A stochastic "
-        "gate is non-diagnostic if its statistic, transform, or aggregation differs from "
-        "the target, or its replicate budget, uncertainty, or tail behavior makes the "
-        "tolerance unattainable."
+        "Audit runtime_evaluator_certificate as executable pass-set authority. Reject "
+        "ambiguous, vacuous, unidentified, contradictory, or unattainable gates; a "
+        "mismatched statistic, transform, aggregation, or ignored tail behavior is "
+        "non-diagnostic. Compute joint acceptance behavior for the required portfolio "
+        "under a valid candidate, accounting for dependence, multiplicity, aggregation, "
+        "and the fixed execution budget. Distinguish assumptions guaranteed by DGP "
+        "construction from noisy empirical diagnostics."
     ),
     (
         "Audit gate_field_authorities field by field. Theory-derived and mandated "

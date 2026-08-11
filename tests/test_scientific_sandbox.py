@@ -378,6 +378,8 @@ def test_native_simulation_source_is_deferred_past_capability_packet_gate() -> N
 
 def test_source_workspace_failure_preserves_last_execution_and_bound_identity() -> None:
     executed_candidates: list[dict] = []
+    workspace_checks: list[dict] = []
+    initial_workspace_observations: list[dict] = []
 
     class Provider:
         def generate_client_tool_turn(self, request):
@@ -387,6 +389,9 @@ def test_source_workspace_failure_preserves_last_execution_and_bound_identity() 
         provider = Provider()
 
         def iterate_code_with_tools(self, **kwargs):
+            initial_workspace_observations.append(
+                dict(kwargs["initial_observation"])
+            )
             check = kwargs["check_candidate"](
                 {
                     "language": "python",
@@ -399,6 +404,7 @@ def test_source_workspace_failure_preserves_last_execution_and_bound_identity() 
                     ),
                 }
             )
+            workspace_checks.append(dict(check))
             raise PacketValidationError(
                 validation_label="LLM scientific code workspace",
                 attempts=1,
@@ -416,6 +422,45 @@ def test_source_workspace_failure_preserves_last_execution_and_bound_identity() 
                 "smoke_passed": False,
                 "runtime_errors": ["bound estimator source was not invoked"],
                 "source_code": candidate["code"],
+                "metric_gate_errors": [
+                    "metric contract generic-gate failed at /risk"
+                ],
+                "metric_contracts": [
+                    {
+                        "contract_id": "generic-gate",
+                        "metric_semantics": "finite generic risk",
+                        "measurement_protocol": "return the empirical risk",
+                        "operator": "<=",
+                        "aggregation": "mean",
+                        "threshold": 0.1,
+                    }
+                ],
+                "metric_contract_evaluation": {
+                    "evaluations": [
+                        {
+                            "contract_id": "generic-gate",
+                            "requirement_id": "generic-risk",
+                            "metric_path": ["risk"],
+                            "operator": "<=",
+                            "aggregation": "mean",
+                            "resolved_values_preview": [0.2],
+                            "aggregate_value": 0.2,
+                            "passed": False,
+                            "errors": [],
+                        }
+                    ]
+                },
+                "metrics": {"risk": 0.2},
+                "estimator_invocation_counts": {"candidate-a": 1},
+                "estimator_invocation_samples": {
+                    "candidate-a": [
+                        {
+                            "invocation_index": 1,
+                            "request": {"value": 1},
+                            "response": {"estimate": 1},
+                        }
+                    ]
+                },
             },
             ToolCallRecord(
                 tool_name="python.generated_simulation_sandbox",
@@ -432,10 +477,17 @@ def test_source_workspace_failure_preserves_last_execution_and_bound_identity() 
         ),
         artifact_id="generic-question:simulation",
         code_draft={
-            "simulation_id": "simulation",
+            "language": "python",
+            "execution_profile": "stdlib",
+            "dependencies": [],
+            "entrypoint": "run_sandbox",
+            "code": (
+                "def run_sandbox(seed, replicates, estimators):\n"
+                "    return {'diagnostic': 0.0}\n"
+            ),
             "required_estimator_ids": ["candidate-a"],
         },
-        source_deferred=True,
+        source_deferred=False,
         workspace_context={},
         execute_candidate=execute_candidate,
         failure_identity={"simulation_id": "simulation"},
@@ -447,8 +499,24 @@ def test_source_workspace_failure_preserves_last_execution_and_bound_identity() 
     assert prototype["runtime_errors"] == [
         "bound estimator source was not invoked"
     ]
+    initial_model_observation = initial_workspace_observations[0]["prototype"]
+    model_observation = workspace_checks[0]["prototype"]
+    assert initial_model_observation == model_observation
+    assert model_observation["artifact_kind"] == (
+        "ScientificSandboxWorkspaceObservation"
+    )
+    assert "source_code" not in model_observation
+    assert "metric_contracts" not in model_observation
+    assert model_observation["source_replayed_to_model"] is False
+    assert model_observation["estimator_invocation_samples"]["candidate-a"][0][
+        "response"
+    ] == {"estimate": 1}
+    assert model_observation["failed_metric_contracts"][0]["contract_id"] == (
+        "generic-gate"
+    )
+    assert model_observation["failed_metric_contracts"][0]["observed"] == [0.2]
     assert prototype["scientific_code_workspace_failure"]["attempts"] == 1
-    assert [call.exit_status for call in tool_calls] == ["0"]
+    assert [call.exit_status for call in tool_calls] == ["0", "0"]
 
 
 def test_simulation_estimator_selection_requires_a_known_handoff_subset() -> None:
@@ -1038,6 +1106,13 @@ def test_live_estimator_bound_simulation_invokes_exact_reviewed_source(
     assert result.metrics == {"estimate": 6, "n": 5}
     assert result.estimator_code_hashes == {"candidate": stable_hash(algorithm)}
     assert result.estimator_invocation_counts == {"candidate": 1}
+    assert result.estimator_invocation_samples["candidate"] == [
+        {
+            "invocation_index": 1,
+            "request": {"values": [7, 5]},
+            "response": {"estimate": 6},
+        }
+    ]
     assert result.estimator_binding_hash == stable_hash(result.estimator_code_hashes)
 
 

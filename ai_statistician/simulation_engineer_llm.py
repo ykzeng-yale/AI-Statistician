@@ -601,7 +601,11 @@ an edit, weaken the frozen metric contract, or claim theorem-proof evidence. Whe
 required_estimator_ids are bound, the estimators argument contains runtime-injected
 callbacks at those exact keys. Call every bound callback with its declared request
 object and consume its declared response; never reimplement, wrap, or substitute a
-bound estimator inside the simulation source.
+bound estimator inside the simulation source. When execution exposes callback
+request/response samples, compare the request's data scope, the declared meaning of
+each response field, and the simulation's consumer control flow before changing the
+complete source. Do not infer a callback's lifecycle or consumer termination from
+a field name or sampled value without checking the declared ABI semantics.
 """
 
 

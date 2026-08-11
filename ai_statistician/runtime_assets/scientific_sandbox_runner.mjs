@@ -60,6 +60,7 @@ async function runPython(request, source, estimatorSources) {
       `_ai_stat_simulation_namespace = {}\n` +
       `exec(compile(_ai_stat_simulation_source, "<generated_simulation>", "exec"), _ai_stat_simulation_namespace, _ai_stat_simulation_namespace)\n` +
       `_ai_stat_invocation_counts = {key: 0 for key in _ai_stat_estimator_sources}\n` +
+      `_ai_stat_invocation_samples = {key: [] for key in _ai_stat_estimator_sources}\n` +
       `_ai_stat_runtime_failure = {"artifact_id": "", "error_message": ""}\n` +
       `_ai_stat_estimators = {}\n` +
       `def _ai_stat_json_native(_value):\n` +
@@ -79,6 +80,24 @@ async function runPython(request, source, estimatorSources) {
       `    if callable(_scalar_item):\n` +
       `        return _ai_stat_json_native(_scalar_item())\n` +
       `    raise TypeError("estimator request and response values must be JSON-native or array-like")\n` +
+      `def _ai_stat_trace_preview(_value, _depth=0):\n` +
+      `    if _depth >= 4:\n` +
+      `        return {"__preview__": "depth_limit", "type": type(_value).__name__}\n` +
+      `    if _value is None or isinstance(_value, (bool, int, float)):\n` +
+      `        return _value\n` +
+      `    if isinstance(_value, str):\n` +
+      `        return _value if len(_value) <= 300 else _value[:300] + "..."\n` +
+      `    if isinstance(_value, dict):\n` +
+      `        _keys = list(_value)\n` +
+      `        _preview = {_key: _ai_stat_trace_preview(_value[_key], _depth + 1) for _key in _keys[:16]}\n` +
+      `        if len(_keys) > 16:\n` +
+      `            _preview["__truncated_keys__"] = len(_keys) - 16\n` +
+      `        return _preview\n` +
+      `    if isinstance(_value, (list, tuple)):\n` +
+      `        if len(_value) <= 8:\n` +
+      `            return [_ai_stat_trace_preview(_item, _depth + 1) for _item in _value]\n` +
+      `        return {"__preview__": "sequence", "length": len(_value), "head": [_ai_stat_trace_preview(_item, _depth + 1) for _item in _value[:5]], "tail": [_ai_stat_trace_preview(_item, _depth + 1) for _item in _value[-2:]]}\n` +
+      `    return _ai_stat_trace_preview(_ai_stat_json_native(_value), _depth + 1)\n` +
       `def _ai_stat_bind_estimator(_artifact_id, _source):\n` +
       `    _namespace = {}\n` +
       `    exec(compile(_source, "<accepted_algorithm:" + _artifact_id + ">", "exec"), _namespace, _namespace)\n` +
@@ -102,6 +121,8 @@ async function runPython(request, source, estimatorSources) {
       `                _ai_stat_runtime_failure["artifact_id"] = _artifact_id\n` +
       `                _ai_stat_runtime_failure["error_message"] = failure_message\n` +
       `            raise RuntimeError(failure_message) from exc\n` +
+      `        if len(_ai_stat_invocation_samples[_artifact_id]) < 3:\n` +
+      `            _ai_stat_invocation_samples[_artifact_id].append({"invocation_index": _ai_stat_invocation_counts[_artifact_id] + 1, "request": _ai_stat_trace_preview(normalized_request), "response": _ai_stat_trace_preview(response)})\n` +
       `        _ai_stat_invocation_counts[_artifact_id] += 1\n` +
       `        return response\n` +
       `    return _bound_estimator\n` +
@@ -111,7 +132,7 @@ async function runPython(request, source, estimatorSources) {
       `if not callable(_ai_stat_run_sandbox):\n` +
       `    raise RuntimeError("generated simulation did not define callable run_sandbox")\n` +
       `_ai_stat_result = _ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=_ai_stat_estimators)\n` +
-      `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": _ai_stat_invocation_counts, "estimator_runtime_failure": _ai_stat_runtime_failure}, allow_nan=False, sort_keys=True)`
+      `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": _ai_stat_invocation_counts, "estimator_invocation_samples": _ai_stat_invocation_samples, "estimator_runtime_failure": _ai_stat_runtime_failure}, allow_nan=False, sort_keys=True)`
     : `import json as _ai_stat_json\n` +
       `_ai_stat_source = ${JSON.stringify(source)}\n` +
       `_ai_stat_namespace = {}\n` +
@@ -171,6 +192,7 @@ async function runR(request, source, estimatorSources) {
         `.ai_stat_simulation_environment <- new.env(parent=globalenv())\n` +
         `eval(parse(text=.ai_stat_simulation_source), envir=.ai_stat_simulation_environment)\n` +
         `.ai_stat_invocation_counts <- setNames(as.list(rep(0L, length(.ai_stat_estimator_sources))), names(.ai_stat_estimator_sources))\n` +
+        `.ai_stat_invocation_samples <- setNames(lapply(.ai_stat_estimator_sources, function(value) list()), names(.ai_stat_estimator_sources))\n` +
         `.ai_stat_runtime_failure <- list(artifact_id="", error_message="")\n` +
         `.ai_stat_json_finite <- function(value) {\n` +
         `  if (is.null(value)) return(TRUE)\n` +
@@ -178,6 +200,28 @@ async function runR(request, source, estimatorSources) {
         `  if (is.numeric(value)) return(length(value) > 0L && all(is.finite(value)))\n` +
         `  if (is.character(value) || is.logical(value)) return(length(value) > 0L && !anyNA(value))\n` +
         `  FALSE\n` +
+        `}\n` +
+        `.ai_stat_trace_preview <- function(value, depth=0L) {\n` +
+        `  if (depth >= 4L) return(list(.preview="depth_limit", type=class(value)[[1]]))\n` +
+        `  if (is.null(value)) return(NULL)\n` +
+        `  if (is.character(value)) {\n` +
+        `    text <- as.character(value)\n` +
+        `    return(ifelse(nchar(text) <= 300L, text, paste0(substr(text, 1L, 300L), "...")))\n` +
+        `  }\n` +
+        `  if (is.atomic(value) && length(value) <= 8L) return(value)\n` +
+        `  if (is.atomic(value)) return(list(.preview="sequence", length=length(value), head=unname(as.list(head(value, 5L))), tail=unname(as.list(tail(value, 2L)))))\n` +
+        `  if (is.list(value)) {\n` +
+        `    keys <- names(value)\n` +
+        `    if (is.null(keys)) {\n` +
+        `      if (length(value) <= 8L) return(lapply(value, .ai_stat_trace_preview, depth=depth + 1L))\n` +
+        `      return(list(.preview="sequence", length=length(value), head=lapply(head(value, 5L), .ai_stat_trace_preview, depth=depth + 1L), tail=lapply(tail(value, 2L), .ai_stat_trace_preview, depth=depth + 1L)))\n` +
+        `    }\n` +
+        `    kept <- head(seq_along(value), 16L)\n` +
+        `    preview <- lapply(value[kept], .ai_stat_trace_preview, depth=depth + 1L)\n` +
+        `    if (length(value) > 16L) preview$.truncated_keys <- length(value) - 16L\n` +
+        `    return(preview)\n` +
+        `  }\n` +
+        `  list(.preview="unsupported", type=class(value)[[1]])\n` +
         `}\n` +
         `.ai_stat_estimators <- lapply(names(.ai_stat_estimator_sources), function(.artifact_id) {\n` +
         `  local({\n` +
@@ -199,6 +243,9 @@ async function runR(request, source, estimatorSources) {
         `        if (!nzchar(.ai_stat_runtime_failure$artifact_id)) .ai_stat_runtime_failure <<- list(artifact_id=.id, error_message=.message)\n` +
         `        stop(.message, call.=FALSE)\n` +
         `      })\n` +
+        `      if (length(.ai_stat_invocation_samples[[.id]]) < 3L) {\n` +
+        `        .ai_stat_invocation_samples[[.id]] <<- c(.ai_stat_invocation_samples[[.id]], list(list(invocation_index=.ai_stat_invocation_counts[[.id]] + 1L, request=.ai_stat_trace_preview(request), response=.ai_stat_trace_preview(.response))))\n` +
+        `      }\n` +
         `      .ai_stat_invocation_counts[[.id]] <<- .ai_stat_invocation_counts[[.id]] + 1L\n` +
         `      .response\n` +
         `    }\n` +
@@ -207,7 +254,7 @@ async function runR(request, source, estimatorSources) {
         `names(.ai_stat_estimators) <- names(.ai_stat_estimator_sources)\n` +
         `if (!exists("run_sandbox", envir=.ai_stat_simulation_environment, mode="function", inherits=FALSE)) stop("generated simulation did not define callable run_sandbox")\n` +
         `.ai_stat_result <- get("run_sandbox", envir=.ai_stat_simulation_environment, inherits=FALSE)(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=.ai_stat_estimators)\n` +
-        `list(metrics=.ai_stat_result, estimator_invocation_counts=.ai_stat_invocation_counts, estimator_runtime_failure=.ai_stat_runtime_failure)\n` +
+        `list(metrics=.ai_stat_result, estimator_invocation_counts=.ai_stat_invocation_counts, estimator_invocation_samples=.ai_stat_invocation_samples, estimator_runtime_failure=.ai_stat_runtime_failure)\n` +
         `})`
       : `local({\n` +
         `.ai_stat_source <- ${JSON.stringify(source)}\n` +
@@ -262,6 +309,7 @@ try {
     : await runPython(request, source, estimatorSources);
   const metrics = execution?.metrics;
   const estimatorInvocationCounts = execution?.estimator_invocation_counts || {};
+  const estimatorInvocationSamples = execution?.estimator_invocation_samples || {};
   const estimatorRuntimeFailure = execution?.estimator_runtime_failure || {};
   const estimatorRuntimeFailureId = String(estimatorRuntimeFailure.artifact_id || "");
   const estimatorRuntimeFailureMessage = String(estimatorRuntimeFailure.error_message || "");
@@ -280,6 +328,7 @@ try {
         backend: request.backend,
         metrics,
         estimator_invocation_counts: estimatorInvocationCounts,
+        estimator_invocation_samples: estimatorInvocationSamples,
         error_type: "AcceptedEstimatorRuntimeError",
         error_message: estimatorRuntimeFailureMessage,
         error_stack: "",
@@ -297,6 +346,7 @@ try {
         backend: request.backend,
         metrics,
         estimator_invocation_counts: estimatorInvocationCounts,
+        estimator_invocation_samples: estimatorInvocationSamples,
         started_at: startedAt,
         completed_at: new Date().toISOString(),
       };

@@ -847,7 +847,10 @@ def _architect_feedback_route_subsystems(
             or (max_attempts > 0 and attempts_used >= max_attempts)
         )
         if same_observation and exhausted:
-            unavailable.add(str(budget.get("source_subsystem", "") or ""))
+            exhausted_source = str(
+                budget.get("source_subsystem", "") or ""
+            )
+            unavailable.add(exhausted_source)
 
     latest_outcome_by_owner: dict[str, Mapping[str, Any]] = {}
     for raw_outcome in architect_context.get(
@@ -874,10 +877,48 @@ def _architect_feedback_route_subsystems(
         if same_parent_lineage:
             unavailable.add(owner)
 
+    if (
+        _architect_context_requires_accepted_algorithm_handoff(
+            architect_context
+        )
+        and not _architect_context_has_accepted_algorithm_handoff(
+            architect_context
+        )
+    ):
+        unavailable.add("SimulationEvaluator")
+
     return tuple(
         subsystem
         for subsystem in available
         if subsystem not in unavailable
+    )
+
+
+def _architect_context_has_accepted_algorithm_handoff(
+    architect_context: Mapping[str, Any],
+) -> bool:
+    handoff = architect_context.get("upstream_algorithm_handoff", {})
+    return bool(
+        isinstance(handoff, Mapping)
+        and str(handoff.get("handoff_id", "") or "").startswith(
+            "accepted_algorithm_handoff:"
+        )
+        and list(handoff.get("exact_algorithm_artifacts", []) or [])
+    )
+
+
+def _architect_context_requires_accepted_algorithm_handoff(
+    architect_context: Mapping[str, Any],
+) -> bool:
+    plan = architect_context.get("architect_runtime_plan", {})
+    contract = plan.get("evidence_contract", {}) if isinstance(plan, Mapping) else {}
+    return bool(
+        isinstance(contract, Mapping)
+        and contract.get("metric_protocol_execution_authorized") is True
+        and contract.get(
+            "research_evaluation_requires_generated_algorithm_code"
+        )
+        is True
     )
 
 

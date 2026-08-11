@@ -37,7 +37,7 @@ from .metric_protocol_finding_ledger import (
 )
 from .research_schema import OpenResearchQuestion
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 11
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 15
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 16
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -75,7 +75,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_source_query_v5"
+    "client_tool_optional_source_query_v6"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
@@ -1026,7 +1026,6 @@ def _architect_theory_execution_preflight_submit_schema(
             "evidence_refs field accepts only theory anchor IDs from its enum."
         ),
     }
-    finding_schema["required"].append("source_evidence_refs")
     prior_review_schema = schema["$defs"].get("prior_finding_review")
     if isinstance(prior_review_schema, dict):
         prior_review_schema["properties"]["source_evidence_refs"] = deepcopy(
@@ -1039,7 +1038,6 @@ def _architect_theory_execution_preflight_submit_schema(
             "support the current RESOLVED or UNRESOLVED judgment. Runtime resolves "
             "them to immutable source_hit_id values."
         )
-        prior_review_schema["required"].append("source_evidence_refs")
     return schema
 
 
@@ -1468,15 +1466,11 @@ def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
             if str(value).strip()
         ]
         invalid_refs = [ref for ref in refs if ref not in hit_ids]
-        if not refs or invalid_refs:
+        if invalid_refs:
             errors.append(
-                f"prior_finding_reviews[{index}] must cite runtime-returned "
-                "source refs"
-                + (
-                    "; invalid refs: " + ", ".join(invalid_refs[:6])
-                    if invalid_refs
-                    else ""
-                )
+                f"prior_finding_reviews[{index}] cites source refs that were not "
+                "returned by the runtime; invalid refs: "
+                + ", ".join(invalid_refs[:6])
             )
     findings = [
         row
@@ -1491,14 +1485,11 @@ def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
             if str(value).strip()
         ]
         invalid_refs = [ref for ref in refs if ref not in hit_ids]
-        if not refs or invalid_refs:
+        if invalid_refs:
             errors.append(
-                "every preflight finding must cite runtime-returned source refs"
-                + (
-                    "; invalid refs: " + ", ".join(invalid_refs[:6])
-                    if invalid_refs
-                    else ""
-                )
+                "preflight finding cites source refs that were not returned by "
+                "the runtime; invalid refs: "
+                + ", ".join(invalid_refs[:6])
                 + (
                     "; available handles: "
                     + ", ".join(sorted(source_refs)[:12])
@@ -1506,16 +1497,17 @@ def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
                     else ""
                 )
             )
-        expected_bindings.append(
-            {
-                "finding_id": str(finding.get("finding_id", "") or ""),
-                "source_evidence_refs": refs,
-                "runtime_verified_source_refs": bool(
-                    refs and all(ref in hit_ids for ref in refs)
-                ),
-                "runtime_selected_semantics": False,
-            }
-        )
+        if refs:
+            expected_bindings.append(
+                {
+                    "finding_id": str(finding.get("finding_id", "") or ""),
+                    "source_evidence_refs": refs,
+                    "runtime_verified_source_refs": all(
+                        ref in hit_ids for ref in refs
+                    ),
+                    "runtime_selected_semantics": False,
+                }
+            )
     if packet.get("source_grounding_bindings", []) != expected_bindings:
         errors.append("preflight source-grounding bindings mismatch")
     expected_fingerprint = stable_hash(observations) if observations else ""
@@ -1789,10 +1781,16 @@ def _normalize_packet(
             if key not in {"finding_id", "prior_finding_id", "current_finding"}
         }
         if body.get("source_grounding_required") is True:
-            review["source_evidence_refs"] = _canonical_preflight_source_refs(
+            source_refs = _canonical_preflight_source_refs(
                 review.get("source_evidence_refs", []),
                 source_grounding=grounding,
             )
+            if source_refs:
+                review["source_evidence_refs"] = source_refs
+            else:
+                review.pop("source_evidence_refs", None)
+        else:
+            review.pop("source_evidence_refs", None)
         normalized_prior_reviews.append({"finding_id": finding_id, **review})
         if review.get("status") == METRIC_PROTOCOL_FINDING_UNRESOLVED:
             prior_row = active_prior_rows_by_id.get(finding_id, {})
@@ -1886,12 +1884,17 @@ def _normalize_packet(
     body["findings"] = normalized_findings
     if body.get("source_grounding_required") is True:
         for finding in normalized_findings:
-            finding["source_evidence_refs"] = (
-                _canonical_preflight_source_refs(
-                    finding.get("source_evidence_refs", []),
-                    source_grounding=grounding,
-                )
+            source_refs = _canonical_preflight_source_refs(
+                finding.get("source_evidence_refs", []),
+                source_grounding=grounding,
             )
+            if source_refs:
+                finding["source_evidence_refs"] = source_refs
+            else:
+                finding.pop("source_evidence_refs", None)
+    else:
+        for finding in normalized_findings:
+            finding.pop("source_evidence_refs", None)
     body["source_grounding_bindings"] = [
         {
             "finding_id": str(finding.get("finding_id", "") or ""),
@@ -1904,6 +1907,7 @@ def _normalize_packet(
             "runtime_selected_semantics": False,
         }
         for finding in normalized_findings
+        if finding.get("source_evidence_refs")
     ] if body.get("source_grounding_required") is True else []
     body["runtime_prior_finding_identity_bindings"] = []
     for transport_index, finding_id in enumerate(active_prior_finding_ids):
@@ -2507,9 +2511,8 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         ClientToolDefinition(
             name="submit_theory_preflight_review",
             description=(
-                "Submit the complete preflight review after source search. Every "
-                "new finding and every prior-finding status judgment must cite one "
-                "or more short source_ref handles returned in this loop."
+                "Submit the complete preflight review. Use source_evidence_refs only "
+                "when citing handles returned by an optional source search."
             ),
             input_schema=submit_schema,
             terminal=True,
@@ -2519,10 +2522,13 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     prompt = build_architect_theory_execution_preflight_prompt(material)
     tool_prompt = (
         prompt.split("\n\n", 1)[-1]
-        + "\n\nUse search_preflight_sources before submitting. Cite its short "
-        "source_ref handles; runtime binds them to exact source identities. You own each "
-        "statistical judgment and each search query. Runtime retrieval ranking, "
-        "source identity checks, and packet validation do not choose semantics. "
+        + "\n\nInspect the exact theory anchors first. Use search_preflight_sources "
+        "only when additional task-bound or formal-library context would materially "
+        "improve the review. Cite any returned source_ref handles you rely on; runtime "
+        "binds them to exact source identities. You own each statistical judgment and "
+        "each search query. Runtime retrieval ranking, source identity checks, and "
+        "packet validation do not choose semantics. If several independent source "
+        "queries are useful, you may issue them together in one tool turn. "
         "No generated-code or simulation results exist at this stage. Do not report "
         "sample sizes, Monte Carlo metrics, empirical ratios, coverage, or execution "
         "outcomes as observed facts. If a decision needs such evidence, mark the exact "
@@ -2544,7 +2550,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     def source_grounding_payload(**loop_metadata: Any) -> dict[str, Any]:
         observations = deepcopy(list(state["observations"]))
         return {
-            "source_grounding_required": True,
+            "source_grounding_required": bool(state["searches"]),
             "source_grounding_transport": (
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT
             ),
@@ -2652,10 +2658,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             )
 
         if call.name == "submit_theory_preflight_review":
-            if state["searches"] < 1:
-                raise ClientToolInputError(
-                    "search_preflight_sources must run before submission"
-                )
             source_grounding = source_grounding_payload()
             packet = normalize_submission(
                 tool_input,
@@ -2716,7 +2718,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                     "submitted": True,
                     "overall_verdict": packet.get("overall_verdict", ""),
                     "packet_fingerprint": stable_hash(packet),
-                    "source_grounding_verified": True,
+                    "source_grounding_verified": bool(state["searches"]),
                     "proof_evidence_status": (
                         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE
                     ),
@@ -2730,8 +2732,8 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     request = ClientToolTurnRequest(
         system_prompt=(
             ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
-            + "\nThis live review is source-query grounded. Search before deciding; "
-            "do not cite a source you did not receive from the client tool."
+            + "\nThis live review can query task-bound sources when useful. Do not "
+            "cite an external source you did not receive from the client tool."
         ),
         messages=({"role": "user", "content": tool_prompt},),
         tools=tools,
@@ -2739,7 +2741,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         max_tokens=min(max(1, int(max_tokens)), review_output_token_cap),
         temperature=temperature,
         tool_choice="any",
-        disable_parallel_tool_use=True,
+        disable_parallel_tool_use=False,
         metadata={
             "subsystem": "ArchitectMetricSemanticReviewer",
             "agent": "LLMArchitectMetricSemanticReviewerAgent",

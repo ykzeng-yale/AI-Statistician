@@ -102,6 +102,7 @@ from .scientific_sandbox import (
 )
 from .scientific_code_workspace import (
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
+    scientific_workspace_prototype_observation,
 )
 from .evaluation_protocol_revision import (
     architect_metric_requirement_validation_failure_result,
@@ -7670,23 +7671,26 @@ class SimulationEvaluatorRuntimeSubsystem:
                 subsystem="SimulationEvaluator",
             )
             try:
-                proposal_packet = self.proposal_agent.propose(
-                    question=question,
-                    theory_packet=packet if isinstance(packet, Mapping) else {},
-                    registered_problem=_problem_to_json(problem),
-                    registered_procedures=[
-                        _procedure_to_json(row) for row in procedures
-                    ],
-                    n_runs=n_runs,
-                    seed=seed,
-                    environment_feedback=(
-                        _runtime_environment_feedback_with_architect_directive(
-                            context=effective_context,
-                            subsystem="SimulationEvaluator",
-                            feedback=environment_feedback,
-                        )
-                    ),
-                )
+                with agent_runtime_substage("simulation_planning_envelope"):
+                    proposal_packet = self.proposal_agent.propose(
+                        question=question,
+                        theory_packet=(
+                            packet if isinstance(packet, Mapping) else {}
+                        ),
+                        registered_problem=_problem_to_json(problem),
+                        registered_procedures=[
+                            _procedure_to_json(row) for row in procedures
+                        ],
+                        n_runs=n_runs,
+                        seed=seed,
+                        environment_feedback=(
+                            _runtime_environment_feedback_with_architect_directive(
+                                context=effective_context,
+                                subsystem="SimulationEvaluator",
+                                feedback=environment_feedback,
+                            )
+                        ),
+                    )
             except PacketValidationError as exc:
                 return _simulation_engineer_packet_validation_failure_result(
                     task=task,
@@ -9054,19 +9058,26 @@ class AlgorithmEngineerRuntimeSubsystem:
                     environment_feedback,
                     subsystem="AlgorithmEngineer",
                 )
-                proposal_packet = self.proposal_agent.propose(
-                    question=question,
-                    theory_packet=packet if isinstance(packet, Mapping) else {},
-                    simulation_manifest=simulation_manifest if isinstance(simulation_manifest, Mapping) else {},
-                    implementation_gaps=implementation_gaps,
-                    environment_feedback=(
-                        _runtime_environment_feedback_with_architect_directive(
-                            context=effective_context,
-                            subsystem="AlgorithmEngineer",
-                            feedback=environment_feedback,
-                        )
-                    ),
-                )
+                with agent_runtime_substage("algorithm_planning_envelope"):
+                    proposal_packet = self.proposal_agent.propose(
+                        question=question,
+                        theory_packet=(
+                            packet if isinstance(packet, Mapping) else {}
+                        ),
+                        simulation_manifest=(
+                            simulation_manifest
+                            if isinstance(simulation_manifest, Mapping)
+                            else {}
+                        ),
+                        implementation_gaps=implementation_gaps,
+                        environment_feedback=(
+                            _runtime_environment_feedback_with_architect_directive(
+                                context=effective_context,
+                                subsystem="AlgorithmEngineer",
+                                feedback=environment_feedback,
+                            )
+                        ),
+                    )
             except PacketValidationError as exc:
                 return _algorithm_engineer_packet_validation_failure_result(
                     task=task,
@@ -10525,23 +10536,29 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         lean_candidate_client_tool_loop_evidence,
                     ) = client_tool_revision
                 else:
-                    proposal_packet = self.proposal_agent.propose(
-                        question=question,
-                        theory_packet=packet if isinstance(packet, Mapping) else {},
-                        simulation_manifest=(
-                            simulation_manifest
-                            if isinstance(simulation_manifest, Mapping)
-                            else {}
-                        ),
-                        algorithm_manifest=(
-                            algorithm_manifest
-                            if isinstance(algorithm_manifest, Mapping)
-                            else {}
-                        ),
-                        registered_problem=_problem_to_json(problem),
-                        theorem_goals=[_theorem_goal_to_json(row) for row in theorem_goals],
-                        environment_feedback=environment_feedback,
-                    )
+                    with agent_runtime_substage("formalizer_planning_envelope"):
+                        proposal_packet = self.proposal_agent.propose(
+                            question=question,
+                            theory_packet=(
+                                packet if isinstance(packet, Mapping) else {}
+                            ),
+                            simulation_manifest=(
+                                simulation_manifest
+                                if isinstance(simulation_manifest, Mapping)
+                                else {}
+                            ),
+                            algorithm_manifest=(
+                                algorithm_manifest
+                                if isinstance(algorithm_manifest, Mapping)
+                                else {}
+                            ),
+                            registered_problem=_problem_to_json(problem),
+                            theorem_goals=[
+                                _theorem_goal_to_json(row)
+                                for row in theorem_goals
+                            ],
+                            environment_feedback=environment_feedback,
+                        )
             except PacketValidationError as exc:
                 return _formalizer_packet_validation_failure_result(
                         task=task,
@@ -15349,15 +15366,16 @@ class CriticEvaluatorRuntimeSubsystem:
         observations: list[EnvironmentObservation] = []
         if self.proposal_agent is not None:
             try:
-                proposal_packet = self.proposal_agent.propose(
-                    question=question,
-                    retrieval_manifest=retrieval_manifest,
-                    theory_packet=theory_packet,
-                    simulation_manifest=simulation_manifest,
-                    algorithm_manifest=algorithm_manifest,
-                    formalization_manifest=formalization_manifest,
-                    environment_feedback=critic_environment_feedback,
-                )
+                with agent_runtime_substage("critic_evaluation"):
+                    proposal_packet = self.proposal_agent.propose(
+                        question=question,
+                        retrieval_manifest=retrieval_manifest,
+                        theory_packet=theory_packet,
+                        simulation_manifest=simulation_manifest,
+                        algorithm_manifest=algorithm_manifest,
+                        formalization_manifest=formalization_manifest,
+                        environment_feedback=critic_environment_feedback,
+                    )
             except PacketValidationError as exc:
                 (
                     proposal_validation_failure_id,
@@ -19814,7 +19832,7 @@ def _run_source_owner_scientific_workspace(
         return {
             "code_draft_hash": stable_hash(dict(candidate)),
             "accepted": prototype.get("smoke_passed") is True,
-            "prototype": prototype,
+            "prototype": scientific_workspace_prototype_observation(prototype),
         }
 
     if source_deferred:
@@ -19871,7 +19889,7 @@ def _run_source_owner_scientific_workspace(
         initial_observation = {
             "code_draft_hash": stable_hash(workspace_draft),
             "accepted": False,
-            "prototype": deepcopy(prototype),
+            "prototype": scientific_workspace_prototype_observation(prototype),
         }
 
     try:
@@ -19896,9 +19914,11 @@ def _run_source_owner_scientific_workspace(
         }
         return prototype, tool_calls
 
-    checked_prototype = workspace_result.check_result.get("prototype", {})
-    if isinstance(checked_prototype, Mapping):
-        prototype = dict(checked_prototype)
+    if not last_checked_prototype:
+        raise RuntimeError(
+            "scientific workspace accepted without a persisted sandbox result"
+        )
+    prototype = deepcopy(last_checked_prototype)
     prototype["scientific_code_workspace"] = dict(workspace_result.evidence)
     return prototype, tool_calls
 
@@ -20459,6 +20479,11 @@ def _run_generated_scientific_sandbox(
         if execution is not None
         else {}
     )
+    estimator_invocation_samples = (
+        deepcopy(dict(execution.estimator_invocation_samples))
+        if execution is not None
+        else {}
+    )
     mechanical_estimator_invocation_verified = bool(
         estimator_bindings
         and execution is not None
@@ -20507,6 +20532,7 @@ def _run_generated_scientific_sandbox(
             dict(execution.estimator_code_hashes) if execution is not None else {}
         ),
         "estimator_invocation_counts": estimator_invocation_counts,
+        "estimator_invocation_samples": estimator_invocation_samples,
         "mechanical_estimator_invocation_verified": (
             mechanical_estimator_invocation_verified
         ),
