@@ -1084,12 +1084,7 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
                     call_id="submit-lemmas",
                     name="submit_theory_workspace_revision",
                     input={
-                        "replacements": [
-                            {
-                                "artifact_name": "lemma_cards",
-                                "artifact": revised_core["lemma_cards"],
-                            }
-                        ]
+                        "lemma_cards": revised_core["lemma_cards"],
                     },
                 )
             ),
@@ -1308,12 +1303,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
                     call_id="submit-revised-problem-card",
                     name="submit_theory_workspace_revision",
                     input={
-                        "replacements": [
-                            {
-                                "artifact_name": "problem_card",
-                                "artifact": revised_core["problem_card"],
-                            }
-                        ]
+                        "problem_card": revised_core["problem_card"],
                     },
                 )
             )

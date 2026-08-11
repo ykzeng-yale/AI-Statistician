@@ -57,6 +57,7 @@ def test_bridge_only_gap_planner_is_not_a_generic_feedback_owner() -> None:
     assert "Lean must not substitute" in route_prompt
     assert "candidate-source failures" in route_prompt
     assert "missing proof dependencies" in route_prompt
+    assert "Selecting CriticEvaluator is terminal" in route_prompt
     assert "numbers or empirical outcomes mentioned inside reviewer prose" in (
         route_prompt
     )

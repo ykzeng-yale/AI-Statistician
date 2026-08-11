@@ -452,6 +452,52 @@ def test_formal_blocker_does_not_starve_unvisited_empirical_lanes() -> None:
     assert continued.observations[-1].payload["model_routing_call_used"] is False
 
 
+def test_failed_theory_revision_does_not_continue_rejected_parent_lineage() -> None:
+    question = OpenResearchQuestion(
+        id="generic-rejected-theory-revision",
+        title="Generic rejected theory revision",
+        description="Do not execute downstream work from a rejected theory parent.",
+    )
+    task = AgentTask(
+        task_id="theory:generic-rejected-theory-revision",
+        owner_subsystem="TheoryDeveloper",
+        objective="Revise a theory artifact rejected by independent preflight.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:rejected-parent",
+            "architect_context": _full_evidence_context(question.id),
+        },
+    )
+    result = AgentStepResult(
+        status="BLOCKED",
+        rationale="The model-owned theory workspace exhausted its tool budget.",
+        failure_classification="theory_developer_packet_validation_failed",
+    )
+
+    stopped = _runtime_transition_policy(
+        iteration=6,
+        task=task,
+        subsystem_name="TheoryDeveloper",
+        result=result,
+        blackboard=BlackboardState(
+            project_id=question.id,
+            artifacts={
+                "theory:rejected-parent": {
+                    "packet_id": "theory:rejected-parent"
+                }
+            },
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert stopped is result
+    assert stopped.status == "BLOCKED"
+    assert stopped.next_task is None
+
+
 def test_outer_graph_does_not_bypass_missing_theory_prerequisite() -> None:
     question = OpenResearchQuestion(
         id="generic-missing-theory",

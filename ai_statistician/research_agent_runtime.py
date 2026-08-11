@@ -3506,6 +3506,14 @@ def _runtime_outer_graph_continuation(
         "CriticEvaluator",
     }:
         return None
+    if subsystem_name == "TheoryDeveloper" and result.status in {
+        "BLOCKED",
+        "FAILED",
+    }:
+        # Every primary evidence lane depends on a currently accepted theory
+        # artifact. An older rejected parent is not a substitute for a failed
+        # model-owned revision.
+        return None
     context, outcome = _runtime_outer_graph_context(
         task=task,
         context_task=proposed_next_task,
@@ -4305,7 +4313,7 @@ class TheoryDeveloperRuntimeSubsystem:
             or getattr(theory_config, "provider_name", "")
             or ""
         ).strip().lower()
-        full_packet_revision_expected = bool(
+        theory_revision_workspace_expected = bool(
             context.get(THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY)
         )
         try:
@@ -4320,9 +4328,10 @@ class TheoryDeveloperRuntimeSubsystem:
                     "provider": theory_provider_name,
                     "provider_structured_output_expected": bool(
                         theory_provider_name == "anthropic"
+                        and not theory_revision_workspace_expected
                     ),
-                    "full_packet_revision_expected": (
-                        full_packet_revision_expected
+                    "theory_revision_workspace_expected": (
+                        theory_revision_workspace_expected
                     ),
                 },
             ):

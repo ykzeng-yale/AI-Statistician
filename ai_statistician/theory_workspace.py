@@ -103,7 +103,7 @@ def run_theory_revision_workspace(
     }
     tools = _theory_workspace_tools(
         artifact_names,
-        writable_artifact_names,
+        parent_shapes,
     )
 
     def changed_artifact_names(artifacts: Mapping[str, Any]) -> tuple[str, ...]:
@@ -176,36 +176,20 @@ def run_theory_revision_workspace(
                 raise ClientToolInputError(
                     "theory workspace submission budget is exhausted"
                 )
-            replacements = tool_input.get("replacements", [])
-            if (
-                not isinstance(replacements, Sequence)
-                or isinstance(replacements, (str, bytes))
-                or not replacements
-            ):
+            if not tool_input:
                 raise ClientToolInputError(
-                    "submit_theory_workspace_revision requires replacements"
+                    "submit_theory_workspace_revision requires at least one "
+                    "artifact-name field"
                 )
             candidate_artifacts = deepcopy(dict(state["artifacts"]))
             replacement_names: list[str] = []
-            for index, raw_replacement in enumerate(replacements):
-                if not isinstance(raw_replacement, Mapping):
-                    raise ClientToolInputError(
-                        f"theory replacement {index} must be an object"
-                    )
-                if set(raw_replacement) != {"artifact_name", "artifact"}:
-                    raise ClientToolInputError(
-                        "each theory replacement requires only artifact_name and artifact"
-                    )
-                name = str(raw_replacement.get("artifact_name", "") or "")
+            for raw_name, raw_artifact in tool_input.items():
+                name = str(raw_name or "")
                 if name not in parent:
                     raise ClientToolInputError(
                         f"unknown theory workspace artifact: {name}"
                     )
-                if name in replacement_names:
-                    raise ClientToolInputError(
-                        f"duplicate theory workspace replacement: {name}"
-                    )
-                artifact = deepcopy(raw_replacement.get("artifact"))
+                artifact = deepcopy(raw_artifact)
                 if _artifact_shape(artifact) != parent_shapes[name]:
                     raise ClientToolInputError(
                         f"theory artifact {name} must remain {parent_shapes[name]}"
@@ -465,12 +449,12 @@ def run_theory_revision_workspace(
 
 def _theory_workspace_tools(
     artifact_names: Sequence[str],
-    writable_artifact_names: Sequence[str] | None = None,
+    writable_artifact_shapes: Mapping[str, str],
 ) -> tuple[ClientToolDefinition, ...]:
     name_schema = {"type": "string", "enum": list(artifact_names)}
-    writable_name_schema = {
-        "type": "string",
-        "enum": list(writable_artifact_names or artifact_names),
+    replacement_properties = {
+        name: _artifact_shape_schema(shape)
+        for name, shape in sorted(writable_artifact_shapes.items())
     }
     return (
         ClientToolDefinition(
@@ -496,33 +480,31 @@ def _theory_workspace_tools(
         ClientToolDefinition(
             name="submit_theory_workspace_revision",
             description=(
-                "Submit complete model-authored replacements for the theory artifacts "
-                "that should change. Omitted artifacts remain byte-identical. The "
-                "runtime assembles and validates the workspace without editing it."
+                "Submit a flat object whose keys are the theory artifacts to change "
+                "and whose values are their complete model-authored replacements. "
+                "Object-valued artifacts require objects and array-valued artifacts "
+                "require arrays. Do not add a replacements wrapper and do not JSON-encode "
+                "an artifact as a string. Omitted artifacts remain byte-identical."
             ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["replacements"],
-                "properties": {
-                    "replacements": {
-                        "type": "array",
-                        "minItems": 1,
-                        "items": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": ["artifact_name", "artifact"],
-                            "properties": {
-                                "artifact_name": writable_name_schema,
-                                "artifact": {},
-                            },
-                        },
-                    }
-                },
+                "minProperties": 1,
+                "properties": replacement_properties,
             },
             terminal=True,
         ),
     )
+
+
+def _artifact_shape_schema(shape: str) -> dict[str, Any]:
+    if shape == "object":
+        return {"type": "object"}
+    if shape == "array":
+        return {"type": "array"}
+    return {
+        "type": ["string", "number", "integer", "boolean", "null"]
+    }
 
 
 def _artifact_shape(value: Any) -> str:

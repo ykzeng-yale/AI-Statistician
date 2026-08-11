@@ -102,12 +102,7 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
                     call_id="submit-incomplete",
                     name="submit_theory_workspace_revision",
                     input={
-                        "replacements": [
-                            {
-                                "artifact_name": "problem_card",
-                                "artifact": {"claim": "revised claim"},
-                            }
-                        ]
+                        "problem_card": {"claim": "revised claim"},
                     },
                 )
             ),
@@ -116,12 +111,7 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
                     call_id="submit-complete",
                     name="submit_theory_workspace_revision",
                     input={
-                        "replacements": [
-                            {
-                                "artifact_name": "lemma_cards",
-                                "artifact": [{"id": "lemma-1"}],
-                            }
-                        ]
+                        "lemma_cards": [{"id": "lemma-1"}],
                     },
                 )
             ),
@@ -148,6 +138,16 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
     assert "revised claim and at least one lemma are required" in str(
         backend.requests[2].messages
     )
+    submission_schema = next(
+        tool.input_schema
+        for tool in backend.requests[0].tools
+        if tool.name == "submit_theory_workspace_revision"
+    )
+    assert submission_schema["properties"]["problem_card"]["type"] == (
+        "object"
+    )
+    assert submission_schema["properties"]["lemma_cards"]["type"] == "array"
+    assert "replacements" not in submission_schema["properties"]
 
 
 def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
@@ -155,12 +155,7 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
         call_id="submit-rejected",
         name="submit_theory_workspace_revision",
         input={
-            "replacements": [
-                {
-                    "artifact_name": "problem_card",
-                    "artifact": {"claim": "still invalid"},
-                }
-            ]
+            "problem_card": {"claim": "still invalid"},
         },
     )
     backend = ScriptedTheoryWorkspaceBackend(
