@@ -119,8 +119,12 @@ Initial discovery and targeted revision now share this model-owned workspace
 pattern. Initial discovery reads one content-addressed question/Architect/RAG/
 contract context and may author coherent artifact groups across bounded
 submissions; revision reads the exact parent and reviewer artifacts on demand.
-Both receive raw validator feedback in the same model session. Capability audit
-requires this direct evidence, but the system must not claim full theory-
+Each structurally valid partial write is retained even when the combined workspace
+still fails validation. The tool reports that write as accepted, returns the raw
+validation errors, and lets the same model submit only the remaining or revised
+artifacts. The last invalid write stops immediately with a model-owned checkpoint;
+it does not spend later turns calling an exhausted tool. Capability audit requires
+this direct evidence, but the system must not claim full theory-
 development capability until fresh cross-family evaluations exercise both paths.
 
 ## Scientific coding workspace
@@ -205,6 +209,15 @@ additional context; search and external citations are not mandatory. Every cited
 external handle is runtime-verified against the returned source snapshot, while
 uncited search results do not force unrelated findings to carry citations.
 Independent queries may share one client-tool turn.
+
+Prior preflight findings are immutable identities, not irreversible verdicts. On
+the next current-parent review, the independent model may mark a prior finding
+`RESOLVED_BY_CURRENT_THEORY` when the source changed, or
+`RETRACTED_BY_CURRENT_EVIDENCE` when current anchors show the prior claim is
+contradicted, outside the admitted DGP or requested measurements, or only a
+downstream implementation/proof obligation. Both require a model-authored rationale
+and current evidence refs. Runtime never chooses a retraction; it only validates
+the binding and removes closed rows from the active ledger.
 
 ## Lean formalization workspace
 
@@ -293,19 +306,24 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-11, v333 is the authoritative development panel: 0/2 exact
-source-theorem closures, capability scorecard 6/16, and both tasks blocked. All
-nine enabled LLM subsystems used exactly `claude-haiku-4-5-20251001`. The run
-recorded three live generated-algorithm executions, zero generated-simulation
-executions, two local Lean checks, zero compiling Lean targets, and zero
-kernel-verified subclaims. Survival reached a revised Theory but then exposed two
-shared control defects: old downstream completion survived the parent change, and
-metric-author findings were routed through Architect to TheoryDeveloper. Sequential
-used stable prior-finding identities but exhausted its bounded Theory revisions on
-substantive mathematical findings. Parent-bound lane completion, descendant
-invalidation, source-local metric rejection, and removal of the hard-coded
-`proof_first` default are now covered by deterministic tests, but have not yet been
-revalidated by a fresh panel.
+As of 2026-08-11, v336 is the authoritative development panel: 0/2 exact
+source-theorem closures, capability scorecard 5/16, and both tasks blocked. All
+nine enabled LLM subsystems used exactly `claude-haiku-4-5-20251001`. Both tasks
+authored valid initial theory workspaces and performed two source-owned revisions
+from independent preflight observations. In Survival, an incomplete first theory
+write was retained and returned as `write_accepted=true`,
+`workspace_valid=false`; the same Haiku corrected it on its next call without a
+repair agent or runtime-authored content. Both tasks then exhausted preflight
+revisions, so the run recorded zero generated-code executions, zero generated-
+simulation executions, zero Lean checks, and zero kernel-verified subclaims.
+
+v336 exposed a review-state asymmetry: prior finding identity was stable, but the
+reviewer could only keep it unresolved or claim that source code had changed. It
+could not retract a finding shown by current anchors to be outside preflight scope.
+The evidence-bound retraction state is now covered by deterministic tests but has
+not been revalidated live. v334 was a deliberately stopped diagnostic, not an
+authoritative panel; it exposed duplicate Algorithm regeneration after independent
+acceptance, which is now prevented by current-parent review completion authority.
 
 An exact-Haiku component diagnostic of the simplified preflight used three turns
 and four tool calls, including two independent searches in one turn, with no
@@ -346,10 +364,11 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-The immediate priorities are to exercise the corrected parent-bound graph and
-source-local feedback in a fresh exact-Haiku development panel, shrink the
-still-large preflight and metric schemas, and improve active-project context,
-retrieval, and compiler ergonomics in the direct Lean loop. Small parallel candidate or lemma
+The immediate priorities are to shrink the still-large preflight and metric schemas,
+live-validate evidence-bound reviewer retraction without weakening genuine blockers,
+and improve active-project context, retrieval, and compiler ergonomics in the
+direct Lean loop. The next run that reaches scientific coding must also verify that
+one current-parent independent ACCEPT closes its lane exactly once. Small parallel candidate or lemma
 work may be added inside an existing workspace only after the serial loop is
 stable and only with the same execution and evidence gates. Estimator-interface
 authoring should move into the workspace only if fresh traces show its bounded
