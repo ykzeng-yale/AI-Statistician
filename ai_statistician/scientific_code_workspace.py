@@ -18,6 +18,9 @@ from .structured_output_retry import PacketValidationError
 
 ScientificCodeCheck = Callable[[Mapping[str, Any]], Mapping[str, Any]]
 
+SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS = "native_client_tools"
+SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET = "structured_packet"
+
 
 @dataclass(frozen=True)
 class ScientificCodeWorkspaceResult:
@@ -40,9 +43,10 @@ def run_scientific_code_workspace(
     max_checks: int,
     max_no_progress_turns: int,
     artifact_id: str,
-    initial_code_draft: Mapping[str, Any],
+    initial_code_draft: Mapping[str, Any] | None,
     initial_check_result: Mapping[str, Any],
     check_candidate: ScientificCodeCheck,
+    workspace_operation: str = "targeted_revision",
     request_metadata: Mapping[str, Any] | None = None,
 ) -> ScientificCodeWorkspaceResult:
     """Let one model own complete scientific source across raw sandbox feedback."""
@@ -57,9 +61,17 @@ def run_scientific_code_workspace(
     ):
         if value < 1:
             raise ValueError(f"scientific code workspace {label} budget must be positive")
+    if workspace_operation not in {"initial_authoring", "targeted_revision"}:
+        raise ValueError("unsupported scientific code workspace operation")
 
-    parent_draft = _complete_code_draft(initial_code_draft)
-    parent_hash = stable_hash(parent_draft)
+    parent_draft = (
+        _complete_code_draft(initial_code_draft)
+        if isinstance(initial_code_draft, Mapping) and initial_code_draft
+        else {}
+    )
+    if workspace_operation == "targeted_revision" and not parent_draft:
+        raise ValueError("targeted scientific source revision requires parent source")
+    parent_hash = stable_hash(parent_draft) if parent_draft else ""
     state: dict[str, Any] = {
         "code_draft": parent_draft,
         "code_draft_hash": parent_hash,
@@ -77,14 +89,16 @@ def run_scientific_code_workspace(
                 "language",
                 "execution_profile",
                 "dependencies",
+                "entrypoint",
                 "code",
             }
-            if not required_fields.issubset(tool_input) or set(tool_input) - (
-                required_fields | {"required_estimator_ids"}
+            if (
+                not required_fields.issubset(tool_input)
+                or set(tool_input) - required_fields
             ):
                 raise ClientToolInputError(
                     "replace_scientific_source requires the complete language, "
-                    "execution_profile, dependencies, and code candidate"
+                    "execution_profile, dependencies, entrypoint, and code candidate"
                 )
             if state["source_updates"] >= max_source_updates:
                 raise ClientToolInputError("scientific source-update budget is exhausted")
@@ -113,6 +127,10 @@ def run_scientific_code_workspace(
         if call.name == "run_scientific_source":
             if tool_input:
                 raise ClientToolInputError("run_scientific_source takes an empty object")
+            if not state["code_draft"]:
+                raise ClientToolInputError(
+                    "author complete scientific source before requesting execution"
+                )
             if state["checks"] >= max_checks:
                 raise ClientToolInputError("scientific sandbox check budget is exhausted")
             raw = check_candidate(deepcopy(dict(state["code_draft"])))
@@ -165,9 +183,15 @@ def run_scientific_code_workspace(
             {
                 "role": "user",
                 "content": user_prompt
-                + "\n\nCurrent complete code candidate:\n"
-                + _compact_json(parent_draft)
-                + "\n\nRaw initial sandbox observation:\n"
+                + (
+                    "\n\nNo scientific source exists yet. Author the complete "
+                    "candidate with replace_scientific_source before requesting "
+                    "execution."
+                    if not parent_draft
+                    else "\n\nCurrent complete code candidate:\n"
+                    + _compact_json(parent_draft)
+                )
+                + "\n\nInitial workspace observation:\n"
                 + _compact_json(initial_check_result),
             },
         ),
@@ -182,6 +206,7 @@ def run_scientific_code_workspace(
             "model_tier": model_tier,
             "artifact_id": artifact_id,
             "parent_code_draft_hash": parent_hash,
+            "workspace_operation": workspace_operation,
         },
     )
 
@@ -190,7 +215,8 @@ def run_scientific_code_workspace(
             "replace_scientific_source": (
                 state["source_updates"] < max_source_updates
             ),
-            "run_scientific_source": state["checks"] < max_checks,
+            "run_scientific_source": bool(state["code_draft"])
+            and state["checks"] < max_checks,
         }
         selected = tuple(tool for tool in available_tools if enabled[tool.name])
         return selected or tuple(
@@ -217,6 +243,7 @@ def run_scientific_code_workspace(
                 "schema_version": 1,
                 "artifact_kind": "ScientificCodeWorkspaceCheckpoint",
                 "artifact_id": artifact_id,
+                "workspace_operation": workspace_operation,
                 "parent_code_draft_hash": parent_hash,
                 "current_code_draft_hash": state["code_draft_hash"],
                 "current_code_draft": deepcopy(dict(state["code_draft"])),
@@ -249,6 +276,7 @@ def run_scientific_code_workspace(
         "artifact_kind": "ScientificCodeWorkspaceResult",
         "artifact_id": artifact_id,
         "transport": "native_client_tools",
+        "workspace_operation": workspace_operation,
         "parent_code_draft_hash": parent_hash,
         "initial_check_result_hash": stable_hash(dict(initial_check_result)),
         "initial_check_accepted": initial_check_result.get("accepted") is True,
@@ -283,12 +311,15 @@ def _complete_code_draft(value: Mapping[str, Any] | Any) -> dict[str, Any]:
         raise ClientToolInputError("scientific code candidate must be an object")
     language = str(value.get("language", "") or "").strip().lower()
     execution_profile = str(value.get("execution_profile", "") or "").strip()
+    entrypoint = str(value.get("entrypoint", "") or "").strip()
     code = str(value.get("code", "") or "")
     dependencies = value.get("dependencies", [])
     if language not in {"python", "r"}:
         raise ClientToolInputError("language must be python or r")
     if not execution_profile:
         raise ClientToolInputError("execution_profile must be nonempty")
+    if entrypoint != "run_sandbox":
+        raise ClientToolInputError("entrypoint must be run_sandbox")
     if not isinstance(dependencies, Sequence) or isinstance(
         dependencies, (str, bytes)
     ):
@@ -301,17 +332,9 @@ def _complete_code_draft(value: Mapping[str, Any] | Any) -> dict[str, Any]:
         "language": language,
         "execution_profile": execution_profile,
         "dependencies": [str(item) for item in dependencies],
+        "entrypoint": entrypoint,
         "code": code,
     }
-    if "required_estimator_ids" in value:
-        required_estimator_ids = value.get("required_estimator_ids")
-        if not isinstance(required_estimator_ids, Sequence) or isinstance(
-            required_estimator_ids, (str, bytes)
-        ):
-            raise ClientToolInputError("required_estimator_ids must be an array")
-        draft["required_estimator_ids"] = [
-            str(item) for item in required_estimator_ids
-        ]
     return draft
 
 
@@ -330,6 +353,7 @@ def _scientific_code_tools() -> tuple[ClientToolDefinition, ...]:
                     "language",
                     "execution_profile",
                     "dependencies",
+                    "entrypoint",
                     "code",
                 ],
                 "properties": {
@@ -339,9 +363,9 @@ def _scientific_code_tools() -> tuple[ClientToolDefinition, ...]:
                         "type": "array",
                         "items": {"type": "string"},
                     },
-                    "required_estimator_ids": {
-                        "type": "array",
-                        "items": {"type": "string"},
+                    "entrypoint": {
+                        "type": "string",
+                        "enum": ["run_sandbox"],
                     },
                     "code": {"type": "string"},
                 },

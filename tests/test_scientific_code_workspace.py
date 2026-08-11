@@ -51,6 +51,7 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
         "language": "python",
         "execution_profile": "stdlib",
         "dependencies": [],
+        "entrypoint": "run_sandbox",
         "code": "def run_estimator(data):\n    return missing_name\n",
     }
     revised = {
@@ -120,6 +121,86 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
     assert result.evidence["runtime_executed_tool_calls"] == 2
     assert "NameError: missing_name" in str(backend.requests[0].messages)
     assert {tool.name for tool in backend.requests[0].tools} == {
+        "replace_scientific_source",
+        "run_scientific_source",
+    }
+    replace_schema = next(
+        tool.input_schema
+        for tool in backend.requests[0].tools
+        if tool.name == "replace_scientific_source"
+    )
+    assert "required_estimator_ids" not in replace_schema["properties"]
+
+
+def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
+    authored = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": (
+            "def run_estimator(request):\n"
+            "    return {'estimate': 0.0}\n\n"
+            "def run_sandbox(seed, replicates):\n"
+            "    return run_estimator({})\n"
+        ),
+    }
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="author-1",
+                    name="replace_scientific_source",
+                    input=authored,
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="run-1",
+                    name="run_scientific_source",
+                    input={},
+                )
+            ),
+        ]
+    )
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Author the estimator from the bound theory contract.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_source_updates=2,
+        max_checks=2,
+        max_no_progress_turns=2,
+        artifact_id="question:initial-estimator",
+        initial_code_draft=None,
+        initial_check_result={
+            "artifact_kind": "ScientificSourceAuthoringRequired",
+            "accepted": False,
+            "execution_attempted": False,
+        },
+        check_candidate=lambda candidate: {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": dict(candidate) == authored,
+            "stdout": "{\"estimate\":0.0}",
+            "stderr": "",
+        },
+        workspace_operation="initial_authoring",
+    )
+
+    assert dict(result.code_draft) == authored
+    assert result.evidence["workspace_operation"] == "initial_authoring"
+    assert result.evidence["parent_code_draft_hash"] == ""
+    assert result.evidence["source_updates"] == 1
+    assert result.evidence["sandbox_checks"] == 1
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        "replace_scientific_source"
+    ]
+    assert {tool.name for tool in backend.requests[1].tools} == {
         "replace_scientific_source",
         "run_scientific_source",
     }

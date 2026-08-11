@@ -33,6 +33,8 @@ from .scientific_sandbox import (
     scientific_sandbox_contract,
 )
 from .scientific_code_workspace import (
+    SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
+    SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET,
     ScientificCodeWorkspaceResult,
     run_scientific_code_workspace,
 )
@@ -97,12 +99,20 @@ class LLMAlgorithmEngineerAgent:
         requires_generated_code = _feedback_requires_generated_algorithm_code(
             feedback
         )
+        defer_source_authoring = bool(
+            requires_generated_code
+            and self.config.use_client_tool_code_workspace
+            and callable(
+                getattr(self.provider, "generate_client_tool_turn", None)
+            )
+        )
         user_prompt = build_algorithm_engineer_prompt(
             question=question,
             theory_packet=theory_packet,
             simulation_manifest=simulation_manifest,
             implementation_gaps=implementation_gaps,
             environment_feedback=feedback,
+            defer_source_authoring=defer_source_authoring,
         )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
@@ -112,6 +122,7 @@ class LLMAlgorithmEngineerAgent:
         response_schema = _algorithm_engineer_response_schema(
             implementation_gaps=implementation_gaps,
             requires_generated_code=requires_generated_code,
+            defer_source_authoring=defer_source_authoring,
         )
         provider_name = str(
             getattr(self.provider, "provider_name", self.config.provider_name)
@@ -157,6 +168,11 @@ class LLMAlgorithmEngineerAgent:
                 metric_requirement_authority_policy=(
                     GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
                 ),
+                scientific_source_transport=(
+                    SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
+                    if defer_source_authoring
+                    else SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET
+                ),
             )
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
@@ -185,10 +201,11 @@ class LLMAlgorithmEngineerAgent:
         *,
         question: OpenResearchQuestion,
         artifact_id: str,
-        code_draft: Mapping[str, Any],
+        code_draft: Mapping[str, Any] | None,
         initial_observation: Mapping[str, Any],
         workspace_context: Mapping[str, Any],
         check_candidate: Callable[[Mapping[str, Any]], Mapping[str, Any]],
+        workspace_operation: str = "targeted_revision",
     ) -> ScientificCodeWorkspaceResult:
         """Run one direct model -> sandbox -> same-model source loop."""
 
@@ -234,6 +251,7 @@ class LLMAlgorithmEngineerAgent:
             initial_code_draft=code_draft,
             initial_check_result=initial_observation,
             check_candidate=check_candidate,
+            workspace_operation=workspace_operation,
             request_metadata={
                 "subsystem": "AlgorithmEngineer",
                 "agent": "LLMAlgorithmEngineerAgent",
@@ -249,6 +267,7 @@ def build_algorithm_engineer_prompt(
     simulation_manifest: Mapping[str, Any],
     implementation_gaps: list[Mapping[str, Any]],
     environment_feedback: Mapping[str, Any] | None = None,
+    defer_source_authoring: bool = False,
 ) -> str:
     runtime_environment_feedback = _algorithm_environment_observations(
         environment_feedback or {}
@@ -295,7 +314,9 @@ def build_algorithm_engineer_prompt(
                 "run_estimator <- function(request)"
             ),
             "default": (
-                "generate complete sandbox source for each implementation gap"
+                "author complete source in the bound client-tool workspace"
+                if defer_source_authoring
+                else "generate complete sandbox source for each implementation gap"
             ),
             "execution_contract": scientific_sandbox_contract(),
             "runtime_policy": (
@@ -311,6 +332,7 @@ def build_algorithm_engineer_prompt(
         },
         "required_output_contract": _algorithm_engineer_output_contract(
             requires_generated_code=requires_generated_code,
+            defer_source_authoring=defer_source_authoring,
         ),
         "boundary": ALGORITHM_ENGINEER_BOUNDARY,
     }
@@ -322,56 +344,59 @@ def build_algorithm_engineer_prompt(
             "include one safe sandbox_code_drafts entry for every canonical "
             "implementation gap"
         )
-    generated_code_instruction = (
-        (
-            "Capability-eval mode is active: for every ID in "
-            "canonical_implementation_gap_ids, include exactly one matching "
-            "implementation_targets row and one safe sandbox_code_drafts row. "
-            "Set metric_contracts to an empty array. Return meaningful finite "
-            "smoke diagnostics that let the independent reviewer inspect implementation "
-            "semantics. Do not invent a finite-sample performance gate: the downstream "
-            "SimulationEngineer owns DGP-based statistical evaluation of this exact "
-            "algorithm artifact. Define a domain-general JSON ABI entrypoint "
-            "run_estimator(request) returning a named JSON-finite object, and make "
-            "run_sandbox exercise that same function for smoke diagnostics. The "
-            "estimator and sandbox functions must both be module-level callable "
-            "exports. The "
-            "request and response semantics are owned by the supplied TheoryDeveloper "
-            "estimator_interface_contract. Implement every field exactly and do not "
-            "rename, rescale, or redefine it during a code revision. AgentRuntime binds "
-            "that immutable contract into the proposal; if it is inconsistent, route "
-            "the defect upstream instead of choosing a new convention. Keep the "
-            "metadata entrypoint exactly "
-            "\"run_sandbox\" and code defining either Python "
-            "def run_sandbox(seed: int, replicates: int) -> dict or R "
-            "run_sandbox <- function(seed, replicates). Always return dependencies "
-            "as an array: use [] for stdlib and list only packages actually imported "
-            "for scientific_wasm. Every implementation target and generated source "
-            "is model-authored. Treat "
-            "each supplied implementation_gaps estimator_id as "
-            "an exact task-artifact foreign key: copy it unchanged into the matching "
-            "implementation_targets and sandbox_code_drafts rows rather than inventing "
-            "a clearer alias. Use execution_profile=scientific_wasm when mature "
-            "scientific Python libraries or R materially improve implementation "
-            "fidelity; otherwise use the stdlib Python profile. "
+    if requires_generated_code and defer_source_authoring:
+        generated_code_instruction = (
+            "Capability-eval mode is active. For every canonical implementation-gap "
+            "ID, emit exactly one matching implementation_targets row and one "
+            "sandbox_code_drafts identity row. Copy each estimator_id unchanged. "
+            "Do not embed source, language, dependencies, execution profile, or "
+            "entrypoint in this planning envelope. Set metric_contracts to an empty "
+            "array. After this envelope is accepted, the same source-owning model "
+            "receives direct source and sandbox tools and must author and execute the "
+            "complete candidate against the immutable TheoryDeveloper ABI. "
         )
-        if requires_generated_code
-        else (
+    elif requires_generated_code:
+        generated_code_instruction = (
+            "Capability-eval mode is active. For every canonical implementation-gap "
+            "ID, emit one matching target and complete source draft. Copy estimator_id "
+            "unchanged, leave metric_contracts empty, export run_estimator(request) "
+            "and run_sandbox(seed, replicates), and preserve the immutable "
+            "TheoryDeveloper ABI. Declare the exact language, execution profile, and "
+            "dependencies. Do not claim execution or statistical acceptance. "
+        )
+    else:
+        generated_code_instruction = (
             "Use model-authored complete sandbox source for implementation gaps. "
         )
-    )
     feedback_regeneration_instruction = (
         "A previous candidate and its exact validator, execution, or independent-"
         "review observations are supplied in runtime_environment_feedback. When a "
-        "complete hash-bound parent_source is present, use that complete source as "
-        "the current candidate. Regenerate the complete packet and complete source; "
-        "preserve immutable identities and contracts. You choose and author every "
-        "source change; AgentRuntime does not propose edits. Treat the top-level "
+        "complete hash-bound parent_source is present, treat it as immutable lineage. "
+        + (
+            "Regenerate only this compact planning envelope; source revision occurs "
+            "in the following bound client-tool workspace. "
+            if defer_source_authoring
+            else "Regenerate the complete packet and complete source. "
+        )
+        + "Preserve immutable identities and contracts. You choose every source "
+        "change; AgentRuntime does not propose edits. Treat the top-level "
         "CURRENT_ACTIVE_OBSERVATION as the current failure. Superseded observations "
         "are complete history for avoiding repeated failures, not active errors unless "
         "the current candidate re-observes them. "
         if payload["runtime_environment_feedback"]
         else ""
+    )
+    source_stage_instruction = (
+        "Source selection, complete Python/R authoring, sandbox execution, and any "
+        "revision happen only in the following bound client-tool workspace. "
+        if defer_source_authoring
+        else (
+            "For each source draft, obey generated_code_sandbox_contract. Declare "
+            "the exact profile and dependencies, use mature package APIs when useful, "
+            "and avoid file, network, subprocess, host-bridge, or reflection access. "
+            "Regenerate failed source from exact observations; AgentRuntime never "
+            "edits model-authored source. "
+        )
     )
     return (
         "Design implementation and sandbox-validation artifacts for the AlgorithmEngineer subsystem. "
@@ -390,19 +415,8 @@ def build_algorithm_engineer_prompt(
         "Populate theory_trace_alignment with exact referenced_derivation_steps, "
         "referenced_equation_steps, referenced_assumptions, and referenced_formalization_targets "
         "from the supplied trace anchors. "
-        "If runtime_environment_feedback reports rejected or failed sandbox code, regenerate the complete "
-        "model-authored draft from the supplied source and exact observations; do not repeat the same unsafe "
-        "or non-executable code. "
-        "For sandbox_code_drafts, obey the selected profile in "
-        "generated_code_sandbox_contract. The stdlib profile means Python with no "
-        "third-party dependencies; it is not a reduced Python grammar. The "
-        "scientific_wasm profile permits declared pinned scientific packages or base "
-        "R packages. Both profiles forbid "
-        "file/network/subprocess/host-bridge/reflection access. Prefer mature "
-        "package APIs for numerical and statistical machinery. If the requested "
-        "prototype cannot run under either profile, omit the draft and report the "
-        "actual missing runtime capability. AgentRuntime never edits or replaces "
-        "model-authored source.\n\n"
+        + source_stage_instruction
+        + "\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
@@ -609,29 +623,37 @@ ALGORITHM_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
 }
 
 
-def _algorithm_engineer_output_contract(*, requires_generated_code: bool) -> dict[str, Any]:
+def _algorithm_engineer_output_contract(
+    *,
+    requires_generated_code: bool,
+    defer_source_authoring: bool = False,
+) -> dict[str, Any]:
     contract = dict(ALGORITHM_ENGINEER_OUTPUT_CONTRACT)
     if requires_generated_code:
-        contract["sandbox_code_drafts"] = [
-            {
-                "estimator_id": (
-                    "one row per canonical_implementation_gap_ids value; copy the "
-                    "corresponding ID unchanged"
-                ),
-                "language": "python",
-                "execution_profile": "stdlib or scientific_wasm",
-                "dependencies": (
-                    "empty array for stdlib; otherwise include only packages "
-                    "actually imported for scientific_wasm"
-                ),
-                "entrypoint": "run_sandbox",
-                "code": (
-                    "complete Python or R source with module-level exported "
-                    "run_estimator(request) and run_sandbox(seed, replicates); "
-                    "run_sandbox exercises the exported estimator"
-                ),
-            }
-        ]
+        draft_contract = {
+            "estimator_id": (
+                "one row per canonical_implementation_gap_ids value; copy the "
+                "corresponding ID unchanged"
+            ),
+        }
+        if not defer_source_authoring:
+            draft_contract.update(
+                {
+                    "language": "python or R",
+                    "execution_profile": "stdlib or scientific_wasm",
+                    "dependencies": (
+                        "empty array for stdlib; otherwise include only packages "
+                        "actually imported for scientific_wasm"
+                    ),
+                    "entrypoint": "run_sandbox",
+                    "code": (
+                        "complete source with module-level exported "
+                        "run_estimator(request) and run_sandbox(seed, replicates); "
+                        "run_sandbox exercises the exported estimator"
+                    ),
+                }
+            )
+        contract["sandbox_code_drafts"] = [draft_contract]
         contract["metric_contracts"] = []
     return contract
 
@@ -640,6 +662,7 @@ def _algorithm_engineer_response_schema(
     *,
     implementation_gaps: list[Mapping[str, Any]],
     requires_generated_code: bool,
+    defer_source_authoring: bool = False,
 ) -> dict[str, Any]:
     """Build a compact provider-native envelope for generated-code mode."""
 
@@ -684,11 +707,22 @@ def _algorithm_engineer_response_schema(
             "sandbox_code_drafts": {
                 "type": "array",
                 "minItems": required_artifact_rows,
-                "items": generated_code_draft_json_schema(
-                    artifact_required=["estimator_id"],
-                    artifact_properties={
-                        "estimator_id": estimator_id_schema,
-                    },
+                "items": (
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["estimator_id"],
+                        "properties": {
+                            "estimator_id": estimator_id_schema,
+                        },
+                    }
+                    if defer_source_authoring
+                    else generated_code_draft_json_schema(
+                        artifact_required=["estimator_id"],
+                        artifact_properties={
+                            "estimator_id": estimator_id_schema,
+                        },
+                    )
                 ),
             },
             "metric_contracts": {
@@ -768,6 +802,10 @@ ALGORITHM_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
 
 def validate_algorithm_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
+    source_deferred = bool(
+        packet.get("scientific_source_transport")
+        == SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
+    )
     for field in (
         "implementation_targets",
         "next_actions",
@@ -825,16 +863,23 @@ def validate_algorithm_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
         if not isinstance(row, Mapping):
             errors.append("sandbox_code_drafts entries must be objects")
             continue
+        if not str(row.get("estimator_id", "")).strip():
+            errors.append("sandbox_code_drafts entry missing estimator_id")
+        if source_deferred:
+            unexpected = set(row) - {"estimator_id"}
+            if unexpected:
+                errors.append(
+                    "client-tool source descriptors may contain only estimator_id"
+                )
+            continue
         errors.extend(generated_code_execution_contract_errors(row))
         if str(row.get("entrypoint", "")).strip() not in {"", "run_sandbox"}:
             errors.append("sandbox_code_drafts entrypoint must be run_sandbox")
-        if not str(row.get("estimator_id", "")).strip():
-            errors.append("sandbox_code_drafts entry missing estimator_id")
         code = str(row.get("code", ""))
         if not code.strip():
             errors.append("sandbox_code_drafts entry missing code")
-        if len(code) > 12000:
-            errors.append("sandbox_code_drafts code exceeds 12000 characters")
+        if len(code) > 100_000:
+            errors.append("sandbox_code_drafts code exceeds artifact-size boundary")
     metric_contracts = packet.get("metric_contracts", [])
     if metric_contracts not in (None, [], {}):
         errors.extend(
@@ -915,13 +960,18 @@ def _validate_capability_eval_generated_algorithm_packet(
     errors: list[str] = []
     targets = [row for row in packet.get("implementation_targets", []) or [] if isinstance(row, Mapping)]
     drafts = [row for row in packet.get("sandbox_code_drafts", []) or [] if isinstance(row, Mapping)]
+    source_deferred = bool(
+        packet.get("scientific_source_transport")
+        == SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
+    )
     if not drafts:
         errors.append(
             "capability_eval requires at least one Claude/OpenAI-generated sandbox_code_drafts entry"
         )
-    for row in drafts:
-        if normalized_generated_code_language(row.get("language")) == "python":
-            errors.extend(generated_python_syntax_errors(str(row.get("code", ""))))
+    if not source_deferred:
+        for row in drafts:
+            if normalized_generated_code_language(row.get("language")) == "python":
+                errors.extend(generated_python_syntax_errors(str(row.get("code", ""))))
     target_ids = {
         str(row.get("estimator_id", "")).strip()
         for row in targets
@@ -994,6 +1044,7 @@ def _normalize_algorithm_packet(
     requires_generated_code: bool = False,
     authoritative_metric_requirements: list[Mapping[str, Any]] | None = None,
     metric_requirement_authority_policy: str = "",
+    scientific_source_transport: str = SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET,
 ) -> dict[str, Any]:
     body = dict(payload)
     _normalize_algorithm_estimator_interface_contracts(
@@ -1030,6 +1081,7 @@ def _normalize_algorithm_packet(
     body["metric_requirement_authority_policy"] = (
         metric_requirement_authority_policy
     )
+    body["scientific_source_transport"] = scientific_source_transport
     body["metric_contract_proof_evidence_status"] = (
         GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
     )

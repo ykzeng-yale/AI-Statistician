@@ -223,8 +223,8 @@ def generated_code_execution_contract_errors(draft: Mapping[str, Any]) -> list[s
     code = str(draft.get("code", "") or "")
     if not code.strip():
         errors.append("generated code draft is empty")
-    if len(code) > 40000:
-        errors.append("generated code draft exceeds 40000 characters")
+    if len(code) > 100_000:
+        errors.append("generated code draft exceeds artifact-size boundary")
     return sorted(set(errors))
 
 
@@ -418,7 +418,7 @@ def generated_code_draft_json_schema(
     *,
     artifact_properties: Mapping[str, Any],
     artifact_required: Sequence[str],
-    code_max_length: int = 12000,
+    code_max_length: int = 100_000,
 ) -> dict[str, Any]:
     """Return a compact provider schema; runtime validates profile compatibility."""
 

@@ -9,6 +9,7 @@ import ai_statistician.research_agent_runtime as runtime_module
 from ai_statistician.agent_runtime import ToolCallRecord
 from ai_statistician.algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
+    _algorithm_engineer_response_schema,
     validate_algorithm_engineer_packet,
 )
 from ai_statistician.fingerprint import stable_hash
@@ -24,11 +25,18 @@ from ai_statistician.scientific_sandbox import (
     normalized_generated_code_profile,
     scientific_python_safety_errors,
 )
+from ai_statistician.scientific_code_workspace import (
+    SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
+)
+from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.simulation_engineer_llm import (
     SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
+    _simulation_engineer_response_schema,
+    _validate_capability_eval_generated_simulation_packet,
     _validate_simulation_estimator_selection,
     validate_simulation_engineer_packet,
 )
+from ai_statistician.structured_output_retry import PacketValidationError
 
 
 def test_generated_code_contract_keeps_stdlib_default_and_requires_r_wasm() -> None:
@@ -272,6 +280,175 @@ def test_algorithm_and_simulation_packets_accept_declared_r_drafts() -> None:
 
     assert validate_algorithm_engineer_packet(algorithm_packet) == []
     assert validate_simulation_engineer_packet(simulation_packet) == []
+
+
+def test_native_source_transport_accepts_identity_only_planning_envelopes() -> None:
+    algorithm_packet = {
+        "implementation_targets": [{"estimator_id": "candidate-a"}],
+        "sandbox_code_drafts": [{"estimator_id": "candidate-a"}],
+        "next_actions": [{"owner_agent": "AlgorithmEngineer"}],
+        "scientific_source_transport": (
+            SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
+        ),
+        "execution_evidence_status": (
+            ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE
+        ),
+        "sandbox_executed": False,
+        "production_registered": False,
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+    }
+    simulation_packet = {
+        "simulation_targets": [{"procedure_id": "confirmatory-dgp"}],
+        "simulation_code_drafts": [
+            {
+                "simulation_id": "confirmatory-dgp",
+                "required_estimator_ids": ["candidate-a"],
+            }
+        ],
+        "runtime_execution_plan": {
+            "registered_simulator": "ResearchSimulator.run"
+        },
+        "critic_findings": [{"finding": "inspect diagnostics"}],
+        "next_actions": [{"owner_agent": "SimulationEngineer"}],
+        "scientific_source_transport": (
+            SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
+        ),
+        "simulation_evidence_status": (
+            SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE
+        ),
+        "simulations_executed": False,
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+    }
+
+    assert validate_algorithm_engineer_packet(algorithm_packet) == []
+    assert validate_simulation_engineer_packet(simulation_packet) == []
+
+
+def test_native_source_transport_removes_source_from_provider_schema() -> None:
+    algorithm_schema = _algorithm_engineer_response_schema(
+        implementation_gaps=[{"estimator_id": "candidate-a"}],
+        requires_generated_code=True,
+        defer_source_authoring=True,
+    )
+    simulation_schema = _simulation_engineer_response_schema(
+        authoritative_metric_requirements=[],
+        requires_generated_code=True,
+        requires_typed_metric_contracts=False,
+        upstream_estimator_ids=("candidate-a",),
+        defer_source_authoring=True,
+    )
+
+    algorithm_draft = algorithm_schema["properties"]["sandbox_code_drafts"][
+        "items"
+    ]
+    simulation_draft = simulation_schema["properties"][
+        "simulation_code_drafts"
+    ]["items"]
+    assert algorithm_draft["required"] == ["estimator_id"]
+    assert set(algorithm_draft["properties"]) == {"estimator_id"}
+    assert simulation_draft["required"] == [
+        "simulation_id",
+        "required_estimator_ids",
+    ]
+    assert set(simulation_draft["properties"]) == {
+        "simulation_id",
+        "required_estimator_ids",
+    }
+
+
+def test_native_simulation_source_is_deferred_past_capability_packet_gate() -> None:
+    packet = {
+        "simulation_code_drafts": [
+            {
+                "simulation_id": "confirmatory-dgp",
+                "required_estimator_ids": ["candidate-a"],
+            }
+        ],
+        "metric_contracts": [],
+        "scientific_source_transport": (
+            SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
+        ),
+    }
+
+    assert _validate_capability_eval_generated_simulation_packet(
+        packet,
+        require_typed_metric_contracts=False,
+    ) == []
+
+
+def test_source_workspace_failure_preserves_last_execution_and_bound_identity() -> None:
+    executed_candidates: list[dict] = []
+
+    class Provider:
+        def generate_client_tool_turn(self, request):
+            raise AssertionError(request)
+
+    class FailedWorkspaceAgent:
+        provider = Provider()
+
+        def iterate_code_with_tools(self, **kwargs):
+            check = kwargs["check_candidate"](
+                {
+                    "language": "python",
+                    "execution_profile": "stdlib",
+                    "dependencies": [],
+                    "entrypoint": "run_sandbox",
+                    "code": (
+                        "def run_sandbox(seed, replicates, estimators):\n"
+                        "    return {'diagnostic': 0.0}\n"
+                    ),
+                }
+            )
+            raise PacketValidationError(
+                validation_label="LLM scientific code workspace",
+                attempts=1,
+                errors=["bound estimator source was not invoked"],
+                history=[{"check": check}],
+            )
+
+    def execute_candidate(candidate):
+        executed_candidates.append(dict(candidate))
+        return (
+            {
+                "prototype_status": "FAILED",
+                "execution_attempted": True,
+                "execution_smoke_passed": False,
+                "smoke_passed": False,
+                "runtime_errors": ["bound estimator source was not invoked"],
+                "source_code": candidate["code"],
+            },
+            ToolCallRecord(
+                tool_name="python.generated_simulation_sandbox",
+                exit_status="0",
+            ),
+        )
+
+    prototype, tool_calls = runtime_module._run_source_owner_scientific_workspace(
+        proposal_agent=FailedWorkspaceAgent(),
+        question=OpenResearchQuestion(
+            id="generic-question",
+            title="Generic question",
+            description="Exercise one bound estimator.",
+        ),
+        artifact_id="generic-question:simulation",
+        code_draft={
+            "simulation_id": "simulation",
+            "required_estimator_ids": ["candidate-a"],
+        },
+        source_deferred=True,
+        workspace_context={},
+        execute_candidate=execute_candidate,
+        failure_identity={"simulation_id": "simulation"},
+    )
+
+    assert executed_candidates[0]["required_estimator_ids"] == ["candidate-a"]
+    assert prototype["execution_attempted"] is True
+    assert prototype["prototype_status"] == "FAILED"
+    assert prototype["runtime_errors"] == [
+        "bound estimator source was not invoked"
+    ]
+    assert prototype["scientific_code_workspace_failure"]["attempts"] == 1
+    assert [call.exit_status for call in tool_calls] == ["0"]
 
 
 def test_simulation_estimator_selection_requires_a_known_handoff_subset() -> None:

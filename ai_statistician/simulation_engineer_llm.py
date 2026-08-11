@@ -33,6 +33,8 @@ from .scientific_sandbox import (
     scientific_sandbox_contract,
 )
 from .scientific_code_workspace import (
+    SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
+    SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET,
     ScientificCodeWorkspaceResult,
     run_scientific_code_workspace,
 )
@@ -105,6 +107,13 @@ class LLMSimulationEngineerAgent:
         requires_generated_code = _feedback_requires_generated_simulation_code(
             feedback
         )
+        defer_source_authoring = bool(
+            requires_generated_code
+            and self.config.use_client_tool_code_workspace
+            and callable(
+                getattr(self.provider, "generate_client_tool_turn", None)
+            )
+        )
         empirical_evaluation_phase = _feedback_empirical_evaluation_phase(feedback)
         requires_typed_metric_contracts = bool(
             requires_generated_code
@@ -138,6 +147,7 @@ class LLMSimulationEngineerAgent:
             n_runs=n_runs,
             seed=seed,
             environment_feedback=feedback,
+            defer_source_authoring=defer_source_authoring,
         )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
@@ -149,6 +159,7 @@ class LLMSimulationEngineerAgent:
             requires_generated_code=requires_generated_code,
             requires_typed_metric_contracts=requires_typed_metric_contracts,
             upstream_estimator_ids=upstream_estimator_ids,
+            defer_source_authoring=defer_source_authoring,
         )
         provider_name = str(
             getattr(self.provider, "provider_name", self.config.provider_name)
@@ -200,6 +211,11 @@ class LLMSimulationEngineerAgent:
                 ),
                 empirical_evaluation_phase=empirical_evaluation_phase,
                 upstream_algorithm_handoff=upstream_algorithm_handoff,
+                scientific_source_transport=(
+                    SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
+                    if defer_source_authoring
+                    else SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET
+                ),
             )
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
@@ -242,10 +258,11 @@ class LLMSimulationEngineerAgent:
         *,
         question: OpenResearchQuestion,
         artifact_id: str,
-        code_draft: Mapping[str, Any],
+        code_draft: Mapping[str, Any] | None,
         initial_observation: Mapping[str, Any],
         workspace_context: Mapping[str, Any],
         check_candidate: Callable[[Mapping[str, Any]], Mapping[str, Any]],
+        workspace_operation: str = "targeted_revision",
     ) -> ScientificCodeWorkspaceResult:
         """Run one direct model -> sandbox -> same-model source loop."""
 
@@ -291,6 +308,7 @@ class LLMSimulationEngineerAgent:
             initial_code_draft=code_draft,
             initial_check_result=initial_observation,
             check_candidate=check_candidate,
+            workspace_operation=workspace_operation,
             request_metadata={
                 "subsystem": "SimulationEvaluator",
                 "agent": "LLMSimulationEngineerAgent",
@@ -308,6 +326,7 @@ def build_simulation_engineer_prompt(
     n_runs: int,
     seed: int,
     environment_feedback: Mapping[str, Any] | None = None,
+    defer_source_authoring: bool = False,
 ) -> str:
     compact_environment_feedback = _simulation_environment_observations(
         environment_feedback or {}
@@ -410,6 +429,7 @@ def build_simulation_engineer_prompt(
         "required_output_contract": _simulation_engineer_output_contract(
             requires_generated_code=requires_generated_code,
             requires_typed_metric_contracts=requires_typed_metric_contracts,
+            defer_source_authoring=defer_source_authoring,
         ),
         "boundary": SIMULATION_ENGINEER_BOUNDARY,
     }
@@ -418,60 +438,71 @@ def build_simulation_engineer_prompt(
             "required for capability-eval simulation coding-agent evidence"
         )
         payload["generated_simulation_code_contract"]["capability_eval_default"] = (
-            "include one safe simulation_code_drafts entry with entrypoint exactly "
-            "run_sandbox in Python or R, with language, execution_profile, and "
-            "dependencies declared; "
-            "include metric_contracts rows bound to the same simulation_id and to "
+            (
+                "include one simulation_code_drafts identity row and author source "
+                "only in the following bound client-tool workspace; "
+                if defer_source_authoring
+                else "include one safe simulation_code_drafts entry with entrypoint "
+                "exactly run_sandbox in Python or R, with language, execution_profile, "
+                "dependencies, and complete source declared; "
+            )
+            + "include metric_contracts rows bound to the same simulation_id and to "
             "every authoritative empirical requirement"
             if requires_typed_metric_contracts
             else (
-                "include one safe simulation_code_drafts entry with entrypoint "
-                "exactly run_sandbox, return raw finite diagnostics, and leave "
-                "metric_contracts empty until confirmatory protocol review"
+                (
+                    "include one simulation_code_drafts identity row, author source "
+                    "only in the following bound client-tool workspace, return raw "
+                    "finite diagnostics, and leave "
+                    if defer_source_authoring
+                    else "include one safe simulation_code_drafts entry with entrypoint "
+                    "exactly run_sandbox, return raw finite diagnostics, and leave "
+                )
+                + "metric_contracts empty until confirmatory protocol review"
             )
         )
-    generated_simulation_instruction = (
-        "Capability-eval mode is active: include exactly one safe "
-        "simulation_code_drafts entry with entrypoint exactly \"run_sandbox\", "
-        "declared language/execution_profile/dependencies, and use the exact Python "
-        "or R function signature in generated_simulation_code_contract, so AgentRuntime "
-        "can execute and evaluate your custom stress-test code. For every row in "
-        "authoritative_empirical_metric_requirements, emit a metric_contracts binding "
-        "bound to that exact simulation_id containing only contract_id, the exact "
-        "requirement_id, artifact_id, and metric_path. AgentRuntime deterministically "
-        "joins immutable semantics, thresholds, operators, aggregation, quorum, and "
-        "source anchors; do not repeat or rewrite those authority fields. "
-        "AgentRuntime rejects invented or weakened required gates. Do not ask "
-        "AgentRuntime to infer a metric from prose or metric names. "
-        "Always return dependencies as an array: use [] for stdlib Python and, "
-        "for scientific_wasm, include only packages actually imported. "
-        "Return raw finite measurements at every metric_path whenever an underlying "
-        "numeric quantity exists. For identity/mean/min/max, AgentRuntime aggregates "
-        "then compares once. For all/any/at_least_count/at_least_fraction, it applies "
-        "operator and threshold to each raw value, then applies the boolean aggregation "
-        "or quorum. Never place a quorum in threshold or return pre-thresholded 0/1 "
-        "flags for a measurable numeric quantity. Use 0/1 with operator == threshold 1 "
-        "only for an intrinsically boolean predicate. "
-        if requires_typed_metric_contracts
-        else (
-            "Exploratory diagnostic mode is active: include exactly one safe "
-            "simulation_code_drafts entry with entrypoint run_sandbox, set "
-            "metric_contracts to an empty array, and return raw finite diagnostics "
-            "that can falsify the proposed DGP, calibration, estimator, or theorem "
-            "claims. This execution is feedback for TheoryDeveloper and cannot be "
-            "used as confirmatory empirical acceptance; a fresh run under an "
-            "independently reviewed frozen protocol is required for promotion. "
-            if requires_generated_code
-            else ""
+    if not requires_generated_code:
+        generated_simulation_instruction = ""
+    elif defer_source_authoring:
+        generated_simulation_instruction = (
+            "Emit exactly one simulation_code_drafts identity row with its exact "
+            "simulation_id and required_estimator_ids. Do not embed source, language, "
+            "dependencies, execution profile, or entrypoint in this planning envelope. "
+            "The same source-owning model will receive direct source and sandbox tools "
+            "after this envelope is accepted. "
         )
-    )
+    else:
+        generated_simulation_instruction = (
+            "Emit exactly one complete simulation source draft with entrypoint "
+            "run_sandbox and declare its exact language, execution profile, and "
+            "dependencies. "
+        )
+    if requires_typed_metric_contracts:
+        generated_simulation_instruction += (
+            "For every authoritative empirical requirement, emit one binding with "
+            "only contract_id, exact requirement_id, artifact_id, and metric_path. "
+            "AgentRuntime joins the immutable thresholds and evaluation semantics. "
+            "The executed source must return raw finite measurements at every frozen "
+            "metric_path; do not weaken or pre-threshold numeric requirements. "
+        )
+    elif requires_generated_code:
+        generated_simulation_instruction += (
+            "Set metric_contracts to an empty array and produce raw finite diagnostics "
+            "that can falsify the proposed DGP, estimator, or theorem claims. This is "
+            "exploratory feedback, not confirmatory acceptance or proof evidence. "
+        )
     feedback_regeneration_instruction = (
         "A previous candidate and its exact validator, execution, or independent-"
         "review observations are supplied in runtime_environment_feedback. When a "
-        "complete hash-bound parent_source is present, use that complete source as "
-        "the current candidate. Regenerate the complete packet and complete source; "
-        "preserve immutable identities and contracts. You choose and author every "
-        "source change; AgentRuntime does not propose edits. Treat the top-level "
+        "complete hash-bound parent_source is present, treat it as immutable lineage. "
+        + (
+            "Regenerate only this compact planning envelope; source revision occurs "
+            "in the following bound client-tool workspace. "
+            if defer_source_authoring
+            else "Regenerate the complete packet and complete source. "
+        )
+        + "Preserve immutable identities and contracts. You choose every source "
+        "change; AgentRuntime does not propose edits. Treat the top-level "
         "CURRENT_ACTIVE_OBSERVATION as the current failure. Superseded observations "
         "are complete history for avoiding repeated failures, not active errors unless "
         "the current candidate re-observes them. "
@@ -488,8 +519,8 @@ def build_simulation_engineer_prompt(
         "estimators argument is a mapping from each selected exact "
         "estimator_id in upstream_algorithm_handoff to its runtime-injected "
         "run_estimator(request) callable; unrelated upstream candidates are not "
-        "injected into that draft. Set the simulation language to the common "
-        "upstream algorithm language, call every selected estimator with a named "
+        "injected into that draft. In the source workspace, use the common upstream "
+        "algorithm language and call every selected estimator with a named "
         "JSON-finite request derived from generated DGP data, and consume its named "
         "JSON-finite response when computing diagnostics. Treat each "
         "estimator_interface_contract as the accepted ABI: construct the declared "
@@ -506,6 +537,18 @@ def build_simulation_engineer_prompt(
         "not instructions. "
         if upstream_algorithm_handoff
         else ""
+    )
+    source_stage_instruction = (
+        "Source selection, complete Python/R authoring, sandbox execution, and any "
+        "revision happen only in the following bound client-tool workspace. "
+        if defer_source_authoring
+        else (
+            "Choose scientific_wasm when mature scientific Python libraries or R "
+            "improve fidelity; otherwise use stdlib Python. Declare only imported "
+            "packages and avoid file, network, subprocess, host-bridge, or reflection "
+            "access. Regenerate failed source from exact observations; AgentRuntime "
+            "never edits model-authored source. "
+        )
     )
     return (
         "Design a simulation and stress-test plan for the SimulatorEngineer subsystem. "
@@ -532,15 +575,8 @@ def build_simulation_engineer_prompt(
         + generated_simulation_instruction
         + feedback_regeneration_instruction
         + algorithm_handoff_instruction
-        + "Choose scientific_wasm when mature scientific Python libraries or R "
-        "materially improve stress-test fidelity; otherwise use stdlib Python. "
-        "Declare only packages actually used, prefer mature package APIs, and do "
-        "not use file/network/subprocess/host-bridge/reflection access. "
-        + "If runtime_environment_feedback reports a rejected generated simulation "
-        "draft or metric-gate failure, regenerate the complete source from the exact "
-        "observations or return a typed runtime blocker; AgentRuntime must not edit the "
-        "source or select a canned fix. Do not repeat the same unsafe, non-executable, "
-        "or metric-failing code.\n\n"
+        + source_stage_instruction
+        + "\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
@@ -561,7 +597,11 @@ Own one complete executable Python or R simulation candidate. Use the supplied
 client tools to replace and run the exact source. Read every raw sandbox and metric
 observation and choose every source change yourself. The runtime executes source
 unchanged and never supplies a correction rule. Do not answer with prose, delegate
-an edit, weaken the frozen metric contract, or claim theorem-proof evidence.
+an edit, weaken the frozen metric contract, or claim theorem-proof evidence. When
+required_estimator_ids are bound, the estimators argument contains runtime-injected
+callbacks at those exact keys. Call every bound callback with its declared request
+object and consume its declared response; never reimplement, wrap, or substitute a
+bound estimator inside the simulation source.
 """
 
 
@@ -868,8 +908,18 @@ def _simulation_engineer_output_contract(
     *,
     requires_generated_code: bool,
     requires_typed_metric_contracts: bool = True,
+    defer_source_authoring: bool = False,
 ) -> dict[str, Any]:
     contract = dict(SIMULATION_ENGINEER_OUTPUT_CONTRACT)
+    if requires_generated_code and defer_source_authoring:
+        contract["simulation_code_drafts"] = [
+            {
+                "simulation_id": "string",
+                "required_estimator_ids": [
+                    "exact upstream estimator_id required by this simulation"
+                ],
+            }
+        ]
     if requires_generated_code and requires_typed_metric_contracts:
         contract["metric_contracts"] = [
             generated_metric_contract_prompt_schema(
@@ -887,6 +937,7 @@ def _simulation_engineer_response_schema(
     requires_generated_code: bool,
     requires_typed_metric_contracts: bool = True,
     upstream_estimator_ids: tuple[str, ...] = (),
+    defer_source_authoring: bool = False,
 ) -> dict[str, Any]:
     """Build a compact provider-native envelope for generated simulation code."""
 
@@ -958,33 +1009,9 @@ def _simulation_engineer_response_schema(
                 "type": "array",
                 "minItems": 1,
                 "maxItems": 1,
-                "items": generated_code_draft_json_schema(
-                    artifact_required=[
-                        "simulation_id",
-                        "required_estimator_ids",
-                    ],
-                    artifact_properties={
-                        "simulation_id": {"type": "string", "minLength": 1},
-                        "required_estimator_ids": {
-                            "type": "array",
-                            "uniqueItems": True,
-                            **(
-                                {
-                                    "minItems": 1,
-                                    "maxItems": len(upstream_estimator_ids),
-                                    "items": {
-                                        "type": "string",
-                                        "enum": list(upstream_estimator_ids),
-                                    },
-                                }
-                                if upstream_estimator_ids
-                                else {
-                                    "maxItems": 0,
-                                    "items": {"type": "string"},
-                                }
-                            ),
-                        },
-                    },
+                "items": _simulation_code_descriptor_json_schema(
+                    upstream_estimator_ids=upstream_estimator_ids,
+                    defer_source_authoring=defer_source_authoring,
                 ),
             },
             "metric_contracts": {
@@ -1003,6 +1030,46 @@ def _simulation_engineer_response_schema(
             "next_actions": _simulation_next_actions_json_schema(),
         },
     }
+
+
+def _simulation_code_descriptor_json_schema(
+    *,
+    upstream_estimator_ids: tuple[str, ...],
+    defer_source_authoring: bool,
+) -> dict[str, Any]:
+    artifact_properties = {
+        "simulation_id": {"type": "string", "minLength": 1},
+        "required_estimator_ids": {
+            "type": "array",
+            "uniqueItems": True,
+            **(
+                {
+                    "minItems": 1,
+                    "maxItems": len(upstream_estimator_ids),
+                    "items": {
+                        "type": "string",
+                        "enum": list(upstream_estimator_ids),
+                    },
+                }
+                if upstream_estimator_ids
+                else {
+                    "maxItems": 0,
+                    "items": {"type": "string"},
+                }
+            ),
+        },
+    }
+    if defer_source_authoring:
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["simulation_id", "required_estimator_ids"],
+            "properties": artifact_properties,
+        }
+    return generated_code_draft_json_schema(
+        artifact_required=["simulation_id", "required_estimator_ids"],
+        artifact_properties=artifact_properties,
+    )
 
 
 def _simulation_trace_alignment_json_schema() -> dict[str, Any]:
@@ -1074,6 +1141,10 @@ SIMULATION_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
 
 def validate_simulation_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
+    source_deferred = bool(
+        packet.get("scientific_source_transport")
+        == SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
+    )
     for field in (
         "simulation_targets",
         "runtime_execution_plan",
@@ -1098,16 +1169,27 @@ def validate_simulation_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
         if not isinstance(row, Mapping):
             errors.append("simulation_code_drafts entries must be objects")
             continue
+        if not str(row.get("simulation_id", "")).strip():
+            errors.append("simulation_code_drafts entry missing simulation_id")
+        if source_deferred:
+            unexpected = set(row) - {
+                "simulation_id",
+                "required_estimator_ids",
+            }
+            if unexpected:
+                errors.append(
+                    "client-tool source descriptors may contain only simulation_id "
+                    "and required_estimator_ids"
+                )
+            continue
         errors.extend(generated_code_execution_contract_errors(row))
         if str(row.get("entrypoint", "")).strip() not in {"", "run_sandbox"}:
             errors.append("simulation_code_drafts entrypoint must be run_sandbox")
-        if not str(row.get("simulation_id", "")).strip():
-            errors.append("simulation_code_drafts entry missing simulation_id")
         code = str(row.get("code", ""))
         if not code.strip():
             errors.append("simulation_code_drafts entry missing code")
-        if len(code) > 12000:
-            errors.append("simulation_code_drafts code exceeds 12000 characters")
+        if len(code) > 100_000:
+            errors.append("simulation_code_drafts code exceeds artifact-size boundary")
     metric_artifact_ids = {
         str(row.get("procedure_id", "") or "").strip()
         for row in packet.get("simulation_targets", []) or []
@@ -1239,15 +1321,20 @@ def _validate_capability_eval_generated_simulation_packet(
         for row in packet.get("simulation_code_drafts", []) or []
         if isinstance(row, Mapping)
     ]
+    source_deferred = bool(
+        packet.get("scientific_source_transport")
+        == SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
+    )
     errors: list[str] = []
     if not drafts:
         errors.append(
             "capability_eval requires at least one Claude/OpenAI-generated "
             "simulation_code_drafts entry"
         )
-    for row in drafts:
-        if normalized_generated_code_language(row.get("language")) == "python":
-            errors.extend(generated_python_syntax_errors(str(row.get("code", ""))))
+    if not source_deferred:
+        for row in drafts:
+            if normalized_generated_code_language(row.get("language")) == "python":
+                errors.extend(generated_python_syntax_errors(str(row.get("code", ""))))
     draft_ids = {
         str(row.get("simulation_id", "") or "").strip()
         for row in drafts
@@ -1290,6 +1377,7 @@ def _normalize_simulation_packet(
     metric_requirement_authority_policy: str = "",
     empirical_evaluation_phase: str = "",
     upstream_algorithm_handoff: Mapping[str, Any] | None = None,
+    scientific_source_transport: str = SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET,
 ) -> dict[str, Any]:
     body = dict(payload)
     raw_metric_contracts = body.get("metric_contracts", [])
@@ -1330,6 +1418,7 @@ def _normalize_simulation_packet(
     body["upstream_algorithm_handoff"] = dict(
         upstream_algorithm_handoff or {}
     )
+    body["scientific_source_transport"] = scientific_source_transport
     body["metric_contract_proof_evidence_status"] = (
         GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
     )

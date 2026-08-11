@@ -8,7 +8,7 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from .agent_runtime import (
     AgentRuntime,
@@ -99,6 +99,9 @@ from .scientific_sandbox import (
     normalized_generated_code_language,
     normalized_generated_code_profile,
     normalized_scientific_dependencies,
+)
+from .scientific_code_workspace import (
+    SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
 )
 from .evaluation_protocol_revision import (
     architect_metric_requirement_validation_failure_result,
@@ -7983,102 +7986,75 @@ class SimulationEvaluatorRuntimeSubsystem:
                 "seed": seed,
                 "timeout_s": self.timeout_s,
             }
-            prototype, tool_call = _run_generated_simulation_sandbox(
-                code_draft=draft,
-                **execution_kwargs,
-            )
-            generated_simulation_tool_calls.append(tool_call)
-            workspace_draft = {
-                "language": str(draft.get("language", "") or ""),
-                "execution_profile": str(
-                    draft.get("execution_profile", "") or ""
-                ),
-                "dependencies": list(draft.get("dependencies", []) or []),
-                "code": str(draft.get("code", "") or ""),
-                **(
-                    {
+            prototype, source_tool_calls = (
+                _run_source_owner_scientific_workspace(
+                    proposal_agent=self.proposal_agent,
+                    question=question,
+                    artifact_id=f"{question.id}:{simulation_id}",
+                    code_draft=draft,
+                    source_deferred=(
+                        _proposal_defers_scientific_source(proposal_packet)
+                    ),
+                    workspace_context={
+                        "theory_packet_id": packet_id,
+                        "simulation_id": simulation_id,
+                        "simulation_target": next(
+                            (
+                                dict(row)
+                                for row in (proposal_packet or {}).get(
+                                    "simulation_targets", []
+                                )
+                                or []
+                                if isinstance(row, Mapping)
+                                and str(row.get("procedure_id", "") or "")
+                                == simulation_id
+                            ),
+                            {},
+                        ),
+                        "theory_simulation_spec": dict(
+                            packet.get("simulation_ademp_spec", {})
+                            if isinstance(
+                                packet.get("simulation_ademp_spec", {}),
+                                Mapping,
+                            )
+                            else {}
+                        ),
+                        "metric_contracts": (
+                            _scientific_workspace_metric_contracts(
+                                simulation_metric_contracts
+                            )
+                        ),
                         "required_estimator_ids": list(
                             draft.get("required_estimator_ids", []) or []
+                        ),
+                        "upstream_algorithm_handoff": (
+                            _scientific_workspace_algorithm_handoff(
+                                upstream_algorithm_handoff
+                            )
+                        ),
+                        "run_sandbox_contract": (
+                            "run_sandbox(seed: int, replicates: int, estimators: "
+                            "dict) returns named JSON-finite raw measurements at "
+                            "every frozen metric_path"
+                            if upstream_algorithm_handoff
+                            else "run_sandbox(seed: int, replicates: int) returns "
+                            "named JSON-finite raw measurements at every frozen "
+                            "metric_path"
+                        ),
+                    },
+                    execute_candidate=lambda candidate: (
+                        _run_generated_simulation_sandbox(
+                            code_draft=candidate,
+                            **execution_kwargs,
                         )
-                    }
-                    if "required_estimator_ids" in draft
-                    else {}
-                ),
-            }
-            initial_workspace_observation = {
-                "code_draft_hash": stable_hash(workspace_draft),
-                "accepted": prototype.get("smoke_passed") is True,
-                "prototype": deepcopy(prototype),
-            }
-            can_iterate_with_tools = bool(
-                self.proposal_agent is not None
-                and callable(
-                    getattr(
-                        getattr(self.proposal_agent, "provider", None),
-                        "generate_client_tool_turn",
-                        None,
-                    )
-                )
-                and callable(
-                    getattr(self.proposal_agent, "iterate_code_with_tools", None)
+                    ),
+                    failure_identity={
+                        "simulation_id": simulation_id,
+                        "executor": "generated_simulation_sandbox",
+                    },
                 )
             )
-            if prototype.get("smoke_passed") is not True and can_iterate_with_tools:
-                workspace_tool_calls: list[ToolCallRecord] = []
-
-                def check_simulation_candidate(
-                    candidate: Mapping[str, Any],
-                ) -> Mapping[str, Any]:
-                    checked, checked_tool_call = _run_generated_simulation_sandbox(
-                        code_draft=candidate,
-                        **execution_kwargs,
-                    )
-                    workspace_tool_calls.append(checked_tool_call)
-                    return {
-                        "code_draft_hash": stable_hash(dict(candidate)),
-                        "accepted": checked.get("smoke_passed") is True,
-                        "prototype": checked,
-                    }
-
-                try:
-                    workspace_result = self.proposal_agent.iterate_code_with_tools(
-                        question=question,
-                        artifact_id=f"{question.id}:{simulation_id}",
-                        code_draft=workspace_draft,
-                        initial_observation=initial_workspace_observation,
-                        workspace_context={
-                            "theory_packet_id": packet_id,
-                            "simulation_id": simulation_id,
-                            "metric_contracts": simulation_metric_contracts,
-                            "authoritative_metric_requirements": (
-                                simulation_metric_requirements
-                            ),
-                            "upstream_algorithm_handoff_id": str(
-                                upstream_algorithm_handoff.get("handoff_id", "")
-                                if isinstance(upstream_algorithm_handoff, Mapping)
-                                else ""
-                            ),
-                        },
-                        check_candidate=check_simulation_candidate,
-                    )
-                except PacketValidationError as exc:
-                    prototype["scientific_code_workspace_failure"] = {
-                        "validation_errors": list(exc.errors),
-                        "attempts": exc.attempts,
-                        "history": [dict(row) for row in exc.history],
-                        "recovery_checkpoint": dict(exc.recovery_checkpoint or {}),
-                        "runtime_edited_source": False,
-                    }
-                else:
-                    checked_prototype = workspace_result.check_result.get(
-                        "prototype", {}
-                    )
-                    if isinstance(checked_prototype, Mapping):
-                        prototype = dict(checked_prototype)
-                    prototype["scientific_code_workspace"] = dict(
-                        workspace_result.evidence
-                    )
-                generated_simulation_tool_calls.extend(workspace_tool_calls)
+            generated_simulation_tool_calls.extend(source_tool_calls)
             generated_simulation_rows.append(
                 _annotate_generated_sandbox_prototype_provenance(
                     prototype,
@@ -9186,91 +9162,48 @@ class AlgorithmEngineerRuntimeSubsystem:
                     "timeout_s": self.timeout_s,
                     "required_callable_exports": ("run_estimator",),
                 }
-                prototype, tool_call = _run_generated_code_sandbox(
-                    code_draft=code_draft,
-                    **execution_kwargs,
-                )
-                tool_calls.append(tool_call)
-                workspace_draft = {
-                    "language": str(code_draft.get("language", "") or ""),
-                    "execution_profile": str(
-                        code_draft.get("execution_profile", "") or ""
-                    ),
-                    "dependencies": list(code_draft.get("dependencies", []) or []),
-                    "code": str(code_draft.get("code", "") or ""),
-                }
-                initial_workspace_observation = {
-                    "code_draft_hash": stable_hash(workspace_draft),
-                    "accepted": prototype.get("smoke_passed") is True,
-                    "prototype": deepcopy(prototype),
-                }
-                can_iterate_with_tools = bool(
-                    self.proposal_agent is not None
-                    and callable(
-                        getattr(
-                            getattr(self.proposal_agent, "provider", None),
-                            "generate_client_tool_turn",
-                            None,
-                        )
-                    )
-                    and callable(
-                        getattr(self.proposal_agent, "iterate_code_with_tools", None)
-                    )
-                )
-                if (
-                    prototype.get("smoke_passed") is not True
-                    and can_iterate_with_tools
-                ):
-                    workspace_tool_calls: list[ToolCallRecord] = []
-
-                    def check_algorithm_candidate(
-                        candidate: Mapping[str, Any],
-                    ) -> Mapping[str, Any]:
-                        checked, checked_tool_call = _run_generated_code_sandbox(
-                            code_draft=candidate,
-                            **execution_kwargs,
-                        )
-                        workspace_tool_calls.append(checked_tool_call)
-                        return {
-                            "code_draft_hash": stable_hash(dict(candidate)),
-                            "accepted": checked.get("smoke_passed") is True,
-                            "prototype": checked,
-                        }
-
-                    try:
-                        workspace_result = self.proposal_agent.iterate_code_with_tools(
-                            question=question,
-                            artifact_id=f"{question.id}:{estimator_id}",
-                            code_draft=workspace_draft,
-                            initial_observation=initial_workspace_observation,
-                            workspace_context={
-                                "theory_packet_id": packet_id,
-                                "simulation_manifest_id": simulation_manifest_id,
-                                "implementation_gap": dict(gap),
-                                "estimator_spec": dict(spec),
-                            },
-                            check_candidate=check_algorithm_candidate,
-                        )
-                    except PacketValidationError as exc:
-                        prototype["scientific_code_workspace_failure"] = {
-                            "validation_errors": list(exc.errors),
-                            "attempts": exc.attempts,
-                            "history": [dict(row) for row in exc.history],
-                            "recovery_checkpoint": dict(
-                                exc.recovery_checkpoint or {}
+                prototype, source_tool_calls = (
+                    _run_source_owner_scientific_workspace(
+                        proposal_agent=self.proposal_agent,
+                        question=question,
+                        artifact_id=f"{question.id}:{estimator_id}",
+                        code_draft=code_draft,
+                        source_deferred=(
+                            _proposal_defers_scientific_source(proposal_packet)
+                        ),
+                        workspace_context={
+                            "theory_packet_id": packet_id,
+                            "simulation_manifest_id": simulation_manifest_id,
+                            "implementation_gap": dict(gap),
+                            "estimator_spec": dict(spec),
+                            "required_callable_exports": [
+                                "run_estimator",
+                                "run_sandbox",
+                            ],
+                            "run_estimator_contract": (
+                                "run_estimator(request: dict) returns one named "
+                                "JSON-finite object matching estimator_spec"
                             ),
-                            "runtime_edited_source": False,
-                        }
-                    else:
-                        checked_prototype = workspace_result.check_result.get(
-                            "prototype", {}
-                        )
-                        if isinstance(checked_prototype, Mapping):
-                            prototype = dict(checked_prototype)
-                        prototype["scientific_code_workspace"] = dict(
-                            workspace_result.evidence
-                        )
-                    tool_calls.extend(workspace_tool_calls)
+                            "run_sandbox_contract": (
+                                "run_sandbox(seed: int, replicates: int) returns "
+                                "named JSON-finite smoke diagnostics and exercises "
+                                "run_estimator"
+                            ),
+                        },
+                        execute_candidate=lambda candidate: (
+                            _run_generated_code_sandbox(
+                                code_draft=candidate,
+                                **execution_kwargs,
+                            )
+                        ),
+                        failure_identity={
+                            "estimator_id": estimator_id,
+                            "executor": "generated_python_sandbox",
+                            "spec": dict(spec),
+                        },
+                    )
+                )
+                tool_calls.extend(source_tool_calls)
                 prototype["llm_algorithm_engineer_target"] = proposal_target
                 prototype_rows.append(
                     _annotate_generated_sandbox_prototype_provenance(
@@ -19821,6 +19754,218 @@ def _simulation_code_drafts(proposal_packet: Mapping[str, Any] | None) -> list[d
     return [
         dict(row)
         for row in proposal_packet.get("simulation_code_drafts", []) or []
+        if isinstance(row, Mapping)
+    ]
+
+
+def _proposal_defers_scientific_source(
+    proposal_packet: Mapping[str, Any] | None,
+) -> bool:
+    return bool(
+        isinstance(proposal_packet, Mapping)
+        and proposal_packet.get("scientific_source_transport")
+        == SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
+    )
+
+
+def _run_source_owner_scientific_workspace(
+    *,
+    proposal_agent: Any,
+    question: OpenResearchQuestion,
+    artifact_id: str,
+    code_draft: Mapping[str, Any],
+    source_deferred: bool,
+    workspace_context: Mapping[str, Any],
+    execute_candidate: Callable[
+        [Mapping[str, Any]], tuple[dict[str, Any], ToolCallRecord]
+    ],
+    failure_identity: Mapping[str, Any],
+) -> tuple[dict[str, Any], list[ToolCallRecord]]:
+    """Execute one initial or revision source loop without a second scheduler."""
+
+    can_use_workspace = bool(
+        proposal_agent is not None
+        and callable(
+            getattr(
+                getattr(proposal_agent, "provider", None),
+                "generate_client_tool_turn",
+                None,
+            )
+        )
+        and callable(getattr(proposal_agent, "iterate_code_with_tools", None))
+    )
+    tool_calls: list[ToolCallRecord] = []
+    last_checked_prototype: dict[str, Any] = {}
+    bound_execution_fields = {
+        "required_estimator_ids": deepcopy(
+            list(code_draft.get("required_estimator_ids", []) or [])
+        )
+    } if "required_estimator_ids" in code_draft else {}
+
+    def check_candidate(candidate: Mapping[str, Any]) -> Mapping[str, Any]:
+        execution_candidate = {
+            **dict(candidate),
+            **bound_execution_fields,
+        }
+        prototype, tool_call = execute_candidate(execution_candidate)
+        last_checked_prototype.clear()
+        last_checked_prototype.update(deepcopy(dict(prototype)))
+        tool_calls.append(tool_call)
+        return {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": prototype.get("smoke_passed") is True,
+            "prototype": prototype,
+        }
+
+    if source_deferred:
+        if not can_use_workspace:
+            return (
+                {
+                    **dict(failure_identity),
+                    "prototype_status": "MODEL_SOURCE_WORKSPACE_UNAVAILABLE",
+                    "smoke_passed": False,
+                    "execution_smoke_passed": False,
+                    "reason": (
+                        "The planning envelope deferred source to native client "
+                        "tools, but the source-owning provider has no callable "
+                        "workspace."
+                    ),
+                },
+                tool_calls,
+            )
+        workspace_draft: Mapping[str, Any] | None = None
+        workspace_operation = "initial_authoring"
+        initial_observation = {
+            "artifact_kind": "ScientificSourceAuthoringRequired",
+            "accepted": False,
+            "artifact_id": artifact_id,
+            "execution_attempted": False,
+            "observation": (
+                "No source exists yet; author and run the complete candidate in "
+                "this workspace."
+            ),
+        }
+        prototype = {
+            **dict(failure_identity),
+            "prototype_status": "MODEL_SOURCE_WORKSPACE_FAILED",
+            "smoke_passed": False,
+            "execution_smoke_passed": False,
+        }
+    else:
+        prototype, tool_call = execute_candidate(code_draft)
+        tool_calls.append(tool_call)
+        if prototype.get("smoke_passed") is True or not can_use_workspace:
+            return prototype, tool_calls
+        workspace_draft = {
+            key: deepcopy(code_draft[key])
+            for key in (
+                "language",
+                "execution_profile",
+                "dependencies",
+                "entrypoint",
+                "code",
+            )
+            if key in code_draft
+        }
+        workspace_operation = "targeted_revision"
+        initial_observation = {
+            "code_draft_hash": stable_hash(workspace_draft),
+            "accepted": False,
+            "prototype": deepcopy(prototype),
+        }
+
+    try:
+        workspace_result = proposal_agent.iterate_code_with_tools(
+            question=question,
+            artifact_id=artifact_id,
+            code_draft=workspace_draft,
+            initial_observation=initial_observation,
+            workspace_context=dict(workspace_context),
+            check_candidate=check_candidate,
+            workspace_operation=workspace_operation,
+        )
+    except PacketValidationError as exc:
+        if last_checked_prototype:
+            prototype = deepcopy(last_checked_prototype)
+        prototype["scientific_code_workspace_failure"] = {
+            "validation_errors": list(exc.errors),
+            "attempts": exc.attempts,
+            "history": [dict(row) for row in exc.history],
+            "recovery_checkpoint": dict(exc.recovery_checkpoint or {}),
+            "runtime_edited_source": False,
+        }
+        return prototype, tool_calls
+
+    checked_prototype = workspace_result.check_result.get("prototype", {})
+    if isinstance(checked_prototype, Mapping):
+        prototype = dict(checked_prototype)
+    prototype["scientific_code_workspace"] = dict(workspace_result.evidence)
+    return prototype, tool_calls
+
+
+def _scientific_workspace_algorithm_handoff(
+    value: Mapping[str, Any] | Any,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    artifacts = []
+    for row in value.get("exact_algorithm_artifacts", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        artifacts.append(
+            {
+                "estimator_id": str(row.get("estimator_id", "") or ""),
+                "language": str(row.get("language", "") or ""),
+                "dependencies": list(row.get("dependencies", []) or []),
+                "exact_source_hash": str(
+                    row.get("exact_source_hash", "") or ""
+                ),
+                "estimator_interface_contract_id": str(
+                    row.get("estimator_interface_contract_id", "") or ""
+                ),
+                "estimator_interface_contract": deepcopy(
+                    dict(row.get("estimator_interface_contract", {}))
+                    if isinstance(
+                        row.get("estimator_interface_contract", {}), Mapping
+                    )
+                    else {}
+                ),
+            }
+        )
+    return {
+        "handoff_id": str(value.get("handoff_id", "") or ""),
+        "algorithm_sandbox_manifest_id": str(
+            value.get("algorithm_sandbox_manifest_id", "") or ""
+        ),
+        "semantic_review_packet_id": str(
+            value.get("semantic_review_packet_id", "") or ""
+        ),
+        "exact_algorithm_artifacts": artifacts,
+        "boundary": (
+            "This projection exposes immutable estimator identities and ABI contracts "
+            "to the source-owning simulation model. Runtime executes the exact "
+            "reviewed source behind each estimator ID; this is not proof evidence."
+        ),
+    }
+
+
+def _scientific_workspace_metric_contracts(
+    values: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Project frozen contracts to fields needed for source authoring."""
+
+    fields = (
+        "contract_id",
+        "requirement_id",
+        "artifact_id",
+        "metric_path",
+        "metric_semantics",
+        "measurement_protocol",
+        "required_runtime_replicates",
+    )
+    return [
+        {field: deepcopy(row.get(field)) for field in fields}
+        for row in values
         if isinstance(row, Mapping)
     ]
 
