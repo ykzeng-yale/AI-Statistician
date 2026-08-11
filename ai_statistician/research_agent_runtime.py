@@ -14999,6 +14999,74 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
             ),
         }
 
+    declaration_inspector = getattr(
+        proof_state_provider,
+        "inspect_declaration",
+        None,
+    )
+
+    def inspect_lean_declaration(
+        source: str,
+        symbol: str,
+        context_lines: int,
+        last_check: Mapping[str, Any],
+    ) -> Any:
+        source_hash = stable_hash(source)
+        if str(last_check.get("source_hash", "") or "") != source_hash:
+            raise PacketValidationError(
+                validation_label="Formalizer Lean declaration inspection lineage",
+                attempts=1,
+                errors=[
+                    "Lean declaration inspection is not bound to current source hash"
+                ],
+                history=[],
+            )
+        check_artifact_path = Path(
+            str(
+                last_check.get("proof_state_artifact_path", "")
+                or last_check.get("artifact_path", "")
+                or ""
+            )
+        )
+        try:
+            checked_source = check_artifact_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise PacketValidationError(
+                validation_label="Formalizer Lean declaration inspection lineage",
+                attempts=1,
+                errors=[f"checked Lean artifact is unavailable: {exc}"],
+                history=[],
+            ) from exc
+        if stable_hash(checked_source) != source_hash:
+            raise PacketValidationError(
+                validation_label="Formalizer Lean declaration inspection lineage",
+                attempts=1,
+                errors=["checked Lean artifact is not bound to current source hash"],
+                history=[],
+            )
+        raw = declaration_inspector(
+            artifact_path=str(check_artifact_path),
+            symbol=symbol,
+            context_lines=context_lines,
+        )
+        if not isinstance(raw, Mapping):
+            return {
+                "ok": False,
+                "status": "PROVIDER_ERROR",
+                "provider": str(
+                    getattr(
+                        proof_state_provider,
+                        "name",
+                        type(proof_state_provider).__name__,
+                    )
+                ),
+                "error": "declaration inspection provider returned a non-object",
+                "proof_evidence_status": (
+                    "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        return deepcopy(dict(raw))
+
     revised_packet, loop_evidence = (
         proposal_agent.revise_lean_candidate_with_client_tools(
             question=question,
@@ -15018,6 +15086,11 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
             ),
             inspect_lean_state=(
                 inspect_lean_state if proof_state_provider is not None else None
+            ),
+            inspect_lean_declaration=(
+                inspect_lean_declaration
+                if callable(declaration_inspector)
+                else None
             ),
         )
     )

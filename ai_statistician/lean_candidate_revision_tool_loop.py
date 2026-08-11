@@ -19,6 +19,9 @@ LeanCandidateCheck = Callable[[str], Mapping[str, Any]]
 FormalEnvironmentSearch = Callable[[str, int], Any]
 ProofCandidateSearch = Callable[[str, str, int, Mapping[str, Any]], Any]
 LeanStateInspection = Callable[[str, Mapping[str, Any]], Any]
+LeanDeclarationInspection = Callable[
+    [str, str, int, Mapping[str, Any]], Any
+]
 
 
 @dataclass(frozen=True)
@@ -104,6 +107,7 @@ def run_lean_candidate_revision_tool_loop(
     max_searches: int,
     max_proof_searches: int = 1,
     max_state_inspections: int = 2,
+    max_declaration_inspections: int = 2,
     max_checks: int,
     max_no_progress_turns: int,
     candidate_id: str,
@@ -113,6 +117,7 @@ def run_lean_candidate_revision_tool_loop(
     search_formal_environment: FormalEnvironmentSearch,
     search_proof_candidates: ProofCandidateSearch | None = None,
     inspect_lean_state: LeanStateInspection | None = None,
+    inspect_lean_declaration: LeanDeclarationInspection | None = None,
     request_metadata: Mapping[str, Any] | None = None,
 ) -> LeanCandidateRevisionToolLoopResult:
     """Let the model edit, search, and compile one immutable-bound Lean target."""
@@ -134,6 +139,11 @@ def run_lean_candidate_revision_tool_loop(
         raise ValueError("Lean candidate proof-search budget must be positive")
     if inspect_lean_state is not None and max_state_inspections < 1:
         raise ValueError("Lean state-inspection budget must be positive")
+    if (
+        inspect_lean_declaration is not None
+        and max_declaration_inspections < 1
+    ):
+        raise ValueError("Lean declaration-inspection budget must be positive")
 
     parent_source = str(initial_source)
     parent_source_hash = stable_hash(parent_source)
@@ -144,14 +154,17 @@ def run_lean_candidate_revision_tool_loop(
         "searches": 0,
         "proof_searches": 0,
         "state_inspections": 0,
+        "declaration_inspections": 0,
         "checks": 0,
         "last_check": {},
         "latest_check_observation": {},
         "latest_state_inspection": {},
+        "latest_declaration_inspection": {},
     }
     tools = _lean_candidate_revision_tools(
         include_proof_search=search_proof_candidates is not None,
         include_state_inspection=inspect_lean_state is not None,
+        include_declaration_inspection=inspect_lean_declaration is not None,
     )
 
     def check_current_source() -> dict[str, Any]:
@@ -355,6 +368,74 @@ def run_lean_candidate_revision_tool_loop(
                 ),
             )
 
+        if call.name == "inspect_lean_declaration":
+            if inspect_lean_declaration is None:
+                raise ClientToolInputError(
+                    "Lean declaration inspection is unavailable"
+                )
+            if set(tool_input) - {"symbol", "context_lines"}:
+                raise ClientToolInputError(
+                    "inspect_lean_declaration accepts symbol and optional context_lines"
+                )
+            if state["declaration_inspections"] >= max_declaration_inspections:
+                raise ClientToolInputError(
+                    "Lean declaration-inspection budget is exhausted; revise or "
+                    "check the current source from observations already returned"
+                )
+            if not state["last_check"]:
+                raise ClientToolInputError(
+                    "check_lean_source must run before inspect_lean_declaration so "
+                    "the lookup is bound to the exact current source artifact"
+                )
+            symbol = tool_input.get("symbol")
+            if not isinstance(symbol, str) or not symbol.strip():
+                raise ClientToolInputError(
+                    "declaration symbol must be a nonempty string"
+                )
+            requested_context = tool_input.get("context_lines", 20)
+            if isinstance(requested_context, bool) or not isinstance(
+                requested_context, int
+            ):
+                raise ClientToolInputError("context_lines must be an integer")
+            context_lines = max(0, min(40, requested_context))
+            state["declaration_inspections"] += 1
+            result = inspect_lean_declaration(
+                str(state["source"]),
+                symbol.strip(),
+                context_lines,
+                deepcopy(dict(state["last_check"])),
+            )
+            state["latest_declaration_inspection"] = deepcopy(result)
+            content = {
+                "ok": bool(result.get("ok", True))
+                if isinstance(result, Mapping)
+                else True,
+                "source_hash": state["source_hash"],
+                "symbol": symbol.strip(),
+                "observation": deepcopy(result),
+                "declaration_inspections": state["declaration_inspections"],
+                "maximum_declaration_inspections": max_declaration_inspections,
+                "remaining_declaration_inspections": (
+                    max_declaration_inspections
+                    - state["declaration_inspections"]
+                ),
+                "proof_evidence_status": (
+                    "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
+                ),
+            }
+            return ClientToolExecutionResult(
+                content=content,
+                is_error=not content["ok"],
+                observation_key="lean-declaration:"
+                + stable_hash(
+                    {
+                        "source_hash": state["source_hash"],
+                        "symbol": content["symbol"],
+                        "observation": content["observation"],
+                    }
+                ),
+            )
+
         if call.name == "check_lean_source":
             if tool_input:
                 raise ClientToolInputError("check_lean_source takes an empty object")
@@ -436,6 +517,12 @@ def run_lean_candidate_revision_tool_loop(
                 and state["state_inspections"] < max_state_inspections
                 and bool(state["last_check"])
             ),
+            "inspect_lean_declaration": (
+                inspect_lean_declaration is not None
+                and state["declaration_inspections"]
+                < max_declaration_inspections
+                and bool(state["last_check"])
+            ),
             "check_lean_source": state["checks"] < max_checks,
         }
         selected = tuple(
@@ -457,6 +544,11 @@ def run_lean_candidate_revision_tool_loop(
         + max_searches
         + (max_proof_searches if search_proof_candidates is not None else 0)
         + (max_state_inspections if inspect_lean_state is not None else 0)
+        + (
+            max_declaration_inspections
+            if inspect_lean_declaration is not None
+            else 0
+        )
         + max_checks,
     )
     try:
@@ -487,6 +579,9 @@ def run_lean_candidate_revision_tool_loop(
                 "searches": state["searches"],
                 "proof_searches": state["proof_searches"],
                 "state_inspections": state["state_inspections"],
+                "declaration_inspections": state[
+                    "declaration_inspections"
+                ],
                 "checks": state["checks"],
                 "last_check": deepcopy(state["last_check"]),
                 "latest_check_observation": deepcopy(
@@ -494,6 +589,9 @@ def run_lean_candidate_revision_tool_loop(
                 ),
                 "latest_state_inspection": deepcopy(
                     state["latest_state_inspection"]
+                ),
+                "latest_declaration_inspection": deepcopy(
+                    state["latest_declaration_inspection"]
                 ),
                 "turns": exc.turns,
                 "tool_calls": exc.tool_calls,
@@ -579,6 +677,12 @@ def _lean_candidate_revision_success_result(
     state_provider_tools = _lean_state_executed_tools(
         state.get("latest_state_inspection", {})
     )
+    declaration_provider_tools = _lean_state_executed_tools(
+        state.get("latest_declaration_inspection", {})
+    )
+    live_provider_tools = tuple(
+        dict.fromkeys([*state_provider_tools, *declaration_provider_tools])
+    )
     evidence = {
         "schema_version": 1,
         "artifact_kind": "LeanCandidateRevisionClientToolLoop",
@@ -601,8 +705,12 @@ def _lean_candidate_revision_success_result(
         "proof_candidate_searches": state["proof_searches"],
         "lean_state_inspections": state["state_inspections"],
         "lean_state_provider_tools": list(state_provider_tools),
+        "lean_declaration_inspections": state["declaration_inspections"],
+        "lean_declaration_provider_tools": list(
+            declaration_provider_tools
+        ),
         "lean_lsp_mcp_live_called": any(
-            tool.startswith("lean_lsp_mcp.") for tool in state_provider_tools
+            tool.startswith("lean_lsp_mcp.") for tool in live_provider_tools
         ),
         "local_lean_checks": state["checks"],
         "latest_check_compiled": True,
@@ -670,6 +778,7 @@ def _lean_candidate_revision_tools(
     *,
     include_proof_search: bool = False,
     include_state_inspection: bool = False,
+    include_declaration_inspection: bool = False,
 ) -> tuple[ClientToolDefinition, ...]:
     tools = [
         ClientToolDefinition(
@@ -763,6 +872,33 @@ def _lean_candidate_revision_tools(
                     "type": "object",
                     "additionalProperties": False,
                     "properties": {},
+                },
+            ),
+        )
+    if include_declaration_inspection:
+        tools.insert(
+            -1,
+            ClientToolDefinition(
+                name="inspect_lean_declaration",
+                description=(
+                    "Ask Lean LSP/MCP for the exact source context of a declaration "
+                    "identifier present in the current checked source. Choose the "
+                    "symbol and context yourself. This read-only observation can show "
+                    "structure fields and nearby declarations; it never edits or "
+                    "promotes the source."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["symbol"],
+                    "properties": {
+                        "symbol": {"type": "string"},
+                        "context_lines": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 40,
+                        },
+                    },
                 },
             ),
         )

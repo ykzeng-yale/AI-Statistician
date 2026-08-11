@@ -17,6 +17,9 @@ from .research_schema import FormalSubclaim
 
 
 PROOF_STATE_FEEDBACK_STATUS = "PROOF_STATE_FEEDBACK_NOT_PROOF_EVIDENCE"
+LEAN_DECLARATION_INSPECTION_STATUS = (
+    "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
+)
 PROOF_STATE_FEEDBACK_BOUNDARY = (
     "Proof-state feedback, Lean diagnostics, residual goals, and LSP/MCP tool "
     "requests are diagnostic/search evidence only. They do not prove a theorem "
@@ -266,6 +269,127 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
         )
         self._mcp_transcript_collector = mcp_transcript_collector
 
+    def inspect_declaration(
+        self,
+        *,
+        artifact_path: str,
+        symbol: str,
+        context_lines: int = 20,
+    ) -> dict[str, Any]:
+        """Return exact source context selected by Lean's declaration lookup."""
+
+        requested_tool = "lean_lsp_mcp.lean_declaration_file"
+        symbol = str(symbol or "").strip()
+        if not symbol:
+            return {
+                "ok": False,
+                "status": "INVALID_REQUEST",
+                "tool": requested_tool,
+                "error": "declaration symbol is empty",
+                "proof_evidence_status": LEAN_DECLARATION_INSPECTION_STATUS,
+            }
+        if self.project_root is None:
+            return {
+                "ok": False,
+                "status": "UNAVAILABLE",
+                "tool": requested_tool,
+                "symbol": symbol,
+                "error": "Lean LSP MCP declaration inspection has no project_root",
+                "proof_evidence_status": LEAN_DECLARATION_INSPECTION_STATUS,
+            }
+        project_root = self.project_root.resolve()
+        path = Path(artifact_path).expanduser().resolve()
+        if not path.is_file() or project_root not in path.parents:
+            return {
+                "ok": False,
+                "status": "INVALID_ARTIFACT",
+                "tool": requested_tool,
+                "symbol": symbol,
+                "artifact_path": str(path),
+                "project_root": str(project_root),
+                "error": "artifact must be an existing file inside the active Lean project",
+                "proof_evidence_status": LEAN_DECLARATION_INSPECTION_STATUS,
+            }
+        if not (project_root / "lean-toolchain").is_file():
+            return {
+                "ok": False,
+                "status": "UNAVAILABLE",
+                "tool": requested_tool,
+                "symbol": symbol,
+                "artifact_path": str(path),
+                "project_root": str(project_root),
+                "error": "active Lean project has no lean-toolchain",
+                "proof_evidence_status": LEAN_DECLARATION_INSPECTION_STATUS,
+            }
+        bounded_context = max(0, min(40, int(context_lines)))
+        try:
+            module = self._load_openprover_mcp_module()
+            client_class = getattr(module, "LeanLspMcpClient", None)
+            if not callable(client_class):
+                raise RuntimeError(
+                    "OpenProver does not expose LeanLspMcpClient"
+                )
+            client = client_class(
+                self.mcp_command,
+                project=project_root,
+                timeout_s=self.mcp_timeout_s,
+            )
+            try:
+                response = client.call_tool(
+                    "lean_declaration_file",
+                    {
+                        "file_path": str(path),
+                        "symbol": symbol,
+                        "context_lines": bounded_context,
+                        "full_file": False,
+                    },
+                )
+            finally:
+                client.close()
+            if not isinstance(response, Mapping):
+                raise RuntimeError("lean-lsp-mcp returned a non-object response")
+            result = response.get("result", {})
+            result = dict(result) if isinstance(result, Mapping) else {}
+            response_error = response.get("error", {})
+            is_error = bool(response_error or result.get("isError", False))
+            structured = result.get("structuredContent", {})
+            observation = (
+                dict(structured)
+                if isinstance(structured, Mapping)
+                else {"text": _structured_mcp_text(result)}
+            )
+            return {
+                "ok": not is_error,
+                "status": "TOOL_ERROR" if is_error else "OBSERVED",
+                "provider": self.name,
+                "tool": requested_tool,
+                "executed_tools": [requested_tool],
+                "symbol": symbol,
+                "artifact_path": str(path),
+                "project_root": str(project_root),
+                "context_lines": bounded_context,
+                "observation": observation,
+                "error": _json_excerpt(response_error)
+                if response_error
+                else _structured_mcp_text(result)
+                if is_error
+                else "",
+                "proof_evidence_status": LEAN_DECLARATION_INSPECTION_STATUS,
+            }
+        except Exception as exc:
+            return {
+                "ok": False,
+                "status": "PROVIDER_ERROR",
+                "provider": self.name,
+                "tool": requested_tool,
+                "symbol": symbol,
+                "artifact_path": str(path),
+                "project_root": str(project_root),
+                "context_lines": bounded_context,
+                "error": f"{type(exc).__name__}: {exc}"[:1200],
+                "proof_evidence_status": LEAN_DECLARATION_INSPECTION_STATUS,
+            }
+
     def _inspect_subclaim(self, subclaim: FormalSubclaim) -> ProofStateFeedbackRow:
         base = super()._inspect_subclaim(subclaim)
         artifact_path = str(subclaim.artifact_path or "").strip()
@@ -420,6 +544,16 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
     def _load_openprover_mcp_collector(self) -> Callable[..., Mapping[str, Any]]:
         if self._mcp_transcript_collector is not None:
             return self._mcp_transcript_collector
+        module = self._load_openprover_mcp_module()
+        collector = getattr(module, "collect_lean_lsp_mcp_transcript", None)
+        if not callable(collector):
+            raise RuntimeError(
+                "OpenProver does not expose collect_lean_lsp_mcp_transcript"
+            )
+        self._mcp_transcript_collector = collector
+        return collector
+
+    def _load_openprover_mcp_module(self) -> Any:
         if self.openprover_root is not None:
             src = self.openprover_root / "src"
             module_path = src / "openprover" / "lean_lsp_mcp.py"
@@ -445,13 +579,7 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
                     "an OpenProver package from a different checkout is already "
                     f"loaded: {loaded_path}"
                 )
-        collector = getattr(module, "collect_lean_lsp_mcp_transcript", None)
-        if not callable(collector):
-            raise RuntimeError(
-                "OpenProver does not expose collect_lean_lsp_mcp_transcript"
-            )
-        self._mcp_transcript_collector = collector
-        return collector
+        return module
 
 
 def proof_state_feedback_row_to_json(row: ProofStateFeedbackRow) -> dict[str, Any]:

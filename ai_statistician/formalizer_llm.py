@@ -18,6 +18,7 @@ from .structured_output_retry import (
 )
 from .lean_candidate_revision_tool_loop import (
     LeanCandidateCheck,
+    LeanDeclarationInspection,
     LeanStateInspection,
     FormalEnvironmentSearch,
     ProofCandidateSearch,
@@ -104,6 +105,7 @@ class FormalizerConfig:
     client_tool_lean_candidate_max_searches: int = 3
     client_tool_lean_candidate_max_proof_searches: int = 1
     client_tool_lean_candidate_max_state_inspections: int = 2
+    client_tool_lean_candidate_max_declaration_inspections: int = 2
     client_tool_lean_candidate_max_checks: int = 4
     client_tool_lean_candidate_max_no_progress_turns: int = 2
 
@@ -256,6 +258,7 @@ class LLMFormalizerProofEngineerAgent:
         search_formal_environment: FormalEnvironmentSearch,
         search_proof_candidates: ProofCandidateSearch | None = None,
         inspect_lean_state: LeanStateInspection | None = None,
+        inspect_lean_declaration: LeanDeclarationInspection | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Revise one hash-bound target through model-selected tools."""
 
@@ -286,6 +289,11 @@ class LLMFormalizerProofEngineerAgent:
                 if inspect_lean_state is not None
                 else 0
             )
+            + (
+                self.config.client_tool_lean_candidate_max_declaration_inspections
+                if inspect_lean_declaration is not None
+                else 0
+            )
         )
         loop = run_lean_candidate_revision_tool_loop(
             provider=self.provider,
@@ -295,8 +303,9 @@ class LLMFormalizerProofEngineerAgent:
                 "retrieval, or independent-review result is an observation only, and "
                 "every changed source must be reviewed again before promotion. "
                 "You own every Lean edit and search query. Use the client tools to "
-                "inspect the active formal environment and compile the exact current "
-                "source. Do not answer with prose or JSON, and do not weaken the target."
+                "inspect the active formal environment, inspect exact declarations "
+                "when useful, and compile the exact current source. Do not answer "
+                "with prose or JSON, and do not weaken the target."
             ),
             user_prompt=_build_lean_candidate_revision_tool_prompt(
                 question=question,
@@ -329,6 +338,10 @@ class LLMFormalizerProofEngineerAgent:
                 1,
                 self.config.client_tool_lean_candidate_max_state_inspections,
             ),
+            max_declaration_inspections=max(
+                1,
+                self.config.client_tool_lean_candidate_max_declaration_inspections,
+            ),
             max_checks=max(1, effective_max_checks),
             max_no_progress_turns=max(
                 1,
@@ -341,6 +354,7 @@ class LLMFormalizerProofEngineerAgent:
             search_formal_environment=search_formal_environment,
             search_proof_candidates=search_proof_candidates,
             inspect_lean_state=inspect_lean_state,
+            inspect_lean_declaration=inspect_lean_declaration,
             request_metadata={
                 "subsystem": "FormalizerProofEngineer",
                 "agent": "LLMFormalizerProofEngineerAgent",

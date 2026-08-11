@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
@@ -318,6 +319,106 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
         tool.name for tool in backend.requests[0].tools
     }
     assert "inspect_lean_state" in {
+        tool.name for tool in backend.requests[1].tools
+    }
+
+
+def test_model_selects_exact_declaration_inspection_inside_same_source_loop() -> None:
+    initial = (
+        "import Project.Library\n"
+        "#check Example.Source\n"
+        "theorem target : True := by\n  exact missing\n"
+    )
+    revised = (
+        "import Project.Library\n"
+        "#check Example.Source\n"
+        "theorem target : True := by\n  exact True.intro\n"
+    )
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(ClientToolCall("check-1", "check_lean_source", {})),
+            _response(
+                ClientToolCall(
+                    "declaration-1",
+                    "inspect_lean_declaration",
+                    {"symbol": "Example.Source", "context_lines": 80},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "edit-1",
+                    "replace_lean_source",
+                    {"lean_source": revised},
+                ),
+                ClientToolCall("check-2", "check_lean_source", {}),
+            ),
+        ]
+    )
+    inspections: list[tuple[str, str, int, dict]] = []
+
+    def check(source: str):
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": source == revised,
+            "artifact_path": "/project/Candidate.lean",
+            "local_lean_stderr": "unknown identifier 'missing'"
+            if source == initial
+            else "",
+        }
+
+    def inspect(source: str, symbol: str, context_lines: int, last_check):
+        inspections.append(
+            (source, symbol, context_lines, dict(last_check))
+        )
+        return {
+            "ok": True,
+            "status": "OBSERVED",
+            "executed_tools": [
+                "lean_lsp_mcp.lean_declaration_file"
+            ],
+            "observation": {
+                "content": "structure Source where\n  field : Nat\n"
+            },
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Inspect declarations and revise the exact source.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=4,
+        max_source_updates=1,
+        max_searches=1,
+        max_declaration_inspections=1,
+        max_checks=2,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=initial,
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+        inspect_lean_declaration=inspect,
+    )
+
+    assert inspections[0][:3] == (
+        initial,
+        "Example.Source",
+        40,
+    )
+    assert inspections[0][3]["source_hash"] == stable_hash(initial)
+    assert result.lean_source == revised
+    assert result.evidence["lean_declaration_inspections"] == 1
+    assert result.evidence["lean_declaration_provider_tools"] == [
+        "lean_lsp_mcp.lean_declaration_file"
+    ]
+    assert result.evidence["lean_lsp_mcp_live_called"] is True
+    assert "inspect_lean_declaration" not in {
+        tool.name for tool in backend.requests[0].tools
+    }
+    assert "inspect_lean_declaration" in {
         tool.name for tool in backend.requests[1].tools
     }
 
@@ -1173,6 +1274,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
         def __init__(self, expected_source: str = source) -> None:
             self.expected_source = expected_source
             self.check_result = {}
+            self.declaration_result = {}
 
         def revise_lean_candidate_with_client_tools(self, **kwargs):
             assert kwargs["candidate_id"] == candidate_id
@@ -1180,6 +1282,16 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             assert "reviewed_parent_source_hash" not in kwargs
             self.check_result = dict(
                 kwargs["check_candidate"](self.expected_source)
+            )
+            declaration_tool = kwargs.get("inspect_lean_declaration")
+            assert callable(declaration_tool)
+            self.declaration_result = dict(
+                declaration_tool(
+                    self.expected_source,
+                    "Example.Source",
+                    10,
+                    self.check_result,
+                )
             )
             return (
                 {"packet_id": "formalizer_proposal:revised"},
@@ -1196,6 +1308,24 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
                 },
             )
 
+    class FakeProofStateProvider:
+        name = "fake_lean_lsp_mcp"
+
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        def inspect_declaration(self, **kwargs):
+            self.calls.append(dict(kwargs))
+            return {
+                "ok": True,
+                "status": "OBSERVED",
+                "symbol": kwargs["symbol"],
+                "observation": {"content": "structure Source where"},
+                "proof_evidence_status": (
+                    "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
+                ),
+            }
+
     monkeypatch.setattr(
         runtime_module,
         "_run_formalizer_lean_candidate_local_check",
@@ -1211,6 +1341,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
         },
     )
     agent = FakeAgent()
+    proof_state_provider = FakeProofStateProvider()
     result = runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
         proposal_agent=agent,
         question=question,
@@ -1220,6 +1351,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
         environment_feedback=feedback,
         formal_source_retriever=None,
         proof_search_provider=None,
+        proof_state_provider=proof_state_provider,
         lean_candidate_root=tmp_path / "candidates",
         lean_candidate_local_lean=True,
         lean_candidate_lean_project=tmp_path,
@@ -1232,6 +1364,12 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     assert agent.check_result["compiled"] is True
     assert evidence["parent_candidate_source_hash"] == stable_hash(source)
     assert evidence["resumed_from_model_checkpoint"] is False
+    assert agent.declaration_result["status"] == "OBSERVED"
+    assert proof_state_provider.calls[0]["symbol"] == "Example.Source"
+    inspected_path = proof_state_provider.calls[0]["artifact_path"]
+    assert stable_hash(
+        Path(inspected_path).read_text(encoding="utf-8")
+    ) == stable_hash(source)
 
     resumed_source = "theorem target : True := by\n  exact True.intro\n"
     resume_feedback = {
@@ -1259,6 +1397,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
         environment_feedback=resume_feedback,
         formal_source_retriever=None,
         proof_search_provider=None,
+        proof_state_provider=proof_state_provider,
         lean_candidate_root=tmp_path / "candidates",
         lean_candidate_local_lean=True,
         lean_candidate_lean_project=tmp_path,
@@ -1287,6 +1426,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             environment_feedback=stale_feedback,
             formal_source_retriever=None,
             proof_search_provider=None,
+            proof_state_provider=proof_state_provider,
             lean_candidate_root=tmp_path / "candidates",
             lean_candidate_local_lean=True,
             lean_candidate_lean_project=tmp_path,
