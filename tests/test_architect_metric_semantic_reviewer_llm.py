@@ -278,7 +278,14 @@ def _review(
 
 
 def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() -> None:
-    packet, backend, material = _review(accept=True)
+    payload = _review_payload(accept=True)
+    payload["dimension_reviews"] = {
+        f"slot_{index}": {
+            key: value for key, value in row.items() if key != "dimension"
+        }
+        for index, row in enumerate(payload["dimension_reviews"])
+    }
+    packet, backend, material = _review(accept=True, payload=payload)
 
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["pre_execution_review"] is True
@@ -313,9 +320,13 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert "protocol_expression" not in review_schema["properties"][
         "claim_checks"
     ]["items"]["properties"]["normalization_reconstruction"]["properties"]
-    assert review_schema["properties"]["dimension_reviews"]["items"][
-        "properties"
-    ]["rationale"]["maxLength"] == 240
+    assert review_schema["$defs"]["dimension_review"]["properties"][
+        "rationale"
+    ]["maxLength"] == 240
+    assert review_schema["properties"]["dimension_reviews"]["required"] == [
+        f"slot_{index}"
+        for index in range(len(ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS))
+    ]
     request = backend.requests[0]
     prompt_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
     assert prompt_payload["review_protocol_version"] == (
@@ -325,6 +336,13 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
         ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL
     )
     assert "required_output_contract" not in prompt_payload
+    assert "required_dimensions" not in prompt_payload
+    assert prompt_payload["ordered_review_slots"]["dimension_reviews"] == {
+        f"slot_{index}": dimension
+        for index, dimension in enumerate(
+            ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS
+        )
+    }
     assert len(request.user_prompt) < 10_000
     assert request.metadata["review_prompt_chars"] == len(request.user_prompt)
     assert request.metadata["review_schema_chars"] == len(
@@ -424,7 +442,7 @@ def test_metric_reviewer_six_gate_prompt_and_scope_schema_stay_compact() -> None
     )
     schema = architect_metric_semantic_review_json_schema(material)
     scope_schema = schema["properties"]["theory_scope_checks"]
-    scope_properties = scope_schema["items"]["properties"]
+    scope_properties = schema["$defs"]["theory_scope_check"]["properties"]
     prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
     projected_material = prompt_payload["review_material"]
 
@@ -437,18 +455,17 @@ def test_metric_reviewer_six_gate_prompt_and_scope_schema_stay_compact() -> None
     assert "unused_large_formal_context" not in prompt
     assert "generic sampling law" in prompt
     assert len(json.dumps(schema, separators=(",", ":"))) < 12_000
-    assert scope_schema["minItems"] == 6
-    assert scope_schema["maxItems"] == 6
+    assert scope_schema["required"] == [f"slot_{index}" for index in range(6)]
     assert set(scope_properties) == {
-        "requirement_id",
         "claim_ref",
         "recomputation",
         "result",
         "verdict",
     }
-    assert scope_properties["requirement_id"]["enum"] == [
-        f"generic_gate_{index}" for index in range(6)
-    ]
+    assert prompt_payload["ordered_review_slots"]["theory_scope_checks"] == {
+        f"slot_{index}": f"generic_gate_{index}"
+        for index in range(6)
+    }
 
 
 def test_metric_reviewer_prompt_uses_prior_identity_without_stale_observation() -> None:
@@ -779,7 +796,7 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
 
     payload = _review_payload(accept=True)
     payload["theory_scope_checks"] = {
-        "generic_gate": {
+        "slot_0": {
             "claim_ref": "theory:generic-gate",
             "recomputation": "Compare the stated and checked parameter scopes.",
             "result": "The checked scope covers the stated scope.",
@@ -813,11 +830,8 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
         "runtime source-anchor binding mismatch" in error
         for error in validate_architect_metric_semantic_review_packet(packet)
     )
-    scope_schema = backend.requests[0].schema["properties"][
-        "theory_scope_checks"
-    ]["items"]
+    scope_schema = backend.requests[0].schema["$defs"]["theory_scope_check"]
     assert set(scope_schema["properties"]) == {
-        "requirement_id",
         "claim_ref",
         "recomputation",
         "result",
@@ -1065,9 +1079,8 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
             "evidence_refs": ["requirement:generic_gate.operator"],
         },
     ]
-    payload["response_identity_checks"] = [
-        {
-            "response_identity_audit_id": audit_id,
+    payload["response_identity_checks"] = {
+        "slot_0": {
             "primitive_reconstruction": (
                 "sum_i X_i has order n and division by n yields order one."
             ),
@@ -1078,7 +1091,7 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
             "unresolved_conflicts": [],
             "verdict": "PASS",
         }
-    ]
+    }
     payload["foundational_identity_claim_check_indices"] = {
         "generic_estimator": 0
     }
@@ -1120,14 +1133,14 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
     ]["properties"]
     assert "normalization_reconciliation" in compact_schema
     assert "normalization_reconstruction" not in compact_schema
-    response_required = backend.requests[0].schema["properties"][
-        "response_identity_checks"
-    ]["items"]["required"]
+    response_required = backend.requests[0].schema["$defs"][
+        "response_identity_check"
+    ]["required"]
     assert "derived_polynomial_exponent" in response_required
     assert "derived_log_exponent" in response_required
     assert validate_architect_metric_semantic_review_packet(packet) == []
     failed_audit_payload = deepcopy(payload)
-    failed_audit = failed_audit_payload["response_identity_checks"][0]
+    failed_audit = failed_audit_payload["response_identity_checks"]["slot_0"]
     failed_audit["derived_polynomial_exponent"] = -0.5
     failed_audit["convention_consistent"] = False
     failed_audit["unresolved_conflicts"] = [
@@ -1159,17 +1172,8 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
     ]["response_fields"][0]["sample_size_rate"]
     not_indexed_rate.clear()
     not_indexed_rate["scale"] = "not_indexed"
-    not_indexed_enriched = (
-        architect_metric_review_material_with_runtime_evaluator_certificate(
-            not_indexed_material
-        )
-    )
-    not_indexed_audit_id = not_indexed_enriched[
-        "metric_claim_check_contract"
-    ]["response_identity_rows"][0]["response_identity_audit_id"]
     not_indexed_payload = deepcopy(payload)
-    not_indexed_check = not_indexed_payload["response_identity_checks"][0]
-    not_indexed_check["response_identity_audit_id"] = not_indexed_audit_id
+    not_indexed_check = not_indexed_payload["response_identity_checks"]["slot_0"]
     not_indexed_check["derived_polynomial_exponent"] = 0.0
     not_indexed_check["derived_log_exponent"] = 0.0
 
@@ -1193,18 +1197,7 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
         "estimator_interface_contract"
     ]["response_fields"][0]["sample_size_rate"]
     inconsistent_rate["polynomial_exponent"] = -1.0
-    inconsistent_enriched = (
-        architect_metric_review_material_with_runtime_evaluator_certificate(
-            inconsistent_material
-        )
-    )
-    inconsistent_audit_id = inconsistent_enriched["metric_claim_check_contract"][
-        "response_identity_rows"
-    ][0]["response_identity_audit_id"]
     inconsistent_payload = deepcopy(payload)
-    inconsistent_payload["response_identity_checks"][0][
-        "response_identity_audit_id"
-    ] = inconsistent_audit_id
     with pytest.raises(PacketValidationError) as inconsistent_exc:
         _review(
             accept=True,
@@ -1216,7 +1209,7 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
     )
 
     mismatched_review = deepcopy(payload)
-    mismatched_review["response_identity_checks"][0][
+    mismatched_review["response_identity_checks"]["slot_0"][
         "derived_polynomial_exponent"
     ] = -1.0
     with pytest.raises(PacketValidationError) as mismatched_exc:
@@ -1441,15 +1434,14 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
     material = architect_metric_review_material_with_runtime_evaluator_certificate(
         material
     )
-    repaired_payload["prior_finding_reviews"] = [
-        {
-            "finding_id": row["finding_id"],
+    repaired_payload["prior_finding_reviews"] = {
+        f"slot_{index}": {
             "status": "RESOLVED",
             "runtime_contract_evidence_id": "",
             "rationale": "The current candidate explicitly implements the repair.",
         }
-        for row in active_ledger
-    ]
+        for index, _ in enumerate(active_ledger)
+    }
 
     def regenerate_packet(_request):
         return deepcopy(repaired_payload)
@@ -1489,11 +1481,14 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
     prior_schema = backend.requests[0].schema["properties"][
         "prior_finding_reviews"
     ]
-    assert prior_schema["minItems"] == 2
-    assert prior_schema["maxItems"] == 2
-    assert prior_schema["items"]["properties"]["finding_id"]["enum"] == (
-        expected_ids
+    assert prior_schema["required"] == ["slot_0", "slot_1"]
+    assert all(
+        row == {"$ref": "#/$defs/prior_finding_review"}
+        for row in prior_schema["properties"].values()
     )
+    assert "finding_id" not in backend.requests[0].schema["$defs"][
+        "prior_finding_review"
+    ]["properties"]
     assert len(backend.requests) == 2
     assert all(finding_id in backend.requests[1].user_prompt for finding_id in expected_ids)
     assert "active_prior_finding_ledger" in backend.requests[1].user_prompt
@@ -1804,9 +1799,9 @@ def test_metric_reviewer_carries_unresolved_prior_by_ledger_identity() -> None:
         material=material,
     )
 
-    prior_schema = backend.requests[0].schema["properties"][
-        "prior_finding_reviews"
-    ]["items"]["properties"]
+    prior_schema = backend.requests[0].schema["$defs"][
+        "prior_finding_review"
+    ]["properties"]
     assert "evidence_refs" not in prior_schema
     assert packet["overall_verdict"] == "REVISE"
     assert packet["prior_finding_reviews"] == payload["prior_finding_reviews"]
@@ -1925,10 +1920,12 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
     transformed_prior_schema = transformed["properties"][
         "prior_finding_reviews"
     ]
-    assert transformed_prior_schema["items"]["properties"]["finding_id"][
-        "enum"
-    ] == ["finding:one", "finding:two"]
-    assert transformed_prior_schema["items"]["properties"][
+    assert transformed_prior_schema["required"] == ["slot_0", "slot_1"]
+    assert transformed["properties"]["dimension_reviews"]["required"] == [
+        f"slot_{index}"
+        for index in range(len(ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS))
+    ]
+    assert transformed["$defs"]["prior_finding_review"]["properties"][
         "runtime_contract_evidence_id"
     ]["enum"] == ["", "generated_metric_evaluator_certificate:test"]
     assert transformed["properties"]["findings"]["items"]["properties"][
@@ -1937,14 +1934,15 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
     assert "minLength" not in transformed["properties"]["findings"][
         "items"
     ]["properties"]["new_finding_rationale"]
-    assert "evidence_refs" not in dynamic_schema["properties"][
-        "prior_finding_reviews"
-    ]["items"]["properties"]
+    assert "finding_id" not in dynamic_schema["$defs"][
+        "prior_finding_review"
+    ]["properties"]
     transformed_scope_schema = transformed["properties"]["theory_scope_checks"]
-    assert transformed_scope_schema["items"]["properties"]["requirement_id"][
-        "enum"
-    ] == ["gate:one"]
-    assert "evidence_refs" not in transformed_scope_schema["items"][
+    assert transformed_scope_schema["required"] == ["slot_0"]
+    assert "requirement_id" not in transformed["$defs"][
+        "theory_scope_check"
+    ]["properties"]
+    assert "evidence_refs" not in transformed["$defs"]["theory_scope_check"][
         "properties"
     ]
     assert transformed["properties"]["claim_checks"]["items"]["properties"][
@@ -1977,7 +1975,7 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
         "orders_agree",
         "unresolved_assumptions",
     ]
-    assert "minItems: 2" in transformed_prior_schema["description"]
+    assert set(transformed_prior_schema["properties"]) == {"slot_0", "slot_1"}
     assert ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA["properties"][
         "prior_finding_reviews"
     ].get("minItems") is None

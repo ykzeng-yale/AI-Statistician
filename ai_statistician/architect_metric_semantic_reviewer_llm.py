@@ -29,7 +29,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 16
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 17
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -1135,7 +1135,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             max_validation_retries=self.config.max_validation_retries,
         )
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 11
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 12
 ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
     (
         "Review only pre-execution artifacts. Do not use observed results, invent "
@@ -1153,7 +1153,8 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "Cover every metric_claim_check_contract.requirement_id and emit at least "
         "two independent claim checks. Map every foundational_identity_row to a "
         "distinct zero-based claim_checks index. Emit one response_identity_check "
-        "per response_identity_row; reconstruct its meaning, normalization, and "
+        "per ordered response_identity_checks slot; reconstruct its meaning, "
+        "normalization, and "
         "sample-size order from primitives and test a boundary or defining invariant. "
         "Audit indexed rate contributions; FAIL omitted or mis-signed terms. For "
         "not_indexed, verify classification and emit both exponents as 0.0."
@@ -1189,7 +1190,7 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "nonasymptotic guarantee unless the candidate claims one."
     ),
     (
-        "Emit one theory_scope_checks row per required slot; runtime binds its "
+        "Emit one theory_scope_checks row per ordered slot; runtime binds its "
         "sources. Compare parameter, quantifier, and regime scope and test one "
         "non-degenerate admissible case when relevant."
     ),
@@ -1202,11 +1203,14 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
     (
         "Each active prior finding is an identity reference, not current evidence. "
         "Re-evaluate current packets. The same invariant or remedy keeps its ID. "
-        "Resolve it once; link unresolved restatements with prior_finding_id and blank "
+        "Review each ordered prior_finding_reviews slot once; link unresolved "
+        "restatements with prior_finding_id and blank "
         "new_finding_rationale. A blank ID means novel."
     ),
     (
-        "Emit every required dimension exactly once. UNCERTAIN is advisory only for "
+        "Emit every ordered dimension_reviews slot exactly once. The review harness "
+        "binds slot identities; do not copy identity strings into those rows. "
+        "UNCERTAIN is advisory only for "
         "low-severity residual uncertainty; invalid or unidentifiable contracts must "
         "FAIL. AgentRuntime derives the overall verdict. Report observations and "
         "evidence only; do not select a repair owner, route, or next action."
@@ -1232,9 +1236,9 @@ def build_architect_metric_semantic_review_prompt(
             "tags": list(question.tags),
         },
         "review_material": prompt_material,
-        "review_input_fingerprint": stable_hash(review_material),
-        "required_dimensions": list(ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS),
-        "evidence_boundary": ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
+        "ordered_review_slots": _architect_metric_ordered_review_slots(
+            review_material
+        ),
     }
     return (
         "Review this empirical acceptance contract independently before coding, "
@@ -1249,6 +1253,37 @@ def build_architect_metric_semantic_review_prompt(
             ensure_ascii=False,
         )
     )
+
+
+def _architect_metric_ordered_review_slots(
+    review_material: Mapping[str, Any],
+) -> dict[str, dict[str, str]]:
+    response_identity_rows = _architect_metric_claim_check_contract(
+        review_material
+    ).get("response_identity_rows", [])
+    slot_identities = {
+        "dimension_reviews": list(ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS),
+        "prior_finding_reviews": _active_prior_finding_ids(review_material),
+        "response_identity_checks": [
+            str(row.get("response_identity_audit_id", "") or "").strip()
+            for row in response_identity_rows or []
+            if isinstance(row, Mapping)
+            and str(row.get("response_identity_audit_id", "") or "").strip()
+        ],
+        "theory_scope_checks": [
+            str(row.get("requirement_id", "") or "").strip()
+            for row in _architect_metric_theory_scope_rows(review_material)
+            if str(row.get("requirement_id", "") or "").strip()
+        ],
+    }
+    return {
+        field: {
+            f"slot_{index}": identity
+            for index, identity in enumerate(identities)
+        }
+        for field, identities in slot_identities.items()
+        if identities
+    }
 
 
 def _architect_metric_review_prompt_material(
@@ -1845,6 +1880,36 @@ def _bound_architect_metric_review_schema(
             )
 
 
+def _install_required_review_slots(
+    schema: dict[str, Any],
+    *,
+    field: str,
+    definition: str,
+    identity_field: str,
+    count: int,
+) -> None:
+    array_schema = schema["properties"][field]
+    item_schema = deepcopy(array_schema["items"])
+    item_schema["required"] = [
+        name for name in item_schema.get("required", []) if name != identity_field
+    ]
+    item_schema.get("properties", {}).pop(identity_field, None)
+    schema.setdefault("$defs", {})[definition] = item_schema
+    slots = [f"slot_{index}" for index in range(count)]
+    schema["properties"][field] = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": slots,
+        "description": (
+            f"One row per ordered_review_slots.{field} entry. The review harness binds "
+            f"the immutable {identity_field}; do not copy it into rows."
+        ),
+        "properties": {
+            slot: {"$ref": f"#/$defs/{definition}"} for slot in slots
+        },
+    }
+
+
 def architect_metric_semantic_review_json_schema(
     review_material: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -1924,8 +1989,9 @@ def architect_metric_semantic_review_json_schema(
                 for row in foundational_identity_rows
             },
         }
+    response_audit_ids: list[str] = []
     if response_identity_rows:
-        audit_ids = [
+        response_audit_ids = [
             str(row["response_identity_audit_id"])
             for row in response_identity_rows
         ]
@@ -1933,11 +1999,11 @@ def architect_metric_semantic_review_json_schema(
         response_schema = deepcopy(_RESPONSE_IDENTITY_CHECK_SCHEMA)
         response_schema["properties"]["response_identity_audit_id"][
             "enum"
-        ] = audit_ids
+        ] = response_audit_ids
         schema["properties"]["response_identity_checks"] = {
             "type": "array",
-            "minItems": len(audit_ids),
-            "maxItems": len(audit_ids),
+            "minItems": len(response_audit_ids),
+            "maxItems": len(response_audit_ids),
             "items": response_schema,
         }
     protocol_expression_refs = list(
@@ -1980,8 +2046,9 @@ def architect_metric_semantic_review_json_schema(
         "runtime_contract_evidence_id"
     ]["enum"] = ["", *allowed_runtime_evidence_ids]
     theory_scope_rows = _architect_metric_theory_scope_rows(review_material)
+    theory_scope_requirement_ids: list[str] = []
     if theory_scope_rows:
-        requirement_ids = [
+        theory_scope_requirement_ids = [
             str(row["requirement_id"]) for row in theory_scope_rows
         ]
         scope_check_schema = deepcopy(_THEORY_SCOPE_CHECK_SCHEMA)
@@ -1992,18 +2059,52 @@ def architect_metric_semantic_review_json_schema(
         scope_check_schema["properties"] = {
             "requirement_id": {
                 "type": "string",
-                "enum": requirement_ids,
+                "enum": theory_scope_requirement_ids,
             },
             **scope_check_schema["properties"],
         }
         schema["required"].append("theory_scope_checks")
         schema["properties"]["theory_scope_checks"] = {
             "type": "array",
-            "minItems": len(requirement_ids),
-            "maxItems": len(requirement_ids),
+            "minItems": len(theory_scope_requirement_ids),
+            "maxItems": len(theory_scope_requirement_ids),
             "items": scope_check_schema,
         }
     _bound_architect_metric_review_schema(schema)
+    _install_required_review_slots(
+        schema,
+        field="dimension_reviews",
+        definition="dimension_review",
+        identity_field="dimension",
+        count=len(ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS),
+    )
+    if active_ids:
+        _install_required_review_slots(
+            schema,
+            field="prior_finding_reviews",
+            definition="prior_finding_review",
+            identity_field="finding_id",
+            count=len(active_ids),
+        )
+    else:
+        schema["required"].remove("prior_finding_reviews")
+        schema["properties"].pop("prior_finding_reviews")
+    if response_audit_ids:
+        _install_required_review_slots(
+            schema,
+            field="response_identity_checks",
+            definition="response_identity_check",
+            identity_field="response_identity_audit_id",
+            count=len(response_audit_ids),
+        )
+    if theory_scope_requirement_ids:
+        _install_required_review_slots(
+            schema,
+            field="theory_scope_checks",
+            definition="theory_scope_check",
+            identity_field="requirement_id",
+            count=len(theory_scope_requirement_ids),
+        )
     return schema
 
 
@@ -3049,6 +3150,28 @@ def validate_architect_metric_semantic_review_packet(
     return sorted(set(errors))
 
 
+def _ordered_review_slot_rows(
+    value: Any,
+    *,
+    identities: Sequence[str],
+    identity_field: str,
+) -> list[dict[str, Any]]:
+    if isinstance(value, list):
+        return [dict(row) for row in value if isinstance(row, Mapping)]
+    if not isinstance(value, Mapping):
+        return []
+    uses_slots = any(
+        f"slot_{index}" in value for index in range(len(identities))
+    )
+    rows: list[dict[str, Any]] = []
+    for index, identity in enumerate(identities):
+        raw = value.get(f"slot_{index}" if uses_slots else identity)
+        if not isinstance(raw, Mapping):
+            continue
+        rows.append({**dict(raw), identity_field: identity})
+    return rows
+
+
 def _normalize_architect_metric_semantic_review_packet(
     payload: Mapping[str, Any],
     *,
@@ -3066,21 +3189,33 @@ def _normalize_architect_metric_semantic_review_packet(
         trusted_lineage.get("source_model_tier", "") or ""
     ).strip()
     body = dict(payload)
+    active_prior_finding_ids_ordered = _active_prior_finding_ids(
+        review_material
+    )
+    body["dimension_reviews"] = _ordered_review_slot_rows(
+        body.get("dimension_reviews", []),
+        identities=ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS,
+        identity_field="dimension",
+    )
+    body["prior_finding_reviews"] = _ordered_review_slot_rows(
+        body.get("prior_finding_reviews", []),
+        identities=active_prior_finding_ids_ordered,
+        identity_field="finding_id",
+    )
     raw_theory_scope_checks = body.pop("theory_scope_checks", {})
-    if isinstance(raw_theory_scope_checks, Mapping):
-        theory_scope_items = list(raw_theory_scope_checks.items())
-    elif isinstance(raw_theory_scope_checks, list):
-        theory_scope_items = [
-            (str(row.get("requirement_id", "") or ""), row)
-            for row in raw_theory_scope_checks
-            if isinstance(row, Mapping)
-        ]
-    else:
-        theory_scope_items = []
     theory_scope_rows_by_requirement_id = {
         str(row.get("requirement_id", "") or "").strip(): dict(row)
         for row in _architect_metric_theory_scope_rows(review_material)
     }
+    bound_theory_scope_checks = _ordered_review_slot_rows(
+        raw_theory_scope_checks,
+        identities=list(theory_scope_rows_by_requirement_id),
+        identity_field="requirement_id",
+    )
+    theory_scope_items = [
+        (str(row.get("requirement_id", "") or ""), row)
+        for row in bound_theory_scope_checks
+    ]
     theory_scope_claim_checks = [
         {
             **dict(raw_check),
@@ -3209,8 +3344,13 @@ def _normalize_architect_metric_semantic_review_packet(
         if isinstance(row, Mapping)
         and str(row.get("response_identity_audit_id", "") or "").strip()
     }
+    raw_response_identity_checks = _ordered_review_slot_rows(
+        body.get("response_identity_checks", []),
+        identities=list(response_identity_rows_by_id),
+        identity_field="response_identity_audit_id",
+    )
     bound_response_identity_checks = []
-    for raw_check in body.get("response_identity_checks", []) or []:
+    for raw_check in raw_response_identity_checks:
         if not isinstance(raw_check, Mapping):
             continue
         check = dict(raw_check)
