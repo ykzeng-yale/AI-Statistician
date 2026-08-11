@@ -4261,7 +4261,6 @@ class TheoryDeveloperRuntimeSubsystem:
             return _theory_developer_packet_validation_failure_result(
                 task=task,
                 question=question,
-                context=context,
                 exc=exc,
             )
         active_revision_binding = context.get(
@@ -4696,7 +4695,6 @@ def _theory_developer_packet_validation_failure_result(
     *,
     task: AgentTask,
     question: OpenResearchQuestion,
-    context: Mapping[str, Any],
     exc: PacketValidationError,
 ) -> AgentStepResult:
     """Record exhausted in-call validation without creating another theory task."""
@@ -4751,7 +4749,7 @@ def _theory_developer_packet_validation_failure_result(
             else {}
         ),
         "runtime_edits_candidate": False,
-        "model_route_required_for_cross_owner_revision": True,
+        "model_route_required_for_cross_owner_revision": False,
         "proof_evidence_status": (
             "THEORY_DEVELOPER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
         ),
@@ -4770,13 +4768,6 @@ def _theory_developer_packet_validation_failure_result(
         "task_id": task.task_id,
         "structured_output_retry_history": exc.history,
     }
-    next_task = _workspace_architect_replan_task(
-        task=task,
-        question=question,
-        context=context,
-        revision_feedback=feedback,
-        source_artifact_id=failure_id,
-    )
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
         task_id=task.task_id,
@@ -4792,31 +4783,30 @@ def _theory_developer_packet_validation_failure_result(
         },
     )
     return AgentStepResult(
-        status="REROUTE",
+        status="BLOCKED",
         rationale=(
             "TheoryDeveloper exhausted its in-call structured-output validation. "
-            "The rejected artifact and exact observations are routed once for "
-            "cross-workspace replanning; no outer TheoryDeveloper retry is created."
+            "The rejected artifact and exact observations remain failed at their "
+            "source owner; runtime did not create an Architect routing loop."
         ),
         produced_artifacts={failure_id: failure_artifact},
         observations=(
-        EnvironmentObservation(
-            observation_type="theory_developer_packet_validation_failure",
-            summary="; ".join(validation_errors)[:500],
-            payload={
-                "failure_id": failure_id,
-                "failure_classification": failure_classification,
-                "validation_errors": validation_errors,
-                "truncation_detected": truncation_detected,
-                "recovery_checkpoint_available": bool(recovery_checkpoint),
-                "proof_evidence_status": (
-                    "THEORY_DEVELOPER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
-                ),
-            },
-        ),
+            EnvironmentObservation(
+                observation_type="theory_developer_packet_validation_failure",
+                summary="; ".join(validation_errors)[:500],
+                payload={
+                    "failure_id": failure_id,
+                    "failure_classification": failure_classification,
+                    "validation_errors": validation_errors,
+                    "truncation_detected": truncation_detected,
+                    "recovery_checkpoint_available": bool(recovery_checkpoint),
+                    "proof_evidence_status": (
+                        "THEORY_DEVELOPER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            ),
         ),
         evidence_entries=(evidence,),
-        next_task=next_task,
         failure_classification=failure_classification,
     )
 
@@ -6854,7 +6844,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     "runtime_selected_source_edit": False,
                     "model_owned_source_revision": True,
                 }
-                next_task = _workspace_architect_replan_task(
+                next_task = _independent_semantic_review_architect_escalation_task(
                     task=source_task,
                     question=question,
                     context=source_context,
@@ -7491,7 +7481,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                     task=task,
                     question=question,
                     theory_packet_id=packet_id,
-                    context=effective_context,
                     exc=exc,
                 )
             proposal_id = str(proposal_packet["packet_id"])
@@ -8479,25 +8468,17 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "while the existing metric-protocol gate resumes."
                 )
                 simulation_rationale = summary
+                result_status = "REROUTE"
             else:
-                next_task = _workspace_architect_replan_task(
-                    task=task,
-                    question=question,
-                    context={
-                        **effective_context,
-                        "theory_packet_id": packet_id,
-                        "simulation_manifest_id": manifest_id,
-                    },
-                    revision_feedback=feedback,
-                    source_artifact_id=manifest_id,
-                )
-                observation_type = "simulation_workspace_architect_replan"
+                next_task = None
+                observation_type = "simulation_workspace_blocked"
                 summary = (
                     "The model-owned simulation workspace ended without accepted "
-                    "source. The exact artifact and raw observations are routed to "
-                    "ArchitectCoordinator for a cross-subsystem decision."
+                    "source after its direct execution-feedback budget. The exact "
+                    "artifact remains failed without an Architect routing loop."
                 )
                 simulation_rationale = summary
+                result_status = "BLOCKED"
             observations.append(
                 EnvironmentObservation(
                     observation_type=observation_type,
@@ -8507,7 +8488,11 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "failure_classification": (
                             generated_simulation_failure_classification
                         ),
-                        "next_owner_subsystem": next_task.owner_subsystem,
+                        "next_owner_subsystem": (
+                            next_task.owner_subsystem
+                            if next_task is not None
+                            else ""
+                        ),
                         "n_open_implementation_gaps": len(implementation_gaps),
                         "runtime_edited_source": False,
                         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
@@ -8515,7 +8500,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 )
             )
             return AgentStepResult(
-                status="REROUTE",
+                status=result_status,
                 rationale=simulation_rationale,
                 produced_artifacts=produced_artifacts,
                 observations=tuple(observations),
@@ -8904,7 +8889,6 @@ class AlgorithmEngineerRuntimeSubsystem:
                     theory_packet_id=packet_id,
                     simulation_manifest_id=simulation_manifest_id,
                     implementation_gaps=implementation_gaps,
-                    context=effective_context,
                     exc=exc,
                 )
             proposal_id = str(proposal_packet["packet_id"])
@@ -9382,25 +9366,14 @@ class AlgorithmEngineerRuntimeSubsystem:
                 boundary=str(manifest["boundary"]),
                 failure_classification=revision_failure_classification,
             )
-            next_task = _workspace_architect_replan_task(
-                task=task,
-                question=question,
-                context={
-                    **effective_context,
-                    "theory_packet_id": packet_id,
-                    "simulation_manifest_id": simulation_manifest_id,
-                    "algorithm_sandbox_manifest_id": manifest_id,
-                },
-                revision_feedback=feedback,
-                source_artifact_id=manifest_id,
-            )
             observations.append(
                 EnvironmentObservation(
-                    observation_type="algorithm_workspace_architect_replan",
+                    observation_type="algorithm_workspace_blocked",
                     summary=(
                         "The bounded model-owned algorithm workspace ended without "
-                        "accepted source. The exact artifact and raw observations are "
-                        "routed to ArchitectCoordinator without runtime source edits."
+                        "accepted source after its direct execution-feedback budget. "
+                        "The exact artifact remains failed without an Architect "
+                        "routing loop."
                     ),
                     payload={
                         "algorithm_sandbox_manifest_id": manifest_id,
@@ -9415,7 +9388,23 @@ class AlgorithmEngineerRuntimeSubsystem:
                     },
                 )
             )
-        elif has_deferred_metric_protocol:
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale=(
+                    "AlgorithmEngineer exhausted its direct model-owned source and "
+                    "execution-feedback loop without satisfying the sandbox gate."
+                ),
+                produced_artifacts=produced_artifacts,
+                observations=tuple(observations),
+                tool_calls=tuple(tool_calls),
+                evidence_entries=tuple(
+                    row
+                    for row in (proposal_evidence, evidence)
+                    if row is not None
+                ),
+                failure_classification=revision_failure_classification,
+            )
+        if has_deferred_metric_protocol:
             deferred_gate = _agent_task_from_runtime_payload(
                 deferred_metric_protocol_payload
             )
@@ -9477,7 +9466,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                     "pre_metric_implementation_semantic_reviewer_unavailable"
                 ),
             )
-        if self.semantic_reviewer_available and not revision_required:
+        if self.semantic_reviewer_available:
             semantic_review_dispatch = _runtime_generated_code_semantic_review_dispatch(
                 task=task,
                 question=question,
@@ -9501,7 +9490,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 observations.append(semantic_review_dispatch["observation"])
                 semantic_review_evidence = semantic_review_dispatch["evidence"]
                 next_task = semantic_review_dispatch["next_task"]
-            elif implementation_before_metric_freeze and not revision_required:
+            elif implementation_before_metric_freeze:
                 observations.append(
                     EnvironmentObservation(
                         observation_type=(
@@ -9570,71 +9559,39 @@ class AlgorithmEngineerRuntimeSubsystem:
             )
             if row is not None
         ]
-        if revision_required:
-            if next_task.owner_subsystem == "ArchitectCoordinator":
-                algorithm_rationale = (
-                    "AlgorithmEngineer exhausted its complete-candidate regeneration "
-                    "budget; the exact candidate and raw observations are routed to "
-                    "ArchitectCoordinator without runtime diagnosis."
-                )
-            else:
-                algorithm_rationale = (
-                    "AlgorithmEngineer did not satisfy the required generated-code "
-                    "sandbox evidence; runtime is routing local diagnostics back to "
-                    "AlgorithmEngineer for complete model-owned regeneration."
-                    if requires_generated_algorithm_code
-                    else "AlgorithmEngineer sandbox produced no acceptable executable prototype; "
-                    "runtime is routing local diagnostics back to AlgorithmEngineer "
-                    "for complete model-owned regeneration."
-                )
+        if next_task.owner_subsystem == "SimulationEvaluator":
+            algorithm_rationale = (
+                "AlgorithmEngineer recorded sandbox executable feedback, but "
+                "the capability-eval contract still requires generated "
+                "simulation sandbox evidence before formalization."
+            )
+        elif (
+            next_task.owner_subsystem
+            == GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        ):
+            algorithm_rationale = (
+                "AlgorithmEngineer executed the generated candidate and is routing "
+                "its exact source, runtime arguments, and result to independent "
+                "semantic review before any downstream acceptance."
+            )
         else:
-            if next_task.owner_subsystem == "SimulationEvaluator":
-                algorithm_rationale = (
-                    "AlgorithmEngineer recorded sandbox executable feedback, but "
-                    "the capability-eval contract still requires generated "
-                    "simulation sandbox evidence before formalization."
-                )
-            elif (
-                next_task.owner_subsystem
-                == GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
-            ):
-                algorithm_rationale = (
-                    "AlgorithmEngineer executed the generated candidate and is routing "
-                    "its exact source, runtime arguments, and result to independent "
-                    "semantic review before any downstream acceptance."
-                )
-            else:
-                algorithm_rationale = (
-                    "AlgorithmEngineer recorded sandbox executable feedback for unregistered "
-                    "LLM estimator specs and is routing to formalization/proof feedback."
-                )
+            algorithm_rationale = (
+                "AlgorithmEngineer recorded sandbox executable feedback for unregistered "
+                "LLM estimator specs and is routing to formalization/proof feedback."
+            )
         return AgentStepResult(
-            status=(
-                "REROUTE"
-                if next_task.owner_subsystem
-                in {
-                    "ArchitectCoordinator",
-                    GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
-                }
-                else "REVISE"
-                if revision_required
-                else "REROUTE"
-            ),
+            status="REROUTE",
             rationale=algorithm_rationale,
             produced_artifacts=produced_artifacts,
             observations=tuple(observations),
             tool_calls=tuple(tool_calls),
             evidence_entries=tuple(evidence_entries),
             next_task=next_task,
-            failure_classification=(
-                revision_failure_classification
-                if revision_required
-                else ""
-            ),
+            failure_classification="",
         )
 
 
-def _workspace_architect_replan_task(
+def _independent_semantic_review_architect_escalation_task(
     *,
     task: AgentTask,
     question: OpenResearchQuestion,
@@ -9642,6 +9599,18 @@ def _workspace_architect_replan_task(
     revision_feedback: Mapping[str, Any],
     source_artifact_id: str,
 ) -> AgentTask:
+    """Escalate only an independently reviewed, budget-exhausted semantic conflict."""
+
+    if (
+        revision_feedback.get("feedback_source")
+        != GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        or revision_feedback.get("failure_classification")
+        != "generated_code_semantic_review_lineage_budget_exhausted"
+    ):
+        raise ValueError(
+            "Architect escalation requires an independent semantic-review conflict "
+            "after the source-candidate lineage budget is exhausted"
+        )
     replan_context = dict(context)
     replan_context.pop("environment_feedback", None)
     failure_classification = str(
@@ -9718,8 +9687,8 @@ def _workspace_architect_replan_task(
         ),
         owner_subsystem="ArchitectCoordinator",
         objective=(
-            "Replan an unresolved model-owned source workspace from the exact "
-            "artifact and raw environment observations."
+            "Resolve a cross-workspace semantic conflict independently established "
+            "after the model-owned source-candidate budget was exhausted."
         ),
         inputs={
             "question": _question_to_payload(question),
@@ -9793,12 +9762,14 @@ def _simulation_engineer_packet_validation_failure_result(
     task: AgentTask,
     question: OpenResearchQuestion,
     theory_packet_id: str,
-    context: Mapping[str, Any],
     exc: PacketValidationError,
 ) -> AgentStepResult:
+    architect_context = task.inputs.get("architect_context", {})
+    if not isinstance(architect_context, Mapping):
+        architect_context = {}
     empirical_evaluation_phase = str(
         task.inputs.get("empirical_evaluation_phase", "")
-        or context.get("empirical_evaluation_phase", "")
+        or architect_context.get("empirical_evaluation_phase", "")
         or ""
     ).strip()
     validation_errors = [str(error) for error in exc.errors]
@@ -9826,7 +9797,7 @@ def _simulation_engineer_packet_validation_failure_result(
             stable_hash(rejected_candidate) if rejected_candidate else ""
         ),
         "empirical_evaluation_phase": empirical_evaluation_phase,
-        "model_route_required_for_cross_owner_revision": True,
+        "model_route_required_for_cross_owner_revision": False,
         "execution_results_observed": False,
         "execution_authorized": False,
         "execution_evidence_status": (
@@ -9858,32 +9829,6 @@ def _simulation_engineer_packet_validation_failure_result(
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
         "boundary": SIMULATION_ENGINEER_BOUNDARY,
     }
-    revision_context = dict(context)
-    revision_context["environment_feedback"] = regeneration_feedback
-    revision_context["runtime_feedback_loop"] = {
-        **(
-            dict(revision_context.get("runtime_feedback_loop", {}))
-            if isinstance(
-                revision_context.get("runtime_feedback_loop", {}), Mapping
-            )
-            else {}
-        ),
-        "source_subsystem": "SimulationEvaluator",
-        "handoff": "simulation_engineer_packet_validation_architect_replan",
-        "simulation_engineer_validation_failure_id": failure_id,
-    }
-    revision_context = _runtime_context_with_environment_feedback_contract(
-        revision_context,
-        regeneration_feedback,
-        subsystem="SimulationEvaluator",
-    )
-    next_task = _workspace_architect_replan_task(
-        task=task,
-        question=question,
-        context=revision_context,
-        revision_feedback=regeneration_feedback,
-        source_artifact_id=failure_id,
-    )
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
         task_id=task.task_id,
@@ -9902,11 +9847,11 @@ def _simulation_engineer_packet_validation_failure_result(
         },
     )
     return AgentStepResult(
-        status="REROUTE",
+        status="BLOCKED",
         rationale=(
             "SimulationEngineer exhausted its in-call structured-output retry. The "
-            "complete rejected candidate and exact validator observations are routed "
-            "to ArchitectCoordinator without an outer same-owner retry task."
+            "complete rejected candidate and exact validator observations remain "
+            "failed at their source owner without an Architect routing loop."
         ),
         produced_artifacts={failure_id: failure_artifact},
         observations=(
@@ -9924,7 +9869,6 @@ def _simulation_engineer_packet_validation_failure_result(
             ),
         ),
         evidence_entries=(evidence,),
-        next_task=next_task,
         failure_classification=failure_classification,
     )
 
@@ -9936,7 +9880,6 @@ def _algorithm_engineer_packet_validation_failure_result(
     theory_packet_id: str,
     simulation_manifest_id: str,
     implementation_gaps: list[Mapping[str, Any]],
-    context: Mapping[str, Any],
     exc: PacketValidationError,
 ) -> AgentStepResult:
     validation_errors = [str(error) for error in exc.errors if str(error)]
@@ -9990,39 +9933,13 @@ def _algorithm_engineer_packet_validation_failure_result(
         "rejected_candidate_fingerprint": (
             stable_hash(rejected_candidate) if rejected_candidate else ""
         ),
-        "model_route_required_for_cross_owner_revision": True,
+        "model_route_required_for_cross_owner_revision": False,
         "execution_results_observed": False,
         "execution_authorized": False,
         "execution_evidence_status": "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE",
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
         "boundary": ALGORITHM_ENGINEER_BOUNDARY,
     }
-    revision_context = dict(context)
-    revision_context["environment_feedback"] = regeneration_feedback
-    revision_context["runtime_feedback_loop"] = {
-        **(
-            dict(revision_context.get("runtime_feedback_loop", {}))
-            if isinstance(
-                revision_context.get("runtime_feedback_loop", {}), Mapping
-            )
-            else {}
-        ),
-        "source_subsystem": "AlgorithmEngineer",
-        "handoff": "algorithm_engineer_packet_validation_architect_replan",
-        "algorithm_engineer_validation_failure_id": failure_id,
-    }
-    revision_context = _runtime_context_with_environment_feedback_contract(
-        revision_context,
-        regeneration_feedback,
-        subsystem="AlgorithmEngineer",
-    )
-    next_task = _workspace_architect_replan_task(
-        task=task,
-        question=question,
-        context=revision_context,
-        revision_feedback=regeneration_feedback,
-        source_artifact_id=failure_id,
-    )
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
         task_id=task.task_id,
@@ -10041,11 +9958,11 @@ def _algorithm_engineer_packet_validation_failure_result(
         },
     )
     return AgentStepResult(
-        status="REROUTE",
+        status="BLOCKED",
         rationale=(
             "AlgorithmEngineer exhausted its in-call structured-output retry. The "
-            "complete rejected candidate and exact validator observations are routed "
-            "to ArchitectCoordinator without an outer same-owner retry task."
+            "complete rejected candidate and exact validator observations remain "
+            "failed at their source owner without an Architect routing loop."
         ),
         produced_artifacts={failure_id: failure_artifact},
         observations=(
@@ -10064,7 +9981,6 @@ def _algorithm_engineer_packet_validation_failure_result(
             ),
         ),
         evidence_entries=(evidence,),
-        next_task=next_task,
         failure_classification=failure_classification,
     )
 
@@ -11284,9 +11200,9 @@ class FormalizerWorkspaceRuntimeSubsystem:
                 ),
                 "model_owned_source": True,
                 "runtime_selected_source_edit": False,
-                "model_route_required_for_cross_owner_revision": True,
+                "model_route_required_for_cross_owner_revision": False,
                 "proof_evidence_status": (
-                    "FORMALIZER_WORKSPACE_REPLAN_NOT_PROOF_EVIDENCE"
+                    "FORMALIZER_WORKSPACE_FAILURE_NOT_PROOF_EVIDENCE"
                 ),
                 "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
                 "boundary": (
@@ -11382,20 +11298,14 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         "formal_target_semantic_review_required_before_replan"
                     )
             else:
-                next_task = _workspace_architect_replan_task(
-                    task=task,
-                    question=question,
-                    context=context,
-                    revision_feedback=workspace_feedback,
-                    source_artifact_id=manifest_id,
-                )
+                next_task = None
                 observations.append(
                     EnvironmentObservation(
-                        observation_type="formalizer_workspace_architect_replan",
+                        observation_type="formalizer_workspace_blocked",
                         summary=(
                             "The bounded model-owned Lean workspace ended without an "
                             "accepted exact-target candidate. Exact source and raw Lean "
-                            "observations are routed to ArchitectCoordinator."
+                            "observations remain failed at the Formalizer workspace."
                         ),
                         payload={
                             "formalization_manifest_id": manifest_id,
@@ -11411,14 +11321,14 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         },
                     )
                 )
-                result_status = "REROUTE"
+                result_status = "BLOCKED"
                 result_rationale = (
                     "The Formalizer consumed local Lean/proof-state feedback inside "
                     "its direct full-source tool loop and ended without "
-                    "kernel-eligible source; the unchanged blocker is routed for a "
-                    "cross-workspace decision."
+                    "kernel-eligible source; no independent exact-target reviewer is "
+                    "available, so the source owner fails closed without routing."
                 )
-                failure_classification = "formalizer_workspace_architect_replan"
+                failure_classification = "formalizer_workspace_exhausted"
         else:
             critic_task = AgentTask(
                 task_id=f"critic:{question.id}:{stable_hash(manifest_id)[:8]}",
@@ -15672,20 +15582,13 @@ class CriticEvaluatorRuntimeSubsystem:
                 failure_classification="critic_requested_architect_model_replan",
             )
         if proposal_validation_failure_feedback is not None:
-            next_task = _workspace_architect_replan_task(
-                task=task,
-                question=question,
-                context=context,
-                revision_feedback=proposal_validation_failure_feedback,
-                source_artifact_id=proposal_validation_failure_id,
-            )
             return AgentStepResult(
-                status="REROUTE",
+                status="BLOCKED",
                 rationale=(
                     "CriticEvaluator exhausted its in-call structured-output "
                     "validation. The rejected packet and exact observations are "
-                    "routed once for cross-workspace replanning; no outer Critic "
-                    "retry is created."
+                    "recorded at their source owner without an Architect routing "
+                    "loop or outer Critic retry."
                 ),
                 produced_artifacts=produced_artifacts,
                 observations=tuple(observations),
@@ -15697,7 +15600,6 @@ class CriticEvaluatorRuntimeSubsystem:
                     )
                     if row is not None
                 ),
-                next_task=next_task,
                 failure_classification="critic_packet_validation_failed",
             )
         final_runtime_status = str(evidence_contract_decision["runtime_status"])

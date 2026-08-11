@@ -30,6 +30,7 @@ from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.simulation_engineer_llm import (
     SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
 )
+from ai_statistician.structured_output_retry import PacketValidationError
 
 
 def test_formalization_has_one_model_owned_runtime_role() -> None:
@@ -105,6 +106,7 @@ def test_canonical_runtime_has_no_outer_same_owner_source_retry_tasks() -> None:
     }
     assert not hasattr(runtime_module, "_formalizer_workspace_architect_replan_task")
     assert not hasattr(runtime_module, "_source_workspace_architect_replan_task")
+    assert not hasattr(runtime_module, "_workspace_architect_replan_task")
 
     config_fields = {field.name for field in fields(ResearchAgentRuntimeConfig)}
     removed_retry_controls = {
@@ -115,6 +117,94 @@ def test_canonical_runtime_has_no_outer_same_owner_source_retry_tasks() -> None:
         "coding_agent_packet_validation_max_lineage_failures",
     }
     assert config_fields.isdisjoint(removed_retry_controls)
+
+
+def test_source_owner_packet_exhaustion_blocks_without_architect_routing() -> None:
+    question = OpenResearchQuestion(
+        id="owner-local-packet-failure",
+        title="Keep packet failures local",
+        description="A source owner exhausted its model-visible validation loop.",
+    )
+    error = PacketValidationError(
+        validation_label="source packet",
+        attempts=2,
+        errors=["required field is missing"],
+        history=[],
+        last_invalid_packet={"candidate": "incomplete"},
+    )
+    results = (
+        runtime_module._theory_developer_packet_validation_failure_result(
+            task=AgentTask(
+                task_id="theory:owner-local-packet-failure",
+                owner_subsystem="TheoryDeveloper",
+                objective="Develop the theory artifact.",
+                inputs={},
+            ),
+            question=question,
+            exc=error,
+        ),
+        runtime_module._algorithm_engineer_packet_validation_failure_result(
+            task=AgentTask(
+                task_id="algorithm:owner-local-packet-failure",
+                owner_subsystem="AlgorithmEngineer",
+                objective="Develop and execute the algorithm artifact.",
+                inputs={},
+            ),
+            question=question,
+            theory_packet_id="theory:owner-local-packet-failure",
+            simulation_manifest_id="",
+            implementation_gaps=[],
+            exc=error,
+        ),
+        runtime_module._simulation_engineer_packet_validation_failure_result(
+            task=AgentTask(
+                task_id="simulation:owner-local-packet-failure",
+                owner_subsystem="SimulationEvaluator",
+                objective="Develop and execute the simulation artifact.",
+                inputs={
+                    "architect_context": {
+                        "empirical_evaluation_phase": "exploratory"
+                    }
+                },
+            ),
+            question=question,
+            theory_packet_id="theory:owner-local-packet-failure",
+            exc=error,
+        ),
+    )
+
+    for result in results:
+        assert result.status == "BLOCKED"
+        assert result.next_task is None
+        assert result.produced_artifacts
+        assert result.failure_classification
+        assert "Architect routing loop" in result.rationale
+
+
+def test_architect_source_escalation_requires_independent_semantic_conflict() -> None:
+    question = OpenResearchQuestion(
+        id="reject-routine-architect-routing",
+        title="Reject routine Architect routing",
+        description="Only independent cross-workspace conflicts may escalate.",
+    )
+    task = AgentTask(
+        task_id="algorithm:reject-routine-architect-routing",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Own the generated source.",
+        inputs={},
+    )
+
+    with pytest.raises(ValueError, match="independent semantic-review conflict"):
+        runtime_module._independent_semantic_review_architect_escalation_task(
+            task=task,
+            question=question,
+            context={},
+            revision_feedback={
+                "feedback_source": "AlgorithmEngineer",
+                "failure_classification": "sandbox_execution_failed",
+            },
+            source_artifact_id="algorithm:failed",
+        )
 
 
 def test_source_workspace_prompts_give_tools_to_the_source_owner() -> None:
@@ -420,7 +510,7 @@ def test_outer_graph_skips_a_downstream_repeat_of_an_exhausted_lane() -> None:
     assert feedback["local_status"] == "REROUTE"
 
 
-def test_workspace_replan_handoff_keeps_complete_source_out_of_task_payload() -> None:
+def test_independent_semantic_review_escalation_keeps_source_out_of_task_payload() -> None:
     question = OpenResearchQuestion(
         id="compact-workspace-replan",
         title="Keep source in artifact storage",
@@ -433,13 +523,16 @@ def test_workspace_replan_handoff_keeps_complete_source_out_of_task_payload() ->
         inputs={"question": {"id": question.id}},
     )
     complete_source = "x" * 100_000
-    next_task = runtime_module._workspace_architect_replan_task(
+    next_task = runtime_module._independent_semantic_review_architect_escalation_task(
         task=task,
         question=question,
         context={"environment_feedback": {"stale": complete_source}},
         revision_feedback={
             "feedback_id": "feedback:compact",
-            "failure_classification": "sandbox_failed",
+            "feedback_source": "GeneratedCodeSemanticReviewer",
+            "failure_classification": (
+                "generated_code_semantic_review_lineage_budget_exhausted"
+            ),
             "validation_errors": ["raw sandbox failure"],
             "rejected_candidate": {"code": complete_source},
             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
