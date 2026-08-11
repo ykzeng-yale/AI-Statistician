@@ -78,38 +78,15 @@ def metric_protocol_preexecution_review_observation_errors(
     if feedback.get("execution_authorized") is not False:
         errors.append("feedback must keep generated execution unauthorized")
     findings = feedback.get("findings", [])
-    failed_response_identity_checks = feedback.get(
-        "failed_response_identity_checks", []
-    )
-    failed_response_identity_checks = (
-        failed_response_identity_checks
-        if isinstance(failed_response_identity_checks, list)
-        else []
-    )
     if not isinstance(findings, list):
         errors.append("feedback findings must be an array")
         findings = []
-    if not findings and not failed_response_identity_checks:
-        errors.append(
-            "feedback requires an observed finding or a failed model audit"
-        )
+    if not findings:
+        errors.append("feedback requires an observed finding")
     if findings:
         for index, finding in enumerate(findings):
             if not isinstance(finding, Mapping):
                 errors.append(f"feedback finding {index} is not an object")
-    for index, check in enumerate(failed_response_identity_checks):
-        if not isinstance(check, Mapping):
-            errors.append(f"feedback response audit {index} is not an object")
-            continue
-        if str(check.get("verdict", "") or "").strip().upper() != "FAIL":
-            errors.append(f"feedback response audit {index} is not failed")
-        conflicts = check.get("unresolved_conflicts", [])
-        if not isinstance(conflicts, list) or not any(
-            str(value).strip() for value in conflicts
-        ):
-            errors.append(
-                f"feedback response audit {index} has no exact unresolved conflict"
-            )
 
     try:
         revision_count = int(
@@ -468,9 +445,8 @@ def architect_metric_semantic_review_validation_failure_result(
             "model_requested_overall_verdict",
             "overall_verdict",
             "prior_finding_reviews",
-            "claim_checks",
-            "response_identity_checks",
-            "dimension_reviews",
+            "requirement_reviews",
+            "portfolio_review",
             "estimator_execution_checks",
             "findings",
             "proof_evidence_status",
@@ -707,12 +683,6 @@ def architect_preexecution_metric_protocol_rejection_result(
         theory_execution_preflight_rejected
         and upstream_theory_revision_count < max_theory_revisions
     )
-    failed_response_identity_checks = [
-        dict(row)
-        for row in final_review.get("response_identity_checks", []) or []
-        if isinstance(row, Mapping)
-        and str(row.get("verdict", "") or "").strip().upper() == "FAIL"
-    ]
     source_theory_packet_id = str(
         final_review.get("source_theory_packet_id", "")
         or metric_gate.get("source_theory_packet_id", "")
@@ -772,7 +742,14 @@ def architect_preexecution_metric_protocol_rejection_result(
             for row in final_review.get("findings", []) or []
             if isinstance(row, Mapping)
         ],
-        "failed_response_identity_checks": failed_response_identity_checks,
+        "requirement_reviews": [
+            dict(row)
+            for row in final_review.get("requirement_reviews", []) or []
+            if isinstance(row, Mapping)
+        ],
+        "portfolio_review": dict(
+            final_review.get("portfolio_review", {}) or {}
+        ),
         "generated_code_observed": False,
         "simulation_results_observed": False,
         "preexecution_evidence_authority": {
@@ -866,7 +843,6 @@ def architect_preexecution_metric_protocol_rejection_result(
                 manifest_id,
                 next_revision_count,
                 observed_findings,
-                failed_response_identity_checks,
             ]
         )[:20]
         feedback = {
@@ -889,13 +865,15 @@ def architect_preexecution_metric_protocol_rejection_result(
             "source_theory_packet_hash": source_theory_packet_hash,
             "upstream_theory_revision_count": next_revision_count,
             "max_upstream_theory_revisions": max_theory_revisions,
-            "dimension_reviews": [
+            "requirement_reviews": [
                 dict(row)
-                for row in final_review.get("dimension_reviews", []) or []
+                for row in final_review.get("requirement_reviews", []) or []
                 if isinstance(row, Mapping)
             ],
+            "portfolio_review": dict(
+                final_review.get("portfolio_review", {}) or {}
+            ),
             "findings": observed_findings,
-            "failed_response_identity_checks": failed_response_identity_checks,
             "active_unresolved_finding_ids": [
                 str(value)
                 for value in final_review.get(

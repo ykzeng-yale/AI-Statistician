@@ -1387,8 +1387,10 @@ THEORY_DEVELOPER_OUTPUT_CONTRACT: dict[str, Any] = {
                     "uncertainty_scale|inequality_direction|dimensional_consistency"
                 ),
                 "recomputation": "explicit substituted expression or calculation",
-                "result": "computed or logically reduced result",
-                "conclusion": "PASS|FAIL and the theory revision made if FAIL",
+                "result": (
+                    "PASS|FAIL followed by the computed or logically reduced result "
+                    "and any theory revision made if FAIL"
+                ),
                 "depends_on": ["source ids"],
             }
         ],
@@ -1805,7 +1807,6 @@ def _validate_theory_packet(
                         "check_type",
                         "recomputation",
                         "result",
-                        "conclusion",
                     )
                     if not str(row.get(field, "") or "").strip()
                 ]
@@ -3222,7 +3223,7 @@ def _theory_semantic_reference_catalog(
     for collection, id_field, text_fields in (
         ("derivation_steps", "id", ("claim", "equation_or_argument")),
         ("equation_chain", "step_id", ("lhs", "relation", "rhs")),
-        ("sanity_checks", "id", ("recomputation", "result", "conclusion")),
+        ("sanity_checks", "id", ("recomputation", "result")),
     ):
         for raw_row in derivation.get(collection, []) or []:
             if not isinstance(raw_row, Mapping):

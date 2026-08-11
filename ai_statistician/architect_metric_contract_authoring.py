@@ -59,6 +59,7 @@ from .semantic_review_feedback import model_observations_without_repair_recipes
 ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 4
 _METRIC_AUTHORING_LARGE_PROMPT_CHARS = 60_000
 _METRIC_AUTHORING_LARGE_RESPONSE_TOKENS = 8_000
+MAX_CONFIRMATORY_METRIC_REQUIREMENTS = 8
 FROZEN_METRIC_PROTOCOL_REBINDING_MUTABLE_FIELDS = frozenset(
     {
         "source_anchors",
@@ -414,18 +415,6 @@ def _reconstruct_frozen_metric_protocol_requirements(
             f"requirement IDs: expected={source_ids!r} observed={observed_ids!r}"
         )
     return reconstructed_rows, errors
-
-
-def _metric_semantic_review_response_identity_history_rows(
-    semantic_review_packet: Mapping[str, Any],
-) -> list[dict[str, Any]]:
-    """Copy accepted response-identity audits into immutable review history."""
-
-    return [
-        deepcopy(dict(row))
-        for row in semantic_review_packet.get("response_identity_checks", []) or []
-        if isinstance(row, Mapping)
-    ]
 
 
 @dataclass(frozen=True)
@@ -1543,6 +1532,7 @@ def author_reviewed_architect_metric_requirements(
             "empirical_metric_requirements": {
                 "type": "array",
                 "minItems": 1,
+                "maxItems": MAX_CONFIRMATORY_METRIC_REQUIREMENTS,
                 "items": response_requirement_schema,
             }
         },
@@ -1593,6 +1583,9 @@ def author_reviewed_architect_metric_requirements(
         "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
         "acceptance_authority_catalog": acceptance_authority_prompt_catalog,
         "runtime_owned_replicates": runtime_replicates,
+        "confirmatory_portfolio_row_budget": (
+            MAX_CONFIRMATORY_METRIC_REQUIREMENTS
+        ),
         "confirmatory_required_rows_only": confirmatory_required_rows_only,
         "runtime_owned_field_bindings": {
             "target_subsystems": {
@@ -1654,7 +1647,11 @@ def author_reviewed_architect_metric_requirements(
             (
                 "Return the smallest nonredundant pre-execution acceptance portfolio "
                 "that covers the requested generated empirical-evaluation subsystem. "
-                "Each row must govern one independently comparable returned quantity."
+                "Each row must govern one independently comparable returned quantity. "
+                "Represent repeated DGP, sample-size, or stress scenarios as one "
+                "returned vector with an explicit aggregation instead of creating one "
+                "required row per scenario. The row budget is an execution/review "
+                "budget, not a statistical threshold."
             ),
             (
                 "Author the complete measurement semantics, operator, aggregation, "
@@ -1830,11 +1827,14 @@ def author_reviewed_architect_metric_requirements(
             "packet_id": str(
                 carried_review.get("semantic_review_packet_id", "") or ""
             ),
-            "dimension_reviews": [
+            "requirement_reviews": [
                 dict(row)
-                for row in carried_review.get("dimension_reviews", []) or []
+                for row in carried_review.get("requirement_reviews", []) or []
                 if isinstance(row, Mapping)
             ],
+            "portfolio_review": dict(
+                carried_review.get("portfolio_review", {}) or {}
+            ),
             "findings": [
                 dict(row)
                 for row in carried_review.get("findings", []) or []
@@ -1883,8 +1883,11 @@ def author_reviewed_architect_metric_requirements(
                         "semantic_review_packet_id": str(
                             prior_review_packet.get("packet_id", "") or ""
                         ),
-                        "dimension_reviews": list(
-                            prior_review_packet.get("dimension_reviews", []) or []
+                        "requirement_reviews": list(
+                            prior_review_packet.get("requirement_reviews", []) or []
+                        ),
+                        "portfolio_review": dict(
+                            prior_review_packet.get("portfolio_review", {}) or {}
                         ),
                         "findings": list(
                             prior_review_packet.get("findings", []) or []
@@ -2287,6 +2290,17 @@ def author_reviewed_architect_metric_requirements(
                 )
                 if str(error).strip()
             ]
+            if (
+                not frozen_rebinding
+                and len(
+                    packet.get("empirical_metric_requirements", []) or []
+                )
+                > MAX_CONFIRMATORY_METRIC_REQUIREMENTS
+            ):
+                errors.append(
+                    "confirmatory metric portfolio exceeds the shared review "
+                    f"budget of {MAX_CONFIRMATORY_METRIC_REQUIREMENTS} rows"
+                )
             if implementation_interface:
                 if str(
                     packet.get(
@@ -2638,18 +2652,16 @@ def author_reviewed_architect_metric_requirements(
                     for row in carried_findings
                     if str(row.get("carried_forward_finding_id", "") or "").strip()
                 ],
-                "dimension_reviews": list(
-                    semantic_review_packet.get("dimension_reviews", []) or []
-                ),
-                "claim_checks": [
+                "requirement_reviews": [
                     dict(row)
-                    for row in semantic_review_packet.get("claim_checks", []) or []
+                    for row in semantic_review_packet.get(
+                        "requirement_reviews", []
+                    )
+                    or []
                     if isinstance(row, Mapping)
                 ],
-                "response_identity_checks": (
-                    _metric_semantic_review_response_identity_history_rows(
-                        semantic_review_packet
-                    )
+                "portfolio_review": dict(
+                    semantic_review_packet.get("portfolio_review", {}) or {}
                 ),
                 "findings": routed_findings,
                 "proof_evidence_status": (
