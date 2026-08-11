@@ -37,7 +37,7 @@ from .metric_protocol_finding_ledger import (
     update_metric_protocol_finding_ledger,
 )
 from .research_schema import OpenResearchQuestion
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 13
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 14
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 19
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
@@ -82,7 +82,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_optional_source_query_v6"
+    "client_tool_optional_source_query_v7"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
@@ -668,7 +668,7 @@ def architect_theory_execution_preflight_json_schema(
                 "maxItems": len(active_prior_finding_ids),
                 "description": (
                     "One review per active prior finding in ordered_review_slots "
-                    "order. AgentRuntime binds each array position to its canonical "
+                    "order. AgentRuntime binds each output slot to its canonical "
                     "finding identity."
                 ),
                 "items": {"$ref": "#/$defs/prior_finding_review"},
@@ -678,8 +678,8 @@ def architect_theory_execution_preflight_json_schema(
                 "minItems": len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
                 "maxItems": len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
                 "description": (
-                    "One review per dimension in ordered_review_slots order. Do not "
-                    "copy dimension names into rows."
+                    "One review per dimension keyed by its ordered_review_slots "
+                    "output slot. Do not copy dimension names into rows."
                 ),
                 "items": {"$ref": "#/$defs/dimension_review"},
             },
@@ -688,8 +688,8 @@ def architect_theory_execution_preflight_json_schema(
                 "minItems": len(estimator_ids),
                 "maxItems": len(estimator_ids),
                 "description": (
-                    "One check per estimator in ordered_review_slots order. Do not "
-                    "copy estimator IDs into rows."
+                    "One check per estimator keyed by its ordered_review_slots "
+                    "output slot. Do not copy estimator IDs into rows."
                 ),
                 "items": {
                     "type": "object",
@@ -835,9 +835,25 @@ def architect_theory_execution_preflight_json_schema(
         "prior_finding_review": prior_finding_review_schema,
         "finding": finding_schema,
     }
-    schema["properties"]["estimator_execution_checks"]["items"] = {
-        "$ref": "#/$defs/estimator_execution_check"
+    ordered_slot_definitions = {
+        "dimension_reviews": "dimension_review",
+        "estimator_execution_checks": "estimator_execution_check",
+        "prior_finding_reviews": "prior_finding_review",
     }
+    for field, definition in ordered_slot_definitions.items():
+        array_schema = schema["properties"][field]
+        count = int(array_schema["minItems"])
+        slots = [f"slot_{index}" for index in range(count)]
+        schema["properties"][field] = {
+            "type": "object",
+            "additionalProperties": False,
+            "required": slots,
+            "description": array_schema["description"],
+            "properties": {
+                slot: {"$ref": f"#/$defs/{definition}"}
+                for slot in slots
+            },
+        }
     if not active_prior_finding_ids:
         schema["properties"].pop("prior_finding_reviews", None)
         schema["$defs"].pop("prior_finding_review", None)
@@ -916,7 +932,7 @@ def build_architect_theory_execution_preflight_prompt(
         finding = finding_row.get("finding", {})
         finding = dict(finding) if isinstance(finding, Mapping) else {}
         return {
-            "output_index": index,
+            "output_slot": f"slot_{index}",
             "finding_id": canonical_id,
             "prior_obligation": {
                 key: deepcopy(finding[key])
@@ -943,7 +959,7 @@ def build_architect_theory_execution_preflight_prompt(
         "ordered_review_slots": {
             "dimension_reviews": [
                 {
-                    "output_index": index,
+                    "output_slot": f"slot_{index}",
                     "dimension": dimension,
                 }
                 for index, dimension in enumerate(
@@ -952,7 +968,7 @@ def build_architect_theory_execution_preflight_prompt(
             ],
             "estimator_execution_checks": [
                 {
-                    "output_index": index,
+                    "output_slot": f"slot_{index}",
                     "estimator_id": str(estimator_id),
                 }
                 for index, estimator_id in enumerate(
@@ -2121,7 +2137,11 @@ def validate_architect_theory_execution_preflight_packet(
     ]
     dimensions = [str(row.get("dimension", "") or "") for row in dimension_rows]
     if dimensions != list(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS):
-        errors.append("theory execution preflight must review every dimension exactly once")
+        errors.append(
+            "theory execution preflight dimension slot mismatch: "
+            f"expected_count={len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS)} "
+            f"observed_count={len(dimensions)} observed_dimensions={dimensions}"
+        )
     estimator_rows = [
         row
         for row in packet.get("estimator_execution_checks", []) or []
@@ -2132,7 +2152,10 @@ def validate_architect_theory_execution_preflight_packet(
         str(value) for value in material.get("required_estimator_ids", []) or []
     ]
     if estimator_ids != required_estimator_ids:
-        errors.append("theory execution preflight must check every estimator exactly once")
+        errors.append(
+            "theory execution preflight estimator slot mismatch: "
+            f"expected_ids={required_estimator_ids} observed_ids={estimator_ids}"
+        )
 
     prior_finding_reviews = [
         row

@@ -319,43 +319,27 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-11, v336 is the authoritative development panel: 0/2 exact
-source-theorem closures, capability scorecard 5/16, and both tasks blocked. All
-nine enabled LLM subsystems used exactly `claude-haiku-4-5-20251001`. Both tasks
-authored valid initial theory workspaces and performed two source-owned revisions
-from independent preflight observations. In Survival, an incomplete first theory
-write was retained and returned as `write_accepted=true`,
-`workspace_valid=false`; the same Haiku corrected it on its next call without a
-repair agent or runtime-authored content. Both tasks then exhausted preflight
-revisions, so the run recorded zero generated-code executions, zero generated-
-simulation executions, zero Lean checks, and zero kernel-verified subclaims.
+As of 2026-08-11, v340 is the authoritative development panel. All nine live LLM
+subsystems used exactly `claude-haiku-4-5-20251001`; both tasks remained blocked,
+the capability scorecard was 6/16, exact source-theorem closure was 0/2, and the
+held-out panel remained sealed. Survival reached model-owned algorithm and simulation
+execution plus the Formalizer source loop, but its frozen empirical portfolio failed
+and no exact Lean target compiled. Sequential performed two source-owned theory
+revisions, then stopped at preflight packet validation before coding.
 
-v336 exposed a review-state asymmetry: prior finding identity was stable, but the
-reviewer could only keep it unresolved or claim that source code had changed. It
-could not retract a finding shown by current anchors to be outside preflight scope.
-The evidence-bound retraction state is now covered by deterministic tests but has
-not been revalidated live. v334 was a deliberately stopped diagnostic, not an
-authoritative panel; it exposed duplicate Algorithm regeneration after independent
-acceptance, which is now prevented by current-parent review completion authority.
-After v336, commit `a8115c6f` removed the remaining fixed TheoryDeveloper minimum
-row counts. This is a deterministic design correction with no post-change live
-capability claim; v336 remains the latest authoritative panel.
+The Sequential stop exposed a transport defect, not a missing statistical rule:
+Anthropic's strict-schema transformation removed fixed array cardinality, while the
+runtime returned only an aggregate dimension-count error. Ordered finite review
+identities now use provider-native required `slot_N` objects. A v341 focused replay
+of the exact v340 theory artifact and Architect contract used exact Haiku, completed
+five dimensions and two estimator checks in three turns and five tool calls, and
+returned the model's independent `REVISE` verdict. This is component transport
+evidence only, not statistical acceptance, E2E completion, or proof.
 
-An exact-Haiku component diagnostic of the simplified preflight used three turns
-and four tool calls, including two independent searches in one turn, with no
-rejected submission. It used 21,460 input and 3,424 output tokens and did not cite
-external hits it did not rely on. This is transport evidence only, not statistical
-acceptance, E2E completion, or proof. The held-out panel remains sealed and the
-system is not yet fully end to end.
-
-The v339 exact-Haiku Formalizer component exercised the current declaration path
-end to end. Haiku chose two declaration inspections, one signature-RAG search, two
-complete source replacements, and three local Lean checks in eight turns. Its final
-support target compiled and passed declaration identity/axiom inspection, with
-`model_owned_lean_code=true` and `runtime_selected_lean_code=false`. This validates
-the workspace mechanism only: `kernel_verified=false`,
-`source_theorem_kernel_verified=false`, and the authoritative cross-family result
-remains 0/2 exact closures.
+The earlier v339 exact-Haiku Formalizer diagnostic also remains component evidence:
+the same model selected declaration inspection, signature RAG, complete source
+replacement, and local Lean checks, then compiled one support target. It did not
+establish source-theorem kernel closure. The system is not yet fully end to end.
 
 ## Structural constraints
 

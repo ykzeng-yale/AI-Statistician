@@ -14,6 +14,7 @@ from ai_statistician.architect_metric_contract_authoring import (
 from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
+    _architect_theory_execution_preflight_submit_schema,
     _search_preflight_sources,
     architect_theory_execution_preflight_json_schema,
     build_architect_theory_execution_preflight_material,
@@ -150,6 +151,16 @@ class _PreflightToolBackend:
                 finding["source_evidence_refs"] = [source_ref]
             for review in payload.get("prior_finding_reviews", []) or []:
                 review["source_evidence_refs"] = [source_ref]
+        for field in (
+            "dimension_reviews",
+            "estimator_execution_checks",
+            "prior_finding_reviews",
+        ):
+            rows = payload.get(field)
+            if isinstance(rows, list):
+                payload[field] = {
+                    f"slot_{index}": row for index, row in enumerate(rows)
+                }
         return payload
 
     def generate_client_tool_turn(self, request):
@@ -431,7 +442,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_optional_source_query_v6"
+        "client_tool_optional_source_query_v7"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
@@ -956,14 +967,23 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     dimension_schema = backend.requests[0].schema["properties"][
         "dimension_reviews"
     ]
-    assert dimension_schema["type"] == "array"
-    assert dimension_schema["minItems"] == len(
-        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+    assert dimension_schema["type"] == "object"
+    expected_dimension_slots = [
+        f"slot_{index}"
+        for index in range(len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS))
+    ]
+    assert dimension_schema["required"] == expected_dimension_slots
+    assert set(dimension_schema["properties"]) == set(expected_dimension_slots)
+    assert all(
+        row == {"$ref": "#/$defs/dimension_review"}
+        for row in dimension_schema["properties"].values()
     )
     estimator_schema = backend.requests[0].schema["properties"][
         "estimator_execution_checks"
     ]
-    assert estimator_schema["items"] == {
+    assert estimator_schema["type"] == "object"
+    assert estimator_schema["required"] == ["slot_0"]
+    assert estimator_schema["properties"]["slot_0"] == {
         "$ref": "#/$defs/estimator_execution_check"
     }
     assert "estimator_id" not in backend.requests[0].schema["$defs"][
@@ -972,7 +992,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert "repair_instructions" not in backend.requests[0].schema["properties"]
     assert prompt_payload["ordered_review_slots"][
         "estimator_execution_checks"
-    ] == [{"output_index": 0, "estimator_id": "generic_stream_method"}]
+    ] == [{"output_slot": "slot_0", "estimator_id": "generic_stream_method"}]
     assert "prior_finding_reviews" not in backend.requests[0].schema[
         "properties"
     ]
@@ -1077,7 +1097,7 @@ def test_preflight_full_regeneration_returns_raw_validation_feedback() -> None:
     )
 
 
-def test_preflight_prior_finding_schema_does_not_expand_per_finding() -> None:
+def test_preflight_prior_finding_schema_uses_compact_required_slots() -> None:
     base_material = {
         "anchor_catalog": [
             {"anchor_id": "theory.estimator_specs"},
@@ -1098,15 +1118,35 @@ def test_preflight_prior_finding_schema_does_not_expand_per_finding() -> None:
     )
 
     prior_schema = six_schema["properties"]["prior_finding_reviews"]
-    assert prior_schema["type"] == "array"
-    assert prior_schema["minItems"] == 6
-    assert prior_schema["maxItems"] == 6
-    assert prior_schema["items"] == {
-        "$ref": "#/$defs/prior_finding_review"
+    expected_slots = [f"slot_{index}" for index in range(6)]
+    assert prior_schema["type"] == "object"
+    assert prior_schema["required"] == expected_slots
+    assert prior_schema["properties"] == {
+        slot: {"$ref": "#/$defs/prior_finding_review"}
+        for slot in expected_slots
     }
-    assert len(json.dumps(six_schema, separators=(",", ":"))) == len(
+    assert len(json.dumps(six_schema, separators=(",", ":"))) - len(
         json.dumps(one_schema, separators=(",", ":"))
+    ) < 400
+
+
+def test_preflight_required_slots_survive_anthropic_strict_transform() -> None:
+    anthropic = pytest.importorskip("anthropic")
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
     )
+    schema = _architect_theory_execution_preflight_submit_schema(material)
+    transformed = anthropic.transform_schema(schema)
+
+    for field in ("dimension_reviews", "estimator_execution_checks"):
+        assert transformed["properties"][field]["required"] == (
+            schema["properties"][field]["required"]
+        )
 
 
 def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> None:
@@ -1468,10 +1508,9 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     prior_review_schema = backend.requests[0].schema["properties"][
         "prior_finding_reviews"
     ]
-    assert prior_review_schema["type"] == "array"
-    assert prior_review_schema["minItems"] == 1
-    assert prior_review_schema["maxItems"] == 1
-    assert prior_review_schema["items"] == {
+    assert prior_review_schema["type"] == "object"
+    assert prior_review_schema["required"] == ["slot_0"]
+    assert prior_review_schema["properties"]["slot_0"] == {
         "$ref": "#/$defs/prior_finding_review"
     }
     prior_review_definition = backend.requests[0].schema["$defs"][
@@ -1630,7 +1669,7 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_index() -> None:
     assert "finding_id" not in finding_schema["properties"]
     prior_schema = backend.requests[0].schema["properties"][
         "prior_finding_reviews"
-    ]["items"]
+    ]["properties"]["slot_0"]
     assert prior_schema == {"$ref": "#/$defs/prior_finding_review"}
     assert "current_finding" not in backend.requests[0].schema["$defs"][
         "prior_finding_review"
