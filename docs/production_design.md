@@ -233,6 +233,8 @@ and local context, Lean LSP/MCP state, and exact compiler output. The same model
 chooses each action and complete source replacement. Runtime does not inject an
 import, theorem statement, tactic, or proof-body fragment.
 
+Each source workspace has one global turn/call budget. Runtime does not preallocate
+action quotas; core edit/execution tools remain available and the model chooses the mix.
 Declaration inspection is not a Python Lean parser or a repair policy. After the
 model checks its current source, it may choose an identifier and call OpenProver's
 existing `lean-lsp-mcp` `lean_declaration_file` tool against the hash-bound
@@ -319,12 +321,12 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-11, v344 is the authoritative development panel. All nine live LLM
-subsystems used exactly `claude-haiku-4-5-20251001`; one task ended `BLOCKED`, one
-ended `FAILED`, the scorecard was 6/16, closure was 0/2, and held-out stayed sealed.
-Survival reached scientific and formal workspaces but no exact Lean target compiled.
-Sequential revised theory, then its second preflight failed before a model turn
-because the provider rejected the strict submit schema as too complex.
+As of 2026-08-11, v346 is the authoritative development panel. All nine live LLM
+subsystems used exactly `claude-haiku-4-5-20251001`; both tasks ended `BLOCKED`, the
+scorecard was 6/16, closure was 0/2, and held-out stayed sealed. Sequential completed
+repeated strict-schema preflight calls and stopped only after two model revisions
+closed none of four active findings. Survival reached scientific execution, exact
+target review, formal RAG, and local Lean feedback but no exact target closure.
 
 That Sequential failure exposed a harness design error, not a missing statistical
 rule. Required `slot_N` objects remain appropriate for finite identities: before
@@ -336,15 +338,13 @@ preflight row now contains one model-owned execution audit, one independent iden
 check, a blocker list, a boundary case, status, and evidence refs. Runtime validates
 shape and consistency but does not decide the mathematics.
 
-The exact-input v345 replay used the revised Sequential v344 theory, frozen Architect
-contract, and all three prior identities. Exact Haiku performed three source searches
-and one valid submission in two turns, resolved one prior finding, retained two, and
-returned `REVISE`. This is component transport and review evidence, not statistical
-acceptance, E2E completion, or proof. The earlier v341-v343 slot canaries remain
-component evidence for the same reason.
+The v347 exact-Haiku replay resumed v346's hash-bound Survival source checkpoint under
+one global budget. It made nine edits and nine Lean checks over twenty calls instead of
+losing edit access after the old third-edit quota. It still ended without an accepted
+checkpoint; `sorry` and a weakened assumption were correctly refused by identity/axiom
+and semantic gates. This is workspace mechanism evidence, not E2E or proof.
 
-The earlier v339 Formalizer diagnostic remains component evidence: exact Haiku used
-declaration inspection, RAG, source replacement, and local checks to compile a support target, but not the source theorem.
+The earlier v339 component compiled a support target with declaration inspection and RAG, not the source theorem.
 
 ## Structural constraints
 
