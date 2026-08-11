@@ -328,18 +328,18 @@ and no exact Lean target compiled. Sequential performed two source-owned theory
 revisions, then stopped at preflight packet validation before coding.
 
 The Sequential stop exposed a transport defect, not a missing statistical rule:
-Anthropic's strict-schema transformation removed fixed array cardinality, while the
-runtime returned only an aggregate dimension-count error. Ordered finite review
-identities now use provider-native required `slot_N` objects. A v341 focused replay
-of the exact v340 theory artifact and Architect contract used exact Haiku, completed
-five dimensions and two estimator checks in three turns and five tool calls, and
-returned the model's independent `REVISE` verdict. This is component transport
-evidence only, not statistical acceptance, E2E completion, or proof.
+Anthropic's strict schema removed fixed array cardinality. Finite reviews now use
+provider-native required `slot_N` objects. Exact Haiku v341 completed five preflight
+dimensions and two estimator checks, then returned its independent `REVISE`. In a
+v342 replay of the v340 Survival target, it filled all six formal-review slots and
+returned target-semantic findings rather than a proof-completeness finding. Runtime
+only checks packet consistency and returns raw errors to the same reviewer; it does
+not classify theorem defects or author source. Both replays are component evidence,
+not statistical acceptance, E2E completion, or proof.
 
 The earlier v339 exact-Haiku Formalizer diagnostic also remains component evidence:
-the same model selected declaration inspection, signature RAG, complete source
-replacement, and local Lean checks, then compiled one support target. It did not
-establish source-theorem kernel closure. The system is not yet fully end to end.
+the model selected declaration inspection, signature RAG, source replacement, and
+local Lean checks, then compiled a support target but not the source theorem.
 
 ## Structural constraints
 
