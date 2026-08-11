@@ -820,9 +820,13 @@ def test_formalizer_failure_preserves_workspace_refs_without_payload_copy() -> N
         "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
         "candidate_id": "target-candidate",
         "candidate_lean_declaration": "target",
-        "parent_source_hash": source_hash,
+        "parent_source_hash": stable_hash("older source"),
         "current_source_hash": source_hash,
         "current_source": source,
+        "source_updates": 1,
+        "checks": 1,
+        "provider": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
         "last_check": {
             "source_hash": source_hash,
             "compiled": False,
@@ -855,6 +859,11 @@ def test_formalizer_failure_preserves_workspace_refs_without_payload_copy() -> N
                 {
                     "turn_index": 0,
                     "result_excerpt": "raw transcript observation" * 10000,
+                    "tool_calls": [
+                        {"name": "search_formal_environment"},
+                        {"name": "replace_lean_source"},
+                        {"name": "check_lean_source"},
+                    ],
                 }
             ],
             recovery_checkpoint=checkpoint,
@@ -922,6 +931,14 @@ def test_formalizer_failure_preserves_workspace_refs_without_payload_copy() -> N
         "raw transcript observation"
     )
     assert "result_excerpt" not in json.dumps(failure)
+    loop_evidence = result.evidence_entries[0].payload
+    assert loop_evidence["model_owned_lean_code"] is True
+    assert loop_evidence["runtime_selected_lean_code"] is False
+    assert loop_evidence["source_changed"] is True
+    assert loop_evidence["source_updates"] == 1
+    assert loop_evidence["local_lean_checks"] == 1
+    assert loop_evidence["latest_check_compiled"] is False
+    assert loop_evidence["n_formal_rag_tool_calls"] == 1
 
 
 def test_formalizer_packet_failure_stays_with_source_owner_then_blocks() -> None:

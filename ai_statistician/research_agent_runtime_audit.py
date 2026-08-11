@@ -249,7 +249,14 @@ def _formalizer_revision_summary(
     loops = [
         _payload(row)
         for row in evidence_rows
-        if _evidence_type(row) == "formalizer_lean_candidate_client_tool_loop"
+        if _evidence_type(row)
+        in {
+            "formalizer_lean_candidate_client_tool_loop",
+            "formalizer_packet_validation_failure",
+        }
+        and _bool(_payload(row).get("model_owned_lean_code", False))
+        and not _bool(_payload(row).get("runtime_selected_lean_code", True))
+        and bool(str(_payload(row).get("candidate_source_hash", "") or ""))
     ]
     revised = [
         row
@@ -257,7 +264,6 @@ def _formalizer_revision_summary(
         if _bool(row.get("source_changed", False))
         and _int(row.get("source_updates")) > 0
         and _int(row.get("local_lean_checks")) > 0
-        and _bool(row.get("latest_check_compiled", False))
         and _bool(row.get("model_owned_lean_code", False))
         and not _bool(row.get("runtime_selected_lean_code", True))
         and bool(str(row.get("provider", "") or "").strip())
@@ -379,11 +385,19 @@ def _scorecard(
             _int(_payload(row).get("formal_source_hits")) > 0
             for row in evidence_for(question_id, "retrieval_memory")
         )
-        and any(
-            row.get("observation_type")
-            == "formalizer_environment_feedback_formal_source_grounding"
-            and _int(_payload(row).get("n_formal_source_grounding_hits")) > 0
-            for row in observation_by_question.get(question_id, [])
+        and (
+            any(
+                row.get("observation_type")
+                == "formalizer_environment_feedback_formal_source_grounding"
+                and _int(_payload(row).get("n_formal_source_grounding_hits")) > 0
+                for row in observation_by_question.get(question_id, [])
+            )
+            or any(
+                _int(_payload(row).get("n_formal_rag_tool_calls")) > 0
+                for row in evidence_for(
+                    question_id, "formalizer_packet_validation_failure"
+                )
+            )
         )
     }
     formal_review_questions = {
@@ -399,11 +413,26 @@ def _scorecard(
     lean_source_questions = {
         question_id
         for question_id in question_ids
-        if any(
-            _int(_payload(row).get("n_lean_candidate_sources")) > 0
-            and _int(_payload(row).get("n_lean_candidate_artifacts_written")) > 0
-            for row in evidence_for(
-                question_id, "llm_formalizer_proof_engineer_proposal"
+        if (
+            any(
+                _int(_payload(row).get("n_lean_candidate_sources")) > 0
+                and _int(_payload(row).get("n_lean_candidate_artifacts_written"))
+                > 0
+                for row in evidence_for(
+                    question_id, "llm_formalizer_proof_engineer_proposal"
+                )
+            )
+            or any(
+                _bool(_payload(row).get("model_owned_lean_code", False))
+                and not _bool(
+                    _payload(row).get("runtime_selected_lean_code", True)
+                )
+                and bool(
+                    str(_payload(row).get("candidate_source_hash", "") or "")
+                )
+                for row in evidence_for(
+                    question_id, "formalizer_packet_validation_failure"
+                )
             )
         )
     }
@@ -702,6 +731,14 @@ def audit_research_agent_runtime(
         "formal_closure_summary": dict(
             manifest.get("formal_closure_summary", {})
             if isinstance(manifest.get("formal_closure_summary", {}), Mapping)
+            else {}
+        ),
+        "formalizer_client_tool_observation_summary": dict(
+            manifest.get("formalizer_client_tool_observation_summary", {})
+            if isinstance(
+                manifest.get("formalizer_client_tool_observation_summary", {}),
+                Mapping,
+            )
             else {}
         ),
         "n_live_generated_code_sandbox_executed": _int(

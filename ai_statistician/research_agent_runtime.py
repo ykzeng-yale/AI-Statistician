@@ -11753,6 +11753,69 @@ def _formalizer_packet_validation_failure_result(
         and str(recovery_checkpoint.get("artifact_kind", "") or "")
         == "LeanCandidateRevisionRecoveryCheckpoint"
     )
+    history_tool_calls = [
+        dict(call)
+        for row in attempt_history_rows
+        for call in row.get("tool_calls", []) or []
+        if isinstance(call, Mapping)
+    ]
+    tool_name_counts = {
+        name: sum(
+            1
+            for call in history_tool_calls
+            if str(call.get("name", "") or "") == name
+        )
+        for name in {
+            str(call.get("name", "") or "")
+            for call in history_tool_calls
+            if str(call.get("name", "") or "")
+        }
+    }
+    last_check = recovery_checkpoint.get("last_check", {})
+    if not isinstance(last_check, Mapping):
+        last_check = recovery_checkpoint.get("latest_check_observation", {})
+    if not isinstance(last_check, Mapping):
+        last_check = {}
+    parent_source_hash = str(
+        recovery_checkpoint.get("parent_source_hash", "") or ""
+    )
+    client_tool_loop_observation = (
+        {
+            "candidate_source_hash": checkpoint_source_hash,
+            "parent_source_hash": parent_source_hash,
+            "source_changed": bool(
+                parent_source_hash
+                and checkpoint_source_hash
+                and parent_source_hash != checkpoint_source_hash
+            ),
+            "source_updates": _int_like(
+                recovery_checkpoint.get("source_updates", 0)
+            ),
+            "local_lean_checks": _int_like(
+                recovery_checkpoint.get("checks", 0)
+            ),
+            "latest_check_compiled": _bool_like(
+                last_check.get("compiled", False)
+            ),
+            "n_client_tool_calls": len(history_tool_calls),
+            "n_formal_source_search_calls": tool_name_counts.get(
+                "search_formal_environment", 0
+            ),
+            "n_proof_candidate_search_calls": tool_name_counts.get(
+                "search_proof_candidates", 0
+            ),
+            "n_formal_rag_tool_calls": (
+                tool_name_counts.get("search_formal_environment", 0)
+                + tool_name_counts.get("search_proof_candidates", 0)
+            ),
+            "provider": str(recovery_checkpoint.get("provider", "") or ""),
+            "model": str(recovery_checkpoint.get("model", "") or ""),
+            "model_owned_lean_code": True,
+            "runtime_selected_lean_code": False,
+        }
+        if lean_workspace_checkpoint_available
+        else {}
+    )
     workspace_continuation_attempt = max(
         0,
         _int_like(task.inputs.get("formalizer_workspace_continuation_attempt", 0)),
@@ -11876,6 +11939,7 @@ def _formalizer_packet_validation_failure_result(
             "same_owner_subsystem": task.owner_subsystem,
             "workspace_continuation_allowed": workspace_continuation_allowed,
             "runtime_edits_candidate": False,
+            **client_tool_loop_observation,
             "proof_evidence_status": (
                 "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
             ),
@@ -11915,6 +11979,7 @@ def _formalizer_packet_validation_failure_result(
                         workspace_continuation_allowed
                     ),
                     "runtime_edits_candidate": False,
+                    **client_tool_loop_observation,
                     "proof_evidence_status": (
                         "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
                     ),
@@ -16401,6 +16466,14 @@ def run_research_agent_runtime(
     simulation_payloads = payloads("simulation")
     formalization_payloads = payloads("formalization_proof_feedback")
     formalizer_payloads = payloads("llm_formalizer_proof_engineer_proposal")
+    formalizer_failure_payloads = payloads("formalizer_packet_validation_failure")
+    formalizer_client_tool_payloads = [
+        payload
+        for payload in formalizer_failure_payloads
+        if _bool_like(payload.get("model_owned_lean_code", False))
+        and not _bool_like(payload.get("runtime_selected_lean_code", True))
+        and bool(str(payload.get("candidate_source_hash", "") or ""))
+    ]
     n_kernel_verified_subclaims = sum(
         payload_int(
             payload.get("counts", {})
@@ -16429,6 +16502,27 @@ def run_research_agent_runtime(
         completion_summary=completion_summary,
         n_materialized_formal_gap_rows=n_formal_gaps,
     )
+    formalizer_client_tool_observation_summary = {
+        "n_workspaces_observed": len(formalizer_client_tool_payloads),
+        "n_source_updates": sum(
+            payload_int(payload, "source_updates")
+            for payload in formalizer_client_tool_payloads
+        ),
+        "n_local_lean_checks": sum(
+            payload_int(payload, "local_lean_checks")
+            for payload in formalizer_client_tool_payloads
+        ),
+        "n_formal_rag_tool_calls": sum(
+            payload_int(payload, "n_formal_rag_tool_calls")
+            for payload in formalizer_client_tool_payloads
+        ),
+        "n_compiled_checkpoints": sum(
+            1
+            for payload in formalizer_client_tool_payloads
+            if _bool_like(payload.get("latest_check_compiled", False))
+        ),
+        "proof_evidence_status": "FORMALIZER_CLIENT_TOOL_OBSERVATIONS_NOT_PROOF_EVIDENCE",
+    }
     runtime_resume_policy = (
         "fresh_start"
         if not initial_task_overrides
@@ -16528,13 +16622,24 @@ def run_research_agent_runtime(
         "n_formal_gaps": n_formal_gaps,
         "formal_closure_summary": formal_closure_summary,
         "n_full_frontier_theorem_proved": n_full_frontier_theorem_proved,
+        "formalizer_client_tool_observation_summary": (
+            formalizer_client_tool_observation_summary
+        ),
         "n_formalizer_lean_candidate_local_lean_checked": sum(
             payload_int(payload, "n_local_lean_checked")
             for payload in formalizer_payloads
+        ) + sum(
+            1
+            for payload in formalizer_client_tool_payloads
+            if payload_int(payload, "local_lean_checks") > 0
         ),
         "n_formalizer_lean_candidate_local_lean_compiled": sum(
             payload_int(payload, "n_local_lean_compiled")
             for payload in formalizer_payloads
+        ) + sum(
+            1
+            for payload in formalizer_client_tool_payloads
+            if _bool_like(payload.get("latest_check_compiled", False))
         ),
         "llm_topology_policy_ok": llm_topology["policy_status"] == "OK",
         "llm_runtime_topology": llm_topology,

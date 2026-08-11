@@ -27,6 +27,9 @@ from ai_statistician.research_agent_runtime import (
     _runtime_transition_policy,
     formalizer_workspace_runtime_bindings,
 )
+from ai_statistician.research_agent_runtime_audit import (
+    _formalizer_revision_summary,
+)
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.simulation_engineer_llm import (
     SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
@@ -339,6 +342,29 @@ def test_zero_materialized_gap_rows_do_not_claim_formal_closure() -> None:
     assert summary["n_questions_formal_unverified"] == 1
     assert summary["formal_closure_status"] == "FORMAL_CLOSURE_UNVERIFIED"
     assert summary["formal_closure_verified_for_all_questions"] is False
+
+
+def test_formalizer_raw_feedback_revision_does_not_require_final_compile() -> None:
+    observed, loops, revisions = _formalizer_revision_summary(
+        [
+            {
+                "evidence_type": "formalizer_packet_validation_failure",
+                "payload": {
+                    "candidate_source_hash": "source-hash",
+                    "source_changed": True,
+                    "source_updates": 2,
+                    "local_lean_checks": 3,
+                    "latest_check_compiled": False,
+                    "provider": "anthropic",
+                    "model": "claude-haiku-4-5-20251001",
+                    "model_owned_lean_code": True,
+                    "runtime_selected_lean_code": False,
+                },
+            }
+        ]
+    )
+
+    assert (observed, loops, revisions) == (True, 1, 1)
 
 
 def _full_evidence_context(question_id: str) -> dict[str, object]:
