@@ -17,7 +17,7 @@ from .model_backend import (
 from .research_schema import OpenResearchQuestion
 
 
-FORMAL_TARGET_SEMANTIC_REVIEW_SCHEMA_VERSION = 5
+FORMAL_TARGET_SEMANTIC_REVIEW_SCHEMA_VERSION = 6
 FORMAL_TARGET_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "FORMAL_TARGET_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -57,10 +57,20 @@ def _string_list(value: Any) -> list[str]:
 
 def _normalize_dimension_reviews(value: Any) -> list[dict[str, Any]]:
     if isinstance(value, Mapping):
-        items = [
-            (dimension, value.get(dimension))
-            for dimension in FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS
+        slot_items = [
+            (dimension, value.get(f"slot_{index}"))
+            for index, dimension in enumerate(
+                FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS
+            )
         ]
+        items = (
+            slot_items
+            if any(f"slot_{index}" in value for index in range(len(slot_items)))
+            else [
+                (dimension, value.get(dimension))
+                for dimension in FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS
+            ]
+        )
     elif isinstance(value, list):
         items = [
             (dimension, value[index])
@@ -228,14 +238,24 @@ def build_formal_target_semantic_review_prompt(
             "tags": list(question.tags),
         },
         "review_material": dict(review_material),
-        "required_dimensions": list(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS),
+        "ordered_review_slots": {
+            "dimension_reviews": [
+                {
+                    "output_slot": f"slot_{index}",
+                    "dimension": dimension,
+                }
+                for index, dimension in enumerate(
+                    FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS
+                )
+            ]
+        },
         "evidence_boundary": FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
     }
     return (
         "Independently review whether the exact Lean theorem target faithfully and "
         "non-vacuously formalizes its bound theorem goal within the supplied "
         "statistical question and derivation. Return only JSON matching the response "
-        "schema. Evaluate every required dimension exactly once. Findings must "
+        "schema. Evaluate every ordered dimension slot exactly once. Findings must "
         "describe observed_behavior, expected_behavior, and evidence_refs. Reason "
         "from the mathematical meaning of binders, assumptions, quantifiers, "
         "conclusions, regimes, and semantic constraints. Do not judge by keywords. "
@@ -322,21 +342,31 @@ FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
     "required": ["dimension_reviews", "findings"],
     "properties": {
         "dimension_reviews": {
-            "type": "array",
-            "minItems": len(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS),
-            "maxItems": len(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS),
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                f"slot_{index}"
+                for index in range(len(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS))
+            ],
             "description": (
-                "One observation per required_dimensions entry, in the exact supplied "
-                "order. AgentRuntime binds array positions to immutable dimension "
-                "identities; do not copy dimension names into rows."
+                "One observation per ordered_review_slots entry. AgentRuntime binds "
+                "slot names to immutable dimension identities; do not copy dimension "
+                "names into rows."
             ),
-            "items": _dimension_schema(),
+            "properties": {
+                f"slot_{index}": {"$ref": "#/$defs/dimension_review"}
+                for index in range(len(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS))
+            },
         },
         "findings": {
             "type": "array",
             "maxItems": FORMAL_TARGET_SEMANTIC_REVIEW_MAX_FINDINGS,
-            "items": _finding_schema(),
+            "items": {"$ref": "#/$defs/finding"},
         },
+    },
+    "$defs": {
+        "dimension_review": _dimension_schema(),
+        "finding": _finding_schema(),
     },
 }
 
@@ -449,6 +479,11 @@ def validate_formal_target_semantic_review_packet(
         errors.append("findings must be objects")
     if len(finding_rows) > FORMAL_TARGET_SEMANTIC_REVIEW_MAX_FINDINGS:
         errors.append("formal-target semantic review has too many findings")
+    if finding_rows and rows and all(row.get("status") == "PASS" for row in rows):
+        errors.append(
+            "formal-target findings require at least one FAIL or UNCERTAIN semantic "
+            "dimension; all-PASS semantic reviews must leave findings empty"
+        )
     forbidden = {
         "repair_scope",
         "repair_owner",

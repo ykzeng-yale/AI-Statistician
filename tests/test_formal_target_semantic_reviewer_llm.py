@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.lean_candidate_identity import (
     LEAN_TARGET_STATEMENT_HASH_ALGORITHM,
@@ -457,18 +459,79 @@ def test_prompt_requests_observations_and_forbids_runtime_repair_planning() -> N
     assert "repair_owner" not in prompt
 
 
-def test_dimension_schema_is_order_bound_without_model_copied_identity() -> None:
+def test_dimension_schema_uses_required_provider_safe_slots() -> None:
     schema = FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA["properties"][
         "dimension_reviews"
     ]
-    assert schema["minItems"] == len(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS)
-    assert schema["maxItems"] == len(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS)
-    assert "dimension" not in schema["items"]["properties"]
+    expected_slots = [
+        f"slot_{index}"
+        for index in range(len(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS))
+    ]
+    assert schema["type"] == "object"
+    assert schema["required"] == expected_slots
+    assert set(schema["properties"]) == set(expected_slots)
+    assert all(
+        row == {"$ref": "#/$defs/dimension_review"}
+        for row in schema["properties"].values()
+    )
+    assert "dimension" not in FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA["$defs"][
+        "dimension_review"
+    ]["properties"]
+
+
+def test_required_slots_survive_anthropic_strict_transform() -> None:
+    anthropic = pytest.importorskip("anthropic")
+    transformed = anthropic.transform_schema(
+        FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA
+    )
+    dimension_schema = transformed["properties"]["dimension_reviews"]
+
+    assert dimension_schema["required"] == [
+        f"slot_{index}"
+        for index in range(len(FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS))
+    ]
+
+
+def test_prompt_binds_provider_slots_to_semantic_dimensions() -> None:
+    prompt = build_formal_target_semantic_review_prompt(
+        question=_question(),
+        review_material={"exact_formal_target": {"source": "theorem t : True"}},
+    )
+    payload = json.loads(prompt.split("\n\n", 1)[1])
+
+    assert payload["ordered_review_slots"]["dimension_reviews"] == [
+        {"output_slot": f"slot_{index}", "dimension": dimension}
+        for index, dimension in enumerate(
+            FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS
+        )
+    ]
+
+
+def test_slot_mapping_normalizes_without_model_copied_identity(
+    tmp_path: Path,
+) -> None:
+    response = _review_response(accepted=True)
+    response["dimension_reviews"] = {
+        f"slot_{index}": row
+        for index, row in enumerate(response["dimension_reviews"])
+    }
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accepted=True,
+        response=response,
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    packet = _artifact_of_kind(result, "FormalTargetSemanticReviewPacket")
+    assert [row["dimension"] for row in packet["dimension_reviews"]] == list(
+        FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS
+    )
 
 
 def test_reviewer_requests_native_schema_for_generation_and_regeneration() -> None:
-    invalid = _review_response(accepted=False)
-    invalid["findings"][0].pop("expected_behavior")
+    invalid = _review_response(accepted=True)
+    invalid["findings"] = _review_response(accepted=False)["findings"]
     backend = _CapturingBackend([invalid, _review_response(accepted=True)])
     agent = LLMFormalTargetSemanticReviewerAgent(
         provider=backend,
@@ -517,6 +580,9 @@ def test_reviewer_requests_native_schema_for_generation_and_regeneration() -> No
     assert backend.requests[1].metadata[
         PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY
     ] is True
+    assert "all-PASS semantic reviews must leave findings empty" in (
+        backend.requests[1].user_prompt
+    )
     assert backend.requests[1].schema == backend.requests[0].schema
     assert backend.requests[1].metadata["structured_output_retry_mode"] == (
         "full_packet_regeneration"
