@@ -69,6 +69,15 @@ def test_research_evaluation_is_pinned_to_exact_haiku_snapshot() -> None:
         )
 
 
+def test_required_formal_policy_does_not_hardcode_proof_first_execution() -> None:
+    contract = runtime_module._runtime_requested_evidence_contract(
+        formal_verification_policy="required",
+        evaluation_mode="capability_eval",
+    )
+
+    assert contract["recommended_research_path"] == "dual_track"
+
+
 def test_runtime_config_has_no_legacy_prover_authoring_plane() -> None:
     names = {field.name for field in fields(ResearchAgentRuntimeConfig)}
     forbidden_fragments = (
@@ -454,6 +463,95 @@ def test_formal_blocker_does_not_starve_unvisited_empirical_lanes() -> None:
     assert continued.observations[-1].payload["model_routing_call_used"] is False
 
 
+def test_theory_revision_retires_active_descendant_authority() -> None:
+    context = {
+        **_full_evidence_context("generic-parent-change"),
+        "algorithm_sandbox_manifest_id": "algorithm:old",
+        "simulation_manifest_id": "simulation:old",
+        "formalization_manifest_id": "formalization:old",
+        "formalizer_lean_candidate_materialization_manifest_id": "lean:old",
+        "accepted_generated_code_semantic_reviews": [{"review_id": "review:old"}],
+        "upstream_algorithm_handoff": {"handoff_id": "handoff:old"},
+    }
+
+    invalidated = runtime_module._context_with_invalidated_theory_descendants(
+        context
+    )
+
+    assert invalidated["architect_runtime_plan"] == context["architect_runtime_plan"]
+    assert invalidated["previous_algorithm_sandbox_manifest_id"] == "algorithm:old"
+    assert invalidated["previous_simulation_manifest_id"] == "simulation:old"
+    assert invalidated["previous_formalization_manifest_id"] == "formalization:old"
+    assert (
+        invalidated["previous_formalizer_lean_candidate_materialization_manifest_id"]
+        == "lean:old"
+    )
+    assert "algorithm_sandbox_manifest_id" not in invalidated
+    assert "simulation_manifest_id" not in invalidated
+    assert "formalization_manifest_id" not in invalidated
+    assert "accepted_generated_code_semantic_reviews" not in invalidated
+    assert "upstream_algorithm_handoff" not in invalidated
+
+
+def test_outer_graph_reopens_algorithm_for_revised_theory_parent() -> None:
+    question = OpenResearchQuestion(
+        id="generic-revised-parent",
+        title="Generic revised-parent task",
+        description="Rebuild empirical descendants after theory changes.",
+    )
+    context = _full_evidence_context(question.id)
+    context["theory_packet_id"] = "theory:new"
+    context["runtime_outer_graph_workspace_outcomes"] = [
+        {
+            "source_task_id": "algorithm:old",
+            "source_subsystem": "AlgorithmEngineer",
+            "local_status": "COMPLETED",
+            "parent_artifact_ids": {"theory_packet_id": "theory:old"},
+        }
+    ]
+    task = AgentTask(
+        task_id="formalize:revised-parent",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Attempt formalization for the revised theory.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:new",
+            "architect_context": context,
+        },
+    )
+
+    continued = _runtime_transition_policy(
+        iteration=7,
+        task=task,
+        subsystem_name="FormalizationEvaluator",
+        result=AgentStepResult(
+            status="BLOCKED",
+            rationale="The formal workspace recorded a typed blocker.",
+            failure_classification="formalizer_workspace_continuation_exhausted",
+        ),
+        blackboard=BlackboardState(
+            project_id=question.id,
+            artifacts={"theory:new": {"packet_id": "theory:new"}},
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert continued.status == "REROUTE"
+    assert continued.next_task is not None
+    assert continued.next_task.owner_subsystem == "AlgorithmEngineer"
+    routing = continued.next_task.inputs["architect_context"][
+        "architect_initial_routing"
+    ]
+    assert routing["parent_artifact_ids"] == {
+        "theory_packet_id": "theory:new"
+    }
+    observed = continued.observations[-1].payload
+    assert "AlgorithmEngineer" not in observed["executed_subsystems"]
+
+
 def test_failed_theory_revision_does_not_continue_rejected_parent_lineage() -> None:
     question = OpenResearchQuestion(
         id="generic-rejected-theory-revision",
@@ -550,7 +648,14 @@ def test_outer_graph_sends_all_observed_lanes_to_final_critic() -> None:
             "source_task_id": "formalize:generic-final-review",
             "source_subsystem": "FormalizationEvaluator",
             "local_status": "BLOCKED",
-        }
+            "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
+        },
+        {
+            "source_task_id": "algorithm:generic-final-review",
+            "source_subsystem": "AlgorithmEngineer",
+            "local_status": "COMPLETED",
+            "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
+        },
     ]
     task = AgentTask(
         task_id="simulation:generic-final-review",
@@ -627,7 +732,14 @@ def test_outer_graph_skips_a_downstream_repeat_of_an_exhausted_lane() -> None:
             "source_task_id": "formalize:exhausted",
             "source_subsystem": "FormalizationEvaluator",
             "local_status": "BLOCKED",
-        }
+            "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
+        },
+        {
+            "source_task_id": "algorithm:complete",
+            "source_subsystem": "AlgorithmEngineer",
+            "local_status": "COMPLETED",
+            "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
+        },
     ]
     task = AgentTask(
         task_id="simulation:complete",
@@ -635,6 +747,8 @@ def test_outer_graph_skips_a_downstream_repeat_of_an_exhausted_lane() -> None:
         objective="Complete empirical evidence.",
         inputs={
             "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "algorithm_sandbox_manifest_id": "algorithm:generic",
             "architect_context": context,
         },
     )

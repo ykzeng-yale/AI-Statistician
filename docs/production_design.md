@@ -30,10 +30,11 @@ Goal and plan
   -> Final critic and kernel gate
 ```
 
-The Architect creates the initial plan, resolves genuine conflicts between
-workspaces, chooses a new route when a lineage budget is exhausted, and decides
-when to stop. Routine syntax, ABI, compiler, simulation, or Lean failures do not
-return to the Architect. They stay with the model that owns the source.
+The Architect creates the initial plan, resolves independently evidenced conflicts
+between workspaces, and decides when to stop. Exhausting a source-workspace budget
+produces a typed block; it does not by itself trigger another routing call. Routine
+syntax, ABI, compiler, simulation, or Lean failures stay with the model that owns
+the source.
 
 Every source-owning workspace uses the same loop:
 
@@ -173,8 +174,8 @@ The minimal control pattern is:
 Architect authors one complete protocol
   -> independent reviewer reports source-grounded findings
   -> author may revise the complete pre-result protocol once within budget
-  -> Architect resolves any remaining cross-workspace conflict
-  -> execution evaluates the frozen protocol
+  -> accept and freeze, or block the source workspace
+  -> execution evaluates only an accepted frozen protocol
 ```
 
 The reviewer reports defects and evidence; it does not choose a `repair_scope` or
@@ -183,6 +184,12 @@ operation with separate model contexts and visible timing substages. They should
 be promoted into two additional outer tasks merely for telemetry. Independent review
 and pre-result freezing remain required while ownership routers and duplicate finding
 taxonomies are removed.
+
+A rejected `metric_contract_review` returns the exact findings to the same metric
+author inside that bounded operation. If the revised candidate remains rejected,
+the operation blocks with its full lineage; it does not ask Architect to reinterpret
+a protocol defect as a TheoryDeveloper task. A later outer-plan change requires a
+separately evidenced cross-workspace inconsistency.
 
 A rejected `theory_execution_preflight` returns its observations directly to the
 exact parent-bound TheoryDeveloper workspace. This is a fixed stage-ownership
@@ -243,6 +250,12 @@ and manifests. Full raw output remains available by reference; prompts receive
 only the current source, active observations, target identity, and bounded
 retrieval context.
 
+Workspace completion is parent-bound. A Theory revision retires active Algorithm,
+Simulation, Formalization, accepted-review, and handoff references; historical IDs
+remain audit-only. A lane counts as completed only when its recorded parent IDs
+match the current immutable parents, so an old success cannot close a revised
+lineage.
+
 ## Model policy
 
 Anthropic is the current live provider. Opus is forbidden everywhere. Production
@@ -274,16 +287,19 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-11, v330 is the authoritative development panel: 0/2 exact
-source-theorem closures, capability scorecard 9/16, and both tasks blocked. All
+As of 2026-08-11, v333 is the authoritative development panel: 0/2 exact
+source-theorem closures, capability scorecard 6/16, and both tasks blocked. All
 nine enabled LLM subsystems used exactly `claude-haiku-4-5-20251001`. The run
-recorded five live algorithm executions, one live simulation execution, two local
-Lean checks, zero compiling Lean targets, and zero kernel-verified subclaims. The
-simulation exercised reviewed estimator callbacks but failed its frozen metric
-gate; the Sequential lineage exhausted independent algorithm review and then
-incorrectly offered Simulation without an accepted handoff. The latter topology
-error is corrected in deterministic tests but has not yet been revalidated by a
-fresh panel.
+recorded three live generated-algorithm executions, zero generated-simulation
+executions, two local Lean checks, zero compiling Lean targets, and zero
+kernel-verified subclaims. Survival reached a revised Theory but then exposed two
+shared control defects: old downstream completion survived the parent change, and
+metric-author findings were routed through Architect to TheoryDeveloper. Sequential
+used stable prior-finding identities but exhausted its bounded Theory revisions on
+substantive mathematical findings. Parent-bound lane completion, descendant
+invalidation, source-local metric rejection, and removal of the hard-coded
+`proof_first` default are now covered by deterministic tests, but have not yet been
+revalidated by a fresh panel.
 
 An exact-Haiku component diagnostic of the simplified preflight used three turns
 and four tool calls, including two independent searches in one turn, with no
@@ -324,10 +340,10 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-The immediate priorities are to exercise the corrected theory and scientific
-source paths in a fresh exact-Haiku development panel, shrink the still-large
-preflight and metric schemas, and improve active-project context, retrieval, and
-compiler ergonomics in the direct Lean loop. Small parallel candidate or lemma
+The immediate priorities are to exercise the corrected parent-bound graph and
+source-local feedback in a fresh exact-Haiku development panel, shrink the
+still-large preflight and metric schemas, and improve active-project context,
+retrieval, and compiler ergonomics in the direct Lean loop. Small parallel candidate or lemma
 work may be added inside an existing workspace only after the serial loop is
 stable and only with the same execution and evidence gates. Estimator-interface
 authoring should move into the workspace only if fresh traces show its bounded

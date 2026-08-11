@@ -360,7 +360,7 @@ def _default_recommended_research_path_for_policy(
 ) -> str:
     policy = _normalized_formal_verification_policy(formal_verification_policy)
     if policy == "required":
-        return "proof_first"
+        return "dual_track"
     if policy == "advisory":
         return "simulation_first"
     return "dual_track"
@@ -501,6 +501,45 @@ def _runtime_architect_context_with_requested_evidence_contract(
 
 def _runtime_architect_operation(task: AgentTask) -> str:
     return str(task.inputs.get("runtime_architect_operation", "") or "").strip()
+
+
+_THEORY_DESCENDANT_CONTEXT_FIELDS = (
+    "accepted_generated_code_semantic_reviews",
+    "accepted_implementation_interface_handoff",
+    "algorithm_sandbox_manifest_id",
+    "architect_theory_execution_preflight_acceptance",
+    "confirmatory_simulation_requires_accepted_algorithm_handoff",
+    "formalization_manifest_id",
+    "formalizer_lean_candidate_materialization_manifest_id",
+    "runtime_generated_code_semantic_review_replan",
+    "runtime_generated_code_semantic_review_replan_resolution",
+    "simulation_manifest_id",
+    "theory_execution_preflight_packet_hash",
+    "theory_execution_preflight_packet_id",
+    "upstream_algorithm_handoff",
+)
+
+
+def _context_with_invalidated_theory_descendants(
+    architect_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Retire active descendants when their immutable theory parent changes."""
+
+    context = dict(architect_context)
+    historical_fields = {
+        "algorithm_sandbox_manifest_id": "previous_algorithm_sandbox_manifest_id",
+        "formalization_manifest_id": "previous_formalization_manifest_id",
+        "formalizer_lean_candidate_materialization_manifest_id": (
+            "previous_formalizer_lean_candidate_materialization_manifest_id"
+        ),
+        "simulation_manifest_id": "previous_simulation_manifest_id",
+    }
+    for field in _THEORY_DESCENDANT_CONTEXT_FIELDS:
+        value = context.pop(field, None)
+        historical_field = historical_fields.get(field, "")
+        if historical_field and value not in (None, "", [], {}):
+            context[historical_field] = value
+    return context
 
 
 def _compiled_post_theory_workspace_owner(
@@ -2391,6 +2430,10 @@ def _architect_initial_routing_decision(
         ),
         "proof_evidence_status": "ARCHITECT_INITIAL_ROUTING_NOT_PROOF_EVIDENCE",
     }
+    record["parent_artifact_ids"] = _runtime_workspace_parent_artifact_ids(
+        selected["selected_subsystem"],
+        context,
+    )
     if routed_environment_feedback:
         record["environment_feedback_forwarded"] = True
         record["environment_feedback_type"] = str(
@@ -3124,11 +3167,7 @@ def _architect_context_simulation_manifest_id(
 ) -> str:
     if not isinstance(architect_context, Mapping):
         return ""
-    return str(
-        architect_context.get("simulation_manifest_id", "")
-        or architect_context.get("previous_simulation_manifest_id", "")
-        or ""
-    ).strip()
+    return str(architect_context.get("simulation_manifest_id", "") or "").strip()
 
 
 def _architect_context_algorithm_sandbox_manifest_id(
@@ -3137,9 +3176,7 @@ def _architect_context_algorithm_sandbox_manifest_id(
     if not isinstance(architect_context, Mapping):
         return ""
     return str(
-        architect_context.get("algorithm_sandbox_manifest_id", "")
-        or architect_context.get("previous_algorithm_sandbox_manifest_id", "")
-        or ""
+        architect_context.get("algorithm_sandbox_manifest_id", "") or ""
     ).strip()
 
 
@@ -3150,10 +3187,6 @@ def _architect_context_formalizer_lean_candidate_materialization_id(
         return ""
     return str(
         architect_context.get("formalizer_lean_candidate_materialization_manifest_id", "")
-        or architect_context.get(
-            "previous_formalizer_lean_candidate_materialization_manifest_id",
-            "",
-        )
         or architect_context.get("source_materialization_manifest_id", "")
         or ""
     ).strip()
@@ -3165,9 +3198,7 @@ def _architect_context_formalization_manifest_id(
     if not isinstance(architect_context, Mapping):
         return ""
     return str(
-        architect_context.get("formalization_manifest_id", "")
-        or architect_context.get("previous_formalization_manifest_id", "")
-        or ""
+        architect_context.get("formalization_manifest_id", "") or ""
     ).strip()
 
 
@@ -3380,18 +3411,30 @@ def _runtime_outer_graph_plan(
 
 
 def _runtime_executed_subsystems(
-    blackboard: BlackboardState,
     *,
-    current_subsystem: str,
+    architect_context: Mapping[str, Any],
 ) -> set[str]:
-    return {
-        current_subsystem,
-        *(
-            handoff.from_subsystem
-            for handoff in blackboard.handoff_ledger
-            if handoff.from_subsystem
-        ),
-    }
+    executed: set[str] = set()
+    for outcome in architect_context.get(
+        "runtime_outer_graph_workspace_outcomes", []
+    ) or []:
+        if not isinstance(outcome, Mapping):
+            continue
+        subsystem = str(outcome.get("source_subsystem", "") or "")
+        if subsystem not in RUNTIME_PRIMARY_EVIDENCE_SUBSYSTEMS:
+            continue
+        expected_parents = _runtime_workspace_parent_artifact_ids(
+            subsystem,
+            architect_context,
+        )
+        observed_parents = outcome.get("parent_artifact_ids", {})
+        if (
+            expected_parents
+            and isinstance(observed_parents, Mapping)
+            and dict(observed_parents) == expected_parents
+        ):
+            executed.add(subsystem)
+    return executed
 
 
 def _runtime_workspace_parent_artifact_ids(
@@ -3414,6 +3457,44 @@ def _runtime_workspace_parent_artifact_ids(
         for field in parent_fields
         if (value := str(task_inputs.get(field, "") or "").strip())
     }
+
+
+def _runtime_task_parent_artifact_ids(
+    subsystem_name: str,
+    task_inputs: Mapping[str, Any],
+) -> dict[str, str]:
+    context = task_inputs.get("architect_context", {})
+    parent_inputs = dict(context) if isinstance(context, Mapping) else {}
+    parent_inputs.update(
+        {
+            field: value
+            for field in (
+                "retrieval_memory_manifest_id",
+                "theory_packet_id",
+                "algorithm_sandbox_manifest_id",
+            )
+            if (value := task_inputs.get(field)) not in (None, "")
+        }
+    )
+    return _runtime_workspace_parent_artifact_ids(
+        subsystem_name,
+        parent_inputs,
+    )
+
+
+def _runtime_outcome_matches_task_lineage(
+    outcome: Mapping[str, Any],
+    *,
+    subsystem_name: str,
+    task_inputs: Mapping[str, Any],
+) -> bool:
+    expected = _runtime_task_parent_artifact_ids(subsystem_name, task_inputs)
+    observed = outcome.get("parent_artifact_ids", {})
+    return bool(
+        expected
+        and isinstance(observed, Mapping)
+        and dict(observed) == expected
+    )
 
 
 def _runtime_outer_graph_context(
@@ -3464,7 +3545,7 @@ def _runtime_outer_graph_context(
         "failure_classification": result.failure_classification,
         "rationale": result.rationale,
         "produced_artifact_ids": list(result.produced_artifacts),
-        "parent_artifact_ids": _runtime_workspace_parent_artifact_ids(
+        "parent_artifact_ids": _runtime_task_parent_artifact_ids(
             subsystem_name,
             task.inputs,
         ),
@@ -3476,21 +3557,20 @@ def _runtime_outer_graph_context(
         for row in context.get("runtime_outer_graph_workspace_outcomes", []) or []
         if isinstance(row, Mapping)
     ]
-    outcome_key = (
-        outcome["source_task_id"],
+    outcome_lineage = (
         outcome["source_subsystem"],
-        outcome["local_status"],
+        stable_hash(outcome["parent_artifact_ids"]),
     )
-    if not any(
-        (
-            row.get("source_task_id"),
-            row.get("source_subsystem"),
-            row.get("local_status"),
-        )
-        == outcome_key
+    prior_outcomes = [
+        row
         for row in prior_outcomes
-    ):
-        prior_outcomes.append(outcome)
+        if (
+            str(row.get("source_subsystem", "") or ""),
+            stable_hash(dict(row.get("parent_artifact_ids", {}) or {})),
+        )
+        != outcome_lineage
+    ]
+    prior_outcomes.append(outcome)
     context["runtime_outer_graph_workspace_outcomes"] = prior_outcomes[-12:]
     return context, outcome
 
@@ -3529,10 +3609,7 @@ def _runtime_outer_graph_continuation(
     planned = plan_context["planned_subsystems"]
     if not planned:
         return None
-    executed = _runtime_executed_subsystems(
-        blackboard,
-        current_subsystem=subsystem_name,
-    )
+    executed = _runtime_executed_subsystems(architect_context=context)
     remaining = [subsystem for subsystem in primary if subsystem not in executed]
     next_owner = remaining[0] if remaining else ""
     if not next_owner and "CriticEvaluator" in planned and (
@@ -3748,6 +3825,11 @@ def _runtime_transition_policy(
         isinstance(row, Mapping)
         and str(row.get("source_subsystem", "") or "")
         == next_task.owner_subsystem
+        and _runtime_outcome_matches_task_lineage(
+            row,
+            subsystem_name=next_task.owner_subsystem,
+            task_inputs=next_task.inputs,
+        )
         for row in prior_workspace_outcomes or []
     )
     if completed_next_lane and subsystem_name != "CriticEvaluator":
@@ -4430,6 +4512,7 @@ class TheoryDeveloperRuntimeSubsystem:
             packet = dict(packet)
             packet.setdefault("parent_theory_packet_id", prior_theory_packet_id)
             packet["runtime_revision_artifact"] = True
+            context = _context_with_invalidated_theory_descendants(context)
         context["theory_packet_id"] = packet_id
         theory_derivation_contract = dict(
             packet.get("theory_derivation_contract", {}) or {}
@@ -7494,7 +7577,6 @@ class SimulationEvaluatorRuntimeSubsystem:
         algorithm_sandbox_manifest_id = str(
             task.inputs.get("algorithm_sandbox_manifest_id", "")
             or context.get("algorithm_sandbox_manifest_id", "")
-            or context.get("previous_algorithm_sandbox_manifest_id", "")
             or ""
         ).strip()
         upstream_algorithm_handoff: dict[str, Any] = {}
@@ -7520,8 +7602,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             )
             if not upstream_algorithm_handoff:
                 simulation_manifest_id = str(
-                    context.get("previous_simulation_manifest_id", "")
-                    or context.get("simulation_manifest_id", "")
+                    context.get("simulation_manifest_id", "")
                     or ""
                 )
                 missing_handoff = (

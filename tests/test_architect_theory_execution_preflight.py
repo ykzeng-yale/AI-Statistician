@@ -1914,6 +1914,66 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
     ]
 
 
+def test_metric_review_exhaustion_blocks_in_source_workspace() -> None:
+    history = [
+        {
+            "revision_index": 1,
+            "review_stage": "metric_contract_review",
+            "source_theory_packet_id": "theory_derivation:generic",
+            "source_theory_packet_hash": "generic-theory-hash",
+            "authoring_packet_id": "metric-authoring:revision-1",
+            "semantic_review_packet_id": "metric-review:revision-1",
+            "overall_verdict": "REVISE",
+            "findings": [
+                {
+                    "finding_id": "metric:interface-mismatch",
+                    "severity": "high",
+                    "category": "runtime_interface",
+                    "summary": "The declared metric output does not match the consumer.",
+                    "observed_behavior": "The metric returns a vector.",
+                    "expected_behavior": "The consumer requires one scalar.",
+                    "evidence_refs": ["metric_contract.output"],
+                }
+            ],
+            "active_unresolved_finding_ids": ["metric:interface-mismatch"],
+        }
+    ]
+
+    result = architect_preexecution_metric_protocol_rejection_result(
+        task=AgentTask(
+            task_id="architect:generic-metric-rejection",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Record bounded metric-authoring exhaustion.",
+        ),
+        question=_question(),
+        semantic_review_history=history,
+        architect_context={
+            "theory_packet_id": "theory_derivation:generic",
+            "architect_metric_protocol_gate": {
+                "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                "source_theory_packet_id": "theory_derivation:generic",
+                "upstream_theory_revision_count": 0,
+                "execution_authorized": False,
+            },
+        },
+        max_upstream_theory_revisions=2,
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "architect_metric_protocol_source_workspace_exhausted"
+    )
+    manifest = next(iter(result.produced_artifacts.values()))
+    assert manifest["architect_route_requested"] is False
+    assert manifest["upstream_theory_revision_routed"] is False
+    assert manifest["upstream_theory_revision_count"] == 0
+    assert len(manifest["semantic_review_history"]) == 1
+    assert result.evidence_entries[0].status == (
+        "PREEXECUTION_PROTOCOL_REJECTED_SOURCE_WORKSPACE_EXHAUSTED"
+    )
+
+
 def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -> None:
     rejected_packet, _backend = _review(accept=False)
     finding_id = rejected_packet["active_unresolved_finding_ids"][0]
