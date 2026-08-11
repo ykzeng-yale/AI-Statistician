@@ -84,8 +84,9 @@ canonical use is limited to compact control and handoff envelopes. Substantive
 theory, Python, R, and Lean artifacts belong in model-owned workspaces where the
 same model receives raw validator or environment observations and submits complete
 artifact replacements. Runtime never fills in substantive fields. Initial theory
-discovery still uses a large structured packet today; that is explicit technical
-debt, not the target design.
+discovery and targeted revision use that workspace today. The bounded estimator-
+interface handoff still uses structured output; it remains acceptable only while
+it is small, visible, and not losing source-owner feedback.
 
 ## Theory workspace
 
@@ -101,11 +102,13 @@ than treating a small JSON packet as the theory itself. Its durable products are
 
 Compact structured packets are handoff indexes into this workspace. Fixed numbers
 of equations, lemmas, or characters are transport limits, never quality criteria.
-Targeted theory revision now uses this model-owned workspace pattern with
-read-on-demand parent and reviewer artifacts, typed complete replacements, and
-same-session validator feedback. Initial discovery is not yet persistent, and the
-system must not claim full theory-development capability until fresh evaluations
-exercise both discovery and revision across unrelated tasks.
+Initial discovery and targeted revision now share this model-owned workspace
+pattern. Initial discovery reads one content-addressed question/Architect/RAG/
+contract context and may author coherent artifact groups across bounded
+submissions; revision reads the exact parent and reviewer artifacts on demand.
+Both receive raw validator feedback in the same model session. Capability audit
+requires this direct evidence, but the system must not claim full theory-
+development capability until fresh cross-family evaluations exercise both paths.
 
 ## Scientific coding workspace
 
@@ -232,8 +235,10 @@ source-theorem closures with a 9/16 capability scorecard. It exposed a root-line
 error: dependent formal and empirical work continued after a rejected theory
 revision failed. The canonical runtime now stops that dependency chain, and a
 focused exact-Haiku replay accepted the corrected flat typed workspace protocol in
-two turns. Those corrections are not fresh panel evidence. The held-out panel
-remains sealed and the system is not yet fully end to end.
+two turns. A separate production-context component run then authored all ten
+initial theory artifacts in four exact-Haiku tool turns after the read-only context
+was consolidated to one artifact. Those corrections are not fresh panel evidence.
+The held-out panel remains sealed and the system is not yet fully end to end.
 
 ## Structural constraints
 
@@ -267,12 +272,13 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-The immediate priorities are to exercise the corrected theory lineage in a fresh
-exact-Haiku development panel, move initial substantive theory authoring into the
-artifact workspace where live ablation supports it, consolidate the metric
-protocol control plane, and improve direct Python/R and Lean loops. No new
-subsystem should be added unless it removes more control paths than it introduces
-or represents a genuinely independent authority boundary.
+The immediate priorities are to exercise both corrected theory paths in a fresh
+exact-Haiku development panel, consolidate the metric protocol control plane, and
+improve direct Python/R and Lean loops. Estimator-interface authoring should move
+into the workspace only if fresh traces show its bounded structured stage is a
+material feedback blocker. No new subsystem should be added unless it removes more
+control paths than it introduces or represents a genuinely independent authority
+boundary.
 
 ## Basic checks
 
