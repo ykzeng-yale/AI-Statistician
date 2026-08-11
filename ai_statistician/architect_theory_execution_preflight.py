@@ -37,7 +37,8 @@ from .metric_protocol_finding_ledger import (
     update_metric_protocol_finding_ledger,
 )
 from .research_schema import OpenResearchQuestion
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 14
+
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 15
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 19
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
@@ -45,32 +46,6 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "ideal_to_executable_observation_mapping",
     "termination_censoring_and_resource_feasibility",
     "guarantee_transport_and_measurement_identifiability",
-)
-_ESTIMATOR_DECLARATION_REQUIREMENTS = (
-    (
-        "independent_identity_check_consistent",
-        "consistent independent primitive-identity check",
-    ),
-    (
-        "procedure_identity_declared_valid",
-        "established procedure identity",
-    ),
-    (
-        "theorem_applications_declared_valid",
-        "valid theorem applications",
-    ),
-    (
-        "ideal_to_executable_mapping_declared",
-        "source-declared executable mapping",
-    ),
-    (
-        "total_or_typed_bounded_outcome_declared",
-        "bounded or typed outcome",
-    ),
-    (
-        "guarantee_transport_argument_declared",
-        "guarantee transport",
-    ),
 )
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
@@ -82,7 +57,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_optional_source_query_v7"
+    "client_tool_optional_source_query_v8"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
@@ -696,15 +671,8 @@ def architect_theory_execution_preflight_json_schema(
                     "additionalProperties": False,
                     "required": [
                         "audit_rationale",
-                        "identity_check_case",
-                        "identity_check_recomputation",
-                        "identity_check_candidate_output",
-                        "independent_identity_check_consistent",
-                        "procedure_identity_declared_valid",
-                        "theorem_applications_declared_valid",
-                        "ideal_to_executable_mapping_declared",
-                        "total_or_typed_bounded_outcome_declared",
-                        "guarantee_transport_argument_declared",
+                        "identity_check",
+                        "blocking_gaps",
                         "boundary_or_counterexample",
                         "status",
                         "evidence_refs",
@@ -713,88 +681,39 @@ def architect_theory_execution_preflight_json_schema(
                         "audit_rationale": {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 720,
+                            "maxLength": 900,
                             "description": (
-                                "Compactly audit the source-declared procedure identity; "
-                                "adaptive choices or operators; invoked theorem hypotheses "
-                                "under the conclusion law; executable mapping and total or "
-                                "typed bounded outcomes; and guarantee transport. Recompute "
-                                "rather than restating source prose. Put each blocking defect "
-                                "in findings instead of duplicating it here."
+                                "Audit the complete source-declared execution contract: "
+                                "procedure identity after adaptive choices, invoked theorem "
+                                "hypotheses under the conclusion law, executable mapping, "
+                                "typed boundary outcomes, and guarantee transport. The model "
+                                "owns this judgment; do not merely restate source prose."
                             ),
                         },
-                        "identity_check_case": {
+                        "identity_check": {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 280,
+                            "maxLength": 900,
                             "description": (
-                                "One nontrivial admitted input or regime used for the "
-                                "independent check. It must discriminate the primitive "
-                                "definition from a candidate with omitted support, "
-                                "weights, normalization, or data dependence; avoid "
-                                "initialization and symmetry-only cases."
+                                "On one discriminating admitted case or regime, state the "
+                                "primitive recomputation, candidate executable output, and "
+                                "whether they agree. Include support, normalization, weights, "
+                                "and data dependence that matter; avoid symmetry-only or "
+                                "source-authored sanity-check cases."
                             ),
                         },
-                        "identity_check_recomputation": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 520,
+                        "blocking_gaps": {
+                            "type": "array",
+                            "maxItems": 6,
+                            "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 300,
+                            },
                             "description": (
-                                "Compute the expected quantity from primitive definitions "
-                                "on identity_check_case, including the declared support, "
-                                "measure normalization, weights, and data dependence."
-                            ),
-                        },
-                        "identity_check_candidate_output": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 360,
-                            "description": (
-                                "Evaluate the source candidate's executable formula on "
-                                "the same identity_check_case."
-                            ),
-                        },
-                        "independent_identity_check_consistent": {
-                            "type": "boolean",
-                            "description": (
-                                "True only when the independent primitive recomputation "
-                                "and candidate output agree on the same nontrivial case."
-                            ),
-                        },
-                        "procedure_identity_declared_valid": {
-                            "type": "boolean",
-                            "description": (
-                                "True only when the supplied derivation establishes the "
-                                "recomputed identity after every declared adaptive choice "
-                                "or operator; reviewer prose cannot fill a missing argument."
-                            ),
-                        },
-                        "theorem_applications_declared_valid": {
-                            "type": "boolean",
-                            "description": (
-                                "True only when the source establishes every invoked "
-                                "theorem hypothesis under the law governing its conclusion."
-                            ),
-                        },
-                        "ideal_to_executable_mapping_declared": {
-                            "type": "boolean",
-                            "description": (
-                                "True only when the source explicitly maps every ideal "
-                                "outcome to an executable observation."
-                            ),
-                        },
-                        "total_or_typed_bounded_outcome_declared": {
-                            "type": "boolean",
-                            "description": (
-                                "True only when the source establishes total return or "
-                                "declares timeout, truncation, or censoring as a typed outcome."
-                            ),
-                        },
-                        "guarantee_transport_argument_declared": {
-                            "type": "boolean",
-                            "description": (
-                                "True only when the source derives how the ideal guarantee "
-                                "applies to the executable observation or changed estimand."
+                                "Source-level gaps that make this estimator FAIL or UNCERTAIN. "
+                                "Return an empty array only with PASS. Put each distinct "
+                                "blocking defect in findings as well."
                             ),
                         },
                         "boundary_or_counterexample": {
@@ -1573,10 +1492,7 @@ def _all_execution_review_rows_pass(packet: Mapping[str, Any]) -> bool:
     ) and all(
         isinstance(row, Mapping)
         and str(row.get("status", "") or "").strip().upper() == "PASS"
-        and all(
-            row.get(field) is True
-            for field, _description in _ESTIMATOR_DECLARATION_REQUIREMENTS
-        )
+        and not list(row.get("blocking_gaps", []) or [])
         for row in estimator_rows
     )
 
@@ -1596,50 +1512,6 @@ def _derived_verdict(packet: Mapping[str, Any]) -> str:
         and not packet.get("findings", [])
         else "REVISE"
     )
-
-
-def _derived_consistency_warnings(packet: Mapping[str, Any]) -> list[dict[str, str]]:
-    dimension_rows = [
-        row
-        for row in packet.get("dimension_reviews", []) or []
-        if isinstance(row, Mapping)
-    ]
-    estimator_rows = [
-        row
-        for row in packet.get("estimator_execution_checks", []) or []
-        if isinstance(row, Mapping)
-    ]
-    primitive_dimension = next(
-        (
-            row
-            for row in dimension_rows
-            if str(row.get("dimension", "") or "")
-            == "primitive_mathematical_consistency"
-        ),
-        {},
-    )
-    invalid_identity_ids = [
-        str(row.get("estimator_id", "") or "")
-        for row in estimator_rows
-        if row.get("independent_identity_check_consistent") is not True
-        or row.get("procedure_identity_declared_valid") is not True
-        or row.get("theorem_applications_declared_valid") is not True
-    ]
-    if invalid_identity_ids and str(
-        primitive_dimension.get("status", "") or ""
-    ).strip().upper() == "PASS":
-        return [
-            {
-                "warning_code": "primitive_summary_conflicts_with_estimator_checks",
-                "summary": (
-                    "The reviewer marked primitive mathematical consistency PASS "
-                    "while at least one estimator identity or theorem application "
-                    "remains unestablished. Fine-grained checks control the verdict."
-                ),
-                "estimator_ids": ",".join(invalid_identity_ids),
-            }
-        ]
-    return []
 
 
 def _source_interface_inventories(
@@ -1663,22 +1535,6 @@ def _source_interface_inventories(
         if estimator_id and isinstance(inventory, Mapping):
             inventories[estimator_id] = dict(inventory)
     return inventories
-
-
-def _invalid_estimator_declarations(
-    row: Mapping[str, Any],
-) -> list[tuple[str, str]]:
-    return [
-        (field, description)
-        for field, description in _ESTIMATOR_DECLARATION_REQUIREMENTS
-        if row.get(field) is not True
-    ]
-
-
-def _normalize_estimator_status_summaries(
-    rows: Sequence[Mapping[str, Any]],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    return [dict(row) for row in rows], []
 
 
 def _ordered_review_slot_rows(
@@ -1861,10 +1717,7 @@ def _normalize_packet(
                 "runtime_selected_semantics": False,
             }
         )
-    (
-        body["estimator_execution_checks"],
-        body["runtime_estimator_status_normalizations"],
-    ) = _normalize_estimator_status_summaries(estimator_rows)
+    body["estimator_execution_checks"] = estimator_rows
     body["runtime_estimator_identity_bindings"] = estimator_identity_bindings
     normalized_findings: list[dict[str, Any]] = list(
         prior_finding_continuations
@@ -1966,7 +1819,6 @@ def _normalize_packet(
                 "runtime_selected_semantics": False,
             }
         )
-    body["derived_consistency_warnings"] = _derived_consistency_warnings(body)
     body["overall_verdict"] = _derived_verdict(body)
     packet_id = "architect_theory_execution_preflight:" + stable_hash(
         [
@@ -2193,66 +2045,37 @@ def validate_architect_theory_execution_preflight_packet(
 
     for row_index, row in enumerate(estimator_rows):
         status = str(row.get("status", "") or "").strip().upper()
-        invalid_declarations = _invalid_estimator_declarations(row)
-        if status == "PASS" and invalid_declarations:
-            estimator_id = str(row.get("estimator_id", "") or "").strip()
+        estimator_id = str(row.get("estimator_id", "") or "").strip()
+        for field in (
+            "audit_rationale",
+            "identity_check",
+            "boundary_or_counterexample",
+        ):
+            if not str(row.get(field, "") or "").strip():
+                errors.append(
+                    f"estimator_execution_checks[{row_index}] estimator_id="
+                    f"{estimator_id!r} missing model-authored {field}"
+                )
+        blocking_gaps = row.get("blocking_gaps", [])
+        valid_blocking_gaps = isinstance(blocking_gaps, list) and all(
+            str(value or "").strip() for value in blocking_gaps
+        )
+        if not valid_blocking_gaps:
             errors.append(
                 f"estimator_execution_checks[{row_index}] estimator_id="
-                f"{estimator_id!r} status=PASS has false or missing declaration "
-                "flags: "
-                + ", ".join(
-                    f"estimator_execution_checks[{row_index}].{field} "
-                    f"({description})"
-                    for field, description in invalid_declarations
-                )
+                f"{estimator_id!r} blocking_gaps must be an array of nonempty strings"
             )
-    normalization_rows = packet.get("runtime_estimator_status_normalizations", [])
-    if not isinstance(normalization_rows, list):
-        errors.append(
-            "theory execution preflight estimator status normalizations must be a list"
-        )
-        normalization_rows = []
-    estimator_rows_by_id = {
-        str(row.get("estimator_id", "") or "").strip(): row
-        for row in estimator_rows
-    }
-    observed_normalization_ids: set[str] = set()
-    for normalization in normalization_rows:
-        if not isinstance(normalization, Mapping):
+            blocking_gaps = []
+        if status == "PASS" and blocking_gaps:
             errors.append(
-                "theory execution preflight estimator status normalization is invalid"
+                f"estimator_execution_checks[{row_index}] estimator_id="
+                f"{estimator_id!r} status=PASS cannot report blocking_gaps"
             )
-            continue
-        estimator_id = str(normalization.get("estimator_id", "") or "").strip()
-        row = estimator_rows_by_id.get(estimator_id)
-        expected_fields = (
-            [field for field, _description in _invalid_estimator_declarations(row)]
-            if row is not None
-            else []
-        )
-        if (
-            not estimator_id
-            or estimator_id in observed_normalization_ids
-            or row is None
-            or normalization.get("model_reported_status") != "PASS"
-            or normalization.get("runtime_normalized_status") != "UNCERTAIN"
-            or str(row.get("status", "") or "").strip().upper() != "UNCERTAIN"
-            or list(
-                normalization.get("false_or_missing_declaration_fields", []) or []
-            )
-            != expected_fields
-            or not expected_fields
-            or normalization.get("runtime_selected_semantics") is not False
-        ):
+        if status in {"FAIL", "UNCERTAIN"} and not blocking_gaps:
             errors.append(
-                "theory execution preflight estimator status normalization mismatch"
+                f"estimator_execution_checks[{row_index}] estimator_id="
+                f"{estimator_id!r} status={status} requires a model-authored blocking gap"
             )
-        observed_normalization_ids.add(estimator_id)
-    normalization_by_id = {
-        str(row.get("estimator_id", "") or "").strip(): row
-        for row in normalization_rows
-        if isinstance(row, Mapping)
-    }
     expected_estimator_identity_bindings: list[dict[str, Any]] = []
     for transport_index, row in enumerate(estimator_rows):
         estimator_id = str(row.get("estimator_id", "") or "").strip()
@@ -2261,13 +2084,7 @@ def validate_architect_theory_execution_preflight_packet(
             for key, value in row.items()
             if key != "estimator_id"
         }
-        normalization = normalization_by_id.get(estimator_id, {})
-        model_reported_status = (
-            normalization.get("model_reported_status")
-            if normalization
-            else model_row.get("status")
-        )
-        model_row["status"] = model_reported_status
+        model_reported_status = model_row.get("status")
         expected_estimator_identity_bindings.append(
             {
                 "transport_index": transport_index,
@@ -2284,11 +2101,6 @@ def validate_architect_theory_execution_preflight_packet(
         errors.append(
             "theory execution preflight estimator identity bindings mismatch"
         )
-    if packet.get("derived_consistency_warnings", []) != (
-        _derived_consistency_warnings(packet)
-    ):
-        errors.append("theory execution preflight consistency warnings mismatch")
-
     valid_anchor_ids = {
         str(row.get("anchor_id", "") or "")
         for row in material.get("anchor_catalog", []) or []

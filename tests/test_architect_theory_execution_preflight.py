@@ -342,20 +342,19 @@ def _payload(*, accept: bool) -> dict[str, object]:
                     else "The source merely asserts eventual occurrence and does not "
                     "connect the stopped finite observation to the claimed ideal risk."
                 ),
-                "identity_check_case": "A finite two-observation input with one event.",
-                "identity_check_recomputation": (
-                    "From the primitive first-event definition, the returned index is "
-                    "the position of the event, with a typed censored output if absent."
+                "identity_check": (
+                    "On a finite two-observation input with one event, the primitive "
+                    "first-event definition returns "
+                    "the position of the event, with a typed censored output if absent; "
+                    "the declared candidate returns that same index or censored output."
                 ),
-                "identity_check_candidate_output": (
-                    "The declared candidate returns that same index or censored output."
+                "blocking_gaps": (
+                    []
+                    if accept
+                    else [
+                        "The stopped finite observation is not connected to the ideal risk."
+                    ]
                 ),
-                "independent_identity_check_consistent": accept,
-                "procedure_identity_declared_valid": accept,
-                "theorem_applications_declared_valid": accept,
-                "ideal_to_executable_mapping_declared": accept,
-                "total_or_typed_bounded_outcome_declared": accept,
-                "guarantee_transport_argument_declared": accept,
                 "boundary_or_counterexample": (
                     "The no-event finite input returns the censored outcome."
                     if accept
@@ -442,7 +441,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_optional_source_query_v7"
+        "client_tool_optional_source_query_v8"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
@@ -919,7 +918,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     ):
         assert phrase in protocol
     assert packet["overall_verdict"] == "ACCEPT"
-    assert packet["runtime_estimator_status_normalizations"] == []
+    assert "runtime_estimator_status_normalizations" not in packet
     assert packet["runtime_estimator_identity_bindings"][0][
         "identity_source"
     ] == "estimator_execution_checks_ordered_index"
@@ -1130,7 +1129,7 @@ def test_preflight_prior_finding_schema_uses_compact_required_slots() -> None:
     ) < 400
 
 
-def test_preflight_required_slots_survive_anthropic_strict_transform() -> None:
+def test_preflight_v344_shape_survives_anthropic_strict_transform() -> None:
     anthropic = pytest.importorskip("anthropic")
     material = build_architect_theory_execution_preflight_material(
         question=_question(),
@@ -1140,13 +1139,35 @@ def test_preflight_required_slots_survive_anthropic_strict_transform() -> None:
             "simulation_targets": ["evaluate the declared risk"],
         },
     )
+    material["required_estimator_ids"] = ["estimator_a", "estimator_b"]
+    material["active_prior_finding_ids"] = [
+        "finding:0",
+        "finding:1",
+        "finding:2",
+    ]
     schema = _architect_theory_execution_preflight_submit_schema(material)
     transformed = anthropic.transform_schema(schema)
 
-    for field in ("dimension_reviews", "estimator_execution_checks"):
+    for field in (
+        "dimension_reviews",
+        "estimator_execution_checks",
+        "prior_finding_reviews",
+    ):
         assert transformed["properties"][field]["required"] == (
             schema["properties"][field]["required"]
         )
+    estimator_properties = transformed["$defs"][
+        "estimator_execution_check"
+    ]["properties"]
+    assert set(estimator_properties) == {
+        "audit_rationale",
+        "identity_check",
+        "blocking_gaps",
+        "boundary_or_counterexample",
+        "status",
+        "evidence_refs",
+    }
+    assert len(json.dumps(transformed, separators=(",", ":"))) < 7_500
 
 
 def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> None:
@@ -1161,15 +1182,8 @@ def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> No
 
     assert estimator_schema["required"] == [
         "audit_rationale",
-        "identity_check_case",
-        "identity_check_recomputation",
-        "identity_check_candidate_output",
-        "independent_identity_check_consistent",
-        "procedure_identity_declared_valid",
-        "theorem_applications_declared_valid",
-        "ideal_to_executable_mapping_declared",
-        "total_or_typed_bounded_outcome_declared",
-        "guarantee_transport_argument_declared",
+        "identity_check",
+        "blocking_gaps",
         "boundary_or_counterexample",
         "status",
         "evidence_refs",
@@ -1177,14 +1191,15 @@ def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> No
     assert set(estimator_schema["properties"]) == set(
         estimator_schema["required"]
     )
-    assert estimator_schema["properties"]["audit_rationale"]["maxLength"] == 720
+    assert estimator_schema["properties"]["audit_rationale"]["maxLength"] == 900
+    assert estimator_schema["properties"]["blocking_gaps"]["maxItems"] == 6
 
 
 def test_preflight_cannot_accept_a_failed_independent_identity_check() -> None:
     packet, _backend = _review(accept=True)
-    packet["estimator_execution_checks"][0][
-        "independent_identity_check_consistent"
-    ] = False
+    packet["estimator_execution_checks"][0]["blocking_gaps"] = [
+        "The independent primitive recomputation does not match the candidate output."
+    ]
     packet["estimator_execution_checks"][0]["status"] = "FAIL"
     packet["overall_verdict"] = "REVISE"
 
@@ -1202,7 +1217,7 @@ def test_preflight_cannot_accept_a_failed_independent_identity_check() -> None:
     assert any("needs at least one finding" in error for error in errors)
 
 
-def test_preflight_cannot_accept_an_unestablished_procedure_identity() -> None:
+def test_preflight_cannot_accept_pass_with_a_model_reported_blocking_gap() -> None:
     packet, _backend = _review(accept=True)
     material = build_architect_theory_execution_preflight_material(
         question=_question(),
@@ -1212,30 +1227,24 @@ def test_preflight_cannot_accept_an_unestablished_procedure_identity() -> None:
             "simulation_targets": ["evaluate the declared risk"],
         },
     )
-    packet["estimator_execution_checks"][0][
-        "procedure_identity_declared_valid"
-    ] = False
+    packet["estimator_execution_checks"][0]["blocking_gaps"] = [
+        "The source does not establish its claimed procedure identity."
+    ]
 
     errors = validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
     )
 
-    assert any("established procedure identity" in error for error in errors)
     assert any(
-        "estimator_execution_checks[0].procedure_identity_declared_valid"
-        in error
+        "status=PASS cannot report blocking_gaps" in error
         and "estimator_id='generic_stream_method'" in error
-        for error in errors
-    )
-    assert any(
-        "consistency warnings mismatch" in error
         for error in errors
     )
     assert any("overall verdict is not runtime-derived" in error for error in errors)
 
 
-def test_preflight_cannot_accept_invalid_theorem_application() -> None:
+def test_preflight_nonpass_estimator_requires_a_model_authored_blocking_gap() -> None:
     packet, _backend = _review(accept=True)
     material = build_architect_theory_execution_preflight_material(
         question=_question(),
@@ -1245,26 +1254,23 @@ def test_preflight_cannot_accept_invalid_theorem_application() -> None:
             "simulation_targets": ["evaluate the declared risk"],
         },
     )
-    packet["estimator_execution_checks"][0][
-        "theorem_applications_declared_valid"
-    ] = False
+    packet["estimator_execution_checks"][0]["status"] = "UNCERTAIN"
+    packet["estimator_execution_checks"][0]["blocking_gaps"] = []
 
     errors = validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
     )
 
-    assert any("valid theorem applications" in error for error in errors)
     assert any(
-        "estimator_execution_checks[0].theorem_applications_declared_valid"
-        in error
+        "status=UNCERTAIN requires a model-authored blocking gap" in error
         and "estimator_id='generic_stream_method'" in error
         for error in errors
     )
-    assert any("consistency warnings mismatch" in error for error in errors)
+    assert any("overall verdict is not runtime-derived" in error for error in errors)
 
 
-def test_preflight_preserves_primitive_summary_conflict_without_retry() -> None:
+def test_preflight_preserves_model_owned_dimension_and_estimator_judgments() -> None:
     payload = _payload(accept=False)
     payload["dimension_reviews"][1] = {
         "status": "PASS",
@@ -1299,9 +1305,7 @@ def test_preflight_preserves_primitive_summary_conflict_without_retry() -> None:
 
     assert len(backend.requests) == 1
     assert packet["overall_verdict"] == "REVISE"
-    assert packet["derived_consistency_warnings"][0]["warning_code"] == (
-        "primitive_summary_conflicts_with_estimator_checks"
-    )
+    assert "derived_consistency_warnings" not in packet
     assert validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
@@ -1315,9 +1319,9 @@ def test_preflight_returns_inconsistent_estimator_pass_to_same_model() -> None:
         "rationale": "One invoked theorem hypothesis is not established.",
         "evidence_refs": ["theory.theorem_cards", "theory.estimator_specs"],
     }
-    payload["estimator_execution_checks"][0][
-        "theorem_applications_declared_valid"
-    ] = False
+    payload["estimator_execution_checks"][0]["blocking_gaps"] = [
+        "The source does not establish every invoked theorem hypothesis."
+    ]
     payload["estimator_execution_checks"][0][
         "audit_rationale"
     ] = "The source does not establish every invoked theorem hypothesis."
@@ -1327,12 +1331,10 @@ def test_preflight_returns_inconsistent_estimator_pass_to_same_model() -> None:
             "category": "unestablished_theorem_hypothesis",
             "summary": "An invoked theorem hypothesis remains unestablished.",
             "observed_behavior": (
-                "The estimator row reports PASS while its theorem-hypothesis flag "
-                "is false."
+                "The estimator row reports PASS while also reporting a blocking gap."
             ),
             "expected_behavior": (
-                "The estimator status agrees with every model-authored declaration "
-                "flag."
+                "The estimator status agrees with its model-authored blocker list."
             ),
             "evidence_refs": ["theory.theorem_cards", "theory.estimator_specs"],
         }
@@ -1388,12 +1390,14 @@ def test_preflight_returns_inconsistent_estimator_pass_to_same_model() -> None:
     assert len(backend.requests) == 2
     estimator_row = packet["estimator_execution_checks"][0]
     assert estimator_row["status"] == "UNCERTAIN"
-    assert estimator_row["theorem_applications_declared_valid"] is False
+    assert estimator_row["blocking_gaps"] == [
+        "The source does not establish every invoked theorem hypothesis."
+    ]
     assert packet["overall_verdict"] == "REVISE"
     assert packet["findings"][0]["category"] == (
         "unestablished_theorem_hypothesis"
     )
-    assert packet["runtime_estimator_status_normalizations"] == []
+    assert "runtime_estimator_status_normalizations" not in packet
     assert packet["structured_output_retry_attempts"] == 1
     assert validate_architect_theory_execution_preflight_packet(
         packet,
