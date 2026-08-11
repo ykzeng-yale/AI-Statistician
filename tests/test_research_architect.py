@@ -53,6 +53,7 @@ from ai_statistician.research_architect import (
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
     build_theory_developer_revision_inputs,
     build_theory_developer_prompt,
+    validate_theory_core_packet,
     validate_theory_packet,
 )
 from ai_statistician.research_lab import load_open_research_questions
@@ -519,10 +520,10 @@ def test_research_architect_records_llm_theory_packet_and_evidence_ledger() -> N
     assert ledger["boundary"] == KERNEL_PROOF_BOUNDARY
 
 
-def test_llm_theory_developer_validation_rejects_shallow_derivation_contract() -> None:
+def test_llm_theory_developer_validation_rejects_empty_required_structures() -> None:
     bad = _sample_response()
     derivation = dict(bad["theory_derivation_packet"])
-    derivation["derivation_steps"] = derivation["derivation_steps"][:1]
+    derivation["derivation_steps"] = []
     derivation["equation_chain"] = []
     derivation["assumption_ledger"] = []
     derivation["formalization_handoff"] = {}
@@ -536,6 +537,22 @@ def test_llm_theory_developer_validation_rejects_shallow_derivation_contract() -
     assert any("equation_chain" in error for error in errors)
     assert any("assumption_ledger" in error for error in errors)
     assert any("formalization_handoff" in error for error in errors)
+
+
+def test_theory_validation_allows_model_selected_supporting_row_counts() -> None:
+    packet = _sample_response()
+    derivation = dict(packet["theory_derivation_packet"])
+    derivation["derivation_steps"] = derivation["derivation_steps"][:1]
+    derivation["equation_chain"] = derivation["equation_chain"][:1]
+    derivation["sanity_checks"] = derivation["sanity_checks"][:1]
+    packet["theory_derivation_packet"] = derivation
+    packet["lemma_cards"] = []
+    packet["critic_findings"] = []
+    packet["next_actions"] = []
+    packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
+    packet["kernel_verified"] = False
+
+    assert validate_theory_core_packet(packet) == []
 
 
 def test_theory_validation_requires_operational_precode_semantics() -> None:
@@ -775,13 +792,10 @@ def test_serious_theory_validation_requires_explicit_sanity_recomputations() -> 
 
     errors = validate_theory_packet(packet)
 
-    assert any(
-        "sanity_checks must contain at least 3 explicit recomputations" in error
-        for error in errors
-    )
+    assert any("sanity_checks must be a non-empty list" in error for error in errors)
 
 
-def test_capability_theory_mode_requires_deeper_equation_trace(
+def test_capability_theory_mode_uses_reviewer_owned_rigor_not_row_counts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv(
@@ -797,22 +811,23 @@ def test_capability_theory_mode_requires_deeper_equation_trace(
         ),
     )
 
-    with pytest.raises(PacketValidationError) as exc_info:
-        developer.derive(
-            OpenResearchQuestion(
-                id="serious_theory",
-                title="Serious theory mode",
-                description="Require a research-grade equation trace.",
-            ),
-            architect_context={
-                "architect_runtime_plan": {
-                    "evidence_contract": {"evaluation_mode": "capability_eval"}
-                }
-            },
-        )
+    packet = developer.derive(
+        OpenResearchQuestion(
+            id="serious_theory",
+            title="Serious theory mode",
+            description="Require a research-grade equation trace.",
+        ),
+        architect_context={
+            "architect_runtime_plan": {
+                "evidence_contract": {"evaluation_mode": "capability_eval"}
+            }
+        },
+    )
 
-    assert "at least 5 steps" in str(exc_info.value)
-    assert "at least 4 equation rows" in str(exc_info.value)
+    assert packet["ok"] is True
+    assert packet["theory_derivation_contract"]["row_count_policy"] == (
+        "model_selected_nonempty_required_structures"
+    )
     assert len(provider.requests) == 1
     request = provider.requests[0]
     assert request.model == "claude-sonnet-serious-theory-test"
@@ -826,10 +841,12 @@ def test_capability_theory_mode_requires_deeper_equation_trace(
     derivation_schema = request.schema["properties"][
         "theory_derivation_packet"
     ]["properties"]
-    assert derivation_schema["derivation_steps"]["minItems"] == 5
+    assert derivation_schema["derivation_steps"]["minItems"] == 1
+    assert derivation_schema["equation_chain"]["minItems"] == 1
+    assert derivation_schema["sanity_checks"]["minItems"] == 1
     assert derivation_schema["derivation_steps"]["maxItems"] == 8
-    assert derivation_schema["equation_chain"]["minItems"] == 4
-    assert derivation_schema["sanity_checks"]["minItems"] == 3
+    assert derivation_schema["equation_chain"]["maxItems"] == 8
+    assert derivation_schema["sanity_checks"]["maxItems"] == 6
     assert request.schema["properties"]["theorem_cards"]["maxItems"] == 2
     assert request.schema["properties"]["problem_card"]["properties"][
         "observed_data"
@@ -900,9 +917,13 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         "estimator_interface_contract"
     )
     core_response["estimator_specs"] = core_estimators
+    optional_artifacts = {"lemma_cards", "critic_findings", "next_actions"}
+    for field in optional_artifacts:
+        core_response[field] = []
     core_artifacts = {
         field: core_response[field]
         for field in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+        if field not in optional_artifacts
     }
     provider = ScriptedTheoryToolBackend(
         tool_responses=[
@@ -974,9 +995,12 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert evidence["model_owned_theory"] is True
     assert evidence["runtime_edited_theory"] is False
     assert evidence["reads"] == 1
-    assert set(evidence["changed_artifact_names"]) == set(
-        THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+    assert set(evidence["changed_artifact_names"]) == (
+        set(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT) - optional_artifacts
     )
+    assert packet["lemma_cards"] == []
+    assert packet["critic_findings"] == []
+    assert packet["next_actions"] == []
     assert packet["theory_generation_phases"][0]["phase"] == (
         "initial_artifact_workspace"
     )
@@ -1631,11 +1655,11 @@ def test_theory_developer_truncation_recovery_is_serious_and_bounded() -> None:
     derivation_schema = request.schema["properties"][
         "theory_derivation_packet"
     ]["properties"]
-    assert derivation_schema["derivation_steps"]["minItems"] == 5
+    assert derivation_schema["derivation_steps"]["minItems"] == 1
     assert derivation_schema["derivation_steps"]["maxItems"] == 5
-    assert derivation_schema["equation_chain"]["minItems"] == 4
+    assert derivation_schema["equation_chain"]["minItems"] == 1
     assert derivation_schema["equation_chain"]["maxItems"] == 4
-    assert derivation_schema["sanity_checks"]["minItems"] == 3
+    assert derivation_schema["sanity_checks"]["minItems"] == 1
     assert derivation_schema["sanity_checks"]["maxItems"] == 3
     assert request.schema["properties"]["problem_card"]["properties"][
         "observed_data"

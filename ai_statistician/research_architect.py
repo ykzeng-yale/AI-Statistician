@@ -46,11 +46,6 @@ from .theory_workspace import run_theory_artifact_workspace
 
 ARCHITECT_SCHEMA_VERSION = 1
 THEORY_DERIVATION_NOT_PROOF_EVIDENCE = "LLM_THEORY_DERIVATION_NOT_PROOF_EVIDENCE"
-THEORY_MIN_DERIVATION_STEPS = 3
-THEORY_MIN_EQUATION_CHAIN_STEPS = 2
-THEORY_SERIOUS_MIN_DERIVATION_STEPS = 5
-THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS = 4
-THEORY_SERIOUS_MIN_SANITY_CHECKS = 3
 THEORY_PROMPT_MODE_COMPACT = "compact_theory_discovery_packet"
 THEORY_PROMPT_MODE_SERIOUS_CAPABILITY = "serious_capability_theory_workspace"
 THEORY_PROMPT_MODE_SERIOUS_REVISION = "serious_upstream_theory_revision"
@@ -438,31 +433,16 @@ def build_theory_developer_prompt(
             "mode": theory_prompt_mode,
             "purpose": (
                 "derive or revise a research-grade statistical procedure with a "
-                "long enough equation chain, assumption audit, feasibility analysis, "
+                "coherent equation chain, assumption audit, feasibility analysis, "
                 "and critic pass to support independent downstream authoring"
             ),
             "do_not_expand_full_retrieval_or_architect_json": True,
         }
         output_budget_key = "serious_theory_output_budget"
         output_budget = {
-            "min_derivation_steps": THEORY_SERIOUS_MIN_DERIVATION_STEPS,
-            "max_derivation_steps": (
-                THEORY_SERIOUS_MIN_DERIVATION_STEPS
-                if transport_recovery
-                else 8
-            ),
-            "min_equation_chain_steps": THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS,
-            "max_equation_chain_steps": (
-                THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS
-                if transport_recovery
-                else 8
-            ),
-            "min_sanity_checks": THEORY_SERIOUS_MIN_SANITY_CHECKS,
-            "max_sanity_checks": (
-                THEORY_SERIOUS_MIN_SANITY_CHECKS
-                if transport_recovery
-                else 6
-            ),
+            "max_derivation_steps": 5 if transport_recovery else 8,
+            "max_equation_chain_steps": 4 if transport_recovery else 8,
+            "max_sanity_checks": 3 if transport_recovery else 6,
             "max_candidate_procedures": 1 if transport_recovery else 2,
             "max_theorem_goals": 1 if transport_recovery else 2,
             "max_lemma_cards": 2 if transport_recovery else 4,
@@ -503,9 +483,9 @@ def build_theory_developer_prompt(
         }
         output_budget_key = "concise_output_budget"
         output_budget = {
-            "min_derivation_steps": THEORY_MIN_DERIVATION_STEPS,
             "max_derivation_steps": 5,
-            "min_equation_chain_steps": THEORY_MIN_EQUATION_CHAIN_STEPS,
+            "max_equation_chain_steps": 5,
+            "max_sanity_checks": 3,
             "max_candidate_procedures": 1,
             "max_theorem_goals": 1,
             "max_lemma_cards": 1,
@@ -515,13 +495,12 @@ def build_theory_developer_prompt(
             "max_next_actions": 1,
             "max_string_chars": 180,
             "instruction": (
-                "Return a complete valid JSON object within this budget. Use exactly "
-                "one item in estimator_specs, theorem_cards, lemma_cards, "
-                "formalization_requests, critic_findings, and next_actions. Use at "
-                "least three and at most five derivation_steps, plus at least two "
-                "equation_chain rows and an assumption_ledger. Keep every string one "
-                "sentence or one equation fragment. Do not include essays, tables, "
-                "Markdown, or long simulation instructions."
+                "Return a complete valid JSON object within this budget. Author one "
+                "primary estimator, theorem target, and formalization request. Choose "
+                "the number of derivation, equation, lemma, sanity-check, critic, and "
+                "action rows from the argument itself; optional lists may be empty. "
+                "Keep every string one sentence or one equation fragment. Do not "
+                "include essays, tables, Markdown, or long simulation instructions."
             ),
         }
     payload = {
@@ -548,10 +527,9 @@ def build_theory_developer_prompt(
         "review observation. Choose the number and organization of mathematical "
         "objects from the argument itself; row counts are not a quality metric."
         if serious_theory_mode
-        else "This is a focused first-pass discovery packet: exactly one primary "
-        "procedure, one theorem card, one lemma card, one formalization request, one "
-        "critic finding, and one next action, but at least three derivation steps and "
-        "two equation-chain rows."
+        else "This is a focused first-pass discovery packet with one primary "
+        "procedure, theorem target, and formalization request. Choose all supporting "
+        "row counts from the argument; counts are not a quality metric."
     )
     return (
         "Derive statistical theory artifacts for the Architect loop. Return ONLY one "
@@ -1593,16 +1571,16 @@ def _theory_developer_json_schema(
 
     if serious_theory_mode:
         derivation_step_bounds = (
-            THEORY_SERIOUS_MIN_DERIVATION_STEPS,
-            THEORY_SERIOUS_MIN_DERIVATION_STEPS if transport_recovery else 8,
+            1,
+            5 if transport_recovery else 8,
         )
         equation_chain_bounds = (
-            THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS,
-            THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS if transport_recovery else 8,
+            1,
+            4 if transport_recovery else 8,
         )
         sanity_check_bounds = (
-            THEORY_SERIOUS_MIN_SANITY_CHECKS,
-            THEORY_SERIOUS_MIN_SANITY_CHECKS if transport_recovery else 6,
+            1,
+            3 if transport_recovery else 6,
         )
         top_level_maxima = {
             "estimator_specs": 1 if transport_recovery else 2,
@@ -1613,8 +1591,8 @@ def _theory_developer_json_schema(
             "next_actions": 1 if transport_recovery else 3,
         }
     else:
-        derivation_step_bounds = (THEORY_MIN_DERIVATION_STEPS, 5)
-        equation_chain_bounds = (THEORY_MIN_EQUATION_CHAIN_STEPS, 5)
+        derivation_step_bounds = (1, 5)
+        equation_chain_bounds = (1, 5)
         sanity_check_bounds = (1, 3)
         top_level_maxima = {
             "estimator_specs": 1,
@@ -1639,8 +1617,13 @@ def _theory_developer_json_schema(
     )
     _set_theory_schema_array_bounds(derivation["self_critique"], 1, 4)
     _set_theory_schema_array_bounds(derivation["rejected_alternatives"], 0, 3)
+    optional_list_fields = {"lemma_cards", "critic_findings", "next_actions"}
     for field, maximum in top_level_maxima.items():
-        _set_theory_schema_array_bounds(properties[field], 1, maximum)
+        _set_theory_schema_array_bounds(
+            properties[field],
+            0 if field in optional_list_fields else 1,
+            maximum,
+        )
     return schema
 
 
@@ -1729,28 +1712,14 @@ def _validate_theory_packet(
     require_estimator_interfaces: bool,
 ) -> list[str]:
     errors: list[str] = []
-    serious_theory_mode = packet.get("serious_theory_mode") is True
-    minimum_derivation_steps = (
-        THEORY_SERIOUS_MIN_DERIVATION_STEPS
-        if serious_theory_mode
-        else THEORY_MIN_DERIVATION_STEPS
-    )
-    minimum_equation_chain_steps = (
-        THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS
-        if serious_theory_mode
-        else THEORY_MIN_EQUATION_CHAIN_STEPS
-    )
     for field in (
         "problem_card",
         "theory_derivation_packet",
         "estimator_specs",
         "theorem_cards",
-        "lemma_cards",
         "proof_plan",
         "formalization_requests",
         "simulation_ademp_spec",
-        "critic_findings",
-        "next_actions",
     ):
         if packet.get(field) in (None, "", [], {}):
             errors.append(f"missing or empty field: {field}")
@@ -1775,13 +1744,9 @@ def _validate_theory_packet(
         errors.append("theory_derivation_packet must be an object")
     else:
         derivation_steps = derivation.get("derivation_steps", [])
-        if (
-            not isinstance(derivation_steps, list)
-            or len(derivation_steps) < minimum_derivation_steps
-        ):
+        if not isinstance(derivation_steps, list) or not derivation_steps:
             errors.append(
-                "theory_derivation_packet.derivation_steps must contain at least "
-                f"{minimum_derivation_steps} steps"
+                "theory_derivation_packet.derivation_steps must be a non-empty list"
             )
         else:
             for idx, row in enumerate(derivation_steps, start=1):
@@ -1795,13 +1760,9 @@ def _validate_theory_packet(
                 if not str(row.get("equation_or_argument", "")).strip():
                     errors.append(f"derivation step {idx} missing equation_or_argument")
         equation_chain = derivation.get("equation_chain", [])
-        if (
-            not isinstance(equation_chain, list)
-            or len(equation_chain) < minimum_equation_chain_steps
-        ):
+        if not isinstance(equation_chain, list) or not equation_chain:
             errors.append(
-                "theory_derivation_packet.equation_chain must contain at least "
-                f"{minimum_equation_chain_steps} equation rows"
+                "theory_derivation_packet.equation_chain must be a non-empty list"
             )
         else:
             for idx, row in enumerate(equation_chain, start=1):
@@ -1825,14 +1786,9 @@ def _validate_theory_packet(
                 if not row.get("used_in"):
                     errors.append(f"assumption_ledger row {idx} missing used_in")
         sanity_checks = derivation.get("sanity_checks", [])
-        if serious_theory_mode and (
-            not isinstance(sanity_checks, list)
-            or len(sanity_checks) < THEORY_SERIOUS_MIN_SANITY_CHECKS
-        ):
+        if not isinstance(sanity_checks, list) or not sanity_checks:
             errors.append(
-                "theory_derivation_packet.sanity_checks must contain at least "
-                f"{THEORY_SERIOUS_MIN_SANITY_CHECKS} explicit recomputations in "
-                "serious theory mode"
+                "theory_derivation_packet.sanity_checks must be a non-empty list"
             )
         if isinstance(sanity_checks, list):
             for idx, row in enumerate(sanity_checks):
@@ -1865,9 +1821,16 @@ def _validate_theory_packet(
             errors.append(
                 "theory_derivation_packet.formalization_handoff.semantic_alignment_constraints must be non-empty"
             )
-    for list_field in ("estimator_specs", "theorem_cards", "lemma_cards", "formalization_requests"):
+    for list_field in (
+        "estimator_specs",
+        "theorem_cards",
+        "formalization_requests",
+    ):
         if not isinstance(packet.get(list_field), list) or not packet.get(list_field):
             errors.append(f"{list_field} must be a non-empty list")
+    for list_field in ("lemma_cards", "critic_findings", "next_actions"):
+        if not isinstance(packet.get(list_field), list):
+            errors.append(f"{list_field} must be a list")
     allowed_derivation_refs = theory_semantic_reference_ids(packet)
     estimator_ids: list[str] = []
     for idx, row in enumerate(packet.get("estimator_specs", []) or []):
@@ -1971,19 +1934,8 @@ def _normalize_theory_packet(
         else {}
     )
     body["theory_derivation_contract"] = {
-        "min_derivation_steps": (
-            THEORY_SERIOUS_MIN_DERIVATION_STEPS
-            if serious_theory_mode
-            else THEORY_MIN_DERIVATION_STEPS
-        ),
-        "min_equation_chain_steps": (
-            THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS
-            if serious_theory_mode
-            else THEORY_MIN_EQUATION_CHAIN_STEPS
-        ),
-        "min_sanity_checks": (
-            THEORY_SERIOUS_MIN_SANITY_CHECKS if serious_theory_mode else 0
-        ),
+        "row_count_policy": "model_selected_nonempty_required_structures",
+        "quality_authority": "independent_theory_preflight_and_critic",
         "theory_prompt_mode": theory_prompt_mode,
         "n_derivation_steps": _safe_len(derivation.get("derivation_steps", [])),
         "n_equation_chain_steps": _safe_len(derivation.get("equation_chain", [])),
@@ -2286,20 +2238,14 @@ def _initial_theory_workspace_read_only_artifacts(
             "authoring_policy": {
                 "theory_prompt_mode": theory_prompt_mode,
                 "serious_theory_mode": serious,
-                "minimum_derivation_steps": (
-                    THEORY_SERIOUS_MIN_DERIVATION_STEPS
-                    if serious
-                    else THEORY_MIN_DERIVATION_STEPS
-                ),
-                "minimum_equation_chain_steps": (
-                    THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS
-                    if serious
-                    else THEORY_MIN_EQUATION_CHAIN_STEPS
-                ),
-                "minimum_independent_sanity_checks": (
-                    THEORY_SERIOUS_MIN_SANITY_CHECKS if serious else 1
-                ),
+                "required_nonempty_structures": [
+                    "derivation_steps",
+                    "equation_chain",
+                    "assumption_ledger",
+                    "sanity_checks",
+                ],
                 "maximum_submissions": max(1, int(max_submissions)),
+                "row_count_policy": "model_selected",
                 "row_counts_are_not_quality_metrics": True,
                 "substantive_author": "TheoryDeveloper model",
                 "runtime_role": (
@@ -2684,10 +2630,18 @@ def _generate_initial_theory_artifact_workspace(
     packet["llm_client_tool_loop"] = workspace_evidence
     errors = validate_theory_core_packet(packet)
     changed = set(workspace_evidence.get("changed_artifact_names", []) or [])
-    expected = set(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT)
-    if changed != expected:
+    required_authored_artifacts = {
+        "problem_card",
+        "theory_derivation_packet",
+        "estimator_specs",
+        "theorem_cards",
+        "proof_plan",
+        "formalization_requests",
+        "simulation_ademp_spec",
+    }
+    if not required_authored_artifacts.issubset(changed):
         errors.append(
-            "initial theory workspace did not author every required artifact"
+            "initial theory workspace did not author every required nonempty artifact"
         )
     if workspace_evidence.get("workspace_operation") != "initial_discovery":
         errors.append("initial theory workspace operation identity mismatch")
