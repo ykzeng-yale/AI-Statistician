@@ -134,6 +134,33 @@ def test_scientific_python_guard_requires_declared_packages_and_blocks_bridges()
     assert stdlib == []
 
 
+def test_scientific_python_guard_allows_benign_dunder_metadata() -> None:
+    errors = scientific_python_safety_errors(
+        "def run_sandbox(seed, replicates):\n"
+        "    try:\n"
+        "        raise ValueError('x')\n"
+        "    except Exception as exc:\n"
+        "        return {'error_type': type(exc).__name__, 'module': __name__}\n",
+        dependencies=[],
+    )
+
+    assert errors == []
+
+
+def test_scientific_python_guard_reports_exact_introspection_source_span() -> None:
+    errors = scientific_python_safety_errors(
+        "def run_sandbox(seed, replicates):\n"
+        "    value = seed.__class__\n"
+        "    return {'value': str(value)}\n",
+        dependencies=[],
+    )
+
+    assert errors == [
+        "generated scientific Python cannot access runtime introspection "
+        "attribute: __class__ at line 2, column 13: seed.__class__"
+    ]
+
+
 def test_scientific_runtime_unavailable_fails_closed_without_execution(
     tmp_path: Path,
 ) -> None:

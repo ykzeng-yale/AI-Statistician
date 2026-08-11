@@ -574,6 +574,66 @@ def test_accepted_code_review_closes_only_its_current_parent_lineage() -> None:
     )
 
 
+def test_accepted_review_ledger_preserves_distinct_workspace_lineages() -> None:
+    current_algorithm_review = {
+        "execution_id": "review:algorithm-current",
+        "source_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": "algorithm:current",
+        "overall_verdict": "ACCEPT",
+        "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
+    }
+    stale_top_level_review = {
+        **current_algorithm_review,
+        "execution_id": "review:algorithm-stale-copy",
+        "source_manifest_id": "algorithm:stale",
+    }
+    simulation_review = {
+        "execution_id": "review:simulation-current",
+        "source_subsystem": "SimulationEvaluator",
+        "source_manifest_id": "simulation:current",
+        "overall_verdict": "ACCEPT",
+        "parent_artifact_ids": {
+            "theory_packet_id": "theory:generic",
+            "algorithm_sandbox_manifest_id": "algorithm:current",
+        },
+    }
+
+    ledger = runtime_module._runtime_merged_accepted_generated_code_reviews(
+        deferred_task_inputs={
+            "accepted_generated_code_semantic_reviews": [
+                stale_top_level_review
+            ],
+            "architect_context": {
+                "accepted_generated_code_semantic_reviews": [
+                    current_algorithm_review
+                ]
+            },
+        },
+        accepted_review=simulation_review,
+    )
+
+    assert [row["execution_id"] for row in ledger] == [
+        "review:algorithm-current",
+        "review:simulation-current",
+    ]
+    context = _full_evidence_context("generic-two-accepted-workspaces")
+    context.update(
+        {
+            "algorithm_sandbox_manifest_id": "algorithm:current",
+            "simulation_manifest_id": "simulation:current",
+            "accepted_generated_code_semantic_reviews": ledger,
+        }
+    )
+    assert {
+        "AlgorithmEngineer",
+        "SimulationEvaluator",
+    }.issubset(
+        runtime_module._runtime_executed_subsystems(
+            architect_context=context
+        )
+    )
+
+
 def test_review_acceptance_does_not_reopen_the_same_algorithm_task() -> None:
     question = OpenResearchQuestion(
         id="generic-reviewed-continuation",

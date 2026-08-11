@@ -6106,6 +6106,46 @@ def _runtime_generated_code_semantic_review_material(
     return material, sorted(set(errors))
 
 
+def _runtime_merged_accepted_generated_code_reviews(
+    *,
+    deferred_task_inputs: Mapping[str, Any],
+    accepted_review: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Merge current accepted reviews by immutable source-parent lineage."""
+
+    context = deferred_task_inputs.get("architect_context", {})
+    context = dict(context) if isinstance(context, Mapping) else {}
+    candidates: list[Mapping[str, Any]] = []
+    for container in (deferred_task_inputs, context):
+        candidates.extend(
+            row
+            for row in container.get(
+                "accepted_generated_code_semantic_reviews", []
+            )
+            or []
+            if isinstance(row, Mapping)
+        )
+    candidates.append(accepted_review)
+
+    rows_by_lineage: dict[tuple[str, str], dict[str, Any]] = {}
+    lineage_order: list[tuple[str, str]] = []
+    for row in candidates:
+        source_subsystem = str(row.get("source_subsystem", "") or "").strip()
+        parents = row.get("parent_artifact_ids", {})
+        parent_ids = dict(parents) if isinstance(parents, Mapping) else {}
+        identity = source_subsystem or str(
+            row.get("execution_id", "")
+            or row.get("review_packet_id", "")
+            or row.get("source_manifest_id", "")
+            or stable_hash(row)
+        )
+        lineage = (identity, stable_hash(parent_ids))
+        if lineage not in rows_by_lineage:
+            lineage_order.append(lineage)
+        rows_by_lineage[lineage] = deepcopy(dict(row))
+    return [rows_by_lineage[lineage] for lineage in lineage_order]
+
+
 class GeneratedCodeSemanticReviewerRuntimeSubsystem:
     name = GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
 
@@ -6906,6 +6946,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             assert deferred_task is not None
             assert source_task is not None
             next_inputs = dict(deferred_task.inputs)
+            next_context = dict(next_inputs.get("architect_context", {}) or {})
             algorithm_handoff: dict[str, Any] = {}
             if source_subsystem == "AlgorithmEngineer":
                 algorithm_handoff = _runtime_accepted_algorithm_handoff_from_review(
@@ -6930,14 +6971,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                             "accepted_algorithm_handoff_materialization_failed"
                         ),
                     )
-            accepted_reviews = [
-                dict(row)
-                for row in next_inputs.get(
-                    "accepted_generated_code_semantic_reviews", []
-                )
-                or []
-                if isinstance(row, Mapping)
-            ]
             accepted_review = {
                 "execution_id": execution_id,
                 "review_packet_id": review_packet_id,
@@ -6966,9 +6999,11 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     or ""
                 ),
             }
-            accepted_reviews.append(accepted_review)
+            accepted_reviews = _runtime_merged_accepted_generated_code_reviews(
+                deferred_task_inputs=next_inputs,
+                accepted_review=accepted_review,
+            )
             next_inputs["accepted_generated_code_semantic_reviews"] = accepted_reviews
-            next_context = dict(next_inputs.get("architect_context", {}) or {})
             next_context["accepted_generated_code_semantic_reviews"] = (
                 accepted_reviews
             )

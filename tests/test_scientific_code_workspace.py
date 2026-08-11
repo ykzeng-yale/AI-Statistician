@@ -8,7 +8,9 @@ from ai_statistician.model_backend import (
     ClientToolTurnResponse,
 )
 from ai_statistician.scientific_code_workspace import (
+    SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
     run_scientific_code_workspace,
+    scientific_workspace_prototype_observation,
 )
 
 
@@ -62,14 +64,9 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
         [
             _response(
                 ClientToolCall(
-                    call_id="replace-1",
-                    name="replace_scientific_source",
+                    call_id="submit-1",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
                     input=revised,
-                ),
-                ClientToolCall(
-                    call_id="run-1",
-                    name="run_scientific_source",
-                    input={},
                 ),
             )
         ]
@@ -116,18 +113,25 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
     assert result.evidence["parent_code_draft_hash"] != result.evidence[
         "submitted_code_draft_hash"
     ]
-    assert result.evidence["runtime_executed_tool_calls"] == 2
+    assert result.evidence["runtime_executed_tool_calls"] == 1
+    assert result.evidence["submit_and_execute_atomic"] is True
     assert "NameError: missing_name" in str(backend.requests[0].messages)
-    assert {tool.name for tool in backend.requests[0].tools} == {
-        "replace_scientific_source",
-        "run_scientific_source",
-    }
-    replace_schema = next(
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        SCIENTIFIC_SOURCE_SUBMISSION_TOOL
+    ]
+    submission_schema = next(
         tool.input_schema
         for tool in backend.requests[0].tools
-        if tool.name == "replace_scientific_source"
+        if tool.name == SCIENTIFIC_SOURCE_SUBMISSION_TOOL
     )
-    assert "required_estimator_ids" not in replace_schema["properties"]
+    assert "required_estimator_ids" not in submission_schema["properties"]
+    assert submission_schema["properties"]["execution_profile"]["enum"] == [
+        "stdlib",
+        "scientific_wasm",
+    ]
+    assert "json" not in submission_schema["properties"]["dependencies"][
+        "items"
+    ]["enum"]
 
 
 def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
@@ -147,16 +151,9 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
         [
             _response(
                 ClientToolCall(
-                    call_id="author-1",
-                    name="replace_scientific_source",
+                    call_id="submit-1",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
                     input=authored,
-                )
-            ),
-            _response(
-                ClientToolCall(
-                    call_id="run-1",
-                    name="run_scientific_source",
-                    input={},
                 )
             ),
         ]
@@ -194,12 +191,9 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
     assert result.evidence["source_updates"] == 1
     assert result.evidence["sandbox_checks"] == 1
     assert [tool.name for tool in backend.requests[0].tools] == [
-        "replace_scientific_source"
+        SCIENTIFIC_SOURCE_SUBMISSION_TOOL
     ]
-    assert {tool.name for tool in backend.requests[1].tools} == {
-        "replace_scientific_source",
-        "run_scientific_source",
-    }
+    assert len(backend.requests) == 1
 
 
 def test_byte_identical_replacement_is_returned_to_same_model_as_noop() -> None:
@@ -219,20 +213,15 @@ def test_byte_identical_replacement_is_returned_to_same_model_as_noop() -> None:
             _response(
                 ClientToolCall(
                     call_id="noop-1",
-                    name="replace_scientific_source",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
                     input=initial,
                 )
             ),
             _response(
                 ClientToolCall(
-                    call_id="replace-2",
-                    name="replace_scientific_source",
+                    call_id="submit-2",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
                     input=revised,
-                ),
-                ClientToolCall(
-                    call_id="run-2",
-                    name="run_scientific_source",
-                    input={},
                 ),
             ),
         ]
@@ -285,24 +274,14 @@ def test_global_budget_does_not_revoke_scientific_edit_or_execution() -> None:
     ]
     backend = ScriptedScientificBackend(
         [
-            response
-            for index, draft in enumerate(drafts)
-            for response in (
-                _response(
-                    ClientToolCall(
-                        call_id=f"replace-{index}",
-                        name="replace_scientific_source",
-                        input=draft,
-                    )
-                ),
-                _response(
-                    ClientToolCall(
-                        call_id=f"run-{index}",
-                        name="run_scientific_source",
-                        input={},
-                    )
-                ),
+            _response(
+                ClientToolCall(
+                    call_id=f"submit-{index}",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=draft,
+                )
             )
+            for index, draft in enumerate(drafts)
         ]
     )
 
@@ -314,7 +293,7 @@ def test_global_budget_does_not_revoke_scientific_edit_or_execution() -> None:
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=10,
+        max_turns=5,
         max_no_progress_turns=2,
         artifact_id="question:global-code-budget",
         initial_code_draft=None,
@@ -336,9 +315,35 @@ def test_global_budget_does_not_revoke_scientific_edit_or_execution() -> None:
     assert dict(result.code_draft) == drafts[-1]
     assert result.evidence["source_updates"] == 5
     assert result.evidence["sandbox_checks"] == 5
+    assert result.evidence["max_retained_tool_turns"] == 1
+    assert [len(request.messages) for request in backend.requests] == [1, 3, 3, 3, 3]
     assert all(
-        "replace_scientific_source" in {
-            tool.name for tool in request.tools
-        }
+        [tool.name for tool in request.tools]
+        == [SCIENTIFIC_SOURCE_SUBMISSION_TOOL]
         for request in backend.requests
     )
+
+
+def test_execution_observation_omits_stale_callback_samples_after_binding_passes() -> None:
+    prototype = {
+        "execution_attempted": True,
+        "execution_smoke_passed": True,
+        "mechanical_estimator_invocation_verified": True,
+        "estimator_invocation_counts": {"estimator": 100},
+        "estimator_invocation_samples": {
+            "estimator": [{"request": {"sample": list(range(100))}}]
+        },
+        "metric_gate_errors": ["coverage failed"],
+    }
+
+    compact = scientific_workspace_prototype_observation(prototype)
+    failed_binding = scientific_workspace_prototype_observation(
+        {
+            **prototype,
+            "mechanical_estimator_invocation_verified": False,
+        }
+    )
+
+    assert compact["estimator_invocation_counts"] == {"estimator": 100}
+    assert "estimator_invocation_samples" not in compact
+    assert "estimator_invocation_samples" in failed_binding

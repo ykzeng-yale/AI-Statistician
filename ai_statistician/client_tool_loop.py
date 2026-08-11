@@ -111,6 +111,7 @@ def run_bounded_client_tool_loop(
     max_no_progress_turns: int,
     max_terminal_recovery_turns: int = 0,
     select_tools: ClientToolSelector | None = None,
+    max_retained_tool_turns: int | None = None,
 ) -> ClientToolLoopResult:
     """Run model -> client tool -> observation turns under caller-owned bounds."""
 
@@ -118,6 +119,8 @@ def run_bounded_client_tool_loop(
         raise ValueError("client-tool loop budgets must all be positive")
     if max_terminal_recovery_turns < 0:
         raise ValueError("terminal recovery turn budget cannot be negative")
+    if max_retained_tool_turns is not None and max_retained_tool_turns < 1:
+        raise ValueError("retained client-tool turn budget must be positive")
     generate_turn = getattr(backend, "generate_client_tool_turn", None)
     if not callable(generate_turn):
         raise ValueError("backend does not support client-tool turns")
@@ -141,6 +144,7 @@ def run_bounded_client_tool_loop(
         max_terminal_recovery_turns if terminal_tools else 0
     )
     terminal_recovery_eligible = False
+    initial_message_count = len(messages)
 
     def loop_error(
         reason: str,
@@ -191,6 +195,13 @@ def run_bounded_client_tool_loop(
             turn_tools and all(tool.terminal for tool in turn_tools)
         )
         turn_allowed_tools = {tool.name for tool in turn_tools}
+        model_messages = messages
+        if max_retained_tool_turns is not None and turn_index > 0:
+            interaction_messages = messages[initial_message_count:]
+            model_messages = [
+                *messages[:initial_message_count],
+                *interaction_messages[-2 * max_retained_tool_turns :],
+            ]
         with agent_runtime_substage(
             "client_tool_model_turn",
             metadata={
@@ -203,12 +214,15 @@ def run_bounded_client_tool_loop(
                 "model": request.model,
                 "n_available_tools": len(turn_tools),
                 "terminal_only_turn": terminal_only_turn,
+                "n_transcript_messages": len(messages),
+                "n_model_context_messages": len(model_messages),
+                "max_retained_tool_turns": max_retained_tool_turns,
             },
         ):
             response = generate_turn(
                 replace(
                     request,
-                    messages=tuple(messages),
+                    messages=tuple(model_messages),
                     tools=turn_tools,
                     tool_choice=(
                         turn_tools[0].name

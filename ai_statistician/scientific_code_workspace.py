@@ -13,6 +13,16 @@ from .client_tool_loop import (
 )
 from .fingerprint import stable_hash
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
+from .scientific_sandbox import (
+    PYTHON_SCIENTIFIC_DEPENDENCIES,
+    R_SCIENTIFIC_DEPENDENCIES,
+    SCIENTIFIC_SANDBOX_LANGUAGES,
+    SCIENTIFIC_SANDBOX_PROFILES,
+    generated_code_execution_contract_errors,
+    normalized_generated_code_language,
+    normalized_generated_code_profile,
+    normalized_scientific_dependencies,
+)
 from .structured_output_retry import PacketValidationError
 
 
@@ -20,6 +30,10 @@ ScientificCodeCheck = Callable[[Mapping[str, Any]], Mapping[str, Any]]
 
 SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS = "native_client_tools"
 SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET = "structured_packet"
+SCIENTIFIC_SOURCE_SUBMISSION_TOOL = "submit_scientific_source"
+_SCIENTIFIC_PACKAGES = (
+    PYTHON_SCIENTIFIC_DEPENDENCIES + R_SCIENTIFIC_DEPENDENCIES
+)
 
 
 @dataclass(frozen=True)
@@ -78,32 +92,38 @@ def scientific_workspace_prototype_observation(
                 if value not in (None, "", [], {})
             }
         )
+    direct_field_names = [
+        "prototype_status",
+        "execution_attempted",
+        "execution_smoke_passed",
+        "smoke_passed",
+        "returncode",
+        "runtime_errors",
+        "safety_errors",
+        "estimator_binding_errors",
+        "estimator_runtime_failure_ids",
+        "estimator_runtime_errors",
+        "result_parse_error",
+        "stderr_summary",
+        "stdout_summary",
+        "metric_gate_errors",
+        "required_estimator_ids",
+        "available_upstream_estimator_ids",
+        "estimator_invocation_counts",
+        "mechanical_estimator_invocation_verified",
+        "script_hash",
+        "result_hash",
+        "execution_envelope_hash",
+    ]
+    if (
+        prototype.get("mechanical_estimator_invocation_verified") is not True
+        or prototype.get("estimator_binding_errors")
+        or prototype.get("estimator_runtime_errors")
+    ):
+        direct_field_names.append("estimator_invocation_samples")
     direct_fields = {
         key: deepcopy(prototype[key])
-        for key in (
-            "prototype_status",
-            "execution_attempted",
-            "execution_smoke_passed",
-            "smoke_passed",
-            "returncode",
-            "runtime_errors",
-            "safety_errors",
-            "estimator_binding_errors",
-            "estimator_runtime_failure_ids",
-            "estimator_runtime_errors",
-            "result_parse_error",
-            "stderr_summary",
-            "stdout_summary",
-            "metric_gate_errors",
-            "required_estimator_ids",
-            "available_upstream_estimator_ids",
-            "estimator_invocation_counts",
-            "estimator_invocation_samples",
-            "mechanical_estimator_invocation_verified",
-            "script_hash",
-            "result_hash",
-            "execution_envelope_hash",
-        )
+        for key in direct_field_names
         if prototype.get(key) not in (None, "", [], {})
     }
     return {
@@ -208,7 +228,7 @@ def run_scientific_code_workspace(
     def execute_tool(call, context):
         del context
         tool_input = dict(call.input)
-        if call.name == "replace_scientific_source":
+        if call.name == SCIENTIFIC_SOURCE_SUBMISSION_TOOL:
             required_fields = {
                 "language",
                 "execution_profile",
@@ -221,7 +241,7 @@ def run_scientific_code_workspace(
                 or set(tool_input) - required_fields
             ):
                 raise ClientToolInputError(
-                    "replace_scientific_source requires the complete language, "
+                    "submit_scientific_source requires the complete language, "
                     "execution_profile, dependencies, entrypoint, and code candidate"
                 )
             draft = _complete_code_draft(tool_input)
@@ -230,30 +250,12 @@ def run_scientific_code_workspace(
             if not changed:
                 raise ClientToolInputError(
                     "replacement is byte-identical to the current scientific source; "
-                    "run the current source or submit a changed complete candidate"
+                    "the deterministic observation is already recorded, so submit a "
+                    "changed complete candidate"
                 )
             state["code_draft"] = draft
             state["code_draft_hash"] = draft_hash
             state["source_updates"] += 1
-            state["last_check"] = {}
-            return ClientToolExecutionResult(
-                content={
-                    "ok": True,
-                    "changed": True,
-                    "code_draft_hash": draft_hash,
-                    "source_updates": state["source_updates"],
-                },
-                state_changed=True,
-                observation_key="scientific-source:" + draft_hash,
-            )
-
-        if call.name == "run_scientific_source":
-            if tool_input:
-                raise ClientToolInputError("run_scientific_source takes an empty object")
-            if not state["code_draft"]:
-                raise ClientToolInputError(
-                    "author complete scientific source before requesting execution"
-                )
             raw = check_candidate(deepcopy(dict(state["code_draft"])))
             if not isinstance(raw, Mapping):
                 raise ClientToolInputError("scientific sandbox returned a non-object result")
@@ -270,12 +272,15 @@ def run_scientific_code_workspace(
                 content={
                     **check,
                     "ok": accepted,
+                    "changed": True,
                     "checks": state["checks"],
+                    "source_updates": state["source_updates"],
                     "execution_evidence_status": (
                         "SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE"
                     ),
                 },
                 is_error=not accepted,
+                state_changed=True,
                 terminal=accepted,
                 terminal_payload=(
                     {
@@ -286,7 +291,7 @@ def run_scientific_code_workspace(
                     if accepted
                     else None
                 ),
-                observation_key="scientific-check:"
+                observation_key="scientific-submission:"
                 + stable_hash(
                     {
                         "code_draft_hash": state["code_draft_hash"],
@@ -305,8 +310,8 @@ def run_scientific_code_workspace(
                 "content": user_prompt
                 + (
                     "\n\nNo scientific source exists yet. Author the complete "
-                    "candidate with replace_scientific_source before requesting "
-                    "execution."
+                    "candidate with submit_scientific_source. Each submission is "
+                    "executed immediately without runtime source edits."
                     if not parent_draft
                     else "\n\nCurrent complete code candidate:\n"
                     + _compact_json(parent_draft)
@@ -314,9 +319,9 @@ def run_scientific_code_workspace(
                 + "\n\nInitial workspace observation:\n"
                 + _compact_json(initial_check_result)
                 + (
-                    "\n\nThe current candidate failed. Diagnose that exact observation "
-                    "before replacing source; resubmitting identical bytes against the "
-                    "same observation is not a new attempt."
+                    "\n\nThe current candidate failed. Diagnose that exact observation, "
+                    "then submit a changed complete candidate. Every submission executes "
+                    "immediately; identical bytes are not a new attempt."
                     if initial_check_result.get("accepted") is not True
                     and parent_draft
                     else ""
@@ -338,13 +343,6 @@ def run_scientific_code_workspace(
         },
     )
 
-    def select_tools(_turn_index, available_tools):
-        return tuple(
-            tool
-            for tool in available_tools
-            if tool.name != "run_scientific_source" or bool(state["code_draft"])
-        )
-
     try:
         loop = run_bounded_client_tool_loop(
             backend=provider,
@@ -353,7 +351,7 @@ def run_scientific_code_workspace(
             max_turns=max_turns,
             max_tool_calls=max_turns,
             max_no_progress_turns=max_no_progress_turns,
-            select_tools=select_tools,
+            max_retained_tool_turns=1,
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(
@@ -407,6 +405,8 @@ def run_scientific_code_workspace(
         "source_changed": draft_hash != parent_hash,
         "source_updates": state["source_updates"],
         "sandbox_checks": state["checks"],
+        "submit_and_execute_atomic": True,
+        "max_retained_tool_turns": 1,
         "turns": loop.turns,
         "tool_calls": loop.tool_calls,
         "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
@@ -431,42 +431,42 @@ def run_scientific_code_workspace(
 def _complete_code_draft(value: Mapping[str, Any] | Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ClientToolInputError("scientific code candidate must be an object")
-    language = str(value.get("language", "") or "").strip().lower()
-    execution_profile = str(value.get("execution_profile", "") or "").strip()
+    language = normalized_generated_code_language(value.get("language"))
+    execution_profile = normalized_generated_code_profile(
+        value.get("execution_profile"),
+        language=language,
+    )
     entrypoint = str(value.get("entrypoint", "") or "").strip()
     code = str(value.get("code", "") or "")
     dependencies = value.get("dependencies", [])
-    if language not in {"python", "r"}:
-        raise ClientToolInputError("language must be python or r")
-    if not execution_profile:
-        raise ClientToolInputError("execution_profile must be nonempty")
-    if entrypoint != "run_sandbox":
-        raise ClientToolInputError("entrypoint must be run_sandbox")
     if not isinstance(dependencies, Sequence) or isinstance(
         dependencies, (str, bytes)
     ):
         raise ClientToolInputError("dependencies must be an array")
-    if not code.strip():
-        raise ClientToolInputError("code must be nonempty")
-    if len(code) > 100_000:
-        raise ClientToolInputError("code exceeds the workspace artifact-size boundary")
+    normalized_dependencies = list(
+        normalized_scientific_dependencies(dependencies, language=language)
+    )
     draft = {
         "language": language,
         "execution_profile": execution_profile,
-        "dependencies": [str(item) for item in dependencies],
+        "dependencies": normalized_dependencies,
         "entrypoint": entrypoint,
         "code": code,
     }
+    contract_errors = generated_code_execution_contract_errors(draft)
+    if contract_errors:
+        raise ClientToolInputError("; ".join(contract_errors))
     return draft
 
 
 def _scientific_code_tools() -> tuple[ClientToolDefinition, ...]:
     return (
         ClientToolDefinition(
-            name="replace_scientific_source",
+            name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
             description=(
-                "Replace the complete current Python or R candidate. The runtime stores "
-                "and executes the source unchanged."
+                "Submit one complete Python or R candidate. The runtime stores and "
+                "immediately executes the exact source, then returns the raw sandbox "
+                "observation to this same model."
             ),
             input_schema={
                 "type": "object",
@@ -479,11 +479,21 @@ def _scientific_code_tools() -> tuple[ClientToolDefinition, ...]:
                     "code",
                 ],
                 "properties": {
-                    "language": {"type": "string", "enum": ["python", "r"]},
-                    "execution_profile": {"type": "string"},
+                    "language": {
+                        "type": "string",
+                        "enum": list(SCIENTIFIC_SANDBOX_LANGUAGES),
+                    },
+                    "execution_profile": {
+                        "type": "string",
+                        "enum": list(SCIENTIFIC_SANDBOX_PROFILES),
+                    },
                     "dependencies": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string",
+                            "enum": list(_SCIENTIFIC_PACKAGES),
+                        },
+                        "uniqueItems": True,
                     },
                     "entrypoint": {
                         "type": "string",
@@ -491,19 +501,6 @@ def _scientific_code_tools() -> tuple[ClientToolDefinition, ...]:
                     },
                     "code": {"type": "string"},
                 },
-            },
-        ),
-        ClientToolDefinition(
-            name="run_scientific_source",
-            description=(
-                "Execute the exact current source in the isolated scientific sandbox. "
-                "A failed run returns raw observations to this same model context; an "
-                "accepted run submits the unchanged candidate for independent review."
-            ),
-            input_schema={
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {},
             },
             terminal=True,
         ),

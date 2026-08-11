@@ -243,6 +243,22 @@ def generated_python_syntax_errors(code: str) -> list[str]:
     return []
 
 
+def _python_ast_diagnostic_location(code: str, node: ast.AST) -> str:
+    line = getattr(node, "lineno", None)
+    column = getattr(node, "col_offset", None)
+    location = ""
+    if isinstance(line, int):
+        location = f" at line {line}"
+        if isinstance(column, int):
+            location += f", column {column + 1}"
+    source = " ".join((ast.get_source_segment(code, node) or "").split())
+    if source:
+        if len(source) > 180:
+            source = source[:177] + "..."
+        location += f": {source}"
+    return location
+
+
 def scientific_python_safety_errors(
     code: str,
     *,
@@ -303,6 +319,22 @@ def scientific_python_safety_errors(
         "gi_frame",
         "tb_frame",
     }
+    forbidden_introspection_attributes = {
+        "__base__",
+        "__bases__",
+        "__builtins__",
+        "__class__",
+        "__closure__",
+        "__code__",
+        "__dict__",
+        "__func__",
+        "__getattribute__",
+        "__globals__",
+        "__mro__",
+        "__self__",
+        "__subclasses__",
+    }
+    forbidden_introspection_names = {"__builtins__"}
     function_names = {
         node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
     }
@@ -347,20 +379,34 @@ def scientific_python_safety_errors(
                     "declared: "
                     + str(node.module or "")
                 )
-        elif isinstance(node, ast.Name) and node.id.startswith("__"):
-            errors.append("generated scientific Python cannot access dunder names")
-        elif isinstance(node, ast.Attribute) and node.attr.startswith("_"):
+        elif (
+            isinstance(node, ast.Name)
+            and node.id in forbidden_introspection_names
+        ):
             errors.append(
-                "generated scientific Python cannot access private attributes: "
-                + node.attr
+                "generated scientific Python cannot access runtime introspection "
+                "name: "
+                + node.id
+                + _python_ast_diagnostic_location(code, node)
             )
         elif (
             isinstance(node, ast.Attribute)
             and node.attr in forbidden_runtime_attributes
         ):
             errors.append(
-                "generated scientific Python cannot access runtime frame attributes: "
+                "generated scientific Python cannot access runtime frame attribute: "
                 + node.attr
+                + _python_ast_diagnostic_location(code, node)
+            )
+        elif (
+            isinstance(node, ast.Attribute)
+            and node.attr in forbidden_introspection_attributes
+        ):
+            errors.append(
+                "generated scientific Python cannot access runtime introspection "
+                "attribute: "
+                + node.attr
+                + _python_ast_diagnostic_location(code, node)
             )
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
             if node.func.id in forbidden_calls:
