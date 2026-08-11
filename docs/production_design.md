@@ -155,6 +155,12 @@ Independent semantic review checks whether the implementation represents the
 accepted theory artifact. Passing execution is not statistical validity, and
 passing simulation is not theorem proof.
 
+For outer-graph completion, an Algorithm or Simulation lane is complete only when
+its active manifest has an independent `ACCEPT` bound to the current immutable
+parents. The accepted review is the completion authority; handoff history and an
+earlier source-task execution are not. A changed Theory or Algorithm parent makes
+the prior review ineligible without rerouting through Architect.
+
 When the frozen protocol requires generated algorithm code, confirmatory
 simulation can consume an estimator only through a hash-bound handoff produced by
 accepted independent semantic review. A sandbox artifact that executed but was

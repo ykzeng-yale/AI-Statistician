@@ -3434,6 +3434,40 @@ def _runtime_executed_subsystems(
             and dict(observed_parents) == expected_parents
         ):
             executed.add(subsystem)
+    manifest_field_by_subsystem = {
+        "AlgorithmEngineer": "algorithm_sandbox_manifest_id",
+        "SimulationEvaluator": "simulation_manifest_id",
+    }
+    for review in architect_context.get(
+        "accepted_generated_code_semantic_reviews", []
+    ) or []:
+        if not isinstance(review, Mapping):
+            continue
+        subsystem = str(review.get("source_subsystem", "") or "")
+        manifest_field = manifest_field_by_subsystem.get(subsystem, "")
+        if (
+            not manifest_field
+            or str(review.get("overall_verdict", "") or "").strip().upper()
+            != "ACCEPT"
+        ):
+            continue
+        current_manifest_id = str(
+            architect_context.get(manifest_field, "") or ""
+        ).strip()
+        expected_parents = _runtime_workspace_parent_artifact_ids(
+            subsystem,
+            architect_context,
+        )
+        observed_parents = review.get("parent_artifact_ids", {})
+        if (
+            current_manifest_id
+            and str(review.get("source_manifest_id", "") or "").strip()
+            == current_manifest_id
+            and expected_parents
+            and isinstance(observed_parents, Mapping)
+            and dict(observed_parents) == expected_parents
+        ):
+            executed.add(subsystem)
     return executed
 
 
@@ -3479,21 +3513,6 @@ def _runtime_task_parent_artifact_ids(
     return _runtime_workspace_parent_artifact_ids(
         subsystem_name,
         parent_inputs,
-    )
-
-
-def _runtime_outcome_matches_task_lineage(
-    outcome: Mapping[str, Any],
-    *,
-    subsystem_name: str,
-    task_inputs: Mapping[str, Any],
-) -> bool:
-    expected = _runtime_task_parent_artifact_ids(subsystem_name, task_inputs)
-    observed = outcome.get("parent_artifact_ids", {})
-    return bool(
-        expected
-        and isinstance(observed, Mapping)
-        and dict(observed) == expected
     )
 
 
@@ -3813,24 +3832,11 @@ def _runtime_transition_policy(
         return result
     if next_task.owner_subsystem == subsystem_name:
         return result
-    prior_workspace_outcomes = (
-        next_task.inputs.get("architect_context", {}).get(
-            "runtime_outer_graph_workspace_outcomes",
-            [],
-        )
-        if isinstance(next_task.inputs.get("architect_context", {}), Mapping)
-        else []
-    )
-    completed_next_lane = any(
-        isinstance(row, Mapping)
-        and str(row.get("source_subsystem", "") or "")
-        == next_task.owner_subsystem
-        and _runtime_outcome_matches_task_lineage(
-            row,
-            subsystem_name=next_task.owner_subsystem,
-            task_inputs=next_task.inputs,
-        )
-        for row in prior_workspace_outcomes or []
+    next_context = next_task.inputs.get("architect_context", {})
+    completed_next_lane = bool(
+        isinstance(next_context, Mapping)
+        and next_task.owner_subsystem
+        in _runtime_executed_subsystems(architect_context=next_context)
     )
     if completed_next_lane and subsystem_name != "CriticEvaluator":
         continuation = _runtime_outer_graph_continuation(
@@ -6898,6 +6904,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             feedback["semantic_review_lineage_budget"] = lineage_budget_summary
         if verdict == "ACCEPT":
             assert deferred_task is not None
+            assert source_task is not None
             next_inputs = dict(deferred_task.inputs)
             algorithm_handoff: dict[str, Any] = {}
             if source_subsystem == "AlgorithmEngineer":
@@ -6941,6 +6948,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 ),
                 "source_manifest_hash": str(
                     work_order.get("source_manifest_hash", "") or ""
+                ),
+                "parent_artifact_ids": _runtime_task_parent_artifact_ids(
+                    source_subsystem,
+                    source_task.inputs,
                 ),
                 "overall_verdict": "ACCEPT",
                 "empirical_evaluation_phase": empirical_evaluation_phase,

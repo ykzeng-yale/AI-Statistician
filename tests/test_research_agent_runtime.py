@@ -552,6 +552,100 @@ def test_outer_graph_reopens_algorithm_for_revised_theory_parent() -> None:
     assert "AlgorithmEngineer" not in observed["executed_subsystems"]
 
 
+def test_accepted_code_review_closes_only_its_current_parent_lineage() -> None:
+    context = _full_evidence_context("generic-reviewed-source")
+    context["algorithm_sandbox_manifest_id"] = "algorithm:accepted"
+    context["accepted_generated_code_semantic_reviews"] = [
+        {
+            "source_subsystem": "AlgorithmEngineer",
+            "source_manifest_id": "algorithm:accepted",
+            "overall_verdict": "ACCEPT",
+            "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
+        }
+    ]
+
+    assert "AlgorithmEngineer" in runtime_module._runtime_executed_subsystems(
+        architect_context=context
+    )
+
+    context["theory_packet_id"] = "theory:revised"
+    assert "AlgorithmEngineer" not in runtime_module._runtime_executed_subsystems(
+        architect_context=context
+    )
+
+
+def test_review_acceptance_does_not_reopen_the_same_algorithm_task() -> None:
+    question = OpenResearchQuestion(
+        id="generic-reviewed-continuation",
+        title="Generic reviewed continuation",
+        description="Continue after independent source acceptance.",
+    )
+    context = _full_evidence_context(question.id)
+    context["algorithm_sandbox_manifest_id"] = "algorithm:accepted"
+    context["accepted_generated_code_semantic_reviews"] = [
+        {
+            "source_subsystem": "AlgorithmEngineer",
+            "source_manifest_id": "algorithm:accepted",
+            "overall_verdict": "ACCEPT",
+            "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
+        }
+    ]
+    context["runtime_outer_graph_workspace_outcomes"] = [
+        {
+            "source_task_id": "formalize:completed",
+            "source_subsystem": "FormalizationEvaluator",
+            "local_status": "BLOCKED",
+            "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
+        }
+    ]
+    repeated_formal_task = AgentTask(
+        task_id="formalize:completed",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Resume the already observed formal lane.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "algorithm_sandbox_manifest_id": "algorithm:accepted",
+            "architect_context": context,
+        },
+    )
+
+    continued = _runtime_transition_policy(
+        iteration=15,
+        task=AgentTask(
+            task_id="semantic-review:accepted",
+            owner_subsystem="GeneratedCodeSemanticReviewer",
+            objective="Record independent acceptance.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": context,
+            },
+        ),
+        subsystem_name="GeneratedCodeSemanticReviewer",
+        result=AgentStepResult(
+            status="REROUTE",
+            rationale="Independent review accepted the current source.",
+            next_task=repeated_formal_task,
+        ),
+        blackboard=BlackboardState(
+            project_id=question.id,
+            artifacts={"theory:generic": {"packet_id": "theory:generic"}},
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert continued.status == "REROUTE"
+    assert continued.next_task is not None
+    assert continued.next_task.owner_subsystem == "SimulationEvaluator"
+    assert continued.next_task.task_id != "algorithm:generic-reviewed-continuation"
+    observed = continued.observations[-1].payload
+    assert "AlgorithmEngineer" in observed["executed_subsystems"]
+    assert "FormalizationEvaluator" in observed["executed_subsystems"]
+
+
 def test_failed_theory_revision_does_not_continue_rejected_parent_lineage() -> None:
     question = OpenResearchQuestion(
         id="generic-rejected-theory-revision",
