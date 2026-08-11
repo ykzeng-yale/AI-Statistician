@@ -194,12 +194,21 @@ Architect authors one complete protocol
   -> execution evaluates only an accepted frozen protocol
 ```
 
+New protocols carry at most eight required metric rows. This is an execution and
+review budget, not a statistical rule: repeated scenarios use vector measurements
+and explicit aggregation. A frozen historical protocol keeps its exact row set.
+
 The reviewer reports defects and evidence; it does not choose a `repair_scope` or
 route tasks. Authoring and independent review remain one bounded Architect protocol
 operation with separate model contexts and visible timing substages. They should not
 be promoted into two additional outer tasks merely for telemetry. Independent review
 and pre-result freezing remain required while ownership routers and duplicate finding
 taxonomies are removed.
+
+The reviewer returns one judgment per immutable requirement, one portfolio judgment,
+prior-finding decisions, and new findings. Runtime binds exact identities, checks
+coverage and lineage, and derives the fail-closed verdict; the model owns every
+rationale. There is no matrix checklist or whole-packet regeneration retry.
 
 A rejected `metric_contract_review` returns the exact findings to the same metric
 author inside that bounded operation. If the revised candidate remains rejected,
@@ -321,30 +330,16 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-11, v346 is the authoritative development panel. All nine live LLM
-subsystems used exactly `claude-haiku-4-5-20251001`; both tasks ended `BLOCKED`, the
-scorecard was 6/16, closure was 0/2, and held-out stayed sealed. Sequential completed
-repeated strict-schema preflight calls and stopped only after two model revisions
-closed none of four active findings. Survival reached scientific execution, exact
-target review, formal RAG, and local Lean feedback but no exact target closure.
+As of 2026-08-11, v350 is authoritative. Every call used exact Haiku; both tasks were
+`BLOCKED`, score 6/16, closure 0/2, and held-out stayed sealed. Sequential completed
+initial theory without duplicate `sanity_check.conclusion`, then stopped on unresolved
+review findings. Survival reached direct scientific and Lean loops, but earned neither
+an accepted implementation nor a compiling target, so metrics stayed unauthorized.
 
-That Sequential failure exposed a harness design error, not a missing statistical
-rule. Required `slot_N` objects remain appropriate for finite identities: before
-v341, exact Haiku repeatedly omitted one row from fixed-cardinality arrays. The
-mistake was combining those slots with a thirteen-field estimator micro-checklist and
-six model-authored semantic booleans. [Anthropic documents](https://platform.claude.com/docs/en/build-with-claude/structured-outputs#schema-complexity-limits)
-that strict tools compile schemas into grammars with internal complexity limits. The
-preflight row now contains one model-owned execution audit, one independent identity
-check, a blocker list, a boundary case, status, and evidence refs. Runtime validates
-shape and consistency but does not decide the mathematics.
-
-The v347 exact-Haiku replay resumed v346's hash-bound Survival source checkpoint under
-one global budget. It made nine edits and nine Lean checks over twenty calls instead of
-losing edit access after the old third-edit quota. It still ended without an accepted
-checkpoint; `sorry` and a weakened assumption were correctly refused by identity/axiom
-and semantic gates. This is workspace mechanism evidence, not E2E or proof.
-
-The earlier v339 component compiled a support target with declaration inspection and RAG, not the source theorem.
+v348 exposed duplicate theory output and a 28-row metric-review schema too large for
+Anthropic's grammar. The duplicate field is gone. The compact reviewer replayed that
+exact protocol in one structured exact-Haiku call with all 28 identities and `ACCEPT`.
+This is component mechanism evidence, not simulation acceptance or proof.
 
 ## Structural constraints
 
@@ -378,11 +373,12 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-The immediate priorities are to shrink the still-large preflight and metric schemas,
-live-validate evidence-bound reviewer retraction without weakening genuine blockers,
-and improve active-project context, retrieval, and compiler ergonomics in the
-direct Lean loop. The next run that reaches scientific coding must also verify that
-one current-parent independent ACCEPT closes its lane exactly once. Small parallel candidate or lemma
+The immediate priorities are to shrink the still-large theory preflight without
+weakening independent review, improve active-project context, retrieval, and compiler
+ergonomics in the direct Lean loop, and improve the scientific source model's ability
+to satisfy its general executor ABI. The next run that reaches scientific coding must
+also verify that one current-parent independent ACCEPT closes its lane exactly once
+and unlocks the compact confirmatory metric protocol. Small parallel candidate or lemma
 work may be added inside an existing workspace only after the serial loop is
 stable and only with the same execution and evidence gates. Estimator-interface
 authoring should move into the workspace only if fresh traces show its bounded
