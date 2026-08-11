@@ -15,6 +15,7 @@ from ai_statistician.architect_coordinator_llm import (
 from ai_statistician.cli import (
     _apply_research_agent_runtime_evaluation_model_policy,
     _apply_research_agent_runtime_research_eval_profile,
+    _lean_project_import_preflight_errors,
     build_parser,
 )
 from ai_statistician.fingerprint import stable_hash
@@ -385,6 +386,73 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
                 "--capability-eval",
             ]
         )
+
+
+def test_runtime_defaults_shared_lean_retrieval_to_canonical_main() -> None:
+    parsed = build_parser().parse_args(["research-agent-runtime"])
+
+    assert parsed.emperical_process_lean_rag_source == "main"
+
+
+def test_lean_project_preflight_imports_topology_entry_module(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "EmpericalProcessLEAN"
+    project.mkdir()
+    observed: list[list[str]] = []
+
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        observed.append(list(command))
+        return Result()
+
+    entry_source = project / "StatInference.lean"
+    entry_source.write_text("import StatInference.Foundation\n", encoding="utf-8")
+    monkeypatch.setattr("ai_statistician.cli.subprocess.run", fake_run)
+
+    assert _lean_project_import_preflight_errors(
+        project,
+        timeout_seconds=30,
+    ) == []
+    assert observed == [["lake", "env", "lean", str(entry_source)]]
+    assert entry_source.read_text(encoding="utf-8") == (
+        "import StatInference.Foundation\n"
+    )
+
+
+def test_lean_project_preflight_fails_closed_with_raw_diagnostics(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "generic-lake-project"
+    project.mkdir()
+
+    def fake_run(command, **kwargs):
+        return type(
+            "LeanResult",
+            (),
+            {
+                "returncode": 1,
+                "stdout": "",
+                "stderr": "Main.lean:1:0: error: unknown module prefix",
+            },
+        )()
+
+    monkeypatch.setattr("ai_statistician.cli.subprocess.run", fake_run)
+
+    errors = _lean_project_import_preflight_errors(
+        project,
+        timeout_seconds=30,
+    )
+
+    assert len(errors) == 1
+    assert "import preflight failed" in errors[0]
+    assert "unknown module prefix" in errors[0]
 
 
 def test_simulation_guard_blocks_before_proposal_or_execution() -> None:

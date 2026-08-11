@@ -6,6 +6,8 @@ from copy import deepcopy
 import json
 import os
 from pathlib import Path
+import subprocess
+import tempfile
 from typing import Any, Mapping
 
 from .agent_runtime import AgentTask
@@ -4113,6 +4115,24 @@ def _apply_research_agent_runtime_capability_eval_preset(
 
     args.formalizer_candidate_local_lean = True
 
+    if not str(
+        getattr(args, "emperical_process_lean_rag_root", "") or ""
+    ).strip():
+        from .research_source_inventory import (
+            EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT,
+        )
+
+        shared_retrieval = (
+            EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT
+            / "lean_rag"
+            / "scripts"
+            / "shared_proof_retrieval.py"
+        )
+        if shared_retrieval.is_file():
+            args.emperical_process_lean_rag_root = str(
+                EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT
+            )
+
     lean_project_fields = ("formalizer_candidate_lean_project",)
     if lean_project:
         for field_name in lean_project_fields:
@@ -4427,13 +4447,85 @@ def _research_agent_runtime_local_lean_preflight_errors(
         / "lean"
         / "Mathlib.olean",
     )
-    if any(path.is_file() for path in mathlib_roots):
-        return []
-    return [
-        "capability eval local Lean preflight found an unbuilt Mathlib root at "
-        f"{project}; run `cd {project} && lake build Mathlib` before spending "
-        "live LLM budget"
-    ]
+    if not any(path.is_file() for path in mathlib_roots):
+        return [
+            "capability eval local Lean preflight found an unbuilt Mathlib root at "
+            f"{project}; run `cd {project} && lake build Mathlib` before spending "
+            "live LLM budget"
+        ]
+    return _lean_project_import_preflight_errors(
+        project,
+        timeout_seconds=max(
+            30,
+            int(getattr(args, "formalizer_candidate_lean_timeout", 30) or 30),
+        ),
+    )
+
+
+def _lean_project_import_preflight_errors(
+    project: Path,
+    *,
+    timeout_seconds: int,
+) -> list[str]:
+    """Check the actual project import surface before any live model call."""
+
+    from .formal_source_topology import (
+        configured_formal_source_entry_modules,
+    )
+
+    configured_entries = configured_formal_source_entry_modules(
+        "empirical_process_lean"
+    )
+    entry_sources = tuple(
+        (
+            module,
+            project.joinpath(*module.split(".")).with_suffix(".lean"),
+        )
+        for module in configured_entries
+        if project.joinpath(*module.split(".")).with_suffix(".lean").is_file()
+    )
+
+    def run_probe(module: str, probe: Path) -> list[str]:
+        try:
+            result = subprocess.run(
+                ["lake", "env", "lean", str(probe)],
+                cwd=project,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=max(1, int(timeout_seconds)),
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return [
+                "capability eval local Lean project-import preflight could not run "
+                f"at {project}: {exc}"
+            ]
+        if result.returncode == 0:
+            return []
+        diagnostics = "\n".join(
+            line
+            for line in (result.stdout + "\n" + result.stderr).splitlines()[-12:]
+            if line.strip()
+        )
+        return [
+            "capability eval local Lean project-import preflight failed for "
+            f"{module} at {project}; build the canonical project before spending "
+            "live LLM budget. Lean diagnostics:\n"
+            + (diagnostics or f"lake env lean exited with {result.returncode}")
+        ]
+
+    if entry_sources:
+        errors: list[str] = []
+        for module, source_path in entry_sources:
+            errors.extend(run_probe(module, source_path))
+        return errors
+
+    with tempfile.TemporaryDirectory(
+        prefix="ai-statistician-lean-preflight-"
+    ) as temp_dir:
+        probe = Path(temp_dir) / "Main.lean"
+        probe.write_text("import Mathlib\n", encoding="utf-8")
+        return run_probe("Mathlib", probe)
 
 
 def _research_agent_runtime_capability_config_errors(
@@ -6451,8 +6543,11 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument(
         "--emperical-process-lean-rag-source",
         choices=("all", "main", "worktrees"),
-        default="all",
-        help="which indexed EmpericalProcessLEAN checkouts participate in retrieval",
+        default="main",
+        help=(
+            "which indexed EmpericalProcessLEAN checkouts participate in retrieval; "
+            "canonical runs default to the clean main checkout"
+        ),
     )
     research_agent_runtime.add_argument(
         "--emperical-process-lean-rag-checkout",
