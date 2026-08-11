@@ -1,5 +1,5 @@
 {
-  "schema_version": 22,
+  "schema_version": 23,
   "updated_at": "2026-08-11",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -36,10 +36,12 @@
     "f193b04a": "Atomic model-owned Lean source submission and immediate real Lean check; separate edit/check tools removed.",
     "6c3da04c": "Exact content-addressed pending-task checkpoints, hash-verified resume, compact pending manifests, and resume-time task mutation removed.",
     "db55142e": "The same exact checkpoint contract now covers bounded transient provider exhaustion; substantive failures remain terminal.",
-    "50f602b8": "Hash-bound downstream execution failures now return to the exact source owner before stale lane completion checks; agentic Simulation no longer declares the legacy simulator; large preflight schemas reuse definitions; new review materializations persist references instead of full review payloads."
+    "50f602b8": "Hash-bound downstream execution failures now return to the exact source owner before stale lane completion checks; agentic Simulation no longer declares the legacy simulator; large preflight schemas reuse definitions; new review materializations persist references instead of full review payloads.",
+    "213736db": "Hash-bound downstream dependency failures now return raw consumer observations to their exact Python or R source owner inside the direct scientific workspace.",
+    "9f11105b": "Independent code review now reports an evidence-bound source-only sufficiency counterfactual. Source-local defects stay with the coding model; cross-artifact conflicts expose one compact content-addressed observation to the existing Architect without copying source or creating a repair agent."
   },
   "verification": {
-    "deterministic_suite": "532 passed",
+    "deterministic_suite": "537 passed",
     "compileall": "passed",
     "diff_check": "passed",
     "legacy_v352_resume_roundtrip": "The formerly rejected mixed-panel manifest now restores sequential_anytime_bernoulli, its exact pending AlgorithmEngineer task, and 108 hash-verified blackboard artifacts.",
@@ -115,38 +117,65 @@
       "reviewer_verdict": "ACCEPT",
       "semantic_warning": "The accepted theory and reviewer still agree on a reversed likelihood-ratio martingale orientation. This demonstrates that model agreement is not mathematical authority and motivates general executable, symbolic, retrieval, and formal counterchecks rather than a task-specific rule.",
       "boundary": "Live component evidence for the corrected schema and feedback transport only; not E2E completion, semantic truth, simulation acceptance, or proof."
+    },
+    "v359_latest_fresh_integrated_panel": {
+      "path": "runs/main_worker_cross_family_development_20260811_v359_terminal_dependency_owner_integrated_exact_haiku",
+      "model": "claude-haiku-4-5-20251001 for every live LLM call",
+      "status": "one BLOCKED and one MAX_ITERATIONS_REACHED",
+      "scorecard": "5/16",
+      "runtime_traces": 32,
+      "architect_traces": 10,
+      "generated_algorithm_executions": 2,
+      "generated_simulation_executions": 0,
+      "local_lean_checks": 0,
+      "local_lean_compiles": 0,
+      "kernel_verified_subclaims": 0,
+      "exact_source_theorem_closure": "0/2",
+      "survival_terminal_reason": "Six rejected code reviews repeatedly returned to the same Algorithm source. Later reviews explicitly found conflicts with immutable theory or the frozen contract that source-only edits could not close.",
+      "sequential_terminal_reason": "The task exhausted its outer budget in independent theory preflight and never reached scientific simulation or formalization.",
+      "boundary": "This is truthful integrated failure evidence and the latest authoritative panel. It predates the source-sufficiency routing commit and does not establish readiness."
+    },
+    "v359_cross_artifact_reviewer_replay": {
+      "path": "runs/main_worker_cross_family_development_20260811_v359_terminal_dependency_owner_integrated_exact_haiku/v359_cross_artifact_reviewer_schema20_replay.json",
+      "model": "claude-haiku-4-5-20251001",
+      "source_revision_sufficient": false,
+      "evidence_refs_present": true,
+      "runtime_authored_source": false,
+      "boundary": "Component evidence that the model can identify a source-insufficient cross-artifact conflict. Deterministic tests cover routing; this is not integrated simulation, formalization, kernel, or E2E evidence."
     }
   },
   "readiness": {
     "ready_for_full_ai_statistician": false,
-    "latest_authoritative_integrated_run": "v353",
-    "latest_fresh_integrated_attempt": "v357",
+    "latest_authoritative_integrated_run": "v359",
+    "latest_fresh_integrated_attempt": "v359",
     "development_exact_source_theorem_closure": "0/2",
     "held_out_panel": "sealed",
     "post_atomic_lean_and_checkpoint_fresh_panel_attempted": true,
-    "post_atomic_lean_and_checkpoint_clean_panel_completed": false,
+    "post_atomic_lean_and_checkpoint_clean_panel_completed": true,
     "strict_e2e_completion_rate": "0%"
   },
   "current_structure": {
-    "research_agent_runtime_lines": 21072,
+    "research_agent_runtime_lines": 21214,
     "agent_runtime_lines": 1174,
     "cli_lines": 6896,
-    "production_design_lines": 385,
+    "production_design_lines": 399,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 124487,
-    "latest_runtime_manifest_bytes": 58168
+    "top_level_package_lines": 124787,
+    "latest_runtime_manifest_bytes": 67895
   },
   "remaining_design_debt": [
-    "No development task has reached exact source-theorem kernel closure. Formalizer still needs better model-selected declaration context, proof-state feedback, and Statlib/Mathlib/EmpericalProcessLEAN retrieval, not handwritten grammar or tactic repair.",
+    "No development task has reached exact source-theorem kernel closure. Formalizer initial authoring still starts with a substantive structured proposal, while revision uses the direct submit-search-compile workspace. Both phases should use one model-owned Lean workspace with task-bound Statlib/Mathlib/EmpericalProcessLEAN retrieval and raw proof-state feedback, not handwritten grammar or tactic repair.",
     "Theory and independent-review quality are substantive blockers: the exact-Haiku v357 replay resolved all tracked findings but accepted a mathematically reversed likelihood-ratio martingale claim. Production can use Sonnet, while tests stay exact Haiku; both need general calculator, sandbox, retrieval, and formal counterchecks rather than task-specific assertions.",
-    "Survival scientific execution remains incomplete: generated Algorithm code ran and was independently accepted, but its downstream Simulation consumer exposed a non-finite result. The generic return-to-source transition is fixed, but requires fresh integrated evidence.",
-    "Architect still consumes too many outer iterations, and metric protocol work remains concentrated in the central runtime. Further extraction must delete observed routing duplication rather than introduce another interface layer.",
-    "New review materializations are reference-based, but accepted Algorithm handoffs and architect_context still carry more executable payload than the target content-addressed design. Compact them by hydrating exact source from immutable artifacts at execution time, not by adding another packet layer.",
-    "The central research runtime is still 21072 lines. It is much smaller than the stale 101k-line audit, but should shrink through deletion of inactive paths after fresh traces prove replacements.",
+    "v359 completed neither generated Simulation nor Lean authoring and closed 0/2 exact targets. The new source-sufficiency observation has exact-Haiku component evidence and deterministic routing coverage, but no fresh integrated evidence yet.",
+    "Architect consumed 10 of 32 v359 outer iterations. Cross-workspace conflicts belong there, but routine source-local failures must remain inside source sessions and must not spend Architect budget.",
+    "Metric protocol work remains concentrated in the central runtime. Further extraction must delete observed routing duplication rather than introduce another interface layer.",
+    "The central research runtime is still 21214 lines. It is much smaller than the stale 101k-line audit, but should shrink through deletion of inactive paths after fresh traces prove replacements.",
     "Production R execution, arbitrary paper-to-theorem-graph ingestion, and learned research or tactic policies remain incomplete."
   ],
   "next_gates": [
-    "Run a clean fresh exact-Haiku v358 two-family development panel from commit 50f602b8; do not treat the v357 component replay as integrated protocol evidence.",
+    "Run a clean fresh exact-Haiku v360 two-family development panel from commit 9f11105b; do not treat the v359 reviewer replay as integrated protocol evidence.",
+    "Verify that source-sufficient findings return directly to the same coding workspace and source-insufficient findings cause at most one content-addressed Architect observation instead of repeated source regeneration.",
+    "Unify initial Formalizer authoring and revision behind the existing direct model-selected retrieval and submit-and-check workspace, removing substantive Lean source from the initial proposal packet rather than adding a second formalization layer.",
     "Require current-parent Algorithm and Simulation acceptance, nonvacuous frozen metric execution, task-bound formal RAG, exact-target review, model-owned Lean iteration, and kernel closure for each task.",
     "Fix only shared source-workspace, execution, retrieval, lineage, or evidence mechanisms exposed by that run; do not add survival, sequential, FDR, conformal, Lean grammar, or theorem-specific rules.",
     "Keep PCA and extremes held out until both development tasks close their exact targets."

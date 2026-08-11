@@ -166,6 +166,11 @@ Independent semantic review checks whether the implementation represents the
 accepted theory artifact. Passing execution is not statistical validity, and
 passing simulation is not theorem proof.
 
+For rejected source, the reviewer asks whether editing only that source can close
+all findings with theory, contract, and consumer fixed; it names no owner, route,
+or edit. Sufficient findings return to the coding workspace; otherwise one compact
+observation goes to Architect. Source stays in the store, outside the control task.
+
 For outer-graph completion, an Algorithm or Simulation lane is complete only when
 its active manifest has an independent `ACCEPT` bound to the current immutable
 parents. The accepted review is the completion authority; handoff history and an
@@ -334,11 +339,18 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-11, v353 is the latest clean integrated comparison and v357 the latest fresh diagnostic. Every live call used exact Haiku. v357 scored 5/16, ended with one `BLOCKED` and one `FAILED`, closed 0/2 exact source theorems, used six Architect steps among 18, and left held-out tasks sealed.
+As of 2026-08-11, v359 is the latest fresh integrated panel. Every live call used
+exact Haiku. It scored 5/16, ended with one `BLOCKED` and one
+`MAX_ITERATIONS_REACHED`, closed 0/2 exact source theorems, used ten of 32 steps
+for Architect, executed two Algorithm candidates and no Simulation or Lean
+candidate, and left held-out tasks sealed.
 
-Survival reached accepted Algorithm source, direct Simulation source iteration, formal retrieval, one Lean check, and the final critic. Its consumer exposed a non-finite estimator value, but stale lane completion skipped the requested AlgorithmEngineer return. The transition policy now preserves that hash-bound raw observation back to the exact source owner first.
-
-Sequential revised theory against four findings, then Anthropic rejected its second preflight schema as too complex. Shared definitions and one ordered prior-finding array fixed transport; an exact-Haiku replay compiled, resolved all four identities, and returned `ACCEPT`. Inspection nevertheless found a reversed likelihood-ratio martingale claim accepted by both models. This is a capability failure, not a reason for a Bernoulli rule: theory and review need general executable, symbolic, retrieval, and formal counterchecks, and kernel evidence remains the only proof authority.
+Survival spent six rejected reviews revising the same source even after later
+findings said immutable theory or frozen-contract conflicts could not be closed by
+source edits alone. Sequential remained in theory preflight. The compact
+source-sufficiency observation removes that avoidable source churn without making
+the reviewer a router. Its exact-Haiku component replay recognized the real v359
+cross-artifact conflict, but component evidence is not an integrated E2E result.
 
 New review materializations persist immutable refs, fingerprints, and only the current executable handoff projection instead of complete theory, proposal, source/deferred tasks, and review packets. Old full materializations remain migration-readable but are never written by the canonical path.
 
@@ -374,7 +386,9 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-The immediate priorities are direct calculator/sandbox and formal counterexample access for theory and review, better active-project retrieval and Lean compiler ergonomics, and reference-only accepted handoffs/context. Fresh v358 must verify the source-owner backedge and preflight transport before held-out work. Parallel candidates may be added inside an existing workspace only after the serial loop is stable and under the same evidence gates. A new subsystem must remove more control paths than it introduces or represent an independent authority boundary.
+Immediate priorities are an integrated source-sufficiency check, one direct
+Formalizer workspace for authoring and revision, countercheck tools, and better
+retrieval. New mechanisms must remove control paths or enforce real authority.
 
 ## Basic checks
 
