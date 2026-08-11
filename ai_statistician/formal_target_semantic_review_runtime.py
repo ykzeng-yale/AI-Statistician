@@ -12,6 +12,7 @@ from .agent_runtime import (
     EnvironmentObservation,
     EvidenceLedgerEntry,
     ToolCallRecord,
+    agent_runtime_substage,
     agent_task_reference,
     compact_runtime_artifact_references,
     materialize_agent_task_continuation,
@@ -743,7 +744,15 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             "work_order_id": work_order_id,
             "work_order_hash": work_order_hash,
             "review_input_fingerprint": stable_hash(review_material),
-            "review_material": review_material,
+            "review_input_artifact_refs": {
+                key: str(work_order.get(key, "") or "")
+                for key in (
+                    "candidate_materialization_id",
+                    "theory_packet_id",
+                    "proposal_packet_id",
+                )
+            },
+            "full_review_material_persisted": False,
             "proof_evidence_status": (
                 "FORMAL_TARGET_SEMANTIC_REVIEW_INPUT_NOT_PROOF_EVIDENCE"
             ),
@@ -773,11 +782,20 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
         }
         trusted_lineage["work_order_hash"] = work_order_hash
         try:
-            review_packet = self.reviewer.review(
-                question=question,
-                review_material=review_material,
-                trusted_lineage=trusted_lineage,
-            )
+            with agent_runtime_substage(
+                "formal_target_semantic_review",
+                metadata={
+                    "candidate_id": str(
+                        work_order.get("candidate_id", "") or ""
+                    ),
+                    "review_input_fingerprint": stable_hash(review_material),
+                },
+            ):
+                review_packet = self.reviewer.review(
+                    question=question,
+                    review_material=review_material,
+                    trusted_lineage=trusted_lineage,
+                )
         except PacketValidationError as exc:
             last_invalid_packet = (
                 dict(exc.last_invalid_packet)

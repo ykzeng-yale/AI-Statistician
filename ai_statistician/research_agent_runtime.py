@@ -1853,6 +1853,32 @@ def _runtime_exact_algorithm_artifacts(
     return exact_artifacts
 
 
+def _runtime_materialized_exact_algorithm_artifacts(
+    materialization: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Validate the compact executable projection retained after review."""
+
+    exact_artifacts: list[dict[str, Any]] = []
+    for raw_row in materialization.get("exact_algorithm_artifacts", []) or []:
+        if not isinstance(raw_row, Mapping):
+            return []
+        row = deepcopy(dict(raw_row))
+        source = str(row.get("exact_source_code", "") or "")
+        result = row.get("exact_smoke_result", {})
+        if not (
+            str(row.get("estimator_id", "") or "").strip()
+            and source
+            and isinstance(result, Mapping)
+            and str(row.get("exact_source_hash", "") or "")
+            == stable_hash(source)
+            and str(row.get("exact_smoke_result_hash", "") or "")
+            == stable_hash(dict(result))
+        ):
+            return []
+        exact_artifacts.append(row)
+    return exact_artifacts
+
+
 def _runtime_accepted_algorithm_handoff_from_review(
     *,
     question_id: str,
@@ -2017,15 +2043,36 @@ def _runtime_validated_algorithm_handoff(
     materialization = blackboard.artifacts.get(
         str(handoff.get("materialization_id", "") or ""), {}
     )
-    review_material = (
+    legacy_review_material = (
         materialization.get("review_material", {})
         if isinstance(materialization, Mapping)
         else {}
     )
     expected_artifacts = (
-        _runtime_exact_algorithm_artifacts(review_material)
-        if isinstance(review_material, Mapping)
+        _runtime_materialized_exact_algorithm_artifacts(materialization)
+        if isinstance(materialization, Mapping)
         else []
+    )
+    if (
+        not expected_artifacts
+        and isinstance(legacy_review_material, Mapping)
+        and legacy_review_material
+    ):
+        expected_artifacts = _runtime_exact_algorithm_artifacts(
+            legacy_review_material
+        )
+    review_input_fingerprint = str(
+        materialization.get("review_input_fingerprint", "") or ""
+    )
+    review_input_identity_valid = bool(
+        review_input_fingerprint
+        and review_input_fingerprint
+        == execution.get("review_input_fingerprint")
+        == packet.get("review_input_fingerprint")
+        and (
+            not legacy_review_material
+            or review_input_fingerprint == stable_hash(legacy_review_material)
+        )
     )
     if not (
         handoff
@@ -2049,8 +2096,7 @@ def _runtime_validated_algorithm_handoff(
         and execution.get("review_packet_hash") == stable_hash(packet)
         and execution.get("materialization_hash") == stable_hash(materialization)
         and packet.get("overall_verdict") == "ACCEPT"
-        and materialization.get("review_input_fingerprint")
-        == stable_hash(review_material)
+        and review_input_identity_valid
         and handoff.get("exact_algorithm_artifacts") == expected_artifacts
         and expected_artifacts
     ):
@@ -3806,6 +3852,55 @@ def _lineage_bound_semantic_review_return_to_source_producer(
     return revision_count == prior_count + 1
 
 
+def _lineage_bound_execution_return_to_source_producer(
+    *,
+    result: AgentStepResult,
+    next_task: AgentTask,
+    blackboard: BlackboardState,
+) -> bool:
+    """Preserve a raw consumer backedge to the exact source-owning workspace."""
+
+    feedback = next_task.inputs.get("environment_feedback", {})
+    if not isinstance(feedback, Mapping):
+        return False
+    transport = feedback.get("observation_transport", {})
+    if (
+        not isinstance(transport, Mapping)
+        or transport.get("same_source_producer_must_revise") is not True
+        or transport.get("runtime_selected_source_edit") is not False
+        or str(feedback.get("failure_classification", "") or "")
+        != result.failure_classification
+    ):
+        return False
+    source_manifest_id = str(
+        feedback.get("source_manifest_artifact_id", "") or ""
+    ).strip()
+    expected_manifest = {
+        "AlgorithmEngineer": (
+            "algorithm_sandbox_manifest_id",
+            "RuntimeAlgorithmSandboxManifest",
+        ),
+        "SimulationEvaluator": (
+            "simulation_manifest_id",
+            "RuntimeSimulationManifest",
+        ),
+    }.get(next_task.owner_subsystem)
+    if not source_manifest_id or expected_manifest is None:
+        return False
+    manifest_field, manifest_kind = expected_manifest
+    source_manifest = blackboard.artifacts.get(source_manifest_id, {})
+    return bool(
+        isinstance(source_manifest, Mapping)
+        and source_manifest.get("artifact_kind") == manifest_kind
+        and str(source_manifest.get("manifest_id", "") or "")
+        == source_manifest_id
+        and str(feedback.get(manifest_field, "") or "")
+        == source_manifest_id
+        and str(feedback.get("source_manifest_content_hash", "") or "")
+        == stable_hash(dict(source_manifest))
+    )
+
+
 def _runtime_transition_policy(
     *,
     iteration: int,
@@ -3831,6 +3926,12 @@ def _runtime_transition_policy(
     if next_task.owner_subsystem == "ArchitectCoordinator":
         return result
     if next_task.owner_subsystem == subsystem_name:
+        return result
+    if _lineage_bound_execution_return_to_source_producer(
+        result=result,
+        next_task=next_task,
+        blackboard=blackboard,
+    ):
         return result
     next_context = next_task.inputs.get("architect_context", {})
     completed_next_lane = bool(
@@ -6389,6 +6490,11 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         def materialize_review(
             material: Mapping[str, Any],
         ) -> tuple[str, dict[str, Any]]:
+            exact_algorithm_artifacts = (
+                _runtime_exact_algorithm_artifacts(material)
+                if source_subsystem == "AlgorithmEngineer"
+                else []
+            )
             materialization_id = (
                 "generated_code_semantic_review_materialization:"
                 + stable_hash([work_order_id, material])[:20]
@@ -6411,7 +6517,16 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     )
                     or ""
                 ),
-                "review_material": dict(material),
+                "review_input_artifact_refs": {
+                    key: str(work_order.get(key, "") or "")
+                    for key in (
+                        "source_manifest_id",
+                        "theory_packet_id",
+                        "proposal_packet_id",
+                    )
+                },
+                "exact_algorithm_artifacts": exact_algorithm_artifacts,
+                "full_review_material_persisted": False,
                 "proof_evidence_status": (
                     "GENERATED_CODE_SEMANTIC_REVIEW_INPUT_NOT_PROOF_EVIDENCE"
                 ),
@@ -6495,11 +6610,18 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             return errors
 
         try:
-            review_packet = self.reviewer.review(
-                question=question,
-                review_material=review_material,
-                trusted_lineage=trusted_lineage,
-            )
+            with agent_runtime_substage(
+                "generated_code_semantic_review",
+                metadata={
+                    "source_subsystem": source_subsystem,
+                    "review_input_fingerprint": stable_hash(review_material),
+                },
+            ):
+                review_packet = self.reviewer.review(
+                    question=question,
+                    review_material=review_material,
+                    trusted_lineage=trusted_lineage,
+                )
         except PacketValidationError as exc:
             last_invalid_packet = (
                 deepcopy(dict(exc.last_invalid_packet))
@@ -7287,10 +7409,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             initial_materialization_id,
             materialization,
         )
-        initial_review_material = (
-            initial_materialization.get("review_material", {})
-            if isinstance(initial_materialization, Mapping)
-            else {}
+        initial_review_fingerprint = str(
+            initial_materialization.get("review_input_fingerprint", "") or ""
         )
 
         def review_call_record(
@@ -7315,9 +7435,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 tool_name="LLMGeneratedCodeSemanticReviewerAgent.review",
                 inputs={
                     "work_order_id": work_order_id,
-                    "review_input_fingerprint": stable_hash(
-                        initial_review_material
-                    ),
+                    "review_input_fingerprint": initial_review_fingerprint,
                     "source_subsystem": source_subsystem,
                     "feedback_revision": False,
                 },

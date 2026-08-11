@@ -294,7 +294,7 @@ def test_algorithm_and_simulation_packets_accept_declared_r_drafts() -> None:
             }
         ],
         "runtime_execution_plan": {
-            "registered_simulator": "ResearchSimulator.run"
+            "execution_owner": "scientific_code_workspace"
         },
         "critic_findings": [{"finding": "inspect tails"}],
         "next_actions": [{"owner_agent": "SimulationEngineer"}],
@@ -333,7 +333,7 @@ def test_native_source_transport_accepts_identity_only_planning_envelopes() -> N
             }
         ],
         "runtime_execution_plan": {
-            "registered_simulator": "ResearchSimulator.run"
+            "execution_owner": "scientific_code_workspace"
         },
         "critic_findings": [{"finding": "inspect diagnostics"}],
         "next_actions": [{"owner_agent": "SimulationEngineer"}],
@@ -349,6 +349,35 @@ def test_native_source_transport_accepts_identity_only_planning_envelopes() -> N
 
     assert validate_algorithm_engineer_packet(algorithm_packet) == []
     assert validate_simulation_engineer_packet(simulation_packet) == []
+
+
+def test_simulation_execution_owner_is_explicit_not_inferred_from_drafts() -> None:
+    packet = {
+        "simulation_targets": [{"procedure_id": "legacy-diagnostic"}],
+        "simulation_code_drafts": [
+            {
+                "simulation_id": "optional-proposal",
+                "required_estimator_ids": [],
+                "language": "python",
+                "dependencies": [],
+                "entrypoint": "run_sandbox",
+                "code": "def run_sandbox(seed, replicates, estimators):\n    return {'ok': True}",
+            }
+        ],
+        "runtime_execution_plan": {
+            "execution_owner": "legacy_registered_simulator",
+            "registered_simulator": "ResearchSimulator.run",
+        },
+        "critic_findings": [{"finding": "legacy compatibility only"}],
+        "next_actions": [{"owner_agent": "SimulationEngineer"}],
+        "simulation_evidence_status": (
+            SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE
+        ),
+        "simulations_executed": False,
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+    }
+
+    assert validate_simulation_engineer_packet(packet) == []
 
 
 def test_native_source_transport_removes_source_from_provider_schema() -> None:
@@ -381,6 +410,9 @@ def test_native_source_transport_removes_source_from_provider_schema() -> None:
         "simulation_id",
         "required_estimator_ids",
     }
+    assert "registered_simulator" not in simulation_schema["properties"][
+        "runtime_execution_plan"
+    ]["properties"]
 
 
 def test_native_simulation_source_is_deferred_past_capability_packet_gate() -> None:

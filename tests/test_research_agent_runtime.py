@@ -574,6 +574,97 @@ def test_accepted_code_review_closes_only_its_current_parent_lineage() -> None:
     )
 
 
+def test_consumer_failure_reopens_exact_accepted_source_owner() -> None:
+    question = OpenResearchQuestion(
+        id="generic-consumer-backedge",
+        title="Return consumer failure to its source owner",
+        description="A reviewed source fails inside a downstream consumer.",
+    )
+    context = _full_evidence_context(question.id)
+    context["algorithm_sandbox_manifest_id"] = "algorithm:accepted"
+    context["accepted_generated_code_semantic_reviews"] = [
+        {
+            "source_subsystem": "AlgorithmEngineer",
+            "source_manifest_id": "algorithm:accepted",
+            "overall_verdict": "ACCEPT",
+            "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
+        }
+    ]
+    source_manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": "algorithm:accepted",
+        "theory_packet_id": "theory:generic",
+    }
+    failure_classification = "accepted_algorithm_estimator_runtime_failed"
+    feedback = {
+        "feedback_type": "algorithm_sandbox_execution_feedback",
+        "algorithm_sandbox_manifest_id": "algorithm:accepted",
+        "source_manifest_artifact_id": "algorithm:accepted",
+        "source_manifest_content_hash": runtime_module.stable_hash(
+            source_manifest
+        ),
+        "failure_classification": failure_classification,
+        "consumer_execution_observation": {
+            "stderr_summary": "accepted estimator returned a non-finite value"
+        },
+        "observation_transport": {
+            "complete_candidate_rows": True,
+            "runtime_interpreted_failure": False,
+            "runtime_selected_source_edit": False,
+            "same_source_producer_must_revise": True,
+        },
+    }
+    source_task = AgentTask(
+        task_id="algorithm-consumer-observation:generic",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Revise the exact source from its raw consumer observation.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "architect_context": context,
+            "environment_feedback": feedback,
+        },
+    )
+    result = AgentStepResult(
+        status="REROUTE",
+        rationale="Return the raw consumer observation to its source owner.",
+        next_task=source_task,
+        failure_classification=failure_classification,
+    )
+
+    continued = _runtime_transition_policy(
+        iteration=8,
+        task=AgentTask(
+            task_id="simulation:generic-consumer-backedge",
+            owner_subsystem="SimulationEvaluator",
+            objective="Execute the accepted estimator in a downstream consumer.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": "theory:generic",
+                "algorithm_sandbox_manifest_id": "algorithm:accepted",
+                "architect_context": context,
+            },
+        ),
+        subsystem_name="SimulationEvaluator",
+        result=result,
+        blackboard=BlackboardState(
+            project_id=question.id,
+            artifacts={
+                "theory:generic": {"packet_id": "theory:generic"},
+                "algorithm:accepted": source_manifest,
+            },
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert continued is result
+    assert continued.next_task is source_task
+    assert continued.next_task.owner_subsystem == "AlgorithmEngineer"
+
+
 def test_accepted_review_ledger_preserves_distinct_workspace_lineages() -> None:
     current_algorithm_review = {
         "execution_id": "review:algorithm-current",

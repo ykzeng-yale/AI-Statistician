@@ -52,7 +52,7 @@ SIMULATION_ENGINEER_BOUNDARY = (
     "LLM SimulatorEngineer packets are simulation-design proposals only. They "
     "do not execute Monte Carlo code, do not validate an estimator empirically, "
     "and do not count as proof evidence. Executable simulation evidence requires "
-    "AgentRuntime to run registered simulator code with recorded seed and metrics."
+    "AgentRuntime to execute the exact submitted source with recorded seed and metrics."
 )
 
 
@@ -214,6 +214,7 @@ class LLMSimulationEngineerAgent:
                     if defer_source_authoring
                     else SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET
                 ),
+                agentic_execution=requires_generated_code,
             )
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
@@ -379,7 +380,11 @@ def build_simulation_engineer_prompt(
             "seed": seed,
             **runtime_execution_contract,
         },
-        "registered_execution_owner": "AgentRuntime ResearchSimulator.run",
+        "execution_owner": (
+            "model-owned scientific code workspace"
+            if requires_generated_code
+            else "optional legacy registered baseline"
+        ),
         "generated_simulation_code_contract": {
             "status": "primary model-authored simulation and stress-test path",
             "entrypoint": "run_sandbox",
@@ -873,7 +878,6 @@ SIMULATION_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
         }
     ],
     "runtime_execution_plan": {
-        "registered_simulator": "ResearchSimulator.run",
         "n_runs": "integer",
         "seed": "integer",
     },
@@ -978,9 +982,8 @@ def _simulation_engineer_response_schema(
             "runtime_execution_plan": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["registered_simulator", "n_runs", "seed"],
+                "required": ["n_runs", "seed"],
                 "properties": {
-                    "registered_simulator": {"type": "string", "minLength": 1},
                     "n_runs": {"type": "integer", "minimum": 1},
                     "seed": {"type": "integer"},
                 },
@@ -1209,11 +1212,36 @@ def validate_simulation_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
             )
         )
     runtime_plan = packet.get("runtime_execution_plan", {})
-    if isinstance(runtime_plan, Mapping):
-        if str(runtime_plan.get("registered_simulator", "")) != "ResearchSimulator.run":
-            errors.append("runtime_execution_plan.registered_simulator must be ResearchSimulator.run")
-    else:
+    if not isinstance(runtime_plan, Mapping):
         errors.append("runtime_execution_plan must be an object")
+    else:
+        execution_owner = str(
+            runtime_plan.get("execution_owner", "") or ""
+        )
+        if execution_owner not in {
+            "scientific_code_workspace",
+            "legacy_registered_simulator",
+        }:
+            errors.append(
+                "runtime_execution_plan.execution_owner must name a supported "
+                "runtime execution path"
+            )
+        if (
+            execution_owner == "scientific_code_workspace"
+            and "registered_simulator" in runtime_plan
+        ):
+            errors.append(
+                "agentic simulation plans cannot declare a legacy registered_simulator"
+            )
+        if (
+            execution_owner == "legacy_registered_simulator"
+            and str(runtime_plan.get("registered_simulator", "") or "")
+            != "ResearchSimulator.run"
+        ):
+            errors.append(
+                "legacy runtime_execution_plan.registered_simulator must be "
+                "ResearchSimulator.run"
+            )
     return sorted(set(errors))
 
 
@@ -1376,6 +1404,7 @@ def _normalize_simulation_packet(
     empirical_evaluation_phase: str = "",
     upstream_algorithm_handoff: Mapping[str, Any] | None = None,
     scientific_source_transport: str = SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET,
+    agentic_execution: bool = False,
 ) -> dict[str, Any]:
     body = dict(payload)
     raw_metric_contracts = body.get("metric_contracts", [])
@@ -1426,16 +1455,24 @@ def _normalize_simulation_packet(
         runtime_plan = {}
     else:
         runtime_plan = dict(runtime_plan)
-    requested_registered_simulator = str(runtime_plan.get("registered_simulator", "") or "").strip()
-    runtime_plan["llm_requested_registered_simulator"] = requested_registered_simulator
-    runtime_plan["registered_simulator"] = "ResearchSimulator.run"
+    runtime_plan.pop("registered_simulator", None)
+    runtime_plan.pop("llm_requested_registered_simulator", None)
     runtime_plan["n_runs"] = n_runs
     runtime_plan["seed"] = seed
-    runtime_plan["canonicalization_boundary"] = (
-        "AgentRuntime owns simulator selection and execution. The LLM may propose "
-        "simulation diagnostics, but the registered simulator field is canonicalized "
-        "to the trusted ResearchSimulator.run entrypoint before validation."
-    )
+    if agentic_execution:
+        runtime_plan["execution_owner"] = "scientific_code_workspace"
+        runtime_plan["execution_interface"] = "submit_scientific_source"
+        runtime_plan["canonicalization_boundary"] = (
+            "AgentRuntime records the isolated execution interface; the model owns "
+            "the complete source and receives its raw observations."
+        )
+    else:
+        runtime_plan["execution_owner"] = "legacy_registered_simulator"
+        runtime_plan["registered_simulator"] = "ResearchSimulator.run"
+        runtime_plan["canonicalization_boundary"] = (
+            "This non-agentic compatibility path uses the explicit registered "
+            "baseline and cannot satisfy agentic generated-source evidence gates."
+        )
     body["runtime_execution_plan"] = runtime_plan
     body["simulation_evidence_status"] = SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE
     body["simulation_evidence_boundary"] = SIMULATION_ENGINEER_BOUNDARY

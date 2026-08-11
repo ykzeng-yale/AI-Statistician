@@ -562,7 +562,7 @@ def architect_theory_execution_preflight_json_schema(
             "minLength": 1,
             "maxLength": 360,
         },
-        "evidence_refs": evidence_refs,
+        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
     }
     finding_required_fields = [
         "severity",
@@ -603,7 +603,7 @@ def architect_theory_execution_preflight_json_schema(
                 "minLength": 1,
                 "maxLength": 300,
             },
-            "evidence_refs": evidence_refs,
+            "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
         },
     }
     prior_finding_review_schema = {
@@ -628,7 +628,7 @@ def architect_theory_execution_preflight_json_schema(
                 "minLength": 1,
                 "maxLength": 280,
             },
-            "evidence_refs": evidence_refs,
+            "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
         },
     }
 
@@ -729,7 +729,7 @@ def architect_theory_execution_preflight_json_schema(
                             "type": "string",
                             "enum": ["PASS", "FAIL", "UNCERTAIN"],
                         },
-                        "evidence_refs": evidence_refs,
+                        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
                     },
                 },
             },
@@ -747,6 +747,7 @@ def architect_theory_execution_preflight_json_schema(
         },
     }
     schema["$defs"] = {
+        "evidence_refs": evidence_refs,
         "dimension_review": dimension_review_schema,
         "estimator_execution_check": deepcopy(
             schema["properties"]["estimator_execution_checks"]["items"]
@@ -757,7 +758,6 @@ def architect_theory_execution_preflight_json_schema(
     ordered_slot_definitions = {
         "dimension_reviews": "dimension_review",
         "estimator_execution_checks": "estimator_execution_check",
-        "prior_finding_reviews": "prior_finding_review",
     }
     for field, definition in ordered_slot_definitions.items():
         array_schema = schema["properties"][field]
@@ -942,7 +942,7 @@ def _architect_theory_execution_preflight_submit_schema(
 ) -> dict[str, Any]:
     schema = architect_theory_execution_preflight_json_schema(material)
     finding_schema = schema["$defs"]["finding"]
-    finding_schema["properties"]["source_evidence_refs"] = {
+    source_evidence_refs = {
         "type": "array",
         "minItems": 1,
         "maxItems": 6,
@@ -959,18 +959,15 @@ def _architect_theory_execution_preflight_submit_schema(
             "evidence_refs field accepts only theory anchor IDs from its enum."
         ),
     }
+    schema["$defs"]["source_evidence_refs"] = source_evidence_refs
+    finding_schema["properties"]["source_evidence_refs"] = {
+        "$ref": "#/$defs/source_evidence_refs"
+    }
     prior_review_schema = schema["$defs"].get("prior_finding_review")
     if isinstance(prior_review_schema, dict):
-        prior_review_schema["properties"]["source_evidence_refs"] = deepcopy(
-            finding_schema["properties"]["source_evidence_refs"]
-        )
-        prior_review_schema["properties"]["source_evidence_refs"][
-            "description"
-        ] = (
-            "Short source_ref handles returned by search_preflight_sources that "
-            "support the current RESOLVED or UNRESOLVED judgment. Runtime resolves "
-            "them to immutable source_hit_id values."
-        )
+        prior_review_schema["properties"]["source_evidence_refs"] = {
+            "$ref": "#/$defs/source_evidence_refs"
+        }
     return schema
 
 

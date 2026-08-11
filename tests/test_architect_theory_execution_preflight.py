@@ -154,7 +154,6 @@ class _PreflightToolBackend:
         for field in (
             "dimension_reviews",
             "estimator_execution_checks",
-            "prior_finding_reviews",
         ):
             rows = payload.get(field)
             if isinstance(rows, list):
@@ -1096,7 +1095,7 @@ def test_preflight_full_regeneration_returns_raw_validation_feedback() -> None:
     )
 
 
-def test_preflight_prior_finding_schema_uses_compact_required_slots() -> None:
+def test_preflight_prior_finding_schema_uses_compact_ordered_array() -> None:
     base_material = {
         "anchor_catalog": [
             {"anchor_id": "theory.estimator_specs"},
@@ -1117,12 +1116,11 @@ def test_preflight_prior_finding_schema_uses_compact_required_slots() -> None:
     )
 
     prior_schema = six_schema["properties"]["prior_finding_reviews"]
-    expected_slots = [f"slot_{index}" for index in range(6)]
-    assert prior_schema["type"] == "object"
-    assert prior_schema["required"] == expected_slots
-    assert prior_schema["properties"] == {
-        slot: {"$ref": "#/$defs/prior_finding_review"}
-        for slot in expected_slots
+    assert prior_schema["type"] == "array"
+    assert prior_schema["minItems"] == 6
+    assert prior_schema["maxItems"] == 6
+    assert prior_schema["items"] == {
+        "$ref": "#/$defs/prior_finding_review"
     }
     assert len(json.dumps(six_schema, separators=(",", ":"))) - len(
         json.dumps(one_schema, separators=(",", ":"))
@@ -1151,11 +1149,14 @@ def test_preflight_v344_shape_survives_anthropic_strict_transform() -> None:
     for field in (
         "dimension_reviews",
         "estimator_execution_checks",
-        "prior_finding_reviews",
     ):
         assert transformed["properties"][field]["required"] == (
             schema["properties"][field]["required"]
         )
+    transformed_prior = transformed["properties"]["prior_finding_reviews"]
+    assert transformed_prior["type"] == "array"
+    assert "maxItems: 3" in transformed_prior["description"]
+    assert "minItems: 3" in transformed_prior["description"]
     estimator_properties = transformed["$defs"][
         "estimator_execution_check"
     ]["properties"]
@@ -1512,9 +1513,10 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     prior_review_schema = backend.requests[0].schema["properties"][
         "prior_finding_reviews"
     ]
-    assert prior_review_schema["type"] == "object"
-    assert prior_review_schema["required"] == ["slot_0"]
-    assert prior_review_schema["properties"]["slot_0"] == {
+    assert prior_review_schema["type"] == "array"
+    assert prior_review_schema["minItems"] == 1
+    assert prior_review_schema["maxItems"] == 1
+    assert prior_review_schema["items"] == {
         "$ref": "#/$defs/prior_finding_review"
     }
     prior_review_definition = backend.requests[0].schema["$defs"][
@@ -1673,7 +1675,7 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_index() -> None:
     assert "finding_id" not in finding_schema["properties"]
     prior_schema = backend.requests[0].schema["properties"][
         "prior_finding_reviews"
-    ]["properties"]["slot_0"]
+    ]["items"]
     assert prior_schema == {"$ref": "#/$defs/prior_finding_review"}
     assert "current_finding" not in backend.requests[0].schema["$defs"][
         "prior_finding_review"
