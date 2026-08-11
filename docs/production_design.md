@@ -124,6 +124,14 @@ point, because an executor needs a callable boundary. It may not encode a specif
 statistical answer in that ABI. Unit-test and simulation-consumer failures return
 their raw stdout, stderr, request, and exact source hash to the same coding model.
 
+For live providers with native client tools, the structured proposal carries only
+artifact identity and immutable bindings. Source is authored afterward in the same
+model-owned workspace. `replace_scientific_source` stores one complete model-authored
+Python or R candidate; it does not patch, interpret, or repair source.
+`run_scientific_source` executes those exact bytes and returns the raw observation.
+Planning-time estimator IDs remain frozen while the model may replace the complete
+source. Structured-source packets remain only a replay/static-provider fallback.
+
 Independent semantic review checks whether the implementation represents the
 accepted theory artifact. Passing execution is not statistical validity, and
 passing simulation is not theorem proof.
@@ -230,15 +238,17 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-11, the v323 authoritative development panel remains 0/2 exact
-source-theorem closures with a 9/16 capability scorecard. It exposed a root-lineage
-error: dependent formal and empirical work continued after a rejected theory
-revision failed. The canonical runtime now stops that dependency chain, and a
-focused exact-Haiku replay accepted the corrected flat typed workspace protocol in
-two turns. A separate production-context component run then authored all ten
-initial theory artifacts in four exact-Haiku tool turns after the read-only context
-was consolidated to one artifact. Those corrections are not fresh panel evidence.
-The held-out panel remains sealed and the system is not yet fully end to end.
+As of 2026-08-11, v326 is the authoritative development panel: 0/2 exact
+source-theorem closures, capability scorecard 6/16, and both tasks blocked. It
+exercised model-owned initial theory authoring, generated algorithm execution,
+independent review, and direct Formalizer source iteration. Generated simulation
+was blocked before execution by embedding a 14.7KB model source in the structured
+proposal. The canonical live path now emits a source-free identity envelope and
+uses the direct scientific workspace. In a component diagnostic, exact Haiku read
+the raw callback failure, authored two complete replacements, and reached an
+accepted sandbox execution with all three frozen estimator callbacks mechanically
+observed. This is component evidence, not a fresh panel or theorem closure. The
+held-out panel remains sealed and the system is not yet fully end to end.
 
 ## Structural constraints
 
@@ -272,13 +282,13 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-The immediate priorities are to exercise both corrected theory paths in a fresh
-exact-Haiku development panel, consolidate the metric protocol control plane, and
-improve direct Python/R and Lean loops. Estimator-interface authoring should move
-into the workspace only if fresh traces show its bounded structured stage is a
-material feedback blocker. No new subsystem should be added unless it removes more
-control paths than it introduces or represents a genuinely independent authority
-boundary.
+The immediate priorities are to exercise the corrected theory and scientific
+source paths in a fresh exact-Haiku development panel, consolidate the metric
+protocol control plane, and improve the direct Lean loop. Estimator-interface
+authoring should move into the workspace only if fresh traces show its bounded
+structured stage is a material feedback blocker. No new subsystem should be added
+unless it removes more control paths than it introduces or represents a genuinely
+independent authority boundary.
 
 ## Basic checks
 
