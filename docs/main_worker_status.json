@@ -3,8 +3,8 @@
   "updated_at": "2026-08-11",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "base_head_before_current_change": "11c2b060",
-  "current_runtime_head": "3874509d",
+  "base_head_before_current_change": "a6239622",
+  "current_runtime_head": "66e712e0",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "operational_goal_refinement": "As the sole worker, simplify the canonical runtime into one outer research graph and direct model-owned Python, R, and Lean workspaces; preserve independent review, frozen evaluation, artifact lineage, and kernel authority; validate on fresh cross-family tasks without adding benchmark-specific rules.",
   "goal_status": "active",
@@ -34,6 +34,12 @@
     "task_continuation_structured_inputs_content_addressed": true,
     "task_continuation_resume_closure_hash_bound": true,
     "runtime_handoffs_hydrate_refs_only_for_execution": true,
+    "theory_revision_model_owned_artifact_workspace": true,
+    "theory_revision_whole_packet_fallback_removed": true,
+    "theory_parent_and_reviewer_state_read_on_demand": true,
+    "theory_validator_feedback_returned_to_same_model_session": true,
+    "theory_workspace_checkpoint_preserves_model_state": true,
+    "theory_revision_transport_uses_lineage_not_copied_findings": true,
     "retrieval_theory_and_preflight_state_stored_once": true,
     "metric_prior_rejection_history_compacted_to_ledger": true,
     "opaque_manifest_refs_not_misclassified_as_blackboard_refs": true,
@@ -50,19 +56,22 @@
     "materialized_formal_gap_count_separated_from_formal_closure": true
   },
   "current_structure": {
-    "package_python_modules": 137,
-    "package_python_lines": 125297,
-    "research_agent_runtime_lines": 20610,
+    "package_python_modules": 138,
+    "package_python_lines": 125976,
+    "research_agent_runtime_lines": 20615,
     "research_agent_runtime_config_fields": 19,
     "research_agent_runtime_audit_lines": 784,
+    "research_architect_lines": 3442,
+    "theory_workspace_lines": 542,
     "cli_lines": 6948,
-    "test_modules": 42,
-    "test_lines": 26809
+    "test_modules": 43,
+    "test_lines": 27037
   },
   "verification": {
-    "full_deterministic_suite": "520 passed",
+    "full_deterministic_suite": "522 passed",
     "compileall": "passed",
     "diff_check": "passed",
+    "v322_theory_workspace_projection": "Offline projection against the persisted Sequential v322 revision reduced the legacy 159243-byte whole-packet initial prompt to 4829 bytes with the full routed context, a 96.97% reduction; reconstructing from the content-addressed parent and metric observation alone produces a 2890-byte initial prompt. The 32861-byte parent core and 31909-byte full-context reviewer observation remain exact read-on-demand artifacts rather than prompt copies. This is transport evidence, not a new live capability run.",
     "v322_semantic_review_snapshot_replay": "Offline same-serialization replay projected 8 recursive task snapshots totaling 10040653 bytes into 9 authoritative state artifacts plus 22 continuation artifacts totaling 2160549 bytes, a 78.48% reduction. This is not a new live capability run; exact execution hydration, stale-ref rejection, opaque-ref compatibility, and transitive resume closure are covered by deterministic tests.",
     "fresh_exact_haiku_development_panel": "v322 completed: 2/2 formal-required blockers, 0/2 exact theorem closure",
     "v322_formalizer_continuation": "Both development families resumed the same model-owned Lean source checkpoint in a second direct client-tool session; the second parent source hash equals the first current source hash.",
@@ -81,9 +90,9 @@
   },
   "remaining_design_debt": [
     "The v322 Formalizer generated, searched, edited, and locally checked Lean in both families, but all four source sessions ended uncompiled; source-theorem kernel closure remains 0/2.",
-    "The v322 panel took 2020.7 seconds. Sequential TheoryDeveloper spent 258.4 seconds on one full packet revision, while Architect-hosted compound stages consumed 216.5 seconds for Survival and 312.8 seconds for Sequential.",
+    "The historical v322 panel took 2020.7 seconds. Sequential TheoryDeveloper spent 258.4 seconds on one full packet revision, while Architect-hosted compound stages consumed 216.5 seconds for Survival and 312.8 seconds for Sequential. The full-packet serious-revision path is now removed, but the replacement still needs fresh live timing evidence.",
     "Recursive semantic-review AgentTask snapshots and routine retrieval/theory/preflight copies are removed. The conservative v322 replay still projects 2.16 MB of distinct state, so remaining research history must move into one authoritative workspace state rather than another compression or repair layer.",
-    "TheoryDeveloper still needs a persistent equation, lemma, assumption, and counterexample workspace; complete 16000-token JSON packet regeneration is too slow and duplicates state.",
+    "Serious TheoryDeveloper revision now uses one persistent model-owned artifact workspace with same-session validation feedback. Initial theory discovery and estimator-interface authoring still use complete structured JSON outputs and need evaluation before deciding whether they should move into the same direct workspace pattern.",
     "Metric authoring and independent review remain hosted inside ArchitectCoordinator; they should become explicit evaluation workspaces without adding another scheduler.",
     "Survival attempted generated Simulation but failed execution, while Sequential generated three executed code candidates and exhausted its independent semantic-review lineage budget; neither task completed the scientific-code lane.",
     "The new manifest schema now separates materialized formal-gap rows from formal closure, and the new audit projection records failed model-owned Lean source loops without promoting them to compile or proof. A fresh panel is still needed to exercise those two reporting changes live.",
@@ -91,11 +100,12 @@
     "A production R workspace, arbitrary paper ingestion, and learned research/proof policies remain incomplete."
   ],
   "next_gates": [
-    "Build one persistent TheoryDeveloper equation, lemma, assumption, and counterexample workspace so model revisions edit authoritative artifacts instead of regenerating or copying the complete packet; do not add another compression or repair layer.",
+    "Run a fresh exact-Haiku development panel to verify that serious TheoryDeveloper revisions use the model-owned artifact workspace, consume raw reviewer and validator observations in the same session, and improve latency without weakening independent acceptance.",
+    "Evaluate initial theory discovery and estimator-interface authoring against the same direct-workspace criterion; migrate only where live evidence shows whole-output regeneration is a real blocker, without adding another scheduler or repair agent.",
     "Extract EvaluationDesigner and independent EvaluationReviewer workspaces from ArchitectCoordinator, expose every model call and cost as a substage, and retain one outer runtime.",
     "Improve Formalizer exact-target context, task-bound RAG, source-history compaction, and tool ergonomics until the model submits compiling source; do not add Lean grammar or theorem-specific repair rules.",
     "Improve general Algorithm semantic context and reviewer-feedback iteration from v322 without adding Sequential- or Survival-specific corrections.",
-    "Run a fresh exact-Haiku development panel to verify the new formal-closure and model-owned Lean-loop reporting before changing readiness claims.",
+    "Use the next fresh exact-Haiku panel to verify the new formal-closure reporting, model-owned Lean loop, and TheoryDeveloper workspace before changing readiness claims.",
     "Keep held-out tasks sealed until both development tasks achieve exact target-bound kernel closure."
   ]
 }
