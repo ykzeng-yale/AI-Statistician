@@ -1,9 +1,10 @@
 {
   "schema_version": 6,
-  "updated_at": "2026-08-10",
+  "updated_at": "2026-08-11",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "base_head_before_current_change": "43d16629",
+  "base_head_before_current_change": "fa530057",
+  "current_runtime_head": "c20c5f5b",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "operational_goal_refinement": "As the sole worker, simplify the canonical runtime into one outer research graph and direct model-owned Python, R, and Lean workspaces; preserve independent review, frozen evaluation, artifact lineage, and kernel authority; validate on fresh cross-family tasks without adding benchmark-specific rules.",
   "goal_status": "active",
@@ -27,47 +28,55 @@
     "single_active_exact_target_per_formalizer_workspace": true,
     "same_formalizer_checkpoint_continuation_from_artifact_ref": true,
     "formalizer_packet_failures_never_route_through_architect": true,
+    "all_source_packet_and_execution_exhaustion_owner_local": true,
+    "architect_source_escalation_requires_independent_semantic_conflict": true,
+    "workspace_budget_bound_to_immutable_parent_lineage": true,
+    "final_critic_never_restarts_exhausted_formalizer_for_missing_proof": true,
+    "critic_cross_workspace_conflict_artifact_and_owner_verified": true,
     "blocked_workspace_does_not_starve_unvisited_required_lanes": true,
     "code_revision_audit_requires_real_algorithm_and_simulation_execution": true
   },
   "current_structure": {
     "package_python_modules": 137,
-    "package_python_lines": 124577,
-    "research_agent_runtime_lines": 20455,
+    "package_python_lines": 124483,
+    "research_agent_runtime_lines": 20319,
     "research_agent_runtime_config_fields": 19,
     "research_agent_runtime_audit_lines": 736,
     "cli_lines": 6942,
     "test_modules": 41,
-    "test_lines": 25918
+    "test_lines": 26144
   },
   "verification": {
-    "full_deterministic_suite": "504 passed",
+    "full_deterministic_suite": "509 passed, 1 skipped",
     "compileall": "passed",
     "diff_check": "passed",
+    "fresh_exact_haiku_development_panel": "v321 completed: 2/2 terminal blockers, 0/2 exact theorem closure",
     "remote_unmerged_branches": 0,
     "open_pull_request_merge_refs": 0
   },
   "readiness": {
     "ready_for_full_ai_statistician": false,
-    "latest_authoritative_development_run": "runs/main_worker_cross_family_development_20260810_v317_checkpoint_resumed_formalizer_exact_haiku",
+    "latest_authoritative_development_run": "runs/main_worker_cross_family_development_20260811_v321_terminal_critic_exact_haiku",
     "development_exact_source_theorem_closure": "0/2",
     "held_out_panel": "sealed",
     "post_simplification_live_panel_completed": true,
-    "claim": "The v317 exact-Haiku panel proved that semantic-review feedback and an exact model-owned Lean checkpoint remain in one Formalizer workspace, but both tasks blocked after bounded Lean iteration. The run produced no kernel closure and, because the old linear proof-first topology terminated early, no algorithm or simulation execution. The deterministic outer-graph correction now continues unvisited required lanes, but that correction has not yet received fresh live-panel evidence."
+    "claim": "The fresh v321 exact-Haiku two-family panel completed the corrected outer graph. Both tasks exercised Architect, Retrieval, TheoryDeveloper, Formalizer, and model-owned coding. Survival also obtained independent Algorithm acceptance and executed Simulation. Formalizer never produced a valid proposal or source for local Lean checking; Sequential Algorithm failed independent semantic review after two bounded owner revisions. Both final Critics terminated without reopening exhausted owners. Exact target-bound kernel closure remains 0/2, so the system is not ready."
   },
   "remaining_design_debt": [
-    "The v317 Formalizer used active-project RAG and raw Lean feedback but still weakened or incompletely encoded the exact statistical target; source-theorem kernel closure remains 0/2.",
-    "The corrected outer graph has deterministic coverage but still needs a fresh exact-Haiku live panel proving that a formal blocker no longer starves algorithm, simulation, independent review, and final Critic lanes.",
-    "Metric authoring, review, preflight, and finding-ledger code remain substantially larger than the canonical protocol, and independent theory preflight is still hosted by the ArchitectCoordinator runtime owner.",
+    "The v321 Formalizer never emitted a valid exact-target proposal or source for local Lean checking; source-theorem kernel closure remains 0/2.",
+    "Survival Simulation executed but failed its gate, while Sequential Algorithm remained semantically invalid after two model-owned revisions; neither task completed the scientific-code lane.",
+    "The top-level formal_gaps count reports zero materialized rows even when no valid formalization exists; reporting must distinguish zero known rows from unknown or unverified formal closure.",
+    "Metric authoring and independent review remain hosted inside ArchitectCoordinator and were among the slowest v321 calls; they should become explicit evaluation workspaces without adding another scheduler.",
     "TheoryDeveloper still needs a persistent equation, lemma, assumption, and counterexample workspace rather than relying mainly on compact packets.",
     "The central runtime remains larger than desired even after the major reduction.",
-    "Arbitrary paper ingestion and learned research/proof policies remain incomplete."
+    "A production R workspace, arbitrary paper ingestion, and learned research/proof policies remain incomplete."
   ],
   "next_gates": [
-    "Run a fresh exact-Haiku two-family development panel and require every frozen independent lane to execute or record a typed dependency blocker before final Critic review.",
-    "Keep Lean source generation model-owned and improve retrieved declaration use, target preservation, and iterative compiler/proof-state feedback until both development tasks achieve exact target-bound kernel closure.",
-    "Consolidate duplicate metric schemas and finding-ledger machinery without weakening independent review or frozen pre-result authority.",
-    "Move independent theory/DGP preflight out of Architect ownership while keeping it before coding, then build the persistent TheoryDeveloper equation, lemma, assumption, and counterexample workspace.",
+    "Improve Formalizer prompt, exact-target context, task-bound RAG, and same-session tool use until the model submits complete source to local Lean; do not add Lean grammar or theorem-specific repair rules.",
+    "Improve general Algorithm semantic context and reviewer-feedback iteration from the v321 evidence without adding Sequential- or Survival-specific corrections.",
+    "Extract EvaluationDesigner and independent EvaluationReviewer workspaces from ArchitectCoordinator, while retaining one outer runtime and immutable artifact references.",
+    "Distinguish unverified formal closure from zero materialized formal-gap rows in all manifests and readiness summaries.",
+    "Build the persistent TheoryDeveloper equation, lemma, assumption, and counterexample workspace.",
     "Keep held-out tasks sealed until both development tasks achieve exact target-bound kernel closure."
   ]
 }
