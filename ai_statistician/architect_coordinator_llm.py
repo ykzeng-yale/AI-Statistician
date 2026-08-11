@@ -1384,10 +1384,18 @@ def _architect_theory_execution_preflight_summary(
     preflight = metric_authoring_packet.get(
         "theory_execution_preflight_packet", {}
     )
-    if not isinstance(preflight, Mapping) or not preflight:
+    preflight = dict(preflight) if isinstance(preflight, Mapping) else {}
+    packet_id = str(
+        preflight.get("packet_id", "")
+        or metric_authoring_packet.get(
+            "theory_execution_preflight_packet_id", ""
+        )
+        or ""
+    )
+    if not packet_id:
         return {}
     return {
-        "packet_id": str(preflight.get("packet_id", "") or ""),
+        "packet_id": packet_id,
         "packet_hash": str(
             metric_authoring_packet.get(
                 "theory_execution_preflight_packet_hash", ""
@@ -1395,20 +1403,46 @@ def _architect_theory_execution_preflight_summary(
             or ""
         ),
         "source_theory_packet_id": str(
-            preflight.get("source_theory_packet_id", "") or ""
+            preflight.get("source_theory_packet_id", "")
+            or metric_authoring_packet.get("source_theory_packet_id", "")
+            or ""
         ),
         "source_theory_packet_hash": str(
-            preflight.get("source_theory_packet_hash", "") or ""
+            preflight.get("source_theory_packet_hash", "")
+            or metric_authoring_packet.get("source_theory_packet_hash", "")
+            or ""
         ),
-        "overall_verdict": str(preflight.get("overall_verdict", "") or ""),
-        "model": str(preflight.get("model", "") or ""),
-        "model_tier": str(preflight.get("model_tier", "") or ""),
+        "overall_verdict": str(
+            preflight.get("overall_verdict", "") or "ACCEPT"
+        ),
+        "model": str(
+            preflight.get("model", "")
+            or metric_authoring_packet.get(
+                "theory_execution_preflight_model", ""
+            )
+            or ""
+        ),
+        "model_tier": str(
+            preflight.get("model_tier", "")
+            or metric_authoring_packet.get(
+                "theory_execution_preflight_model_tier", ""
+            )
+            or ""
+        ),
         "structured_output_retry_attempts": int(
-            preflight.get("structured_output_retry_attempts", 0) or 0
+            preflight.get("structured_output_retry_attempts", 0)
+            or metric_authoring_packet.get(
+                "theory_execution_preflight_retry_attempts", 0
+            )
+            or 0
         ),
         "n_findings": len(preflight.get("findings", []) or []),
         "proof_evidence_status": str(
-            preflight.get("proof_evidence_status", "") or ""
+            preflight.get("proof_evidence_status", "")
+            or metric_authoring_packet.get(
+                "theory_execution_preflight_proof_evidence_status", ""
+            )
+            or ""
         ),
         "boundary": str(preflight.get("boundary", "") or ""),
     }

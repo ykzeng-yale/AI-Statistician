@@ -36,8 +36,8 @@ from .metric_protocol_finding_ledger import (
     update_metric_protocol_finding_ledger,
 )
 from .research_schema import OpenResearchQuestion
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 11
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 16
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 12
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 18
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -221,11 +221,12 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "slots supplied by ordered_review_slots. AgentRuntime owns and binds their "
         "identities; do not copy identity strings into output rows. Mark a prior "
         "finding RESOLVED_BY_CURRENT_THEORY only when current source anchors show the "
-        "required change; otherwise mark it UNRESOLVED. Each prior_obligation records "
-        "a review of an earlier rejected theory packet: its observed_behavior is not a "
-        "claim about the current packet. Reinspect the current anchors before deciding. "
-        "AgentRuntime carries an unresolved prior finding forward unchanged, so do not "
-        "restate it in findings. Use findings only for genuinely new defects."
+        "required change; otherwise mark it UNRESOLVED. Prior obligations supply identity "
+        "and required behavior only, never observations about the current packet. Reinspect "
+        "current anchors before deciding. AgentRuntime carries an unresolved prior finding "
+        "forward unchanged. If a findings row concerns the same invariant or required remedy, "
+        "select its ordered prior_finding_index; use -1 only for a genuinely new defect. "
+        "AgentRuntime binds the selected identity without semantic matching."
     ),
 )
 
@@ -585,6 +586,17 @@ def architect_theory_execution_preflight_json_schema(
         "expected_behavior",
         "evidence_refs",
     ]
+    if active_prior_finding_ids:
+        finding_properties["prior_finding_index"] = {
+            "type": "integer",
+            "minimum": -1,
+            "maximum": len(active_prior_finding_ids) - 1,
+            "description": (
+                "Select the ordered prior-finding slot with the same invariant or "
+                "required remedy. Use -1 only for a genuinely new defect."
+            ),
+        }
+        finding_required_fields.append("prior_finding_index")
     finding_schema = {
         "type": "object",
         "additionalProperties": False,
@@ -834,40 +846,6 @@ def build_architect_theory_execution_preflight_prompt(
         if str(row.get("anchor_id", "") or "").strip()
     }
 
-    def anchor_inventory_row(anchor: Mapping[str, Any]) -> dict[str, Any]:
-        content = anchor.get("content")
-        items = list(content) if isinstance(content, (list, tuple)) else []
-        item_ids: list[str] = []
-        for index, item in enumerate(items):
-            if isinstance(item, Mapping):
-                item_id = str(
-                    item.get("preflight_estimator_id", "")
-                    or item.get("id", "")
-                    or item.get("step_id", "")
-                    or item.get("name", "")
-                    or f"item_{index}"
-                ).strip()
-            else:
-                item_id = f"item_{index}"
-            item_ids.append(item_id or f"item_{index}")
-        row = {
-            "anchor_id": str(anchor.get("anchor_id", "") or ""),
-            "artifact_role": str(anchor.get("artifact_role", "") or ""),
-            "container": (
-                "sequence"
-                if isinstance(content, (list, tuple))
-                else "mapping"
-                if isinstance(content, Mapping)
-                else type(content).__name__
-            ),
-        }
-        if isinstance(content, (list, tuple)):
-            row["item_count"] = len(items)
-            row["item_ids"] = item_ids
-        elif isinstance(content, Mapping):
-            row["field_names"] = [str(key) for key in content]
-        return row
-
     source_material = {
         key: value
         for key, value in material.items()
@@ -894,8 +872,15 @@ def build_architect_theory_execution_preflight_prompt(
         list_limit=16,
         text_limit=800,
     )
-    source_material["anchor_inventory"] = [
-        anchor_inventory_row(anchor) for anchor in anchor_catalog
+    source_material["current_theory_anchors"] = [
+        {
+            "anchor_id": str(anchor.get("anchor_id", "") or ""),
+            "artifact_role": str(anchor.get("artifact_role", "") or ""),
+            "content": deepcopy(anchor.get("content")),
+        }
+        for anchor in anchor_catalog
+        if str(anchor.get("anchor_id", "") or "")
+        not in {"question", "architect.upstream_research_contract"}
     ]
     retrieval_context = material.get("retrieval_context", {})
     retrieval_context = (
@@ -927,13 +912,12 @@ def build_architect_theory_execution_preflight_prompt(
                     "severity",
                     "category",
                     "summary",
-                    "observed_behavior",
                     "expected_behavior",
                     "evidence_refs",
                 )
                 if key in finding
             },
-            "observation_time": "earlier_rejected_theory_packet",
+            "review_basis": "current_theory_anchors_only",
         }
 
     payload = {
@@ -1859,9 +1843,19 @@ def _normalize_packet(
         if not isinstance(raw_finding, Mapping):
             continue
         finding = dict(raw_finding)
+        raw_prior_finding_index = finding.pop("prior_finding_index", -1)
+        try:
+            prior_finding_index = int(raw_prior_finding_index)
+        except (TypeError, ValueError):
+            prior_finding_index = -1
         prior_finding_id = str(
             finding.get("prior_finding_id", "") or ""
         ).strip()
+        if 0 <= prior_finding_index < len(active_prior_finding_ids):
+            prior_finding_id = str(
+                active_prior_finding_ids[prior_finding_index]
+            )
+            finding["prior_finding_id"] = prior_finding_id
         if prior_finding_id:
             finding["finding_id"] = prior_finding_id
         else:

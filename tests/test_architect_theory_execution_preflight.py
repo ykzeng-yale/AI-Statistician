@@ -1020,16 +1020,16 @@ def test_preflight_source_search_exposes_late_theory_entries() -> None:
     )
     prompt = build_architect_theory_execution_preflight_prompt(material)
     prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
-    derivation_inventory = next(
+    derivation_source = next(
         row
-        for row in prompt_payload["source_material"]["anchor_inventory"]
+        for row in prompt_payload["source_material"]["current_theory_anchors"]
         if row["anchor_id"] == "theory.derivation_steps"
     )
 
     assert len(derivation_anchor["content"]) == 12
-    assert "late_entry_visibility_marker" not in prompt
-    assert derivation_inventory["item_count"] == 12
-    assert derivation_inventory["item_ids"][-1] == "claim_12"
+    assert "late_entry_visibility_marker" in prompt
+    assert len(derivation_source["content"]) == 12
+    assert derivation_source["content"][-1]["id"] == "claim_12"
     assert observation["hits"][0]["location"] == "theory.derivation_steps/11"
     assert observation["hits"][0]["content"]["equation_or_argument"] == (
         "late_entry_visibility_marker"
@@ -1487,14 +1487,27 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     assert prior_slot["prior_obligation"]["summary"] == (
         prior_ledger[0]["finding"]["summary"]
     )
-    assert prior_slot["prior_obligation"]["observed_behavior"] == (
-        prior_ledger[0]["finding"]["observed_behavior"]
+    assert "observed_behavior" not in prior_slot["prior_obligation"]
+    assert prior_ledger[0]["finding"]["observed_behavior"] not in (
+        backend.requests[0].user_prompt
     )
-    assert prior_slot["observation_time"] == "earlier_rejected_theory_packet"
+    assert prior_slot["prior_obligation"]["expected_behavior"] == (
+        prior_ledger[0]["finding"]["expected_behavior"]
+    )
+    assert prior_slot["review_basis"] == "current_theory_anchors_only"
     assert "finding_id" not in prior_review_definition["properties"]
     assert "current_finding" not in prior_review_definition["properties"]
     finding_definition = backend.requests[0].schema["$defs"]["finding"]
-    assert "prior_finding_id" not in finding_definition["properties"]
+    assert finding_definition["properties"]["prior_finding_index"] == {
+        "type": "integer",
+        "minimum": -1,
+        "maximum": 0,
+        "description": (
+            "Select the ordered prior-finding slot with the same invariant or "
+            "required remedy. Use -1 only for a genuinely new defect."
+        ),
+    }
+    assert "prior_finding_index" in finding_definition["required"]
     assert accepted["overall_verdict"] == "ACCEPT"
     assert accepted["active_unresolved_finding_ids"] == []
     assert accepted["runtime_prior_finding_identity_bindings"] == []
@@ -1519,6 +1532,7 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_index() -> None:
     initial_payload = _payload(accept=False)
     initial_payload["findings"] = [
         {
+            "prior_finding_index": -1,
             "severity": "medium",
             "category": "new_finite_branch_gap",
             "summary": "A separate finite branch also needs an explicit outcome.",
@@ -1555,6 +1569,7 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_index() -> None:
     assert len(backend.requests) == 1
     finding_schema = backend.requests[0].schema["$defs"]["finding"]
     assert "prior_finding_id" not in finding_schema["properties"]
+    assert finding_schema["properties"]["prior_finding_index"]["maximum"] == 0
     assert "finding_id" not in finding_schema["properties"]
     prior_schema = backend.requests[0].schema["properties"][
         "prior_finding_reviews"
@@ -1656,22 +1671,20 @@ def test_preflight_prior_lineage_errors_name_expected_and_missing_ids() -> None:
     assert json.dumps([prior_finding_id]) in continuation_error
 
 
-def test_preflight_deduplicates_model_restatement_of_prior_finding() -> None:
+def test_preflight_binds_paraphrased_restatement_by_model_selected_prior_slot() -> None:
     rejected, _backend = _review(accept=False)
     prior_ledger = rejected["cumulative_finding_ledger"]
     prior_finding_id = rejected["active_unresolved_finding_ids"][0]
     initial_payload = _payload(accept=False)
     initial_payload["findings"] = [
         {
-            field: deepcopy(prior_ledger[0]["finding"][field])
-            for field in (
-                "severity",
-                "category",
-                "summary",
-                "observed_behavior",
-                "expected_behavior",
-                "evidence_refs",
-            )
+            "prior_finding_index": 0,
+            "severity": "critical",
+            "category": "paraphrased_current_failure",
+            "summary": "Different words describe the same required finite outcome.",
+            "observed_behavior": "The revised source still omits that outcome.",
+            "expected_behavior": "The same finite branch must remain total and typed.",
+            "evidence_refs": ["theory.estimator_specs"],
         }
     ]
     initial_payload["prior_finding_reviews"] = [
@@ -1709,6 +1722,7 @@ def test_preflight_deduplicates_model_restatement_of_prior_finding() -> None:
         "summary"
     ]
     assert len(packet["findings"]) == 1
+    assert packet["prior_finding_resolution_summary"]["new_finding_ids"] == []
     assert packet["runtime_prior_finding_identity_bindings"][0][
         "runtime_selected_semantics"
     ] is False

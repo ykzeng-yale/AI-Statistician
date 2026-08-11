@@ -10618,104 +10618,6 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         lean_timeout=self.lean_candidate_lean_timeout,
                     )
                 )
-                initial_workspace_feedback = (
-                    _formalizer_lean_candidate_revision_feedback(
-                        precomputed_materialization,
-                        formal_source_retriever=self.formal_source_retriever,
-                        prior_environment_feedback=environment_feedback,
-                    )
-                )
-                if initial_workspace_feedback is not None:
-                    initial_proposal_id = proposal_id
-                    produced_artifacts[initial_proposal_id] = proposal_packet
-                    initial_materialization_id = str(
-                        precomputed_materialization.get("manifest_id", "") or ""
-                    )
-                    initial_materialization = (
-                        _runtime_artifact_with_architect_control(
-                            initial_materialization_id,
-                            precomputed_materialization,
-                            formalization_control_seed,
-                            subsystem_override=subsystem_name,
-                        )
-                    )
-                    produced_artifacts[initial_materialization_id] = (
-                        initial_materialization
-                    )
-                    try:
-                        immediate_revision = (
-                            _runtime_formalizer_lean_candidate_client_tool_revision(
-                                proposal_agent=self.proposal_agent,
-                                question=question,
-                                task=task,
-                                blackboard=blackboard,
-                                theory_packet=(
-                                    packet if isinstance(packet, Mapping) else {}
-                                ),
-                                environment_feedback=initial_workspace_feedback,
-                                formal_source_retriever=self.formal_source_retriever,
-                                proof_search_provider=self.proof_search_provider,
-                                proof_state_provider=self.proof_state_provider,
-                                lean_candidate_root=self.lean_candidate_root,
-                                lean_candidate_local_lean=(
-                                    self.lean_candidate_local_lean
-                                ),
-                                lean_candidate_lean_project=(
-                                    self.lean_candidate_lean_project
-                                ),
-                                lean_candidate_lean_timeout=(
-                                    self.lean_candidate_lean_timeout
-                                ),
-                                candidate_materialization=initial_materialization,
-                                parent_formalizer_packet=proposal_packet,
-                            )
-                        )
-                    except PacketValidationError as exc:
-                        return _formalizer_packet_validation_failure_result(
-                            task=task,
-                            question=question,
-                            theory_packet_id=packet_id,
-                            simulation_manifest_id=simulation_manifest_id,
-                            algorithm_sandbox_manifest_id=(
-                                algorithm_sandbox_manifest_id
-                            ),
-                            exc=exc,
-                            environment_feedback=initial_workspace_feedback,
-                            workspace_artifacts=produced_artifacts,
-                        )
-                    if immediate_revision is not None:
-                        (
-                            proposal_packet,
-                            lean_candidate_client_tool_loop_evidence,
-                        ) = immediate_revision
-                        proposal_id = str(proposal_packet["packet_id"])
-                        proposal_packet = _runtime_artifact_with_architect_control(
-                            proposal_id,
-                            proposal_packet,
-                            formalization_control_seed,
-                            subsystem_override=subsystem_name,
-                        )
-                        theory_trace_contracts = (
-                            _runtime_theory_trace_consumption_contracts(
-                                proposal_packet
-                            )
-                        )
-                        formalizer_theory_trace_contract = (
-                            theory_trace_contracts[0]
-                            if theory_trace_contracts
-                            else {}
-                        )
-                        formalizer_theory_trace_alignment_contract = dict(
-                            proposal_packet.get(
-                                "theory_trace_alignment_contract", {}
-                            )
-                        ) if isinstance(
-                            proposal_packet.get(
-                                "theory_trace_alignment_contract", {}
-                            ),
-                            Mapping,
-                        ) else {}
-                        precomputed_materialization = None
             produced_artifacts[proposal_id] = proposal_packet
             if lean_candidate_client_tool_loop_evidence:
                 loop_artifact_id = str(
@@ -11955,7 +11857,10 @@ def _formalizer_packet_validation_failure_result(
         0,
         _int_like(task.inputs.get("formalizer_workspace_continuation_attempt", 0)),
     )
-    workspace_continuation_allowed = workspace_continuation_attempt < 1
+    workspace_continuation_allowed = (
+        not lean_workspace_checkpoint_available
+        and workspace_continuation_attempt < 1
+    )
     failure_classification = (
         "formalizer_client_tool_loop_exhausted"
         if lean_workspace_checkpoint_available
@@ -12058,9 +11963,14 @@ def _formalizer_packet_validation_failure_result(
     else:
         next_task = None
         result_rationale = (
-            "The same Formalizer workspace exhausted its single continuation "
-            "without a valid exact-target source. The runtime recorded a blocker "
-            "without adding an Architect or Critic routing loop."
+            "The bounded model-owned Lean workspace exhausted its direct source "
+            "iteration without a valid exact-target source. The runtime preserved "
+            "the final source and observations as a blocker without duplicating "
+            "the workspace or adding an Architect or Critic routing loop."
+            if lean_workspace_checkpoint_available
+            else "The same Formalizer workspace exhausted its single full-packet "
+            "regeneration without a valid exact-target source. The runtime recorded "
+            "a blocker without adding an Architect or Critic routing loop."
         )
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],

@@ -2131,8 +2131,24 @@ def author_reviewed_architect_metric_requirements(
                     if theory_execution_preflight_packet
                     else ""
                 ),
-                "theory_execution_preflight_packet": deepcopy(
-                    theory_execution_preflight_packet
+                "theory_execution_preflight_model": str(
+                    theory_execution_preflight_packet.get("model", "") or ""
+                ),
+                "theory_execution_preflight_model_tier": str(
+                    theory_execution_preflight_packet.get("model_tier", "")
+                    or ""
+                ),
+                "theory_execution_preflight_retry_attempts": int(
+                    theory_execution_preflight_packet.get(
+                        "structured_output_retry_attempts", 0
+                    )
+                    or 0
+                ),
+                "theory_execution_preflight_proof_evidence_status": str(
+                    theory_execution_preflight_packet.get(
+                        "proof_evidence_status", ""
+                    )
+                    or ""
                 ),
                 "accepted_implementation_interface_handoff_id": str(
                     implementation_interface.get("handoff_id", "") or ""
@@ -2525,6 +2541,8 @@ def author_reviewed_architect_metric_requirements(
             carried["carried_forward_finding_id"] = finding_id
             carried_findings.append(carried)
         routed_findings = [*routed_current_findings, *carried_findings]
+        for prior_history_row in semantic_review_history:
+            prior_history_row.pop("cumulative_finding_ledger", None)
         semantic_review_history.append(
             {
                 "revision_index": revision_index,
@@ -2545,13 +2563,20 @@ def author_reviewed_architect_metric_requirements(
                 "acceptance_authority_catalog_fingerprint": stable_hash(
                     acceptance_authority_catalog
                 ),
-                "empirical_metric_requirements": [
-                    dict(row)
-                    for row in authoring_packet.get(
-                        "empirical_metric_requirements", []
-                    )
-                    if isinstance(row, Mapping)
-                ],
+                "empirical_metric_requirement_count": len(
+                    authoring_packet.get("empirical_metric_requirements", [])
+                    or []
+                ),
+                "empirical_metric_requirements_fingerprint": stable_hash(
+                    [
+                        dict(row)
+                        for row in authoring_packet.get(
+                            "empirical_metric_requirements", []
+                        )
+                        or []
+                        if isinstance(row, Mapping)
+                    ]
+                ),
                 "semantic_review_packet_id": str(
                     semantic_review_packet["packet_id"]
                 ),
@@ -2593,22 +2618,6 @@ def author_reviewed_architect_metric_requirements(
                     )
                     if isinstance(row, Mapping)
                 ],
-                "active_prior_finding_current_evidence": [
-                    dict(row)
-                    for row in semantic_review_packet.get(
-                        "active_prior_finding_current_evidence",
-                        [],
-                    )
-                    or []
-                    if isinstance(row, Mapping)
-                ],
-                "active_prior_finding_current_evidence_fingerprint": str(
-                    semantic_review_packet.get(
-                        "active_prior_finding_current_evidence_fingerprint",
-                        "",
-                    )
-                    or ""
-                ),
                 "cumulative_finding_ledger": [
                     dict(row) for row in cumulative_finding_ledger
                 ],

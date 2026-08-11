@@ -701,7 +701,7 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
     assert len(prompt) < 20000
 
 
-def test_formalizer_validation_failure_continues_same_workspace_once() -> None:
+def test_exhausted_formalizer_source_loop_blocks_without_duplicate_workspace() -> None:
     latest = "theorem target : True := by\n  exact True.intro\n"
     checkpoint = {
         "schema_version": 1,
@@ -748,17 +748,12 @@ def test_formalizer_validation_failure_continues_same_workspace_once() -> None:
         ),
     )
 
-    assert result.status == "REVISE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
-    assert result.next_task.task_id.startswith("formalizer-workspace-continuation:")
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "formalizer_workspace_continuation_exhausted"
+    )
     failure = next(iter(result.produced_artifacts.values()))
-    routed = result.next_task.inputs["environment_feedback"]
-    assert routed["artifact_kind"] == "RuntimeWorkspaceObservationRef"
-    assert routed["source_artifact_id"] == failure["failure_id"]
-    assert routed["source_artifact_hash"] == stable_hash(failure)
-    assert "formalizer_recovery_checkpoint" not in routed
-    assert result.next_task.inputs["formalizer_workspace_continuation_attempt"] == 1
     assert failure["formalizer_recovery_checkpoint"]["current_source"] == latest
     assert failure["rejected_candidate_complete"] is False
     assert failure["complete_current_source_checkpoint_provided"] is True
@@ -768,30 +763,10 @@ def test_formalizer_validation_failure_continues_same_workspace_once() -> None:
     assert failure["validation_boundary"][
         "complete_current_source_checkpoint_provided"
     ] is True
-    assert "same Formalizer" in result.rationale
+    assert failure["workspace_continuation_allowed"] is False
+    assert "without duplicating the workspace" in result.rationale
+    assert "Architect or Critic routing loop" in result.rationale
     assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
-
-    exhausted = runtime_module._formalizer_packet_validation_failure_result(
-        task=result.next_task,
-        question=question,
-        theory_packet_id="theory:checkpoint",
-        simulation_manifest_id="simulation:checkpoint",
-        algorithm_sandbox_manifest_id="algorithm:checkpoint",
-        exc=PacketValidationError(
-            validation_label="LLM Formalizer Lean candidate client-tool revision",
-            attempts=2,
-            errors=["global client-tool turn budget exhausted"],
-            history=[],
-            recovery_checkpoint=checkpoint,
-        ),
-    )
-
-    assert exhausted.status == "BLOCKED"
-    assert exhausted.next_task is None
-    assert exhausted.failure_classification == (
-        "formalizer_workspace_continuation_exhausted"
-    )
-    assert "Architect or Critic" in exhausted.rationale
 
 
 def test_formalizer_failure_preserves_workspace_refs_without_payload_copy() -> None:
