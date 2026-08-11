@@ -65,7 +65,7 @@ The harness owns:
 - typed task transport and content-addressed artifact references;
 - isolated tool execution, resource limits, network policy, and secret isolation;
 - exact source hashes, target identity, lineage budgets, and checkpoints;
-- schema validation and bounded retries of the same model response;
+- schema validation for compact control envelopes and typed tool inputs;
 - independent-review separation and frozen evaluation authority;
 - immutable evidence labels and Lean kernel promotion.
 
@@ -79,10 +79,13 @@ The harness must not own:
 - proof credit for retrieval hits, LLM judgments, pseudo-formal text, or compilation
   of a weaker theorem.
 
-`structured_output_retry.py` is transport, not a semantic repair system. When a
-packet is invalid, the same model receives the original request, its full rejected
-response, and raw validator errors, then regenerates the complete packet. Runtime
-never fills in substantive fields.
+`structured_output_retry.py` is transport, not a semantic repair system. Its
+canonical use is limited to compact control and handoff envelopes. Substantive
+theory, Python, R, and Lean artifacts belong in model-owned workspaces where the
+same model receives raw validator or environment observations and submits complete
+artifact replacements. Runtime never fills in substantive fields. Initial theory
+discovery still uses a large structured packet today; that is explicit technical
+debt, not the target design.
 
 ## Theory workspace
 
@@ -98,8 +101,11 @@ than treating a small JSON packet as the theory itself. Its durable products are
 
 Compact structured packets are handoff indexes into this workspace. Fixed numbers
 of equations, lemmas, or characters are transport limits, never quality criteria.
-The current implementation has not completed this persistent workspace and must
-not claim full theory-development capability until fresh evaluations exercise it.
+Targeted theory revision now uses this model-owned workspace pattern with
+read-on-demand parent and reviewer artifacts, typed complete replacements, and
+same-session validator feedback. Initial discovery is not yet persistent, and the
+system must not claim full theory-development capability until fresh evaluations
+exercise both discovery and revision across unrelated tasks.
 
 ## Scientific coding workspace
 
@@ -221,10 +227,13 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-10, the latest authoritative development panel is still 0/2 exact
-source-theorem closures. The held-out panel remains sealed. The recent runtime
-simplification has focused tests but no fresh integrated live result, so the
-system is not yet fully end to end.
+As of 2026-08-11, the v323 authoritative development panel remains 0/2 exact
+source-theorem closures with a 9/16 capability scorecard. It exposed a root-lineage
+error: dependent formal and empirical work continued after a rejected theory
+revision failed. The canonical runtime now stops that dependency chain, and a
+focused exact-Haiku replay accepted the corrected flat typed workspace protocol in
+two turns. Those corrections are not fresh panel evidence. The held-out panel
+remains sealed and the system is not yet fully end to end.
 
 ## Structural constraints
 
@@ -234,6 +243,8 @@ New work must not reintroduce:
 - theorem-specific bridge/executor module families;
 - a repair-patch-rerun queue hierarchy;
 - routine Architect hops for local environment failures;
+- dependent lanes consuming an older rejected parent after its required revision
+  fails;
 - recursive artifact payloads or manifest truth-table expansion;
 - task-family conditionals in canonical authoring, proving, or review code;
 - proof-bank candidates as the default live proving policy;
@@ -256,11 +267,12 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-The immediate priorities are to consolidate the metric protocol control plane,
-build the persistent theory workspace, and run a fresh exact-Haiku development
-panel through real Python/R and Lean environments. No new subsystem should be
-added unless it removes more control paths than it introduces or represents a
-genuinely independent authority boundary.
+The immediate priorities are to exercise the corrected theory lineage in a fresh
+exact-Haiku development panel, move initial substantive theory authoring into the
+artifact workspace where live ablation supports it, consolidate the metric
+protocol control plane, and improve direct Python/R and Lean loops. No new
+subsystem should be added unless it removes more control paths than it introduces
+or represents a genuinely independent authority boundary.
 
 ## Basic checks
 
