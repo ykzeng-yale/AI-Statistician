@@ -334,16 +334,13 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-11, v350 is authoritative. Every call used exact Haiku; both tasks were
-`BLOCKED`, score 6/16, closure 0/2, and held-out stayed sealed. Sequential completed
-initial theory without duplicate `sanity_check.conclusion`, then stopped on unresolved
-review findings. Survival reached direct scientific and Lean loops, but earned neither
-an accepted implementation nor a compiling target, so metrics stayed unauthorized.
+As of 2026-08-11, v353 is the latest clean integrated comparison and v357 the latest fresh diagnostic. Every live call used exact Haiku. v357 scored 5/16, ended with one `BLOCKED` and one `FAILED`, closed 0/2 exact source theorems, used six Architect steps among 18, and left held-out tasks sealed.
 
-v348 exposed duplicate theory output and a 28-row metric-review schema too large for
-Anthropic's grammar. The duplicate field is gone. The compact reviewer replayed that
-exact protocol in one structured exact-Haiku call with all 28 identities and `ACCEPT`.
-This is component mechanism evidence, not simulation acceptance or proof.
+Survival reached accepted Algorithm source, direct Simulation source iteration, formal retrieval, one Lean check, and the final critic. Its consumer exposed a non-finite estimator value, but stale lane completion skipped the requested AlgorithmEngineer return. The transition policy now preserves that hash-bound raw observation back to the exact source owner first.
+
+Sequential revised theory against four findings, then Anthropic rejected its second preflight schema as too complex. Shared definitions and one ordered prior-finding array fixed transport; an exact-Haiku replay compiled, resolved all four identities, and returned `ACCEPT`. Inspection nevertheless found a reversed likelihood-ratio martingale claim accepted by both models. This is a capability failure, not a reason for a Bernoulli rule: theory and review need general executable, symbolic, retrieval, and formal counterchecks, and kernel evidence remains the only proof authority.
+
+New review materializations persist immutable refs, fingerprints, and only the current executable handoff projection instead of complete theory, proposal, source/deferred tasks, and review packets. Old full materializations remain migration-readable but are never written by the canonical path.
 
 ## Structural constraints
 
@@ -377,18 +374,7 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-The immediate priorities are to shrink the still-large theory preflight without
-weakening independent review, improve active-project context, retrieval, and compiler
-ergonomics in the direct Lean loop, and improve the scientific source model's ability
-to satisfy its general executor ABI. The next run that reaches scientific coding must
-also verify that one current-parent independent ACCEPT closes its lane exactly once
-and unlocks the compact confirmatory metric protocol. Small parallel candidate or lemma
-work may be added inside an existing workspace only after the serial loop is
-stable and only with the same execution and evidence gates. Estimator-interface
-authoring should move into the workspace only if fresh traces show its bounded
-structured stage is a material feedback blocker. No new subsystem should be added
-unless it removes more control paths than it introduces or represents a genuinely
-independent authority boundary.
+The immediate priorities are direct calculator/sandbox and formal counterexample access for theory and review, better active-project retrieval and Lean compiler ergonomics, and reference-only accepted handoffs/context. Fresh v358 must verify the source-owner backedge and preflight transport before held-out work. Parallel candidates may be added inside an existing workspace only after the serial loop is stable and under the same evidence gates. A new subsystem must remove more control paths than it introduces or represent an independent authority boundary.
 
 ## Basic checks
 

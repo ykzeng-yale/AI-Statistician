@@ -1,5 +1,5 @@
 {
-  "schema_version": 21,
+  "schema_version": 22,
   "updated_at": "2026-08-11",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -34,10 +34,12 @@
   "mechanism_commits": {
     "6636d1ef": "Atomic model-owned scientific source submission and execution, bounded latest-observation context, and merged current-parent Algorithm/Simulation acceptance ledger.",
     "f193b04a": "Atomic model-owned Lean source submission and immediate real Lean check; separate edit/check tools removed.",
-    "6c3da04c": "Exact content-addressed pending-task checkpoints, hash-verified resume, compact pending manifests, and resume-time task mutation removed."
+    "6c3da04c": "Exact content-addressed pending-task checkpoints, hash-verified resume, compact pending manifests, and resume-time task mutation removed.",
+    "db55142e": "The same exact checkpoint contract now covers bounded transient provider exhaustion; substantive failures remain terminal.",
+    "50f602b8": "Hash-bound downstream execution failures now return to the exact source owner before stale lane completion checks; agentic Simulation no longer declares the legacy simulator; large preflight schemas reuse definitions; new review materializations persist references instead of full review payloads."
   },
   "verification": {
-    "deterministic_suite": "529 passed",
+    "deterministic_suite": "532 passed",
     "compileall": "passed",
     "diff_check": "passed",
     "legacy_v352_resume_roundtrip": "The formerly rejected mixed-panel manifest now restores sequential_anytime_bernoulli, its exact pending AlgorithmEngineer task, and 108 hash-verified blackboard artifacts.",
@@ -76,32 +78,75 @@
       "input_tokens": 1342,
       "runtime_authored_lean_source": false,
       "boundary": "Component evidence for direct model submission and real Lean feedback only; not a statistical theorem, semantic-review acceptance, exact source-theorem proof, or E2E result."
+    },
+    "v356_fresh_integrated_attempt": {
+      "path": "runs/main_worker_cross_family_development_20260811_v356_atomic_source_checkpoint_integrated_exact_haiku",
+      "model": "claude-haiku-4-5-20251001 for every live LLM call",
+      "status": "one FAILED and one BLOCKED",
+      "scorecard": "5/16",
+      "survival_terminal_reason": "Anthropic returned 529 Overloaded twice at the same independent theory-preflight task; the single bounded transport retry was exhausted.",
+      "sequential_terminal_reason": "Two model-owned TheoryDeveloper revisions remained rejected by independent preflight, so dependent coding and proof lanes never ran.",
+      "exact_source_theorem_closure": "0/2",
+      "boundary": "This fresh attempt validates exact-Haiku policy and direct source-owner feedback, but provider contamination makes it unsuitable as a clean comparison of the new atomic Lean path."
+    },
+    "v357_fresh_integrated_attempt": {
+      "path": "runs/main_worker_cross_family_development_20260811_v357_atomic_source_checkpoint_clean_retry_exact_haiku",
+      "model": "claude-haiku-4-5-20251001 for every live LLM call",
+      "status": "one BLOCKED and one FAILED",
+      "scorecard": "5/16",
+      "runtime_traces": 18,
+      "architect_traces": 6,
+      "generated_algorithm_executions": 3,
+      "generated_simulation_executions": 0,
+      "local_lean_checks": 1,
+      "local_lean_compiles": 0,
+      "kernel_verified_subclaims": 0,
+      "exact_source_theorem_closure": "0/2",
+      "survival_terminal_reason": "The accepted estimator returned a non-finite value inside its Simulation consumer. The raw source-owner backedge was produced correctly but then overridden by stale completed-lane topology; 50f602b8 fixes this shared transition rule.",
+      "sequential_terminal_reason": "Anthropic rejected the second theory-preflight tool schema as too complex after a model-owned theory revision; the shared-definition and ordered-array schema fix removes that transport failure.",
+      "boundary": "This is fresh integrated failure evidence. It is not readiness and predates commit 50f602b8."
+    },
+    "v357_sequential_preflight_replay": {
+      "path": "runs/main_worker_cross_family_development_20260811_v357_atomic_source_checkpoint_clean_retry_exact_haiku/v357_sequential_preflight_schema_replay.json",
+      "model": "claude-haiku-4-5-20251001",
+      "client_tool_turns": 2,
+      "validation_errors": [],
+      "prior_findings_resolved": 4,
+      "reviewer_verdict": "ACCEPT",
+      "semantic_warning": "The accepted theory and reviewer still agree on a reversed likelihood-ratio martingale orientation. This demonstrates that model agreement is not mathematical authority and motivates general executable, symbolic, retrieval, and formal counterchecks rather than a task-specific rule.",
+      "boundary": "Live component evidence for the corrected schema and feedback transport only; not E2E completion, semantic truth, simulation acceptance, or proof."
     }
   },
   "readiness": {
     "ready_for_full_ai_statistician": false,
     "latest_authoritative_integrated_run": "v353",
+    "latest_fresh_integrated_attempt": "v357",
     "development_exact_source_theorem_closure": "0/2",
     "held_out_panel": "sealed",
-    "post_atomic_lean_and_checkpoint_fresh_panel_completed": false,
+    "post_atomic_lean_and_checkpoint_fresh_panel_attempted": true,
+    "post_atomic_lean_and_checkpoint_clean_panel_completed": false,
     "strict_e2e_completion_rate": "0%"
   },
   "current_structure": {
-    "research_agent_runtime_lines": 20933,
-    "agent_runtime_lines": 1157,
+    "research_agent_runtime_lines": 21072,
+    "agent_runtime_lines": 1174,
     "cli_lines": 6896,
-    "production_design_lines": 398
+    "production_design_lines": 385,
+    "top_level_python_modules": 138,
+    "top_level_package_lines": 124487,
+    "latest_runtime_manifest_bytes": 58168
   },
   "remaining_design_debt": [
     "No development task has reached exact source-theorem kernel closure. Formalizer still needs better model-selected declaration context, proof-state feedback, and Statlib/Mathlib/EmpericalProcessLEAN retrieval, not handwritten grammar or tactic repair.",
-    "Theory quality remains a substantive blocker on Sequential: source-owned revisions can receive independent findings, but exact Haiku has not yet resolved them within budget.",
-    "Survival scientific execution remains semantically weak: generated code runs, but frozen metric and simulation requirements have not all passed with current-parent independent acceptance.",
+    "Theory and independent-review quality are substantive blockers: the exact-Haiku v357 replay resolved all tracked findings but accepted a mathematically reversed likelihood-ratio martingale claim. Production can use Sonnet, while tests stay exact Haiku; both need general calculator, sandbox, retrieval, and formal counterchecks rather than task-specific assertions.",
+    "Survival scientific execution remains incomplete: generated Algorithm code ran and was independently accepted, but its downstream Simulation consumer exposed a non-finite result. The generic return-to-source transition is fixed, but requires fresh integrated evidence.",
     "Architect still consumes too many outer iterations, and metric protocol work remains concentrated in the central runtime. Further extraction must delete observed routing duplication rather than introduce another interface layer.",
-    "The central research runtime is still 20933 lines. It is much smaller than the prior monolith, but should shrink through deletion of inactive paths after fresh traces prove replacements.",
+    "New review materializations are reference-based, but accepted Algorithm handoffs and architect_context still carry more executable payload than the target content-addressed design. Compact them by hydrating exact source from immutable artifacts at execution time, not by adding another packet layer.",
+    "The central research runtime is still 21072 lines. It is much smaller than the stale 101k-line audit, but should shrink through deletion of inactive paths after fresh traces prove replacements.",
     "Production R execution, arbitrary paper-to-theorem-graph ingestion, and learned research or tactic policies remain incomplete."
   ],
   "next_gates": [
-    "Run a fresh exact-Haiku two-family development panel from the new checkpoint and atomic-source head.",
+    "Run a clean fresh exact-Haiku v358 two-family development panel from commit 50f602b8; do not treat the v357 component replay as integrated protocol evidence.",
     "Require current-parent Algorithm and Simulation acceptance, nonvacuous frozen metric execution, task-bound formal RAG, exact-target review, model-owned Lean iteration, and kernel closure for each task.",
     "Fix only shared source-workspace, execution, retrieval, lineage, or evidence mechanisms exposed by that run; do not add survival, sequential, FDR, conformal, Lean grammar, or theorem-specific rules.",
     "Keep PCA and extremes held out until both development tasks close their exact targets."
