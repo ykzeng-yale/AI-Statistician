@@ -329,12 +329,12 @@ revisions, then stopped at preflight packet validation before coding.
 
 The Sequential stop exposed a transport defect, not a missing statistical rule:
 Anthropic's strict schema removed fixed array cardinality. Finite reviews now use
-provider-native required `slot_N` objects. Exact Haiku v341 completed five preflight
-dimensions and two estimator checks, then returned its independent `REVISE`. In a
-v342 replay of the v340 Survival target, it filled all six formal-review slots and
-returned target-semantic findings rather than a proof-completeness finding. Runtime
-only checks packet consistency and returns raw errors to the same reviewer; it does
-not classify theorem defects or author source. Both replays are component evidence,
+provider-native required `slot_N` objects. Exact Haiku v341 completed preflight slots,
+and v342 filled all six formal-target slots before returning independent `REVISE`
+judgments. The generic v343 metric-review canary used Anthropic structured output,
+filled all six metric slots plus two free claim checks, and returned `REVISE` in one
+call. Runtime binds identities and returns raw errors to the same reviewer; it does
+not classify mathematical defects or author source. All three are component evidence,
 not statistical acceptance, E2E completion, or proof.
 
 The earlier v339 exact-Haiku Formalizer diagnostic also remains component evidence:
