@@ -50,6 +50,18 @@ There is no post-runtime scheduler and no separate repair agent. A resumed run
 continues from content-addressed artifacts and workspace checkpoints in the same
 typed graph.
 
+This deliberately adopts the minimal mechanism shared by
+[Numina-Lean-Agent](https://github.com/project-numina/numina-lean-agent) and
+[AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general source
+agent, real environment feedback, optional search, and bounded context. For
+long-horizon formalization, the useful idea from
+[LeanMarathon](https://github.com/YuanheZ/LeanMarathon) is a durable blueprint and
+lemma DAG with CI gates; it is an artifact model, not a reason to duplicate its
+agent hierarchy inside this runtime. Scientific candidate search may later adopt
+the small `generate -> execute -> score` interface from
+[ERA](https://github.com/google-research/era), but only within an existing source
+workspace.
+
 ## Responsibility boundary
 
 The LLM owns:
@@ -122,7 +134,13 @@ computing ecosystem.
 The runtime may require a small general ABI, such as an exported estimator entry
 point, because an executor needs a callable boundary. It may not encode a specific
 statistical answer in that ABI. Unit-test and simulation-consumer failures return
-their raw stdout, stderr, request, and exact source hash to the same coding model.
+their raw stdout, stderr, bounded callback request/response samples, and exact
+source hash to the same coding model. The complete execution artifact is persisted
+once; the model receives a compact observation containing current failures and
+metric values, not copied source, passed contracts, or recursive manifests. A
+byte-identical `replace_scientific_source` call is a tool no-op error. The model may
+run the current bytes again or submit a different complete candidate, but the
+harness never turns the no-op into a source edit.
 
 For live providers with native client tools, the structured proposal carries only
 artifact identity and immutable bindings. Source is authored afterward in the same
@@ -135,6 +153,13 @@ source. Structured-source packets remain only a replay/static-provider fallback.
 Independent semantic review checks whether the implementation represents the
 accepted theory artifact. Passing execution is not statistical validity, and
 passing simulation is not theorem proof.
+
+When the frozen protocol requires generated algorithm code, confirmatory
+simulation can consume an estimator only through a hash-bound handoff produced by
+accepted independent semantic review. A sandbox artifact that executed but was
+rejected is failed evidence, not an implicit downstream dependency. Exploratory
+simulation remains available when the frozen contract does not require that
+handoff.
 
 ## Empirical protocol
 
@@ -153,9 +178,20 @@ Architect authors one complete protocol
 ```
 
 The reviewer reports defects and evidence; it does not choose a `repair_scope` or
-route tasks. This metric layer is still larger than the canonical design and is
-the next consolidation target. Independent review and pre-result freezing remain
-required while ownership routers and duplicate finding taxonomies are removed.
+route tasks. Authoring and independent review remain one bounded Architect protocol
+operation with separate model contexts and visible timing substages. They should not
+be promoted into two additional outer tasks merely for telemetry. Independent review
+and pre-result freezing remain required while ownership routers and duplicate finding
+taxonomies are removed.
+
+A rejected `theory_execution_preflight` returns its observations directly to the
+exact parent-bound TheoryDeveloper workspace. This is a fixed stage-ownership
+edge, not a reviewer-selected owner or an Architect model route. The reviewer
+inspects exact theory anchors first and may query task-bound RAG when it needs
+additional context; search and external citations are not mandatory. Every cited
+external handle is runtime-verified against the returned source snapshot, while
+uncited search results do not force unrelated findings to carry citations.
+Independent queries may share one client-tool turn.
 
 ## Lean formalization workspace
 
@@ -238,17 +274,23 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-11, v326 is the authoritative development panel: 0/2 exact
-source-theorem closures, capability scorecard 6/16, and both tasks blocked. It
-exercised model-owned initial theory authoring, generated algorithm execution,
-independent review, and direct Formalizer source iteration. Generated simulation
-was blocked before execution by embedding a 14.7KB model source in the structured
-proposal. The canonical live path now emits a source-free identity envelope and
-uses the direct scientific workspace. In a component diagnostic, exact Haiku read
-the raw callback failure, authored two complete replacements, and reached an
-accepted sandbox execution with all three frozen estimator callbacks mechanically
-observed. This is component evidence, not a fresh panel or theorem closure. The
-held-out panel remains sealed and the system is not yet fully end to end.
+As of 2026-08-11, v330 is the authoritative development panel: 0/2 exact
+source-theorem closures, capability scorecard 9/16, and both tasks blocked. All
+nine enabled LLM subsystems used exactly `claude-haiku-4-5-20251001`. The run
+recorded five live algorithm executions, one live simulation execution, two local
+Lean checks, zero compiling Lean targets, and zero kernel-verified subclaims. The
+simulation exercised reviewed estimator callbacks but failed its frozen metric
+gate; the Sequential lineage exhausted independent algorithm review and then
+incorrectly offered Simulation without an accepted handoff. The latter topology
+error is corrected in deterministic tests but has not yet been revalidated by a
+fresh panel.
+
+An exact-Haiku component diagnostic of the simplified preflight used three turns
+and four tool calls, including two independent searches in one turn, with no
+rejected submission. It used 21,460 input and 3,424 output tokens and did not cite
+external hits it did not rely on. This is transport evidence only, not statistical
+acceptance, E2E completion, or proof. The held-out panel remains sealed and the
+system is not yet fully end to end.
 
 ## Structural constraints
 
@@ -283,8 +325,11 @@ new interface.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
 The immediate priorities are to exercise the corrected theory and scientific
-source paths in a fresh exact-Haiku development panel, consolidate the metric
-protocol control plane, and improve the direct Lean loop. Estimator-interface
+source paths in a fresh exact-Haiku development panel, shrink the still-large
+preflight and metric schemas, and improve active-project context, retrieval, and
+compiler ergonomics in the direct Lean loop. Small parallel candidate or lemma
+work may be added inside an existing workspace only after the serial loop is
+stable and only with the same execution and evidence gates. Estimator-interface
 authoring should move into the workspace only if fresh traces show its bounded
 structured stage is a material feedback blocker. No new subsystem should be added
 unless it removes more control paths than it introduces or represents a genuinely
