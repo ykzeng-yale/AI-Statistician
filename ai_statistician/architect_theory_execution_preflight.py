@@ -28,6 +28,7 @@ from .model_backend import (
     resolve_generator_model,
 )
 from .metric_protocol_finding_ledger import (
+    METRIC_PROTOCOL_FINDING_RETRACTED_BY_CURRENT_EVIDENCE,
     METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
     METRIC_PROTOCOL_FINDING_UNRESOLVED,
     active_metric_protocol_finding_ledger,
@@ -36,8 +37,8 @@ from .metric_protocol_finding_ledger import (
     update_metric_protocol_finding_ledger,
 )
 from .research_schema import OpenResearchQuestion
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 12
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 18
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 13
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 19
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -70,6 +71,12 @@ _ESTIMATOR_DECLARATION_REQUIREMENTS = (
         "guarantee_transport_argument_declared",
         "guarantee transport",
     ),
+)
+_PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
+    {
+        METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
+        METRIC_PROTOCOL_FINDING_RETRACTED_BY_CURRENT_EVIDENCE,
+    }
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
@@ -221,10 +228,14 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "slots supplied by ordered_review_slots. AgentRuntime owns and binds their "
         "identities; do not copy identity strings into output rows. Mark a prior "
         "finding RESOLVED_BY_CURRENT_THEORY only when current source anchors show the "
-        "required change; otherwise mark it UNRESOLVED. Prior obligations supply identity "
-        "and required behavior only, never observations about the current packet. Reinspect "
-        "current anchors before deciding. AgentRuntime carries an unresolved prior finding "
-        "forward unchanged. If a findings row concerns the same invariant or required remedy, "
+        "required source change. Mark it RETRACTED_BY_CURRENT_EVIDENCE when current "
+        "anchors instead show that the prior claim is contradicted, outside the admitted "
+        "DGP or requested measurements, or only a downstream implementation/proof "
+        "obligation rather than a pre-execution blocker. Otherwise mark it UNRESOLVED. "
+        "Prior obligations supply identity and required behavior only, never observations "
+        "about the current packet. Reinspect current anchors before deciding. AgentRuntime "
+        "carries an unresolved prior finding forward unchanged. If a findings row concerns "
+        "the same invariant or required remedy, "
         "select its ordered prior_finding_index; use -1 only for a genuinely new defect. "
         "AgentRuntime binds the selected identity without semantic matching."
     ),
@@ -634,6 +645,7 @@ def architect_theory_execution_preflight_json_schema(
                 "enum": [
                     METRIC_PROTOCOL_FINDING_UNRESOLVED,
                     METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
+                    METRIC_PROTOCOL_FINDING_RETRACTED_BY_CURRENT_EVIDENCE,
                 ],
             },
             "rationale": {
@@ -977,7 +989,9 @@ def build_architect_theory_execution_preflight_prompt(
             "including an UNRESOLVED prior finding, requires at least one FAIL or "
             "UNCERTAIN dimension or estimator row. If every execution review row "
             "is PASS, return no new findings and mark every prior finding "
-            "RESOLVED_BY_CURRENT_THEORY. Do not carry downstream proof obligations "
+            "RESOLVED_BY_CURRENT_THEORY when the source changed, or "
+            "RETRACTED_BY_CURRENT_EVIDENCE when current anchors show the prior was "
+            "not a pre-execution blocker. Do not carry downstream proof obligations "
             "as execution blockers."
         ),
     }
@@ -1556,7 +1570,7 @@ def _derived_verdict(packet: Mapping[str, Any]) -> str:
     all_prior_findings_resolved = all(
         isinstance(row, Mapping)
         and str(row.get("status", "") or "").strip().upper()
-        == METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY
+        in _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES
         for row in prior_finding_reviews or []
     )
     return (
@@ -1974,6 +1988,13 @@ def _normalize_packet(
         if str(row.get("status", "") or "").strip().upper()
         == METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY
     ]
+    retracted_prior_ids = [
+        str(row.get("finding_id", "") or "")
+        for row in body["prior_finding_reviews"]
+        if str(row.get("status", "") or "").strip().upper()
+        == METRIC_PROTOCOL_FINDING_RETRACTED_BY_CURRENT_EVIDENCE
+    ]
+    closed_prior_ids = [*resolved_prior_ids, *retracted_prior_ids]
     active_finding_ids = [
         str(row.get("finding_id", "") or "")
         for row in active_finding_ledger
@@ -1986,7 +2007,7 @@ def _normalize_packet(
         and str(row.get("finding_id", "") or "") not in prior_active_ids
     ]
     progress_made = bool(
-        resolved_prior_ids
+        closed_prior_ids
         or (not prior_active_ids and new_finding_ids)
     )
     body["cumulative_finding_ledger"] = cumulative_finding_ledger
@@ -1999,6 +2020,8 @@ def _normalize_packet(
     body["prior_finding_resolution_summary"] = {
         "prior_active_finding_ids": prior_active_ids,
         "resolved_prior_finding_ids": resolved_prior_ids,
+        "retracted_prior_finding_ids": retracted_prior_ids,
+        "closed_prior_finding_ids": closed_prior_ids,
         "still_unresolved_prior_finding_ids": [
             finding_id
             for finding_id in prior_active_ids
@@ -2136,6 +2159,7 @@ def validate_architect_theory_execution_preflight_packet(
     allowed_prior_statuses = {
         METRIC_PROTOCOL_FINDING_UNRESOLVED,
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
+        METRIC_PROTOCOL_FINDING_RETRACTED_BY_CURRENT_EVIDENCE,
     }
     if any(
         str(row.get("status", "") or "").strip().upper()
@@ -2336,7 +2360,7 @@ def validate_architect_theory_execution_preflight_packet(
             "theory execution preflight prior finding identity bindings mismatch"
         )
     unresolved_without_continuation: list[str] = []
-    resolved_with_continuation: list[str] = []
+    closed_with_continuation: list[str] = []
     for prior_review in prior_finding_reviews:
         finding_id = str(prior_review.get("finding_id", "") or "").strip()
         status = str(prior_review.get("status", "") or "").strip().upper()
@@ -2346,29 +2370,26 @@ def validate_architect_theory_execution_preflight_packet(
         )
         if status == METRIC_PROTOCOL_FINDING_UNRESOLVED and linked_count != 1:
             unresolved_without_continuation.append(finding_id)
-        if (
-            status == METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY
-            and linked_count
-        ):
-            resolved_with_continuation.append(finding_id)
+        if status in _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES and linked_count:
+            closed_with_continuation.append(finding_id)
     if unresolved_without_continuation:
         errors.append(
             "runtime must carry each UNRESOLVED prior finding forward exactly once; "
             "finding_ids="
             + json.dumps(unresolved_without_continuation)
         )
-    if resolved_with_continuation:
+    if closed_with_continuation:
         errors.append(
-            "a RESOLVED_BY_CURRENT_THEORY prior finding cannot remain in current "
+            "a closed prior finding cannot remain in current "
             "findings; finding_ids="
-            + json.dumps(resolved_with_continuation)
+            + json.dumps(closed_with_continuation)
         )
     if findings and _all_execution_review_rows_pass(packet):
         errors.append(
             "blocking theory execution preflight findings contradict the all-PASS "
             "dimension and estimator rows; submit a complete self-consistent review "
             "with at least one FAIL or UNCERTAIN execution row, or remove new "
-            "findings and mark prior findings RESOLVED_BY_CURRENT_THEORY. Downstream "
+            "findings and close prior findings from current evidence. Downstream "
             "proof obligations are not execution blockers"
         )
     expected_verdict = _derived_verdict(packet)

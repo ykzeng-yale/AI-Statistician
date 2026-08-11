@@ -686,7 +686,13 @@ def architect_preexecution_metric_protocol_rejection_result(
         or []
     )
     prior_finding_progress_made = bool(
-        prior_finding_resolution_summary.get("resolved_prior_finding_ids", [])
+        prior_finding_resolution_summary.get("closed_prior_finding_ids", [])
+        or prior_finding_resolution_summary.get(
+            "resolved_prior_finding_ids", []
+        )
+        or prior_finding_resolution_summary.get(
+            "retracted_prior_finding_ids", []
+        )
     )
     if not prior_active_finding_ids:
         prior_finding_progress_made = bool(

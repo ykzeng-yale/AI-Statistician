@@ -1514,6 +1514,8 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     assert accepted["prior_finding_resolution_summary"] == {
         "prior_active_finding_ids": prior_finding_ids,
         "resolved_prior_finding_ids": prior_finding_ids,
+        "retracted_prior_finding_ids": [],
+        "closed_prior_finding_ids": prior_finding_ids,
         "still_unresolved_prior_finding_ids": [],
         "new_finding_ids": [],
         "progress_made": True,
@@ -1521,6 +1523,61 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     }
     assert accepted["cumulative_finding_ledger"][0]["status"] == (
         "RESOLVED_BY_CURRENT_THEORY"
+    )
+
+
+def test_preflight_can_retract_prior_finding_from_current_evidence() -> None:
+    rejected, _backend = _review(accept=False)
+    prior_ledger = rejected["cumulative_finding_ledger"]
+    prior_finding_ids = rejected["active_unresolved_finding_ids"]
+
+    accepted_payload = _payload(accept=True)
+    accepted_payload["prior_finding_reviews"] = [
+        {
+            "status": "RETRACTED_BY_CURRENT_EVIDENCE",
+            "rationale": (
+                "Current source anchors show the prior concern is outside the "
+                "admitted finite interface and is not a pre-execution blocker."
+            ),
+            "evidence_refs": ["theory.estimator_specs"],
+        }
+    ]
+    backend = _Backend(accepted_payload)
+    accepted = review_architect_theory_execution_preflight(
+        provider=backend,
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+        model=TEST_HAIKU_MODEL,
+        model_tier="haiku",
+        max_tokens=7000,
+        temperature=0.0,
+        provider_name="anthropic",
+        max_validation_retries=0,
+        prior_finding_ledger=prior_ledger,
+    )
+
+    prior_status_schema = backend.requests[0].schema["$defs"][
+        "prior_finding_review"
+    ]["properties"]["status"]
+    assert "RETRACTED_BY_CURRENT_EVIDENCE" in prior_status_schema["enum"]
+    assert accepted["overall_verdict"] == "ACCEPT"
+    assert accepted["active_unresolved_finding_ids"] == []
+    assert accepted["prior_finding_resolution_summary"] == {
+        "prior_active_finding_ids": prior_finding_ids,
+        "resolved_prior_finding_ids": [],
+        "retracted_prior_finding_ids": prior_finding_ids,
+        "closed_prior_finding_ids": prior_finding_ids,
+        "still_unresolved_prior_finding_ids": [],
+        "new_finding_ids": [],
+        "progress_made": True,
+        "stalled": False,
+    }
+    assert accepted["cumulative_finding_ledger"][0]["status"] == (
+        "RETRACTED_BY_CURRENT_EVIDENCE"
     )
 
 
