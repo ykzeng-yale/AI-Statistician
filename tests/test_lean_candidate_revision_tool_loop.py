@@ -760,6 +760,62 @@ def test_formalizer_validation_failure_continues_same_workspace_once() -> None:
     assert "Architect or Critic" in exhausted.rationale
 
 
+def test_formalizer_packet_failure_stays_with_source_owner_then_blocks() -> None:
+    question = OpenResearchQuestion(
+        id="packet-owner-loop",
+        title="Keep packet failure with its source owner",
+        description="Routine source validation must not invoke Architect routing.",
+    )
+    task = AgentTask(
+        task_id="formalize:packet-owner-loop",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Author the complete exact-target Lean packet.",
+        inputs={"environment_feedback": {}},
+    )
+    error = PacketValidationError(
+        validation_label="LLM Formalizer packet",
+        attempts=2,
+        errors=[
+            "capability_eval requires at least one model-authored complete Lean "
+            "source in formal_targets"
+        ],
+        history=[],
+    )
+
+    first = runtime_module._formalizer_packet_validation_failure_result(
+        task=task,
+        question=question,
+        theory_packet_id="theory:packet-owner-loop",
+        simulation_manifest_id="",
+        algorithm_sandbox_manifest_id="",
+        exc=error,
+    )
+
+    assert first.status == "REVISE"
+    assert first.next_task is not None
+    assert first.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert first.next_task.inputs["formalizer_workspace_continuation_attempt"] == 1
+    assert first.next_task.inputs["environment_feedback"]["artifact_kind"] == (
+        "RuntimeWorkspaceObservationRef"
+    )
+
+    exhausted = runtime_module._formalizer_packet_validation_failure_result(
+        task=first.next_task,
+        question=question,
+        theory_packet_id="theory:packet-owner-loop",
+        simulation_manifest_id="",
+        algorithm_sandbox_manifest_id="",
+        exc=error,
+    )
+
+    assert exhausted.status == "BLOCKED"
+    assert exhausted.next_task is None
+    assert exhausted.failure_classification == (
+        "formalizer_workspace_continuation_exhausted"
+    )
+    assert "Architect or Critic routing loop" in exhausted.rationale
+
+
 def test_formalizer_workspace_hydrates_observation_ref_before_source_loop(
     monkeypatch,
 ) -> None:

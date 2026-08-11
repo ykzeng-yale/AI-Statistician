@@ -4236,8 +4236,8 @@ def _apply_research_agent_runtime_live_lean_defaults(
     """Attach the canonical Lake project to live Formalizer/ProofEngineer checks.
 
     The default path supplies compiler/LSP feedback to the model-owned source
-    loop. Historical bridge, planner, and executor experiments remain available
-    only when the caller explicitly enables them.
+    loop. The canonical runtime has no bridge, planner, executor, or source-repair
+    fallback outside that workspace.
     """
 
     if not _research_agent_runtime_formalizer_resolves_to_live_provider(args):

@@ -11808,10 +11808,7 @@ def _formalizer_packet_validation_failure_result(
         0,
         _int_like(task.inputs.get("formalizer_workspace_continuation_attempt", 0)),
     )
-    workspace_continuation_allowed = bool(
-        lean_workspace_checkpoint_available
-        and workspace_continuation_attempt < 1
-    )
+    workspace_continuation_allowed = workspace_continuation_attempt < 1
     failure_classification = (
         "formalizer_client_tool_loop_exhausted"
         if lean_workspace_checkpoint_available
@@ -11868,11 +11865,6 @@ def _formalizer_packet_validation_failure_result(
             "reported separately; neither is a runtime source edit or proof artifact."
         ),
     }
-    architect_context = (
-        dict(task.inputs.get("architect_context", {}) or {})
-        if isinstance(task.inputs.get("architect_context", {}), Mapping)
-        else {}
-    )
     if workspace_continuation_allowed:
         next_inputs = dict(task.inputs)
         next_inputs["environment_feedback"] = {
@@ -11899,19 +11891,25 @@ def _formalizer_packet_validation_failure_result(
             ),
             objective=(
                 "Continue the same model-owned Lean workspace from the exact "
-                "source checkpoint and raw final tool observation."
+                "stored model artifact and raw final environment observations."
             ),
             inputs=next_inputs,
         )
-    elif lean_workspace_checkpoint_available:
-        next_task = None
+        result_rationale = (
+            "The bounded Lean tool loop returned its exact model-owned source "
+            "checkpoint and raw final observation directly to the same Formalizer "
+            "workspace for one continuation."
+            if lean_workspace_checkpoint_available
+            else "Formalizer packet validation returned the complete rejected model "
+            "artifact and raw observations directly to the same source-owning "
+            "workspace for one full regeneration."
+        )
     else:
-        next_task = _workspace_architect_replan_task(
-            task=task,
-            question=question,
-            context=architect_context,
-            revision_feedback=feedback,
-            source_artifact_id=failure_id,
+        next_task = None
+        result_rationale = (
+            "The same Formalizer workspace exhausted its single continuation "
+            "without a valid exact-target source. The runtime recorded a blocker "
+            "without adding an Architect or Critic routing loop."
         )
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
@@ -11931,26 +11929,8 @@ def _formalizer_packet_validation_failure_result(
         },
     )
     return AgentStepResult(
-        status=(
-            "REVISE"
-            if workspace_continuation_allowed
-            else "BLOCKED"
-            if lean_workspace_checkpoint_available
-            else "REROUTE"
-        ),
-        rationale=(
-            "The bounded Lean tool loop returned its exact model-owned source "
-            "checkpoint and raw final observation directly to the same Formalizer "
-            "workspace for one continuation."
-            if workspace_continuation_allowed
-            else "The same Formalizer workspace exhausted its single continuation "
-            "without a compiling exact-target source. The runtime stopped without "
-            "adding an Architect or Critic routing loop."
-            if lean_workspace_checkpoint_available
-            else "Formalizer exhausted its in-call packet validation. The complete "
-            "available model artifact and raw validation observations are routed for "
-            "cross-workspace planning without any runtime-authored source edit."
-        ),
+        status="REVISE" if workspace_continuation_allowed else "BLOCKED",
+        rationale=result_rationale,
         produced_artifacts={failure_id: failure_artifact},
         observations=(
             EnvironmentObservation(

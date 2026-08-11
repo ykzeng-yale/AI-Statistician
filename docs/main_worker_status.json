@@ -26,21 +26,22 @@
     "compact_architect_decision_with_runtime_owned_required_topology": true,
     "single_active_exact_target_per_formalizer_workspace": true,
     "same_formalizer_checkpoint_continuation_from_artifact_ref": true,
+    "formalizer_packet_failures_never_route_through_architect": true,
     "blocked_workspace_does_not_starve_unvisited_required_lanes": true,
     "code_revision_audit_requires_real_algorithm_and_simulation_execution": true
   },
   "current_structure": {
     "package_python_modules": 137,
-    "package_python_lines": 124597,
-    "research_agent_runtime_lines": 20475,
+    "package_python_lines": 124577,
+    "research_agent_runtime_lines": 20455,
     "research_agent_runtime_config_fields": 19,
     "research_agent_runtime_audit_lines": 736,
     "cli_lines": 6942,
     "test_modules": 41,
-    "test_lines": 25862
+    "test_lines": 25918
   },
   "verification": {
-    "full_deterministic_suite": "503 passed",
+    "full_deterministic_suite": "504 passed",
     "compileall": "passed",
     "diff_check": "passed",
     "remote_unmerged_branches": 0,
