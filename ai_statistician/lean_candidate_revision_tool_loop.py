@@ -22,6 +22,7 @@ LeanStateInspection = Callable[[str, Mapping[str, Any]], Any]
 LeanDeclarationInspection = Callable[
     [str, str, int, Mapping[str, Any]], Any
 ]
+LEAN_SOURCE_SUBMISSION_TOOL = "submit_lean_source"
 
 
 @dataclass(frozen=True)
@@ -167,10 +168,10 @@ def run_lean_candidate_revision_tool_loop(
     def execute_tool(call, context):
         del context
         tool_input = dict(call.input)
-        if call.name == "replace_lean_source":
+        if call.name == LEAN_SOURCE_SUBMISSION_TOOL:
             if set(tool_input) != {"lean_source"}:
                 raise ClientToolInputError(
-                    "replace_lean_source requires exactly lean_source"
+                    "submit_lean_source requires exactly lean_source"
                 )
             source = tool_input.get("lean_source")
             if not isinstance(source, str) or not source.strip():
@@ -181,20 +182,63 @@ def run_lean_candidate_revision_tool_loop(
                 )
             source_hash = stable_hash(source)
             changed = source_hash != state["source_hash"]
+            already_checked = bool(
+                state["last_check"]
+                and str(state["last_check"].get("source_hash", "") or "")
+                == source_hash
+            )
+            if not changed and already_checked:
+                raise ClientToolInputError(
+                    "submitted source is byte-identical to the current source and "
+                    "its deterministic Lean observation is already recorded"
+                )
             if changed:
                 state["source"] = source
                 state["source_hash"] = source_hash
                 state["source_updates"] += 1
                 state["last_check"] = {}
+            check_result = check_current_source()
+            compiled = bool(check_result.get("compiled", False))
+            content = {
+                **check_result,
+                "ok": compiled,
+                "changed": changed,
+                "source_hash": source_hash,
+                "source_updates": state["source_updates"],
+                "checks": state["checks"],
+                "proof_evidence_status": (
+                    "LOCAL_LEAN_OBSERVATION_REQUIRES_RUNTIME_PROMOTION_GATE"
+                ),
+            }
+            if compiled:
+                content.update(
+                    {
+                        "handed_off": True,
+                        "independent_semantic_review_required": True,
+                        "runtime_kernel_promotion_required": True,
+                    }
+                )
             return ClientToolExecutionResult(
-                content={
-                    "ok": True,
-                    "changed": changed,
-                    "source_hash": source_hash,
-                    "source_updates": state["source_updates"],
-                },
+                content=content,
+                is_error=not compiled,
                 state_changed=changed,
-                observation_key="source:" + source_hash,
+                terminal=compiled,
+                terminal_payload=(
+                    {
+                        "lean_source": state["source"],
+                        "source_hash": state["source_hash"],
+                        "check_result": deepcopy(check_result),
+                    }
+                    if compiled
+                    else None
+                ),
+                observation_key="lean-submission:"
+                + stable_hash(
+                    {
+                        "source_hash": source_hash,
+                        "check_result": check_result,
+                    }
+                ),
             )
 
         if call.name == "search_formal_environment":
@@ -282,7 +326,7 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError("inspect_lean_state takes an empty object")
             if not state["last_check"]:
                 raise ClientToolInputError(
-                    "check_lean_source must run before inspect_lean_state so the "
+                    "submit_lean_source must run before inspect_lean_state so the "
                     "inspection is bound to the exact current source and diagnostics"
                 )
             state["state_inspections"] += 1
@@ -322,7 +366,7 @@ def run_lean_candidate_revision_tool_loop(
                 )
             if not state["last_check"]:
                 raise ClientToolInputError(
-                    "check_lean_source must run before inspect_lean_declaration so "
+                    "submit_lean_source must run before inspect_lean_declaration so "
                     "the lookup is bound to the exact current source artifact"
                 )
             symbol = tool_input.get("symbol")
@@ -365,49 +409,6 @@ def run_lean_candidate_revision_tool_loop(
                         "source_hash": state["source_hash"],
                         "symbol": content["symbol"],
                         "observation": content["observation"],
-                    }
-                ),
-            )
-
-        if call.name == "check_lean_source":
-            if tool_input:
-                raise ClientToolInputError("check_lean_source takes an empty object")
-            check_result = check_current_source()
-            compiled = bool(check_result.get("compiled", False))
-            content = {
-                **check_result,
-                "ok": compiled,
-                "checks": state["checks"],
-                "proof_evidence_status": (
-                    "LOCAL_LEAN_OBSERVATION_REQUIRES_RUNTIME_PROMOTION_GATE"
-                ),
-            }
-            if compiled:
-                content.update(
-                    {
-                        "handed_off": True,
-                        "independent_semantic_review_required": True,
-                        "runtime_kernel_promotion_required": True,
-                    }
-                )
-            return ClientToolExecutionResult(
-                content=content,
-                is_error=not compiled,
-                terminal=compiled,
-                terminal_payload=(
-                    {
-                        "lean_source": state["source"],
-                        "source_hash": state["source_hash"],
-                        "check_result": deepcopy(check_result),
-                    }
-                    if compiled
-                    else None
-                ),
-                observation_key="check:"
-                + stable_hash(
-                    {
-                        "source_hash": state["source_hash"],
-                        "check_result": check_result,
                     }
                 ),
             )
@@ -457,6 +458,7 @@ def run_lean_candidate_revision_tool_loop(
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
             select_tools=select_available_tools,
+            max_retained_tool_turns=4,
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(
@@ -596,6 +598,8 @@ def _lean_candidate_revision_success_result(
         "max_turns": max_turns,
         "max_tool_calls": max_tool_calls,
         "max_no_progress_turns": max_no_progress_turns,
+        "max_retained_tool_turns": 4,
+        "submit_and_check_atomic": True,
         "tool_names": [tool.name for tool in tools],
         "source_updates": state["source_updates"],
         "formal_environment_searches": state["searches"],
@@ -617,8 +621,8 @@ def _lean_candidate_revision_success_result(
         "provider_usage": dict(provider_usage),
         "history": [deepcopy(dict(row)) for row in history],
         "transcript_fingerprint": transcript_fingerprint,
-        "handoff_mode": "successful_model_requested_check",
-        "model_explicit_submit": False,
+        "handoff_mode": "successful_model_source_submission",
+        "model_explicit_submit": True,
         "budget_exhausted": False,
         "local_candidate_validation_passed": True,
         "tools_executed_by_runtime": bool(
@@ -679,10 +683,11 @@ def _lean_candidate_revision_tools(
 ) -> tuple[ClientToolDefinition, ...]:
     tools = [
         ClientToolDefinition(
-            name="replace_lean_source",
+            name=LEAN_SOURCE_SUBMISSION_TOOL,
             description=(
-                "Replace the complete current Lean source with model-authored source. "
-                "The runtime does not edit or repair the supplied Lean code."
+                "Submit one complete model-authored Lean source. The runtime stores "
+                "and immediately checks the exact bytes in the configured Lean "
+                "project, then returns raw diagnostics to this same model."
             ),
             input_schema={
                 "type": "object",
@@ -690,6 +695,7 @@ def _lean_candidate_revision_tools(
                 "required": ["lean_source"],
                 "properties": {"lean_source": {"type": "string"}},
             },
+            terminal=True,
         ),
         ClientToolDefinition(
             name="search_formal_environment",
@@ -712,21 +718,6 @@ def _lean_candidate_revision_tools(
                 },
             },
         ),
-        ClientToolDefinition(
-            name="check_lean_source",
-            description=(
-                "Run the exact current source in the configured local Lean project and "
-                "return compiler and declaration-identity observations. A successful "
-                "check hands the exact source to independent semantic review; a failed "
-                "check returns raw observations for another model-authored source."
-            ),
-            input_schema={
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {},
-            },
-            terminal=True,
-        ),
     ]
     if include_proof_search:
         tools.insert(
@@ -736,8 +727,8 @@ def _lean_candidate_revision_tools(
                 description=(
                     "Ask the configured prover for candidate proof bodies and raw "
                     "diagnostics for the exact current target. Results are suggestions "
-                    "only: choose any useful idea yourself, replace the complete source, "
-                    "and check that exact source with Lean."
+                    "only: choose any useful idea yourself, then submit the complete "
+                    "source for an immediate Lean check."
                 ),
                 input_schema={
                     "type": "object",

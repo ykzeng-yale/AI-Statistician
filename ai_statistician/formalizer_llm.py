@@ -272,9 +272,9 @@ class LLMFormalizerProofEngineerAgent:
                 + "\nYou are revising one hash-bound Lean target. Any compiler, prover, "
                 "retrieval, or independent-review result is an observation only, and "
                 "every changed source must be reviewed again before promotion. "
-                "You own every Lean edit and search query. Use the client tools to "
+                "You own every Lean source and search query. Use the client tools to "
                 "inspect the active formal environment, inspect exact declarations "
-                "when useful, and compile the exact current source. Do not answer "
+                "when useful, and submit a complete source for immediate compilation. Do not answer "
                 "with prose or JSON, and do not weaken the target."
             ),
             user_prompt=_build_lean_candidate_revision_tool_prompt(
@@ -508,16 +508,15 @@ def _build_lean_candidate_revision_tool_prompt(
     }
     payload = {
         "task": (
-            "Revise the complete exact current Lean source through search/edit/check "
-            "actions. A successful model-requested check hands the exact current "
-            "source to independent semantic review."
+            "Revise the complete exact current Lean source through model-selected "
+            "search, inspection, and atomic source-submission actions. A successful "
+            "submission hands the exact current source to independent semantic review."
         ),
         "tool_workflow": (
-            "Choose the search, complete-source replacement, and check sequence from "
-            "the current observations. Preserve enough budget to check the final exact "
-            "source. A successful check_lean_source hands that exact hash to independent "
-            "semantic review automatically; a failed check returns raw Lean "
-            "observations for another complete model-authored source."
+            "Choose searches and inspections from the current observations, then call "
+            "submit_lean_source with one complete source. Every submission is checked "
+            "immediately. Success hands that exact hash to independent semantic review; "
+            "failure returns raw Lean observations to this same source owner."
         ),
         "question": {
             "id": question.id,

@@ -145,21 +145,19 @@ computing ecosystem.
 The runtime may require a small general ABI, such as an exported estimator entry
 point, because an executor needs a callable boundary. It may not encode a specific
 statistical answer in that ABI. Unit-test and simulation-consumer failures return
-their raw stdout, stderr, bounded callback request/response samples, and exact
-source hash to the same coding model. The complete execution artifact is persisted
-once; the model receives a compact observation containing current failures and
-metric values, not copied source, passed contracts, or recursive manifests. A
-byte-identical `replace_scientific_source` call is a tool no-op error. The model may
-run the current bytes again or submit a different complete candidate, but the
-harness never turns the no-op into a source edit.
+raw stdout, stderr, current metric failures, and bounded callback samples when a
+binding fails. The complete execution artifact is persisted once. After a binding
+passes, repeated callback samples and stale execution turns leave model context;
+the same source owner receives the current complete source and latest observation.
+A byte-identical source submission is a tool no-op, never a runtime source edit.
 
 For live providers with native client tools, the structured proposal carries only
 artifact identity and immutable bindings. Source is authored afterward in the same
-model-owned workspace. `replace_scientific_source` stores one complete model-authored
-Python or R candidate; it does not patch, interpret, or repair source.
-`run_scientific_source` executes those exact bytes and returns the raw observation.
-Planning-time estimator IDs remain frozen while the model may replace the complete
-source. Structured-source packets remain only a replay/static-provider fallback.
+model-owned workspace. One terminal `submit_scientific_source` tool stores and
+immediately executes each complete Python or R candidate unchanged. A failed raw
+observation returns to that owner on its next bounded turn; no repair worker or
+content patch runs between them. Planning-time estimator IDs remain frozen.
+Structured-source packets remain only a replay/static-provider fallback.
 
 Independent semantic review checks whether the implementation represents the
 accepted theory artifact. Passing execution is not statistical validity, and
@@ -169,7 +167,9 @@ For outer-graph completion, an Algorithm or Simulation lane is complete only whe
 its active manifest has an independent `ACCEPT` bound to the current immutable
 parents. The accepted review is the completion authority; handoff history and an
 earlier source-task execution are not. A changed Theory or Algorithm parent makes
-the prior review ineligible without rerouting through Architect.
+the prior review ineligible without rerouting through Architect. ACCEPT rows merge
+by source workspace and immutable parent lineage so accepting Simulation cannot
+erase the current Algorithm acceptance, or vice versa.
 
 When the frozen protocol requires generated algorithm code, confirmatory
 simulation can consume an estimator only through a hash-bound handoff produced by
@@ -239,11 +239,12 @@ the binding and removes closed rows from the active ledger.
 Formalizer/ProofEngineer owns one complete standalone Lean candidate at a time.
 The workspace exposes task-bound retrieval, declaration inspection, current goal
 and local context, Lean LSP/MCP state, and exact compiler output. The same model
-chooses each action and complete source replacement. Runtime does not inject an
-import, theorem statement, tactic, or proof-body fragment.
+chooses each read action and complete source submission. Each submission is stored
+unchanged and immediately checked by Lean; raw failure returns to that source owner.
+Runtime does not inject an import, theorem statement, tactic, or proof-body fragment.
 
 Each source workspace has one global turn/call budget. Runtime does not preallocate
-action quotas; core edit/execution tools remain available and the model chooses the mix.
+action quotas; submission and read tools remain available and the model chooses the mix.
 Declaration inspection is not a Python Lean parser or a repair policy. After the
 model checks its current source, it may choose an identifier and call OpenProver's
 existing `lean-lsp-mcp` `lean_declaration_file` tool against the hash-bound
@@ -367,7 +368,7 @@ new interface.
 - `research_agent_runtime.py`: canonical outer graph and subsystem adapters.
 - `scientific_code_workspace.py`: direct Python/R source-feedback loop.
 - `scientific_sandbox.py`: isolated Pyodide/WebR execution.
-- `lean_candidate_revision_tool_loop.py`: direct Lean search/edit/check loop.
+- `lean_candidate_revision_tool_loop.py`: direct Lean read/submit-and-check loop.
 - `lean_kernel_promotion.py`: exact artifact and kernel evidence gate.
 - `formal_source_index.py` and scoped retrievers: declaration-level formal RAG.
 - `structured_output_retry.py`: same-model schema retry transport.

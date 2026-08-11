@@ -6,6 +6,7 @@ from pathlib import Path
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.lean_candidate_revision_tool_loop import (
+    LEAN_SOURCE_SUBMISSION_TOOL,
     run_lean_candidate_revision_tool_loop,
 )
 from ai_statistician.lean_candidate_identity import (
@@ -105,11 +106,10 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
             ),
             _response(
                 ClientToolCall(
-                    "edit-1",
-                    "replace_lean_source",
+                    "submit-1",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
                     {"lean_source": repaired},
-                ),
-                ClientToolCall("check-1", "check_lean_source", {}),
+                )
             ),
         ]
     )
@@ -161,7 +161,7 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
     assert searches == [("True.intro declaration", 3)]
     assert result.evidence["runtime_selected_lean_code"] is False
     assert result.evidence["model_owned_lean_code"] is True
-    assert result.evidence["runtime_executed_tool_calls"] == 3
+    assert result.evidence["runtime_executed_tool_calls"] == 2
     assert result.evidence["local_lean_checks"] == 1
     assert result.evidence["formal_environment_searches"] == 1
     assert result.evidence["model"] == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
@@ -170,15 +170,15 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
         for request in backend.requests
     )
     assert set(tool.name for tool in backend.requests[0].tools) == {
-        "replace_lean_source",
+        LEAN_SOURCE_SUBMISSION_TOOL,
         "search_formal_environment",
-        "check_lean_source",
     }
     assert all(request.disable_parallel_tool_use for request in backend.requests)
     assert result.evidence["handoff_mode"] == (
-        "successful_model_requested_check"
+        "successful_model_source_submission"
     )
-    assert result.evidence["model_explicit_submit"] is False
+    assert result.evidence["model_explicit_submit"] is True
+    assert result.evidence["submit_and_check_atomic"] is True
 
 
 def test_prover_candidates_are_observations_and_only_model_replaces_source() -> None:
@@ -195,11 +195,10 @@ def test_prover_candidates_are_observations_and_only_model_replaces_source() -> 
             ),
             _response(
                 ClientToolCall(
-                    "edit-1",
-                    "replace_lean_source",
+                    "submit-1",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
                     {"lean_source": model_source},
-                ),
-                ClientToolCall("check-1", "check_lean_source", {}),
+                )
             ),
         ]
     )
@@ -251,15 +250,20 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
     revised = "theorem target : True := by\n  exact True.intro\n"
     backend = ScriptedLeanToolBackend(
         [
-            _response(ClientToolCall("check-1", "check_lean_source", {})),
+            _response(
+                ClientToolCall(
+                    "submit-initial",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": initial},
+                )
+            ),
             _response(ClientToolCall("state-1", "inspect_lean_state", {})),
             _response(
                 ClientToolCall(
-                    "edit-1",
-                    "replace_lean_source",
+                    "submit-revised",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
                     {"lean_source": revised},
-                ),
-                ClientToolCall("check-2", "check_lean_source", {}),
+                )
             ),
         ]
     )
@@ -325,7 +329,13 @@ def test_model_selects_exact_declaration_inspection_inside_same_source_loop() ->
     )
     backend = ScriptedLeanToolBackend(
         [
-            _response(ClientToolCall("check-1", "check_lean_source", {})),
+            _response(
+                ClientToolCall(
+                    "submit-initial",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": initial},
+                )
+            ),
             _response(
                 ClientToolCall(
                     "declaration-1",
@@ -335,11 +345,10 @@ def test_model_selects_exact_declaration_inspection_inside_same_source_loop() ->
             ),
             _response(
                 ClientToolCall(
-                    "edit-1",
-                    "replace_lean_source",
+                    "submit-revised",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
                     {"lean_source": revised},
-                ),
-                ClientToolCall("check-2", "check_lean_source", {}),
+                )
             ),
         ]
     )
@@ -422,12 +431,11 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
             ),
             _response(
                 ClientToolCall(
-                    "replace-1",
-                    "replace_lean_source",
+                    "submit-1",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
                     {"lean_source": revised},
                 )
             ),
-            _response(ClientToolCall("check-1", "check_lean_source", {})),
         ]
     )
 
@@ -456,16 +464,10 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
 
     assert result.lean_source == revised
     assert [tool.name for tool in backend.requests[1].tools] == [
-        "replace_lean_source",
+        LEAN_SOURCE_SUBMISSION_TOOL,
         "search_formal_environment",
-        "check_lean_source",
     ]
-    assert [tool.name for tool in backend.requests[2].tools] == [
-        "replace_lean_source",
-        "search_formal_environment",
-        "check_lean_source"
-    ]
-    assert backend.requests[2].tool_choice == "any"
+    assert backend.requests[1].tool_choice == "any"
     assert all(request.disable_parallel_tool_use for request in backend.requests)
 
 
@@ -476,20 +478,14 @@ def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> No
     ]
     backend = ScriptedLeanToolBackend(
         [
-            response
-            for index, source in enumerate(sources)
-            for response in (
-                _response(
-                    ClientToolCall(
-                        f"edit-{index}",
-                        "replace_lean_source",
-                        {"lean_source": source},
-                    )
-                ),
-                _response(
-                    ClientToolCall(f"check-{index}", "check_lean_source", {})
-                ),
+            _response(
+                ClientToolCall(
+                    f"submit-{index}",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": source},
+                )
             )
+            for index, source in enumerate(sources)
         ]
     )
 
@@ -501,7 +497,7 @@ def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> No
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=8,
+        max_turns=4,
         max_no_progress_turns=2,
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
@@ -520,7 +516,7 @@ def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> No
     assert result.evidence["source_updates"] == 4
     assert result.evidence["local_lean_checks"] == 4
     assert all(
-        "replace_lean_source" in {tool.name for tool in request.tools}
+        LEAN_SOURCE_SUBMISSION_TOOL in {tool.name for tool in request.tools}
         for request in backend.requests
     )
 
@@ -532,11 +528,10 @@ def test_lean_candidate_tool_loop_hands_off_on_successful_requested_check() -> N
         [
             _response(
                 ClientToolCall(
-                    "edit-1",
-                    "replace_lean_source",
+                    "submit-1",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
                     {"lean_source": revised},
-                ),
-                ClientToolCall("check-1", "check_lean_source", {}),
+                )
             ),
         ]
     )
@@ -565,16 +560,35 @@ def test_lean_candidate_tool_loop_hands_off_on_successful_requested_check() -> N
     assert len(backend.requests) == 1
     assert result.evidence["local_lean_checks"] == 1
     assert result.evidence["handoff_mode"] == (
-        "successful_model_requested_check"
+        "successful_model_source_submission"
     )
 
 
-def test_lean_candidate_tool_loop_stops_repeated_identical_checks() -> None:
+def test_lean_candidate_tool_loop_stops_repeated_identical_submissions() -> None:
     source = "theorem target : True := by exact True.intro\n"
     backend = ScriptedLeanToolBackend(
         [
-            _response(ClientToolCall("check-1", "check_lean_source", {})),
-            _response(ClientToolCall("check-2", "check_lean_source", {})),
+            _response(
+                ClientToolCall(
+                    "submit-1",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": source},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-2",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": source},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-3",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": source},
+                )
+            ),
         ]
     )
 
@@ -601,20 +615,20 @@ def test_lean_candidate_tool_loop_stops_repeated_identical_checks() -> None:
         )
     except PacketValidationError as exc:
         assert "no new progress" in " ".join(exc.errors)
+        assert exc.recovery_checkpoint["checks"] == 1
     else:
-        raise AssertionError("repeated identical Lean checks did not stop")
+        raise AssertionError("repeated identical Lean submissions did not stop")
 
 
-def test_lean_candidate_tool_loop_does_not_hide_a_check_at_turn_budget() -> None:
+def test_lean_candidate_tool_loop_checks_final_submission_at_turn_budget() -> None:
     initial = "theorem target : True := by exact True.intro\n"
     repaired = "theorem target : True := by\n  exact True.intro\n"
     backend = ScriptedLeanToolBackend(
         [
-            _response(ClientToolCall("check-initial", "check_lean_source", {})),
             _response(
                 ClientToolCall(
-                    "edit-final",
-                    "replace_lean_source",
+                    "submit-final",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
                     {"lean_source": repaired},
                 )
             ),
@@ -630,37 +644,25 @@ def test_lean_candidate_tool_loop_does_not_hide_a_check_at_turn_budget() -> None
             "local_lean_stderr": "" if source == repaired else "initial failure",
         }
 
-    try:
-        run_lean_candidate_revision_tool_loop(
-            provider=backend,
-            system_prompt="Use tools.",
-            user_prompt="Revise this target.",
-            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-            model_tier="haiku",
-            temperature=0.0,
-            max_tokens=1200,
-            max_turns=2,
-            max_no_progress_turns=2,
-            candidate_id="target-candidate",
-            candidate_lean_declaration="target",
-            initial_source=initial,
-            check_candidate=check,
-            search_formal_environment=lambda query, k: [],
-        )
-    except PacketValidationError as exc:
-        checkpoint = exc.recovery_checkpoint
-        assert checkpoint is not None
-        assert checkpoint["current_source"] == repaired
-        assert checkpoint["last_check"] == {}
-        assert checkpoint["latest_check_observation"]["source_hash"] == (
-            stable_hash(initial)
-        )
-        assert checkpoint["parent_source_hash"] == stable_hash(initial)
-        assert "final_runtime_check_performed" not in checkpoint
-    else:
-        raise AssertionError("unsubmitted final source was accepted")
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Revise this target.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=1,
+        max_no_progress_turns=1,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=initial,
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+    )
 
-    assert checked_sources == [initial]
+    assert result.lean_source == repaired
+    assert checked_sources == [repaired]
 
 
 def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() -> None:
@@ -670,8 +672,8 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
         [
             _response(
                 ClientToolCall(
-                    "edit-final",
-                    "replace_lean_source",
+                    "submit-final",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
                     {"lean_source": latest},
                 )
             )
@@ -707,8 +709,10 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
         )
         assert checkpoint["current_source"] == latest
         assert checkpoint["current_source_hash"] == stable_hash(latest)
-        assert checkpoint["last_check"] == {}
-        assert checkpoint["latest_check_observation"] == {}
+        assert checkpoint["last_check"]["source_hash"] == stable_hash(latest)
+        assert checkpoint["latest_check_observation"]["source_hash"] == (
+            stable_hash(latest)
+        )
         assert checkpoint["parent_source_hash"] == stable_hash(initial)
         assert "final_runtime_check_performed" not in checkpoint
         assert checkpoint["model_owned_lean_code"] is True
@@ -966,8 +970,7 @@ def test_formalizer_failure_preserves_workspace_refs_without_payload_copy() -> N
                     "result_excerpt": "raw transcript observation" * 10000,
                     "tool_calls": [
                         {"name": "search_formal_environment"},
-                        {"name": "replace_lean_source"},
-                        {"name": "check_lean_source"},
+                        {"name": LEAN_SOURCE_SUBMISSION_TOOL},
                     ],
                 }
             ],
@@ -1476,11 +1479,10 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
         [
             _response(
                 ClientToolCall(
-                    "edit",
-                    "replace_lean_source",
+                    "submit",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
                     {"lean_source": repaired},
-                ),
-                ClientToolCall("check", "check_lean_source", {}),
+                )
             ),
         ]
     )
