@@ -633,6 +633,43 @@ def test_architect_feedback_route_can_record_model_blocker() -> None:
     assert validate_architect_feedback_route_packet(packet) == []
 
 
+def test_exhausted_workspace_reopens_only_on_materially_new_parent() -> None:
+    context = {
+        "theory_packet_id": "theory:a",
+        "runtime_outer_graph_workspace_outcomes": [
+            {
+                "source_subsystem": "FormalizationEvaluator",
+                "local_status": "BLOCKED",
+                "failure_classification": "formalizer_workspace_exhausted",
+                "parent_artifact_ids": {"theory_packet_id": "theory:a"},
+            }
+        ],
+    }
+    blocked_prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context=context,
+        environment_feedback={"feedback_type": "critic_architect_replan_observations"},
+    )
+    blocked_payload = json.loads(blocked_prompt.rsplit("\n\n", 1)[1])
+
+    assert "FormalizationEvaluator" not in blocked_payload[
+        "available_route_subsystems"
+    ]
+    assert "FormalizationEvaluator" in blocked_payload[
+        "unavailable_route_subsystems"
+    ]
+
+    context["theory_packet_id"] = "theory:b"
+    fresh_prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context=context,
+        environment_feedback={"feedback_type": "critic_architect_replan_observations"},
+    )
+    fresh_payload = json.loads(fresh_prompt.rsplit("\n\n", 1)[1])
+
+    assert "FormalizationEvaluator" in fresh_payload["available_route_subsystems"]
+
+
 def test_runtime_routes_formal_feedback_to_critic_without_restarting_theory() -> None:
     question = _question()
     full_feedback = {

@@ -3363,6 +3363,28 @@ def _runtime_executed_subsystems(
     }
 
 
+def _runtime_workspace_parent_artifact_ids(
+    subsystem_name: str,
+    task_inputs: Mapping[str, Any],
+) -> dict[str, str]:
+    """Identify the immutable parents whose change starts a fresh workspace lineage."""
+
+    parent_fields = {
+        "TheoryDeveloper": ("retrieval_memory_manifest_id",),
+        "AlgorithmEngineer": ("theory_packet_id",),
+        "SimulationEvaluator": (
+            "theory_packet_id",
+            "algorithm_sandbox_manifest_id",
+        ),
+        "FormalizationEvaluator": ("theory_packet_id",),
+    }.get(subsystem_name, ())
+    return {
+        field: value
+        for field in parent_fields
+        if (value := str(task_inputs.get(field, "") or "").strip())
+    }
+
+
 def _runtime_outer_graph_context(
     *,
     task: AgentTask,
@@ -3411,6 +3433,10 @@ def _runtime_outer_graph_context(
         "failure_classification": result.failure_classification,
         "rationale": result.rationale,
         "produced_artifact_ids": list(result.produced_artifacts),
+        "parent_artifact_ids": _runtime_workspace_parent_artifact_ids(
+            subsystem_name,
+            task.inputs,
+        ),
         "runtime_authored_research_content": False,
         "proof_evidence_status": "OUTER_GRAPH_WORKSPACE_OUTCOME_NOT_PROOF_EVIDENCE",
     }
@@ -15190,22 +15216,47 @@ class CriticEvaluatorRuntimeSubsystem:
         coordination_scope = str(
             coordination_assessment.get("scope", "none") or "none"
         ).strip()
-        architect_replan_required = bool(
-            coordination_scope == "cross_workspace"
-            and critic_round < max_critic_revision_rounds
+        conflicting_artifact_ids = list(
+            dict.fromkeys(
+                str(value).strip()
+                for value in coordination_assessment.get(
+                    "conflicting_artifact_ids", []
+                )
+                or []
+                if str(value).strip()
+            )
         )
-        should_route_to_formalizer = bool(
-            formal_debt_blocks_research_acceptance
-            and formal_proof_work_pending
-            and not architect_replan_required
-            and proposal_validation_failure_feedback is None
+        artifact_owner_by_id = {
+            str(artifact_id): handoff.from_subsystem
+            for handoff in blackboard.handoff_ledger
+            for artifact_id in handoff.produced_artifact_ids
+            if str(artifact_id) and handoff.from_subsystem
+        }
+        conflicting_artifact_owners = sorted(
+            {
+                artifact_owner_by_id[artifact_id]
+                for artifact_id in conflicting_artifact_ids
+                if artifact_id in artifact_owner_by_id
+            }
+        )
+        cross_workspace_conflict_verified = bool(
+            coordination_scope == "cross_workspace"
+            and len(conflicting_artifact_ids) >= 2
+            and all(
+                artifact_id in blackboard.artifacts
+                for artifact_id in conflicting_artifact_ids
+            )
+            and len(conflicting_artifact_owners) >= 2
+        )
+        architect_replan_required = bool(
+            cross_workspace_conflict_verified
+            and critic_round < max_critic_revision_rounds
         )
         evidence_contract_decision = _critic_evidence_contract_decision(
             critic_control=critic_control,
             formalization_manifest=formalization_manifest,
             revision_required=bool(
                 architect_replan_required
-                or should_route_to_formalizer
                 or proposal_validation_failure_feedback is not None
             ),
         )
@@ -15243,9 +15294,14 @@ class CriticEvaluatorRuntimeSubsystem:
                 "architect_replan_required": architect_replan_required,
                 "legacy_owner_routes_disabled": True,
                 "reroute_to_theory_developer": False,
-                "reroute_to_formalizer_proofengineer": should_route_to_formalizer,
+                "reroute_to_formalizer_proofengineer": False,
                 "observed_conditions": {
                     "coordination_scope": coordination_scope,
+                    "cross_workspace_conflict_verified": (
+                        cross_workspace_conflict_verified
+                    ),
+                    "conflicting_artifact_ids": conflicting_artifact_ids,
+                    "conflicting_artifact_owners": conflicting_artifact_owners,
                     "formal_proof_work_pending": formal_proof_work_pending,
                 },
                 "formal_verification_policy": formal_verification_policy,
@@ -15259,8 +15315,8 @@ class CriticEvaluatorRuntimeSubsystem:
                     "Critic classified an evidence-grounded cross-workspace conflict; "
                     "Architect must coordinate artifact ownership."
                     if architect_replan_required
-                    else "No cross-workspace coordination was requested by the "
-                    "Critic model packet."
+                    else "No artifact-bound cross-workspace conflict with available "
+                    "revision budget was verified."
                 ),
                 "environment_feedback": (
                     critic_runtime_observations
@@ -15320,6 +15376,11 @@ class CriticEvaluatorRuntimeSubsystem:
                     "legacy_owner_routes_disabled": True,
                     "observed_conditions": {
                         "coordination_scope": coordination_scope,
+                        "cross_workspace_conflict_verified": (
+                            cross_workspace_conflict_verified
+                        ),
+                        "conflicting_artifact_ids": conflicting_artifact_ids,
+                        "conflicting_artifact_owners": conflicting_artifact_owners,
                         "formal_proof_work_pending": formal_proof_work_pending,
                     },
                     "formal_verification_policy": formal_verification_policy,
@@ -15335,116 +15396,17 @@ class CriticEvaluatorRuntimeSubsystem:
                 },
             )
         )
-        if should_route_to_formalizer:
-            critic_assessment = (
-                dict(
-                    proposal_packet.get("current_observation_assessment", {})
-                )
-                if isinstance(proposal_packet, Mapping)
-                and isinstance(
-                    proposal_packet.get("current_observation_assessment", {}),
-                    Mapping,
-                )
-                else {}
-            )
-            feedback_body = {
-                "schema_version": RUNTIME_SCHEMA_VERSION,
-                "artifact_kind": "RuntimeCriticFormalizationObservation",
-                "feedback_type": "critic_same_workspace_formalization_observation",
-                "question_id": question.id,
-                "critic_evaluator_manifest_id": manifest_id,
-                "critic_model_packet_id": str(
-                    proposal_packet.get("packet_id", "") or ""
-                )
-                if proposal_packet
-                else "",
-                "formalization_manifest_id": formalization_manifest_id,
-                "formalization_counts": formalization_counts,
-                "current_environment_observation": dict(
-                    critic_environment_feedback
-                ),
-                "critic_observation_assessment": critic_assessment,
-                "source_workspace": "FormalizationEvaluator",
-                "runtime_selected_source_edit": False,
-                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-            }
-            feedback = {
-                **feedback_body,
-                "feedback_id": "critic_formalization_observation:"
-                + stable_hash(feedback_body)[:20],
-            }
-            next_context = dict(context)
-            next_context["environment_feedback"] = feedback
-            next_context["runtime_feedback_loop"] = {
-                **(
-                    dict(context.get("runtime_feedback_loop", {}))
-                    if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
-                    else {}
-                ),
-                "source_subsystem": "CriticEvaluator",
-                "source_workspace": "FormalizationEvaluator",
-                "critic_revision_round": critic_round,
-                "max_critic_revision_rounds": max_critic_revision_rounds,
-                "critic_evaluator_manifest_id": manifest_id,
-                "runtime_selected_source_edit": False,
-            }
-            next_task = AgentTask(
-                task_id=(
-                    f"formalize-from-critic:{question.id}:"
-                    f"{stable_hash([manifest_id, formalization_manifest_id])[:8]}"
-                ),
-                owner_subsystem="FormalizationEvaluator",
-                objective=(
-                    "Continue the same Formalizer coding workspace from the exact "
-                    "Lean/tool observations. The model authors the next complete "
-                    "Lean source; runtime supplies no proof strategy or source edit."
-                ),
-                inputs={
-                    "question": _question_to_payload(question),
-                    "theory_packet_id": theory_packet_id,
-                    "simulation_manifest_id": simulation_manifest_id,
-                    "algorithm_sandbox_manifest_id": algorithm_manifest_id,
-                    "formalization_manifest_id": formalization_manifest_id,
-                    "architect_context": next_context,
-                    "environment_feedback": feedback,
-                },
-                allowed_tools=(
-                    "model_backend",
-                    "proof_bank_retriever",
-                    "formal_source_retriever",
-                    "proof_verifier",
-                    "proof_state",
-                    "local_lean",
-                    "lean_lsp_mcp",
-                ),
-                expected_artifacts=("formalization_manifest", "proof_feedback"),
-                acceptance_gate=(
-                    "the model-authored complete Lean source is checked by the "
-                    "configured local Lean/AXLE authority"
-                ),
-                stop_condition=(
-                    "exact target-bound kernel closure or an explicit exhausted "
-                    "workspace budget"
-                ),
-            )
-            return AgentStepResult(
-                status="REROUTE",
-                rationale=(
-                    "Formal proof evidence remains open, so CriticEvaluator returned "
-                    "the observations directly to the same Formalizer workspace."
-                ),
-                produced_artifacts=produced_artifacts,
-                observations=tuple(observations),
-                evidence_entries=tuple(
-                    row for row in (proposal_evidence, evidence) if row is not None
-                ),
-                next_task=next_task,
-                failure_classification="formal_workspace_evidence_incomplete",
-            )
         if architect_replan_required and proposal_validation_failure_feedback is None:
             runtime_observations = {
                 "coordination_scope": coordination_scope,
+                "cross_workspace_conflict_verified": (
+                    cross_workspace_conflict_verified
+                ),
+                "conflicting_artifact_ids": conflicting_artifact_ids,
+                "conflicting_artifact_owners": conflicting_artifact_owners,
+                "coordination_rationale": str(
+                    coordination_assessment.get("rationale", "") or ""
+                ),
                 "formal_proof_work_pending": formal_proof_work_pending,
                 "formal_debt_blocks_research_acceptance": (
                     formal_debt_blocks_research_acceptance

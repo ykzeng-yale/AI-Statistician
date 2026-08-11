@@ -575,6 +575,7 @@ def build_architect_feedback_route_prompt(
                 RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY,
                 "runtime_feedback_loop",
                 "runtime_progress_snapshot",
+                "runtime_outer_graph_workspace_outcomes",
                 "architect_metric_protocol_gate",
             }
         )
@@ -783,10 +784,11 @@ def _architect_feedback_route_subsystems(
     architect_context: Mapping[str, Any],
     environment_feedback: Mapping[str, Any],
 ) -> tuple[str, ...]:
-    """Apply only lineage budgets to the model's route choices."""
+    """Apply immutable lineage budgets to the model's route choices."""
 
     budget = architect_context.get("candidate_lineage_budget", {})
     available = list(ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS)
+    unavailable: set[str] = set()
     revisions_used, max_revisions = runtime_theory_revision_budget(
         architect_context
     )
@@ -813,45 +815,66 @@ def _architect_feedback_route_subsystems(
             for subsystem in available
             if subsystem != "TheoryDeveloper"
         ]
-    if not isinstance(budget, Mapping):
-        return tuple(available)
-    feedback_id = str(
-        environment_feedback.get("active_observation_id", "")
-        or environment_feedback.get("feedback_id", "")
-        or ""
-    )
-    failure = str(
-        environment_feedback.get("failure_classification", "") or ""
-    )
-    budget_feedback_id = str(budget.get("feedback_id", "") or "")
-    same_observation = bool(
-        (feedback_id and budget_feedback_id == feedback_id)
-        or (
-            not budget_feedback_id
-            and failure
-            == str(budget.get("failure_classification", "") or "")
+    if isinstance(budget, Mapping):
+        feedback_id = str(
+            environment_feedback.get("active_observation_id", "")
+            or environment_feedback.get("feedback_id", "")
+            or ""
         )
-    )
-    attempts_used = _architect_gap_int(
-        budget.get("attempts_used", 0), fallback=0
-    )
-    max_attempts = _architect_gap_int(
-        budget.get("max_attempts", 0), fallback=0
-    )
-    exhausted = bool(
-        budget.get("budget_exhausted") is True
-        or (max_attempts > 0 and attempts_used >= max_attempts)
-    )
-    exhausted_source = (
-        str(budget.get("source_subsystem", "") or "")
-        if same_observation and exhausted
-        else ""
-    )
+        failure = str(
+            environment_feedback.get("failure_classification", "") or ""
+        )
+        budget_feedback_id = str(budget.get("feedback_id", "") or "")
+        same_observation = bool(
+            (feedback_id and budget_feedback_id == feedback_id)
+            or (
+                not budget_feedback_id
+                and failure
+                == str(budget.get("failure_classification", "") or "")
+            )
+        )
+        attempts_used = _architect_gap_int(
+            budget.get("attempts_used", 0), fallback=0
+        )
+        max_attempts = _architect_gap_int(
+            budget.get("max_attempts", 0), fallback=0
+        )
+        exhausted = bool(
+            budget.get("budget_exhausted") is True
+            or (max_attempts > 0 and attempts_used >= max_attempts)
+        )
+        if same_observation and exhausted:
+            unavailable.add(str(budget.get("source_subsystem", "") or ""))
+
+    latest_outcome_by_owner: dict[str, Mapping[str, Any]] = {}
+    for raw_outcome in architect_context.get(
+        "runtime_outer_graph_workspace_outcomes", []
+    ) or []:
+        if not isinstance(raw_outcome, Mapping):
+            continue
+        owner = str(raw_outcome.get("source_subsystem", "") or "")
+        if owner:
+            latest_outcome_by_owner[owner] = raw_outcome
+    for owner, outcome in latest_outcome_by_owner.items():
+        parent_ids = outcome.get("parent_artifact_ids", {})
+        if (
+            str(outcome.get("local_status", "") or "") not in {"BLOCKED", "FAILED"}
+            or not isinstance(parent_ids, Mapping)
+            or not parent_ids
+        ):
+            continue
+        same_parent_lineage = all(
+            str(architect_context.get(str(field), "") or "") == str(value or "")
+            for field, value in parent_ids.items()
+            if str(value or "")
+        )
+        if same_parent_lineage:
+            unavailable.add(owner)
 
     return tuple(
         subsystem
         for subsystem in available
-        if subsystem != exhausted_source
+        if subsystem not in unavailable
     )
 
 

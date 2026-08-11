@@ -166,6 +166,11 @@ def build_critic_evaluator_prompt(
         "evidence_boundary_audit, boundary_ok means that the artifact's labels and claims "
         "respect its authority boundary; it does not mean that all downstream evidence "
         "already exists or that an empirical gate passed. The "
+        "coordination scope is cross_workspace only when at least two existing immutable "
+        "artifacts from distinct workspaces make materially incompatible claims or carry "
+        "incompatible identities. Multiple failed lanes, missing proof, an exhausted "
+        "budget, or independent missing evidence is not a cross-workspace conflict. List "
+        "the exact conflicting artifact IDs; do not use task names or hypothetical IDs. The "
         "ArchitectCoordinator model alone makes the routing decision after reading "
         "your assessment and the same current observation.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
@@ -266,6 +271,20 @@ def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
                 "coordination_assessment.scope must be none, same_workspace, or "
                 "cross_workspace"
             )
+        conflict_ids = [
+            str(value).strip()
+            for value in coordination.get("conflicting_artifact_ids", []) or []
+            if str(value).strip()
+        ]
+        if scope == "cross_workspace" and len(set(conflict_ids)) < 2:
+            errors.append(
+                "cross_workspace coordination requires at least two distinct exact "
+                "conflicting_artifact_ids"
+            )
+        if scope == "cross_workspace" and not str(
+            coordination.get("rationale", "") or ""
+        ).strip():
+            errors.append("cross_workspace coordination requires a rationale")
     if packet.get("proof_evidence_status") != CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE:
         errors.append("proof_evidence_status must preserve critic proposal boundary")
     if packet.get("kernel_verified") is not False:

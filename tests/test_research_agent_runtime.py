@@ -20,6 +20,7 @@ from ai_statistician.model_backend import (
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
 )
 from ai_statistician.research_agent_runtime import (
+    CriticEvaluatorRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
     _normalized_runtime_evaluation_model_config,
     _runtime_generated_code_semantic_review_dispatch,
@@ -205,6 +206,98 @@ def test_architect_source_escalation_requires_independent_semantic_conflict() ->
             },
             source_artifact_id="algorithm:failed",
         )
+
+
+def test_final_critic_does_not_restart_exhausted_formalizer_for_missing_proof() -> None:
+    question = OpenResearchQuestion(
+        id="terminal-critic-formal-gap",
+        title="Stop after the bounded formal workspace",
+        description="Record a required but unproved theorem without restarting Lean.",
+    )
+    artifact_ids = {
+        "retrieval_memory_manifest_id": "retrieval_memory_manifest:terminal",
+        "theory_packet_id": "theory_derivation:terminal",
+        "simulation_manifest_id": "simulation_manifest:terminal",
+        "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:terminal",
+        "formalization_manifest_id": "formalization_manifest:terminal",
+    }
+    artifacts = {
+        artifact_ids["retrieval_memory_manifest_id"]: {
+            "manifest_id": artifact_ids["retrieval_memory_manifest_id"],
+        },
+        artifact_ids["theory_packet_id"]: {
+            "packet_id": artifact_ids["theory_packet_id"],
+        },
+        artifact_ids["simulation_manifest_id"]: {
+            "manifest_id": artifact_ids["simulation_manifest_id"],
+        },
+        artifact_ids["algorithm_sandbox_manifest_id"]: {
+            "manifest_id": artifact_ids["algorithm_sandbox_manifest_id"],
+        },
+        artifact_ids["formalization_manifest_id"]: {
+            "manifest_id": artifact_ids["formalization_manifest_id"],
+            "counts": {"formal_gap": 1, "kernel_verified": 0},
+            "full_frontier_theorem_proved": False,
+        },
+    }
+    result = CriticEvaluatorRuntimeSubsystem(
+        runtime_config=ResearchAgentRuntimeConfig(
+            formal_verification_policy="required"
+        )
+    ).run(
+        AgentTask(
+            task_id="critic:terminal-formal-gap",
+            owner_subsystem="CriticEvaluator",
+            objective="Record the final evidence decision.",
+            inputs={
+                "question": {
+                    "id": question.id,
+                    "title": question.title,
+                    "description": question.description,
+                    "tags": [],
+                },
+                **artifact_ids,
+                "architect_context": {
+                    "architect_runtime_plan": {
+                        "evidence_contract": {
+                            "formal_verification_policy": "required",
+                            "formal_required_for_final": True,
+                        },
+                        "subsystem_execution_plan": [
+                            {
+                                "subsystem": "CriticEvaluator",
+                                "objective": "Audit final evidence.",
+                                "acceptance_gate": "Respect kernel authority.",
+                            }
+                        ],
+                    }
+                },
+            },
+        ),
+        BlackboardState(project_id="terminal-critic", artifacts=artifacts),
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == "formal_required_unverified"
+    assert not any(
+        artifact.get("artifact_kind") == "RuntimeCriticFormalizationObservation"
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+    )
+
+
+def test_workspace_parent_lineage_reopens_only_after_parent_artifact_changes() -> None:
+    formalizer_parents = runtime_module._runtime_workspace_parent_artifact_ids(
+        "FormalizationEvaluator",
+        {
+            "theory_packet_id": "theory:a",
+            "algorithm_sandbox_manifest_id": "algorithm:a",
+            "simulation_manifest_id": "simulation:a",
+        },
+    )
+
+    assert formalizer_parents == {"theory_packet_id": "theory:a"}
 
 
 def test_source_workspace_prompts_give_tools_to_the_source_owner() -> None:
