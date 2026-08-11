@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from ai_statistician.model_backend import (
@@ -143,6 +145,14 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
     assert "revised claim and at least one lemma are required" in str(
         backend.requests[2].messages
     )
+    incomplete_write_block = backend.requests[2].messages[-1]["content"][0]
+    incomplete_write_observation = json.loads(
+        incomplete_write_block["content"]
+    )
+    assert incomplete_write_observation["write_accepted"] is True
+    assert incomplete_write_observation["workspace_valid"] is False
+    assert incomplete_write_observation["omitted_artifacts_retained"] is True
+    assert incomplete_write_block["is_error"] is False
     submission_schema = next(
         tool.input_schema
         for tool in backend.requests[0].tools
@@ -163,14 +173,12 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
             "problem_card": {"claim": "still invalid"},
         },
     )
-    backend = ScriptedTheoryWorkspaceBackend(
-        [_response(rejected_call), _response(rejected_call)]
-    )
+    backend = ScriptedTheoryWorkspaceBackend([_response(rejected_call)])
 
     with pytest.raises(PacketValidationError) as exc_info:
         _run_workspace(
             backend,
-            max_turns=1,
+            max_turns=4,
             max_reads=1,
             max_submissions=1,
             max_no_progress_turns=1,
@@ -190,3 +198,4 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     assert checkpoint["model_owned_theory"] is True
     assert checkpoint["runtime_edited_theory"] is False
     assert checkpoint["kernel_verified"] is False
+    assert len(backend.requests) == 1

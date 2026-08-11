@@ -229,23 +229,39 @@ def run_theory_artifact_workspace(
             state["last_validation_errors"] = errors
             candidate_hash = stable_hash(candidate) if candidate else ""
             if errors:
+                remaining_submissions = max_submissions - state["submissions"]
+                content = {
+                    "ok": True,
+                    "write_accepted": True,
+                    "state_changed": state_changed,
+                    "workspace_valid": False,
+                    "validation_errors": errors,
+                    "candidate_hash": candidate_hash,
+                    "changed_artifact_names": list(changed),
+                    "omitted_artifacts_retained": True,
+                    "submissions": state["submissions"],
+                    "remaining_submissions": remaining_submissions,
+                    "runtime_edited_theory": False,
+                    "proof_evidence_status": (
+                        "THEORY_WORKSPACE_VALIDATION_NOT_PROOF_EVIDENCE"
+                    ),
+                }
                 return ClientToolExecutionResult(
-                    content={
-                        "ok": False,
-                        "validation_errors": errors,
-                        "candidate_hash": candidate_hash,
-                        "changed_artifact_names": list(changed),
-                        "submissions": state["submissions"],
-                        "remaining_submissions": (
-                            max_submissions - state["submissions"]
-                        ),
-                        "runtime_edited_theory": False,
-                        "proof_evidence_status": (
-                            "THEORY_WORKSPACE_VALIDATION_NOT_PROOF_EVIDENCE"
-                        ),
-                    },
-                    is_error=True,
+                    content=content,
                     state_changed=state_changed,
+                    terminal=remaining_submissions == 0,
+                    terminal_payload=(
+                        {
+                            "core_packet": candidate,
+                            "core_packet_hash": candidate_hash,
+                            "workspace_hash": stable_hash(candidate_artifacts),
+                            "changed_artifact_names": list(changed),
+                            "workspace_valid": False,
+                            "validation_errors": list(errors),
+                        }
+                        if remaining_submissions == 0
+                        else None
+                    ),
                     observation_key="theory-workspace-validation:"
                     + stable_hash([candidate_hash, errors]),
                 )
@@ -297,7 +313,11 @@ def run_theory_artifact_workspace(
                     + "\n\nRead the artifacts needed for mathematical judgment. "
                     "Submit complete replacements only for artifacts you choose to "
                     "change; read-only observations cannot be replaced and all omitted "
-                    "writable artifacts retain their exact parent bytes. "
+                    "writable artifacts retain their exact current bytes. Each "
+                    "structurally valid replacement write is retained even when the "
+                    "combined workspace still fails validation, so a validator "
+                    "observation is not a rollback and later calls should contain only "
+                    "artifacts that still need to be added or revised. "
                     "The runtime stores your replacements unchanged and returns "
                     "validator observations to this same model context."
                 ),
@@ -334,19 +354,9 @@ def run_theory_artifact_workspace(
             if tool.name == "submit_theory_artifacts"
         )
 
-    try:
-        loop = run_bounded_client_tool_loop(
-            backend=provider,
-            request=request,
-            execute_tool=execute_tool,
-            max_turns=max_turns,
-            max_tool_calls=max(max_turns, max_reads + max_submissions),
-            max_no_progress_turns=max_no_progress_turns,
-            select_tools=select_tools,
-        )
-    except ClientToolLoopError as exc:
+    def recovery_checkpoint() -> dict[str, Any]:
         current_artifacts = deepcopy(dict(state["artifacts"]))
-        checkpoint = {
+        return {
             "schema_version": 1,
             "artifact_kind": THEORY_WORKSPACE_CHECKPOINT_KIND,
             "workspace_id": workspace_id,
@@ -369,6 +379,18 @@ def run_theory_artifact_workspace(
             ),
             "kernel_verified": False,
         }
+
+    try:
+        loop = run_bounded_client_tool_loop(
+            backend=provider,
+            request=request,
+            execute_tool=execute_tool,
+            max_turns=max_turns,
+            max_tool_calls=max(max_turns, max_reads + max_submissions),
+            max_no_progress_turns=max_no_progress_turns,
+            select_tools=select_tools,
+        )
+    except ClientToolLoopError as exc:
         raise PacketValidationError(
             validation_label="LLM TheoryDeveloper artifact workspace",
             attempts=exc.turns,
@@ -383,7 +405,7 @@ def run_theory_artifact_workspace(
                 if state["last_candidate"]
                 else None
             ),
-            recovery_checkpoint=checkpoint,
+            recovery_checkpoint=recovery_checkpoint(),
         ) from exc
 
     terminal = dict(loop.terminal_payload)
@@ -402,6 +424,18 @@ def run_theory_artifact_workspace(
         for error in validate_candidate(packet)
         if str(error).strip()
     ]
+    terminal_errors = list(
+        dict.fromkeys(
+            [
+                *[
+                    str(error)
+                    for error in terminal.get("validation_errors", []) or []
+                    if str(error).strip()
+                ],
+                *terminal_errors,
+            ]
+        )
+    )
     if terminal.get("core_packet_hash") != packet_hash or terminal_errors:
         raise PacketValidationError(
             validation_label="LLM TheoryDeveloper artifact workspace",
@@ -412,6 +446,7 @@ def run_theory_artifact_workspace(
             ),
             history=[deepcopy(dict(row)) for row in loop.history],
             last_invalid_packet=packet,
+            recovery_checkpoint=recovery_checkpoint(),
         )
 
     evidence_id = "theory_workspace:" + stable_hash(
@@ -498,7 +533,9 @@ def _theory_workspace_tools(
                 "and whose values are their complete model-authored replacements. "
                 "Object-valued artifacts require objects and array-valued artifacts "
                 "require arrays. Do not add a replacements wrapper and do not JSON-encode "
-                "an artifact as a string. Omitted artifacts remain byte-identical."
+                "an artifact as a string. Every accepted replacement is retained even "
+                "if the combined workspace still fails validation. On later calls, "
+                "omit retained artifacts unless you intend to revise them."
             ),
             input_schema={
                 "type": "object",
