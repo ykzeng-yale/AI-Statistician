@@ -31,6 +31,7 @@ from ai_statistician.estimator_interface_contract import (
     theory_estimator_interface_contracts,
 )
 from ai_statistician.model_backend import (
+    ClientToolCall,
     ClientToolTurnRequest,
     ClientToolTurnResponse,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
@@ -126,6 +127,25 @@ class ScriptedTheoryToolBackend:
                 "provider_stop_reason": "end_turn",
             },
         )
+
+
+def _theory_tool_response(*calls: ClientToolCall) -> ClientToolTurnResponse:
+    return ClientToolTurnResponse(
+        content_blocks=tuple(
+            {
+                "type": "tool_use",
+                "id": call.call_id,
+                "name": call.name,
+                "input": dict(call.input),
+            }
+            for call in calls
+        ),
+        tool_calls=tuple(calls),
+        text="",
+        provider="anthropic",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        metadata={"provider_stop_reason": "tool_use"},
+    )
 
 
 class ProviderWithoutIdentity:
@@ -993,39 +1013,15 @@ def test_interface_authoring_cannot_replace_frozen_outputs_with_status_rows() ->
 
 
 
-def test_theory_revision_regenerates_complete_packet_with_raw_feedback() -> None:
+def test_serious_theory_revision_requires_native_client_tool_backend() -> None:
     parent = _serious_sample_response()
-    parent["estimator_specs"][0]["inputs"] = ["observations"]
-    parent["estimator_specs"][0]["outputs"] = ["estimate"]
     question = OpenResearchQuestion(
-        id="full_revision",
-        title="Full theory revision",
-        description="Regenerate one coherent theory packet from reviewer feedback.",
+        id="tool_only_revision",
+        title="Tool-only theory revision",
+        description="Require the model-owned workspace path.",
     )
     context = _metric_theory_revision_context(question=question, parent=parent)
-    revision_inputs = build_theory_developer_revision_inputs(
-        context,
-        question=question,
-    )
-    revised_core = json.loads(
-        json.dumps(revision_inputs["base_core_payload"])
-    )
-    revised_assumptions = [
-        *revised_core["problem_card"]["assumptions"],
-        "bounded outcomes",
-    ]
-    revised_core["problem_card"]["assumptions"] = revised_assumptions
-    invalid_core = json.loads(json.dumps(revised_core))
-    invalid_core["problem_card"].pop("estimand")
-    estimator = parent["estimator_specs"][0]
-    interface_response = {
-        "interfaces": {
-            estimator["id"]: estimator["estimator_interface_contract"]
-        }
-    }
-    provider = SequentialGeneratorBackend(
-        [invalid_core, revised_core, interface_response]
-    )
+    provider = SequentialGeneratorBackend([])
     developer = LLMTheoryDeveloperAgent(
         provider=provider,
         config=ResearchArchitectConfig(
@@ -1034,70 +1030,24 @@ def test_theory_revision_regenerates_complete_packet_with_raw_feedback() -> None
             model_tier="haiku",
             serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             serious_model_tier="haiku",
-            max_validation_retries=1,
         ),
     )
 
-    packet = developer.derive(question, architect_context=context)
+    with pytest.raises(
+        PacketValidationError,
+        match="requires native client-tool turns",
+    ):
+        developer.derive(question, architect_context=context)
 
-    assert packet["ok"] is True
-    assert packet["problem_card"]["assumptions"] == revised_assumptions
-    assert len(provider.requests) == 3
-    first_request, retry_request, interface_request = provider.requests
-    assert first_request.metadata["theory_developer_phase"] == "full_core_revision"
-    assert first_request.metadata["revision_generation_mode"] == "complete_packet"
-    assert set(first_request.schema["properties"]) == set(
-        revision_inputs["base_core_payload"]
-    )
-    assert "updates" not in first_request.schema["properties"]
-    prompt = json.loads(first_request.user_prompt.split("\n\n", 1)[1])
-    assert prompt["revision_mode"] == "complete_theory_packet_regeneration"
-    assert prompt["parent_core_packet"] == revision_inputs["base_core_payload"]
-    assert prompt["reviewer_feedback"] == context["environment_feedback"]
-    revision_instructions = " ".join(prompt["instructions"])
-    assert "never a patch" in revision_instructions
-    assert "not an inventory-preservation requirement" in revision_instructions
-    assert "smallest coherent set of procedures" in revision_instructions
-    assert "rejected_alternatives" in revision_instructions
-    retry_prompt = json.loads(retry_request.user_prompt.split("\n\n", 1)[1])
-    assert any(
-        "estimand" in error for error in retry_prompt["local_validation_errors"]
-    )
-    assert retry_prompt["original_request"] == first_request.user_prompt
-    assert json.loads(retry_prompt["previous_candidate"]) == invalid_core
-    assert "subsystem_repair_context" not in retry_prompt
-    assert retry_request.metadata["structured_output_retry_mode"] == "full_packet_regeneration"
-    assert interface_request.metadata["theory_developer_phase"] == (
-        "estimator_interface_authoring"
-    )
-    transport = packet["theory_revision_transport"]
-    assert transport["artifact_kind"] == (
-        "TheoryDeveloperFullPacketRevisionTransport"
-    )
-    assert transport["regeneration_mode"] == "complete_packet"
-    assert transport["source_theory_packet_id"] == (
-        "theory_derivation:targeted-revision-parent"
-    )
-    assert transport["feedback_id"] == (
-        "metric-protocol-theory-feedback:targeted"
-    )
-    assert transport["parent_core_payload_fingerprint"] == (
-        revision_inputs["base_core_payload_fingerprint"]
-    )
-    assert transport["revision_obligations"][0]["finding_id"] == (
-        "metric_protocol_finding:bounded-outcome"
-    )
-    assert "applied_paths" not in transport
-    assert "feedback_decisions" not in transport
-    assert transport["kernel_verified"] is False
+    assert provider.requests == []
 
 
-def test_theory_revision_does_not_invoke_client_edit_tools() -> None:
+def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     parent = _serious_sample_response()
     question = OpenResearchQuestion(
-        id="no_revision_tools",
-        title="No revision tools",
-        description="Use model-owned full packet regeneration.",
+        id="theory_artifact_workspace",
+        title="Theory artifact workspace",
+        description="Use one model-owned theory workspace revision.",
     )
     context = _metric_theory_revision_context(question=question, parent=parent)
     revision_inputs = build_theory_developer_revision_inputs(
@@ -1116,9 +1066,35 @@ def test_theory_revision_does_not_invoke_client_edit_tools() -> None:
     )
     estimator = parent["estimator_specs"][0]
     provider = ScriptedTheoryToolBackend(
-        tool_responses=[],
+        tool_responses=[
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="read-lemmas",
+                    name="read_theory_workspace",
+                    input={
+                        "artifact_names": [
+                            "reviewer_observations",
+                            "lemma_cards",
+                        ]
+                    },
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="submit-lemmas",
+                    name="submit_theory_workspace_revision",
+                    input={
+                        "replacements": [
+                            {
+                                "artifact_name": "lemma_cards",
+                                "artifact": revised_core["lemma_cards"],
+                            }
+                        ]
+                    },
+                )
+            ),
+        ],
         generator_responses=[
-            revised_core,
             {
                 "interfaces": {
                     estimator["id"]: estimator["estimator_interface_contract"]
@@ -1144,13 +1120,50 @@ def test_theory_revision_does_not_invoke_client_edit_tools() -> None:
     assert packet["lemma_cards"][-1]["id"] == (
         "bounded_outcome_moment_control"
     )
-    assert provider.tool_requests == []
-    assert len(provider.generator_requests) == 2
+    assert len(provider.tool_requests) == 2
+    assert len(provider.generator_requests) == 1
+    first_tool_request = provider.tool_requests[0]
+    assert first_tool_request.metadata["theory_developer_phase"] == (
+        "artifact_workspace_revision"
+    )
+    assert first_tool_request.metadata["revision_generation_mode"] == (
+        "model_owned_artifact_workspace"
+    )
+    assert {tool.name for tool in first_tool_request.tools} == {
+        "read_theory_workspace",
+        "submit_theory_workspace_revision",
+    }
+    first_prompt = str(first_tool_request.messages[0]["content"])
+    assert json.dumps(revision_inputs["base_core_payload"]) not in first_prompt
+    assert "Authoritative theory workspace catalog" in first_prompt
+    assert revised_core["lemma_cards"][0]["id"] in str(
+        provider.tool_requests[1].messages
+    )
+    assert "The bounded-outcome premise is not explicit." in str(
+        provider.tool_requests[1].messages
+    )
     assert provider.generator_requests[0].metadata[
         "theory_developer_phase"
-    ] == "full_core_revision"
-    assert packet["theory_revision_transport"]["regeneration_mode"] == (
-        "complete_packet"
+    ] == "estimator_interface_authoring"
+    transport = packet["theory_revision_transport"]
+    assert transport["artifact_kind"] == (
+        "TheoryDeveloperWorkspaceRevisionTransport"
+    )
+    assert transport["revision_mode"] == "model_owned_artifact_workspace"
+    assert transport["changed_artifact_names"] == ["lemma_cards"]
+    assert transport["model_owned_artifact_replacements"] is True
+    assert transport["runtime_edited_theory"] is False
+    assert "revision_obligations" not in transport
+    assert "The bounded-outcome premise is not explicit." not in (
+        provider.generator_requests[0].user_prompt
+    )
+    workspace_evidence = packet["llm_client_tool_loop"]
+    assert workspace_evidence["model_owned_theory"] is True
+    assert workspace_evidence["runtime_edited_theory"] is False
+    assert workspace_evidence["reads"] == 1
+    assert workspace_evidence["submissions"] == 1
+    assert packet["theory_generation_phases"][0]["phase"] == (
+        "artifact_workspace_revision"
     )
 
 
@@ -1230,18 +1243,19 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> N
         "psi = E[m_1(X)-m_0(X)]"
     )
     prompt = build_theory_developer_prompt(question, architect_context=context)
-    assert "complete_theory_packet_regeneration" in prompt
+    assert "model_owned_theory_artifact_workspace" in prompt
     assert "generated_code_semantic_review_postexecution" in prompt
     assert "theory_derivation:stale-preflight-parent" not in prompt
     prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
     assert prompt_payload["revision_mode"] == (
-        "complete_theory_packet_regeneration"
+        "model_owned_theory_artifact_workspace"
     )
-    assert prompt_payload["parent_core_packet"] == (
-        revision_inputs["base_core_payload"]
+    assert "parent_core_packet" not in prompt_payload
+    assert "reviewer_feedback" not in prompt_payload
+    assert prompt_payload["reviewer_observations"]["workspace_artifact"] == (
+        "reviewer_observations"
     )
-    assert prompt_payload["reviewer_feedback"] == revision_inputs["feedback"]
-    assert "never a patch" in " ".join(prompt_payload["instructions"])
+    assert "complete replacements" in " ".join(prompt_payload["instructions"])
 
     tampered_context = json.loads(json.dumps(context))
     tampered_context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY][
@@ -1287,8 +1301,24 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
     ]["sample_size_rate"]["contributions"][0]["polynomial_exponent"] = (
         "still-invalid"
     )
-    first_provider = SequentialGeneratorBackend(
-        [revised_core, invalid_interface, still_invalid_interface]
+    first_provider = ScriptedTheoryToolBackend(
+        tool_responses=[
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="submit-revised-problem-card",
+                    name="submit_theory_workspace_revision",
+                    input={
+                        "replacements": [
+                            {
+                                "artifact_name": "problem_card",
+                                "artifact": revised_core["problem_card"],
+                            }
+                        ]
+                    },
+                )
+            )
+        ],
+        generator_responses=[invalid_interface, still_invalid_interface],
     )
     first_developer = LLMTheoryDeveloperAgent(
         provider=first_provider,
@@ -1307,24 +1337,32 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
 
     checkpoint = exc_info.value.recovery_checkpoint
     assert checkpoint is not None
-    assert checkpoint["completed_phase"] == "full_core_revision"
+    assert checkpoint["completed_phase"] == "artifact_workspace_revision"
     assert checkpoint["failed_phase"] == "estimator_interface_authoring"
     assert checkpoint["kernel_verified"] is False
+    assert first_provider.tool_requests[0].metadata[
+        "theory_developer_phase"
+    ] == "artifact_workspace_revision"
     assert [
         request.metadata["theory_developer_phase"]
-        for request in first_provider.requests
+        for request in first_provider.generator_requests
     ] == [
-        "full_core_revision",
         "estimator_interface_authoring",
         "estimator_interface_authoring",
     ]
-    assert first_provider.requests[2].metadata["structured_output_retry_mode"] == (
+    assert first_provider.generator_requests[1].metadata[
+        "structured_output_retry_mode"
+    ] == (
         "full_packet_regeneration"
     )
-    assert "allowed_semantic_reference_ids" in first_provider.requests[2].user_prompt
-    assert "orthogonal_expansion" in first_provider.requests[2].user_prompt
+    assert "allowed_semantic_reference_ids" in (
+        first_provider.generator_requests[1].user_prompt
+    )
+    assert "orthogonal_expansion" in (
+        first_provider.generator_requests[1].user_prompt
+    )
     repair_payload = json.loads(
-        first_provider.requests[2].user_prompt.split("\n\n", 1)[1]
+        first_provider.generator_requests[1].user_prompt.split("\n\n", 1)[1]
     )
     repair_errors = repair_payload["local_validation_errors"]
     assert any(
@@ -1383,7 +1421,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
         "estimator_interface_authoring"
     )
     assert packet["theory_generation_phases"][0]["phase"] == (
-        "full_core_revision"
+        "artifact_workspace_revision"
     )
     assert packet["theory_revision_transport"]["feedback_id"] == (
         context["environment_feedback"]["feedback_id"]

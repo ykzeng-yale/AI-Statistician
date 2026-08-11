@@ -210,6 +210,7 @@ from .research_architect import (
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
     theory_developer_source_environment_feedback,
 )
+from .theory_workspace import THEORY_WORKSPACE_CHECKPOINT_KIND
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
     build_architect_routed_theory_revision_binding,
@@ -4810,7 +4811,10 @@ def _theory_developer_packet_validation_failure_result(
         deepcopy(dict(raw_recovery_checkpoint))
         if isinstance(raw_recovery_checkpoint, Mapping)
         and raw_recovery_checkpoint.get("artifact_kind")
-        == THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND
+        in {
+            THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND,
+            THEORY_WORKSPACE_CHECKPOINT_KIND,
+        }
         and raw_recovery_checkpoint.get("question_id") == question.id
         and raw_recovery_checkpoint.get("kernel_verified") is False
         else {}
@@ -4860,8 +4864,9 @@ def _theory_developer_packet_validation_failure_result(
         ),
         "boundary": (
             "The TheoryDeveloper already received validator errors during its "
-            "bounded structured-output call. Runtime records the complete available "
-            "candidate and checkpoint but does not create an outer same-owner retry."
+            "bounded model-owned generation or workspace call. Runtime records the "
+            "available candidate and checkpoint but does not create an outer "
+            "same-owner retry."
         ),
     }
     failure_artifact = {
@@ -4890,7 +4895,7 @@ def _theory_developer_packet_validation_failure_result(
     return AgentStepResult(
         status="BLOCKED",
         rationale=(
-            "TheoryDeveloper exhausted its in-call structured-output validation. "
+            "TheoryDeveloper exhausted its in-call model-owned validation loop. "
             "The rejected artifact and exact observations remain failed at their "
             "source owner; runtime did not create an Architect routing loop."
         ),

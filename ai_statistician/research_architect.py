@@ -41,6 +41,7 @@ from .theory_revision_lineage import (
     build_theory_developer_revision_binding,
     theory_developer_revision_binding_errors,
 )
+from .theory_workspace import run_theory_revision_workspace
 
 
 ARCHITECT_SCHEMA_VERSION = 1
@@ -129,6 +130,10 @@ class ResearchArchitectConfig:
     temperature: float = 0.2
     provider_name: str = "anthropic"
     max_validation_retries: int = 2
+    theory_workspace_max_turns: int = 8
+    theory_workspace_max_reads: int = 4
+    theory_workspace_max_submissions: int = 3
+    theory_workspace_max_no_progress_turns: int = 2
 
 
 @dataclass(frozen=True)
@@ -212,7 +217,18 @@ class LLMTheoryDeveloperAgent:
                 context,
                 question=question,
             )
-            core_packet = _generate_full_theory_revision(
+            if not callable(
+                getattr(self.provider, "generate_client_tool_turn", None)
+            ):
+                raise PacketValidationError(
+                    validation_label="LLM TheoryDeveloper artifact workspace",
+                    attempts=0,
+                    errors=[
+                        "serious theory revision requires native client-tool turns"
+                    ],
+                    history=[],
+                )
+            core_packet = _generate_theory_workspace_revision(
                 provider=self.provider,
                 provider_name=self.config.provider_name,
                 question=question,
@@ -224,9 +240,12 @@ class LLMTheoryDeveloperAgent:
                 serious_model_tier=self.config.serious_model_tier,
                 temperature=self.config.temperature,
                 max_tokens=effective_max_tokens,
-                max_validation_retries=effective_max_validation_retries,
-                transport_recovery=transport_recovery,
-                use_provider_structured_output=use_provider_structured_output,
+                max_turns=self.config.theory_workspace_max_turns,
+                max_reads=self.config.theory_workspace_max_reads,
+                max_submissions=self.config.theory_workspace_max_submissions,
+                max_no_progress_turns=(
+                    self.config.theory_workspace_max_no_progress_turns
+                ),
             )
         else:
             user_prompt = build_theory_developer_prompt(
@@ -381,7 +400,7 @@ def build_theory_developer_prompt(
 ) -> str:
     theory_prompt_mode = _theory_developer_prompt_mode(architect_context)
     if theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION:
-        return _full_theory_revision_prompt(
+        return _theory_workspace_revision_prompt(
             question=question,
             revision_inputs=build_theory_developer_revision_inputs(
                 architect_context,
@@ -2172,34 +2191,47 @@ def build_theory_developer_revision_inputs(
     }
 
 
-def _theory_revision_obligations(
+def _theory_workspace_read_only_observations(
     revision_inputs: Mapping[str, Any],
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     feedback = revision_inputs.get("feedback", {})
-    feedback = dict(feedback) if isinstance(feedback, Mapping) else {}
-    findings = [
-        deepcopy(dict(row))
-        for row in feedback.get("findings", []) or []
-        if isinstance(row, Mapping)
-    ]
-    failed_audits = [
-        {
-            "obligation_kind": "failed_response_identity_audit",
-            **deepcopy(dict(row)),
-        }
-        for row in feedback.get("failed_response_identity_checks", []) or []
-        if isinstance(row, Mapping)
-    ]
-    return [*findings, *failed_audits]
+    reviewer_observations = (
+        model_observations_without_repair_recipes(feedback)
+        if isinstance(feedback, Mapping)
+        else {}
+    )
+    reviewer_observations = deepcopy(dict(reviewer_observations))
+    embedded_preflight = reviewer_observations.pop(
+        "theory_execution_preflight_packet",
+        {},
+    )
+    if isinstance(embedded_preflight, Mapping) and embedded_preflight:
+        reviewer_observations["theory_execution_preflight_packet_id"] = str(
+            embedded_preflight.get("packet_id", "") or ""
+        )
+        reviewer_observations["theory_execution_preflight_packet_hash"] = (
+            stable_hash(dict(embedded_preflight))
+        )
+    observations: dict[str, Any] = {
+        "reviewer_observations": reviewer_observations,
+    }
+    transport_feedback = revision_inputs.get("transport_feedback", {})
+    if isinstance(transport_feedback, Mapping) and transport_feedback:
+        observations["transport_observations"] = deepcopy(
+            dict(transport_feedback)
+        )
+    return observations
 
 
-def _full_theory_revision_prompt(
+def _theory_workspace_revision_prompt(
     *,
     question: OpenResearchQuestion,
     revision_inputs: Mapping[str, Any],
 ) -> str:
-    feedback = revision_inputs.get("feedback", {})
-    feedback = deepcopy(dict(feedback)) if isinstance(feedback, Mapping) else {}
+    read_only_observations = _theory_workspace_read_only_observations(
+        revision_inputs
+    )
+    reviewer_observations = read_only_observations["reviewer_observations"]
     payload: dict[str, Any] = {
         "question": {
             "id": question.id,
@@ -2207,7 +2239,7 @@ def _full_theory_revision_prompt(
             "description": question.description,
             "tags": list(question.tags),
         },
-        "revision_mode": "complete_theory_packet_regeneration",
+        "revision_mode": "model_owned_theory_artifact_workspace",
         "immutable_lineage": {
             "revision_binding_id": revision_inputs.get("revision_binding_id", ""),
             "revision_source": revision_inputs.get("revision_source", ""),
@@ -2225,49 +2257,72 @@ def _full_theory_revision_prompt(
                 "base_core_payload_fingerprint", ""
             ),
         },
-        "parent_core_packet": deepcopy(
-            dict(revision_inputs.get("base_core_payload", {}) or {})
-        ),
-        "reviewer_feedback": feedback,
-        "required_output_contract": THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
+        "reviewer_observations": {
+            "workspace_artifact": "reviewer_observations",
+            "content_hash": stable_hash(reviewer_observations),
+            "feedback_id": revision_inputs.get("feedback_id", ""),
+            "active_unresolved_finding_ids": list(
+                reviewer_observations.get(
+                    "active_unresolved_finding_ids",
+                    [],
+                )
+                or []
+            ),
+            "n_findings": len(reviewer_observations.get("findings", []) or []),
+        },
+        "workspace_artifacts": list(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT),
         "instructions": [
-            "Return one complete replacement core theory packet, never a patch, path edit, or repair envelope.",
-            "Re-derive the packet as a coherent whole from the question, parent packet, and exact reviewer feedback.",
-            "Use your own mathematical judgment. Reviewer proposed changes are diagnostic candidates, not an answer key.",
             (
-                "Treat the parent packet as candidate context, not an inventory-"
-                "preservation requirement. Preserve the question and Architect research "
-                "contract, but remove nonessential or defective candidate procedures "
-                "when doing so leaves a complete coherent design; record discarded "
-                "candidates in rejected_alternatives."
+                "Use read_theory_workspace to inspect the exact parent artifacts "
+                "needed for your mathematical decision."
             ),
             (
-                "Prefer the smallest coherent set of procedures that fully covers the "
-                "research contract. Do not multiply execution or proof obligations "
-                "merely because the parent packet listed alternatives."
+                "Use your own statistical judgment. Reviewer observations identify "
+                "possible defects and are not an answer key or repair recipe."
             ),
-            "Address every routed blocking finding and propagate each chosen resolution through all dependent definitions, equations, assumptions, estimators, theorem cards, simulations, and formalization requests.",
-            "Keep a concern open when it cannot be resolved honestly; do not claim execution, observed simulation results, Lean proof, or kernel verification.",
-            "Return only JSON matching required_output_contract. AgentRuntime owns identity, budgets, validation, lineage, and evidence boundaries; an independent reviewer decides acceptance.",
+            (
+                "Submit complete replacements for every artifact whose semantics you "
+                "choose to change. Omitted artifacts remain byte-identical."
+            ),
+            (
+                "Propagate each chosen revision through all dependent equations, "
+                "assumptions, estimators, theorem cards, simulation predictions, and "
+                "formalization requests that need to change."
+            ),
+            (
+                "Keep unresolved concerns explicit. Do not claim execution, observed "
+                "simulation results, Lean proof, or kernel verification."
+            ),
+            (
+                "The runtime stores your artifact values unchanged and performs only "
+                "identity, budget, lineage, and schema validation. Independent review "
+                "owns acceptance."
+            ),
         ],
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
     }
-    transport_feedback = revision_inputs.get("transport_feedback", {})
-    if isinstance(transport_feedback, Mapping) and transport_feedback:
-        payload["transport_feedback"] = deepcopy(dict(transport_feedback))
+    if "transport_observations" in read_only_observations:
+        payload["transport_observations"] = {
+            "workspace_artifact": "transport_observations",
+            "content_hash": stable_hash(
+                read_only_observations["transport_observations"]
+            ),
+        }
     return (
-        "Regenerate the complete TheoryDeveloper core packet. Return JSON only.\n\n"
+        "Revise the persistent TheoryDeveloper artifact workspace with client tools.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )
 
 
-def _attach_full_theory_revision_transport(
+def _attach_theory_workspace_revision_transport(
     packet: Mapping[str, Any],
     *,
     revision_inputs: Mapping[str, Any],
     provider_name: str,
     model: str,
     model_tier: str,
+    workspace_id: str,
+    changed_artifact_names: Sequence[str],
 ) -> dict[str, Any]:
     result = deepcopy(dict(packet))
     revised_core = {
@@ -2278,8 +2333,9 @@ def _attach_full_theory_revision_transport(
     feedback = revision_inputs.get("feedback", {})
     feedback = dict(feedback) if isinstance(feedback, Mapping) else {}
     result["theory_revision_transport"] = {
-        "artifact_kind": "TheoryDeveloperFullPacketRevisionTransport",
-        "regeneration_mode": "complete_packet",
+        "artifact_kind": "TheoryDeveloperWorkspaceRevisionTransport",
+        "revision_mode": "model_owned_artifact_workspace",
+        "workspace_id": workspace_id,
         "revision_binding_id": revision_inputs.get("revision_binding_id", ""),
         "revision_source": revision_inputs.get("revision_source", ""),
         "source_theory_packet_id": revision_inputs.get(
@@ -2312,11 +2368,15 @@ def _attach_full_theory_revision_transport(
             for value in feedback.get("active_unresolved_finding_ids", []) or []
             if str(value).strip()
         ],
-        "revision_obligations": _theory_revision_obligations(revision_inputs),
         "parent_core_payload_fingerprint": revision_inputs.get(
             "base_core_payload_fingerprint", ""
         ),
         "revised_core_payload_fingerprint": stable_hash(revised_core),
+        "changed_artifact_names": sorted(
+            {str(name) for name in changed_artifact_names if str(name)}
+        ),
+        "model_owned_artifact_replacements": True,
+        "runtime_edited_theory": False,
         "semantic_revision_owner": "TheoryDeveloper",
         "validation_owner": "AgentRuntime",
         "acceptance_owner": "ArchitectTheoryExecutionPreflightReviewer",
@@ -2329,18 +2389,14 @@ def _attach_full_theory_revision_transport(
     return result
 
 
-def _validate_full_theory_revision_packet(
-    packet: Mapping[str, Any],
+def _theory_revision_transport_lineage_errors(
+    transport: Mapping[str, Any],
     *,
     revision_inputs: Mapping[str, Any],
 ) -> list[str]:
-    errors = validate_theory_core_packet(packet)
-    transport = packet.get("theory_revision_transport", {})
-    if not isinstance(transport, Mapping):
-        return [*errors, "full theory revision transport must be an object"]
     expected = {
-        "artifact_kind": "TheoryDeveloperFullPacketRevisionTransport",
-        "regeneration_mode": "complete_packet",
+        "artifact_kind": "TheoryDeveloperWorkspaceRevisionTransport",
+        "revision_mode": "model_owned_artifact_workspace",
         "revision_binding_id": revision_inputs.get("revision_binding_id", ""),
         "source_theory_packet_id": revision_inputs.get(
             "source_theory_packet_id", ""
@@ -2358,9 +2414,40 @@ def _validate_full_theory_revision_packet(
         "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
         "kernel_verified": False,
     }
-    for field, value in expected.items():
-        if transport.get(field) != value:
-            errors.append(f"full theory revision transport {field} mismatch")
+    return [
+        f"theory revision transport {field} mismatch"
+        for field, value in expected.items()
+        if transport.get(field) != value
+    ]
+
+
+def _validate_theory_workspace_revision_packet(
+    packet: Mapping[str, Any],
+    *,
+    revision_inputs: Mapping[str, Any],
+    workspace_id: str,
+) -> list[str]:
+    errors = validate_theory_core_packet(packet)
+    transport = packet.get("theory_revision_transport", {})
+    if not isinstance(transport, Mapping):
+        return [*errors, "theory workspace revision transport must be an object"]
+    errors.extend(
+        _theory_revision_transport_lineage_errors(
+            transport,
+            revision_inputs=revision_inputs,
+        )
+    )
+    if transport.get("workspace_id") != workspace_id:
+        errors.append("theory workspace revision transport workspace_id mismatch")
+    changed = transport.get("changed_artifact_names", [])
+    if not isinstance(changed, list) or not changed:
+        errors.append("theory workspace revision must change at least one artifact")
+    elif set(changed) - set(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT):
+        errors.append("theory workspace revision names an unknown artifact")
+    if transport.get("model_owned_artifact_replacements") is not True:
+        errors.append("theory workspace revision is not model-owned")
+    if transport.get("runtime_edited_theory") is not False:
+        errors.append("runtime cannot edit theory workspace semantics")
     revised_core = {
         field: deepcopy(packet[field])
         for field in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
@@ -2369,19 +2456,11 @@ def _validate_full_theory_revision_packet(
     if transport.get("revised_core_payload_fingerprint") != stable_hash(
         revised_core
     ):
-        errors.append("full theory revision payload fingerprint mismatch")
-    forbidden_patch_fields = {
-        "applied_paths",
-        "path_normalizations",
-        "feedback_decisions",
-        "patched_core_payload_fingerprint",
-    }
-    if forbidden_patch_fields.intersection(transport):
-        errors.append("full theory revision transport contains patch machinery")
+        errors.append("theory workspace revision payload fingerprint mismatch")
     return list(dict.fromkeys(errors))
 
 
-def _generate_full_theory_revision(
+def _generate_theory_workspace_revision(
     *,
     provider: GeneratorBackend,
     provider_name: str,
@@ -2394,27 +2473,102 @@ def _generate_full_theory_revision(
     serious_model_tier: str,
     temperature: float,
     max_tokens: int,
-    max_validation_retries: int,
-    transport_recovery: bool,
-    use_provider_structured_output: bool,
+    max_turns: int,
+    max_reads: int,
+    max_submissions: int,
+    max_no_progress_turns: int,
 ) -> dict[str, Any]:
-    request = GeneratorRequest(
-        system_prompt=THEORY_DEVELOPER_SYSTEM_PROMPT,
-        user_prompt=_full_theory_revision_prompt(
+    initial_artifacts = revision_inputs.get("base_core_payload", {})
+    if not isinstance(initial_artifacts, Mapping):
+        raise PacketValidationError(
+            validation_label="LLM TheoryDeveloper artifact workspace",
+            attempts=0,
+            errors=["parent theory workspace is not an object"],
+            history=[],
+        )
+    workspace_id = "theory_workspace:" + stable_hash(
+        [
+            question.id,
+            revision_inputs.get("revision_binding_id", ""),
+            revision_inputs.get("base_core_payload_fingerprint", ""),
+        ]
+    )[:20]
+
+    def build_candidate(
+        artifacts: Mapping[str, Any],
+        changed_artifact_names: tuple[str, ...],
+    ) -> dict[str, Any]:
+        raw_response = json.dumps(
+            {
+                "workspace_id": workspace_id,
+                "artifact_hashes": {
+                    name: stable_hash(value) for name, value in artifacts.items()
+                },
+                "changed_artifact_names": list(changed_artifact_names),
+            },
+            separators=(",", ":"),
+            default=str,
+            ensure_ascii=False,
+        )
+        packet = _normalize_theory_packet(
+            artifacts,
+            question=question,
+            model=request_model,
+            model_tier=model_tier,
+            provider_name=provider_name,
+            raw_response=raw_response,
+            theory_prompt_mode=THEORY_PROMPT_MODE_SERIOUS_REVISION,
+        )
+        return _attach_theory_workspace_revision_transport(
+            packet,
+            revision_inputs=revision_inputs,
+            provider_name=provider_name,
+            model=request_model,
+            model_tier=model_tier,
+            workspace_id=workspace_id,
+            changed_artifact_names=changed_artifact_names,
+        )
+
+    result = run_theory_revision_workspace(
+        provider=provider,
+        system_prompt=(
+            THEORY_DEVELOPER_SYSTEM_PROMPT
+            + "\nUse the supplied client tools as the sole write path for the "
+            "current theory workspace."
+        ),
+        user_prompt=_theory_workspace_revision_prompt(
             question=question,
             revision_inputs=revision_inputs,
         ),
         model=request_model,
-        max_tokens=max_tokens,
+        model_tier=model_tier,
         temperature=temperature,
-        schema=_theory_developer_core_json_schema(
-            theory_prompt_mode=THEORY_PROMPT_MODE_SERIOUS_REVISION,
-            transport_recovery=transport_recovery,
+        max_tokens=max_tokens,
+        max_turns=max(1, max_turns),
+        max_reads=max(1, max_reads),
+        max_submissions=max(1, max_submissions),
+        max_no_progress_turns=max(1, max_no_progress_turns),
+        workspace_id=workspace_id,
+        question_id=question.id,
+        revision_binding_id=str(
+            revision_inputs.get("revision_binding_id", "") or ""
         ),
-        metadata={
+        initial_artifacts=initial_artifacts,
+        read_only_artifacts=_theory_workspace_read_only_observations(
+            revision_inputs
+        ),
+        build_candidate=build_candidate,
+        validate_candidate=lambda packet: (
+            _validate_theory_workspace_revision_packet(
+                packet,
+                revision_inputs=revision_inputs,
+                workspace_id=workspace_id,
+            )
+        ),
+        request_metadata={
             "subsystem": "TheoryDeveloper",
             "agent": "LLMTheoryDeveloperAgent",
-            "theory_developer_phase": "full_core_revision",
+            "theory_developer_phase": "artifact_workspace_revision",
             "provider_name": provider_name,
             "model_tier": model_tier,
             "base_model_tier": base_model_tier,
@@ -2422,60 +2576,41 @@ def _generate_full_theory_revision(
             "serious_model_tier": serious_model_tier,
             "theory_prompt_mode": THEORY_PROMPT_MODE_SERIOUS_REVISION,
             "serious_theory_mode": True,
-            "transport_recovery": transport_recovery,
-            "effective_max_validation_retries": max_validation_retries,
             "resolved_model": request_model,
             "source_theory_packet_id": revision_inputs.get(
                 "source_theory_packet_id", ""
             ),
             "revision_binding_id": revision_inputs.get("revision_binding_id", ""),
             "revision_source": revision_inputs.get("revision_source", ""),
-            "revision_generation_mode": "complete_packet",
+            "revision_generation_mode": "model_owned_artifact_workspace",
             "parent_core_payload_fingerprint": revision_inputs.get(
                 "base_core_payload_fingerprint", ""
             ),
-            **(
-                {"provider_structured_output": True}
-                if use_provider_structured_output
-                else {}
-            ),
         },
     )
-
-    def build_packet(
-        raw_payload: Mapping[str, Any],
-        response: Any,
-        raw_text: str,
-    ) -> dict[str, Any]:
-        packet = _normalize_theory_packet(
-            raw_payload,
-            question=question,
-            model=response.model or request_model,
-            model_tier=model_tier,
-            provider_name=provider_name or response.provider,
-            raw_response=raw_text,
-            theory_prompt_mode=THEORY_PROMPT_MODE_SERIOUS_REVISION,
-        )
-        return _attach_full_theory_revision_transport(
-            packet,
-            revision_inputs=revision_inputs,
-            provider_name=provider_name or response.provider,
-            model=response.model or request_model,
-            model_tier=model_tier,
-        )
-
-    return generate_validated_json_packet(
-        provider=provider,
-        request=request,
-        extract_payload=_extract_json_object,
-        build_packet=build_packet,
-        validate_packet=lambda packet: _validate_full_theory_revision_packet(
-            packet,
-            revision_inputs=revision_inputs,
-        ),
-        validation_label="LLM TheoryDeveloper full revision packet",
-        max_validation_retries=max_validation_retries,
+    packet = deepcopy(dict(result.core_packet))
+    workspace_evidence = deepcopy(dict(result.evidence))
+    packet["llm_client_tool_loop"] = workspace_evidence
+    transport = dict(packet.get("theory_revision_transport", {}) or {})
+    transport["workspace_evidence_id"] = str(
+        workspace_evidence.get("artifact_id", "") or ""
     )
+    transport["workspace_evidence_hash"] = stable_hash(workspace_evidence)
+    packet["theory_revision_transport"] = transport
+    errors = _validate_theory_workspace_revision_packet(
+        packet,
+        revision_inputs=revision_inputs,
+        workspace_id=workspace_id,
+    )
+    if errors:
+        raise PacketValidationError(
+            validation_label="LLM TheoryDeveloper artifact workspace",
+            attempts=int(workspace_evidence.get("turns", 0) or 0),
+            errors=errors,
+            history=workspace_evidence.get("history", []),
+            last_invalid_packet=packet,
+        )
+    return packet
 
 
 THEORY_ESTIMATOR_INTERFACE_SYSTEM_PROMPT = """\
@@ -2492,6 +2627,17 @@ execution status. You own the mathematical rate statement: author the aggregate
 rate exponents and their cited explanatory contributions from the frozen theory.
 The runtime validates shape and references but never computes or overwrites a rate.
 """
+
+
+def _theory_core_generation_phase(core_packet: Mapping[str, Any]) -> str:
+    transport = core_packet.get("theory_revision_transport", {})
+    if not isinstance(transport, Mapping) or not transport:
+        return "core_theory_workspace"
+    if transport.get("artifact_kind") == (
+        "TheoryDeveloperWorkspaceRevisionTransport"
+    ):
+        return "artifact_workspace_revision"
+    return "full_core_revision"
 
 
 def _complete_theory_estimator_interfaces(
@@ -2593,12 +2739,7 @@ def _complete_theory_estimator_interfaces(
             max_validation_retries=min(max(0, max_validation_retries), 1),
         )
     except PacketValidationError as exc:
-        completed_phase = (
-            "full_core_revision"
-            if isinstance(core_packet.get("theory_revision_transport", {}), Mapping)
-            and core_packet.get("theory_revision_transport")
-            else "core_theory_workspace"
-        )
+        completed_phase = _theory_core_generation_phase(core_packet)
         checkpoint = {
             "schema_version": ARCHITECT_SCHEMA_VERSION,
             "artifact_kind": THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND,
@@ -2669,14 +2810,7 @@ def _complete_theory_estimator_interfaces(
         "kernel_verified": False,
     }
     core_phase = {
-        "phase": (
-            "full_core_revision"
-            if isinstance(
-                core_packet.get("theory_revision_transport", {}), Mapping
-            )
-            and core_packet.get("theory_revision_transport")
-            else "core_theory_workspace"
-        ),
+        "phase": _theory_core_generation_phase(core_packet),
         "model": str(core_packet.get("model", "")),
         "model_tier": str(core_packet.get("model_tier", "")),
         "structured_output_retry_attempts": core_packet.get(
@@ -2813,19 +2947,17 @@ def _theory_estimator_interface_authoring_prompt(
             "allowed_semantic_reference_ids": sorted(
                 theory_semantic_reference_ids(core_packet)
             ),
-            "active_revision_obligations": [
-                deepcopy(dict(row))
-                for row in (
+            "active_revision_finding_ids": list(
+                (
                     core_packet.get("theory_revision_transport", {})
                     if isinstance(
                         core_packet.get("theory_revision_transport", {}),
                         Mapping,
                     )
                     else {}
-                ).get("revision_obligations", [])
+                ).get("active_unresolved_finding_ids", [])
                 or []
-                if isinstance(row, Mapping)
-            ],
+            ),
         },
         "required_output_schema": (
             _theory_estimator_interface_authoring_json_schema(core_packet)
