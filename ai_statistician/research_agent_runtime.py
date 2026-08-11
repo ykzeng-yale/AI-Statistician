@@ -18,8 +18,12 @@ from .agent_runtime import (
     EnvironmentObservation,
     EvidenceLedgerEntry,
     ToolCallRecord,
+    agent_task_continuation_reference,
+    agent_task_from_payload as _agent_task_from_runtime_payload,
     agent_task_reference,
     agent_runtime_substage,
+    materialize_agent_task_continuation,
+    restore_agent_task_continuation,
 )
 from .architect_coordinator_llm import (
     ARCHITECT_COORDINATOR_BOUNDARY,
@@ -3613,27 +3617,30 @@ def _lineage_bound_semantic_review_return_to_source_producer(
         != next_task.owner_subsystem
     ):
         return False
-    source_task_snapshot_id = str(
-        work_order.get("source_task_snapshot_id", "") or ""
+    source_task_continuation_id = str(
+        work_order.get("source_task_continuation_id", "") or ""
     )
-    source_task_snapshot = blackboard.artifacts.get(source_task_snapshot_id, {})
+    source_task_continuation = blackboard.artifacts.get(
+        source_task_continuation_id,
+        {},
+    )
     source_task_ref = work_order.get("source_task_ref", {})
     if (
-        not isinstance(source_task_snapshot, Mapping)
-        or source_task_snapshot.get("artifact_kind")
-        != "RuntimeAgentTaskSnapshot"
-        or stable_hash(source_task_snapshot)
-        != str(work_order.get("source_task_snapshot_hash", "") or "")
-        or source_task_snapshot.get("task_ref") != source_task_ref
+        not isinstance(source_task_continuation, Mapping)
+        or source_task_continuation.get("artifact_kind")
+        != "RuntimeAgentTaskContinuation"
+        or stable_hash(source_task_continuation)
+        != str(work_order.get("source_task_continuation_hash", "") or "")
+        or source_task_continuation.get("task_ref") != source_task_ref
         or not isinstance(source_task_ref, Mapping)
         or source_task_ref.get("artifact_kind") != "AgentTaskRef"
     ):
         return False
-    source_task_payload = source_task_snapshot.get("task", {})
-    if not isinstance(source_task_payload, Mapping):
-        return False
     try:
-        source_task = _agent_task_from_runtime_payload(source_task_payload)
+        source_task = restore_agent_task_continuation(
+            source_task_continuation,
+            blackboard.artifacts,
+        )
     except ValueError:
         return False
     if (
@@ -5247,27 +5254,32 @@ def _runtime_generated_code_semantic_review_dispatch(
     work_order_id = "generated_code_semantic_review_work_order:" + stable_hash(
         [task.task_id, manifest_id, reviewed_artifacts, review_revision_count]
     )[:20]
-    source_task_payload = asdict(task)
-    source_task_snapshot_id = "agent_task_snapshot:" + stable_hash(
-        source_task_payload
-    )[:20]
-    source_task_snapshot = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "RuntimeAgentTaskSnapshot",
-        "snapshot_id": source_task_snapshot_id,
-        "task_ref": agent_task_reference(task),
-        "task": source_task_payload,
-    }
     deferred_task_payload = asdict(deferred_next_task)
-    deferred_task_snapshot_id = "agent_task_snapshot:" + stable_hash(
-        deferred_task_payload
-    )[:20]
-    deferred_task_snapshot = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "RuntimeAgentTaskSnapshot",
-        "snapshot_id": deferred_task_snapshot_id,
-        "task_ref": agent_task_reference(deferred_next_task),
-        "task": deferred_task_payload,
+    (
+        deferred_task_continuation_id,
+        deferred_task_continuation,
+        deferred_task_artifacts,
+    ) = materialize_agent_task_continuation(
+        deferred_next_task,
+        schema_version=RUNTIME_SCHEMA_VERSION,
+    )
+    deferred_task_continuation_ref = agent_task_continuation_reference(
+        deferred_task_continuation
+    )
+    (
+        source_task_continuation_id,
+        source_task_continuation,
+        source_task_artifacts,
+    ) = materialize_agent_task_continuation(
+        task,
+        schema_version=RUNTIME_SCHEMA_VERSION,
+        linked_input_references={
+            stable_hash(deferred_task_payload): deferred_task_continuation_ref,
+        },
+    )
+    continuation_artifacts = {
+        **deferred_task_artifacts,
+        **source_task_artifacts,
     }
     work_order = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -5304,10 +5316,16 @@ def _runtime_generated_code_semantic_review_dispatch(
         ),
         "source_task_ref": agent_task_reference(task),
         "deferred_next_task_ref": agent_task_reference(deferred_next_task),
-        "source_task_snapshot_id": source_task_snapshot_id,
-        "source_task_snapshot_hash": stable_hash(source_task_snapshot),
-        "deferred_next_task_snapshot_id": deferred_task_snapshot_id,
-        "deferred_next_task_snapshot_hash": stable_hash(deferred_task_snapshot),
+        "source_task_continuation_id": source_task_continuation_id,
+        "source_task_continuation_hash": stable_hash(
+            source_task_continuation
+        ),
+        "deferred_next_task_continuation_id": (
+            deferred_task_continuation_id
+        ),
+        "deferred_next_task_continuation_hash": stable_hash(
+            deferred_task_continuation
+        ),
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
         ),
@@ -5393,9 +5411,8 @@ def _runtime_generated_code_semantic_review_dispatch(
         "work_order_id": work_order_id,
         "work_order": work_order,
         "artifacts": {
+            **continuation_artifacts,
             work_order_id: work_order,
-            source_task_snapshot_id: source_task_snapshot,
-            deferred_task_snapshot_id: deferred_task_snapshot,
         },
         "next_task": review_task,
         "evidence": evidence,
@@ -5963,78 +5980,80 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             expected_manifest_kind
         ):
             validation_errors.append("semantic review source manifest kind mismatch")
-        source_task_snapshot = bound_artifact(
-            id_field="source_task_snapshot_id",
-            hash_field="source_task_snapshot_hash",
+        source_task_continuation = bound_artifact(
+            id_field="source_task_continuation_id",
+            hash_field="source_task_continuation_hash",
         )
-        deferred_task_snapshot = bound_artifact(
-            id_field="deferred_next_task_snapshot_id",
-            hash_field="deferred_next_task_snapshot_hash",
+        deferred_task_continuation = bound_artifact(
+            id_field="deferred_next_task_continuation_id",
+            hash_field="deferred_next_task_continuation_hash",
         )
-        for label, snapshot, id_field, expected_ref in (
+        for label, continuation, id_field, expected_ref in (
             (
                 "source",
-                source_task_snapshot,
-                "source_task_snapshot_id",
+                source_task_continuation,
+                "source_task_continuation_id",
                 work_order.get("source_task_ref"),
             ),
             (
                 "deferred",
-                deferred_task_snapshot,
-                "deferred_next_task_snapshot_id",
+                deferred_task_continuation,
+                "deferred_next_task_continuation_id",
                 work_order.get("deferred_next_task_ref"),
             ),
         ):
-            if str(snapshot.get("artifact_kind", "") or "") != (
-                "RuntimeAgentTaskSnapshot"
+            if str(continuation.get("artifact_kind", "") or "") != (
+                "RuntimeAgentTaskContinuation"
             ):
                 validation_errors.append(
-                    f"semantic review {label} task snapshot kind mismatch"
+                    f"semantic review {label} task continuation kind mismatch"
                 )
-            if str(snapshot.get("snapshot_id", "") or "") != str(
+            if str(continuation.get("continuation_id", "") or "") != str(
                 work_order.get(id_field, "") or ""
             ):
                 validation_errors.append(
-                    f"semantic review {label} task snapshot identity mismatch"
+                    f"semantic review {label} task continuation identity mismatch"
                 )
-            if snapshot.get("task_ref") != expected_ref:
+            if continuation.get("task_ref") != expected_ref:
                 validation_errors.append(
-                    f"semantic review {label} task snapshot ref mismatch"
+                    f"semantic review {label} task continuation ref mismatch"
                 )
-        source_task_payload = (
-            dict(source_task_snapshot.get("task", {}) or {})
-            if isinstance(source_task_snapshot.get("task", {}), Mapping)
-            else {}
-        )
-        deferred_task_payload = (
-            dict(deferred_task_snapshot.get("task", {}) or {})
-            if isinstance(deferred_task_snapshot.get("task", {}), Mapping)
-            else {}
-        )
-        if str(source_task_payload.get("owner_subsystem", "") or "") != (
-            source_subsystem
-        ):
-            validation_errors.append("semantic review source task owner mismatch")
-        if str(source_task_payload.get("task_id", "") or "") != str(
-            work_order.get("source_task_id", "") or ""
-        ):
-            validation_errors.append("semantic review source task identity mismatch")
-        if not str(deferred_task_payload.get("owner_subsystem", "") or ""):
-            validation_errors.append("semantic review deferred task missing")
+        source_task: AgentTask | None = None
+        deferred_task: AgentTask | None = None
         try:
-            source_task_ref = agent_task_reference(
-                _agent_task_from_runtime_payload(source_task_payload)
+            source_task = restore_agent_task_continuation(
+                source_task_continuation,
+                blackboard.artifacts,
             )
-            deferred_task_ref = agent_task_reference(
-                _agent_task_from_runtime_payload(deferred_task_payload)
+            deferred_task = restore_agent_task_continuation(
+                deferred_task_continuation,
+                blackboard.artifacts,
             )
         except ValueError as exc:
             validation_errors.append(str(exc))
         else:
-            if source_task_ref != work_order.get("source_task_ref"):
+            if source_task.owner_subsystem != source_subsystem:
+                validation_errors.append(
+                    "semantic review source task owner mismatch"
+                )
+            if source_task.task_id != str(
+                work_order.get("source_task_id", "") or ""
+            ):
+                validation_errors.append(
+                    "semantic review source task identity mismatch"
+                )
+            if agent_task_reference(source_task) != work_order.get(
+                "source_task_ref"
+            ):
                 validation_errors.append("semantic review source task ref mismatch")
-            if deferred_task_ref != work_order.get("deferred_next_task_ref"):
+            if agent_task_reference(deferred_task) != work_order.get(
+                "deferred_next_task_ref"
+            ):
                 validation_errors.append("semantic review deferred task ref mismatch")
+        source_task_payload = asdict(source_task) if source_task is not None else {}
+        deferred_task_payload = (
+            asdict(deferred_task) if deferred_task is not None else {}
+        )
 
         review_material: dict[str, Any] = {}
         if not validation_errors:
@@ -6626,9 +6645,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             )
             feedback["semantic_review_lineage_budget"] = lineage_budget_summary
         if verdict == "ACCEPT":
-            deferred_task = _agent_task_from_runtime_payload(
-                deferred_task_payload
-            )
+            assert deferred_task is not None
             next_inputs = dict(deferred_task.inputs)
             algorithm_handoff: dict[str, Any] = {}
             if source_subsystem == "AlgorithmEngineer":
@@ -6839,9 +6856,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 execution_manifest[
                     GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
                 ] = lineage_ledger
-                source_task = _agent_task_from_runtime_payload(
-                    source_task_payload
-                )
+                assert source_task is not None
                 source_context = source_task_inputs.get(
                     "architect_context",
                     {},
@@ -6901,11 +6916,12 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 execution_manifest["semantic_review_lineage_budget"][
                     "selected_action"
                 ] = "producer_regeneration"
+                assert source_task is not None
                 next_task = build_generated_code_semantic_review_producer_revision_task(
                     question=question,
                     review_task_id=task.task_id,
                     work_order=work_order,
-                    source_task=source_task_payload,
+                    source_task=source_task,
                     review_feedback=revision_feedback,
                     review_packet_id=review_packet_id,
                     review_execution_id=execution_id,
@@ -17032,46 +17048,6 @@ def _merge_resume_task_architect_context(
     return replace(task, inputs=inputs)
 
 
-def _agent_task_from_runtime_payload(payload: Mapping[str, Any]) -> AgentTask:
-    task_id = str(payload.get("task_id", "") or "")
-    owner_subsystem = str(payload.get("owner_subsystem", "") or "")
-    if not task_id or not owner_subsystem:
-        raise ValueError(
-            "runtime task payload must include task_id and owner_subsystem"
-        )
-    return AgentTask(
-        task_id=task_id,
-        owner_subsystem=owner_subsystem,
-        objective=str(payload.get("objective", "") or ""),
-        inputs=(
-            dict(payload.get("inputs", {}))
-            if isinstance(payload.get("inputs", {}), Mapping)
-            else {}
-        ),
-        allowed_tools=tuple(
-            str(item)
-            for item in (
-                payload.get("allowed_tools", [])
-                if isinstance(payload.get("allowed_tools", []), (list, tuple))
-                else []
-            )
-        ),
-        budget=(
-            dict(payload.get("budget", {}))
-            if isinstance(payload.get("budget", {}), Mapping)
-            else {}
-        ),
-        expected_artifacts=tuple(
-            str(item)
-            for item in (
-                payload.get("expected_artifacts", [])
-                if isinstance(payload.get("expected_artifacts", []), (list, tuple))
-                else []
-            )
-        ),
-        acceptance_gate=str(payload.get("acceptance_gate", "") or ""),
-        stop_condition=str(payload.get("stop_condition", "") or ""),
-    )
 
 
 

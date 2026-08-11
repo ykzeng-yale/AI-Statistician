@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from copy import deepcopy
+from dataclasses import asdict
+
+import pytest
+
 from ai_statistician.agent_runtime import (
     AgentRuntime,
     AgentStepResult,
@@ -8,8 +13,12 @@ from ai_statistician.agent_runtime import (
     EnvironmentObservation,
     EvidenceLedgerEntry,
     ToolCallRecord,
+    agent_task_continuation_reference,
     agent_runtime_substage,
+    materialize_agent_task_continuation,
+    restore_agent_task_continuation,
 )
+from ai_statistician.fingerprint import stable_hash
 
 
 class TheorySubsystem:
@@ -99,6 +108,70 @@ class FlakySubsystem:
                 ),
             ),
         )
+
+
+def test_agent_task_continuation_deduplicates_and_restores_structured_inputs() -> None:
+    shared = {"workspace": "x" * 10_000}
+    deferred = AgentTask(
+        task_id="formalize:q1",
+        owner_subsystem="FormalizationEvaluator",
+        objective="continue the formalization workspace",
+        inputs={"shared_under_any_name": shared},
+    )
+    _, deferred_continuation, deferred_artifacts = (
+        materialize_agent_task_continuation(deferred)
+    )
+    source = AgentTask(
+        task_id="algorithm:q1",
+        owner_subsystem="AlgorithmEngineer",
+        objective="continue the scientific coding workspace",
+        inputs={
+            "first_arbitrary_mapping": shared,
+            "second_arbitrary_mapping": shared,
+            "next_workspace": asdict(deferred),
+        },
+    )
+    _, source_continuation, source_artifacts = materialize_agent_task_continuation(
+        source,
+        linked_input_references={
+            stable_hash(asdict(deferred)): agent_task_continuation_reference(
+                deferred_continuation
+            )
+        },
+    )
+    artifacts = {**deferred_artifacts, **source_artifacts}
+
+    assert restore_agent_task_continuation(source_continuation, artifacts) == source
+    assert restore_agent_task_continuation(
+        deferred_continuation,
+        artifacts,
+    ) == deferred
+    mapping_artifacts = [
+        row
+        for row in artifacts.values()
+        if row.get("artifact_kind") == "RuntimeAgentTaskInputMapping"
+    ]
+    assert len(mapping_artifacts) == 1
+
+
+def test_agent_task_continuation_rejects_tampered_input_artifact() -> None:
+    task = AgentTask(
+        task_id="theory:q1",
+        owner_subsystem="TheoryDeveloper",
+        objective="continue a theory workspace",
+        inputs={"workspace": {"claim": "original"}},
+    )
+    _, continuation, artifacts = materialize_agent_task_continuation(task)
+    tampered = deepcopy(artifacts)
+    mapping_id = next(
+        artifact_id
+        for artifact_id, row in tampered.items()
+        if row.get("artifact_kind") == "RuntimeAgentTaskInputMapping"
+    )
+    tampered[mapping_id]["mapping"]["claim"] = "changed"
+
+    with pytest.raises(ValueError, match="input mapping hash mismatch"):
+        restore_agent_task_continuation(continuation, tampered)
 
 
 def test_agent_runtime_exposes_compound_substage_progress_without_new_scheduler() -> None:

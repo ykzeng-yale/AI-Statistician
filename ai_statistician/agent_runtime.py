@@ -96,6 +96,215 @@ def agent_task_reference(task: AgentTask | None) -> dict[str, Any] | None:
     }
 
 
+def agent_task_from_payload(payload: Mapping[str, Any]) -> AgentTask:
+    """Reconstruct one validated AgentTask from a persisted payload."""
+
+    task_id = str(payload.get("task_id", "") or "")
+    owner_subsystem = str(payload.get("owner_subsystem", "") or "")
+    if not task_id or not owner_subsystem:
+        raise ValueError(
+            "runtime task payload must include task_id and owner_subsystem"
+        )
+    return AgentTask(
+        task_id=task_id,
+        owner_subsystem=owner_subsystem,
+        objective=str(payload.get("objective", "") or ""),
+        inputs=(
+            dict(payload.get("inputs", {}))
+            if isinstance(payload.get("inputs", {}), Mapping)
+            else {}
+        ),
+        allowed_tools=tuple(
+            str(item)
+            for item in (
+                payload.get("allowed_tools", [])
+                if isinstance(payload.get("allowed_tools", []), (list, tuple))
+                else []
+            )
+        ),
+        budget=(
+            dict(payload.get("budget", {}))
+            if isinstance(payload.get("budget", {}), Mapping)
+            else {}
+        ),
+        expected_artifacts=tuple(
+            str(item)
+            for item in (
+                payload.get("expected_artifacts", [])
+                if isinstance(
+                    payload.get("expected_artifacts", []), (list, tuple)
+                )
+                else []
+            )
+        ),
+        acceptance_gate=str(payload.get("acceptance_gate", "") or ""),
+        stop_condition=str(payload.get("stop_condition", "") or ""),
+    )
+
+
+def agent_task_continuation_reference(
+    continuation: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return a compact immutable reference to a task continuation artifact."""
+
+    continuation_id = str(continuation.get("continuation_id", "") or "")
+    if (
+        not continuation_id
+        or continuation.get("artifact_kind") != "RuntimeAgentTaskContinuation"
+    ):
+        raise ValueError("invalid runtime agent task continuation")
+    return {
+        "artifact_kind": "RuntimeAgentTaskContinuationRef",
+        "continuation_id": continuation_id,
+        "continuation_hash": stable_hash(dict(continuation)),
+        "task_ref": deepcopy(dict(continuation.get("task_ref", {}) or {})),
+    }
+
+
+def materialize_agent_task_continuation(
+    task: AgentTask,
+    *,
+    schema_version: int = 1,
+    linked_input_references: Mapping[str, Mapping[str, Any]] | None = None,
+) -> tuple[str, dict[str, Any], dict[str, dict[str, Any]]]:
+    """Persist a resumable task without recursively copying large input payloads."""
+
+    full_payload = asdict(task)
+    compact_inputs: dict[str, Any] = {}
+    artifacts: dict[str, dict[str, Any]] = {}
+    linked = {
+        str(key): dict(value)
+        for key, value in (linked_input_references or {}).items()
+        if isinstance(value, Mapping)
+    }
+    for key, value in task.inputs.items():
+        input_key = str(key)
+        if isinstance(value, Mapping):
+            mapping = deepcopy(dict(value))
+            mapping_hash = stable_hash(mapping)
+            linked_ref = linked.get(mapping_hash)
+            if linked_ref is not None:
+                compact_inputs[input_key] = deepcopy(linked_ref)
+                continue
+            mapping_id = "agent_task_input_mapping:" + mapping_hash[:20]
+            mapping_artifact = {
+                "schema_version": schema_version,
+                "artifact_kind": "RuntimeAgentTaskInputMapping",
+                "mapping_id": mapping_id,
+                "mapping_hash": mapping_hash,
+                "mapping": mapping,
+            }
+            artifacts[mapping_id] = mapping_artifact
+            compact_inputs[input_key] = {
+                "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+                "mapping_id": mapping_id,
+                "mapping_hash": mapping_hash,
+                "artifact_hash": stable_hash(mapping_artifact),
+            }
+            continue
+        compact_inputs[input_key] = deepcopy(value)
+    task_template = {
+        **full_payload,
+        "inputs": compact_inputs,
+    }
+    original_task_hash = stable_hash(full_payload)
+    continuation_id = "agent_task_continuation:" + original_task_hash[:20]
+    continuation = {
+        "schema_version": schema_version,
+        "artifact_kind": "RuntimeAgentTaskContinuation",
+        "continuation_id": continuation_id,
+        "original_task_hash": original_task_hash,
+        "task_ref": agent_task_reference(task),
+        "task_template": task_template,
+        "payload_policy": "content_addressed_input_refs",
+    }
+    artifacts[continuation_id] = continuation
+    return continuation_id, continuation, artifacts
+
+
+def restore_agent_task_continuation(
+    continuation: Mapping[str, Any],
+    artifacts: Mapping[str, Any],
+) -> AgentTask:
+    """Hydrate and verify a content-addressed task continuation."""
+
+    visited: set[str] = set()
+
+    def restore(current: Mapping[str, Any]) -> AgentTask:
+        continuation_id = str(current.get("continuation_id", "") or "")
+        if (
+            current.get("artifact_kind") != "RuntimeAgentTaskContinuation"
+            or not continuation_id
+            or continuation_id in visited
+        ):
+            raise ValueError("invalid or cyclic runtime agent task continuation")
+        visited.add(continuation_id)
+        template = current.get("task_template", {})
+        if not isinstance(template, Mapping):
+            raise ValueError("runtime task continuation template missing")
+        payload = deepcopy(dict(template))
+        inputs = payload.get("inputs", {})
+        if not isinstance(inputs, Mapping):
+            raise ValueError("runtime task continuation inputs missing")
+        hydrated_inputs: dict[str, Any] = {}
+        for key, value in inputs.items():
+            if not isinstance(value, Mapping):
+                hydrated_inputs[str(key)] = deepcopy(value)
+                continue
+            artifact_kind = str(value.get("artifact_kind", "") or "")
+            if artifact_kind == "RuntimeAgentTaskInputMappingRef":
+                mapping_id = str(value.get("mapping_id", "") or "")
+                raw_mapping = artifacts.get(mapping_id, {})
+                if not isinstance(raw_mapping, Mapping):
+                    raise ValueError("runtime task input mapping missing")
+                mapping_artifact = dict(raw_mapping)
+                mapping = mapping_artifact.get("mapping", {})
+                if (
+                    mapping_artifact.get("artifact_kind")
+                    != "RuntimeAgentTaskInputMapping"
+                    or str(mapping_artifact.get("mapping_id", "") or "")
+                    != mapping_id
+                    or stable_hash(mapping_artifact)
+                    != str(value.get("artifact_hash", "") or "")
+                    or not isinstance(mapping, Mapping)
+                    or stable_hash(dict(mapping))
+                    != str(value.get("mapping_hash", "") or "")
+                ):
+                    raise ValueError("runtime task input mapping hash mismatch")
+                hydrated_inputs[str(key)] = deepcopy(dict(mapping))
+                continue
+            if artifact_kind == "RuntimeAgentTaskContinuationRef":
+                nested_id = str(value.get("continuation_id", "") or "")
+                raw_nested = artifacts.get(nested_id, {})
+                if not isinstance(raw_nested, Mapping):
+                    raise ValueError("nested runtime task continuation missing")
+                nested = dict(raw_nested)
+                if (
+                    stable_hash(nested)
+                    != str(value.get("continuation_hash", "") or "")
+                    or nested.get("task_ref") != value.get("task_ref")
+                ):
+                    raise ValueError("nested runtime task continuation mismatch")
+                hydrated_inputs[str(key)] = asdict(restore(nested))
+                continue
+            hydrated_inputs[str(key)] = deepcopy(dict(value))
+        payload["inputs"] = hydrated_inputs
+        task = agent_task_from_payload(payload)
+        original_task_hash = stable_hash(asdict(task))
+        if (
+            original_task_hash
+            != str(current.get("original_task_hash", "") or "")
+            or continuation_id
+            != "agent_task_continuation:" + original_task_hash[:20]
+            or agent_task_reference(task) != current.get("task_ref")
+        ):
+            raise ValueError("runtime task continuation identity mismatch")
+        visited.remove(continuation_id)
+        return task
+
+    return restore(continuation)
+
+
 @dataclass(frozen=True)
 class ToolCallRecord:
     tool_name: str

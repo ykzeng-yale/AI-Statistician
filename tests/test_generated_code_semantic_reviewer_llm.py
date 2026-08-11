@@ -5,6 +5,7 @@ from copy import deepcopy
 
 import pytest
 
+from ai_statistician.agent_runtime import AgentTask
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
@@ -679,22 +680,19 @@ def test_lineage_budget_bounds_source_producer_regenerations() -> None:
 
 
 def test_revision_task_returns_complete_observations_to_source_producer() -> None:
-    source_task = {
-        "task_id": "simulation-task:1",
-        "owner_subsystem": "SimulationEvaluator",
-        "objective": "Generate and execute a complete simulation.",
-        "inputs": {
+    source_task = AgentTask(
+        task_id="simulation-task:1",
+        owner_subsystem="SimulationEvaluator",
+        objective="Generate and execute a complete simulation.",
+        inputs={
             "question": {"id": "semantic-review-test"},
             "architect_context": {},
         },
-        "allowed_tools": ["python"],
-        "expected_artifacts": ["simulation_manifest"],
-        "acceptance_gate": "execution succeeds",
-        "stop_condition": "execution evidence recorded",
-    }
-    deferred = deepcopy(source_task)
-    deferred["task_id"] = "formalize:1"
-    deferred["owner_subsystem"] = "FormalizationEvaluator"
+        allowed_tools=("python",),
+        expected_artifacts=("simulation_manifest",),
+        acceptance_gate="execution succeeds",
+        stop_condition="execution evidence recorded",
+    )
     work_order = {
         "work_order_id": "work-order:1",
         "source_task_id": "simulation-task:1",
@@ -761,6 +759,7 @@ def test_revision_task_returns_complete_observations_to_source_producer() -> Non
     replan = task.inputs["architect_context"][
         "runtime_generated_code_semantic_review_replan"
     ]
+    assert "environment_feedback" not in task.inputs["architect_context"]
     assert "repair_owner" not in replan
     assert "repair_plan" not in replan
     assert replan["routing_authority"] == "immutable_source_producer_lineage"

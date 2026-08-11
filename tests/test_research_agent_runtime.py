@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import inspect
-from dataclasses import fields
+import json
+from dataclasses import asdict, fields
 
 import pytest
 
@@ -11,6 +12,7 @@ from ai_statistician.agent_runtime import (
     AgentTask,
     BlackboardState,
     TaskHandoffRecord,
+    restore_agent_task_continuation,
 )
 from ai_statistician.algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
@@ -695,10 +697,11 @@ def test_generated_code_review_dispatch_uses_content_addressed_task_refs() -> No
         description="Check whether executed code implements the stated estimator.",
         tags=("coding", "semantic-review"),
     )
-    source_task = AgentTask(
-        task_id="algorithm:generic-code-review",
-        owner_subsystem="AlgorithmEngineer",
-        objective="Author and execute the complete estimator source.",
+    large_context = {"theory_workspace": "context-payload-" + "x" * 100_000}
+    deferred_task = AgentTask(
+        task_id="formalize:generic-code-review",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Formalize the accepted theory target.",
         inputs={
             "question": {
                 "id": question.id,
@@ -706,15 +709,19 @@ def test_generated_code_review_dispatch_uses_content_addressed_task_refs() -> No
                 "description": question.description,
                 "tags": list(question.tags),
             },
-            "architect_context": {},
+            "architect_context": large_context,
+        },
+    )
+    source_task = AgentTask(
+        task_id="algorithm:generic-code-review",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Author and execute the complete estimator source.",
+        inputs={
+            "question": deferred_task.inputs["question"],
+            "architect_context": large_context,
+            "deferred_metric_protocol_task": asdict(deferred_task),
         },
         allowed_tools=("model_backend", "python"),
-    )
-    deferred_task = AgentTask(
-        task_id="formalize:generic-code-review",
-        owner_subsystem="FormalizationEvaluator",
-        objective="Formalize the accepted theory target.",
-        inputs={"question": source_task.inputs["question"]},
     )
     manifest = {
         "artifact_kind": "RuntimeAlgorithmSandboxManifest",
@@ -763,13 +770,31 @@ def test_generated_code_review_dispatch_uses_content_addressed_task_refs() -> No
     work_order = dispatch["work_order"]
     assert work_order["source_task_ref"]["artifact_kind"] == "AgentTaskRef"
     assert work_order["deferred_next_task_ref"]["artifact_kind"] == "AgentTaskRef"
-    snapshots = [
+    continuations = [
         artifact
         for artifact in dispatch["artifacts"].values()
-        if artifact.get("artifact_kind") == "RuntimeAgentTaskSnapshot"
+        if artifact.get("artifact_kind") == "RuntimeAgentTaskContinuation"
     ]
-    assert len(snapshots) == 2
-    assert {row["task_ref"]["task_id"] for row in snapshots} == {
+    assert len(continuations) == 2
+    assert {row["task_ref"]["task_id"] for row in continuations} == {
         source_task.task_id,
         deferred_task.task_id,
     }
+    restored = {
+        row["task_ref"]["task_id"]: restore_agent_task_continuation(
+            row,
+            dispatch["artifacts"],
+        )
+        for row in continuations
+    }
+    assert restored[source_task.task_id] == source_task
+    assert restored[deferred_task.task_id] == deferred_task
+    serialized = json.dumps(dispatch["artifacts"], sort_keys=True)
+    assert serialized.count(large_context["theory_workspace"]) == 1
+    assert len(serialized) < 150_000
+    assert "RuntimeAgentTaskSnapshot" not in serialized
+    protected = runtime_module._runtime_task_hash_bound_artifact_ids(
+        dispatch["next_task"],
+        dispatch["artifacts"],
+    )
+    assert protected == frozenset(dispatch["artifacts"])

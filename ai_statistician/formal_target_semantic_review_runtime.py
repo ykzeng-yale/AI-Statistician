@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, replace
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -13,6 +13,8 @@ from .agent_runtime import (
     EvidenceLedgerEntry,
     ToolCallRecord,
     agent_task_reference,
+    materialize_agent_task_continuation,
+    restore_agent_task_continuation,
 )
 from .fingerprint import stable_hash
 from .lean_candidate_identity import (
@@ -68,48 +70,6 @@ def _question_from_payload(payload: Mapping[str, Any]) -> OpenResearchQuestion:
         title=str(payload.get("title", payload["id"])),
         description=str(payload["description"]),
         tags=tuple(str(row) for row in payload.get("tags", ()) or ()),
-    )
-
-
-def _agent_task_from_runtime_payload(payload: Mapping[str, Any]) -> AgentTask:
-    task_id = str(payload.get("task_id", "") or "")
-    owner_subsystem = str(payload.get("owner_subsystem", "") or "")
-    if not task_id or not owner_subsystem:
-        raise ValueError(
-            "runtime task payload must include task_id and owner_subsystem"
-        )
-    return AgentTask(
-        task_id=task_id,
-        owner_subsystem=owner_subsystem,
-        objective=str(payload.get("objective", "") or ""),
-        inputs=(
-            dict(payload.get("inputs", {}))
-            if isinstance(payload.get("inputs", {}), Mapping)
-            else {}
-        ),
-        allowed_tools=tuple(
-            str(item)
-            for item in (
-                payload.get("allowed_tools", [])
-                if isinstance(payload.get("allowed_tools", []), (list, tuple))
-                else []
-            )
-        ),
-        budget=(
-            dict(payload.get("budget", {}))
-            if isinstance(payload.get("budget", {}), Mapping)
-            else {}
-        ),
-        expected_artifacts=tuple(
-            str(item)
-            for item in (
-                payload.get("expected_artifacts", [])
-                if isinstance(payload.get("expected_artifacts", []), (list, tuple))
-                else []
-            )
-        ),
-        acceptance_gate=str(payload.get("acceptance_gate", "") or ""),
-        stop_condition=str(payload.get("stop_condition", "") or ""),
     )
 
 
@@ -256,17 +216,14 @@ def _runtime_formal_target_semantic_review_dispatch(
     work_order_id = "formal_target_semantic_review_work_order:" + stable_hash(
         work_order_seed
     )[:20]
-    deferred_task_payload = asdict(deferred_next_task)
-    deferred_task_snapshot_id = "agent_task_snapshot:" + stable_hash(
-        deferred_task_payload
-    )[:20]
-    deferred_task_snapshot = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "RuntimeAgentTaskSnapshot",
-        "snapshot_id": deferred_task_snapshot_id,
-        "task_ref": agent_task_reference(deferred_next_task),
-        "task": deferred_task_payload,
-    }
+    (
+        deferred_task_continuation_id,
+        deferred_task_continuation,
+        deferred_task_artifacts,
+    ) = materialize_agent_task_continuation(
+        deferred_next_task,
+        schema_version=RUNTIME_SCHEMA_VERSION,
+    )
     work_order = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeFormalTargetSemanticReviewWorkOrder",
@@ -341,8 +298,12 @@ def _runtime_formal_target_semantic_review_dispatch(
             set(dispatch_validation_errors)
         ),
         "deferred_next_task_ref": agent_task_reference(deferred_next_task),
-        "deferred_next_task_snapshot_id": deferred_task_snapshot_id,
-        "deferred_next_task_snapshot_hash": stable_hash(deferred_task_snapshot),
+        "deferred_next_task_continuation_id": (
+            deferred_task_continuation_id
+        ),
+        "deferred_next_task_continuation_hash": stable_hash(
+            deferred_task_continuation
+        ),
         "proof_evidence_status": (
             "FORMAL_TARGET_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
         ),
@@ -425,11 +386,11 @@ def _runtime_formal_target_semantic_review_dispatch(
         ),
         "work_order_id": work_order_id,
         "work_order": work_order,
-        "deferred_task_snapshot_id": deferred_task_snapshot_id,
-        "deferred_task_snapshot": deferred_task_snapshot,
+        "deferred_task_continuation_id": deferred_task_continuation_id,
+        "deferred_task_continuation": deferred_task_continuation,
         "artifacts": {
+            **deferred_task_artifacts,
             work_order_id: work_order,
-            deferred_task_snapshot_id: deferred_task_snapshot,
         },
         "next_task": review_task,
         "evidence": evidence,
@@ -677,30 +638,28 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             hash_field="proposal_packet_hash",
             allowed_kinds=FORMAL_TARGET_REVIEW_PROPOSAL_PACKET_KINDS,
         )
-        deferred_task_snapshot = bound_artifact(
-            id_field="deferred_next_task_snapshot_id",
-            hash_field="deferred_next_task_snapshot_hash",
-            kind="RuntimeAgentTaskSnapshot",
-        )
-        deferred_task_payload = (
-            dict(deferred_task_snapshot.get("task", {}) or {})
-            if isinstance(deferred_task_snapshot.get("task", {}), Mapping)
-            else {}
+        deferred_task_continuation = bound_artifact(
+            id_field="deferred_next_task_continuation_id",
+            hash_field="deferred_next_task_continuation_hash",
+            kind="RuntimeAgentTaskContinuation",
         )
         deferred_task_ref = work_order.get("deferred_next_task_ref", {})
-        if str(deferred_task_snapshot.get("snapshot_id", "") or "") != str(
-            work_order.get("deferred_next_task_snapshot_id", "") or ""
+        if str(
+            deferred_task_continuation.get("continuation_id", "") or ""
+        ) != str(
+            work_order.get("deferred_next_task_continuation_id", "") or ""
         ):
             validation_errors.append(
-                "formal-target review deferred task snapshot identity mismatch"
+                "formal-target review deferred task continuation identity mismatch"
             )
-        if deferred_task_snapshot.get("task_ref") != deferred_task_ref:
+        if deferred_task_continuation.get("task_ref") != deferred_task_ref:
             validation_errors.append(
-                "formal-target review deferred task snapshot ref mismatch"
+                "formal-target review deferred task continuation ref mismatch"
             )
         try:
-            deferred_task = _agent_task_from_runtime_payload(
-                deferred_task_payload
+            deferred_task = restore_agent_task_continuation(
+                deferred_task_continuation,
+                blackboard.artifacts,
             )
         except ValueError as exc:
             validation_errors.append(str(exc))

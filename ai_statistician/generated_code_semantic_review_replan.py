@@ -148,7 +148,7 @@ def build_generated_code_semantic_review_producer_revision_task(
     question: OpenResearchQuestion,
     review_task_id: str,
     work_order: Mapping[str, Any],
-    source_task: Mapping[str, Any],
+    source_task: AgentTask,
     review_feedback: Mapping[str, Any],
     review_packet_id: str,
     review_execution_id: str,
@@ -159,19 +159,14 @@ def build_generated_code_semantic_review_producer_revision_task(
     """Return complete review feedback to the immutable source producer."""
 
     observations = deepcopy(dict(review_feedback))
-    source_task = _mapping(source_task)
-    source_inputs = _mapping(source_task.get("inputs"))
+    source_inputs = source_task.inputs
     source_subsystem = str(work_order.get("source_subsystem", "") or "")
-    if not source_subsystem or str(
-        source_task.get("owner_subsystem", "") or ""
-    ) != source_subsystem:
+    if not source_subsystem or source_task.owner_subsystem != source_subsystem:
         raise ValueError(
             "semantic-review producer revision requires an immutable source owner"
         )
-    replan_context = {
-        **_mapping(source_inputs.get("architect_context")),
-        "environment_feedback": dict(observations),
-    }
+    replan_context = _mapping(source_inputs.get("architect_context"))
+    replan_context.pop("environment_feedback", None)
     if isinstance(lineage_ledger, Mapping):
         replan_context[GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY] = {
             str(key): dict(value)
@@ -255,11 +250,9 @@ def build_generated_code_semantic_review_producer_revision_task(
             "execution result, and independent semantic-review observations."
         ),
         inputs=revision_inputs,
-        allowed_tools=tuple(source_task.get("allowed_tools", []) or []),
-        budget=deepcopy(_mapping(source_task.get("budget"))),
-        expected_artifacts=tuple(
-            source_task.get("expected_artifacts", []) or []
-        ),
+        allowed_tools=source_task.allowed_tools,
+        budget=deepcopy(source_task.budget),
+        expected_artifacts=source_task.expected_artifacts,
         acceptance_gate=(
             "a fresh complete model-generated candidate executes and passes a new "
             "independent semantic review"

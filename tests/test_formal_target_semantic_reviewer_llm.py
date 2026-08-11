@@ -421,8 +421,10 @@ def test_deferred_task_ref_drift_is_rejected_before_model_review(
     )
     assert "deferred_next_task" not in task.inputs
     assert "architect_context" not in task.inputs
-    snapshot_id = work_order["deferred_next_task_snapshot_id"]
-    blackboard.artifacts[snapshot_id]["task"]["objective"] = "tampered objective"
+    continuation_id = work_order["deferred_next_task_continuation_id"]
+    blackboard.artifacts[continuation_id]["task_template"][
+        "objective"
+    ] = "tampered objective"
 
     result = subsystem.run(task, blackboard)
 
