@@ -319,27 +319,32 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-11, v340 is the authoritative development panel. All nine live LLM
-subsystems used exactly `claude-haiku-4-5-20251001`; both tasks remained blocked,
-the capability scorecard was 6/16, exact source-theorem closure was 0/2, and the
-held-out panel remained sealed. Survival reached model-owned algorithm and simulation
-execution plus the Formalizer source loop, but its frozen empirical portfolio failed
-and no exact Lean target compiled. Sequential performed two source-owned theory
-revisions, then stopped at preflight packet validation before coding.
+As of 2026-08-11, v344 is the authoritative development panel. All nine live LLM
+subsystems used exactly `claude-haiku-4-5-20251001`; one task ended `BLOCKED`, one
+ended `FAILED`, the scorecard was 6/16, closure was 0/2, and held-out stayed sealed.
+Survival reached scientific and formal workspaces but no exact Lean target compiled.
+Sequential revised theory, then its second preflight failed before a model turn
+because the provider rejected the strict submit schema as too complex.
 
-The Sequential stop exposed a transport defect, not a missing statistical rule:
-Anthropic's strict schema removed fixed array cardinality. Finite reviews now use
-provider-native required `slot_N` objects. Exact Haiku v341 completed preflight slots,
-and v342 filled all six formal-target slots before returning independent `REVISE`
-judgments. The generic v343 metric-review canary used Anthropic structured output,
-filled all six metric slots plus two free claim checks, and returned `REVISE` in one
-call. Runtime binds identities and returns raw errors to the same reviewer; it does
-not classify mathematical defects or author source. All three are component evidence,
-not statistical acceptance, E2E completion, or proof.
+That Sequential failure exposed a harness design error, not a missing statistical
+rule. Required `slot_N` objects remain appropriate for finite identities: before
+v341, exact Haiku repeatedly omitted one row from fixed-cardinality arrays. The
+mistake was combining those slots with a thirteen-field estimator micro-checklist and
+six model-authored semantic booleans. [Anthropic documents](https://platform.claude.com/docs/en/build-with-claude/structured-outputs#schema-complexity-limits)
+that strict tools compile schemas into grammars with internal complexity limits. The
+preflight row now contains one model-owned execution audit, one independent identity
+check, a blocker list, a boundary case, status, and evidence refs. Runtime validates
+shape and consistency but does not decide the mathematics.
 
-The earlier v339 exact-Haiku Formalizer diagnostic also remains component evidence:
-the model selected declaration inspection, signature RAG, source replacement, and
-local Lean checks, then compiled a support target but not the source theorem.
+The exact-input v345 replay used the revised Sequential v344 theory, frozen Architect
+contract, and all three prior identities. Exact Haiku performed three source searches
+and one valid submission in two turns, resolved one prior finding, retained two, and
+returned `REVISE`. This is component transport and review evidence, not statistical
+acceptance, E2E completion, or proof. The earlier v341-v343 slot canaries remain
+component evidence for the same reason.
+
+The earlier v339 Formalizer diagnostic remains component evidence: exact Haiku used
+declaration inspection, RAG, source replacement, and local checks to compile a support target, but not the source theorem.
 
 ## Structural constraints
 
