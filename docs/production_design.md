@@ -233,6 +233,13 @@ and local context, Lean LSP/MCP state, and exact compiler output. The same model
 chooses each action and complete source replacement. Runtime does not inject an
 import, theorem statement, tactic, or proof-body fragment.
 
+Declaration inspection is not a Python Lean parser or a repair policy. After the
+model checks its current source, it may choose an identifier and call OpenProver's
+existing `lean-lsp-mcp` `lean_declaration_file` tool against the hash-bound
+project-local artifact. Lean returns the complete declaration plus bounded nearby
+source context; the default is 20 adjacent lines and the transport cap is 40. The
+observation remains in the same model session and is explicitly non-proof evidence.
+
 Every changed statement receives independent target-semantic review. A candidate
 can count as theorem evidence only when all of the following bind to the same
 artifact:
@@ -340,6 +347,15 @@ rejected submission. It used 21,460 input and 3,424 output tokens and did not ci
 external hits it did not rely on. This is transport evidence only, not statistical
 acceptance, E2E completion, or proof. The held-out panel remains sealed and the
 system is not yet fully end to end.
+
+The v339 exact-Haiku Formalizer component exercised the current declaration path
+end to end. Haiku chose two declaration inspections, one signature-RAG search, two
+complete source replacements, and three local Lean checks in eight turns. Its final
+support target compiled and passed declaration identity/axiom inspection, with
+`model_owned_lean_code=true` and `runtime_selected_lean_code=false`. This validates
+the workspace mechanism only: `kernel_verified=false`,
+`source_theorem_kernel_verified=false`, and the authoritative cross-family result
+remains 0/2 exact closures.
 
 ## Structural constraints
 

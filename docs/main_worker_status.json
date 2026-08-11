@@ -1,10 +1,10 @@
 {
-  "schema_version": 14,
+  "schema_version": 15,
   "updated_at": "2026-08-11",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "base_head_before_current_change": "ba4470dc",
-  "current_runtime_head": "a8115c6f",
+  "base_head_before_current_change": "d9336913",
+  "current_runtime_head": "2c26f415",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "operational_goal_refinement": "As the sole worker, simplify the canonical runtime into one outer research graph and direct model-owned Python, R, and Lean workspaces; preserve independent review, frozen evaluation, artifact lineage, and kernel authority; validate on fresh cross-family tasks without adding benchmark-specific rules.",
   "goal_status": "active",
@@ -79,6 +79,8 @@
     "opaque_manifest_refs_not_misclassified_as_blackboard_refs": true,
     "semantic_review_feedback_not_duplicated_inside_architect_context": true,
     "formalizer_raw_feedback_revision_counted_without_claiming_compile": true,
+    "formalizer_model_selected_exact_declaration_inspection": true,
+    "lean_declaration_context_transport_bounded": true,
     "formalizer_packet_failures_never_route_through_architect": true,
     "all_source_packet_and_execution_exhaustion_owner_local": true,
     "architect_source_escalation_requires_independent_semantic_conflict": true,
@@ -99,8 +101,8 @@
   },
   "current_structure": {
     "package_python_modules": 138,
-    "package_python_lines": 126300,
-    "research_agent_runtime_lines": 20843,
+    "package_python_lines": 126651,
+    "research_agent_runtime_lines": 20916,
     "research_agent_runtime_config_fields": 19,
     "research_agent_runtime_audit_lines": 838,
     "research_architect_lines": 3648,
@@ -108,10 +110,10 @@
     "architect_theory_execution_preflight_lines": 2992,
     "cli_lines": 6948,
     "test_modules": 43,
-    "test_lines": 27646
+    "test_lines": 27866
   },
   "verification": {
-    "full_deterministic_suite": "533 passed",
+    "full_deterministic_suite": "534 passed, 1 skipped",
     "compileall": "passed",
     "diff_check": "passed",
     "v322_theory_workspace_projection": "Offline projection against the persisted Sequential v322 revision reduced the legacy 159243-byte whole-packet initial prompt to 4829 bytes with the full routed context, a 96.97% reduction; reconstructing from the content-addressed parent and metric observation alone produces a 2890-byte initial prompt. The 32861-byte parent core and 31909-byte full-context reviewer observation remain exact read-on-demand artifacts rather than prompt copies. This is transport evidence, not a new live capability run.",
@@ -132,7 +134,8 @@
     "v334_parent_bound_source_completion_diagnostic": "The deliberately stopped v334 diagnostic reached live Algorithm generation, execution, independent ACCEPT, Simulation consumer failure, direct same-model Algorithm revision, and a second independent ACCEPT. It then reopened the identical accepted Algorithm task because outer completion ignored review acceptance. This run was stopped before a manifest and is diagnostic only, not authoritative capability evidence. Commit f7015676 makes a source lane complete only through an active-manifest, current-parent-bound independent ACCEPT.",
     "v335_fresh_exact_haiku_development_panel": "v335 completed both development tasks under exact claude-haiku-4-5-20251001 and ended BLOCKED with capability scorecard 4/16. Survival exhausted its initial theory workspace after a large partial tool write was committed internally but returned as an atomic error; Sequential authored and revised theory but remained rejected by preflight. No generated code, simulation, Lean candidate, or kernel evidence was produced. The run isolated workspace transaction semantics rather than prover capability.",
     "v336_fresh_exact_haiku_development_panel": "The authoritative v336 run used exact claude-haiku-4-5-20251001 for all nine enabled LLM subsystems. Both tasks authored valid initial theory workspaces and reached two bounded source-owned revisions from independent preflight feedback. Survival's first theory write was retained with write_accepted=true, workspace_valid=false, and raw missing-conclusion observations; the same Haiku revised it on the next call and passed without a repair agent or runtime-authored content. Both tasks then stalled on persistent preflight findings, so generated code, simulation, formal RAG, Lean checks, kernel subclaims, and exact source-theorem closures were all zero. Capability scorecard was 5/16 and ready=false.",
-    "current_mechanism_verification": "Commits f7015676, 70a7d436, 737ceefe, and a8115c6f pass 533 deterministic tests, Python compileall, and git diff validation. They bind independent source-review completion to current parents, retain partial theory writes with raw same-session feedback, let an independent preflight reviewer retract an earlier non-blocker only from current source evidence, and remove fixed TheoryDeveloper row-count quality proxies. Runtime never auto-retracts a finding or authors research content. Mathematical sufficiency belongs to independent preflight and Critic review, while schema maxima remain transport limits. The retraction and row-count changes have deterministic coverage but no fresh post-change live panel.",
+    "v339_exact_haiku_declaration_inspection_component": "The current Formalizer workspace exposed OpenProver/lean-lsp-mcp lean_declaration_file as a model-selected read-only action bound to the exact checked source hash and project-local artifact. Exact claude-haiku-4-5-20251001 used two declaration inspections, one signature-RAG search, two complete model-authored source replacements, and three local Lean checks over eight turns. The final support target compiled and passed declaration identity/axiom inspection; runtime_selected_lean_code=false and model_owned_lean_code=true. Nearby source context defaults to 20 lines and is capped at 40 while Lean still returns the complete selected declaration. This is direct workspace capability evidence only: kernel_verified=false, source_theorem_kernel_verified=false, full_frontier_theorem_proved=false, and it does not change v336 readiness or 0/2 closure.",
+    "current_mechanism_verification": "Commits f7015676, 70a7d436, 737ceefe, a8115c6f, and 2c26f415 pass 534 deterministic tests with one expected skip, Python compileall, and git diff validation. They bind independent source-review completion to current parents, retain partial theory writes with raw same-session feedback, let an independent preflight reviewer retract an earlier non-blocker only from current source evidence, remove fixed TheoryDeveloper row-count quality proxies, and expose exact active-project declaration source to the same model-owned Lean loop. Runtime never auto-retracts a finding, authors research content, selects Lean source, or turns declaration inspection into proof evidence. The retraction and row-count changes still lack a fresh post-change panel; declaration inspection has exact-Haiku component evidence only.",
     "remote_unmerged_branches": 0,
     "open_pull_request_merge_refs": 0
   },
@@ -144,10 +147,10 @@
     "post_simplification_live_panel_completed": true,
     "post_parent_lineage_fix_live_panel_completed": true,
     "initial_workspace_corrective_panel_completed": true,
-    "claim": "The fresh v336 exact-Haiku two-family panel is the latest authoritative panel. It validates that both initial and revision TheoryDeveloper work occur in direct model-owned artifact workspaces and that a partial write plus raw validator feedback can be revised by the same Haiku without a repair agent. Both tasks nevertheless exhausted two bounded theory-preflight revisions, so v336 produced no generated algorithm execution, simulation execution, formal RAG, Lean candidate check, kernel-verified subclaim, or exact source-theorem closure. Commits 737ceefe and a8115c6f correct the immutable-review-state asymmetry and remove fixed row-count quality proxies, but those mechanisms have only deterministic evidence. Held-out tasks remain sealed and the system is not ready."
+    "claim": "The fresh v336 exact-Haiku two-family panel remains the latest authoritative panel. It validates that both initial and revision TheoryDeveloper work occur in direct model-owned artifact workspaces and that a partial write plus raw validator feedback can be revised by the same Haiku without a repair agent. Both tasks nevertheless exhausted two bounded theory-preflight revisions, so v336 produced no generated algorithm execution, simulation execution, formal RAG, Lean candidate check, kernel-verified subclaim, or exact source-theorem closure. Commit 2c26f415 and the v339 exact-Haiku component show that the same Formalizer session can inspect exact active-project declaration source and compile a model-revised support target, but this is not a fresh panel or source-theorem proof. Held-out tasks remain sealed and the system is not ready."
   },
   "remaining_design_debt": [
-    "Formalizer remains the hardest capability gap. In v333 the Survival exact-Haiku workspace generated and locally checked Lean but no exact target compiled; source-theorem kernel closure remains 0/2. Improve active-project import and declaration context, proof-state retrieval, and tool ergonomics without adding Lean grammar, tactic, or theorem-family rules.",
+    "Formalizer remains the hardest capability gap. Exact declaration source is now available through model-selected lean-lsp-mcp and v339 compiled one support component, but the authoritative development panel still has 0/2 source-theorem kernel closure. Fresh tasks must show that declaration context, proof-state retrieval, and compiler feedback are sufficient for exact target-bound closure without Lean grammar, tactic, or theorem-family rules.",
     "Theory preflight now lets the independent reviewer either resolve a prior finding after a source change or retract it when current source anchors show it is out of scope, contradicted, or downstream-only. This removes an immutable false-positive path without automatic runtime semantics, but the new state is not yet live-validated. Persistent genuine findings must still block; do not add theorem-family rules, another reviewer, repair agent, or routing agent.",
     "Metric authoring and metric semantic review still use large schemas. Continue shrinking substantive packets to artifact references and small model-owned judgments while retaining frozen authority, independent pre-result review, and local validation.",
     "Independent Algorithm candidates are still explored serially. Once the direct source loop is stable, a small number of independent candidates may run concurrently inside the same workspace and share the same frozen scoring and review gates; this must not create another outer scheduler.",
@@ -160,7 +163,7 @@
     "Run the next fresh exact-Haiku development panel only after a distinct shared mechanism change or a frozen scheduled evaluation; verify that preflight may retract only model-selected evidence-bound non-blockers, while genuine unresolved findings still fail closed.",
     "Require the next panel that reaches scientific coding to show that one current-parent independent Algorithm ACCEPT closes the lane exactly once, Simulation consumes only that accepted handoff, and no routine source failure routes through Architect.",
     "Reduce the preflight and metric protocol schemas while preserving independent pre-result review, frozen authority, and exact source identity; do not split them into additional outer agents.",
-    "Improve Formalizer exact-target and active-project context, Statlib/Mathlib/EmpericalProcessLEAN retrieval, and raw Lean feedback ergonomics until the model submits compiling source; do not add Lean grammar or theorem-specific repair rules.",
+    "Use the exact declaration source action together with Statlib/Mathlib/EmpericalProcessLEAN RAG and raw Lean feedback on the next naturally reached Formalizer lane; require a compiling, independently reviewed exact target rather than adding Lean grammar or theorem-specific repair rules.",
     "Add bounded stage-local candidate or lemma parallelism only after one serial source loop is stable and measurable; all candidates must use the same execution, independent review, and evidence gates.",
     "Keep estimator-interface authoring bounded and visible; migrate it into the direct workspace only if fresh traces show repeated full-object regeneration or source-owner feedback loss.",
     "Require both development tasks to complete accepted scientific execution and exact target-bound kernel closure before changing readiness claims.",
