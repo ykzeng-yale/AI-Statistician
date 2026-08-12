@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from ai_statistician.fingerprint import stable_hash
 from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     ClientToolCall,
@@ -13,6 +14,7 @@ from ai_statistician.model_backend import (
 from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_CHECKPOINT_KIND,
+    THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
     run_theory_artifact_workspace,
 )
 
@@ -88,6 +90,15 @@ def _run_workspace(backend, **overrides):
     return run_theory_artifact_workspace(**kwargs)
 
 
+def _run_patch_workspace(backend, **overrides):
+    return _run_workspace(
+        backend,
+        workspace_operation="targeted_revision",
+        write_transport=THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
+        **overrides,
+    )
+
+
 def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
     backend = ScriptedTheoryWorkspaceBackend(
         [
@@ -139,6 +150,7 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
     assert result.evidence["workspace_operation"] == "test_authoring"
     assert result.evidence["model_owned_theory"] is True
     assert result.evidence["runtime_edited_theory"] is False
+    assert all(request.enable_prompt_caching for request in backend.requests)
     initial_prompt = str(backend.requests[0].messages[0]["content"])
     assert "parent-private-claim" not in initial_prompt
     assert "parent-private-claim" in str(backend.requests[1].messages)
@@ -199,3 +211,259 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     assert checkpoint["runtime_edited_theory"] is False
     assert checkpoint["kernel_verified"] is False
     assert len(backend.requests) == 1
+
+
+def test_targeted_revision_uses_atomic_model_owned_json_edits() -> None:
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="read-revision-inputs",
+                    name="read_theory_workspace",
+                    input={
+                        "artifact_names": ["problem_card", "lemma_cards"]
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="edit-related-values",
+                    name="edit_theory_workspace",
+                    input={
+                        "operations": [
+                            {
+                                "op": "replace",
+                                "artifact_name": "problem_card",
+                                "path": "/claim",
+                                "value": "revised claim",
+                            },
+                            {
+                                "op": "add",
+                                "artifact_name": "lemma_cards",
+                                "path": "/-",
+                                "value": {"id": "lemma-1"},
+                            },
+                        ]
+                    },
+                )
+            ),
+        ]
+    )
+
+    result = _run_patch_workspace(backend)
+
+    assert result.core_packet["artifacts"] == {
+        "problem_card": {"claim": "revised claim"},
+        "lemma_cards": [{"id": "lemma-1"}],
+    }
+    assert result.evidence["write_transport"] == (
+        THEORY_WORKSPACE_JSON_PATCH_TRANSPORT
+    )
+    assert result.evidence["n_model_edit_operations"] == 2
+    assert result.evidence["model_edit_operations"] == [
+        {
+            "submission_index": 0,
+            "operation_index": 0,
+            "op": "replace",
+            "artifact_name": "problem_card",
+            "path": "/claim",
+            "value_hash": stable_hash("revised claim"),
+        },
+        {
+            "submission_index": 0,
+            "operation_index": 1,
+            "op": "add",
+            "artifact_name": "lemma_cards",
+            "path": "/-",
+            "value_hash": stable_hash({"id": "lemma-1"}),
+        },
+    ]
+    tool_names = [tool.name for tool in backend.requests[0].tools]
+    assert tool_names == [
+        "read_theory_workspace",
+        "edit_theory_workspace",
+    ]
+    assert "submit_theory_artifacts" not in tool_names
+    prompt = str(backend.requests[0].messages[0]["content"])
+    assert "RFC 6902" in prompt
+    assert "runtime applies those exact operations" in prompt
+
+
+def test_targeted_revision_retains_valid_edits_across_raw_validator_feedback() -> None:
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="edit-incomplete",
+                    name="edit_theory_workspace",
+                    input={
+                        "operations": [
+                            {
+                                "op": "replace",
+                                "artifact_name": "problem_card",
+                                "path": "/claim",
+                                "value": "revised claim",
+                            }
+                        ]
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="edit-after-observation",
+                    name="edit_theory_workspace",
+                    input={
+                        "operations": [
+                            {
+                                "op": "add",
+                                "artifact_name": "lemma_cards",
+                                "path": "/-",
+                                "value": {"id": "lemma-1"},
+                            }
+                        ]
+                    },
+                )
+            ),
+        ]
+    )
+
+    result = _run_patch_workspace(backend)
+
+    assert result.evidence["submissions"] == 2
+    assert result.evidence["n_model_edit_operations"] == 2
+    assert [
+        row["submission_index"]
+        for row in result.evidence["model_edit_operations"]
+    ] == [0, 1]
+    assert "revised claim and at least one lemma are required" in str(
+        backend.requests[1].messages
+    )
+    observation = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert observation["write_accepted"] is True
+    assert observation["workspace_valid"] is False
+    assert observation["write_transport"] == (
+        THEORY_WORKSPACE_JSON_PATCH_TRANSPORT
+    )
+
+
+def test_targeted_revision_rejects_noop_edit_then_returns_observation() -> None:
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="noop-edit",
+                    name="edit_theory_workspace",
+                    input={
+                        "operations": [
+                            {
+                                "op": "replace",
+                                "artifact_name": "problem_card",
+                                "path": "/claim",
+                                "value": "parent-private-claim",
+                            }
+                        ]
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="substantive-edit-after-noop",
+                    name="edit_theory_workspace",
+                    input={
+                        "operations": [
+                            {
+                                "op": "replace",
+                                "artifact_name": "problem_card",
+                                "path": "/claim",
+                                "value": "revised claim",
+                            },
+                            {
+                                "op": "add",
+                                "artifact_name": "lemma_cards",
+                                "path": "/-",
+                                "value": {"id": "lemma-1"},
+                            },
+                        ]
+                    },
+                )
+            ),
+        ]
+    )
+
+    result = _run_patch_workspace(backend)
+
+    assert result.evidence["submissions"] == 2
+    assert result.evidence["n_model_edit_operations"] == 2
+    no_op_observation = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert no_op_observation["state_changed"] is False
+    assert no_op_observation["workspace_valid"] is False
+    assert no_op_observation["validation_errors"] == [
+        "the submitted theory workspace is unchanged from its parent"
+    ]
+
+
+def test_targeted_revision_rejects_invalid_patch_atomically() -> None:
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="invalid-atomic-edit",
+                    name="edit_theory_workspace",
+                    input={
+                        "operations": [
+                            {
+                                "op": "replace",
+                                "artifact_name": "problem_card",
+                                "path": "/claim",
+                                "value": "must not persist",
+                            },
+                            {
+                                "op": "remove",
+                                "artifact_name": "problem_card",
+                                "path": "/missing",
+                            },
+                        ]
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="valid-atomic-edit",
+                    name="edit_theory_workspace",
+                    input={
+                        "operations": [
+                            {
+                                "op": "replace",
+                                "artifact_name": "problem_card",
+                                "path": "/claim",
+                                "value": "revised claim",
+                            },
+                            {
+                                "op": "add",
+                                "artifact_name": "lemma_cards",
+                                "path": "/-",
+                                "value": {"id": "lemma-1"},
+                            },
+                        ]
+                    },
+                )
+            ),
+        ]
+    )
+
+    result = _run_patch_workspace(backend)
+
+    assert result.core_packet["artifacts"]["problem_card"] == {
+        "claim": "revised claim"
+    }
+    assert result.evidence["submissions"] == 1
+    assert result.evidence["n_model_edit_operations"] == 2
+    rejected_observation = backend.requests[1].messages[-1]["content"][0]
+    assert rejected_observation["is_error"] is True
+    rejected_payload = json.loads(rejected_observation["content"])
+    assert rejected_payload["error"] == "client_tool_input_rejected"
+    assert "non-existent object 'missing'" in rejected_payload["detail"]

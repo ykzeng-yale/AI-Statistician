@@ -185,6 +185,7 @@ def test_anthropic_generator_backend_transports_client_tool_turn(
         max_tokens=256,
         tool_choice="inspect_artifact",
         disable_parallel_tool_use=True,
+        enable_prompt_caching=True,
         metadata={"model_tier": "haiku"},
     )
 
@@ -209,6 +210,7 @@ def test_anthropic_generator_backend_transports_client_tool_turn(
         "disable_parallel_tool_use": True,
     }
     assert "output_config" not in kwargs
+    assert kwargs["cache_control"] == {"type": "ephemeral"}
     assert response.text == "I will inspect it."
     assert response.tool_calls[0].call_id == "toolu_123"
     assert response.tool_calls[0].name == "inspect_artifact"
@@ -219,6 +221,8 @@ def test_anthropic_generator_backend_transports_client_tool_turn(
     assert response.metadata["generator_only"] is True
     assert response.metadata["tools_executed_by_backend"] is False
     assert response.metadata["disable_parallel_tool_use"] is True
+    assert response.metadata["prompt_caching_requested"] is True
+    assert response.metadata["prompt_caching_applied"] is True
     assert response.metadata["provider_stop_reason"] == "tool_use"
 
 

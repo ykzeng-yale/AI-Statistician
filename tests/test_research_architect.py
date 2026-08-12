@@ -1203,10 +1203,17 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
             ),
             _theory_tool_response(
                 ClientToolCall(
-                    call_id="submit-lemmas",
-                    name="submit_theory_artifacts",
+                    call_id="edit-lemmas",
+                    name="edit_theory_workspace",
                     input={
-                        "lemma_cards": revised_core["lemma_cards"],
+                        "operations": [
+                            {
+                                "op": "add",
+                                "artifact_name": "lemma_cards",
+                                "path": "/-",
+                                "value": revised_core["lemma_cards"][-1],
+                            }
+                        ]
                     },
                 )
             ),
@@ -1242,11 +1249,12 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     )
     assert {tool.name for tool in first_tool_request.tools} == {
         "read_theory_workspace",
-        "submit_theory_artifacts",
+        "edit_theory_workspace",
     }
     first_prompt = str(first_tool_request.messages[0]["content"])
     assert json.dumps(revision_inputs["base_core_payload"]) not in first_prompt
     assert "Authoritative theory workspace catalog" in first_prompt
+    assert "First read reviewer_observations by itself" in first_prompt
     assert revised_core["lemma_cards"][0]["id"] in str(
         provider.tool_requests[1].messages
     )
@@ -1259,7 +1267,8 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     )
     assert transport["revision_mode"] == "model_owned_artifact_workspace"
     assert transport["changed_artifact_names"] == ["lemma_cards"]
-    assert transport["model_owned_artifact_replacements"] is True
+    assert transport["model_owned_artifact_edits"] is True
+    assert transport["write_transport"] == "rfc6902_json_patch"
     assert transport["runtime_edited_theory"] is False
     assert "revision_obligations" not in transport
     assert packet["estimator_interface_authoring"]["model_call_used"] is False
@@ -1382,7 +1391,9 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> N
     assert prompt_payload["reviewer_observations"]["workspace_artifact"] == (
         "reviewer_observations"
     )
-    assert "complete replacements" in " ".join(prompt_payload["instructions"])
+    assert "atomic edit_theory_workspace" in " ".join(
+        prompt_payload["instructions"]
+    )
 
     tampered_context = json.loads(json.dumps(context))
     tampered_context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY][
@@ -1403,24 +1414,22 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged() -> 
         description="Keep an unchanged model-authored estimator ABI stable.",
     )
     context = _metric_theory_revision_context(question=question, parent=parent)
-    revision_inputs = build_theory_developer_revision_inputs(
-        context,
-        question=question,
-    )
-    revised_problem = json.loads(
-        json.dumps(revision_inputs["base_core_payload"]["problem_card"])
-    )
-    revised_problem["assumptions"] = [
-        *revised_problem["assumptions"],
-        "bounded outcomes",
-    ]
     provider = ScriptedTheoryToolBackend(
         tool_responses=[
             _theory_tool_response(
                 ClientToolCall(
-                    call_id="submit-revised-problem-card-for-abi-reuse",
-                    name="submit_theory_artifacts",
-                    input={"problem_card": revised_problem},
+                    call_id="edit-revised-problem-card-for-abi-reuse",
+                    name="edit_theory_workspace",
+                    input={
+                        "operations": [
+                            {
+                                "op": "add",
+                                "artifact_name": "problem_card",
+                                "path": "/assumptions/-",
+                                "value": "bounded outcomes",
+                            }
+                        ]
+                    },
                 )
             )
         ],
@@ -1489,6 +1498,17 @@ def test_theory_revision_inputs_do_not_fill_optional_model_content() -> None:
     assert "rejected_alternatives" not in derivation
 
 
+def test_theory_core_validator_enforces_declared_nested_item_shapes() -> None:
+    packet = _serious_sample_response()
+    packet["simulation_ademp_spec"]["dgps"][0] = {
+        "description": "shape drift that must be returned to the model"
+    }
+
+    errors = validate_theory_core_packet(packet)
+
+    assert "simulation_ademp_spec.dgps[0] must be a string" in errors
+
+
 def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
     parent = _serious_sample_response()
     question = OpenResearchQuestion(
@@ -1530,11 +1550,23 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
         tool_responses=[
             _theory_tool_response(
                 ClientToolCall(
-                    call_id="submit-revised-problem-card",
-                    name="submit_theory_artifacts",
+                    call_id="edit-revised-problem-card",
+                    name="edit_theory_workspace",
                     input={
-                        "problem_card": revised_core["problem_card"],
-                        "estimator_specs": revised_core["estimator_specs"],
+                        "operations": [
+                            {
+                                "op": "add",
+                                "artifact_name": "problem_card",
+                                "path": "/assumptions/-",
+                                "value": "bounded outcomes",
+                            },
+                            {
+                                "op": "add",
+                                "artifact_name": "estimator_specs",
+                                "path": "/0/required_assumptions/-",
+                                "value": "bounded outcomes",
+                            },
+                        ]
                     },
                 )
             )

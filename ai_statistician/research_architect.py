@@ -41,7 +41,10 @@ from .theory_revision_lineage import (
     build_theory_developer_revision_binding,
     theory_developer_revision_binding_errors,
 )
-from .theory_workspace import run_theory_artifact_workspace
+from .theory_workspace import (
+    THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
+    run_theory_artifact_workspace,
+)
 
 
 ARCHITECT_SCHEMA_VERSION = 1
@@ -1719,12 +1722,56 @@ def validate_theory_core_packet(packet: Mapping[str, Any]) -> list[str]:
     )
 
 
+def _output_contract_shape_errors(
+    value: Any,
+    contract: Any,
+    *,
+    path: str,
+) -> list[str]:
+    """Validate present values against the declared transport shape."""
+
+    if isinstance(contract, Mapping):
+        if not isinstance(value, Mapping):
+            return [f"{path} must be an object"]
+        return [
+            error
+            for key, child_contract in contract.items()
+            if key in value
+            for error in _output_contract_shape_errors(
+                value[key],
+                child_contract,
+                path=f"{path}.{key}" if path else str(key),
+            )
+        ]
+    if isinstance(contract, list):
+        if not isinstance(value, list):
+            return [f"{path} must be a list"]
+        if not contract:
+            return []
+        return [
+            error
+            for index, child in enumerate(value)
+            for error in _output_contract_shape_errors(
+                child,
+                contract[0],
+                path=f"{path}[{index}]",
+            )
+        ]
+    if not isinstance(value, str):
+        return [f"{path} must be a string"]
+    return []
+
+
 def _validate_theory_packet(
     packet: Mapping[str, Any],
     *,
     require_estimator_interfaces: bool,
 ) -> list[str]:
-    errors: list[str] = []
+    errors: list[str] = _output_contract_shape_errors(
+        packet,
+        THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
+        path="",
+    )
     for field in (
         "problem_card",
         "theory_derivation_packet",
@@ -2381,16 +2428,20 @@ def _theory_workspace_revision_prompt(
         "workspace_artifacts": list(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT),
         "instructions": [
             (
-                "Use read_theory_workspace to inspect the exact parent artifacts "
-                "needed for your mathematical decision."
+                "First read reviewer_observations by itself. Do not request every "
+                "workspace artifact in one read. After identifying the actual failed "
+                "claim or execution behavior, read only the parent artifacts needed "
+                "for that mathematical decision."
             ),
             (
                 "Use your own statistical judgment. Reviewer observations identify "
                 "possible defects and are not an answer key or repair recipe."
             ),
             (
-                "Submit complete replacements for every artifact whose semantics you "
-                "choose to change. Omitted artifacts remain byte-identical."
+                "Use atomic edit_theory_workspace operations for the exact values "
+                "whose semantics you choose to change. Unedited values remain "
+                "byte-identical; replace an artifact root only for a genuinely broad "
+                "rewrite."
             ),
             (
                 "Propagate each chosen revision through all dependent equations, "
@@ -2483,7 +2534,8 @@ def _attach_theory_workspace_revision_transport(
         "changed_artifact_names": sorted(
             {str(name) for name in changed_artifact_names if str(name)}
         ),
-        "model_owned_artifact_replacements": True,
+        "write_transport": THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
+        "model_owned_artifact_edits": True,
         "runtime_edited_theory": False,
         "semantic_revision_owner": "TheoryDeveloper",
         "validation_owner": "AgentRuntime",
@@ -2519,6 +2571,8 @@ def _theory_revision_transport_lineage_errors(
         "parent_core_payload_fingerprint": revision_inputs.get(
             "base_core_payload_fingerprint", ""
         ),
+        "write_transport": THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
+        "model_owned_artifact_edits": True,
         "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
         "kernel_verified": False,
     }
@@ -2534,6 +2588,7 @@ def _validate_theory_workspace_revision_packet(
     *,
     revision_inputs: Mapping[str, Any],
     workspace_id: str,
+    require_workspace_edit_evidence: bool = False,
 ) -> list[str]:
     errors = validate_theory_core_packet(packet)
     transport = packet.get("theory_revision_transport", {})
@@ -2552,8 +2607,30 @@ def _validate_theory_workspace_revision_packet(
         errors.append("theory workspace revision must change at least one artifact")
     elif set(changed) - set(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT):
         errors.append("theory workspace revision names an unknown artifact")
-    if transport.get("model_owned_artifact_replacements") is not True:
+    if transport.get("model_owned_artifact_edits") is not True:
         errors.append("theory workspace revision is not model-owned")
+    if require_workspace_edit_evidence:
+        operation_count = transport.get("model_edit_operation_count", 0)
+        if not isinstance(operation_count, int) or operation_count < 1:
+            errors.append("theory workspace revision has no model-authored edits")
+        workspace_evidence = packet.get("llm_client_tool_loop", {})
+        if not isinstance(workspace_evidence, Mapping):
+            errors.append("theory workspace revision has no workspace evidence")
+        else:
+            operations = workspace_evidence.get("model_edit_operations", [])
+            if not isinstance(operations, list):
+                errors.append("theory workspace edit evidence is not an array")
+                operations = []
+            if operation_count != len(operations):
+                errors.append("theory workspace edit operation count mismatch")
+            if transport.get("model_edit_operations_hash") != stable_hash(
+                operations
+            ):
+                errors.append("theory workspace edit operation hash mismatch")
+            if workspace_evidence.get("write_transport") != (
+                THEORY_WORKSPACE_JSON_PATCH_TRANSPORT
+            ):
+                errors.append("theory workspace write transport evidence mismatch")
     if transport.get("runtime_edited_theory") is not False:
         errors.append("runtime cannot edit theory workspace semantics")
     revised_core = {
@@ -2803,6 +2880,7 @@ def _generate_theory_workspace_revision(
         read_only_artifacts=_theory_workspace_read_only_observations(
             revision_inputs
         ),
+        write_transport=THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
         build_candidate=build_candidate,
         validate_candidate=lambda packet: (
             _validate_theory_workspace_revision_packet(
@@ -2842,11 +2920,18 @@ def _generate_theory_workspace_revision(
         workspace_evidence.get("artifact_id", "") or ""
     )
     transport["workspace_evidence_hash"] = stable_hash(workspace_evidence)
+    transport["model_edit_operation_count"] = int(
+        workspace_evidence.get("n_model_edit_operations", 0) or 0
+    )
+    transport["model_edit_operations_hash"] = stable_hash(
+        workspace_evidence.get("model_edit_operations", [])
+    )
     packet["theory_revision_transport"] = transport
     errors = _validate_theory_workspace_revision_packet(
         packet,
         revision_inputs=revision_inputs,
         workspace_id=workspace_id,
+        require_workspace_edit_evidence=True,
     )
     if errors:
         raise PacketValidationError(

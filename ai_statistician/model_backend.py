@@ -660,6 +660,7 @@ class ClientToolTurnRequest:
     temperature: float = 0.0
     tool_choice: str = "any"
     disable_parallel_tool_use: bool = False
+    enable_prompt_caching: bool = False
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
@@ -722,7 +723,9 @@ class StaticJSONGeneratorBackend:
         )
 
 
-_ANTHROPIC_NEGOTIABLE_OPTIONAL_PARAMETERS = frozenset({"temperature"})
+_ANTHROPIC_NEGOTIABLE_OPTIONAL_PARAMETERS = frozenset(
+    {"cache_control", "temperature"}
+)
 _ANTHROPIC_JSON_ONLY_PROMPT_SUFFIX = (
     "Return exactly one valid JSON object. Do not wrap it in Markdown. "
     "Do not include commentary outside JSON."
@@ -1157,6 +1160,8 @@ class AnthropicGeneratorBackend:
             "tools": serialized_tools,
             "tool_choice": tool_choice,
         }
+        if request.enable_prompt_caching:
+            request_kwargs["cache_control"] = {"type": "ephemeral"}
         with self._capability_lock:
             cached_unsupported_parameters = set(
                 self._unsupported_optional_parameters_by_model.get(
@@ -1226,6 +1231,14 @@ class AnthropicGeneratorBackend:
                 "n_client_tool_calls": len(tool_calls),
                 "disable_parallel_tool_use": bool(
                     request.disable_parallel_tool_use
+                ),
+                "prompt_caching_requested": bool(
+                    request.enable_prompt_caching
+                ),
+                "prompt_caching_applied": bool(
+                    request.enable_prompt_caching
+                    and "cache_control"
+                    not in omitted_unsupported_parameters
                 ),
                 "timeout_seconds": timeout_s,
                 "retry_count": retry_count,

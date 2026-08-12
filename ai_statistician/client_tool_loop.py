@@ -502,6 +502,8 @@ def _compact_tool_response_metadata(
         "n_client_tool_calls",
         "provider_stop_reason",
         "provider_usage",
+        "prompt_caching_requested",
+        "prompt_caching_applied",
         "retry_count",
         "provider_capability_fallback_count",
         "requested_model",

@@ -40,10 +40,10 @@ Every source-owning workspace uses the same loop:
 
 ```text
 model inspects objective and artifacts
-  -> model chooses a tool or writes complete source
-  -> isolated environment executes the exact source
+  -> model chooses a tool, writes complete source, or authors an exact edit
+  -> isolated environment applies or executes the exact artifact
   -> raw observation returns to the same model
-  -> model revises the complete source
+  -> model revises the source or artifact
   -> pass, explicit gap, or lineage budget exhaustion
 ```
 
@@ -98,9 +98,11 @@ The harness must not own:
 `structured_output_retry.py` is transport, not a semantic repair system. Its
 canonical use is limited to compact control and handoff envelopes. Substantive
 theory, Python, R, and Lean artifacts belong in model-owned workspaces where the
-same model receives raw validator or environment observations and submits complete
-artifact replacements. Runtime never fills in substantive fields. Initial theory
-discovery and targeted revision use that workspace today. The bounded estimator-
+same model receives raw validator or environment observations and authors the next
+artifact state. Runtime may apply a standard model-authored edit operation, but it
+never chooses the edit or fills substantive fields. Initial theory discovery uses
+complete artifact submissions; targeted revision uses atomic RFC 6902 edits so a
+small change does not require regenerating a large packet. The bounded estimator-
 interface handoff still uses structured output; it remains acceptable only while
 it is small, visible, and not losing source-owner feedback.
 
@@ -127,7 +129,10 @@ Critic, rather than schema cardinality, judge mathematical sufficiency.
 Initial discovery and targeted revision now share this model-owned workspace
 pattern. Initial discovery reads one content-addressed question/Architect/RAG/
 contract context and may author coherent artifact groups across bounded
-submissions; revision reads the exact parent and reviewer artifacts on demand.
+submissions; revision reads the exact parent and reviewer artifacts on demand and
+applies only model-authored standard JSON edits. The edit tool is an artifact
+editor, not a repair agent: it has no statistical rules, suggested values, or
+content-routing authority.
 Each structurally valid partial write is retained even when the combined workspace
 still fails validation. The tool reports that write as accepted, returns the raw
 validation errors, and lets the same model submit only the remaining or revised

@@ -28,16 +28,17 @@ Goal and plan
   -> Final critic and kernel gate
 ```
 
-Python, R, and Lean use the same source-agent pattern:
+Theory, Python, R, and Lean use the same source-agent pattern:
 
 ```text
-model chooses a tool or writes complete source
-  -> isolated environment executes the exact artifact
+model chooses a tool, writes complete source, or authors an exact structured edit
+  -> isolated environment applies or executes the exact artifact
   -> raw observation returns to the same model
-  -> model writes the next complete source
+  -> model authors the next source or edit
 ```
 
-The runtime owns execution, artifact hashes, target identity, budgets,
+The runtime owns generic edit/application semantics, execution, artifact hashes,
+target identity, budgets,
 permissions, checkpoints, independent-review separation, and evidence labels.
 It does not author source patches, statistical answers, Lean grammar fixes, or
 tactic recipes. There is no hidden repair agent or post-runtime scheduler.

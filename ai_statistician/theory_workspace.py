@@ -5,6 +5,8 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Sequence
 
+import jsonpatch
+
 from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
@@ -17,6 +19,10 @@ from .structured_output_retry import PacketValidationError
 
 
 THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
+THEORY_WORKSPACE_COMPLETE_REPLACEMENT_TRANSPORT = (
+    "complete_artifact_replacement"
+)
+THEORY_WORKSPACE_JSON_PATCH_TRANSPORT = "rfc6902_json_patch"
 TheoryWorkspaceCandidateBuilder = Callable[
     [Mapping[str, Any], tuple[str, ...]],
     Mapping[str, Any],
@@ -49,6 +55,7 @@ def run_theory_artifact_workspace(
     workspace_operation: str,
     initial_artifacts: Mapping[str, Any],
     read_only_artifacts: Mapping[str, Any] | None = None,
+    write_transport: str = THEORY_WORKSPACE_COMPLETE_REPLACEMENT_TRANSPORT,
     build_candidate: TheoryWorkspaceCandidateBuilder,
     validate_candidate: TheoryWorkspaceCandidateValidator,
     request_metadata: Mapping[str, Any] | None = None,
@@ -76,6 +83,11 @@ def run_theory_artifact_workspace(
     ):
         if value < 1:
             raise ValueError(f"theory workspace {label} budget must be positive")
+    if write_transport not in {
+        THEORY_WORKSPACE_COMPLETE_REPLACEMENT_TRANSPORT,
+        THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
+    }:
+        raise ValueError("unsupported theory workspace write transport")
 
     parent = {
         str(name): deepcopy(value)
@@ -107,10 +119,12 @@ def run_theory_artifact_workspace(
         "submissions": 0,
         "last_validation_errors": [],
         "last_candidate": {},
+        "model_edit_operations": [],
     }
     tools = _theory_workspace_tools(
         artifact_names,
         parent_shapes,
+        write_transport=write_transport,
     )
 
     def changed_artifact_names(artifacts: Mapping[str, Any]) -> tuple[str, ...]:
@@ -124,6 +138,107 @@ def run_theory_artifact_workspace(
         if name in read_only:
             return read_only[name]
         return state["artifacts"][name]
+
+    def evaluate_model_write(
+        candidate_artifacts: Mapping[str, Any],
+        *,
+        edit_operations: Sequence[Mapping[str, Any]] = (),
+    ) -> ClientToolExecutionResult:
+        state["submissions"] += 1
+        state_changed = stable_hash(candidate_artifacts) != stable_hash(
+            state["artifacts"]
+        )
+        state["artifacts"] = deepcopy(dict(candidate_artifacts))
+        if state_changed and edit_operations:
+            state["model_edit_operations"].extend(
+                [
+                    {
+                        "submission_index": state["submissions"] - 1,
+                        **deepcopy(dict(row)),
+                    }
+                    for row in edit_operations
+                ]
+            )
+        changed = changed_artifact_names(candidate_artifacts)
+        if not changed:
+            errors = [
+                "the submitted theory workspace is unchanged from its parent"
+            ]
+            candidate: dict[str, Any] = {}
+        else:
+            raw_candidate = build_candidate(candidate_artifacts, changed)
+            if not isinstance(raw_candidate, Mapping):
+                raise ClientToolInputError(
+                    "theory workspace candidate builder returned a non-object"
+                )
+            candidate = deepcopy(dict(raw_candidate))
+            errors = [
+                str(error)
+                for error in validate_candidate(candidate)
+                if str(error).strip()
+            ]
+        state["last_candidate"] = candidate
+        state["last_validation_errors"] = errors
+        candidate_hash = stable_hash(candidate) if candidate else ""
+        remaining_submissions = max_submissions - state["submissions"]
+        common_content = {
+            "ok": True,
+            "state_changed": state_changed,
+            "candidate_hash": candidate_hash,
+            "changed_artifact_names": list(changed),
+            "submissions": state["submissions"],
+            "remaining_submissions": remaining_submissions,
+            "write_transport": write_transport,
+            "model_edit_operations_applied": len(edit_operations),
+            "runtime_edited_theory": False,
+        }
+        if errors:
+            content = {
+                **common_content,
+                "write_accepted": True,
+                "workspace_valid": False,
+                "validation_errors": errors,
+                "omitted_artifacts_retained": True,
+                "proof_evidence_status": (
+                    "THEORY_WORKSPACE_VALIDATION_NOT_PROOF_EVIDENCE"
+                ),
+            }
+            return ClientToolExecutionResult(
+                content=content,
+                state_changed=state_changed,
+                terminal=remaining_submissions == 0,
+                terminal_payload=(
+                    {
+                        "core_packet": candidate,
+                        "core_packet_hash": candidate_hash,
+                        "workspace_hash": stable_hash(candidate_artifacts),
+                        "changed_artifact_names": list(changed),
+                        "workspace_valid": False,
+                        "validation_errors": list(errors),
+                    }
+                    if remaining_submissions == 0
+                    else None
+                ),
+                observation_key="theory-workspace-validation:"
+                + stable_hash([candidate_hash, errors]),
+            )
+        return ClientToolExecutionResult(
+            content={
+                **common_content,
+                "proof_evidence_status": (
+                    "THEORY_WORKSPACE_SUBMISSION_NOT_PROOF_EVIDENCE"
+                ),
+            },
+            state_changed=state_changed,
+            terminal=True,
+            terminal_payload={
+                "core_packet": candidate,
+                "core_packet_hash": candidate_hash,
+                "workspace_hash": stable_hash(candidate_artifacts),
+                "changed_artifact_names": list(changed),
+            },
+            observation_key="theory-workspace-accepted:" + candidate_hash,
+        )
 
     def execute_tool(call, context):
         del context
@@ -201,91 +316,23 @@ def run_theory_artifact_workspace(
                         f"theory artifact {name} must remain {parent_shapes[name]}"
                     )
                 candidate_artifacts[name] = artifact
+            return evaluate_model_write(candidate_artifacts)
 
-            state["submissions"] += 1
-            state_changed = stable_hash(candidate_artifacts) != stable_hash(
-                state["artifacts"]
-            )
-            state["artifacts"] = candidate_artifacts
-            changed = changed_artifact_names(candidate_artifacts)
-            if not changed:
-                errors = [
-                    "the submitted theory workspace is unchanged from its parent"
-                ]
-                candidate: dict[str, Any] = {}
-            else:
-                raw_candidate = build_candidate(candidate_artifacts, changed)
-                if not isinstance(raw_candidate, Mapping):
-                    raise ClientToolInputError(
-                        "theory workspace candidate builder returned a non-object"
-                    )
-                candidate = deepcopy(dict(raw_candidate))
-                errors = [
-                    str(error)
-                    for error in validate_candidate(candidate)
-                    if str(error).strip()
-                ]
-            state["last_candidate"] = candidate
-            state["last_validation_errors"] = errors
-            candidate_hash = stable_hash(candidate) if candidate else ""
-            if errors:
-                remaining_submissions = max_submissions - state["submissions"]
-                content = {
-                    "ok": True,
-                    "write_accepted": True,
-                    "state_changed": state_changed,
-                    "workspace_valid": False,
-                    "validation_errors": errors,
-                    "candidate_hash": candidate_hash,
-                    "changed_artifact_names": list(changed),
-                    "omitted_artifacts_retained": True,
-                    "submissions": state["submissions"],
-                    "remaining_submissions": remaining_submissions,
-                    "runtime_edited_theory": False,
-                    "proof_evidence_status": (
-                        "THEORY_WORKSPACE_VALIDATION_NOT_PROOF_EVIDENCE"
-                    ),
-                }
-                return ClientToolExecutionResult(
-                    content=content,
-                    state_changed=state_changed,
-                    terminal=remaining_submissions == 0,
-                    terminal_payload=(
-                        {
-                            "core_packet": candidate,
-                            "core_packet_hash": candidate_hash,
-                            "workspace_hash": stable_hash(candidate_artifacts),
-                            "changed_artifact_names": list(changed),
-                            "workspace_valid": False,
-                            "validation_errors": list(errors),
-                        }
-                        if remaining_submissions == 0
-                        else None
-                    ),
-                    observation_key="theory-workspace-validation:"
-                    + stable_hash([candidate_hash, errors]),
+        if call.name == "edit_theory_workspace":
+            if state["submissions"] >= max_submissions:
+                raise ClientToolInputError(
+                    "theory workspace submission budget is exhausted"
                 )
-            return ClientToolExecutionResult(
-                content={
-                    "ok": True,
-                    "candidate_hash": candidate_hash,
-                    "changed_artifact_names": list(changed),
-                    "submissions": state["submissions"],
-                    "remaining_submissions": max_submissions - state["submissions"],
-                    "runtime_edited_theory": False,
-                    "proof_evidence_status": (
-                        "THEORY_WORKSPACE_SUBMISSION_NOT_PROOF_EVIDENCE"
-                    ),
-                },
-                state_changed=state_changed,
-                terminal=True,
-                terminal_payload={
-                    "core_packet": candidate,
-                    "core_packet_hash": candidate_hash,
-                    "workspace_hash": stable_hash(candidate_artifacts),
-                    "changed_artifact_names": list(changed),
-                },
-                observation_key="theory-workspace-accepted:" + candidate_hash,
+            candidate_artifacts, operation_records = (
+                _apply_theory_workspace_json_patch(
+                    state["artifacts"],
+                    tool_input.get("operations"),
+                    writable_artifact_shapes=parent_shapes,
+                )
+            )
+            return evaluate_model_write(
+                candidate_artifacts,
+                edit_operations=operation_records,
             )
 
         raise ClientToolInputError("unsupported theory workspace tool")
@@ -301,6 +348,21 @@ def run_theory_artifact_workspace(
         }
         for name in artifact_names
     }
+    if write_transport == THEORY_WORKSPACE_JSON_PATCH_TRANSPORT:
+        write_guidance = (
+            "Use edit_theory_workspace to apply model-authored RFC 6902 add, "
+            "remove, or replace operations to writable artifacts. Each path is "
+            "an RFC 6901 JSON Pointer inside the named artifact; path '' addresses "
+            "the artifact root and '/-' appends to an array. Put every mutually "
+            "dependent edit you already know into one atomic operations array. "
+            "The runtime applies those exact operations without inventing content. "
+        )
+    else:
+        write_guidance = (
+            "Submit complete replacements only for artifacts you choose to change; "
+            "read-only observations cannot be replaced and all omitted writable "
+            "artifacts retain their exact current bytes. "
+        )
     request = ClientToolTurnRequest(
         system_prompt=system_prompt,
         messages=(
@@ -311,14 +373,12 @@ def run_theory_artifact_workspace(
                     + "\n\nAuthoritative theory workspace catalog:\n"
                     + _compact_json(catalog)
                     + "\n\nRead the artifacts needed for mathematical judgment. "
-                    "Submit complete replacements only for artifacts you choose to "
-                    "change; read-only observations cannot be replaced and all omitted "
-                    "writable artifacts retain their exact current bytes. Each "
-                    "structurally valid replacement write is retained even when the "
+                    + write_guidance
+                    + "Each structurally valid model write is retained even when the "
                     "combined workspace still fails validation, so a validator "
                     "observation is not a rollback and later calls should contain only "
                     "artifacts that still need to be added or revised. "
-                    "The runtime stores your replacements unchanged and returns "
+                    "The runtime returns "
                     "validator observations to this same model context."
                 ),
             },
@@ -329,6 +389,7 @@ def run_theory_artifact_workspace(
         temperature=temperature,
         tool_choice="any",
         disable_parallel_tool_use=True,
+        enable_prompt_caching=True,
         metadata={
             **dict(request_metadata or {}),
             "model_tier": model_tier,
@@ -336,23 +397,10 @@ def run_theory_artifact_workspace(
             "question_id": question_id,
             "authoring_binding_id": authoring_binding_id,
             "workspace_operation": workspace_operation,
+            "write_transport": write_transport,
             "parent_workspace_hash": parent_hash,
         },
     )
-
-    def select_tools(_turn_index, available_tools):
-        enabled = {
-            "read_theory_workspace": state["reads"] < max_reads,
-            "submit_theory_artifacts": (
-                state["submissions"] < max_submissions
-            ),
-        }
-        selected = tuple(tool for tool in available_tools if enabled[tool.name])
-        return selected or tuple(
-            tool
-            for tool in available_tools
-            if tool.name == "submit_theory_artifacts"
-        )
 
     def recovery_checkpoint() -> dict[str, Any]:
         current_artifacts = deepcopy(dict(state["artifacts"]))
@@ -363,6 +411,7 @@ def run_theory_artifact_workspace(
             "question_id": question_id,
             "authoring_binding_id": authoring_binding_id,
             "workspace_operation": workspace_operation,
+            "write_transport": write_transport,
             "parent_workspace_hash": parent_hash,
             "current_workspace_hash": stable_hash(current_artifacts),
             "current_artifacts": current_artifacts,
@@ -371,6 +420,9 @@ def run_theory_artifact_workspace(
             ),
             "reads": state["reads"],
             "submissions": state["submissions"],
+            "model_edit_operations": deepcopy(
+                state["model_edit_operations"]
+            ),
             "last_validation_errors": list(state["last_validation_errors"]),
             "model_owned_theory": True,
             "runtime_edited_theory": False,
@@ -388,7 +440,6 @@ def run_theory_artifact_workspace(
             max_turns=max_turns,
             max_tool_calls=max(max_turns, max_reads + max_submissions),
             max_no_progress_turns=max_no_progress_turns,
-            select_tools=select_tools,
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(
@@ -467,6 +518,7 @@ def run_theory_artifact_workspace(
         "authoring_binding_id": authoring_binding_id,
         "workspace_operation": workspace_operation,
         "transport": "native_client_tools",
+        "write_transport": write_transport,
         "parent_workspace_hash": parent_hash,
         "submitted_workspace_hash": str(terminal.get("workspace_hash", "") or ""),
         "submitted_core_packet_hash": packet_hash,
@@ -478,6 +530,10 @@ def run_theory_artifact_workspace(
         ),
         "reads": state["reads"],
         "submissions": state["submissions"],
+        "n_model_edit_operations": len(state["model_edit_operations"]),
+        "model_edit_operations": deepcopy(
+            state["model_edit_operations"]
+        ),
         "turns": loop.turns,
         "tool_calls": loop.tool_calls,
         "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
@@ -499,33 +555,92 @@ def run_theory_artifact_workspace(
 def _theory_workspace_tools(
     artifact_names: Sequence[str],
     writable_artifact_shapes: Mapping[str, str],
+    *,
+    write_transport: str,
 ) -> tuple[ClientToolDefinition, ...]:
     name_schema = {"type": "string", "enum": list(artifact_names)}
     replacement_properties = {
         name: _artifact_shape_schema(shape)
         for name, shape in sorted(writable_artifact_shapes.items())
     }
-    return (
-        ClientToolDefinition(
-            name="read_theory_workspace",
-            description=(
-                "Read the exact current contents of one or more named theory "
-                "workspace artifacts before deciding what to revise."
-            ),
-            input_schema={
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["artifact_names"],
-                "properties": {
-                    "artifact_names": {
-                        "type": "array",
-                        "minItems": 1,
-                        "uniqueItems": True,
-                        "items": name_schema,
-                    }
-                },
-            },
+    read_tool = ClientToolDefinition(
+        name="read_theory_workspace",
+        description=(
+            "Read the exact current contents of one or more named theory "
+            "workspace artifacts before deciding what to revise."
         ),
+        input_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["artifact_names"],
+            "properties": {
+                "artifact_names": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": True,
+                    "items": name_schema,
+                }
+            },
+        },
+    )
+    if write_transport == THEORY_WORKSPACE_JSON_PATCH_TRANSPORT:
+        return (
+            read_tool,
+            ClientToolDefinition(
+                name="edit_theory_workspace",
+                description=(
+                    "Atomically apply model-authored RFC 6902 add, remove, or "
+                    "replace operations. artifact_name selects one writable JSON "
+                    "artifact and path is an RFC 6901 pointer inside it. Use an "
+                    "empty path to replace an artifact root or '/-' to append to an "
+                    "array. Every add or replace operation requires value; remove "
+                    "must omit value. The runtime applies these exact operations and "
+                    "does not infer edits."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["operations"],
+                    "properties": {
+                        "operations": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "required": ["op", "artifact_name", "path"],
+                                "properties": {
+                                    "op": {
+                                        "type": "string",
+                                        "enum": ["add", "remove", "replace"],
+                                    },
+                                    "artifact_name": {
+                                        "type": "string",
+                                        "enum": sorted(
+                                            writable_artifact_shapes
+                                        ),
+                                    },
+                                    "path": {"type": "string"},
+                                    "value": {
+                                        "type": [
+                                            "object",
+                                            "array",
+                                            "string",
+                                            "number",
+                                            "boolean",
+                                            "null",
+                                        ]
+                                    },
+                                },
+                            },
+                        }
+                    },
+                },
+                terminal=True,
+            ),
+        )
+    return (
+        read_tool,
         ClientToolDefinition(
             name="submit_theory_artifacts",
             description=(
@@ -546,6 +661,96 @@ def _theory_workspace_tools(
             terminal=True,
         ),
     )
+
+
+def _apply_theory_workspace_json_patch(
+    current_artifacts: Mapping[str, Any],
+    raw_operations: Any,
+    *,
+    writable_artifact_shapes: Mapping[str, str],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Apply model-authored RFC 6902 edits atomically to local candidates."""
+
+    if not isinstance(raw_operations, list) or not raw_operations:
+        raise ClientToolInputError(
+            "edit_theory_workspace requires a nonempty operations array"
+        )
+    if len(raw_operations) > 64:
+        raise ClientToolInputError(
+            "edit_theory_workspace accepts at most 64 operations per atomic write"
+        )
+    candidate = deepcopy(dict(current_artifacts))
+    records: list[dict[str, Any]] = []
+    for index, raw_operation in enumerate(raw_operations):
+        if not isinstance(raw_operation, Mapping):
+            raise ClientToolInputError(
+                f"theory edit operation {index} must be an object"
+            )
+        operation = dict(raw_operation)
+        unexpected = sorted(
+            set(operation) - {"op", "artifact_name", "path", "value"}
+        )
+        if unexpected:
+            raise ClientToolInputError(
+                f"theory edit operation {index} has unknown fields: "
+                + ", ".join(unexpected)
+            )
+        op = str(operation.get("op", "") or "").strip()
+        if op not in {"add", "remove", "replace"}:
+            raise ClientToolInputError(
+                f"theory edit operation {index} has unsupported op {op!r}"
+            )
+        artifact_name = str(
+            operation.get("artifact_name", "") or ""
+        ).strip()
+        if artifact_name not in writable_artifact_shapes:
+            raise ClientToolInputError(
+                f"theory edit operation {index} names unknown writable artifact "
+                f"{artifact_name!r}"
+            )
+        path = operation.get("path")
+        if not isinstance(path, str):
+            raise ClientToolInputError(
+                f"theory edit operation {index} path must be a string"
+            )
+        has_value = "value" in operation
+        if op in {"add", "replace"} and not has_value:
+            raise ClientToolInputError(
+                f"theory edit operation {index} {op} requires value"
+            )
+        if op == "remove" and has_value:
+            raise ClientToolInputError(
+                f"theory edit operation {index} remove must omit value"
+            )
+        patch_operation = {"op": op, "path": path}
+        if has_value:
+            patch_operation["value"] = deepcopy(operation["value"])
+        try:
+            candidate[artifact_name] = jsonpatch.apply_patch(
+                candidate[artifact_name],
+                [patch_operation],
+                in_place=False,
+            )
+        except (jsonpatch.JsonPatchException, TypeError, ValueError) as exc:
+            raise ClientToolInputError(
+                f"theory edit operation {index} was rejected: {exc}"
+            ) from exc
+        expected_shape = writable_artifact_shapes[artifact_name]
+        if _artifact_shape(candidate[artifact_name]) != expected_shape:
+            raise ClientToolInputError(
+                f"theory edit operation {index} changed {artifact_name} from "
+                f"{expected_shape} to {_artifact_shape(candidate[artifact_name])}"
+            )
+        record = {
+            "operation_index": index,
+            "op": op,
+            "artifact_name": artifact_name,
+            "path": path,
+        }
+        if has_value:
+            record["value_hash"] = stable_hash(operation["value"])
+        records.append(record)
+    return candidate, records
 
 
 def _artifact_shape_schema(shape: str) -> dict[str, Any]:
