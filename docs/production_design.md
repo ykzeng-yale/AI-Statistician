@@ -95,16 +95,13 @@ The harness must not own:
 - proof credit for retrieval hits, LLM judgments, pseudo-formal text, or compilation
   of a weaker theorem.
 
-`structured_output_retry.py` is transport, not a semantic repair system. Its
-canonical use is limited to compact control and handoff envelopes. Substantive
-theory, Python, R, and Lean artifacts belong in model-owned workspaces where the
-same model receives raw validator or environment observations and authors the next
-artifact state. Runtime may apply a standard model-authored edit operation, but it
-never chooses the edit or fills substantive fields. Initial theory discovery uses
-complete artifact submissions; targeted revision uses atomic RFC 6902 edits so a
-small change does not require regenerating a large packet. The bounded estimator-
-interface handoff still uses structured output; it remains acceptable only while
-it is small, visible, and not losing source-owner feedback.
+`structured_output_retry.py` is transport, not a semantic repair system. It is
+limited to compact control and handoff envelopes. Substantive theory, Python, R,
+and Lean artifacts belong in model-owned workspaces where the same model receives
+raw observations and authors the next artifact state. Runtime may apply a standard
+model-authored edit, but never chooses it or fills content. Initial discovery and
+revision use one atomic RFC 6902 editor. The bounded estimator-interface handoff
+remains acceptable only while small, visible, and preserving owner feedback.
 
 ## Theory workspace
 
@@ -126,13 +123,10 @@ formalization request; it does not prescribe how many rows constitute a rigorous
 argument. Supporting lemma, critic-finding, and next-action lists may remain empty
 when the model has no justified item. Independent theory preflight and the final
 Critic, rather than schema cardinality, judge mathematical sufficiency.
-Initial discovery and targeted revision now share this model-owned workspace
-pattern. Initial discovery reads one content-addressed question/Architect/RAG/
-contract context and may author coherent artifact groups across bounded
-submissions; revision reads the exact parent and reviewer artifacts on demand and
-applies only model-authored standard JSON edits. The edit tool is an artifact
-editor, not a repair agent: it has no statistical rules, suggested values, or
-content-routing authority.
+Initial discovery and revision share this model-owned workspace. Discovery reads
+one content-addressed question/Architect/RAG/contract context; revision reads exact
+parent and reviewer artifacts on demand. Both apply only model-authored standard
+JSON edits. The editor has no statistical rules, suggested values, or routing role.
 Each structurally valid partial write is retained even when the combined workspace
 still fails validation. The tool reports that write as accepted, returns the raw
 validation errors, and lets the same model submit only the remaining or revised

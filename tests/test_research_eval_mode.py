@@ -13,6 +13,7 @@ from ai_statistician.architect_coordinator_llm import (
     _required_architect_plan_subsystems,
 )
 from ai_statistician.cli import (
+    _apply_research_agent_runtime_capability_eval_preset,
     _apply_research_agent_runtime_evaluation_model_policy,
     _apply_research_agent_runtime_research_eval_profile,
     _lean_project_import_preflight_errors,
@@ -452,6 +453,23 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
                 "--capability-eval",
             ]
         )
+
+
+def test_full_live_safety_ceiling_does_not_preempt_bounded_revision_paths() -> None:
+    args = build_parser().parse_args(
+        [
+            "research-agent-runtime",
+            "--capability-eval",
+            "--capability-eval-preset",
+            "full-live",
+        ]
+    )
+
+    _apply_research_agent_runtime_capability_eval_preset(args)
+
+    assert args.max_iterations == 40
+    assert args.architect_metric_protocol_max_upstream_theory_revisions == 2
+    assert args.generated_code_semantic_review_max_revisions == 2
 
 
 def test_runtime_defaults_shared_lean_retrieval_to_canonical_main() -> None:

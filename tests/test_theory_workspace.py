@@ -90,15 +90,6 @@ def _run_workspace(backend, **overrides):
     return run_theory_artifact_workspace(**kwargs)
 
 
-def _run_patch_workspace(backend, **overrides):
-    return _run_workspace(
-        backend,
-        workspace_operation="targeted_revision",
-        write_transport=THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
-        **overrides,
-    )
-
-
 def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
     backend = ScriptedTheoryWorkspaceBackend(
         [
@@ -113,19 +104,33 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
             ),
             _response(
                 ClientToolCall(
-                    call_id="submit-incomplete",
-                    name="submit_theory_artifacts",
+                    call_id="edit-incomplete",
+                    name="edit_theory_workspace",
                     input={
-                        "problem_card": {"claim": "revised claim"},
+                        "operations": [
+                            {
+                                "op": "replace",
+                                "artifact_name": "problem_card",
+                                "path": "/claim",
+                                "value": "revised claim",
+                            }
+                        ]
                     },
                 )
             ),
             _response(
                 ClientToolCall(
-                    call_id="submit-complete",
-                    name="submit_theory_artifacts",
+                    call_id="edit-complete",
+                    name="edit_theory_workspace",
                     input={
-                        "lemma_cards": [{"id": "lemma-1"}],
+                        "operations": [
+                            {
+                                "op": "add",
+                                "artifact_name": "lemma_cards",
+                                "path": "/-",
+                                "value": {"id": "lemma-1"},
+                            }
+                        ]
                     },
                 )
             ),
@@ -165,24 +170,36 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
     assert incomplete_write_observation["workspace_valid"] is False
     assert incomplete_write_observation["omitted_artifacts_retained"] is True
     assert incomplete_write_block["is_error"] is False
-    submission_schema = next(
+    edit_schema = next(
         tool.input_schema
         for tool in backend.requests[0].tools
-        if tool.name == "submit_theory_artifacts"
+        if tool.name == "edit_theory_workspace"
     )
-    assert submission_schema["properties"]["problem_card"]["type"] == (
-        "object"
-    )
-    assert submission_schema["properties"]["lemma_cards"]["type"] == "array"
-    assert "replacements" not in submission_schema["properties"]
+    operation_schema = edit_schema["properties"]["operations"]["items"]
+    assert operation_schema["properties"]["artifact_name"]["enum"] == [
+        "lemma_cards",
+        "problem_card",
+    ]
+    assert operation_schema["properties"]["op"]["enum"] == [
+        "add",
+        "remove",
+        "replace",
+    ]
 
 
 def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     rejected_call = ClientToolCall(
-        call_id="submit-rejected",
-        name="submit_theory_artifacts",
+        call_id="edit-rejected",
+        name="edit_theory_workspace",
         input={
-            "problem_card": {"claim": "still invalid"},
+            "operations": [
+                {
+                    "op": "replace",
+                    "artifact_name": "problem_card",
+                    "path": "/claim",
+                    "value": "still invalid",
+                }
+            ]
         },
     )
     backend = ScriptedTheoryWorkspaceBackend([_response(rejected_call)])
@@ -250,7 +267,7 @@ def test_targeted_revision_uses_atomic_model_owned_json_edits() -> None:
         ]
     )
 
-    result = _run_patch_workspace(backend)
+    result = _run_workspace(backend)
 
     assert result.core_packet["artifacts"] == {
         "problem_card": {"claim": "revised claim"},
@@ -327,7 +344,7 @@ def test_targeted_revision_retains_valid_edits_across_raw_validator_feedback() -
         ]
     )
 
-    result = _run_patch_workspace(backend)
+    result = _run_workspace(backend)
 
     assert result.evidence["submissions"] == 2
     assert result.evidence["n_model_edit_operations"] == 2
@@ -392,7 +409,7 @@ def test_targeted_revision_rejects_noop_edit_then_returns_observation() -> None:
         ]
     )
 
-    result = _run_patch_workspace(backend)
+    result = _run_workspace(backend)
 
     assert result.evidence["submissions"] == 2
     assert result.evidence["n_model_edit_operations"] == 2
@@ -455,7 +472,7 @@ def test_targeted_revision_rejects_invalid_patch_atomically() -> None:
         ]
     )
 
-    result = _run_patch_workspace(backend)
+    result = _run_workspace(backend)
 
     assert result.core_packet["artifacts"]["problem_card"] == {
         "claim": "revised claim"

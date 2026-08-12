@@ -939,9 +939,19 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
             ),
             _theory_tool_response(
                 ClientToolCall(
-                    call_id="submit-initial-theory",
-                    name="submit_theory_artifacts",
-                    input=core_artifacts,
+                    call_id="edit-initial-theory",
+                    name="edit_theory_workspace",
+                    input={
+                        "operations": [
+                            {
+                                "op": "replace",
+                                "artifact_name": name,
+                                "path": "",
+                                "value": value,
+                            }
+                            for name, value in core_artifacts.items()
+                        ]
+                    },
                 )
             ),
         ],
@@ -977,13 +987,13 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     )
     assert {tool.name for tool in first_request.tools} == {
         "read_theory_workspace",
-        "submit_theory_artifacts",
+        "edit_theory_workspace",
     }
     initial_prompt = str(first_request.messages[0]["content"])
     assert core_response["problem_card"]["dgp"] not in initial_prompt
     assert "Authoritative theory workspace catalog" in initial_prompt
     assert "initial_authoring_context" in initial_prompt
-    assert "at most 3 submissions" in initial_prompt
+    assert "at most 3 writes" in initial_prompt
     assert question.description in str(provider.tool_requests[1].messages)
     assert "desired_theorem_type" in str(
         provider.tool_requests[1].messages
@@ -993,6 +1003,8 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     ]
     evidence = packet["llm_client_tool_loop"]
     assert evidence["workspace_operation"] == "initial_discovery"
+    assert evidence["write_transport"] == "rfc6902_json_patch"
+    assert evidence["n_model_edit_operations"] == len(core_artifacts)
     assert evidence["model_owned_theory"] is True
     assert evidence["runtime_edited_theory"] is False
     assert evidence["reads"] == 1

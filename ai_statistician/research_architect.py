@@ -2343,8 +2343,9 @@ def _initial_theory_workspace_read_only_artifacts(
                 "row_counts_are_not_quality_metrics": True,
                 "substantive_author": "TheoryDeveloper model",
                 "runtime_role": (
-                    "store exact replacements, validate structure and lineage, "
-                    "and return raw observations without editing research content"
+                    "apply exact model-authored edits, validate structure and "
+                    "lineage, and return raw observations without choosing "
+                    "research content"
                 ),
                 "proof_boundary": KERNEL_PROOF_BOUNDARY,
             },
@@ -2362,19 +2363,19 @@ def _initial_theory_workspace_prompt(
         "Author the initial TheoryDeveloper research workspace for the supplied "
         f"question {question.id!r} in mode {theory_prompt_mode!r}. First read the "
         "single initial_authoring_context artifact. Then use your own statistical "
-        "judgment to submit complete theory artifacts. You may submit a coherent "
-        "subset and use the raw validator observation to complete or revise the "
+        "judgment to edit the empty, shape-typed theory artifacts. You may edit a "
+        "coherent subset and use the raw validator observation to complete or revise the "
         "workspace in the same model session. A successful partial write remains in "
-        "the workspace even while the combined workspace is invalid, so submit only "
+        "the workspace even while the combined workspace is invalid, so edit only "
         "the still-empty or intentionally revised artifacts on the next call. You "
         f"have at most {max(1, int(max_submissions))} "
-        "submissions: group related artifacts, and use the final submission to fill "
+        "writes: group related artifacts, and use the final write to fill "
         "every still-empty required artifact. Derive definitions and claims rather "
         "than treating retrieval as an answer key. Keep assumptions, equations, "
         "estimators, theorem cards, simulation semantics, and formal targets mutually "
         "consistent. Record uncertainty explicitly. Do not claim execution, Lean "
-        "proof, or kernel verification. The runtime will not fill, patch, or rewrite "
-        "any substantive field."
+        "proof, or kernel verification. The runtime applies only your exact edits and "
+        "will not choose, fill, or rewrite any substantive field."
     )
 
 
@@ -2769,6 +2770,12 @@ def _generate_initial_theory_artifact_workspace(
         )
     if workspace_evidence.get("workspace_operation") != "initial_discovery":
         errors.append("initial theory workspace operation identity mismatch")
+    if workspace_evidence.get("write_transport") != (
+        THEORY_WORKSPACE_JSON_PATCH_TRANSPORT
+    ):
+        errors.append("initial theory workspace write transport mismatch")
+    if int(workspace_evidence.get("n_model_edit_operations", 0) or 0) < 1:
+        errors.append("initial theory workspace has no model-authored edits")
     if workspace_evidence.get("runtime_edited_theory") is not False:
         errors.append("runtime cannot edit initial theory workspace semantics")
     if errors:
@@ -2880,7 +2887,6 @@ def _generate_theory_workspace_revision(
         read_only_artifacts=_theory_workspace_read_only_observations(
             revision_inputs
         ),
-        write_transport=THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
         build_candidate=build_candidate,
         validate_candidate=lambda packet: (
             _validate_theory_workspace_revision_packet(
