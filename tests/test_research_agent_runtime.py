@@ -21,6 +21,9 @@ from ai_statistician.agent_runtime import (
 from ai_statistician.algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
 )
+from ai_statistician.architect_coordinator_llm import (
+    _architect_feedback_route_subsystems,
+)
 from ai_statistician.generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
     GeneratedCodeSemanticReviewerConfig,
@@ -1197,6 +1200,255 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
         observation.observation_type
         == "scientific_consumer_continuation_restored"
         for observation in result.observations
+    )
+
+
+def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_release(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="generic-confirmatory-blinding",
+        title="Blind one confirmatory outcome",
+        description="Keep a frozen metric result away from its source author.",
+    )
+    theory_packet_id = "theory:generic-confirmatory-blinding"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "problem_card": {"estimand": "a generic scalar"},
+        "estimator_specs": [],
+        "theorem_cards": [],
+    }
+    context = _full_evidence_context(question.id)
+    context["theory_packet_id"] = theory_packet_id
+    context["empirical_evaluation_phase"] = "confirmatory"
+    source_checks: list[dict[str, object]] = []
+
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("the fake source workspace owns model turns")
+
+    class SimulationAgent:
+        provider = Provider()
+        propose_calls = 0
+        source_calls = 0
+
+        @classmethod
+        def propose(cls, **_kwargs):
+            cls.propose_calls += 1
+            return {
+                "artifact_kind": "SimulationEngineerProposalPacket",
+                "packet_id": "simulation-proposal:confirmatory-blinding",
+                "source_agent": "LLMSimulationEngineerAgent",
+                "provider": "anthropic",
+                "provider_name": "anthropic",
+                "backend_provider": "anthropic",
+                "backend_provider_name": "anthropic",
+                "model": "claude-haiku-4-5-20251001",
+                "model_tier": "haiku",
+                "scientific_source_transport": "native_client_tools",
+                "simulation_targets": [
+                    {"procedure_id": "confirmatory-simulation"}
+                ],
+                "simulation_code_drafts": [
+                    {
+                        "simulation_id": "confirmatory-simulation",
+                        "required_estimator_ids": [],
+                    }
+                ],
+                "metric_contracts": [],
+            }
+
+        @classmethod
+        def iterate_code_with_tools(cls, **kwargs):
+            cls.source_calls += 1
+            candidate = {
+                "language": "python",
+                "execution_profile": "stdlib",
+                "dependencies": [],
+                "entrypoint": "run_sandbox",
+                "code": (
+                    "def run_sandbox(seed, replicates):\n"
+                    "    return {'generic_metric': 0.2}\n"
+                ),
+            }
+            check = dict(kwargs["check_candidate"](candidate))
+            source_checks.append(check)
+            return ScientificCodeWorkspaceResult(
+                code_draft=candidate,
+                check_result=check,
+                evidence={
+                    "workspace_operation": "initial_authoring",
+                    "model_owned_source": True,
+                    "runtime_edited_source": False,
+                    "accepted": check["accepted"],
+                },
+            )
+
+    def run_generated_simulation_sandbox(**kwargs):
+        source = str(kwargs["code_draft"]["code"])
+        metrics = {"generic_metric": 0.2}
+        source_path = tmp_path / "confirmatory.py"
+        result_path = tmp_path / "confirmatory.json"
+        source_path.write_text(source, encoding="utf-8")
+        result_path.write_text(json.dumps(metrics), encoding="utf-8")
+        return (
+            {
+                "simulation_id": str(kwargs["simulation_id"]),
+                "prototype_status": "FAILED_METRIC_GATE",
+                "executor": "generated_simulation_sandbox",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "required_estimator_ids": [],
+                "source_code": source,
+                "script_path": str(source_path),
+                "script_hash": runtime_module.stable_hash(source),
+                "result_path": str(result_path),
+                "result_hash": runtime_module.stable_hash(metrics),
+                "metrics": metrics,
+                "smoke_passed": False,
+                "execution_smoke_passed": True,
+                "execution_attempted": True,
+                "returncode": 0,
+                "stdout_summary": "generic_metric=0.2",
+                "metric_gate_errors": ["observed 0.2 is below frozen 0.9"],
+                "metric_contracts": [
+                    {
+                        "contract_id": "frozen-gate",
+                        "metric_semantics": "generic scalar accuracy",
+                    }
+                ],
+                "metric_contract_set_id": "metric-contracts:frozen",
+                "metric_requirement_set_id": "metric-requirements:frozen",
+                "metric_contract_evaluation": {
+                    "n_contracts": 1,
+                    "n_passed": 0,
+                    "n_failed": 1,
+                    "evaluations": [
+                        {
+                            "contract_id": "frozen-gate",
+                            "passed": False,
+                            "resolved_values_preview": [0.2],
+                            "aggregate_value": 0.2,
+                        }
+                    ],
+                },
+            },
+            ToolCallRecord(
+                tool_name="python.generated_simulation_sandbox",
+                exit_status="0",
+            ),
+        )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_simulation_metric_protocol_guard",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "runtime_llm_research_authority_required",
+        lambda *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_requires_generated_simulation_code",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_requires_typed_metric_contracts",
+        lambda *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_requires_generated_algorithm_code",
+        lambda *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_generated_simulation_sandbox",
+        run_generated_simulation_sandbox,
+    )
+    subsystem = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=SimulationAgent(),
+        sandbox_root=tmp_path / "simulation",
+        semantic_reviewer_available=True,
+        semantic_review_max_revisions=1,
+    )
+    task = AgentTask(
+        task_id="simulation:generic-confirmatory-blinding",
+        owner_subsystem="SimulationEvaluator",
+        objective="Execute one frozen confirmatory simulation.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "n_runs": 8,
+            "seed": 11,
+            "empirical_evaluation_phase": "confirmatory",
+            "architect_context": context,
+        },
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={theory_packet_id: theory_packet},
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert SimulationAgent.propose_calls == 1
+    assert SimulationAgent.source_calls == 1
+    assert source_checks[0]["accepted"] is True
+    source_observation = source_checks[0]["prototype"]
+    assert source_observation["empirical_outcomes_withheld"] is True
+    assert "0.2" not in str(source_observation)
+    assert "metric_gate_errors" not in source_observation
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == (
+        runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+    )
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    )
+    assert manifest["simulation_passed"] is False
+    assert manifest["generated_simulation_source_valid"] is True
+    assert manifest["confirmatory_outcomes_withheld_from_source"] is True
+    work_order = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewWorkOrder"
+    )
+    all_artifacts = {**blackboard.artifacts, **result.produced_artifacts}
+    deferred_task = restore_agent_task_continuation(
+        all_artifacts[work_order["deferred_next_task_continuation_id"]],
+        all_artifacts,
+    )
+    assert deferred_task.owner_subsystem == "ArchitectCoordinator"
+    feedback_ref = deferred_task.inputs["environment_feedback"]
+    assert feedback_ref["artifact_kind"] == "RuntimeArtifactRef"
+    feedback = resolve_runtime_artifact_references(
+        feedback_ref,
+        all_artifacts,
+    )
+    assert feedback["feedback_type"] == "confirmatory_simulation_outcome"
+    assert feedback["source_subsystem"] == "SimulationEvaluator"
+    assert feedback["unchanged_source_retry_authorized"] is False
+    assert feedback["empirical_outcomes"][0]["metric_gate_errors"]
+    assert "SimulationEvaluator" not in (
+        _architect_feedback_route_subsystems(
+            architect_context=deferred_task.inputs["architect_context"],
+            environment_feedback=feedback,
+        )
     )
 
 

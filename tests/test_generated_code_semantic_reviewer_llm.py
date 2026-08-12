@@ -902,3 +902,69 @@ def test_revision_task_returns_complete_observations_to_source_producer() -> Non
     assert "repair_plan" not in replan
     assert replan["routing_authority"] == "immutable_source_producer_lineage"
     assert replan["runtime_selected_owner"] is False
+
+
+def test_confirmatory_revision_returns_source_and_findings_without_result_values() -> None:
+    source_task = AgentTask(
+        task_id="simulation-task:blind",
+        owner_subsystem="SimulationEvaluator",
+        objective="Revise one semantically rejected source.",
+        inputs={"question": {"id": "semantic-review-test"}},
+    )
+    feedback = {
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "source_subsystem": "SimulationEvaluator",
+        "confirmatory_empirical_evidence_eligible": True,
+        "semantic_review_execution_id": "review-execution:blind",
+        "semantic_review_packet_id": "review:blind",
+        "semantic_review_packet_hash": "review-hash",
+        "findings": [
+            {
+                "finding_id": "finding:blind",
+                "summary": "The emitted field has the wrong statistical meaning.",
+                "observed_behavior": "The source emits a surrogate field.",
+                "expected_behavior": "Emit the frozen protocol's statistic.",
+                "evidence_refs": ["/reviewed_source_artifacts/0/exact_source_code"],
+            }
+        ],
+        "reviewed_source_artifacts": [
+            {
+                "artifact_id": "simulation:blind",
+                "exact_source_hash": "source-hash",
+                "exact_source_code": (
+                    "def run_sandbox(seed, replicates):\n"
+                    "    return {'metric': 0.2}\n"
+                ),
+                "exact_source_code_complete": True,
+                "exact_result": {"metric": 0.2},
+                "exact_result_hash": "result-hash",
+            }
+        ],
+    }
+
+    task = build_generated_code_semantic_review_producer_revision_task(
+        question=_question(),
+        review_task_id="review-task:blind",
+        work_order={
+            "work_order_id": "work-order:blind",
+            "source_task_id": source_task.task_id,
+            "source_subsystem": "SimulationEvaluator",
+            "source_manifest_id": "simulation-manifest:blind",
+            "theory_packet_hash": "theory-hash",
+        },
+        source_task=source_task,
+        review_feedback=feedback,
+        review_packet_id="review:blind",
+        review_execution_id="review-execution:blind",
+        revision_count=0,
+        max_revisions=1,
+    )
+
+    source_feedback = task.inputs["environment_feedback"]
+    reviewed = source_feedback["reviewed_source_artifacts"][0]
+    assert reviewed["exact_source_code"].endswith("return {'metric': 0.2}\n")
+    assert "exact_result" not in reviewed
+    assert "exact_result_hash" not in reviewed
+    assert reviewed["exact_result_schema"]["realized_values_withheld"] is True
+    assert source_feedback["confirmatory_result_values_withheld_from_source"] is True
+    assert "0.2" not in str(reviewed["exact_result_schema"])

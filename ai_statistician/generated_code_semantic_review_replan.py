@@ -5,6 +5,9 @@ from typing import Any, Mapping
 
 from .agent_runtime import AgentTask
 from .fingerprint import stable_hash
+from .generated_code_semantic_reviewer_llm import (
+    generated_code_semantic_review_prompt_projection,
+)
 from .research_schema import OpenResearchQuestion
 
 
@@ -159,6 +162,11 @@ def build_generated_code_semantic_review_producer_revision_task(
     """Return complete review feedback to the immutable source producer."""
 
     observations = deepcopy(dict(review_feedback))
+    if observations.get("confirmatory_empirical_evidence_eligible") is True:
+        observations = generated_code_semantic_review_prompt_projection(
+            observations
+        )
+        observations["confirmatory_result_values_withheld_from_source"] = True
     source_inputs = source_task.inputs
     source_subsystem = str(work_order.get("source_subsystem", "") or "")
     if not source_subsystem or source_task.owner_subsystem != source_subsystem:

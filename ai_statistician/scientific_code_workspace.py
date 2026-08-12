@@ -50,6 +50,8 @@ class ScientificCodeWorkspaceResult:
 
 def scientific_workspace_prototype_observation(
     prototype: Mapping[str, Any],
+    *,
+    include_empirical_outcomes: bool = True,
 ) -> dict[str, Any]:
     """Project one persisted sandbox result into bounded model feedback."""
 
@@ -98,10 +100,8 @@ def scientific_workspace_prototype_observation(
             }
         )
     direct_field_names = [
-        "prototype_status",
         "execution_attempted",
         "execution_smoke_passed",
-        "smoke_passed",
         "returncode",
         "runtime_errors",
         "safety_errors",
@@ -110,16 +110,23 @@ def scientific_workspace_prototype_observation(
         "estimator_runtime_errors",
         "result_parse_error",
         "stderr_summary",
-        "stdout_summary",
-        "metric_gate_errors",
         "required_estimator_ids",
         "available_upstream_estimator_ids",
         "estimator_invocation_counts",
         "mechanical_estimator_invocation_verified",
         "script_hash",
-        "result_hash",
         "execution_envelope_hash",
     ]
+    if include_empirical_outcomes:
+        direct_field_names.extend(
+            (
+                "prototype_status",
+                "smoke_passed",
+                "stdout_summary",
+                "metric_gate_errors",
+                "result_hash",
+            )
+        )
     if (
         prototype.get("mechanical_estimator_invocation_verified") is not True
         or prototype.get("estimator_binding_errors")
@@ -137,8 +144,19 @@ def scientific_workspace_prototype_observation(
             key: _bounded_observation_value(value)
             for key, value in direct_fields.items()
         },
-        "failed_metric_contracts": failed_contracts,
-        "metrics_preview": _bounded_observation_value(prototype.get("metrics", {})),
+        **(
+            {
+                "failed_metric_contracts": failed_contracts,
+                "metrics_preview": _bounded_observation_value(
+                    prototype.get("metrics", {})
+                ),
+            }
+            if include_empirical_outcomes
+            else {
+                "empirical_outcomes_withheld": True,
+                "empirical_outcome_authority": "EmpiricalEvaluator",
+            }
+        ),
         "full_execution_artifact_persisted": True,
         "source_replayed_to_model": False,
         "proof_evidence_status": "SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE",

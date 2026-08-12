@@ -433,3 +433,48 @@ def test_execution_observation_omits_stale_callback_samples_after_binding_passes
     assert compact["estimator_invocation_counts"] == {"estimator": 100}
     assert "estimator_invocation_samples" not in compact
     assert "estimator_invocation_samples" in failed_binding
+
+
+def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:
+    observation = scientific_workspace_prototype_observation(
+        {
+            "prototype_status": "FAILED_METRIC_GATE",
+            "execution_attempted": True,
+            "execution_smoke_passed": True,
+            "smoke_passed": False,
+            "returncode": 0,
+            "stdout_summary": "metric=0.2",
+            "stderr_summary": "",
+            "script_hash": "source-hash",
+            "result_hash": "result-hash",
+            "metric_gate_errors": ["observed 0.2 is below 0.9"],
+            "metric_contracts": [{"contract_id": "frozen-gate"}],
+            "metric_contract_evaluation": {
+                "evaluations": [
+                    {
+                        "contract_id": "frozen-gate",
+                        "passed": False,
+                        "resolved_values_preview": [0.2],
+                        "aggregate_value": 0.2,
+                    }
+                ]
+            },
+            "metrics": {"metric": 0.2},
+        },
+        include_empirical_outcomes=False,
+    )
+
+    assert observation["execution_smoke_passed"] is True
+    assert observation["empirical_outcomes_withheld"] is True
+    assert observation["empirical_outcome_authority"] == "EmpiricalEvaluator"
+    for key in (
+        "prototype_status",
+        "smoke_passed",
+        "stdout_summary",
+        "result_hash",
+        "metric_gate_errors",
+        "failed_metric_contracts",
+        "metrics_preview",
+    ):
+        assert key not in observation
+    assert "0.2" not in str(observation)

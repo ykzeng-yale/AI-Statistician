@@ -6807,8 +6807,11 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         confirmatory_empirical_evidence_eligible = bool(
             work_order.get("confirmatory_empirical_evidence_eligible", True)
         )
-        current_reviewed_source_artifacts = [
-            {
+        current_reviewed_source_artifacts: list[dict[str, Any]] = []
+        for row in review_material.get("exact_executed_artifacts", []) or []:
+            if not isinstance(row, Mapping):
+                continue
+            reviewed_source = {
                 "artifact_id": str(row.get("artifact_id", "") or ""),
                 "exact_source_hash": str(
                     row.get("exact_source_hash", "") or ""
@@ -6817,7 +6820,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     row.get("exact_source_code", "") or ""
                 ),
                 "exact_source_code_complete": True,
-                "exact_result": dict(row.get("exact_result", {}) or {}),
                 "exact_result_hash": str(
                     row.get("exact_result_hash", "") or ""
                 ),
@@ -6826,9 +6828,18 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 ),
                 "artifact_role": "reviewed_source",
             }
-            for row in review_material.get("exact_executed_artifacts", []) or []
-            if isinstance(row, Mapping)
-        ]
+            if confirmatory_empirical_evidence_eligible:
+                reviewed_source.update(
+                    {
+                        "exact_result_withheld": True,
+                        "result_authority_owner": "EmpiricalEvaluator",
+                    }
+                )
+            else:
+                reviewed_source["exact_result"] = dict(
+                    row.get("exact_result", {}) or {}
+                )
+            current_reviewed_source_artifacts.append(reviewed_source)
         upstream_dependency_material = review_material.get(
             "upstream_generated_dependency",
             {},
@@ -7051,6 +7062,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "findings": routed_findings,
             "source_revision_assessment": source_revision_assessment,
             "reviewed_source_artifacts": reviewed_source_artifacts,
+            "confirmatory_result_values_withheld_from_source": bool(
+                confirmatory_empirical_evidence_eligible
+            ),
             "source_lineage": source_lineage,
             "model_route_required_for_cross_owner_revision": True,
             "execution_results_observed": True,
@@ -8496,6 +8510,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "simulation_id": simulation_id,
                         "executor": "generated_simulation_sandbox",
                     },
+                    confirmatory_result_blind=not exploratory_diagnostic,
                 )
             )
             generated_simulation_tool_calls.extend(source_tool_calls)
@@ -8602,20 +8617,30 @@ class SimulationEvaluatorRuntimeSubsystem:
             row.get("smoke_passed") is True
             for row in generated_simulation_rows
         )
+        generated_simulation_rows_all_source_valid = bool(
+            generated_simulation_rows
+        ) and all(
+            (
+                row.get("execution_smoke_passed") is True
+                if not exploratory_diagnostic
+                else row.get("smoke_passed") is True
+            )
+            for row in generated_simulation_rows
+        )
         generated_simulation_revision_required = bool(
             self.proposal_agent is not None
             and (
                 (
                     requires_generated_simulation_code
                     and (
-                        not generated_simulation_rows_all_passed
+                        not generated_simulation_rows_all_source_valid
                         or n_unsafe_generated_simulation_rejected > 0
                     )
                 )
                 or (
                     generated_simulation_rows
                     and not requires_generated_simulation_code
-                    and not generated_simulation_rows_all_passed
+                    and not generated_simulation_rows_all_source_valid
                 )
             )
         )
@@ -8632,6 +8657,13 @@ class SimulationEvaluatorRuntimeSubsystem:
             generated_simulation_passed
             if agentic_simulation_authority
             else registered_simulation_passed
+        )
+        confirmatory_generated_metric_failure = bool(
+            not exploratory_diagnostic
+            and agentic_simulation_authority
+            and n_generated_simulation_executed > 0
+            and generated_simulation_rows_all_source_valid
+            and not generated_simulation_passed
         )
         simulation_evidence_source = (
             "generated_simulation_sandbox"
@@ -8779,6 +8811,17 @@ class SimulationEvaluatorRuntimeSubsystem:
                     or row.get("execution_smoke_passed") is True
                     for row in generated_simulation_rows
                 )
+            ),
+            "generated_simulation_source_valid": (
+                generated_simulation_rows_all_source_valid
+            ),
+            "source_iteration_acceptance_scope": (
+                "execution_validity_only"
+                if not exploratory_diagnostic
+                else "exploratory_empirical_feedback"
+            ),
+            "confirmatory_outcomes_withheld_from_source": bool(
+                not exploratory_diagnostic
             ),
             "typed_metric_contract_proof_evidence_status": (
                 GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
@@ -9347,11 +9390,83 @@ class SimulationEvaluatorRuntimeSubsystem:
                         payload={"implementation_gaps": implementation_gaps},
                     )
                 )
-        if simulation_passed:
+        if simulation_passed or confirmatory_generated_metric_failure:
             deferred_metric_protocol_payload = task.inputs.get(
                 "deferred_metric_protocol_task", {}
             )
-            if (
+            confirmatory_feedback_id = ""
+            if confirmatory_generated_metric_failure:
+                confirmatory_feedback_payload = {
+                    "schema_version": RUNTIME_SCHEMA_VERSION,
+                    "artifact_kind": "RuntimeConfirmatorySimulationOutcome",
+                    "feedback_type": "confirmatory_simulation_outcome",
+                    "question_id": question.id,
+                    "source_subsystem": "SimulationEvaluator",
+                    "source_manifest_id": manifest_id,
+                    "source_manifest_hash": stable_hash(manifest),
+                    "theory_packet_id": packet_id,
+                    "empirical_outcomes": [
+                        {
+                            key: deepcopy(row[key])
+                            for key in (
+                                "simulation_id",
+                                "script_hash",
+                                "result_hash",
+                                "metric_contract_set_id",
+                                "metric_requirement_set_id",
+                                "metric_contract_evaluation",
+                                "metric_gate_errors",
+                            )
+                            if row.get(key) not in (None, "", [], {})
+                        }
+                        for row in generated_simulation_rows
+                        if row.get("execution_smoke_passed") is True
+                    ],
+                    "simulation_passed": False,
+                    "source_execution_valid": True,
+                    "source_semantic_review_required_before_release": True,
+                    "unchanged_source_retry_authorized": False,
+                    "runtime_edited_source": False,
+                    "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
+                }
+                confirmatory_feedback_id = (
+                    "confirmatory_simulation_outcome:"
+                    + stable_hash(confirmatory_feedback_payload)[:20]
+                )
+                confirmatory_feedback = {
+                    **confirmatory_feedback_payload,
+                    "feedback_id": confirmatory_feedback_id,
+                    "observation_id": confirmatory_feedback_id,
+                }
+                produced_artifacts[confirmatory_feedback_id] = confirmatory_feedback
+                revision_context = dict(effective_context)
+                revision_context["previous_theory_packet_id"] = packet_id
+                revision_context["simulation_manifest_id"] = manifest_id
+                next_task = AgentTask(
+                    task_id=(
+                        f"confirmatory-outcome:{question.id}:"
+                        f"{stable_hash(confirmatory_feedback)[:8]}"
+                    ),
+                    owner_subsystem="ArchitectCoordinator",
+                    objective=(
+                        "Choose a materially new upstream lineage or block from this "
+                        "immutable confirmatory outcome."
+                    ),
+                    inputs={
+                        "question": _question_to_payload(question),
+                        "architect_context": revision_context,
+                        "environment_feedback": confirmatory_feedback,
+                        "runtime_architect_operation": (
+                            ARCHITECT_FEEDBACK_ROUTE_OPERATION
+                        ),
+                    },
+                    expected_artifacts=("architect_feedback_route_decision",),
+                    acceptance_gate=(
+                        "Architect does not retry the unchanged confirmatory source"
+                    ),
+                    stop_condition="a new lineage is scheduled or the failure blocks",
+                )
+            elif (
                 exploratory_diagnostic
                 and isinstance(deferred_metric_protocol_payload, Mapping)
                 and deferred_metric_protocol_payload
@@ -9399,6 +9514,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     ),
                     architect_context=effective_context,
                 )
+            semantic_review_dispatch: Mapping[str, Any] | None = None
             semantic_review_evidence: EvidenceLedgerEntry | None = None
             if self.semantic_reviewer_available:
                 semantic_review_dispatch = (
@@ -9413,7 +9529,10 @@ class SimulationEvaluatorRuntimeSubsystem:
                         proposal_packet=proposal_packet,
                         architect_context=effective_context,
                         deferred_next_task=next_task,
-                        blackboard_artifacts=blackboard.artifacts,
+                        blackboard_artifacts={
+                            **blackboard.artifacts,
+                            **produced_artifacts,
+                        },
                         max_revisions=self.semantic_review_max_revisions,
                     )
                 )
@@ -9429,10 +9548,48 @@ class SimulationEvaluatorRuntimeSubsystem:
                     observations.append(semantic_review_dispatch["observation"])
                     semantic_review_evidence = semantic_review_dispatch["evidence"]
                     next_task = semantic_review_dispatch["next_task"]
+            if confirmatory_generated_metric_failure and semantic_review_dispatch is None:
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type="confirmatory_outcome_sealed",
+                        summary=(
+                            "the outcome remains sealed because independent source "
+                            "semantic review is unavailable or undispatchable"
+                        ),
+                        payload={
+                            "simulation_manifest_id": manifest_id,
+                            "feedback_id": confirmatory_feedback_id,
+                            "outcome_released_to_architect": False,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    )
+                )
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "A frozen confirmatory outcome cannot be released before "
+                        "independent review of its exact executable source."
+                    ),
+                    produced_artifacts=produced_artifacts,
+                    observations=tuple(observations),
+                    tool_calls=(
+                        *registered_simulator_tool_calls,
+                        *generated_simulation_tool_calls,
+                    ),
+                    evidence_entries=tuple(
+                        row for row in (proposal_evidence, evidence) if row is not None
+                    ),
+                    failure_classification=(
+                        "confirmatory_source_semantic_review_unavailable"
+                    ),
+                )
             return AgentStepResult(
                 status="REROUTE",
                 rationale=(
-                    "Runtime recorded non-promotable exploratory diagnostics and is "
+                    "The source executed without result-directed iteration; independent "
+                    "semantic review now gates its immutable confirmatory outcome."
+                    if confirmatory_generated_metric_failure
+                    else "Runtime recorded non-promotable exploratory diagnostics and is "
                     "routing to the independent confirmatory metric-protocol gate."
                     if exploratory_diagnostic
                     else "Runtime recorded executable simulation feedback and is routing "
@@ -20862,6 +21019,7 @@ def _run_source_owner_scientific_workspace(
     ],
     failure_identity: Mapping[str, Any],
     external_initial_observation: Mapping[str, Any] | None = None,
+    confirmatory_result_blind: bool = False,
 ) -> tuple[dict[str, Any], list[ToolCallRecord]]:
     """Execute one initial or revision source loop without a second scheduler."""
 
@@ -20884,6 +21042,17 @@ def _run_source_owner_scientific_workspace(
         )
     } if "required_estimator_ids" in code_draft else {}
 
+    def source_candidate_accepted(prototype: Mapping[str, Any]) -> bool:
+        if confirmatory_result_blind:
+            return prototype.get("execution_smoke_passed") is True
+        return prototype.get("smoke_passed") is True
+
+    def source_observation(prototype: Mapping[str, Any]) -> dict[str, Any]:
+        return scientific_workspace_prototype_observation(
+            prototype,
+            include_empirical_outcomes=not confirmatory_result_blind,
+        )
+
     def check_candidate(candidate: Mapping[str, Any]) -> Mapping[str, Any]:
         execution_candidate = {
             **dict(candidate),
@@ -20895,8 +21064,8 @@ def _run_source_owner_scientific_workspace(
         tool_calls.append(tool_call)
         check = {
             "code_draft_hash": stable_hash(dict(candidate)),
-            "accepted": prototype.get("smoke_passed") is True,
-            "prototype": scientific_workspace_prototype_observation(prototype),
+            "accepted": source_candidate_accepted(prototype),
+            "prototype": source_observation(prototype),
         }
         disposition = str(
             prototype.get("source_iteration_disposition", "") or ""
@@ -20970,7 +21139,7 @@ def _run_source_owner_scientific_workspace(
         prototype, tool_call = execute_candidate(code_draft)
         tool_calls.append(tool_call)
         if (
-            prototype.get("smoke_passed") is True
+            source_candidate_accepted(prototype)
             or prototype.get("source_iteration_disposition")
             == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
             or not can_use_workspace
@@ -20991,7 +21160,7 @@ def _run_source_owner_scientific_workspace(
         initial_observation = {
             "code_draft_hash": stable_hash(workspace_draft),
             "accepted": False,
-            "prototype": scientific_workspace_prototype_observation(prototype),
+            "prototype": source_observation(prototype),
         }
 
     try:
