@@ -121,6 +121,23 @@ def _compact_formal_source_hit_for_prompt(
     context = hit.get("declaration_source_context", {})
     if isinstance(context, Mapping):
         source_activation = _compact_formal_source_activation_for_prompt(context)
+        direct_activation = hit.get("source_activation", {})
+        if isinstance(direct_activation, Mapping):
+            source_activation.update(
+                {
+                    key: value
+                    for key in (
+                        "role",
+                        "relation_to_active_project",
+                        "compatibility_status",
+                        "classification",
+                        "activation_gate",
+                    )
+                    if (
+                        value := str(direct_activation.get(key, "") or "").strip()
+                    )
+                }
+            )
         if source_activation:
             payload["source_activation"] = source_activation
         payload["declaration_source_context"] = (

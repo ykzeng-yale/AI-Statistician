@@ -1071,7 +1071,31 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
                 ),
                 "proof_state_trace_rag": {"hits": ["x" * 30000]},
                 "candidate_rerun_specs": ["y" * 30000],
-                "formal_source_grounding_hits": [{"hits": ["z" * 30000]}],
+                "formal_source_grounding_hits": [
+                    {
+                        "query_role": "target_api",
+                        "hits": [
+                            {
+                                "source_id": "statlib",
+                                "name": "Statlib.Target.exact_support",
+                                "signature": (
+                                    "theorem Statlib.Target.exact_support : True"
+                                ),
+                                "declaration_source_context": {
+                                    "module": "Statlib.Target"
+                                },
+                                "source_activation": {
+                                    "relation_to_active_project": (
+                                        "direct_lake_dependency"
+                                    ),
+                                    "classification": (
+                                        "active_project_import_closure_candidate"
+                                    ),
+                                },
+                            }
+                        ],
+                    }
+                ],
             },
             "reviewed_source_artifacts": [
                 {"exact_source_code": "duplicate" * 5000}
@@ -1122,6 +1146,23 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
     assert context["target_theorem_statement"] == "theorem target : True"
     assert "proof_state_trace_rag" not in context
     assert "formal_source_grounding_hits" not in context
+    assert payload["indexed_lean_environment_candidates"] == [
+        {
+            "source_id": "statlib",
+            "module": "Statlib.Target",
+            "qualified_declaration": "Statlib.Target.exact_support",
+            "query_role": "target_api",
+            "relation_to_active_project": "direct_lake_dependency",
+            "candidate_classification": (
+                "active_project_import_closure_candidate"
+            ),
+            "import_readiness": "direct_dependency_indexed_module",
+            "signature": "theorem Statlib.Target.exact_support : True",
+        }
+    ]
+    assert "do not repeat a search for the same identity" in payload[
+        "tool_workflow"
+    ]
     assert "candidate_rerun_specs" not in context
     assert "reviewed_source_artifacts" not in feedback
     observation = feedback["candidate_diagnostics"][0]

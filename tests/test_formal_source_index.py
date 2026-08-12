@@ -1821,6 +1821,11 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
                     "name": "Library.target_bound",
                     "namespace": "Library",
                     "signature": long_signature,
+                    "source_activation": {
+                        "relation_to_active_project": "direct_lake_dependency",
+                        "compatibility_status": "indexed_in_active_environment",
+                        "classification": "active_project_import_closure_candidate",
+                    },
                     "declaration_doc": (
                         "Reduce the target to one reusable local concentration lemma "
                         "and close with the imported comparison theorem."
@@ -1982,6 +1987,11 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
     assert target["name"] == "Library.target_bound"
     assert target["source_id"] == "fixture_library"
     assert target["signature"] == long_signature
+    assert target["source_activation"] == {
+        "relation_to_active_project": "direct_lake_dependency",
+        "compatibility_status": "indexed_in_active_environment",
+        "classification": "active_project_import_closure_candidate",
+    }
     assert context["module"] == "Library.Target"
     assert context["imports"] == ["Library.Foundation", "Library.Reduction"]
     assert "module_summary" not in context

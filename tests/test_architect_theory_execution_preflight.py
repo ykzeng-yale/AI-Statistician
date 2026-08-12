@@ -895,6 +895,15 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     )
     prompt = build_architect_theory_execution_preflight_prompt(material)
     prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
+    verdict_policy = prompt_payload["verdict_policy"]
+    assert "checkable derivation" in verdict_policy
+    assert "hypotheses to audit, not independent evidence" in verdict_policy
+    assert "substitute it into the current displayed formula" in verdict_policy
+    assert "actually necessary for the stated execution gate" in verdict_policy
+    assert "absence of an explicit rebuttal" in verdict_policy
+    assert "Retract a prior finding when its premise is false" in verdict_policy
+    assert "one to three concise sentences" in verdict_policy
+    assert "do not quote or restate" in verdict_policy
     packet, backend = _review(accept=True)
 
     assert len(prompt) < 30_000
@@ -930,11 +939,9 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     anchor_ids = {
         row["anchor_id"] for row in material["anchor_catalog"]
     }
-    assert {
-        "theory.self_critique",
-        "theory.rejected_alternatives",
-        "theory.critic_findings",
-    } <= anchor_ids
+    assert "theory.rejected_alternatives" in anchor_ids
+    assert "theory.self_critique" not in anchor_ids
+    assert "theory.critic_findings" not in anchor_ids
     estimator_anchor = next(
         row
         for row in material["anchor_catalog"]

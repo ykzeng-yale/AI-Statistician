@@ -422,11 +422,6 @@ def build_architect_theory_execution_preflight_material(
             derivation.get("sanity_checks", []),
         ),
         (
-            "theory.self_critique",
-            "source_self_critique",
-            derivation.get("self_critique", []),
-        ),
-        (
             "theory.rejected_alternatives",
             "rejected_alternatives",
             derivation.get("rejected_alternatives", []),
@@ -437,11 +432,6 @@ def build_architect_theory_execution_preflight_material(
             semantic.get("theorem_cards", []),
         ),
         ("theory.lemma_cards", "lemma_cards", semantic.get("lemma_cards", [])),
-        (
-            "theory.critic_findings",
-            "source_critic_findings",
-            semantic.get("critic_findings", []),
-        ),
         (
             "architect.upstream_research_contract",
             "upstream_research_contract",
@@ -926,8 +916,23 @@ def build_architect_theory_execution_preflight_prompt(
             "is PASS, return no new findings and mark every prior finding "
             "RESOLVED_BY_CURRENT_THEORY when the source changed, or "
             "RETRACTED_BY_CURRENT_EVIDENCE when current anchors show the prior was "
-            "not a pre-execution blocker. Do not carry downstream proof obligations "
-            "as execution blockers."
+            "not a pre-execution blocker. Re-derive every blocking mathematical "
+            "premise from the current anchors: claims about divergence, normalization, "
+            "integrability, or an invalid identity need a checkable derivation in the "
+            "review row or an exact source handle from search_preflight_sources. "
+            "Source self-critique, source critic_findings, and prior reviewer findings "
+            "are hypotheses to audit, not independent evidence for themselves. Do not "
+            "justify a finding by quoting one of those hypotheses. For an asserted "
+            "counterexample, substitute it into the current displayed formula and "
+            "simplify the resulting finite expression before deciding its status. "
+            "Distinguish an assumption the source chose to list from an assumption "
+            "that is actually necessary for the stated execution gate. "
+            "Retract a prior finding when its premise is false; absence of an explicit "
+            "rebuttal in the revised theory is not evidence that the finding remains "
+            "true. Keep every rationale to the decisive calculation or observation in "
+            "one to three concise sentences; do not quote or restate the packet, prior "
+            "finding prose, or the same justification across output sections. Do not "
+            "carry downstream proof obligations as execution blockers."
         ),
     }
     return "Review the following typed packet. Return JSON only.\n\n" + json.dumps(

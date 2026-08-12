@@ -651,6 +651,9 @@ def _build_lean_candidate_workspace_tool_prompt(
     initial_source: str,
     environment_feedback: Mapping[str, Any],
 ) -> str:
+    indexed_environment_candidates = (
+        _formalizer_indexed_lean_environment_candidates(environment_feedback)
+    )
     review_context_payload = environment_feedback.get(
         "formalizer_workspace_context", {}
     )
@@ -719,6 +722,16 @@ def _build_lean_candidate_workspace_tool_prompt(
             "independent semantic review; failure returns raw Lean observations to this "
             "same source owner."
             + (
+                " Start with indexed_lean_environment_candidates already carried "
+                "from task-bound RAG. Each qualified_declaration is an exact symbol "
+                "for inspection and each module is its indexed import location. "
+                "Prefer reusing a matching active-project or direct-dependency API; "
+                "do not repeat a search for the same identity unless Lean reports "
+                "that the carried candidate is stale or incompatible."
+                if indexed_environment_candidates
+                else ""
+            )
+            + (
                 " If concrete active-environment evidence establishes a missing "
                 "foundation primitive, report_formal_gap may record that blocker "
                 "without claiming proof."
@@ -761,6 +774,15 @@ def _build_lean_candidate_workspace_tool_prompt(
             ),
         },
         "exact_target_contract": exact_target_contract,
+        **(
+            {
+                "indexed_lean_environment_candidates": (
+                    indexed_environment_candidates
+                )
+            }
+            if indexed_environment_candidates
+            else {}
+        ),
         "task_bound_theory_context": {
             "theory_packet_id": str(theory_packet.get("packet_id", "") or ""),
             "theorem_cards": _compact_rows(
