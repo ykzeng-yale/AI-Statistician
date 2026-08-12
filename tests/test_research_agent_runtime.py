@@ -1006,6 +1006,11 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
             {"estimator_id": "stable-estimator"},
         ],
     }
+    simulation_proposal_id = "simulation-proposal:generic-consumer"
+    simulation_source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'generic_metric': float(replicates)}\n"
+    )
 
     def source_for(estimator_id: str, *, revised: bool = False) -> str:
         lookup = "request.get('value', 0.0)" if revised else "request['value']"
@@ -1074,6 +1079,20 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
         "manifest_id": simulation_manifest_id,
         "question": runtime_module._question_to_payload(question),
         "theory_packet_id": theory_packet_id,
+        "llm_simulation_engineer_proposal_id": simulation_proposal_id,
+        "generated_simulation_sandbox_prototypes": [
+            {
+                "simulation_id": "generic-consumer",
+                "prototype_status": "FAILED",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "required_estimator_ids": ["failed-estimator"],
+                "source_code": simulation_source,
+                "script_hash": runtime_module.stable_hash(simulation_source),
+            }
+        ],
     }
     consumer_budget = {
         runtime_module.SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY: {
@@ -1164,6 +1183,7 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
         propose_calls = 0
         source_calls: list[str] = []
         initial_observations: list[dict[str, object]] = []
+        candidate_checks: list[dict[str, object]] = []
 
         @classmethod
         def propose(cls, **_kwargs):
@@ -1176,19 +1196,33 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
             cls.initial_observations.append(
                 dict(kwargs["initial_observation"])
             )
-            candidate = {
+            first_candidate = {
                 **dict(kwargs["code_draft"]),
-                "code": source_for("failed-estimator", revised=True),
+                "code": (
+                    source_for("failed-estimator", revised=True)
+                    + "\n# consumer_compatible = False\n"
+                ),
             }
-            check = dict(kwargs["check_candidate"](candidate))
+            first_check = dict(kwargs["check_candidate"](first_candidate))
+            corrected_candidate = {
+                **first_candidate,
+                "code": (
+                    source_for("failed-estimator", revised=True)
+                    + "\n# consumer_compatible = True\n"
+                ),
+            }
+            corrected_check = dict(
+                kwargs["check_candidate"](corrected_candidate)
+            )
+            cls.candidate_checks.extend((first_check, corrected_check))
             return ScientificCodeWorkspaceResult(
-                code_draft=candidate,
-                check_result=check,
+                code_draft=corrected_candidate,
+                check_result=corrected_check,
                 evidence={
                     "workspace_operation": "targeted_revision",
                     "model_owned_source": True,
                     "runtime_edited_source": False,
-                    "accepted": True,
+                    "accepted": corrected_check["accepted"],
                 },
             )
 
@@ -1203,10 +1237,74 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
             ),
         )
 
+    integration_sources: list[str] = []
+
+    def run_generated_simulation_sandbox(**kwargs):
+        artifact = next(
+            row
+            for row in kwargs["upstream_algorithm_handoff"][
+                "exact_algorithm_artifacts"
+            ]
+            if row["estimator_id"] == "failed-estimator"
+        )
+        source = str(artifact["exact_source_code"])
+        integration_sources.append(source)
+        passed = "consumer_compatible = True" in source
+        row = {
+            "simulation_id": str(kwargs["simulation_id"]),
+            "prototype_status": "EXECUTED" if passed else "FAILED",
+            "executor": "generated_simulation_sandbox",
+            "language": "python",
+            "requested_execution_profile": "stdlib",
+            "executor_profile": "stdlib",
+            "dependencies": [],
+            "required_estimator_ids": ["failed-estimator"],
+            "available_upstream_estimator_ids": [
+                "failed-estimator",
+                "stable-estimator",
+            ],
+            "source_code": simulation_source,
+            "script_hash": runtime_module.stable_hash(simulation_source),
+            "execution_attempted": True,
+            "execution_smoke_passed": passed,
+            "smoke_passed": passed,
+            "estimator_runtime_failure_ids": (
+                [] if passed else ["failed-estimator"]
+            ),
+            "estimator_runtime_errors": (
+                []
+                if passed
+                else ["TypeError: generated estimator returned an invalid object"]
+            ),
+            "stderr_summary": (
+                ""
+                if passed
+                else "TypeError: generated estimator returned an invalid object"
+            ),
+            "estimator_invocation_samples": {
+                "failed-estimator": [
+                    {
+                        "request_shape": {"value": "number"},
+                        "response_status": "ok" if passed else "error",
+                        **({} if passed else {"error_type": "TypeError"}),
+                    }
+                ]
+            },
+        }
+        return row, ToolCallRecord(
+            tool_name="python.generated_simulation_sandbox",
+            exit_status="0" if passed else "1",
+        )
+
     monkeypatch.setattr(
         runtime_module,
         "_run_generated_code_sandbox",
         run_generated_code_sandbox,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_generated_simulation_sandbox",
+        run_generated_simulation_sandbox,
     )
     blackboard = BlackboardState(
         project_id=question.id,
@@ -1274,6 +1372,16 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
     assert SourceAgent.initial_observations[0]["consumer_observations"][0][
         "observation"
     ]["stderr_summary"] == "KeyError: value"
+    assert [
+        check["accepted"] for check in SourceAgent.candidate_checks
+    ] == [False, True]
+    assert SourceAgent.candidate_checks[0]["prototype"][
+        "empirical_outcomes_withheld"
+    ] is True
+    assert "invalid object" in str(
+        SourceAgent.candidate_checks[0]["prototype"]
+    )
+    assert len(integration_sources) == 2
     manifests = [
         artifact
         for artifact in result.produced_artifacts.values()
