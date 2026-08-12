@@ -1,9 +1,9 @@
 {
-  "schema_version": 30,
+  "schema_version": 31,
   "updated_at": "2026-08-12",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "bcc74d6d",
+  "validated_code_head": "d67bb0a5",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
   "operating_principle": "Use one outer research graph and direct model-owned theory, scientific-code, and Lean workspaces. The harness owns execution, immutable identity, budgets, evaluation blindness, review separation, and evidence authority; it never authors a substantive statistical, Python, R, or Lean fix.",
@@ -41,55 +41,53 @@
     ]
   },
   "validated_changes": {
-    "commit": "bcc74d6d",
+    "commit": "d67bb0a5",
     "changes": [
-      "A released confirmatory failure now lets Architect select only the responsible workspace; when AlgorithmEngineer is selected, runtime restores the exact hash-bound parent source and raw observations instead of requesting a fresh plan.",
-      "The same AlgorithmEngineer workspace rewrites complete source, receives independent review, and releases the frozen SimulationEvaluator continuation for execution on the newly allocated cohort.",
-      "Source manifests and accepted algorithm handoffs are registered once and transported by RuntimeArtifactRef.",
-      "SimulationEvaluator and Formalizer can no longer opt into keyword ProblemFormalizer, TheoryPlanner, registered procedures, or ResearchSimulator through context flags.",
-      "No task-family or theorem-specific branch was added."
+      "A consumer-triggered AlgorithmEngineer workspace now checks every complete candidate with both its standalone sandbox and the exact frozen Simulation source before the workspace can exit.",
+      "Outcome-blind ABI, binding, request-shape, traceback, and runtime observations return immediately to the same source-owning model; confirmatory metrics, thresholds, and values remain withheld.",
+      "Multiple failed candidates remain inside one bounded coding session, then one independently reviewed artifact releases the existing frozen Simulation continuation.",
+      "The mechanism reuses the existing source workspace, sandbox, continuation, and artifact hashes; it adds no RepairAgent, Architect hop, task-family branch, content patcher, or new failure-status family."
     ],
     "verification": {
-      "pytest": "575 passed, 3 skipped in 96.85s",
-      "focused_runtime_tests": "44 passed in 1.05s",
+      "pytest": "578 passed in 98.47s",
+      "focused_runtime_tests": "40 passed in 1.03s",
       "py_compile": "passed",
       "git_diff_check": "passed"
     },
-    "integrated_evidence_status": "not yet run after bcc74d6d; a fresh v385 panel is required"
+    "integrated_evidence_status": "not yet run after d67bb0a5; a fresh v387 panel is required"
   },
   "latest_authoritative_integrated_run": {
-    "id": "v384",
-    "path": "runs/main_worker_cross_family_development_20260812_v384_terminal_audit_context_exact_haiku",
-    "run_code_head": "44f3192b",
+    "id": "v386",
+    "path": "runs/main_worker_cross_family_development_20260812_v386_exact_source_continuation_exact_haiku",
+    "run_code_head": "273c2cd8",
     "model": "claude-haiku-4-5-20251001 for every observed live LLM call",
     "status_counts": {
-      "BLOCKED": 1,
-      "MAX_ITERATIONS_REACHED": 1
+      "BLOCKED": 2
     },
-    "capability_scorecard": "8/16",
+    "capability_scorecard": "5/16",
     "capability_ready_for_full_ai_statistician": false,
-    "runtime_traces": 54,
-    "architect_traces": 18,
-    "runtime_tool_calls": 52,
-    "runtime_observations": 96,
-    "live_generated_code_executions": 4,
-    "live_generated_simulation_executions": 2,
-    "formalizer_local_lean_checked": 1,
+    "runtime_traces": 22,
+    "architect_traces": 7,
+    "runtime_tool_calls": 14,
+    "runtime_observations": 35,
+    "live_generated_code_executions": 2,
+    "live_generated_simulation_executions": 0,
+    "formalizer_local_lean_checked": 0,
     "formalizer_local_lean_compiled": 0,
     "kernel_verified_subclaims": 0,
     "exact_source_theorem_closure": "0/2",
     "candidate_gate_independence": {
-      "status": "POST_OUTCOME_FRESH_COHORT_VERIFIED",
-      "distinct_executed_cohorts": 6,
-      "post_outcome_transitions": 6,
-      "post_outcome_fresh_cohort_executions": 4,
-      "verified": true
+      "status": "NO_POST_OUTCOME_CONTINUATION_OBSERVED",
+      "distinct_executed_cohorts": 1,
+      "post_outcome_transitions": 0,
+      "post_outcome_fresh_cohort_executions": 0,
+      "verified": false
     },
     "diagnosis": {
-      "right_censored_survival_km": "Reached real Algorithm, Simulation, semantic-review, and Formalizer activity, but scheduled Formalizer before restoring the exact Algorithm source selected after confirmatory failure; it exhausted 40 outer iterations with Algorithm work pending.",
-      "sequential_anytime_bernoulli": "Stopped honestly after the independent theory-execution preflight remained unresolved; no downstream proof credit was fabricated."
+      "right_censored_survival_km": "The exact source-owner continuation worked without Architect or Formalizer detours, but each Algorithm revision exited after standalone smoke success. Three outer Simulation attempts exposed successive integration errors and exhausted the consumer budget after 14 iterations.",
+      "sequential_anytime_bernoulli": "Two direct preflight-to-TheoryDeveloper revisions remained unresolved and the run stopped honestly after 8 iterations; no downstream proof credit was fabricated."
     },
-    "boundary": "v384 demonstrates real model-owned iteration and evaluation independence, not a passed simulation or theorem proof."
+    "boundary": "v386 demonstrates a shorter and more honest source-owner topology, not a passed simulation, candidate-independence transition, or theorem proof."
   },
   "current_design_assessment": {
     "correct_to_keep": [
@@ -101,12 +99,12 @@
       "exact Lean kernel promotion"
     ],
     "remaining_structural_problems": [
-      "research_agent_runtime.py still concentrates about 22.9k lines and should shrink through deletion and workspace extraction, not another framework wrapper",
-      "compatible multi-estimator targets still open separate Algorithm source sessions",
+      "research_agent_runtime.py still concentrates about 23.1k lines and should shrink through deletion and workspace extraction, not another framework wrapper",
+      "compatible multi-estimator targets still open separate source sessions, although each session now owns its frozen-consumer integration loop",
       "TheoryDeveloper lacks general calculator, Python/R experiment, counterexample, and task-bound retrieval actions in one durable workspace",
       "the scientific Python/R environment and arbitrary paper ingest remain incomplete",
-      "the Formalizer source loop is real but v384 produced no compiling target and no exact theorem closure",
-      "bcc74d6d has deterministic coverage but no fresh integrated evidence yet",
+      "the Formalizer source loop is real but v386 never reached formalization and exact theorem closure remains absent",
+      "d67bb0a5 has deterministic coverage but no fresh integrated evidence yet",
       "development exact source-theorem closure remains 0/2, so held-out tasks remain sealed"
     ],
     "wrong_next_move": "Do not add a repair worker, packet-patch queue, theorem-specific bridge, Lean grammar fixer, or another scheduler. Improve direct model tools and context, then evaluate the unchanged shared mechanism across unrelated tasks."
@@ -121,15 +119,15 @@
     "boundary": "The authoritative completion fact is development exact source-theorem closure 0/2; percentages are engineering estimates only."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 22894,
+    "research_agent_runtime_lines": 23131,
     "agent_runtime_lines": 1207,
     "cli_lines": 6897,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 128378,
-    "latest_runtime_manifest_bytes": 67386
+    "top_level_package_lines": 128615,
+    "latest_runtime_manifest_bytes": 58785
   },
   "next_gates": [
-    "Run a fresh exact-Haiku v385 development panel and verify that an Algorithm-owned confirmatory failure bypasses proposal planning and Formalizer, revises exact source, passes independent review, and replays frozen Simulation source on a fresh cohort.",
+    "Run a fresh exact-Haiku v387 development panel and verify that successive frozen-consumer integration errors remain inside one Algorithm source workspace before a single independent review and outer confirmatory replay.",
     "If that topology works, consolidate compatible estimator targets into one source session without weakening per-artifact hashes and review lineage.",
     "Add bounded general calculator, counterexample, Python/R, and retrieval tools to the same TheoryDeveloper workspace rather than creating helper agents.",
     "Drive the Formalizer against directly inspectable Statlib, Mathlib, lean-stat-learning-theory, EmpericalProcessLEAN, OpenProver, and CodexProver declarations while preserving raw Lean feedback and kernel authority.",

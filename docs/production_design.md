@@ -346,18 +346,18 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-12, v384 is the latest fresh integrated panel. Every live call used
-exact `claude-haiku-4-5-20251001`. It scored 8/16, ended with one `BLOCKED` and
-one `MAX_ITERATIONS_REACHED` task, and closed 0/2 exact source theorems. Survival
-exercised Algorithm, Simulation, independent review, and a 20-turn Formalizer
-workspace, but Formalizer ran before the released confirmatory failure returned
-to the exact Algorithm source; no Lean candidate compiled. Sequential stopped at
-unresolved theory preflight. Commit `bcc74d6d` corrects that shared continuation
-topology but has no integrated credit until a fresh panel exercises it. Held-out
-tasks remain sealed. Audit
+As of 2026-08-12, v386 is the latest fresh integrated panel. Every live call used
+exact `claude-haiku-4-5-20251001`. It scored 5/16, ended with two `BLOCKED` tasks,
+and closed 0/2 exact source theorems. Survival completed 14 iterations with no
+Architect or Formalizer detour after consumer failure, but three successive
+Algorithm revisions each exited before the frozen Simulation integration test
+revealed the next runtime error. Sequential stopped after two direct theory
+preflight revisions remained unresolved. Commit `d67bb0a5` now executes the exact
+frozen consumer inside the same Algorithm source workspace while withholding all
+confirmatory outcomes. It has no integrated credit until fresh v387 exercises the
+path. Held-out tasks remain sealed. Audit
 `all_ok=true` means artifact integrity passed; it does not override the 0/2 kernel
 closure result.
-
 New review materializations persist immutable refs, fingerprints, and only the current executable handoff projection instead of complete theory, proposal, source/deferred tasks, and review packets. Old full materializations remain migration-readable but are never written by the canonical path.
 
 ## Structural constraints
@@ -392,7 +392,7 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-Immediate priorities are a fresh confirmatory source-continuation run, general model-owned theory counterchecks, and reliable active-project declaration inspection.
+Immediate priorities are fresh v387 frozen-consumer workspace evidence, general model-owned theory counterchecks, and reliable active-project declaration inspection.
 The Formalizer already has one direct authoring/revision session; failed source
 quality must not be answered with a repair agent, a second generation pass, Lean
 grammar rules, or theorem-specific bridges. New mechanisms must delete control
