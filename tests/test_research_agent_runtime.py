@@ -1433,11 +1433,6 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
         "_run_generated_simulation_sandbox",
         run_generated_simulation_sandbox,
     )
-    monkeypatch.setattr(
-        runtime_module,
-        "runtime_llm_research_authority_required",
-        lambda *_args, **_kwargs: False,
-    )
     subsystem = runtime_module.SimulationEvaluatorRuntimeSubsystem(
         proposal_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
@@ -1651,11 +1646,6 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     )
     monkeypatch.setattr(
         runtime_module,
-        "runtime_llm_research_authority_required",
-        lambda *_args, **_kwargs: False,
-    )
-    monkeypatch.setattr(
-        runtime_module,
         "_runtime_requires_generated_simulation_code",
         lambda *_args, **_kwargs: True,
     )
@@ -1761,6 +1751,200 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
         runtime_module.CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY
     ]
     assert resolve_runtime_artifact_references(cohort_ref, all_artifacts) == cohort
+
+
+def test_architect_algorithm_route_restores_source_and_frozen_simulation() -> None:
+    question = OpenResearchQuestion(
+        id="generic-confirmatory-source-route",
+        title="Resume one model-owned algorithm source",
+        description="Revalidate a revised dependency on a fresh cohort.",
+    )
+    theory_packet_id = "theory:generic-confirmatory-source-route"
+    algorithm_manifest_id = "algorithm:generic-confirmatory-source-route"
+    algorithm_manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": algorithm_manifest_id,
+        "theory_packet_id": theory_packet_id,
+    }
+    simulation_manifest_id = "simulation:generic-confirmatory-source-route"
+    simulation_manifest = {
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": simulation_manifest_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_packet_id": theory_packet_id,
+    }
+    old_cohort = {
+        "artifact_kind": "RuntimeConfirmatoryEvaluationCohort",
+        "cohort_id": "cohort:old",
+        "seed": 11,
+    }
+    new_cohort = {
+        "artifact_kind": "RuntimeConfirmatoryEvaluationCohort",
+        "cohort_id": "cohort:fresh",
+        "seed": 1_000_014,
+    }
+    deferred_simulation = AgentTask(
+        task_id="simulation-confirmatory-resume:generic",
+        owner_subsystem="SimulationEvaluator",
+        objective="Replay the exact frozen simulation source.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+            "consumer_resume_manifest": simulation_manifest,
+            "architect_context": {
+                "theory_packet_id": theory_packet_id,
+                "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+                "simulation_manifest_id": simulation_manifest_id,
+                runtime_module.CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY: (
+                    old_cohort
+                ),
+            },
+            "seed": 11,
+        },
+    )
+    _, continuation, continuation_artifacts = (
+        runtime_module.materialize_agent_task_continuation(
+            deferred_simulation,
+            linked_input_references={
+                runtime_module.stable_hash(simulation_manifest): (
+                    runtime_artifact_reference(
+                        simulation_manifest_id,
+                        simulation_manifest,
+                    )
+                )
+            },
+        )
+    )
+    continuation_ref = runtime_module.agent_task_continuation_reference(
+        continuation
+    )
+    source_owner = {
+        "source_owner_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": algorithm_manifest_id,
+        "source_manifest_hash": runtime_module.stable_hash(algorithm_manifest),
+        "dependency_artifact_ids": ["generic-estimator"],
+        "dependency_artifact_hashes": {
+            "generic-estimator": "algorithm-source-hash"
+        },
+        "consumer_source_artifacts": [
+            {
+                "artifact_id": "generic-simulation",
+                "source_hash": "simulation-source-hash",
+                "evaluation_contract_hash": "frozen-contract-hash",
+            }
+        ],
+        "consumer_observations_by_dependency": {
+            "generic-estimator": [
+                {
+                    "consumer_artifact_id": "generic-simulation",
+                    "observation": {"metric_gate_errors": ["failed"]},
+                }
+            ]
+        },
+    }
+    feedback = {
+        "artifact_kind": "RuntimeConfirmatorySimulationOutcome",
+        "feedback_type": "confirmatory_simulation_outcome",
+        "failure_classification": "confirmatory_simulation_metric_gate_failed",
+        "feedback_id": "confirmatory-outcome:generic",
+        "question_id": question.id,
+        "source_manifest_id": simulation_manifest_id,
+        "consumer_source_owner": source_owner,
+        "source_revision_artifact_ids": ["generic-estimator"],
+        "deferred_consumer_task_continuation_ref": continuation_ref,
+    }
+    context = _full_evidence_context(question.id)
+    context.update(
+        {
+            "theory_packet_id": theory_packet_id,
+            "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "implementation_gaps": [
+                {"estimator_id": "generic-estimator"}
+            ],
+            "environment_feedback": feedback,
+            runtime_module.CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY: (
+                new_cohort
+            ),
+        }
+    )
+    context["architect_feedback_route_decision"] = {
+        "artifact_kind": "ArchitectFeedbackRouteDecision",
+        "decision": "ROUTE",
+        "selected_subsystem": "AlgorithmEngineer",
+        "environment_feedback_fingerprint": runtime_module.stable_hash(
+            feedback
+        ),
+        "objective": "Revise the exact failed algorithm source.",
+    }
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={
+            theory_packet_id: {
+                "artifact_kind": "TheoryDerivationPacket",
+                "packet_id": theory_packet_id,
+            },
+            algorithm_manifest_id: algorithm_manifest,
+            simulation_manifest_id: simulation_manifest,
+            **continuation_artifacts,
+        },
+    )
+
+    routing = runtime_module._architect_initial_routing_decision(
+        question=question,
+        packet={
+            "packet_id": "architect:generic-confirmatory-source-route",
+            "evidence_contract": {},
+            "subsystem_execution_plan": [],
+        },
+        architect_context=context,
+        packet_id="architect-route:generic-confirmatory-source-route",
+        runtime_config=ResearchAgentRuntimeConfig(
+            generated_code_semantic_review_max_revisions=2
+        ),
+        blackboard=blackboard,
+        requested_subsystem_override="AlgorithmEngineer",
+        routing_source_override="architect_feedback_route_model",
+        honor_requested_subsystem=True,
+    )
+
+    task = routing["task"]
+    assert task.owner_subsystem == "AlgorithmEngineer"
+    assert task.inputs["source_revision_artifact_ids"] == [
+        "generic-estimator"
+    ]
+    source_ref = task.inputs["consumer_source_manifest"]
+    assert source_ref["artifact_kind"] == "RuntimeArtifactRef"
+    assert resolve_runtime_artifact_references(
+        source_ref,
+        blackboard.artifacts,
+    ) == algorithm_manifest
+    assert task.inputs["confirmatory_source_route_errors"] == []
+    budget = task.budget[
+        runtime_module.SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY
+    ]
+    assert budget["revisions_used"] == 1
+    assert budget["max_revisions"] == 2
+    assert routing["record"][
+        "confirmatory_simulation_revalidation_deferred"
+    ] is True
+
+    all_artifacts = {
+        **blackboard.artifacts,
+        **routing["produced_artifacts"],
+    }
+    resumed = runtime_module.restore_agent_task_continuation_reference(
+        task.inputs["deferred_consumer_task_continuation_ref"],
+        all_artifacts,
+    )
+    assert resumed.owner_subsystem == "SimulationEvaluator"
+    assert resumed.inputs["consumer_resume_manifest"] == simulation_manifest
+    assert resumed.inputs["seed"] == new_cohort["seed"]
+    assert resumed.budget == task.budget
+    assert resumed.inputs["architect_context"][
+        runtime_module.CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY
+    ] == new_cohort
 
 
 def test_confirmatory_output_interface_failure_stays_with_source_owner() -> None:

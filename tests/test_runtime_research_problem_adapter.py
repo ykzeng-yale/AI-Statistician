@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 from ai_statistician.research_agent_runtime import _implementation_gaps
 from ai_statistician.runtime_research_problem_adapter import (
     derive_runtime_research_problem,
-    legacy_runtime_research_problem_provenance,
-    runtime_llm_research_authority_required,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
 
@@ -107,7 +103,6 @@ def test_architect_plan_seeds_retrieval_without_task_family_classifier() -> None
         },
     }
 
-    assert runtime_llm_research_authority_required(context) is True
     bundle = derive_runtime_research_problem(
         question=question,
         architect_context=context,
@@ -121,36 +116,7 @@ def test_architect_plan_seeds_retrieval_without_task_family_classifier() -> None
     )
 
 
-def test_legacy_mode_requires_an_explicit_opt_in() -> None:
-    assert runtime_llm_research_authority_required({}) is True
-    assert runtime_llm_research_authority_required(
-        {
-            "runtime_requested_evidence_contract": {
-                "evaluation_mode": "capability_eval"
-            }
-        }
-    ) is True
-    assert runtime_llm_research_authority_required(
-        {"research_problem_authority_mode": "agentic"}
-    ) is True
-    assert runtime_llm_research_authority_required(
-        {
-            "research_problem_authority_mode": "legacy_baseline",
-            "runtime_requested_evidence_contract": {
-                "evaluation_mode": "capability_eval"
-            },
-        }
-    ) is False
-    assert legacy_runtime_research_problem_provenance() == {
-        "problem_formalization_source": "legacy_keyword_problem_formalizer",
-        "theorem_goal_source": "legacy_registered_theory_planner",
-        "legacy_problem_formalizer_used": True,
-        "legacy_theory_planner_used": True,
-        "legacy_baseline_skipped_reason": "",
-    }
-
-
-def test_theory_packet_provider_does_not_change_default_agentic_authority() -> None:
+def test_context_cannot_opt_canonical_runtime_into_task_family_registry() -> None:
     packet = {
         "source_agent": "LLMTheoryDeveloperAgent",
         "provider": "anthropic",
@@ -159,29 +125,22 @@ def test_theory_packet_provider_does_not_change_default_agentic_authority() -> N
         "problem_card": {"estimand": "a generic target"},
     }
 
-    assert runtime_llm_research_authority_required({}, packet) is True
-    assert runtime_llm_research_authority_required(
-        {},
-        {**packet, "provider": "static", "model": "fixture-model"},
-    ) is True
-    assert runtime_llm_research_authority_required(
-        {"research_problem_authority_mode": "legacy_baseline"},
-        packet,
-    ) is False
-
-
-def test_generated_algorithm_gate_does_not_accept_registered_template_match() -> None:
-    packet = {"estimator_specs": [{"id": "known_template"}]}
-    procedures = [
-        SimpleNamespace(id="known_template", algorithm="known_template")
-    ]
-
-    assert _implementation_gaps(packet, procedures) == []
-    gaps = _implementation_gaps(
-        packet,
-        procedures,
-        require_generated_adapter=True,
+    bundle = derive_runtime_research_problem(
+        question=_question(),
+        architect_context={"research_problem_authority_mode": "legacy_baseline"},
+        theory_packet=packet,
     )
+
+    assert bundle.problem_formalization_source == (
+        "theory_developer_structured_packet"
+    )
+    assert bundle.provenance()["legacy_problem_formalizer_used"] is False
+    assert bundle.provenance()["legacy_theory_planner_used"] is False
+
+
+def test_generated_algorithm_gate_never_accepts_registered_template_match() -> None:
+    packet = {"estimator_specs": [{"id": "known_template"}]}
+    gaps = _implementation_gaps(packet)
 
     assert [row["estimator_id"] for row in gaps] == ["known_template"]
     assert gaps[0]["status"] == (

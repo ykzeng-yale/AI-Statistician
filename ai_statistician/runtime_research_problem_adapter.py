@@ -33,16 +33,6 @@ class RuntimeResearchProblemBundle:
         }
 
 
-def legacy_runtime_research_problem_provenance() -> dict[str, Any]:
-    return {
-        "problem_formalization_source": "legacy_keyword_problem_formalizer",
-        "theorem_goal_source": "legacy_registered_theory_planner",
-        "legacy_problem_formalizer_used": True,
-        "legacy_theory_planner_used": True,
-        "legacy_baseline_skipped_reason": "",
-    }
-
-
 def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
@@ -65,19 +55,6 @@ def _architect_plan(context: Mapping[str, Any]) -> dict[str, Any]:
         return plan
     control = _mapping(context.get("runtime_architect_control", {}))
     return _mapping(control.get("architect_runtime_plan", {})) or control
-
-
-def runtime_llm_research_authority_required(
-    context: Mapping[str, Any],
-    theory_packet: Mapping[str, Any] | None = None,
-) -> bool:
-    """Keep task-family registries out of the canonical runtime by default."""
-
-    del theory_packet
-    authority_mode = str(
-        context.get("research_problem_authority_mode", "") or ""
-    ).strip().lower()
-    return authority_mode != "legacy_baseline"
 
 
 def derive_runtime_research_problem(

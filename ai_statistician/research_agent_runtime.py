@@ -241,23 +241,18 @@ from .theory_revision_lineage import (
     consume_architect_routed_theory_revision,
     theory_developer_revision_binding_errors,
 )
-from .research_lab import ProblemFormalizer, ResearchSimulator, TheoryPlanner
 from .research_knowledge import retrieve_problem_knowledge
 from .research_paper_index import retrieve_paper_sources
 from .research_schema import (
-    CandidateProcedure,
     FormalSubclaim,
     KnowledgeCard,
     OpenResearchQuestion,
     PaperSourceHit,
     ResearchProblemSpec,
-    ResearchSimulation,
     TheoremGoal,
 )
 from .runtime_research_problem_adapter import (
     derive_runtime_research_problem,
-    legacy_runtime_research_problem_provenance,
-    runtime_llm_research_authority_required,
 )
 from .simulation_engineer_llm import (
     EMPIRICAL_EVALUATION_PHASE_EXPLORATORY,
@@ -775,17 +770,7 @@ def _architect_theory_preflight_accepted_result(
             "empirical sequence."
         ),
     }
-    requires_generated_algorithm = bool(
-        _architect_runtime_plan(context)
-        .get("evidence_contract", {})
-        .get("research_evaluation_requires_generated_algorithm_code")
-        is True
-    )
-    implementation_gaps = _implementation_gaps(
-        theory_packet,
-        [],
-        require_generated_adapter=requires_generated_algorithm,
-    )
+    implementation_gaps = _implementation_gaps(theory_packet)
     context["implementation_gaps"] = implementation_gaps
     next_workspace_owner = _compiled_post_theory_workspace_owner(
         context,
@@ -1410,6 +1395,9 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 produced_artifacts={
                     decision_id: route_artifact,
                     **transition_artifacts,
+                    **dict(
+                        routing_decision.get("produced_artifacts", {}) or {}
+                    ),
                 },
                 observations=(
                     EnvironmentObservation(
@@ -2533,6 +2521,250 @@ def _architect_selected_worker_environment_feedback(
     return dict(feedback)
 
 
+def _architect_confirmatory_algorithm_source_route(
+    *,
+    question: OpenResearchQuestion,
+    packet_id: str,
+    context: Mapping[str, Any],
+    feedback: Mapping[str, Any],
+    record: dict[str, Any],
+    implementation_gaps: list[dict[str, Any]],
+    runtime_config: ResearchAgentRuntimeConfig,
+    blackboard: BlackboardState,
+) -> dict[str, Any] | None:
+    if str(feedback.get("feedback_type", "") or "") != (
+        "confirmatory_simulation_outcome"
+    ):
+        return None
+    source_owner = feedback.get("consumer_source_owner", {})
+    continuation_ref = feedback.get(
+        "deferred_consumer_task_continuation_ref",
+        {},
+    )
+    route_errors = [
+        str(value)
+        for value in feedback.get(
+            "algorithm_source_continuation_errors", []
+        )
+        or []
+        if str(value).strip()
+    ]
+    if not source_owner and not continuation_ref and not route_errors:
+        return None
+    if not isinstance(source_owner, Mapping) or not source_owner:
+        route_errors.append("confirmatory algorithm source identity is missing")
+        source_owner = {}
+    if not isinstance(continuation_ref, Mapping) or not continuation_ref:
+        route_errors.append("confirmatory simulation continuation is missing")
+        continuation_ref = {}
+
+    source_manifest_id = str(
+        source_owner.get("source_manifest_id", "") or ""
+    ).strip()
+    source_manifest = blackboard.artifacts.get(source_manifest_id, {})
+    revision_ids = sorted(
+        {
+            str(value or "").strip()
+            for value in feedback.get("source_revision_artifact_ids", []) or []
+            if str(value or "").strip()
+        }
+    )
+    failed_simulation_manifest_id = str(
+        feedback.get("source_manifest_id", "") or ""
+    ).strip()
+    failed_simulation_manifest = blackboard.artifacts.get(
+        failed_simulation_manifest_id,
+        {},
+    )
+    if not revision_ids:
+        route_errors.append("confirmatory algorithm revision scope is missing")
+    if (
+        not isinstance(source_manifest, Mapping)
+        or source_manifest.get("artifact_kind")
+        != "RuntimeAlgorithmSandboxManifest"
+        or str(source_manifest.get("manifest_id", "") or "")
+        != source_manifest_id
+        or stable_hash(dict(source_manifest))
+        != str(source_owner.get("source_manifest_hash", "") or "")
+    ):
+        route_errors.append("confirmatory algorithm source manifest is stale")
+    if (
+        not isinstance(failed_simulation_manifest, Mapping)
+        or failed_simulation_manifest.get("artifact_kind")
+        != "RuntimeSimulationManifest"
+        or str(failed_simulation_manifest.get("manifest_id", "") or "")
+        != failed_simulation_manifest_id
+    ):
+        route_errors.append("failed confirmatory simulation manifest is stale")
+
+    deferred_consumer_task: AgentTask | None = None
+    if not route_errors:
+        try:
+            deferred_consumer_task = restore_agent_task_continuation_reference(
+                continuation_ref,
+                blackboard.artifacts,
+            )
+        except ValueError as exc:
+            route_errors.append(str(exc))
+    if deferred_consumer_task is not None:
+        resume_manifest = deferred_consumer_task.inputs.get(
+            "consumer_resume_manifest",
+            {},
+        )
+        if (
+            deferred_consumer_task.owner_subsystem != "SimulationEvaluator"
+            or not isinstance(resume_manifest, Mapping)
+            or str(resume_manifest.get("manifest_id", "") or "")
+            != failed_simulation_manifest_id
+        ):
+            route_errors.append(
+                "confirmatory simulation continuation does not match the failed source"
+            )
+
+    consumer_budget: dict[str, Any] = {}
+    consumer_budget_state: dict[str, Any] = {}
+    continuation_artifacts: dict[str, Any] = {}
+    rebased_continuation_ref: Mapping[str, Any] = continuation_ref
+    if deferred_consumer_task is not None and not route_errors:
+        (
+            consumer_budget,
+            consumer_budget_state,
+            budget_errors,
+        ) = advance_scientific_consumer_revision_budget(
+            task_budget=deferred_consumer_task.budget,
+            question_id=question.id,
+            theory_packet_id=str(
+                source_manifest.get("theory_packet_id", "") or ""
+            ),
+            dependency_context=source_owner,
+            failure_classification=str(
+                feedback.get("failure_classification", "")
+                or "confirmatory_simulation_metric_gate_failed"
+            ),
+            max_revisions=(
+                runtime_config.generated_code_semantic_review_max_revisions
+            ),
+        )
+        route_errors.extend(budget_errors)
+        if consumer_budget_state.get("budget_exhausted") is True:
+            route_errors.append(
+                "confirmatory algorithm source revision budget is exhausted"
+            )
+    if deferred_consumer_task is not None and not route_errors:
+        resume_inputs = deepcopy(dict(deferred_consumer_task.inputs))
+        resume_context = deepcopy(
+            dict(resume_inputs.get("architect_context", {}) or {})
+        )
+        resume_context.update(deepcopy(dict(context)))
+        resume_context["simulation_manifest_id"] = (
+            failed_simulation_manifest_id
+        )
+        resume_context["algorithm_sandbox_manifest_id"] = source_manifest_id
+        resume_inputs["architect_context"] = resume_context
+        resume_inputs["seed"] = confirmatory_evaluation_seed(
+            resume_context,
+            fallback_seed=runtime_config.seed,
+        )
+        resume_inputs["algorithm_sandbox_manifest_id"] = source_manifest_id
+        upstream_handoff = resume_context.get("upstream_algorithm_handoff", {})
+        if isinstance(upstream_handoff, Mapping):
+            resume_inputs["upstream_algorithm_handoff"] = dict(
+                upstream_handoff
+            )
+        rebased_consumer_task = replace(
+            deferred_consumer_task,
+            task_id=(
+                f"simulation-confirmatory-revalidate:{question.id}:"
+                f"{stable_hash([failed_simulation_manifest_id, consumer_budget_state, resume_inputs['seed']])[:8]}"
+            ),
+            inputs=resume_inputs,
+            budget=consumer_budget,
+        )
+        (
+            _continuation_id,
+            rebased_continuation,
+            continuation_artifacts,
+        ) = materialize_agent_task_continuation(
+            rebased_consumer_task,
+            linked_input_references={
+                stable_hash(dict(failed_simulation_manifest)): (
+                    runtime_artifact_reference(
+                        failed_simulation_manifest_id,
+                        failed_simulation_manifest,
+                    )
+                )
+            },
+        )
+        rebased_continuation_ref = agent_task_continuation_reference(
+            rebased_continuation
+        )
+
+    task_inputs = {
+        "question": _question_to_payload(question),
+        "theory_packet_id": _architect_context_theory_packet_id(context),
+        "simulation_manifest_id": failed_simulation_manifest_id,
+        "implementation_gaps": implementation_gaps,
+        "architect_context": dict(context),
+        "environment_feedback": {
+            **dict(feedback),
+            "consumer_source_owner": dict(source_owner),
+        },
+        "consumer_source_manifest": (
+            runtime_artifact_reference(source_manifest_id, source_manifest)
+            if not route_errors
+            else {}
+        ),
+        "source_revision_artifact_ids": revision_ids,
+        "deferred_consumer_task_continuation_ref": dict(
+            rebased_continuation_ref
+        ),
+        "confirmatory_source_route_errors": sorted(set(route_errors)),
+        "n_runs": runtime_config.n_runs,
+        "seed": runtime_config.seed,
+    }
+    record["confirmatory_algorithm_source_continuation"] = not route_errors
+    record["confirmatory_simulation_revalidation_deferred"] = not route_errors
+    return {
+        "task": AgentTask(
+            task_id=(
+                f"algorithm-confirmatory-observation:{question.id}:"
+                f"{stable_hash([packet_id, record, revision_ids])[:8]}"
+            ),
+            owner_subsystem="AlgorithmEngineer",
+            objective=(
+                "Revise the exact hash-bound algorithm source from the released "
+                "confirmatory observations, then replay the frozen simulation "
+                "source on the fresh evaluator-owned cohort."
+            ),
+            inputs=task_inputs,
+            allowed_tools=("model_backend", "python", "filesystem_sandbox"),
+            budget=consumer_budget,
+            expected_artifacts=_architect_expected_artifacts(
+                context,
+                "AlgorithmEngineer",
+                ("algorithm_sandbox_manifest",),
+            ),
+            acceptance_gate=_architect_acceptance_gate(
+                context,
+                "AlgorithmEngineer",
+                "revised exact source executes, receives independent review, and "
+                "releases only the deferred frozen SimulationEvaluator task",
+            ),
+            stop_condition=(
+                "fresh confirmatory revalidation executes or exact lineage blocks"
+            ),
+        ),
+        "record": record,
+        "rationale": (
+            "ArchitectCoordinator selected AlgorithmEngineer for a released "
+            "confirmatory outcome. AgentRuntime restored the exact parent source "
+            "and deferred frozen simulation continuation without another planning "
+            "packet or a runtime-authored source edit."
+        ),
+        "produced_artifacts": continuation_artifacts,
+    }
+
+
 def _architect_initial_routing_decision(
     *,
     question: OpenResearchQuestion,
@@ -2857,6 +3089,20 @@ def _architect_initial_routing_decision(
             architect_context,
             blackboard=blackboard,
         )
+        confirmatory_source_route = (
+            _architect_confirmatory_algorithm_source_route(
+                question=question,
+                packet_id=packet_id,
+                context=context,
+                feedback=feedback,
+                record=record,
+                implementation_gaps=implementation_gaps,
+                runtime_config=runtime_config,
+                blackboard=blackboard,
+            )
+        )
+        if confirmatory_source_route is not None:
+            return confirmatory_source_route
         inputs: dict[str, Any] = {
             "question": _question_to_payload(question),
             "theory_packet_id": _architect_context_theory_packet_id(
@@ -3460,11 +3706,7 @@ def _architect_context_implementation_gaps(
     theory_packet = blackboard.artifacts.get(theory_packet_id, {})
     if not isinstance(theory_packet, Mapping) or not theory_packet:
         return []
-    return _implementation_gaps(
-        theory_packet,
-        [],
-        require_generated_adapter=True,
-    )
+    return _implementation_gaps(theory_packet)
 
 
 def _canonical_architect_subsystem(value: Any) -> str:
@@ -4951,11 +5193,7 @@ class TheoryDeveloperRuntimeSubsystem:
                     or ""
                 ),
             )
-        implementation_gaps = _implementation_gaps(
-            packet,
-            [],
-            require_generated_adapter=requires_generated_algorithm,
-        )
+        implementation_gaps = _implementation_gaps(packet)
         if implementation_gaps:
             context["implementation_gaps"] = implementation_gaps
         requires_metric_protocol_gate = _runtime_metric_protocol_authoring_required(
@@ -7295,6 +7533,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                             "accepted_algorithm_handoff_materialization_failed"
                         ),
                     )
+                produced_artifacts[str(algorithm_handoff["handoff_id"])] = (
+                    algorithm_handoff
+                )
             accepted_review = {
                 "execution_id": execution_id,
                 "review_packet_id": review_packet_id,
@@ -8081,24 +8322,14 @@ class SimulationEvaluatorRuntimeSubsystem:
             source_theory_packet_id=packet_id,
             theory_packet=packet if isinstance(packet, Mapping) else {},
         )
-        llm_research_authority = runtime_llm_research_authority_required(
-            effective_context,
-            packet if isinstance(packet, Mapping) else {},
+        research_bundle = derive_runtime_research_problem(
+            question=question,
+            architect_context=effective_context,
+            theory_packet=packet if isinstance(packet, Mapping) else {},
         )
-        if llm_research_authority:
-            research_bundle = derive_runtime_research_problem(
-                question=question,
-                architect_context=effective_context,
-                theory_packet=packet if isinstance(packet, Mapping) else {},
-            )
-            problem = research_bundle.problem
-            theorem_goals = list(research_bundle.theorem_goals)
-            procedures: list[CandidateProcedure] = []
-            problem_authority = research_bundle.provenance()
-        else:
-            problem = ProblemFormalizer().formalize(question)
-            procedures, theorem_goals = TheoryPlanner().plan(problem)
-            problem_authority = legacy_runtime_research_problem_provenance()
+        problem = research_bundle.problem
+        theorem_goals = list(research_bundle.theorem_goals)
+        problem_authority = research_bundle.provenance()
         n_runs = int(task.inputs.get("n_runs", 100))
         seed = int(task.inputs.get("seed", 20260528))
         proposal_packet: dict[str, Any] | None = None
@@ -8325,9 +8556,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                             packet if isinstance(packet, Mapping) else {}
                         ),
                         registered_problem=_problem_to_json(problem),
-                        registered_procedures=[
-                            _procedure_to_json(row) for row in procedures
-                        ],
+                        registered_procedures=[],
                         n_runs=n_runs,
                         seed=seed,
                         withhold_seed_from_model=confirmatory_seed_blind,
@@ -8403,50 +8632,16 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "theory_trace_alignment_contract": simulation_theory_trace_alignment_contract,
                 },
             )
-        requires_generated_simulation_code = bool(
-            llm_research_authority
-            or _runtime_requires_generated_simulation_code(
-                effective_context,
-                environment_feedback,
-            )
-        )
+        requires_generated_simulation_code = True
         requires_typed_metric_contracts = _runtime_requires_typed_metric_contracts(
             effective_context,
             environment_feedback,
             subsystem="SimulationEvaluator",
         ) and not exploratory_diagnostic
-        agentic_simulation_authority = bool(
-            llm_research_authority or requires_generated_simulation_code
-        )
-        if agentic_simulation_authority:
-            simulations: list[ResearchSimulation] = []
-            registered_baseline_skip_reason = (
-                "Agentic runs evaluate LLM-generated simulation code; registered "
-                "task-family simulators are optional legacy baselines and cannot "
-                "satisfy the agentic evidence gate."
-            )
-        else:
-            simulations = ResearchSimulator(n_runs=n_runs, seed=seed).run(
-                problem,
-                procedures,
-            )
-            registered_baseline_skip_reason = ""
-        registered_simulator_tool_calls = (
-            ()
-            if agentic_simulation_authority
-            else (
-                ToolCallRecord(
-                    tool_name="ResearchSimulator.run",
-                    inputs={
-                        "n_runs": n_runs,
-                        "seed": seed,
-                        "n_procedures": len(procedures),
-                    },
-                    exit_status="0",
-                    stdout_summary=f"{len(simulations)} simulation rows recorded",
-                    safety_boundary=SIMULATION_NOT_PROOF_BOUNDARY,
-                ),
-            )
+        registered_simulator_tool_calls: tuple[ToolCallRecord, ...] = ()
+        registered_baseline_skip_reason = (
+            "Canonical AgentRuntime requires model-owned scientific source; "
+            "task-family simulator registries are not a product execution path."
         )
         generated_simulation_rows: list[dict[str, Any]] = []
         generated_simulation_tool_calls: list[ToolCallRecord] = []
@@ -8843,44 +9038,22 @@ class SimulationEvaluatorRuntimeSubsystem:
                 )
             )
         )
-        registered_simulation_passed = bool(simulations) and all(
-            row.passed for row in simulations
-        )
         generated_simulation_passed = bool(
             n_generated_simulation_executed > 0
             and n_generated_simulation_passed > 0
             and generated_simulation_rows_all_passed
             and not generated_simulation_revision_required
         )
-        simulation_passed = (
-            generated_simulation_passed
-            if agentic_simulation_authority
-            else registered_simulation_passed
-        )
+        simulation_passed = generated_simulation_passed
         confirmatory_generated_metric_failure = bool(
             not exploratory_diagnostic
-            and agentic_simulation_authority
             and n_generated_simulation_executed > 0
             and generated_simulation_rows_all_source_valid
             and not generated_simulation_passed
         )
-        simulation_evidence_source = (
-            "generated_simulation_sandbox"
-            if agentic_simulation_authority
-            else "registered_research_simulator_baseline"
-        )
-        requires_generated_algorithm_code = bool(
-            llm_research_authority
-            or _runtime_requires_generated_algorithm_code(
-                effective_context,
-                environment_feedback,
-            )
-        )
-        implementation_gaps = _implementation_gaps(
-            packet,
-            procedures,
-            require_generated_adapter=requires_generated_algorithm_code,
-        )
+        simulation_evidence_source = "generated_simulation_sandbox"
+        requires_generated_algorithm_code = True
+        implementation_gaps = _implementation_gaps(packet)
         confirmatory_empirical_evidence_eligible = not exploratory_diagnostic
         confirmatory_simulation_passed = bool(
             simulation_passed and confirmatory_empirical_evidence_eligible
@@ -8943,15 +9116,13 @@ class SimulationEvaluatorRuntimeSubsystem:
                 simulation_theory_trace_alignment_contract
             ),
             "problem": _problem_to_json(problem),
-            "registered_procedures": [_procedure_to_json(row) for row in procedures],
-            "registered_baseline_execution_skipped": bool(
-                registered_baseline_skip_reason
-            ),
+            "registered_procedures": [],
+            "registered_baseline_execution_skipped": True,
             "registered_baseline_execution_skipped_reason": (
                 registered_baseline_skip_reason
             ),
             "theorem_goals": [_theorem_goal_to_json(row) for row in theorem_goals],
-            "simulations": [_simulation_to_json(row) for row in simulations],
+            "simulations": [],
             "generated_simulation_sandbox_prototypes": generated_simulation_rows,
             "n_generated_simulation_sandbox_prototypes": len(generated_simulation_rows),
             "n_generated_simulation_sandbox_executed": n_generated_simulation_executed,
@@ -9043,7 +9214,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
             ),
             "simulation_passed": confirmatory_simulation_passed,
-            "registered_simulation_passed": registered_simulation_passed,
+            "registered_simulation_passed": False,
             "generated_simulation_passed": bool(
                 generated_simulation_passed
                 and confirmatory_empirical_evidence_eligible
@@ -9063,7 +9234,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     f"confirmatory_passed={confirmatory_simulation_passed}"
                 ),
                 payload={
-                    "n_simulations": len(simulations),
+                    "n_simulations": 0,
                     "simulation_passed": confirmatory_simulation_passed,
                     "exploratory_simulation_passed": bool(
                         simulation_passed and exploratory_diagnostic
@@ -9082,8 +9253,8 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "registered_baseline_execution_skipped": bool(
                         registered_baseline_skip_reason
                     ),
-                    "procedure_ids": [row.procedure_id for row in simulations],
-                    "failed_procedure_ids": [row.procedure_id for row in simulations if not row.passed],
+                    "procedure_ids": [],
+                    "failed_procedure_ids": [],
                     "n_generated_simulation_sandbox_executed": n_generated_simulation_executed,
                     "n_generated_simulation_sandbox_execution_attempted": (
                         n_generated_simulation_execution_attempted
@@ -9122,9 +9293,9 @@ class SimulationEvaluatorRuntimeSubsystem:
             status=(
                 "EXPLORATORY_EXECUTED_NOT_CONFIRMATORY"
                 if exploratory_diagnostic
-                and (simulations or n_generated_simulation_executed > 0)
+                and n_generated_simulation_executed > 0
                 else "EXECUTED_REPRODUCIBLY"
-                if simulations or n_generated_simulation_executed > 0
+                if n_generated_simulation_executed > 0
                 else "NO_EXECUTABLE_SIMULATION"
             ),
             boundary=SIMULATION_NOT_PROOF_BOUNDARY,
@@ -9624,10 +9795,107 @@ class SimulationEvaluatorRuntimeSubsystem:
             )
             confirmatory_feedback_id = ""
             if confirmatory_generated_metric_failure:
+                source_algorithm_manifest_id = str(
+                    upstream_algorithm_handoff.get(
+                        "algorithm_sandbox_manifest_id", ""
+                    )
+                    or ""
+                ).strip()
+                source_algorithm_manifest = blackboard.artifacts.get(
+                    source_algorithm_manifest_id,
+                    {},
+                )
+                source_continuation_fields: dict[str, Any] = {}
+                source_continuation_errors: list[str] = []
+                if source_algorithm_manifest_id:
+                    (
+                        consumer_source_owner,
+                        source_continuation_errors,
+                    ) = scientific_consumer_dependency_context(
+                        [
+                            row
+                            for row in generated_simulation_rows
+                            if row.get("execution_smoke_passed") is True
+                        ]
+                    )
+                    if (
+                        not isinstance(source_algorithm_manifest, Mapping)
+                        or source_algorithm_manifest.get("artifact_kind")
+                        != "RuntimeAlgorithmSandboxManifest"
+                        or str(
+                            source_algorithm_manifest.get("manifest_id", "")
+                            or ""
+                        )
+                        != source_algorithm_manifest_id
+                        or stable_hash(dict(source_algorithm_manifest))
+                        != str(
+                            consumer_source_owner.get(
+                                "source_manifest_hash", ""
+                            )
+                            or ""
+                        )
+                    ):
+                        source_continuation_errors.append(
+                            "confirmatory outcome source manifest is missing or stale"
+                        )
+                    if not source_continuation_errors:
+                        resume_inputs = deepcopy(dict(task.inputs))
+                        resume_context = deepcopy(dict(effective_context))
+                        resume_context["simulation_manifest_id"] = manifest_id
+                        resume_context["algorithm_sandbox_manifest_id"] = (
+                            source_algorithm_manifest_id
+                        )
+                        resume_inputs["architect_context"] = resume_context
+                        resume_inputs["consumer_resume_manifest"] = manifest
+                        consumer_resume_task = replace(
+                            task,
+                            task_id=(
+                                f"simulation-confirmatory-resume:{question.id}:"
+                                f"{stable_hash(manifest_id)[:8]}"
+                            ),
+                            objective=(
+                                "Replay the exact frozen simulation source after a "
+                                "model-owned upstream algorithm revision passes "
+                                "independent review."
+                            ),
+                            inputs=resume_inputs,
+                        )
+                        (
+                            _consumer_continuation_id,
+                            consumer_continuation,
+                            consumer_continuation_artifacts,
+                        ) = materialize_agent_task_continuation(
+                            consumer_resume_task,
+                            linked_input_references={
+                                stable_hash(manifest): runtime_artifact_reference(
+                                    manifest_id,
+                                    manifest,
+                                )
+                            },
+                        )
+                        produced_artifacts.update(
+                            consumer_continuation_artifacts
+                        )
+                        source_continuation_fields = {
+                            "consumer_source_owner": consumer_source_owner,
+                            "source_revision_artifact_ids": deepcopy(
+                                consumer_source_owner.get(
+                                    "dependency_artifact_ids", []
+                                )
+                            ),
+                            "deferred_consumer_task_continuation_ref": (
+                                agent_task_continuation_reference(
+                                    consumer_continuation
+                                )
+                            ),
+                        }
                 confirmatory_feedback_payload = {
                     "schema_version": RUNTIME_SCHEMA_VERSION,
                     "artifact_kind": "RuntimeConfirmatorySimulationOutcome",
                     "feedback_type": "confirmatory_simulation_outcome",
+                    "failure_classification": (
+                        "confirmatory_simulation_metric_gate_failed"
+                    ),
                     "question_id": question.id,
                     "source_subsystem": "SimulationEvaluator",
                     "source_manifest_id": manifest_id,
@@ -9659,7 +9927,12 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "unchanged_source_retry_authorized": False,
                     "runtime_edited_source": False,
                     "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
+                    **source_continuation_fields,
                 }
+                if source_continuation_errors:
+                    confirmatory_feedback_payload[
+                        "algorithm_source_continuation_errors"
+                    ] = sorted(set(source_continuation_errors))
                 confirmatory_feedback_id = (
                     "confirmatory_simulation_outcome:"
                     + stable_hash(confirmatory_feedback_payload)[:20]
@@ -9847,9 +10120,9 @@ class SimulationEvaluatorRuntimeSubsystem:
             "simulation_manifest_id": manifest_id,
             "simulation_passed": simulation_passed,
             "failed_simulations": [
-                _simulation_to_json(row)
-                for row in simulations
-                if not row.passed
+                deepcopy(dict(row))
+                for row in generated_simulation_rows
+                if row.get("smoke_passed") is not True
             ],
             "implementation_gaps": implementation_gaps,
             "boundary": SIMULATION_NOT_PROOF_BOUNDARY,
@@ -10020,6 +10293,46 @@ class AlgorithmEngineerRuntimeSubsystem:
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
         context = dict(task.inputs.get("architect_context", {}) or {})
+        confirmatory_source_route_errors = sorted(
+            {
+                str(value)
+                for value in task.inputs.get(
+                    "confirmatory_source_route_errors", []
+                )
+                or []
+                if str(value).strip()
+            }
+        )
+        if confirmatory_source_route_errors:
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale=(
+                    "AlgorithmEngineer rejected an invalid confirmatory source "
+                    "continuation before any planning, source, or sandbox call."
+                ),
+                observations=(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "confirmatory_algorithm_source_continuation_rejected"
+                        ),
+                        summary="; ".join(
+                            confirmatory_source_route_errors
+                        )[:500],
+                        payload={
+                            "validation_errors": (
+                                confirmatory_source_route_errors
+                            ),
+                            "planning_model_call_authorized": False,
+                            "source_model_call_authorized": False,
+                            "runtime_edited_source": False,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    ),
+                ),
+                failure_classification=(
+                    "confirmatory_algorithm_source_continuation_invalid"
+                ),
+            )
         implementation_before_metric_freeze = bool(
             task.inputs.get("implementation_before_metric_freeze") is True
         )
@@ -11793,23 +12106,14 @@ class FormalizerWorkspaceRuntimeSubsystem:
         )
         if missing_algorithm_result is not None:
             return missing_algorithm_result
-        llm_research_authority = runtime_llm_research_authority_required(
-            context,
-            packet if isinstance(packet, Mapping) else {},
+        research_bundle = derive_runtime_research_problem(
+            question=question,
+            architect_context=context,
+            theory_packet=packet if isinstance(packet, Mapping) else {},
         )
-        if llm_research_authority:
-            research_bundle = derive_runtime_research_problem(
-                question=question,
-                architect_context=context,
-                theory_packet=packet if isinstance(packet, Mapping) else {},
-            )
-            problem = research_bundle.problem
-            theorem_goals = list(research_bundle.theorem_goals)
-            problem_authority = research_bundle.provenance()
-        else:
-            problem = ProblemFormalizer().formalize(question)
-            _procedures, theorem_goals = TheoryPlanner().plan(problem)
-            problem_authority = legacy_runtime_research_problem_provenance()
+        problem = research_bundle.problem
+        theorem_goals = list(research_bundle.theorem_goals)
+        problem_authority = research_bundle.provenance()
         proposal_packet: dict[str, Any] | None = None
         proposal_evidence: EvidenceLedgerEntry | None = None
         produced_artifacts: dict[str, Any] = {}
@@ -19600,14 +19904,9 @@ def _llm_agent_topology_row(
 
 def _implementation_gaps(
     packet: Any,
-    procedures: list[CandidateProcedure],
-    *,
-    require_generated_adapter: bool = False,
 ) -> list[dict[str, Any]]:
     if not isinstance(packet, Mapping):
         return []
-    registered_ids = {row.id for row in procedures}
-    registered_algorithms = {row.algorithm for row in procedures}
     gaps: list[dict[str, Any]] = []
     for row in packet.get("estimator_specs", []) or []:
         if not isinstance(row, Mapping):
@@ -19615,31 +19914,16 @@ def _implementation_gaps(
         estimator_id = str(row.get("id") or row.get("name") or "").strip()
         if not estimator_id:
             continue
-        if (
-            not require_generated_adapter
-            and (
-                estimator_id in registered_ids
-                or estimator_id in registered_algorithms
-            )
-        ):
-            continue
         gaps.append(
             {
                 "estimator_id": estimator_id,
-                "status": (
-                    "REQUIRES_GENERATED_ALGORITHM_ENGINEER_ADAPTER"
-                    if require_generated_adapter
-                    else "REQUIRES_ALGORITHM_ENGINEER_ADAPTER"
-                ),
+                "status": "REQUIRES_GENERATED_ALGORITHM_ENGINEER_ADAPTER",
                 "reason": (
                     "Agentic execution requires this LLM estimator spec to pass "
                     "through generated code, sandbox execution, and independent "
                     "semantic review. DGP-based statistical-performance gates belong "
-                    "to the downstream SimulationEngineer experiment. A registered "
-                    "template cannot satisfy this generated-artifact evidence gate."
-                    if require_generated_adapter
-                    else "LLM estimator spec has no registered executable algorithm "
-                    "in this runtime slice."
+                    "to the downstream SimulationEngineer experiment. Task-family "
+                    "registries cannot satisfy this generated-artifact evidence gate."
                 ),
             }
         )
@@ -21934,29 +22218,35 @@ def _run_generated_simulation_sandbox(
         or ""
     ).strip()
     bound_hashes = dict(prototype.get("bound_estimator_code_hashes", {}) or {})
+    bound_dependency_ids = [
+        artifact_id
+        for artifact_id in required_estimator_ids
+        if str(bound_hashes.get(artifact_id, "") or "").strip()
+    ]
     exact_dependency_binding = bool(
-        dependency_failure_ids
+        bound_dependency_ids
         and source_manifest_id
         and source_manifest_hash
         and all(
             str(bound_hashes.get(artifact_id, "") or "").strip()
-            for artifact_id in dependency_failure_ids
+            for artifact_id in bound_dependency_ids
         )
     )
     if exact_dependency_binding:
-        prototype["source_iteration_disposition"] = (
-            SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
-        )
         prototype["source_owner"] = {
             "owner_subsystem": "AlgorithmEngineer",
             "source_manifest_id": source_manifest_id,
             "source_manifest_hash": source_manifest_hash,
-            "artifact_ids": dependency_failure_ids,
+            "artifact_ids": bound_dependency_ids,
             "artifact_hashes": {
                 artifact_id: str(bound_hashes.get(artifact_id, "") or "")
-                for artifact_id in dependency_failure_ids
+                for artifact_id in bound_dependency_ids
             },
         }
+        if dependency_failure_ids:
+            prototype["source_iteration_disposition"] = (
+                SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+            )
     tool_language = normalized_generated_code_language(code_draft.get("language"))
     wrapped_tool_call = ToolCallRecord(
         tool_name=(
@@ -22556,19 +22846,11 @@ def _formalization_runtime_problem_and_goals(
         if isinstance(task_inputs.get("architect_context", {}), Mapping)
         else {}
     )
-    if runtime_llm_research_authority_required(architect_context):
-        bundle = derive_runtime_research_problem(
-            question=question,
-            architect_context=architect_context,
-        )
-        return bundle.problem, list(bundle.theorem_goals), bundle.provenance()
-    problem = ProblemFormalizer().formalize(question)
-    _procedures, theorem_goals = TheoryPlanner().plan(problem)
-    return (
-        problem,
-        theorem_goals,
-        legacy_runtime_research_problem_provenance(),
+    bundle = derive_runtime_research_problem(
+        question=question,
+        architect_context=architect_context,
     )
+    return bundle.problem, list(bundle.theorem_goals), bundle.provenance()
 
 
 def _problem_to_json(problem: ResearchProblemSpec) -> dict[str, Any]:
@@ -22579,16 +22861,8 @@ def _problem_to_json(problem: ResearchProblemSpec) -> dict[str, Any]:
     return row
 
 
-def _procedure_to_json(procedure: CandidateProcedure) -> dict[str, Any]:
-    return asdict(procedure)
-
-
 def _theorem_goal_to_json(goal: TheoremGoal) -> dict[str, Any]:
     return asdict(goal)
-
-
-def _simulation_to_json(simulation: ResearchSimulation) -> dict[str, Any]:
-    return asdict(simulation)
 
 
 def _formal_subclaim_to_json(subclaim: FormalSubclaim) -> dict[str, Any]:
