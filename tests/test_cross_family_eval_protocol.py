@@ -5,8 +5,11 @@ from argparse import Namespace
 from pathlib import Path
 
 from ai_statistician.cross_family_eval_protocol import (
+    advance_confirmatory_evaluation_cohort,
     load_cross_family_eval_protocol,
+    resolve_confirmatory_evaluation_cohort,
     resolve_cross_family_eval_panel,
+    summarize_candidate_gate_independence,
     validate_cross_family_eval_protocol,
 )
 from ai_statistician.cli import _cross_family_eval_protocol_selection
@@ -51,6 +54,82 @@ def test_frozen_cross_family_protocol_resolves_disjoint_panels() -> None:
         "claude-haiku-4-5-20251001"
     )
     assert development["sonnet_opus_live_calls_forbidden"] is True
+    assert development["confirmatory_source_outcome_blinding_required"] is True
+    assert development["post_outcome_fresh_cohort_required"] is True
+    assert development["confirmatory_candidate_seed_blinding_required"] is True
+
+
+def test_outcome_informed_candidate_uses_a_fresh_evaluator_owned_cohort() -> None:
+    protocol = load_cross_family_eval_protocol(PROTOCOL_PATH)
+    questions = load_open_research_questions(Path("examples/research_questions.json"))
+    selection = resolve_cross_family_eval_panel(
+        protocol,
+        panel_id="development",
+        questions=questions,
+    )
+    question_id = "right_censored_survival_km"
+    context = {"cross_family_evaluation_protocol": selection}
+
+    initial, errors = resolve_confirmatory_evaluation_cohort(
+        context,
+        question_id=question_id,
+        execution_seed=29,
+    )
+    assert errors == []
+    assert initial["cohort_index"] == 0
+    assert initial["seed"] == 29
+    assert initial["candidate_model_seed_disclosure"] == "WITHHELD"
+
+    context["runtime_confirmatory_evaluation_cohort"] = initial
+    outcome = {
+        "feedback_id": "confirmatory-outcome:one",
+        "question_id": question_id,
+        "confirmatory_evaluation_cohort": initial,
+        "empirical_outcomes": [{"aggregate_value": 0.1}],
+    }
+    next_cohort, transition, errors = advance_confirmatory_evaluation_cohort(
+        context,
+        confirmatory_outcome=outcome,
+        question_id=question_id,
+    )
+    assert errors == []
+    assert next_cohort["cohort_index"] == 1
+    assert next_cohort["seed"] != initial["seed"]
+    assert transition["fresh_seed"] is True
+    assert transition["runtime_selected_research_content"] is False
+
+    changed_outcome = copy.deepcopy(outcome)
+    changed_outcome["feedback_id"] = "confirmatory-outcome:changed-result"
+    changed_outcome["empirical_outcomes"] = [{"aggregate_value": 999.0}]
+    changed_cohort, _, errors = advance_confirmatory_evaluation_cohort(
+        context,
+        confirmatory_outcome=changed_outcome,
+        question_id=question_id,
+    )
+    assert errors == []
+    assert changed_cohort["seed"] == next_cohort["seed"]
+    assert changed_cohort["cohort_id"] != next_cohort["cohort_id"]
+
+    summary = summarize_candidate_gate_independence(
+        [
+            {"evidence_type": "simulation", "payload": {
+                "confirmatory_evaluation_cohort": initial,
+            }},
+            {"evidence_type": "simulation", "payload": {
+                "confirmatory_evaluation_cohort": initial,
+            }},
+            {"evidence_type": "confirmatory_evaluation_cohort_transition", "payload": {
+                "transition": transition,
+            }},
+            {"evidence_type": "simulation", "payload": {
+                "confirmatory_evaluation_cohort": next_cohort,
+            }},
+        ],
+        architect_context=context,
+    )
+    assert summary["status"] == "POST_OUTCOME_FRESH_COHORT_VERIFIED"
+    assert summary["validation_errors"] == []
+    assert summary["n_distinct_executed_cohorts"] == 2
 
 
 def test_cross_family_protocol_rejects_family_overlap() -> None:

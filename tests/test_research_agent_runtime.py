@@ -49,6 +49,7 @@ from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.scientific_code_workspace import ScientificCodeWorkspaceResult
 from ai_statistician.simulation_engineer_llm import (
     SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
+    build_simulation_engineer_prompt,
 )
 from ai_statistician.structured_output_retry import PacketValidationError
 
@@ -79,6 +80,30 @@ def test_research_evaluation_is_pinned_to_exact_haiku_snapshot() -> None:
                 evaluation_claude_model="claude-sonnet-4-5-20250929",
             )
         )
+
+
+def test_confirmatory_simulation_prompt_can_withhold_the_execution_seed() -> None:
+    question = OpenResearchQuestion(
+        id="generic-seed-blind",
+        title="Seed-blind confirmatory candidate",
+        description="Author source before the evaluator reveals its cohort seed.",
+    )
+
+    prompt = build_simulation_engineer_prompt(
+        question=question,
+        theory_packet={},
+        registered_problem={},
+        registered_procedures=[],
+        n_runs=8,
+        seed=None,
+        environment_feedback={},
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+
+    assert payload["runtime_execution_budget"]["seed"] == "EVALUATOR_WITHHELD"
+    assert payload["runtime_execution_budget"]["seed_binding"] == (
+        "runtime_injected_after_candidate_authoring"
+    )
 
 
 def test_required_formal_policy_does_not_hardcode_proof_first_execution() -> None:
@@ -1223,7 +1248,14 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     context = _full_evidence_context(question.id)
     context["theory_packet_id"] = theory_packet_id
     context["empirical_evaluation_phase"] = "confirmatory"
+    context["cross_family_evaluation_protocol"] = {
+        "protocol_fingerprint": "protocol:generic-confirmatory-blinding",
+        "candidate_gate_independence_required": True,
+        "post_outcome_fresh_cohort_required": True,
+        "confirmatory_candidate_seed_blinding_required": True,
+    }
     source_checks: list[dict[str, object]] = []
+    proposal_calls: list[dict[str, object]] = []
 
     class Provider:
         @staticmethod
@@ -1236,8 +1268,9 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
         source_calls = 0
 
         @classmethod
-        def propose(cls, **_kwargs):
+        def propose(cls, **kwargs):
             cls.propose_calls += 1
+            proposal_calls.append(dict(kwargs))
             return {
                 "artifact_kind": "SimulationEngineerProposalPacket",
                 "packet_id": "simulation-proposal:confirmatory-blinding",
@@ -1401,6 +1434,7 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     result = subsystem.run(task, blackboard)
 
     assert SimulationAgent.propose_calls == 1
+    assert proposal_calls[0]["withhold_seed_from_model"] is True
     assert SimulationAgent.source_calls == 1
     assert source_checks[0]["accepted"] is True
     source_observation = source_checks[0]["prototype"]
@@ -1421,6 +1455,11 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     assert manifest["simulation_passed"] is False
     assert manifest["generated_simulation_source_valid"] is True
     assert manifest["confirmatory_outcomes_withheld_from_source"] is True
+    assert manifest["confirmatory_candidate_seed_withheld_from_model"] is True
+    cohort = manifest["confirmatory_evaluation_cohort"]
+    assert cohort["cohort_index"] == 0
+    assert cohort["seed"] == 11
+    assert cohort["candidate_model_seed_disclosure"] == "WITHHELD"
     work_order = next(
         artifact
         for artifact in result.produced_artifacts.values()
@@ -1442,6 +1481,7 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     )
     assert feedback["feedback_type"] == "confirmatory_simulation_outcome"
     assert feedback["source_subsystem"] == "SimulationEvaluator"
+    assert feedback["confirmatory_evaluation_cohort"] == cohort
     assert feedback["unchanged_source_retry_authorized"] is False
     assert feedback["empirical_outcomes"][0]["metric_gate_errors"]
     assert "SimulationEvaluator" not in (
@@ -1450,6 +1490,10 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
             environment_feedback=feedback,
         )
     )
+    cohort_ref = deferred_task.inputs["architect_context"][
+        runtime_module.CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY
+    ]
+    assert resolve_runtime_artifact_references(cohort_ref, all_artifacts) == cohort
 
 
 def test_exhausted_consumer_loop_does_not_continue_unrelated_outer_lane() -> None:

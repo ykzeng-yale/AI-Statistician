@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .agent_runtime import agent_runtime_substage
+from .cross_family_eval_protocol import withhold_confirmatory_evaluation_seed
 
 from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
@@ -1744,8 +1745,8 @@ def build_architect_coordinator_prompt(
             ),
         },
     }
-    model_architect_context = architect_observations_without_runtime_routing(
-        architect_context
+    model_architect_context = withhold_confirmatory_evaluation_seed(
+        architect_observations_without_runtime_routing(architect_context)
     )
     payload = {
         "question": {
@@ -1755,7 +1756,10 @@ def build_architect_coordinator_prompt(
             "tags": list(question.tags),
         },
         "architect_context": model_architect_context,
-        "runtime_config": dict(runtime_config),
+        "runtime_config": withhold_confirmatory_evaluation_seed(
+            runtime_config,
+            parent_key="runtime_config",
+        ),
         "available_subsystems": list(ARCHITECT_RUNTIME_SUBSYSTEMS),
         "orchestration_contract": {
             "model_owns": (

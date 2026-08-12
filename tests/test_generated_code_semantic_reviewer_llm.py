@@ -181,6 +181,13 @@ def _contains_key(value: object, forbidden: set[str]) -> bool:
 
 def test_prompt_is_observation_only_and_preserves_complete_source() -> None:
     material = _review_material()
+    material["source_manifest_summary"] = {
+        "confirmatory_evaluation_cohort": {"seed": 7, "cohort_index": 0}
+    }
+    material["coding_agent_proposal_packet"] = {
+        "runtime_budget": {"seed": 7, "n_runs": 80},
+        "runtime_execution_plan": {"seed": 7, "n_runs": 80},
+    }
     material["exact_executed_artifacts"][0]["exact_result"][
         "private_realized_value"
     ] = "RESULT_VALUE_MUST_NOT_APPEAR"
@@ -197,6 +204,21 @@ def test_prompt_is_observation_only_and_preserves_complete_source() -> None:
     assert projection["exact_executed_artifacts"][0]["exact_result_schema"][
         "realized_values_withheld"
     ] is True
+    assert projection["exact_executed_artifacts"][0][
+        "actual_runtime_arguments"
+    ]["seed"] == "EVALUATOR_WITHHELD"
+    assert projection["exact_executed_artifacts"][0][
+        "actual_runtime_arguments"
+    ]["replicates"] == 80
+    assert projection["source_manifest_summary"][
+        "confirmatory_evaluation_cohort"
+    ]["seed"] == "EVALUATOR_WITHHELD"
+    assert projection["coding_agent_proposal_packet"]["runtime_budget"][
+        "seed"
+    ] == "EVALUATOR_WITHHELD"
+    assert projection["coding_agent_proposal_packet"][
+        "runtime_execution_plan"
+    ]["seed"] == "EVALUATOR_WITHHELD"
     assert "RESULT_VALUE_MUST_NOT_APPEAR" not in prompt
     assert "def run_sandbox" in prompt
     assert "Do not propose source edits" in prompt
@@ -939,6 +961,7 @@ def test_confirmatory_revision_returns_source_and_findings_without_result_values
                 "exact_source_code_complete": True,
                 "exact_result": {"metric": 0.2},
                 "exact_result_hash": "result-hash",
+                "actual_runtime_arguments": {"seed": 7, "replicates": 80},
             }
         ],
     }
@@ -968,5 +991,7 @@ def test_confirmatory_revision_returns_source_and_findings_without_result_values
     assert "exact_result_hash" not in reviewed
     assert "execution_envelope_hash" not in reviewed
     assert reviewed["exact_result_schema"]["realized_values_withheld"] is True
+    assert reviewed["actual_runtime_arguments"]["seed"] == "EVALUATOR_WITHHELD"
+    assert reviewed["actual_runtime_arguments"]["replicates"] == 80
     assert source_feedback["confirmatory_result_values_withheld_from_source"] is True
     assert "0.2" not in str(reviewed["exact_result_schema"])

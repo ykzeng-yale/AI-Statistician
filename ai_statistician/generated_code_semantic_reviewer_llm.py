@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 from urllib.parse import unquote
 
+from .cross_family_eval_protocol import withhold_confirmatory_evaluation_seed
 from .fingerprint import stable_hash
 from .structured_output_retry import extract_json_object, generate_validated_json_packet
 from .metric_protocol_finding_ledger import (
@@ -461,9 +462,12 @@ def _semantic_review_model_input(value: Any, *, parent_key: str = "") -> Any:
 def generated_code_semantic_review_prompt_projection(
     review_material: Mapping[str, Any],
 ) -> dict[str, Any]:
-    return _prompt_projection_value(
+    projected = _prompt_projection_value(
         _semantic_review_model_input(review_material)
     )
+    if review_material.get("confirmatory_empirical_evidence_eligible") is True:
+        return withhold_confirmatory_evaluation_seed(projected)
+    return projected
 
 
 def _question_context(question: OpenResearchQuestion) -> dict[str, Any]:

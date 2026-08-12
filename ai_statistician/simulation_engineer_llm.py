@@ -90,6 +90,7 @@ class LLMSimulationEngineerAgent:
         registered_procedures: list[Mapping[str, Any]],
         n_runs: int,
         seed: int,
+        withhold_seed_from_model: bool = False,
         environment_feedback: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         feedback = environment_feedback or {}
@@ -143,7 +144,7 @@ class LLMSimulationEngineerAgent:
             registered_problem=registered_problem,
             registered_procedures=registered_procedures,
             n_runs=n_runs,
-            seed=seed,
+            seed=None if withhold_seed_from_model else seed,
             environment_feedback=feedback,
             defer_source_authoring=defer_source_authoring,
         )
@@ -201,6 +202,7 @@ class LLMSimulationEngineerAgent:
                 theory_packet=theory_packet,
                 n_runs=n_runs,
                 seed=seed,
+                seed_disclosed_to_model=not withhold_seed_from_model,
                 authoritative_metric_requirements=(
                     authoritative_metric_requirements
                 ),
@@ -319,7 +321,7 @@ def build_simulation_engineer_prompt(
     registered_problem: Mapping[str, Any],
     registered_procedures: list[Mapping[str, Any]],
     n_runs: int,
-    seed: int,
+    seed: int | None,
     environment_feedback: Mapping[str, Any] | None = None,
     defer_source_authoring: bool = False,
 ) -> str:
@@ -377,7 +379,12 @@ def build_simulation_engineer_prompt(
         "empirical_evaluation_phase": empirical_evaluation_phase,
         "runtime_execution_budget": {
             "n_runs": n_runs,
-            "seed": seed,
+            "seed": seed if seed is not None else "EVALUATOR_WITHHELD",
+            "seed_binding": (
+                "exact_value_available_to_candidate_model"
+                if seed is not None
+                else "runtime_injected_after_candidate_authoring"
+            ),
             **runtime_execution_contract,
         },
         "execution_owner": (
@@ -1399,6 +1406,7 @@ def _normalize_simulation_packet(
     theory_packet: Mapping[str, Any],
     n_runs: int,
     seed: int,
+    seed_disclosed_to_model: bool = True,
     authoritative_metric_requirements: list[Mapping[str, Any]] | None = None,
     metric_requirement_authority_policy: str = "",
     empirical_evaluation_phase: str = "",
@@ -1474,6 +1482,9 @@ def _normalize_simulation_packet(
             "baseline and cannot satisfy agentic generated-source evidence gates."
         )
     body["runtime_execution_plan"] = runtime_plan
+    body["candidate_model_seed_disclosure"] = (
+        "DISCLOSED" if seed_disclosed_to_model else "WITHHELD"
+    )
     body["simulation_evidence_status"] = SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE
     body["simulation_evidence_boundary"] = SIMULATION_ENGINEER_BOUNDARY
     body["proof_evidence_status"] = "NOT_PROOF_EVIDENCE"

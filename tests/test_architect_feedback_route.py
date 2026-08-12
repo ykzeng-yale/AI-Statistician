@@ -17,6 +17,9 @@ from ai_statistician.architect_coordinator_llm import (
     validate_architect_feedback_route_packet,
 )
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.cross_family_eval_protocol import (
+    resolve_confirmatory_evaluation_cohort,
+)
 from ai_statistician.model_backend import GeneratorResponse
 from ai_statistician.research_agent_runtime import (
     ArchitectCoordinatorRuntimeSubsystem,
@@ -96,6 +99,33 @@ def test_formal_requirement_keeps_workspace_topology_runtime_owned() -> None:
     ]
     assert "not prerequisites" in path_semantics["proof_first"]
     assert "neither lane is a prerequisite" in path_semantics["dual_track"]
+
+
+def test_full_architect_prompt_withholds_confirmatory_evaluator_seed() -> None:
+    prompt = build_architect_coordinator_prompt(
+        question=_question(),
+        architect_context={
+            "runtime_confirmatory_evaluation_cohort": {
+                "cohort_id": "cohort:1",
+                "seed": 1042,
+                "cohort_index": 1,
+            },
+            "runtime_execution_plan": {"seed": 1042, "replicates": 12},
+        },
+        runtime_config={
+            "formal_verification_policy": "required",
+            "formal_required_for_final": True,
+            "seed": 1042,
+        },
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    context = payload["architect_context"]
+    assert context["runtime_confirmatory_evaluation_cohort"]["seed"] == (
+        "EVALUATOR_WITHHELD"
+    )
+    assert context["runtime_execution_plan"]["seed"] == "EVALUATOR_WITHHELD"
+    assert context["runtime_execution_plan"]["replicates"] == 12
+    assert payload["runtime_config"]["seed"] == "EVALUATOR_WITHHELD"
 
 
 def test_compact_architect_decision_builds_runtime_workspace_topology() -> None:
@@ -755,6 +785,101 @@ def test_runtime_honors_model_owned_route_and_binds_full_feedback() -> None:
     assert observation.payload["runtime_owner_override_applied"] is False
     assert observation.payload["full_research_plan_regenerated"] is False
     assert observation.payload["runtime_authored_candidate_fix"] is False
+
+
+def test_outcome_route_preserves_model_owner_and_advances_only_eval_cohort() -> None:
+    question = _question()
+    context = {
+        "cross_family_evaluation_protocol": {
+            "protocol_fingerprint": "protocol:generic",
+            "candidate_gate_independence_required": True,
+            "post_outcome_fresh_cohort_required": True,
+            "confirmatory_candidate_seed_blinding_required": True,
+        },
+        "architect_runtime_plan": {
+            "evidence_contract": {},
+            "subsystem_execution_plan": [
+                {
+                    "subsystem": "TheoryDeveloper",
+                    "objective": "revise theory from the released outcome",
+                    "acceptance_gate": "a new theory lineage is recorded",
+                }
+            ],
+        },
+    }
+    cohort, errors = resolve_confirmatory_evaluation_cohort(
+        context,
+        question_id=question.id,
+        execution_seed=17,
+    )
+    assert errors == []
+    context["runtime_confirmatory_evaluation_cohort"] = cohort
+    feedback = {
+        "artifact_kind": "RuntimeConfirmatorySimulationOutcome",
+        "feedback_type": "confirmatory_simulation_outcome",
+        "feedback_id": "confirmatory-outcome:generic",
+        "question_id": question.id,
+        "confirmatory_evaluation_cohort": cohort,
+        "empirical_outcomes": [{"aggregate_value": 0.2}],
+    }
+
+    class _Coordinator:
+        @staticmethod
+        def route_environment_feedback(**kwargs):  # type: ignore[no-untyped-def]
+            assert kwargs["environment_feedback"] == feedback
+            return {
+                "route_decision_id": "architect_feedback_route:cohort",
+                "decision": "ROUTE",
+                "selected_subsystem": "TheoryDeveloper",
+                "objective": "Revise the theory from this immutable outcome.",
+                "rationale": "The model selected a theory revision.",
+                "environment_feedback_fingerprint": stable_hash(feedback),
+            }
+
+    result = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=_Coordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(seed=17),
+    ).run(
+        AgentTask(
+            task_id="architect-confirmatory-outcome:generic",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Choose the next owner.",
+            inputs={
+                "question": {
+                    "id": question.id,
+                    "title": question.title,
+                    "description": question.description,
+                    "tags": list(question.tags),
+                },
+                "architect_context": context,
+                "environment_feedback": feedback,
+                "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
+            },
+        ),
+        BlackboardState(project_id=question.id),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    next_cohort = result.next_task.inputs["architect_context"][
+        "runtime_confirmatory_evaluation_cohort"
+    ]
+    assert next_cohort["cohort_index"] == 1
+    assert next_cohort["seed"] != cohort["seed"]
+    transitions = [
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeConfirmatoryEvaluationCohortTransition"
+    ]
+    assert len(transitions) == 1
+    assert transitions[0]["runtime_selected_research_content"] is False
+    assert any(
+        row.evidence_type == "confirmatory_evaluation_cohort_transition"
+        for row in result.evidence_entries
+    )
 
 
 def test_architect_feedback_route_can_record_model_blocker() -> None:

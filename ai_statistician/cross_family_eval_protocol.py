@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -18,6 +19,9 @@ from .task_family import (
 
 CROSS_FAMILY_EVAL_PROTOCOL_SCHEMA_VERSION = 1
 CROSS_FAMILY_EVAL_PROTOCOL_KIND = "CrossFamilyEndToEndEvaluationProtocol"
+CONFIRMATORY_EVALUATION_COHORT_KIND = "RuntimeConfirmatoryEvaluationCohort"
+CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY = "runtime_confirmatory_evaluation_cohort"
+CONFIRMATORY_EVALUATION_SEED_MODULUS = 2_147_483_647
 
 
 def load_cross_family_eval_protocol(path: Path) -> dict[str, Any]:
@@ -72,6 +76,9 @@ def validate_cross_family_eval_protocol(value: Any) -> list[str]:
             "task_learning_memory_forbidden",
             "component_eval_substitution_forbidden",
             "candidate_gate_independence_required",
+            "confirmatory_source_outcome_blinding_required",
+            "post_outcome_fresh_cohort_required",
+            "confirmatory_candidate_seed_blinding_required",
             "generated_code_semantic_review_required",
             "semantic_review_source_and_execution_lineage_required",
             "all_live_anthropic_agents_exact_model_required",
@@ -239,6 +246,9 @@ def resolve_cross_family_eval_panel(
         "task_learning_memory_forbidden": True,
         "component_eval_substitution_forbidden": True,
         "candidate_gate_independence_required": True,
+        "confirmatory_source_outcome_blinding_required": True,
+        "post_outcome_fresh_cohort_required": True,
+        "confirmatory_candidate_seed_blinding_required": True,
         "evaluation_claude_model_tier": str(
             protocol["run_contract"]["evaluation_claude_model_tier"]
         ),
@@ -249,4 +259,337 @@ def resolve_cross_family_eval_panel(
         "sonnet_opus_live_calls_forbidden": True,
         "required_per_task_evidence": list(protocol["required_per_task_evidence"]),
         "proof_evidence_status": "EVALUATION_PROTOCOL_SELECTION_NOT_PROOF_EVIDENCE",
+    }
+
+
+def _evaluation_selection(context: Mapping[str, Any]) -> Mapping[str, Any]:
+    value = context.get("cross_family_evaluation_protocol", {})
+    return value if isinstance(value, Mapping) else {}
+
+
+def candidate_gate_independence_required(context: Mapping[str, Any]) -> bool:
+    selection = _evaluation_selection(context)
+    return bool(
+        selection.get("candidate_gate_independence_required") is True
+        and selection.get("post_outcome_fresh_cohort_required") is True
+    )
+
+
+def confirmatory_candidate_seed_blinding_required(
+    context: Mapping[str, Any],
+) -> bool:
+    return bool(
+        candidate_gate_independence_required(context)
+        and _evaluation_selection(context).get(
+            "confirmatory_candidate_seed_blinding_required"
+        )
+        is True
+    )
+
+
+def confirmatory_evaluation_seed(
+    context: Mapping[str, Any],
+    *,
+    fallback_seed: int,
+) -> int:
+    cohort = context.get(CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY, {})
+    seed = cohort.get("seed") if isinstance(cohort, Mapping) else None
+    return seed if isinstance(seed, int) and not isinstance(seed, bool) else fallback_seed
+
+
+def _new_cohort(
+    *,
+    question_id: str,
+    protocol_fingerprint: str,
+    base_seed: int,
+    cohort_index: int,
+    previous_cohort_id: str = "",
+    trigger_outcome_id: str = "",
+) -> dict[str, Any]:
+    seed = (
+        base_seed
+        if cohort_index == 0
+        else (base_seed + cohort_index * 1_000_003)
+        % CONFIRMATORY_EVALUATION_SEED_MODULUS
+    )
+    identity = {
+        "artifact_kind": CONFIRMATORY_EVALUATION_COHORT_KIND,
+        "question_id": question_id,
+        "protocol_fingerprint": protocol_fingerprint,
+        "base_seed": base_seed,
+        "cohort_index": cohort_index,
+        "seed": seed,
+        "previous_cohort_id": previous_cohort_id,
+        "trigger_outcome_id": trigger_outcome_id,
+        "seed_derived_from_empirical_outcome": False,
+        "candidate_model_seed_disclosure": "WITHHELD",
+    }
+    return {
+        **identity,
+        "cohort_id": "confirmatory_evaluation_cohort:" + stable_hash(identity)[:20],
+        "proof_evidence_status": "EVALUATION_COHORT_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "Runtime owns only cohort identity and an outcome-independent execution "
+            "seed; it does not choose or edit research content."
+        ),
+    }
+
+
+def _cohort_errors(
+    value: Any,
+    *,
+    question_id: str,
+    protocol_fingerprint: str,
+) -> list[str]:
+    if not isinstance(value, Mapping):
+        return ["confirmatory evaluation cohort must be an object"]
+    errors: list[str] = []
+    if value.get("artifact_kind") != CONFIRMATORY_EVALUATION_COHORT_KIND:
+        errors.append("confirmatory cohort artifact_kind is invalid")
+    if value.get("question_id") != question_id:
+        errors.append("confirmatory cohort question_id mismatch")
+    if value.get("protocol_fingerprint") != protocol_fingerprint:
+        errors.append("confirmatory cohort protocol fingerprint mismatch")
+    base_seed = value.get("base_seed")
+    index = value.get("cohort_index")
+    seed = value.get("seed")
+    if any(
+        isinstance(item, bool) or not isinstance(item, int)
+        for item in (base_seed, index, seed)
+    ):
+        errors.append("confirmatory cohort seed fields must be integers")
+        return errors
+    if index < 0:
+        errors.append("confirmatory cohort index must be nonnegative")
+        return errors
+    previous_id = str(value.get("previous_cohort_id", "") or "")
+    outcome_id = str(value.get("trigger_outcome_id", "") or "")
+    if (index == 0 and (previous_id or outcome_id)) or (
+        index > 0 and (not previous_id or not outcome_id)
+    ):
+        errors.append("confirmatory cohort prior-outcome lineage is invalid")
+    expected = _new_cohort(
+        question_id=question_id,
+        protocol_fingerprint=protocol_fingerprint,
+        base_seed=base_seed,
+        cohort_index=index,
+        previous_cohort_id=previous_id,
+        trigger_outcome_id=outcome_id,
+    )
+    if seed != expected["seed"] or value.get("cohort_id") != expected["cohort_id"]:
+        errors.append("confirmatory cohort identity or seed derivation mismatch")
+    if value.get("seed_derived_from_empirical_outcome") is not False:
+        errors.append("confirmatory cohort seed depends on empirical outcomes")
+    if value.get("candidate_model_seed_disclosure") != "WITHHELD":
+        errors.append("confirmatory cohort seed was disclosed to the candidate model")
+    return sorted(set(errors))
+
+
+def resolve_confirmatory_evaluation_cohort(
+    context: Mapping[str, Any],
+    *,
+    question_id: str,
+    execution_seed: int,
+) -> tuple[dict[str, Any], list[str]]:
+    if not candidate_gate_independence_required(context):
+        return {}, []
+    fingerprint = str(_evaluation_selection(context).get("protocol_fingerprint", "") or "")
+    existing = context.get(CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY, {})
+    cohort = (
+        dict(existing)
+        if isinstance(existing, Mapping) and existing
+        else _new_cohort(
+            question_id=question_id,
+            protocol_fingerprint=fingerprint,
+            base_seed=execution_seed,
+            cohort_index=0,
+        )
+    )
+    errors = _cohort_errors(
+        cohort,
+        question_id=question_id,
+        protocol_fingerprint=fingerprint,
+    )
+    if cohort.get("seed") != execution_seed:
+        errors.append("confirmatory task seed does not match its cohort")
+    return cohort, sorted(set(errors))
+
+
+def advance_confirmatory_evaluation_cohort(
+    context: Mapping[str, Any],
+    *,
+    confirmatory_outcome: Mapping[str, Any],
+    question_id: str,
+) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
+    if not candidate_gate_independence_required(context):
+        return {}, {}, []
+    fingerprint = str(_evaluation_selection(context).get("protocol_fingerprint", "") or "")
+    current = context.get(CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY, {})
+    errors = _cohort_errors(
+        current,
+        question_id=question_id,
+        protocol_fingerprint=fingerprint,
+    )
+    outcome_id = str(
+        confirmatory_outcome.get("feedback_id", "")
+        or confirmatory_outcome.get("observation_id", "")
+        or ""
+    )
+    outcome_cohort = confirmatory_outcome.get("confirmatory_evaluation_cohort", {})
+    if (
+        not outcome_id
+        or confirmatory_outcome.get("question_id") != question_id
+        or not isinstance(outcome_cohort, Mapping)
+        or outcome_cohort.get("cohort_id")
+        != (current.get("cohort_id") if isinstance(current, Mapping) else None)
+    ):
+        errors.append("confirmatory outcome does not match the active cohort")
+    if errors:
+        return {}, {}, sorted(set(errors))
+    next_cohort = _new_cohort(
+        question_id=question_id,
+        protocol_fingerprint=fingerprint,
+        base_seed=int(current["base_seed"]),
+        cohort_index=int(current["cohort_index"]) + 1,
+        previous_cohort_id=str(current["cohort_id"]),
+        trigger_outcome_id=outcome_id,
+    )
+    transition_body = {
+        "artifact_kind": "RuntimeConfirmatoryEvaluationCohortTransition",
+        "question_id": question_id,
+        "trigger_outcome_id": outcome_id,
+        "from_cohort_id": current["cohort_id"],
+        "from_seed": current["seed"],
+        "to_cohort_id": next_cohort["cohort_id"],
+        "to_seed": next_cohort["seed"],
+        "fresh_seed": current["seed"] != next_cohort["seed"],
+        "seed_derived_from_empirical_outcome": False,
+        "runtime_selected_research_content": False,
+    }
+    transition = {
+        **transition_body,
+        "transition_id": (
+            "confirmatory_evaluation_cohort_transition:"
+            + stable_hash(transition_body)[:20]
+        ),
+        "proof_evidence_status": "EVALUATION_TRANSITION_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "Runtime allocates a fresh cohort after outcome-informed continuation; "
+            "the model still chooses the worker and all research content."
+        ),
+    }
+    return next_cohort, transition, []
+
+
+def withhold_confirmatory_evaluation_seed(
+    value: Any,
+    *,
+    parent_key: str = "",
+) -> Any:
+    """Project evaluator-owned seeds out of model-visible material."""
+
+    if isinstance(value, Mapping):
+        return {
+            str(key): (
+                "EVALUATOR_WITHHELD"
+                if str(key) == "runtime_seed"
+                or (
+                    str(key) == "seed"
+                    and parent_key
+                    in {
+                        "actual_runtime_arguments",
+                        "confirmatory_evaluation_cohort",
+                        CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY,
+                        "runtime_budget",
+                        "runtime_config",
+                        "runtime_execution_plan",
+                    }
+                )
+                else withhold_confirmatory_evaluation_seed(
+                    child,
+                    parent_key=str(key),
+                )
+            )
+            for key, child in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [
+            withhold_confirmatory_evaluation_seed(child, parent_key=parent_key)
+            for child in value
+        ]
+    return deepcopy(value)
+
+
+def summarize_candidate_gate_independence(
+    evidence_rows: Sequence[Mapping[str, Any]],
+    *,
+    architect_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    required = candidate_gate_independence_required(architect_context)
+    cohorts: dict[str, Mapping[str, Any]] = {}
+    transitions: list[Mapping[str, Any]] = []
+    n_execution_rows = 0
+    for row in evidence_rows:
+        payload = row.get("payload", {})
+        if not isinstance(payload, Mapping):
+            continue
+        if row.get("evidence_type") == "simulation":
+            cohort = payload.get("confirmatory_evaluation_cohort", {})
+            if isinstance(cohort, Mapping) and cohort:
+                n_execution_rows += 1
+                cohorts[str(cohort.get("cohort_id", "") or "")] = cohort
+        elif row.get("evidence_type") == "confirmatory_evaluation_cohort_transition":
+            transition = payload.get("transition", {})
+            if isinstance(transition, Mapping) and transition:
+                transitions.append(transition)
+    seed_to_ids: dict[int, set[str]] = {}
+    for cohort_id, cohort in cohorts.items():
+        seed = cohort.get("seed")
+        if isinstance(seed, int) and not isinstance(seed, bool):
+            seed_to_ids.setdefault(seed, set()).add(cohort_id)
+    post_outcome_ids = {
+        cohort_id
+        for cohort_id, cohort in cohorts.items()
+        if int(cohort.get("cohort_index", 0) or 0) > 0
+    }
+    transition_targets = {
+        str(row.get("to_cohort_id", "") or "") for row in transitions
+    }
+    errors = []
+    if any(len(ids) > 1 for ids in seed_to_ids.values()):
+        errors.append("distinct confirmatory cohorts reused one seed")
+    if post_outcome_ids - transition_targets:
+        errors.append("post-outcome cohort execution lacks a recorded transition")
+    if any(
+        row.get("fresh_seed") is not True
+        or row.get("seed_derived_from_empirical_outcome") is not False
+        or row.get("runtime_selected_research_content") is not False
+        for row in transitions
+    ):
+        errors.append("confirmatory cohort transition violated evaluator ownership")
+    status = (
+        "NOT_REQUIRED"
+        if not required
+        else "VIOLATION"
+        if errors
+        else "POST_OUTCOME_FRESH_COHORT_VERIFIED"
+        if post_outcome_ids
+        else "POST_OUTCOME_FRESH_COHORT_ALLOCATED_NOT_EXECUTED"
+        if transitions
+        else "NO_POST_OUTCOME_CONTINUATION_OBSERVED"
+        if cohorts
+        else "NO_CONFIRMATORY_COHORT_EXECUTION_OBSERVED"
+    )
+    return {
+        "required": required,
+        "status": status,
+        "n_confirmatory_cohort_execution_rows": n_execution_rows,
+        "n_distinct_executed_cohorts": len(cohorts),
+        "n_post_outcome_cohort_transitions": len(transitions),
+        "n_post_outcome_fresh_cohort_executions": len(post_outcome_ids),
+        "validation_errors": errors,
+        "candidate_gate_independence_verified": (
+            status == "POST_OUTCOME_FRESH_COHORT_VERIFIED"
+        ),
+        "proof_evidence_status": "EVALUATION_INDEPENDENCE_NOT_PROOF_EVIDENCE",
     }

@@ -50,6 +50,15 @@ from .critic_evaluator_llm import (
     CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE,
     LLMCriticEvaluatorAgent,
 )
+from .cross_family_eval_protocol import (
+    CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY,
+    advance_confirmatory_evaluation_cohort,
+    candidate_gate_independence_required,
+    confirmatory_candidate_seed_blinding_required,
+    confirmatory_evaluation_seed,
+    resolve_confirmatory_evaluation_cohort,
+    summarize_candidate_gate_independence,
+)
 from .fingerprint import stable_hash
 from .lean_proof_agent_contract import (
     llm_proof_body_generation_contract,
@@ -1146,6 +1155,46 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 lineage_value = str(task.inputs.get(lineage_key, "") or "").strip()
                 if lineage_value:
                     context[lineage_key] = lineage_value
+            next_confirmatory_cohort: dict[str, Any] = {}
+            confirmatory_cohort_transition: dict[str, Any] = {}
+            if (
+                str(environment_feedback.get("feedback_type", "") or "")
+                == "confirmatory_simulation_outcome"
+                and candidate_gate_independence_required(context)
+            ):
+                (
+                    next_confirmatory_cohort,
+                    confirmatory_cohort_transition,
+                    cohort_transition_errors,
+                ) = advance_confirmatory_evaluation_cohort(
+                    context,
+                    confirmatory_outcome=environment_feedback,
+                    question_id=question.id,
+                )
+                if cohort_transition_errors:
+                    return AgentStepResult(
+                        status="BLOCKED",
+                        rationale=(
+                            "ArchitectCoordinator rejected an invalid confirmatory "
+                            "cohort lineage before any model call."
+                        ),
+                        observations=(
+                            EnvironmentObservation(
+                                observation_type=(
+                                    "confirmatory_evaluation_cohort_transition_rejected"
+                                ),
+                                summary="; ".join(cohort_transition_errors)[:500],
+                                payload={
+                                    "validation_errors": cohort_transition_errors,
+                                    "model_call_authorized": False,
+                                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                                },
+                            ),
+                        ),
+                        failure_classification=(
+                            "confirmatory_evaluation_cohort_lineage_invalid"
+                        ),
+                    )
             try:
                 feedback_architect_context = dict(context)
                 feedback_architect_context["runtime_progress_snapshot"] = (
@@ -1234,6 +1283,41 @@ class ArchitectCoordinatorRuntimeSubsystem:
                     failure_classification="architect_feedback_route_blocked",
                 )
 
+            transition_artifacts: dict[str, Any] = {}
+            transition_evidence: EvidenceLedgerEntry | None = None
+            if next_confirmatory_cohort and confirmatory_cohort_transition:
+                cohort_id = str(next_confirmatory_cohort["cohort_id"])
+                transition_id = str(
+                    confirmatory_cohort_transition["transition_id"]
+                )
+                context[CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY] = (
+                    next_confirmatory_cohort
+                )
+                context["runtime_confirmatory_evaluation_cohort_transition_id"] = (
+                    transition_id
+                )
+                transition_artifacts = {
+                    cohort_id: next_confirmatory_cohort,
+                    transition_id: confirmatory_cohort_transition,
+                }
+                transition_evidence = EvidenceLedgerEntry(
+                    evidence_id=(
+                        "evidence:"
+                        + stable_hash([task.task_id, transition_id])[:20]
+                    ),
+                    task_id=task.task_id,
+                    artifact_id=transition_id,
+                    evidence_type="confirmatory_evaluation_cohort_transition",
+                    status="FRESH_POST_OUTCOME_COHORT_ALLOCATED",
+                    boundary=str(
+                        confirmatory_cohort_transition.get("boundary", "") or ""
+                    ),
+                    payload={
+                        "transition": confirmatory_cohort_transition,
+                        "next_cohort": next_confirmatory_cohort,
+                        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                    },
+                )
             context["architect_feedback_route_decision"] = route_artifact
             context["environment_feedback"] = deepcopy(dict(environment_feedback))
             runtime_plan = _architect_runtime_plan(context)
@@ -1288,7 +1372,10 @@ class ArchitectCoordinatorRuntimeSubsystem:
             return AgentStepResult(
                 status="REROUTE",
                 rationale=str(route_packet.get("rationale", "") or ""),
-                produced_artifacts={decision_id: route_artifact},
+                produced_artifacts={
+                    decision_id: route_artifact,
+                    **transition_artifacts,
+                },
                 observations=(
                     EnvironmentObservation(
                         observation_type="llm_architect_feedback_route",
@@ -1303,11 +1390,20 @@ class ArchitectCoordinatorRuntimeSubsystem:
                             "runtime_owner_override_applied": False,
                             "full_research_plan_regenerated": False,
                             "runtime_authored_candidate_fix": False,
+                            "confirmatory_evaluation_cohort_transition_id": str(
+                                confirmatory_cohort_transition.get(
+                                    "transition_id", ""
+                                )
+                            ),
                             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                         },
                     ),
                 ),
-                evidence_entries=(route_evidence,),
+                evidence_entries=tuple(
+                    row
+                    for row in (route_evidence, transition_evidence)
+                    if row is not None
+                ),
                 next_task=next_task,
             )
         context = _architect_context_with_rehydrated_metric_protocol_theory_material(
@@ -2641,6 +2737,15 @@ def _architect_initial_routing_decision(
             context[
                 "confirmatory_simulation_requires_accepted_algorithm_handoff"
             ] = True
+        simulation_seed = (
+            runtime_config.seed
+            if context.get("empirical_evaluation_phase")
+            == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            else confirmatory_evaluation_seed(
+                context,
+                fallback_seed=runtime_config.seed,
+            )
+        )
         inputs: dict[str, Any] = {
             "question": _question_to_payload(question),
             "theory_packet_id": str(
@@ -2650,7 +2755,7 @@ def _architect_initial_routing_decision(
             ),
             "architect_context": context,
             "n_runs": runtime_config.n_runs,
-            "seed": runtime_config.seed,
+            "seed": simulation_seed,
         }
         if requires_accepted_algorithm_handoff:
             inputs["algorithm_sandbox_manifest_id"] = (
@@ -4705,7 +4810,15 @@ class TheoryDeveloperRuntimeSubsystem:
                 "theory_packet_id": packet_id,
                 "architect_context": context,
                 "n_runs": self.n_runs,
-                "seed": self.seed,
+                "seed": (
+                    self.seed
+                    if context.get("empirical_evaluation_phase")
+                    == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                    else confirmatory_evaluation_seed(
+                        context,
+                        fallback_seed=self.seed,
+                    )
+                ),
             },
             allowed_tools=("research_simulator", "python"),
             expected_artifacts=_architect_expected_artifacts(
@@ -7955,6 +8068,56 @@ class SimulationEvaluatorRuntimeSubsystem:
         seed = int(task.inputs.get("seed", 20260528))
         proposal_packet: dict[str, Any] | None = None
         produced_artifacts: dict[str, Any] = {}
+        confirmatory_evaluation_cohort: dict[str, Any] = {}
+        confirmatory_seed_blind = bool(
+            not exploratory_diagnostic
+            and confirmatory_candidate_seed_blinding_required(context)
+        )
+        if not exploratory_diagnostic and candidate_gate_independence_required(
+            context
+        ):
+            (
+                confirmatory_evaluation_cohort,
+                cohort_errors,
+            ) = resolve_confirmatory_evaluation_cohort(
+                context,
+                question_id=question.id,
+                execution_seed=seed,
+            )
+            if cohort_errors:
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "SimulationEvaluator rejected an invalid confirmatory cohort "
+                        "before any model or sandbox call."
+                    ),
+                    observations=(
+                        EnvironmentObservation(
+                            observation_type=(
+                                "confirmatory_evaluation_cohort_rejected"
+                            ),
+                            summary="; ".join(cohort_errors)[:500],
+                            payload={
+                                "validation_errors": cohort_errors,
+                                "model_call_authorized": False,
+                                "execution_authorized": False,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        ),
+                    ),
+                    failure_classification=(
+                        "confirmatory_evaluation_cohort_invalid"
+                    ),
+                )
+            context[CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY] = (
+                confirmatory_evaluation_cohort
+            )
+            effective_context[CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY] = (
+                confirmatory_evaluation_cohort
+            )
+            cohort_id = str(confirmatory_evaluation_cohort["cohort_id"])
+            if cohort_id not in blackboard.artifacts:
+                produced_artifacts[cohort_id] = confirmatory_evaluation_cohort
         proposal_evidence: EvidenceLedgerEntry | None = None
         simulation_theory_trace_contract: dict[str, Any] = {}
         simulation_theory_trace_alignment_contract: dict[str, Any] = {}
@@ -8132,6 +8295,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         ],
                         n_runs=n_runs,
                         seed=seed,
+                        withhold_seed_from_model=confirmatory_seed_blind,
                         environment_feedback=(
                             _runtime_environment_feedback_with_architect_directive(
                                 context=effective_context,
@@ -8686,7 +8850,15 @@ class SimulationEvaluatorRuntimeSubsystem:
         confirmatory_simulation_passed = bool(
             simulation_passed and confirmatory_empirical_evidence_eligible
         )
-        manifest_id = "simulation_manifest:" + stable_hash([task.task_id, packet_id, n_runs, seed])[:20]
+        manifest_id = "simulation_manifest:" + stable_hash(
+            [
+                task.task_id,
+                packet_id,
+                n_runs,
+                seed,
+                confirmatory_evaluation_cohort.get("cohort_id", ""),
+            ]
+        )[:20]
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
             "artifact_kind": "RuntimeSimulationManifest",
@@ -8701,6 +8873,15 @@ class SimulationEvaluatorRuntimeSubsystem:
             ),
             "empirical_evaluation_phase": empirical_evaluation_phase,
             "exploratory_diagnostic": exploratory_diagnostic,
+            "candidate_gate_independence_required": bool(
+                confirmatory_evaluation_cohort
+            ),
+            "confirmatory_candidate_seed_withheld_from_model": (
+                confirmatory_seed_blind
+            ),
+            "confirmatory_evaluation_cohort": (
+                confirmatory_evaluation_cohort
+            ),
             "confirmatory_empirical_evidence_eligible": (
                 confirmatory_empirical_evidence_eligible
             ),
@@ -8853,6 +9034,12 @@ class SimulationEvaluatorRuntimeSubsystem:
                         simulation_passed and exploratory_diagnostic
                     ),
                     "empirical_evaluation_phase": empirical_evaluation_phase,
+                    "confirmatory_evaluation_cohort": (
+                        confirmatory_evaluation_cohort
+                    ),
+                    "confirmatory_candidate_seed_withheld_from_model": (
+                        confirmatory_seed_blind
+                    ),
                     "confirmatory_empirical_evidence_eligible": (
                         confirmatory_empirical_evidence_eligible
                     ),
@@ -8914,6 +9101,12 @@ class SimulationEvaluatorRuntimeSubsystem:
                     simulation_passed and exploratory_diagnostic
                 ),
                 "empirical_evaluation_phase": empirical_evaluation_phase,
+                "confirmatory_evaluation_cohort": (
+                    confirmatory_evaluation_cohort
+                ),
+                "confirmatory_candidate_seed_withheld_from_model": (
+                    confirmatory_seed_blind
+                ),
                 "confirmatory_empirical_evidence_eligible": (
                     confirmatory_empirical_evidence_eligible
                 ),
@@ -9405,6 +9598,9 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "source_manifest_id": manifest_id,
                     "source_manifest_hash": stable_hash(manifest),
                     "theory_packet_id": packet_id,
+                    "confirmatory_evaluation_cohort": (
+                        confirmatory_evaluation_cohort
+                    ),
                     "empirical_outcomes": [
                         {
                             key: deepcopy(row[key])
@@ -17822,6 +18018,10 @@ def run_research_agent_runtime(
         ),
         "proof_evidence_status": "FORMALIZER_CLIENT_TOOL_OBSERVATIONS_NOT_PROOF_EVIDENCE",
     }
+    candidate_gate_independence_summary = summarize_candidate_gate_independence(
+        evidence_rows,
+        architect_context=runtime_architect_context,
+    )
     runtime_resume_policy = (
         "fresh_start"
         if not initial_task_overrides
@@ -17922,6 +18122,9 @@ def run_research_agent_runtime(
         "n_full_frontier_theorem_proved": n_full_frontier_theorem_proved,
         "formalizer_client_tool_observation_summary": (
             formalizer_client_tool_observation_summary
+        ),
+        "candidate_gate_independence_summary": (
+            candidate_gate_independence_summary
         ),
         "n_formalizer_lean_candidate_local_lean_checked": sum(
             payload_int(payload, "n_local_lean_checked")
@@ -18042,7 +18245,8 @@ def _runtime_llm_topology(
             generated_code_semantic_reviewer,
             role=(
                 "independent semantic review of exact executed generated code, "
-                "runtime arguments, metrics, theory, and frozen protocols"
+                "runtime arguments, result schema, theory, and frozen protocols "
+                "before confirmatory outcome release"
             ),
         ),
         _llm_agent_topology_row(
