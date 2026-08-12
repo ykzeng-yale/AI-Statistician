@@ -2288,6 +2288,11 @@ def evaluate_generated_metric_contracts(
                 required_failure_errors.extend(evaluation["errors"])
     n_passed = sum(1 for row in evaluations if row.get("passed") is True)
     n_failed = sum(1 for row in evaluations if row.get("passed") is not True)
+    measurement_interface_failures = [
+        row
+        for row in evaluations
+        if row.get("measurement_interface_valid") is False
+    ]
     return {
         "schema_version": GENERATED_METRIC_CONTRACT_SCHEMA_VERSION,
         "artifact_kind": "GeneratedMetricContractEvaluation",
@@ -2309,6 +2314,12 @@ def evaluate_generated_metric_contracts(
         "n_contracts": len(contract_rows),
         "n_passed": n_passed,
         "n_failed": n_failed,
+        "measurement_interface_valid": bool(
+            not schema_errors and not measurement_interface_failures
+        ),
+        "n_measurement_interface_failures": len(
+            measurement_interface_failures
+        ),
         "all_required_passed": not required_failure_errors,
         "required_failure_errors": list(dict.fromkeys(required_failure_errors)),
         "evaluations": evaluations,
@@ -2327,15 +2338,23 @@ def _evaluate_generated_metric_contract(
     values, path_error = _resolve_generated_metric_path(metrics, path)
     numeric_values: list[float] = []
     errors: list[str] = []
+    measurement_interface_errors: list[str] = []
+    measurement_interface_status = "VALID"
     if path_error:
-        errors.append(f"metric contract {contract_id}: {path_error}")
+        error = f"metric contract {contract_id}: {path_error}"
+        errors.append(error)
+        measurement_interface_errors.append(error)
+        measurement_interface_status = "PATH_UNRESOLVED"
     else:
         numeric_values, numeric_error = _metric_numeric_values(
             values,
             metric_value_kind=_generated_metric_value_kind(contract),
         )
         if numeric_error:
-            errors.append(f"metric contract {contract_id}: {numeric_error}")
+            error = f"metric contract {contract_id}: {numeric_error}"
+            errors.append(error)
+            measurement_interface_errors.append(error)
+            measurement_interface_status = "VALUE_TYPE_INVALID"
     aggregation = str(contract.get("aggregation", "") or "")
     aggregate_value: float | None = None
     comparison_results: list[bool] = []
@@ -2346,6 +2365,11 @@ def _evaluate_generated_metric_contract(
                     f"metric contract {contract_id}: identity aggregation resolved "
                     f"{len(numeric_values)} numeric values, expected exactly 1"
                 )
+                measurement_interface_errors.append(
+                    f"metric contract {contract_id}: identity aggregation requires "
+                    "exactly one numeric value at the frozen metric_path"
+                )
+                measurement_interface_status = "CARDINALITY_INVALID"
             else:
                 aggregate_value = numeric_values[0]
                 comparison_results = [
@@ -2404,6 +2428,9 @@ def _evaluate_generated_metric_contract(
         "n_comparisons": len(comparison_results),
         "passed": passed,
         "errors": errors,
+        "measurement_interface_valid": not measurement_interface_errors,
+        "measurement_interface_status": measurement_interface_status,
+        "measurement_interface_errors": measurement_interface_errors,
         "source_anchors": list(contract.get("source_anchors", []) or []),
         "acceptance_authority_kind": str(
             contract.get("acceptance_authority_kind", "") or ""

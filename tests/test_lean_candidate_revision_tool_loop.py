@@ -23,6 +23,7 @@ from ai_statistician.model_backend import (
 )
 from ai_statistician.formalizer_llm import (
     FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
+    FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP,
     FormalizerConfig,
     LLMFormalizerProofEngineerAgent,
 )
@@ -287,6 +288,77 @@ def test_lean_candidate_workspace_lets_model_report_task_bound_formal_gap() -> N
     assert result.formal_gap["missing_primitives"] == ["Required.Primitive"]
     assert result.evidence["model_owned_lean_code"] is False
     assert result.evidence["runtime_selected_lean_code"] is False
+    assert result.evidence["kernel_verified"] is False
+
+
+def test_formal_gap_preserves_prior_model_source_and_exact_lean_observation() -> None:
+    attempted = "theorem target : True := by\n  sorry\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "submit-attempt",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": attempted,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "report-gap",
+                    LEAN_FORMAL_GAP_TOOL,
+                    {
+                        "summary": "The exact target needs a missing project lemma.",
+                        "missing_primitives": ["Project.requiredLemma"],
+                        "blocking_observations": [
+                            "The submitted source retains sorryAx."
+                        ],
+                    },
+                )
+            ),
+        ]
+    )
+
+    def check(source: str, declaration: str):
+        assert source == attempted
+        assert declaration == "target"
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": False,
+            "local_lean_source_compiled": True,
+            "candidate_identity_lean_verified": False,
+            "local_lean_stderr": "target depends on axioms: [sorryAx]",
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Formalize the exact target or report a concrete gap.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=2,
+        max_no_progress_turns=1,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="",
+        initial_source="",
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+        allow_formal_gap=True,
+    )
+
+    assert result.disposition == "FORMAL_GAP"
+    assert result.lean_source == attempted
+    assert result.candidate_lean_declaration == "target"
+    assert result.check_result["local_lean_stderr"].endswith("[sorryAx]")
+    assert result.evidence["model_explicit_submit"] is True
+    assert result.evidence["model_owned_lean_code"] is True
+    assert result.evidence["latest_check_compiled"] is True
+    assert result.evidence["local_candidate_validation_passed"] is False
+    assert result.evidence["independent_semantic_review_required"] is False
     assert result.evidence["kernel_verified"] is False
 
 
@@ -2156,6 +2228,141 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
     assert result.failure_classification == "formalizer_workspace_exhausted"
     assert result.next_task is None
     assert "no independent exact-target reviewer is available" in result.rationale
+
+
+def test_formalizer_subsystem_records_direct_workspace_gap_without_packet_failure(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    question = OpenResearchQuestion(
+        id="canonical-formal-gap",
+        title="Canonical direct Formalizer gap",
+        description="Record a concrete missing formal foundation without proof credit.",
+    )
+    theory_packet_id = "theory:canonical-formal-gap"
+    theory_packet = {
+        "packet_id": theory_packet_id,
+        "artifact_kind": "TheoryDerivationPacket",
+        "problem_card": {"estimand": "an exact generic target"},
+        "theorem_cards": [],
+        "formalization_requests": [],
+    }
+    formal_gap = {
+        "summary": "The active project lacks the required project lemma.",
+        "missing_primitives": ["Project.requiredLemma"],
+        "blocking_observations": ["The attempted source retained sorryAx."],
+    }
+    proposal = {
+        "schema_version": 1,
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "packet_id": "formalizer-proposal:canonical-formal-gap",
+        "source_agent": "LLMFormalizerProofEngineerAgent",
+        "provider": "anthropic",
+        "provider_name": "anthropic",
+        "backend_provider": "anthropic",
+        "backend_provider_name": "anthropic",
+        "model": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        "model_tier": "haiku",
+        "formal_targets": [
+            {
+                "id": "exact-target",
+                "formal_target_role": (
+                    FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+                ),
+                "lean_statement_sketch": "",
+                "candidate_lean_declaration": "",
+                "lean_imports": [],
+                "expected_status": "FORMAL_GAP",
+                "formal_gap": formal_gap,
+            }
+        ],
+        "retrieval_queries": [],
+        "gap_taxonomy": [formal_gap],
+    }
+    workspace = {
+        "schema_version": 1,
+        "artifact_kind": "LeanCandidateClientToolWorkspace",
+        "disposition": "FORMAL_GAP",
+        "candidate_id": "exact-target",
+        "submitted_source_hash": stable_hash(
+            "theorem exact_target : True := by sorry\n"
+        ),
+        "source_updates": 1,
+        "local_lean_checks": 1,
+        "latest_check_compiled": True,
+        "model_explicit_submit": True,
+        "model_owned_lean_code": True,
+        "runtime_selected_lean_code": False,
+        "independent_semantic_review_required": False,
+        "kernel_verified": False,
+        "proof_evidence_status": (
+            "MODEL_REPORTED_FORMAL_GAP_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_formalizer_client_tool_workspace_available",
+        lambda **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_formalizer_lean_candidate_client_tool_workspace",
+        lambda **_kwargs: (proposal, workspace),
+    )
+    subsystem = runtime_module.FormalizerWorkspaceRuntimeSubsystem(
+        proposal_agent=object(),
+        lean_candidate_root=tmp_path / "candidates",
+        lean_candidate_local_lean=True,
+        lean_candidate_lean_project=tmp_path,
+        formal_target_semantic_reviewer_available=False,
+    )
+    task = AgentTask(
+        task_id="formalize:canonical-formal-gap",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Formalize the exact target or record a concrete gap.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "architect_context": {
+                "runtime_requested_evidence_contract": {
+                    "formal_evaluation_requires_formalizer_lean_candidate": True
+                }
+            },
+        },
+    )
+
+    result = subsystem.run(
+        task,
+        BlackboardState(
+            project_id=question.id,
+            artifacts={theory_packet_id: theory_packet},
+        ),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.failure_classification == ""
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "CriticEvaluator"
+    assert not any(
+        observation.observation_type == "formalizer_packet_validation_failure"
+        for observation in result.observations
+    )
+    manifest = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind") == "RuntimeFormalizationManifest"
+    )
+    assert manifest["formalizer_reported_gap"] is True
+    assert manifest["counts"]["formal_gap"] == 1
+    assert manifest["source_theorem_kernel_verified"] is False
+    workspace_artifact = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind") == "LeanCandidateClientToolWorkspace"
+    )
+    assert workspace_artifact["model_owned_lean_code"] is True
+    assert workspace_artifact["kernel_verified"] is False
 
 
 def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(

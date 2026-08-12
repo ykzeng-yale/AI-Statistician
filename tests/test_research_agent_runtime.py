@@ -1763,6 +1763,101 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     assert resolve_runtime_artifact_references(cohort_ref, all_artifacts) == cohort
 
 
+def test_confirmatory_output_interface_failure_stays_with_source_owner() -> None:
+    question = OpenResearchQuestion(
+        id="generic-output-interface",
+        title="Generic generated output interface",
+        description="Let one source owner correct its generated result shape.",
+    )
+    checks: list[dict[str, object]] = []
+
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("the fake coding workspace owns model turns")
+
+    class SimulationAgent:
+        provider = Provider()
+
+        @staticmethod
+        def iterate_code_with_tools(**kwargs):
+            wrong = {
+                "language": "python",
+                "execution_profile": "stdlib",
+                "dependencies": [],
+                "entrypoint": "run_sandbox",
+                "code": "def run_sandbox(seed, replicates): return {'wrong': 0.2}",
+            }
+            corrected = {
+                **wrong,
+                "code": "def run_sandbox(seed, replicates): return {'metric': 0.2}",
+            }
+            first = dict(kwargs["check_candidate"](wrong))
+            second = dict(kwargs["check_candidate"](corrected))
+            checks.extend((first, second))
+            return ScientificCodeWorkspaceResult(
+                code_draft=corrected,
+                check_result=second,
+                evidence={
+                    "model_owned_source": True,
+                    "runtime_edited_source": False,
+                    "accepted": second["accepted"],
+                },
+            )
+
+    def execute_candidate(candidate):
+        corrected = "{'metric': 0.2}" in str(candidate["code"])
+        prototype = {
+            "execution_attempted": True,
+            "execution_smoke_passed": True,
+            "smoke_passed": False,
+            "metrics": {"metric" if corrected else "wrong": 0.2},
+            "metric_contract_evaluation": {
+                "evaluations": [
+                    {
+                        "contract_id": "frozen-gate",
+                        "requirement_id": "frozen-requirement",
+                        "metric_path": ["metric"],
+                        "passed": False,
+                        "measurement_interface_valid": corrected,
+                        "measurement_interface_status": (
+                            "VALID" if corrected else "PATH_UNRESOLVED"
+                        ),
+                        "measurement_interface_errors": (
+                            []
+                            if corrected
+                            else [
+                                "metric contract frozen-gate: metric_path "
+                                "/metric resolved no values"
+                            ]
+                        ),
+                    }
+                ]
+            },
+        }
+        return prototype, ToolCallRecord(tool_name="python.sandbox")
+
+    prototype, tool_calls = runtime_module._run_source_owner_scientific_workspace(
+        proposal_agent=SimulationAgent(),
+        question=question,
+        artifact_id="simulation:generic-output-interface",
+        code_draft={},
+        source_deferred=True,
+        workspace_context={},
+        execute_candidate=execute_candidate,
+        failure_identity={},
+        confirmatory_result_blind=True,
+    )
+
+    assert [row["accepted"] for row in checks] == [False, True]
+    assert checks[0]["prototype"]["measurement_interface_failures"][0][
+        "measurement_interface_status"
+    ] == "PATH_UNRESOLVED"
+    assert "0.2" not in str(checks[0]["prototype"])
+    assert len(tool_calls) == 2
+    assert prototype["scientific_code_workspace"]["runtime_edited_source"] is False
+
+
 def test_exhausted_consumer_loop_does_not_continue_unrelated_outer_lane() -> None:
     question = OpenResearchQuestion(
         id="generic-consumer-exhausted",

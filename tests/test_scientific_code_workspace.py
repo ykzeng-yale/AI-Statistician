@@ -474,9 +474,17 @@ def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:
                 "evaluations": [
                     {
                         "contract_id": "frozen-gate",
+                        "requirement_id": "frozen-requirement",
+                        "metric_path": ["metric"],
                         "passed": False,
                         "resolved_values_preview": [0.2],
                         "aggregate_value": 0.2,
+                        "measurement_interface_valid": False,
+                        "measurement_interface_status": "VALUE_TYPE_INVALID",
+                        "measurement_interface_errors": [
+                            "metric contract frozen-gate: metric_path resolved a "
+                            "nonnumeric or nonfinite value"
+                        ],
                     }
                 ]
             },
@@ -488,6 +496,18 @@ def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:
     assert observation["execution_smoke_passed"] is True
     assert observation["empirical_outcomes_withheld"] is True
     assert observation["empirical_outcome_authority"] == "EmpiricalEvaluator"
+    assert observation["measurement_interface_failures"] == [
+        {
+            "contract_id": "frozen-gate",
+            "requirement_id": "frozen-requirement",
+            "metric_path": ["metric"],
+            "measurement_interface_status": "VALUE_TYPE_INVALID",
+            "measurement_interface_errors": [
+                "metric contract frozen-gate: metric_path resolved a "
+                "nonnumeric or nonfinite value"
+            ],
+        }
+    ]
     invocation = observation["estimator_invocation_samples"]["candidate"][0]
     assert invocation["request_shape"]["fields"]["mode"] == {"type": "string"}
     assert "invocation_index" not in invocation

@@ -82,6 +82,9 @@ def scientific_workspace_prototype_observation(
         if isinstance(evaluation, Mapping)
         else []
     )
+    measurement_interface_failures = (
+        scientific_workspace_measurement_interface_failures(prototype)
+    )
     failed_contracts: list[dict[str, Any]] = []
     for row in evaluation_rows or []:
         if not isinstance(row, Mapping) or row.get("passed") is True:
@@ -190,12 +193,58 @@ def scientific_workspace_prototype_observation(
             else {
                 "empirical_outcomes_withheld": True,
                 "empirical_outcome_authority": "EmpiricalEvaluator",
+                **(
+                    {
+                        "measurement_interface_failures": (
+                            measurement_interface_failures
+                        )
+                    }
+                    if measurement_interface_failures
+                    else {}
+                ),
             }
         ),
         "full_execution_artifact_persisted": True,
         "source_replayed_to_model": False,
         "proof_evidence_status": "SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE",
     }
+
+
+def scientific_workspace_measurement_interface_failures(
+    prototype: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Return outcome-blind failures in the generated metric output ABI."""
+
+    evaluation = prototype.get("metric_contract_evaluation", {})
+    rows = (
+        evaluation.get("evaluations", [])
+        if isinstance(evaluation, Mapping)
+        else []
+    )
+    failures: list[dict[str, Any]] = []
+    for row in rows or []:
+        if not isinstance(row, Mapping):
+            continue
+        if row.get("measurement_interface_valid") is not False:
+            continue
+        failures.append(
+            {
+                key: deepcopy(value)
+                for key, value in {
+                    "contract_id": row.get("contract_id", ""),
+                    "requirement_id": row.get("requirement_id", ""),
+                    "metric_path": row.get("metric_path", []),
+                    "measurement_interface_status": row.get(
+                        "measurement_interface_status", "INVALID"
+                    ),
+                    "measurement_interface_errors": row.get(
+                        "measurement_interface_errors", []
+                    ),
+                }.items()
+                if value not in (None, "", [], {})
+            }
+        )
+    return failures
 
 
 def complete_scientific_source_draft(
@@ -477,9 +526,25 @@ def advance_scientific_consumer_revision_budget(
         "theory_packet_id": theory_packet_id,
         "consumer_owner_subsystem": "SimulationEvaluator",
         "dependency_owner_subsystem": "AlgorithmEngineer",
-        "consumer_source_artifacts": deepcopy(
-            list(dependency_context.get("consumer_source_artifacts", []) or [])
-        ),
+        "consumer_contracts": [
+            {
+                "artifact_id": artifact_id,
+                "evaluation_contract_hash": contract_hash,
+            }
+            for artifact_id, contract_hash in sorted(
+                {
+                    (
+                        str(row.get("artifact_id", "") or ""),
+                        str(row.get("evaluation_contract_hash", "") or ""),
+                    )
+                    for row in dependency_context.get(
+                        "consumer_source_artifacts", []
+                    )
+                    or []
+                    if isinstance(row, Mapping)
+                }
+            )
+        ],
     }
     lineage_id = "scientific_consumer_lineage:" + stable_hash(lineage_identity)[:20]
     errors: list[str] = []

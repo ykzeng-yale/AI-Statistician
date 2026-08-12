@@ -1329,6 +1329,9 @@ def test_generated_metric_contract_evaluates_nested_wildcard_without_name_infere
     assert passing["boundary"] == GENERATED_METRIC_CONTRACT_BOUNDARY
     assert failing["all_required_passed"] is False
     assert failing["n_failed"] == 1
+    assert failing["measurement_interface_valid"] is True
+    assert failing["n_measurement_interface_failures"] == 0
+    assert failing["evaluations"][0]["measurement_interface_status"] == "VALID"
     assert "criterion-upper-bound" in failing["required_failure_errors"][0]
 
 
@@ -1341,6 +1344,45 @@ def test_generated_metric_contract_missing_path_fails_closed() -> None:
 
     assert evaluation["all_required_passed"] is False
     assert "resolved no values" in evaluation["required_failure_errors"][0]
+    assert evaluation["measurement_interface_valid"] is False
+    row = evaluation["evaluations"][0]
+    assert row["measurement_interface_status"] == "PATH_UNRESOLVED"
+    assert "resolved no values" in row["measurement_interface_errors"][0]
+
+
+def test_generated_metric_contract_types_output_interface_failures() -> None:
+    nonnumeric = evaluate_generated_metric_contracts(
+        {"metric": "not-a-number"},
+        contracts=[
+            _contract(
+                metric_path=["metric"],
+                aggregation="identity",
+            )
+        ],
+        artifact_id="artifact:generated-candidate",
+    )
+    cardinality = evaluate_generated_metric_contracts(
+        {"metric": [0.01, 0.02]},
+        contracts=[
+            _contract(
+                metric_path=["metric", "*"],
+                aggregation="identity",
+            )
+        ],
+        artifact_id="artifact:generated-candidate",
+    )
+
+    assert nonnumeric["evaluations"][0]["measurement_interface_status"] == (
+        "VALUE_TYPE_INVALID"
+    )
+    cardinality_row = cardinality["evaluations"][0]
+    assert cardinality_row["measurement_interface_status"] == (
+        "CARDINALITY_INVALID"
+    )
+    assert "2 numeric values" in cardinality_row["errors"][0]
+    assert "2 numeric values" not in str(
+        cardinality_row["measurement_interface_errors"]
+    )
 
 
 def test_generated_metric_contract_supports_between_all_and_optional_failures() -> None:

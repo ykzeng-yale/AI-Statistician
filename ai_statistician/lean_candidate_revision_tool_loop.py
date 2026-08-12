@@ -685,11 +685,13 @@ def run_lean_candidate_revision_tool_loop(
                 history=[deepcopy(dict(row)) for row in loop.history],
             )
         return _lean_candidate_revision_success_result(
-            source="",
-            check_result={},
+            source=str(state["source"]),
+            check_result=deepcopy(dict(state["last_check"])),
             state=state,
             candidate_id=candidate_id,
-            candidate_lean_declaration="",
+            candidate_lean_declaration=str(
+                state["candidate_lean_declaration"]
+            ),
             disposition=disposition,
             formal_gap=formal_gap,
             parent_source_hash=parent_source_hash,
@@ -784,7 +786,18 @@ def _lean_candidate_revision_success_result(
     workspace_phase: str,
 ) -> LeanCandidateRevisionToolLoopResult:
     source_hash = stable_hash(source)
-    model_authored_source = disposition == "AUTHOR_LEAN"
+    accepted_model_source = disposition == "AUTHOR_LEAN"
+    model_owned_lean_code = bool(source.strip())
+    model_explicit_submit = bool(int(state["checks"] or 0))
+    latest_check_compiled = bool(
+        check_result.get(
+            "local_lean_source_compiled",
+            check_result.get("compiled", False),
+        )
+    )
+    local_candidate_validation_passed = bool(
+        check_result.get("compiled", False)
+    )
     state_provider_tools = _lean_state_executed_tools(
         state.get("latest_state_inspection", {})
     )
@@ -836,7 +849,7 @@ def _lean_candidate_revision_success_result(
             tool.startswith("lean_lsp_mcp.") for tool in live_provider_tools
         ),
         "local_lean_checks": state["checks"],
-        "latest_check_compiled": model_authored_source,
+        "latest_check_compiled": latest_check_compiled,
         "provider": provider,
         "model": model,
         "model_tier": model_tier,
@@ -845,12 +858,14 @@ def _lean_candidate_revision_success_result(
         "transcript_fingerprint": transcript_fingerprint,
         "handoff_mode": (
             "successful_model_source_submission"
-            if model_authored_source
+            if accepted_model_source
             else "model_reported_formal_gap"
         ),
-        "model_explicit_submit": model_authored_source,
+        "model_explicit_submit": model_explicit_submit,
         "budget_exhausted": False,
-        "local_candidate_validation_passed": model_authored_source,
+        "local_candidate_validation_passed": (
+            local_candidate_validation_passed
+        ),
         "tools_executed_by_runtime": bool(
             runtime_executed_tool_calls
         ),
@@ -858,9 +873,9 @@ def _lean_candidate_revision_success_result(
             response_metadata.get("tools_executed_by_backend", False)
         ),
         "runtime_selected_lean_code": False,
-        "model_owned_lean_code": model_authored_source,
-        "independent_semantic_review_required": model_authored_source,
-        "runtime_kernel_promotion_required": model_authored_source,
+        "model_owned_lean_code": model_owned_lean_code,
+        "independent_semantic_review_required": accepted_model_source,
+        "runtime_kernel_promotion_required": accepted_model_source,
         "kernel_verified": False,
         "proof_evidence_status": (
             "LEAN_CANDIDATE_CLIENT_TOOL_LOOP_RECORDED_NOT_PROOF_EVIDENCE"

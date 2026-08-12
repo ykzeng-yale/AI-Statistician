@@ -1130,6 +1130,28 @@ def test_consumer_revision_budget_survives_dependency_source_changes() -> None:
     assert second["max_revisions"] == 2
     assert second["revisions_used"] == 2
 
+    changed_consumer_source = "def run_sandbox(seed, replicates, estimators): return {'changed': True}"
+    changed_consumer_context, errors = scientific_consumer_dependency_context(
+        [
+            {
+                **changed_row,
+                "source_code": changed_consumer_source,
+                "script_hash": stable_hash(changed_consumer_source),
+            }
+        ]
+    )
+    assert errors == []
+    _, changed_consumer, errors = advance_scientific_consumer_revision_budget(
+        task_budget=budget,
+        question_id="generic-question",
+        theory_packet_id="theory:generic",
+        dependency_context=changed_consumer_context,
+        failure_classification="accepted_algorithm_estimator_runtime_failed",
+        max_revisions=99,
+    )
+    assert errors == []
+    assert changed_consumer["lineage_id"] == first["lineage_id"]
+
     _, exhausted, errors = advance_scientific_consumer_revision_budget(
         task_budget=budget,
         question_id="generic-question",

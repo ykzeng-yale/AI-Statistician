@@ -119,6 +119,7 @@ from .scientific_code_workspace import (
     scientific_consumer_dependency_context,
     scientific_consumer_replay_drafts,
     scientific_consumer_revision_sources,
+    scientific_workspace_measurement_interface_failures,
     scientific_workspace_prototype_observation,
 )
 from .evaluation_protocol_revision import (
@@ -11822,6 +11823,7 @@ class FormalizerWorkspaceRuntimeSubsystem:
         lean_candidate_client_tool_loop_ledger_entry: (
             EvidenceLedgerEntry | None
         ) = None
+        formalizer_reported_gap = False
         kernel_promotion: dict[str, Any] | None = None
         kernel_promotion_evidence: EvidenceLedgerEntry | None = None
         source_theorem_kernel_verified = False
@@ -12069,6 +12071,16 @@ class FormalizerWorkspaceRuntimeSubsystem:
                 )
             proposal_source = "llm_formalizer_proof_engineer_proposal"
         if proposal_packet is not None:
+            formalizer_reported_gap = bool(
+                lean_candidate_client_tool_loop_evidence
+                and str(
+                    lean_candidate_client_tool_loop_evidence.get(
+                        "disposition", ""
+                    )
+                    or ""
+                )
+                == "FORMAL_GAP"
+            )
             proposal_id = str(proposal_packet["packet_id"])
             proposal_packet = _runtime_artifact_with_architect_control(
                 proposal_id,
@@ -12140,7 +12152,9 @@ class FormalizerWorkspaceRuntimeSubsystem:
                             "formalizer_lean_candidate_client_tool_loop"
                         ),
                         status=(
-                            "LEAN_CANDIDATE_CLIENT_TOOL_LOOP_RECORDED_"
+                            "MODEL_REPORTED_FORMAL_GAP_NOT_PROOF_EVIDENCE"
+                            if formalizer_reported_gap
+                            else "LEAN_CANDIDATE_CLIENT_TOOL_LOOP_RECORDED_"
                             "NOT_PROOF_EVIDENCE"
                         ),
                         boundary=FORMALIZER_BOUNDARY,
@@ -12217,7 +12231,12 @@ class FormalizerWorkspaceRuntimeSubsystem:
                                     "runtime_selected_lean_code", False
                                 )
                             ),
-                            "independent_semantic_review_required": True,
+                            "independent_semantic_review_required": bool(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "independent_semantic_review_required",
+                                    False,
+                                )
+                            ),
                             "kernel_verified": False,
                         },
                     )
@@ -12228,8 +12247,11 @@ class FormalizerWorkspaceRuntimeSubsystem:
                             "formalizer_lean_candidate_client_tool_loop"
                         ),
                         summary=(
-                            "model-owned Lean edit/search/check loop submitted a "
-                            "locally compiling candidate for independent review"
+                            "model-owned Lean edit/search/check loop reported a "
+                            "concrete formal foundation gap"
+                            if formalizer_reported_gap
+                            else "model-owned Lean edit/search/check loop submitted "
+                            "a locally compiling candidate for independent review"
                         ),
                         payload={
                             "artifact_id": loop_artifact_id,
@@ -12292,6 +12314,7 @@ class FormalizerWorkspaceRuntimeSubsystem:
             )
             if (
                 _runtime_context_requires_formalizer_lean_candidate(context)
+                and not formalizer_reported_gap
                 and int(
                     lean_candidate_materialization.get("n_candidate_sources", 0)
                     or 0
@@ -12412,7 +12435,11 @@ class FormalizerWorkspaceRuntimeSubsystem:
                 status=(
                     "WORK_ORDER_SEED_RECORDED_NOT_PROOF_EVIDENCE"
                     if is_deterministic_closure
-                    else "PROPOSAL_RECORDED_REQUIRES_KERNEL_VERIFICATION"
+                    else (
+                        "MODEL_REPORTED_FORMAL_GAP_NOT_PROOF_EVIDENCE"
+                        if formalizer_reported_gap
+                        else "PROPOSAL_RECORDED_REQUIRES_KERNEL_VERIFICATION"
+                    )
                 ),
                 boundary=FORMALIZER_BOUNDARY,
                 payload={
@@ -12535,6 +12562,7 @@ class FormalizerWorkspaceRuntimeSubsystem:
                 if lean_candidate_client_tool_loop_evidence
                 else ""
             ),
+            "formalizer_reported_gap": formalizer_reported_gap,
             "source_theorem_kernel_verified": source_theorem_kernel_verified,
             "source_theorem_kernel_verified_target_ids": (
                 list(kernel_promotion.get("target_ids", []) or [])
@@ -12580,6 +12608,7 @@ class FormalizerWorkspaceRuntimeSubsystem:
                 "source_theorem_kernel_verified": int(
                     source_theorem_kernel_verified
                 ),
+                "formal_gap": int(formalizer_reported_gap),
             },
             "full_frontier_theorem_proved": False,
             "proof_evidence_status": (
@@ -12626,7 +12655,11 @@ class FormalizerWorkspaceRuntimeSubsystem:
                 summary=(
                     "exact source theorem kernel verified"
                     if source_theorem_kernel_verified
-                    else "model-authored formalization observations recorded"
+                    else (
+                        "model-authored formal foundation gap recorded"
+                        if formalizer_reported_gap
+                        else "model-authored formalization observations recorded"
+                    )
                 ),
                 payload={
                     "counts": manifest["counts"],
@@ -21473,7 +21506,12 @@ def _run_source_owner_scientific_workspace(
 
     def source_candidate_accepted(prototype: Mapping[str, Any]) -> bool:
         if confirmatory_result_blind:
-            return prototype.get("execution_smoke_passed") is True
+            return bool(
+                prototype.get("execution_smoke_passed") is True
+                and not scientific_workspace_measurement_interface_failures(
+                    prototype
+                )
+            )
         return prototype.get("smoke_passed") is True
 
     def source_observation(prototype: Mapping[str, Any]) -> dict[str, Any]:
