@@ -3148,8 +3148,8 @@ def _architect_initial_routing_decision(
             "record": record,
             "rationale": (
                 "ArchitectCoordinator is routing directly to CriticEvaluator because "
-                "the model selected independent audit and the current formalization "
-                "artifact is available."
+                "the model selected independent audit after the required workspace "
+                "inventory became terminal-ready."
             ),
         }
     return {

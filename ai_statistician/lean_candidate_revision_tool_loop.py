@@ -157,6 +157,10 @@ def run_lean_candidate_revision_tool_loop(
     parent_source_hash = stable_hash(parent_source)
     workspace_phase = "revision" if parent_source.strip() else "initial_authoring"
     max_consecutive_context_actions = max(0, min(3, max_turns - 1))
+    max_retained_tool_turns = max(
+        1,
+        min(max_turns, max_consecutive_context_actions + 1),
+    )
     state: dict[str, Any] = {
         "source": parent_source,
         "source_hash": parent_source_hash,
@@ -202,7 +206,6 @@ def run_lean_candidate_revision_tool_loop(
         return check_result
 
     def current_workspace_observation() -> dict[str, Any]:
-        source = str(state["source"])
         return {
             "current_source_hash": str(state["source_hash"]),
             **(
@@ -212,16 +215,6 @@ def run_lean_candidate_revision_tool_loop(
                     )
                 }
                 if state["candidate_lean_declaration"]
-                else {}
-            ),
-            **({"current_lean_source": source} if source else {}),
-            **(
-                {
-                    "latest_lean_check": deepcopy(
-                        dict(state["latest_check_observation"])
-                    )
-                }
-                if state["latest_check_observation"]
                 else {}
             ),
         }
@@ -611,7 +604,7 @@ def run_lean_candidate_revision_tool_loop(
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
             select_tools=select_available_tools,
-            max_retained_tool_turns=max_turns,
+            max_retained_tool_turns=max_retained_tool_turns,
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(
@@ -699,6 +692,7 @@ def run_lean_candidate_revision_tool_loop(
             max_turns=max_turns,
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
+            max_retained_tool_turns=max_retained_tool_turns,
             turns=loop.turns,
             tool_calls=loop.tool_calls,
             runtime_executed_tool_calls=loop.runtime_executed_tool_calls,
@@ -745,6 +739,7 @@ def run_lean_candidate_revision_tool_loop(
         max_turns=max_turns,
         max_tool_calls=max_tool_calls,
         max_no_progress_turns=max_no_progress_turns,
+        max_retained_tool_turns=max_retained_tool_turns,
         turns=loop.turns,
         tool_calls=loop.tool_calls,
         runtime_executed_tool_calls=loop.runtime_executed_tool_calls,
@@ -773,6 +768,7 @@ def _lean_candidate_revision_success_result(
     max_turns: int,
     max_tool_calls: int,
     max_no_progress_turns: int,
+    max_retained_tool_turns: int,
     turns: int,
     tool_calls: int,
     runtime_executed_tool_calls: int,
@@ -826,7 +822,7 @@ def _lean_candidate_revision_success_result(
         "max_turns": max_turns,
         "max_tool_calls": max_tool_calls,
         "max_no_progress_turns": max_no_progress_turns,
-        "max_retained_tool_turns": max_turns,
+        "max_retained_tool_turns": max_retained_tool_turns,
         "max_consecutive_context_actions": state[
             "max_consecutive_context_actions"
         ],

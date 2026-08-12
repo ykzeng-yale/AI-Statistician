@@ -296,7 +296,6 @@ def architect_metric_requirement_validation_failure_result(
         "source_theory_packet_hash": source_theory_packet_hash,
         "upstream_theory_revisions_used": revisions_used,
         "max_upstream_theory_revisions": revision_limit,
-        "repair_owner": "metric_contract",
         "upstream_theory_revision_routed": False,
         "execution_authorized": False,
         "proof_evidence_status": (
@@ -314,10 +313,10 @@ def architect_metric_requirement_validation_failure_result(
         else "architect_metric_requirement_packet_validation_failed"
     )
     rationale = (
-        "Architect metric authoring exhausted local packet repair and remained "
-        "blocked. Candidate-owned gate choices stay with the metric contract rather "
-        "than being copied into TheoryDeveloper; generated execution stays "
-        "unauthorized."
+        "Architect metric authoring exhausted bounded packet validation retries "
+        "and remained blocked. Candidate-owned gate choices stay with the metric "
+        "contract rather than being copied into TheoryDeveloper; generated "
+        "execution stays unauthorized."
     )
 
     evidence = EvidenceLedgerEntry(
@@ -330,7 +329,6 @@ def architect_metric_requirement_validation_failure_result(
         payload={
             "validation_errors": validation_errors,
             "numeric_authority_failure": numeric_authority_failure,
-            "repair_owner": "metric_contract",
             "upstream_theory_revision_routed": False,
             "execution_authorized": False,
             "kernel_verified": False,

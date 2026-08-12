@@ -362,7 +362,7 @@ def test_formal_gap_preserves_prior_model_source_and_exact_lean_observation() ->
     assert result.evidence["kernel_verified"] is False
 
 
-def test_search_observation_keeps_current_source_and_raw_lean_feedback_visible() -> None:
+def test_search_observation_reuses_retained_source_and_raw_lean_feedback() -> None:
     failing = "theorem target : True := by\n  exact missing\n"
     passing = "theorem target : True := by\n  exact True.intro\n"
     backend = ScriptedLeanToolBackend(
@@ -420,9 +420,13 @@ def test_search_observation_keeps_current_source_and_raw_lean_feedback_visible()
     search_result = json.loads(
         backend.requests[2].messages[-1]["content"][0]["content"]
     )
-    assert search_result["current_lean_source"] == failing
     assert search_result["current_source_hash"] == stable_hash(failing)
-    assert search_result["latest_lean_check"]["local_lean_stdout"] == (
+    assert "current_lean_source" not in search_result
+    assert "latest_lean_check" not in search_result
+    retained_check = json.loads(
+        backend.requests[2].messages[-3]["content"][0]["content"]
+    )
+    assert retained_check["local_lean_stdout"] == (
         "unknown identifier 'missing'"
     )
 
@@ -832,7 +836,7 @@ def test_lean_candidate_workspace_returns_to_source_after_bounded_context_streak
     assert [tool.name for tool in backend.requests[-1].tools] == [
         LEAN_SOURCE_SUBMISSION_TOOL
     ]
-    assert result.evidence["max_retained_tool_turns"] == 6
+    assert result.evidence["max_retained_tool_turns"] == 4
     assert result.evidence["formal_environment_searches"] == 3
     assert result.evidence["max_consecutive_context_actions"] == 3
     assert result.evidence["context_actions_since_source_submission"] == 0

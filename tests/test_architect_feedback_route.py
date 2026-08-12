@@ -689,6 +689,54 @@ def test_question_theory_revision_budget_does_not_reset_on_new_feedback() -> Non
     assert "TheoryDeveloper" in reserved_payload["available_route_subsystems"]
 
 
+def test_terminal_critic_waits_for_routable_required_workspace() -> None:
+    feedback = {
+        "feedback_id": "feedback:confirmatory-observation",
+        "feedback_type": "confirmatory_simulation_outcome",
+        "failure_classification": "generated_metric_contract_failed",
+    }
+    context = {
+        "theory_packet_id": "theory:current",
+        "runtime_progress_snapshot": {
+            "evidence_lane_inventory": {
+                "remaining_primary_subsystems": ["FormalizationEvaluator"],
+                "critic_is_terminal": True,
+            }
+        },
+    }
+
+    prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context=context,
+        environment_feedback=feedback,
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+
+    assert "FormalizationEvaluator" in payload["available_route_subsystems"]
+    assert "CriticEvaluator" not in payload["available_route_subsystems"]
+    assert payload["unavailable_route_subsystems"] == ["CriticEvaluator"]
+
+    context["runtime_outer_graph_workspace_outcomes"] = [
+        {
+            "source_subsystem": "FormalizationEvaluator",
+            "local_status": "BLOCKED",
+            "failure_classification": "formalizer_workspace_exhausted",
+            "parent_artifact_ids": {"theory_packet_id": "theory:current"},
+        }
+    ]
+    exhausted_prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context=context,
+        environment_feedback=feedback,
+    )
+    exhausted_payload = json.loads(exhausted_prompt.rsplit("\n\n", 1)[1])
+
+    assert "FormalizationEvaluator" not in exhausted_payload[
+        "available_route_subsystems"
+    ]
+    assert "CriticEvaluator" in exhausted_payload["available_route_subsystems"]
+
+
 def test_runtime_honors_model_owned_route_and_binds_full_feedback() -> None:
     question = _question()
     theory_packet_id = "theory:generic"

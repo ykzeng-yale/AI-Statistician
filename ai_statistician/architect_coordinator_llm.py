@@ -906,6 +906,21 @@ def _architect_feedback_route_subsystems(
     ):
         unavailable.add("SimulationEvaluator")
 
+    progress = architect_context.get("runtime_progress_snapshot", {})
+    inventory = progress.get("evidence_lane_inventory", {}) if isinstance(
+        progress, Mapping
+    ) else {}
+    remaining_primary = (
+        inventory.get("remaining_primary_subsystems", [])
+        if isinstance(inventory, Mapping)
+        else []
+    )
+    if any(
+        str(subsystem) in available and str(subsystem) not in unavailable
+        for subsystem in remaining_primary
+    ):
+        unavailable.add("CriticEvaluator")
+
     return tuple(
         subsystem
         for subsystem in available
