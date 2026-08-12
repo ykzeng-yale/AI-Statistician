@@ -864,6 +864,7 @@ def test_revision_task_returns_complete_observations_to_source_producer() -> Non
                 "exact_source_code_complete": True,
                 "exact_result": {"estimate": 0.0},
                 "exact_result_hash": "result-hash",
+                "execution_envelope_hash": "outcome-derived-envelope-hash",
             }
         ],
         "source_lineage": {"theory_packet_hash": "theory-hash"},
@@ -965,6 +966,7 @@ def test_confirmatory_revision_returns_source_and_findings_without_result_values
     assert reviewed["exact_source_code"].endswith("return {'metric': 0.2}\n")
     assert "exact_result" not in reviewed
     assert "exact_result_hash" not in reviewed
+    assert "execution_envelope_hash" not in reviewed
     assert reviewed["exact_result_schema"]["realized_values_withheld"] is True
     assert source_feedback["confirmatory_result_values_withheld_from_source"] is True
     assert "0.2" not in str(reviewed["exact_result_schema"])

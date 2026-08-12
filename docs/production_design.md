@@ -145,14 +145,12 @@ declarations, bounded subprocesses, no inherited secrets, and no network access.
 Safety comes from isolation and resource policy, not from banning the scientific
 computing ecosystem.
 
-The runtime may require a small general ABI, such as an exported estimator entry
-point, because an executor needs a callable boundary. It may not encode a specific
-statistical answer in that ABI. Unit-test and simulation-consumer failures return
-raw stdout, stderr, current metric failures, and bounded callback samples when a
-binding fails. The complete execution artifact is persisted once. After a binding
-passes, repeated callback samples and stale execution turns leave model context;
-the same source owner receives the current complete source and latest observation.
-A byte-identical source submission is a tool no-op, never a runtime source edit.
+The runtime may require a small general executor ABI, but it may not encode a
+statistical answer. Syntax, safety, ABI, runtime, serialization, and consumer failures
+return raw observations to the same source owner; exploratory work may also return
+explicitly non-confirmatory empirical diagnostics. Execution is persisted once, stale
+observations leave model context, and identical source is a tool no-op rather than a
+runtime edit.
 
 For live providers with native client tools, the structured proposal carries only
 artifact identity and immutable bindings. Source is authored afterward in the same
@@ -162,9 +160,11 @@ observation returns to that owner on its next bounded turn; no repair worker or
 content patch runs between them. Planning-time estimator IDs remain frozen.
 Structured-source packets remain only a replay/static-provider fallback.
 
-Independent semantic review checks whether the implementation represents the
-accepted theory artifact. Passing execution is not statistical validity, and
-passing simulation is not theorem proof.
+Confirmatory iteration stops when source is execution-valid. Realized values,
+threshold verdicts, and value-derived hashes are withheld from the source model and semantic reviewer, which checks exact source, runtime arguments, frozen measurement
+contract, result schema, and theory alignment. After `ACCEPT`, the immutable outcome
+is released once to Architect by reference, and the same Simulation source cannot
+retry. Execution is not statistical validity or theorem proof.
 
 For rejected source, the reviewer asks whether editing only that source can close
 all findings with theory, contract, and consumer fixed; it names no owner, route,

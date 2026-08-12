@@ -115,7 +115,6 @@ def scientific_workspace_prototype_observation(
         "estimator_invocation_counts",
         "mechanical_estimator_invocation_verified",
         "script_hash",
-        "execution_envelope_hash",
     ]
     if include_empirical_outcomes:
         direct_field_names.extend(

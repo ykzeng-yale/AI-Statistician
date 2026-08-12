@@ -346,6 +346,7 @@ _SEMANTIC_REVIEW_RESULT_VALUE_KEYS = frozenset(
 _SEMANTIC_REVIEW_EMPIRICAL_OUTCOME_KEYS = frozenset(
     {
         "empirical_metric_requirements_preexecution_review",
+        "execution_envelope_hash",
         "exact_result_hash",
         "metric_contract_evaluation",
         "metric_gate_errors",
