@@ -1,5 +1,5 @@
 {
-  "schema_version": 23,
+  "schema_version": 24,
   "updated_at": "2026-08-11",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -38,10 +38,11 @@
     "db55142e": "The same exact checkpoint contract now covers bounded transient provider exhaustion; substantive failures remain terminal.",
     "50f602b8": "Hash-bound downstream execution failures now return to the exact source owner before stale lane completion checks; agentic Simulation no longer declares the legacy simulator; large preflight schemas reuse definitions; new review materializations persist references instead of full review payloads.",
     "213736db": "Hash-bound downstream dependency failures now return raw consumer observations to their exact Python or R source owner inside the direct scientific workspace.",
-    "9f11105b": "Independent code review now reports an evidence-bound source-only sufficiency counterfactual. Source-local defects stay with the coding model; cross-artifact conflicts expose one compact content-addressed observation to the existing Architect without copying source or creating a repair agent."
+    "9f11105b": "Independent code review now reports an evidence-bound source-only sufficiency counterfactual. Source-local defects stay with the coding model; cross-artifact conflicts expose one compact content-addressed observation to the existing Architect without copying source or creating a repair agent.",
+    "d0730033": "Initial and revised Lean authoring now use one client-tool Formalizer workspace. The extra model target-binding call was deleted; upstream theorem-goal identity is hash-bound, and exact source plus declaration goes directly through raw Lean feedback to the same model."
   },
   "verification": {
-    "deterministic_suite": "537 passed",
+    "deterministic_suite": "542 passed",
     "compileall": "passed",
     "diff_check": "passed",
     "legacy_v352_resume_roundtrip": "The formerly rejected mixed-panel manifest now restores sequential_anytime_bernoulli, its exact pending AlgorithmEngineer task, and 108 hash-verified blackboard artifacts.",
@@ -142,6 +143,23 @@
       "evidence_refs_present": true,
       "runtime_authored_source": false,
       "boundary": "Component evidence that the model can identify a source-insufficient cross-artifact conflict. Deterministic tests cover routing; this is not integrated simulation, formalization, kernel, or E2E evidence."
+    },
+    "v5_formalizer_single_workspace_component": {
+      "path": "runs/main_worker_formalizer_single_workspace_component_20260811_v5_exact_haiku/component_evidence.json",
+      "model": "claude-haiku-4-5-20251001",
+      "structured_generator_calls": 0,
+      "separate_target_binding_llm_calls": 0,
+      "client_tool_transport_calls": 2,
+      "local_lean_checks": 2,
+      "failed_then_passed_same_workspace": true,
+      "first_check_error_observed": true,
+      "latest_check_compiled": true,
+      "candidate_lean_declaration": "statistic_add_zero_exact",
+      "upstream_target_hash_present": true,
+      "model_owned_lean_code": true,
+      "runtime_selected_lean_code": false,
+      "status": "REROUTE",
+      "boundary": "Exact-Haiku component evidence for one direct Formalizer workspace and real local Lean feedback only. Independent target-semantic review and kernel promotion were not executed, so this is not theorem closure or E2E readiness."
     }
   },
   "readiness": {
@@ -152,30 +170,31 @@
     "held_out_panel": "sealed",
     "post_atomic_lean_and_checkpoint_fresh_panel_attempted": true,
     "post_atomic_lean_and_checkpoint_clean_panel_completed": true,
+    "post_single_formalizer_workspace_fresh_panel_completed": false,
     "strict_e2e_completion_rate": "0%"
   },
   "current_structure": {
-    "research_agent_runtime_lines": 21214,
+    "research_agent_runtime_lines": 21377,
     "agent_runtime_lines": 1174,
     "cli_lines": 6896,
     "production_design_lines": 399,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 124787,
+    "top_level_package_lines": 125450,
     "latest_runtime_manifest_bytes": 67895
   },
   "remaining_design_debt": [
-    "No development task has reached exact source-theorem kernel closure. Formalizer initial authoring still starts with a substantive structured proposal, while revision uses the direct submit-search-compile workspace. Both phases should use one model-owned Lean workspace with task-bound Statlib/Mathlib/EmpericalProcessLEAN retrieval and raw proof-state feedback, not handwritten grammar or tactic repair.",
+    "No development task has reached exact source-theorem kernel closure. Native initial and revised Lean authoring now share one model-owned workspace, but only the v5 component has exercised it; no fresh integrated panel has carried its output through independent target-semantic review and exact kernel promotion. Static/replay providers still retain the legacy structured-source packet fallback.",
     "Theory and independent-review quality are substantive blockers: the exact-Haiku v357 replay resolved all tracked findings but accepted a mathematically reversed likelihood-ratio martingale claim. Production can use Sonnet, while tests stay exact Haiku; both need general calculator, sandbox, retrieval, and formal counterchecks rather than task-specific assertions.",
     "v359 completed neither generated Simulation nor Lean authoring and closed 0/2 exact targets. The new source-sufficiency observation has exact-Haiku component evidence and deterministic routing coverage, but no fresh integrated evidence yet.",
     "Architect consumed 10 of 32 v359 outer iterations. Cross-workspace conflicts belong there, but routine source-local failures must remain inside source sessions and must not spend Architect budget.",
     "Metric protocol work remains concentrated in the central runtime. Further extraction must delete observed routing duplication rather than introduce another interface layer.",
-    "The central research runtime is still 21214 lines. It is much smaller than the stale 101k-line audit, but should shrink through deletion of inactive paths after fresh traces prove replacements.",
+    "The central research runtime is still 21377 lines. It is much smaller than the stale 101k-line audit, but should shrink through deletion of inactive paths after fresh traces prove replacements.",
     "Production R execution, arbitrary paper-to-theorem-graph ingestion, and learned research or tactic policies remain incomplete."
   ],
   "next_gates": [
-    "Run a clean fresh exact-Haiku v360 two-family development panel from commit 9f11105b; do not treat the v359 reviewer replay as integrated protocol evidence.",
+    "Run a clean fresh exact-Haiku v360 two-family development panel from mechanism commit d0730033; do not treat the v5 Formalizer component probe as integrated protocol evidence.",
     "Verify that source-sufficient findings return directly to the same coding workspace and source-insufficient findings cause at most one content-addressed Architect observation instead of repeated source regeneration.",
-    "Unify initial Formalizer authoring and revision behind the existing direct model-selected retrieval and submit-and-check workspace, removing substantive Lean source from the initial proposal packet rather than adding a second formalization layer.",
+    "Verify that each development task reaches the same direct Formalizer workspace, receives task-bound Statlib/Mathlib/EmpericalProcessLEAN retrieval and raw Lean observations, then passes independent exact-target review and kernel promotion without a binding model call or runtime-authored Lean repair.",
     "Require current-parent Algorithm and Simulation acceptance, nonvacuous frozen metric execution, task-bound formal RAG, exact-target review, model-owned Lean iteration, and kernel closure for each task.",
     "Fix only shared source-workspace, execution, retrieval, lineage, or evidence mechanisms exposed by that run; do not add survival, sequential, FDR, conformal, Lean grammar, or theorem-specific rules.",
     "Keep PCA and extremes held out until both development tasks close their exact targets."
