@@ -633,6 +633,7 @@ def build_architect_feedback_route_prompt(
             "new_repair_patch_or_adapter_subsystem_forbidden": True,
             "implementation_revision_owner_is_existing_source_producer": True,
             "runtime_progress_snapshot_is_authoritative_for_availability": True,
+            "remaining_primary_evidence_lanes_preclude_terminal_audit": True,
             "current_validated_plan_is_prior_intent_not_missing_work": True,
             "recommended_research_path_controls_lane_order_not_prerequisites": True,
             "one_route_materializes_one_task_no_background_parallelism": True,
@@ -686,7 +687,16 @@ def build_architect_feedback_route_prompt(
         "selected worker will receive the complete candidate and exact diagnostics. "
         "Treat current_validated_plan as prior intent, not as evidence that its early "
         "steps are still missing. Treat runtime_progress_snapshot as authoritative for "
-        "artifact availability and recent execution. Do not restart a completed stage "
+        "artifact availability and recent execution. Its evidence_lane_inventory is a "
+        "read-only summary of the frozen evidence obligations; it does not select the "
+        "next owner. Before selecting terminal CriticEvaluator, compare its "
+        "remaining_primary_subsystems with available_route_subsystems. If a required "
+        "primary evidence lane remains and its existing subsystem is available, the "
+        "run is not ready for final audit: choose one evidence-producing owner, using "
+        "recommended_research_path to decide lane order. Do not send an empirical "
+        "outcome to CriticEvaluator merely to decide whether it warrants revision; "
+        "make that routing decision here from the observed evidence. Do not restart "
+        "a completed stage "
         "unless the environment observations identify its current artifact as stale, "
         "incompatible, or insufficient for the concrete next objective. "
         "CriticEvaluator findings are evidence-grounded hypotheses, not accepted "

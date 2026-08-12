@@ -985,9 +985,17 @@ def _architect_post_implementation_metric_context(
 
 def _architect_feedback_runtime_progress_snapshot(
     blackboard: BlackboardState,
+    *,
+    architect_context: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Expose current runtime state without interpreting or selecting a route."""
 
+    primary, plan_context = _runtime_outer_graph_plan(architect_context)
+    executed = _runtime_executed_subsystems(
+        architect_context=architect_context,
+    )
+    remaining = [subsystem for subsystem in primary if subsystem not in executed]
+    evidence_contract = plan_context["evidence_contract"]
     recent_handoffs = []
     for handoff in blackboard.handoff_ledger[-16:]:
         recent_handoffs.append(
@@ -1008,10 +1016,29 @@ def _architect_feedback_runtime_progress_snapshot(
         "recent_task_ids": list(blackboard.task_history)[-24:],
         "recent_handoffs": recent_handoffs,
         "active_blockers": list(blackboard.active_blockers)[-12:],
+        "evidence_lane_inventory": {
+            "planned_primary_subsystems": primary,
+            "executed_primary_subsystems": [
+                subsystem for subsystem in primary if subsystem in executed
+            ],
+            "remaining_primary_subsystems": remaining,
+            "recommended_research_path": str(
+                evidence_contract.get("recommended_research_path", "") or ""
+            ),
+            "formal_verification_policy": str(
+                evidence_contract.get("formal_verification_policy", "") or ""
+            ),
+            "formal_required_for_final": bool(
+                evidence_contract.get("formal_required_for_final", False)
+            ),
+            "critic_is_terminal": True,
+            "runtime_selected_next_owner": False,
+        },
         "boundary": (
             "This is an authoritative inventory of runtime availability and recent "
-            "execution state. It does not judge artifact quality, select a worker, "
-            "or authorize evidence promotion."
+            "execution state, including which frozen primary evidence lanes remain. "
+            "It does not judge artifact quality, select a worker, or authorize "
+            "evidence promotion."
         ),
     }
 
@@ -1198,7 +1225,10 @@ class ArchitectCoordinatorRuntimeSubsystem:
             try:
                 feedback_architect_context = dict(context)
                 feedback_architect_context["runtime_progress_snapshot"] = (
-                    _architect_feedback_runtime_progress_snapshot(blackboard)
+                    _architect_feedback_runtime_progress_snapshot(
+                        blackboard,
+                        architect_context=feedback_architect_context,
+                    )
                 )
                 route_packet = self.coordinator.route_environment_feedback(
                     question=question,

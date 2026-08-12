@@ -336,6 +336,8 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     assert len(request.user_prompt) < 100_000
     assert "regenerate the full research plan" in request.user_prompt
     assert "runtime_progress_snapshot" in request.user_prompt
+    assert "remaining_primary_subsystems" in request.user_prompt
+    assert "the run is not ready for final audit" in request.user_prompt
     assert "retrieval_memory_manifest:existing" in request.user_prompt
     assert "prior intent" in request.user_prompt
     assert "NameError: estimate is not defined" in request.user_prompt
@@ -689,6 +691,7 @@ def test_question_theory_revision_budget_does_not_reset_on_new_feedback() -> Non
 
 def test_runtime_honors_model_owned_route_and_binds_full_feedback() -> None:
     question = _question()
+    theory_packet_id = "theory:generic"
     simulation_manifest_id = "simulation:generic"
     full_feedback = {
         "feedback_type": "generated_code_execution_feedback",
@@ -707,6 +710,23 @@ def test_runtime_honors_model_owned_route_and_binds_full_feedback() -> None:
             assert kwargs["environment_feedback"] == full_feedback
             progress = kwargs["architect_context"]["runtime_progress_snapshot"]
             assert simulation_manifest_id in progress["available_artifact_ids"]
+            assert progress["evidence_lane_inventory"] == {
+                "planned_primary_subsystems": [
+                    "AlgorithmEngineer",
+                    "SimulationEvaluator",
+                    "FormalizationEvaluator",
+                ],
+                "executed_primary_subsystems": [
+                    "AlgorithmEngineer",
+                    "SimulationEvaluator",
+                ],
+                "remaining_primary_subsystems": ["FormalizationEvaluator"],
+                "recommended_research_path": "dual_track",
+                "formal_verification_policy": "required",
+                "formal_required_for_final": True,
+                "critic_is_terminal": True,
+                "runtime_selected_next_owner": False,
+            }
             assert progress["boundary"].startswith(
                 "This is an authoritative inventory"
             )
@@ -730,18 +750,55 @@ def test_runtime_honors_model_owned_route_and_binds_full_feedback() -> None:
 
     coordinator = _Coordinator()
     context = {
+        "theory_packet_id": theory_packet_id,
         "simulation_manifest_id": simulation_manifest_id,
         "architect_runtime_plan": {
-            "evidence_contract": {},
+            "evidence_contract": {
+                "recommended_research_path": "dual_track",
+                "formal_verification_policy": "required",
+                "formal_required_for_final": True,
+            },
             "subsystem_execution_plan": [
                 {
                     "subsystem": "AlgorithmEngineer",
                     "objective": "produce executable code",
                     "expected_artifacts": ["algorithm_sandbox_manifest"],
                     "acceptance_gate": "sandbox execution is recorded",
-                }
+                },
+                {
+                    "subsystem": "SimulationEvaluator",
+                    "objective": "evaluate the accepted implementation",
+                    "expected_artifacts": ["simulation_manifest"],
+                    "acceptance_gate": "simulation execution is recorded",
+                },
+                {
+                    "subsystem": "FormalizationEvaluator",
+                    "objective": "formalize and prove the mathematical target",
+                    "expected_artifacts": ["formalization_manifest"],
+                    "acceptance_gate": "kernel verification is recorded",
+                },
+                {
+                    "subsystem": "CriticEvaluator",
+                    "objective": "audit all collected evidence",
+                    "expected_artifacts": ["critic_report"],
+                    "acceptance_gate": "final evidence audit is recorded",
+                },
             ],
         },
+        "runtime_outer_graph_workspace_outcomes": [
+            {
+                "source_subsystem": "AlgorithmEngineer",
+                "parent_artifact_ids": {
+                    "theory_packet_id": theory_packet_id,
+                },
+            },
+            {
+                "source_subsystem": "SimulationEvaluator",
+                "parent_artifact_ids": {
+                    "theory_packet_id": theory_packet_id,
+                },
+            },
+        ],
     }
     result = ArchitectCoordinatorRuntimeSubsystem(
         coordinator=coordinator,  # type: ignore[arg-type]
@@ -776,7 +833,7 @@ def test_runtime_honors_model_owned_route_and_binds_full_feedback() -> None:
     assert coordinator.plan_calls == 0
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "AlgorithmEngineer"
-    assert result.next_task.inputs["theory_packet_id"] == ""
+    assert result.next_task.inputs["theory_packet_id"] == theory_packet_id
     assert result.next_task.inputs["environment_feedback"] == full_feedback
     assert result.next_task.objective.startswith("Regenerate one complete candidate")
     observation = result.observations[0]
