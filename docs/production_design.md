@@ -397,11 +397,3 @@ The Formalizer already has one direct authoring/revision session; failed source
 quality must not be answered with a repair agent, a second generation pass, Lean
 grammar rules, or theorem-specific bridges. New mechanisms must delete control
 paths, improve direct tools or context, or enforce real authority.
-
-## Basic checks
-
-```bash
-python3 -m ai_statistician.cli doctor --out runs/doctor
-python3 -m pytest -q
-python3 -m ai_statistician.cli research-agent-runtime --help
-```

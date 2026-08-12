@@ -101,7 +101,7 @@
     "research_agent_runtime_lines": 21375,
     "agent_runtime_lines": 1174,
     "cli_lines": 6896,
-    "production_design_lines": 407,
+    "production_design_lines": 399,
     "top_level_python_modules": 138,
     "top_level_package_lines": 125451,
     "latest_runtime_manifest_bytes": 58155

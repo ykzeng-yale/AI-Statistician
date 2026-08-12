@@ -341,7 +341,7 @@ def test_byte_identical_replacement_is_returned_to_same_model_as_noop() -> None:
     assert "byte-identical" in str(backend.requests[1].messages)
 
 
-def test_global_budget_does_not_revoke_scientific_edit_or_execution() -> None:
+def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
     drafts = [
         {
             "language": "python",
@@ -398,8 +398,11 @@ def test_global_budget_does_not_revoke_scientific_edit_or_execution() -> None:
     assert dict(result.code_draft) == drafts[-1]
     assert result.evidence["source_updates"] == 5
     assert result.evidence["sandbox_checks"] == 5
-    assert result.evidence["max_retained_tool_turns"] == 1
-    assert [len(request.messages) for request in backend.requests] == [1, 3, 3, 3, 3]
+    assert result.evidence["max_retained_tool_turns"] == 5
+    assert [len(request.messages) for request in backend.requests] == [1, 3, 5, 7, 9]
+    assert "at most 5 total model/tool turns" in str(backend.requests[0].messages)
+    assert "attempt': 0" in str(backend.requests[-1].messages)
+    assert "attempt': 3" in str(backend.requests[-1].messages)
     assert all(
         [tool.name for tool in request.tools]
         == [SCIENTIFIC_SOURCE_SUBMISSION_TOOL]

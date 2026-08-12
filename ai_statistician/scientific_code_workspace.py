@@ -359,7 +359,14 @@ def run_scientific_code_workspace(
         messages=(
             {
                 "role": "user",
-                "content": user_prompt
+                "content": (
+                    user_prompt
+                    + "\n\nThis workspace has at most "
+                    + str(max_turns)
+                    + " total model/tool turns. Retain the observed source hashes, "
+                    "sandbox results, and attempted changes across those turns. Do "
+                    "not resubmit a previously observed byte-identical candidate."
+                )
                 + (
                     "\n\nNo scientific source exists yet. Author the complete "
                     "candidate with submit_scientific_source. Each submission is "
@@ -403,7 +410,7 @@ def run_scientific_code_workspace(
             max_turns=max_turns,
             max_tool_calls=max_turns,
             max_no_progress_turns=max_no_progress_turns,
-            max_retained_tool_turns=1,
+            max_retained_tool_turns=max_turns,
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(
@@ -466,7 +473,7 @@ def run_scientific_code_workspace(
         "source_updates": state["source_updates"],
         "sandbox_checks": state["checks"],
         "submit_and_execute_atomic": True,
-        "max_retained_tool_turns": 1,
+        "max_retained_tool_turns": max_turns,
         "turns": loop.turns,
         "tool_calls": loop.tool_calls,
         "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
