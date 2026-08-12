@@ -327,7 +327,10 @@ def _audit_task_e2e(
             )
             for row in artifact_rows
             if str(row.get("artifact_kind", "") or "")
-            == "LeanCandidateRevisionClientToolLoop"
+            in {
+                "LeanCandidateClientToolWorkspace",
+                "LeanCandidateRevisionClientToolLoop",
+            }
         )
     )
     proof_manifest, verified_target_ids = _exact_source_proof(

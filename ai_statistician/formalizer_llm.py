@@ -99,7 +99,7 @@ class FormalizerConfig:
     temperature: float = 0.1
     provider_name: str = "anthropic"
     max_validation_retries: int = 1
-    use_client_tool_lean_candidate_revision: bool = True
+    use_client_tool_lean_candidate_workspace: bool = True
     client_tool_lean_candidate_max_turns: int = 20
     client_tool_lean_candidate_max_no_progress_turns: int = 2
 
@@ -237,7 +237,7 @@ class LLMFormalizerProofEngineerAgent:
             max_validation_retries=self.config.max_validation_retries,
         )
 
-    def revise_lean_candidate_with_client_tools(
+    def run_lean_candidate_workspace_with_client_tools(
         self,
         *,
         question: OpenResearchQuestion,
@@ -254,10 +254,10 @@ class LLMFormalizerProofEngineerAgent:
         inspect_lean_state: LeanStateInspection | None = None,
         inspect_lean_declaration: LeanDeclarationInspection | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Revise one hash-bound target through model-selected tools."""
+        """Author or revise one hash-bound target through model-selected tools."""
 
-        if not self.config.use_client_tool_lean_candidate_revision:
-            raise ValueError("Formalizer Lean candidate client-tool revision is disabled")
+        if not self.config.use_client_tool_lean_candidate_workspace:
+            raise ValueError("Formalizer Lean candidate client-tool workspace is disabled")
         if not callable(getattr(self.provider, "generate_client_tool_turn", None)):
             raise ValueError("Formalizer provider does not support client-tool turns")
         request_model = resolve_generator_model(
@@ -269,16 +269,24 @@ class LLMFormalizerProofEngineerAgent:
             provider=self.provider,
             system_prompt=(
                 FORMALIZER_SYSTEM_PROMPT
-                + "\nYou are revising one hash-bound Lean target. Any compiler, prover, "
+                + "\nYou are authoring or revising one hash-bound Lean target. Any "
+                "compiler, prover, "
                 "retrieval, or independent-review result is an observation only, and "
                 "every changed source must be reviewed again before promotion. "
                 "You own every Lean source and search query. Use the client tools to "
                 "inspect the active formal environment, inspect exact declarations "
-                "when useful, and submit a complete source for immediate compilation. Do not answer "
-                "with prose or JSON, and do not weaken the target."
+                "when useful, and submit a complete standalone source plus its exact "
+                "declaration name for immediate compilation. The source must contain "
+                "every import it relies on because the runtime injects none. Retrieval "
+                "is optional evidence, not a "
+                "prerequisite to an early compiler-grounded source attempt. Do not "
+                "answer with prose or JSON, and do not weaken the target. If concrete "
+                "environment observations establish a missing foundation primitive, "
+                "report that exact gap instead of inventing an API or weaker theorem."
             ),
-            user_prompt=_build_lean_candidate_revision_tool_prompt(
+            user_prompt=_build_lean_candidate_workspace_tool_prompt(
                 question=question,
+                theory_packet=theory_packet,
                 parent_packet=parent_packet,
                 candidate_id=candidate_id,
                 candidate_source_field=candidate_source_field,
@@ -303,22 +311,37 @@ class LLMFormalizerProofEngineerAgent:
             search_proof_candidates=search_proof_candidates,
             inspect_lean_state=inspect_lean_state,
             inspect_lean_declaration=inspect_lean_declaration,
+            allow_formal_gap=not initial_source.strip(),
             request_metadata={
                 "subsystem": "FormalizerProofEngineer",
                 "agent": "LLMFormalizerProofEngineerAgent",
-                "formalizer_phase": "lean_candidate_client_tool_revision",
-                "parent_packet_id": str(parent_packet.get("packet_id", "") or ""),
+                "formalizer_phase": (
+                    "lean_candidate_initial_authoring"
+                    if not initial_source.strip()
+                    else "lean_candidate_revision"
+                ),
+                "parent_artifact_id": _formalizer_parent_artifact_id(parent_packet),
                 "proof_evidence_status": FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
             },
         )
-        revised_payload = _formalizer_revision_payload_from_packet(parent_packet)
-        _bind_model_authored_lean_candidate_source(
-            revised_payload,
-            candidate_id=candidate_id,
-            candidate_source_field=candidate_source_field,
-            candidate_lean_declaration=candidate_lean_declaration,
-            lean_source=loop.lean_source,
-        )
+        if str(parent_packet.get("artifact_kind", "") or "") == (
+            "FormalizerWorkspaceTarget"
+        ):
+            revised_payload = _formalizer_payload_from_workspace_target(
+                parent_packet,
+                disposition=loop.disposition,
+                formal_gap=loop.formal_gap,
+            )
+        else:
+            revised_payload = _formalizer_revision_payload_from_packet(parent_packet)
+        if loop.disposition == "AUTHOR_LEAN":
+            _bind_model_authored_lean_candidate_source(
+                revised_payload,
+                candidate_id=candidate_id,
+                candidate_source_field=candidate_source_field,
+                candidate_lean_declaration=loop.candidate_lean_declaration,
+                lean_source=loop.lean_source,
+            )
         revised_payload["ok"] = True
         revised_payload["validation_errors"] = []
         revised_payload["structured_output_retry_attempts"] = 0
@@ -337,8 +360,9 @@ class LLMFormalizerProofEngineerAgent:
             theory_packet=theory_packet,
             environment_feedback=environment_feedback,
         )
-        requires_lean_candidate = _feedback_requires_formalizer_lean_candidate(
-            environment_feedback
+        requires_lean_candidate = (
+            loop.disposition == "AUTHOR_LEAN"
+            and _feedback_requires_formalizer_lean_candidate(environment_feedback)
         )
         errors = _formalizer_contextual_validation_errors(
             packet,
@@ -347,7 +371,7 @@ class LLMFormalizerProofEngineerAgent:
         if errors:
             raise PacketValidationError(
                 validation_label=(
-                    "LLM Formalizer Lean candidate client-tool revision packet"
+                    "LLM Formalizer Lean candidate client-tool workspace packet"
                 ),
                 attempts=int(loop.evidence.get("turns", 1) or 1),
                 errors=sorted(set(errors)),
@@ -355,8 +379,8 @@ class LLMFormalizerProofEngineerAgent:
                 last_invalid_packet=packet,
                 recovery_checkpoint={
                     "candidate_id": candidate_id,
-                    "parent_packet_id": str(
-                        parent_packet.get("packet_id", "") or ""
+                    "parent_artifact_id": _formalizer_parent_artifact_id(
+                        parent_packet
                     ),
                     "submitted_source_hash": loop.source_hash,
                     "client_tool_loop": dict(loop.evidence),
@@ -418,6 +442,153 @@ def _formalizer_revision_payload_from_packet(
     }
 
 
+def build_formalizer_workspace_target(
+    *,
+    question: OpenResearchQuestion,
+    theory_packet: Mapping[str, Any],
+    registered_problem: Mapping[str, Any],
+    theorem_goals: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Resolve one upstream-owned theorem goal without another model call."""
+
+    target_contract = _task_bound_formal_target_contract(
+        question=question,
+        theory_packet=theory_packet,
+        theorem_goals=theorem_goals,
+        registered_problem=registered_problem,
+    )
+    goal_rows = [dict(row) for row in theorem_goals if isinstance(row, Mapping)]
+    requested_id = str(
+        target_contract.get("source_theorem_target_id", "") or ""
+    ).strip()
+    if requested_id:
+        matches = [
+            row
+            for row in goal_rows
+            if str(row.get("id", "") or "").strip() == requested_id
+        ]
+    else:
+        matches = goal_rows if len(goal_rows) == 1 else []
+    if len(matches) != 1:
+        available_ids = sorted(
+            str(row.get("id", "") or "").strip()
+            for row in goal_rows
+            if str(row.get("id", "") or "").strip()
+        )
+        raise PacketValidationError(
+            validation_label="Formalizer workspace target identity",
+            attempts=1,
+            errors=[
+                "the outer research graph must bind exactly one registered theorem "
+                f"goal before Lean authoring; requested={requested_id!r}, "
+                f"available={available_ids}"
+            ],
+            history=[],
+        )
+    goal = matches[0]
+    goal_id = str(goal.get("id", "") or "").strip()
+    informal_source = str(
+        goal.get("informal_statement", "")
+        or goal.get("statement", "")
+        or goal.get("claim", "")
+        or goal.get("conclusion", "")
+        or ""
+    ).strip()
+    if not informal_source:
+        raise PacketValidationError(
+            validation_label="Formalizer workspace target identity",
+            attempts=1,
+            errors=[f"registered theorem goal {goal_id!r} has no informal statement"],
+            history=[],
+        )
+    derivation_packet = theory_packet.get("theory_derivation_packet", {})
+    derivation_packet = (
+        derivation_packet if isinstance(derivation_packet, Mapping) else {}
+    )
+    handoff = derivation_packet.get("formalization_handoff", {})
+    if not isinstance(handoff, Mapping):
+        handoff = theory_packet.get("formalization_handoff", {})
+    handoff = handoff if isinstance(handoff, Mapping) else {}
+    constraints = _task_contract_text_list(
+        handoff.get("semantic_alignment_constraints", []),
+        limit=12,
+        char_limit=2400,
+    )
+    if not constraints:
+        constraints = [
+            "Preserve the registered theorem goal's assumptions, quantifiers, and "
+            "conclusion exactly."
+        ]
+    target = {
+        "id": goal_id,
+        "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
+        "informal_source": informal_source,
+        "lean_statement_sketch": "",
+        "candidate_lean_declaration": "",
+        "lean_imports": [],
+        "semantic_alignment_constraints": constraints,
+        "source_theorem_target_provenance": {
+            "target_lean_declaration": "",
+            "source_theorem_goal_id": goal_id,
+            "source_theorem_target_known": True,
+        },
+        "expected_status": "NEEDS_KERNEL_CHECK",
+    }
+    body = {
+        "artifact_kind": "FormalizerWorkspaceTarget",
+        "question_id": question.id,
+        "formal_target": target,
+        "task_bound_formal_target_contract_fingerprint": str(
+            target_contract.get("contract_fingerprint", "") or ""
+        ),
+        "proof_evidence_status": "TASK_BOUND_TARGET_REFERENCE_NOT_PROOF_EVIDENCE",
+    }
+    return {
+        **body,
+        "target_ref_id": "formalizer_workspace_target:" + stable_hash(body)[:24],
+    }
+
+
+def _formalizer_parent_artifact_id(packet: Mapping[str, Any]) -> str:
+    return str(
+        packet.get("packet_id", "")
+        or packet.get("target_ref_id", "")
+        or ""
+    )
+
+
+def _formalizer_payload_from_workspace_target(
+    packet: Mapping[str, Any],
+    *,
+    disposition: str,
+    formal_gap: Mapping[str, Any],
+) -> dict[str, Any]:
+    if str(packet.get("artifact_kind", "") or "") != (
+        "FormalizerWorkspaceTarget"
+    ):
+        raise ValueError("parent artifact is not a Formalizer workspace target")
+    target = packet.get("formal_target", {})
+    if not isinstance(target, Mapping):
+        raise ValueError("Formalizer workspace target has no formal_target object")
+    target_row = deepcopy(dict(target))
+    if disposition == "FORMAL_GAP":
+        target_row.update(
+            {
+                "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP,
+                "lean_statement_sketch": "",
+                "candidate_lean_declaration": "",
+                "lean_imports": [],
+                "expected_status": "FORMAL_GAP",
+                "formal_gap": deepcopy(dict(formal_gap)),
+            }
+        )
+    return {
+        "formal_targets": [target_row],
+        "retrieval_queries": [],
+        "gap_taxonomy": [deepcopy(dict(formal_gap))] if formal_gap else [],
+    }
+
+
 def _bind_model_authored_lean_candidate_source(
     payload: dict[str, Any],
     *,
@@ -455,11 +626,16 @@ def _bind_model_authored_lean_candidate_source(
     row["lean_imports"] = []
     row["lean_statement_sketch"] = lean_source
     row["candidate_lean_declaration"] = candidate_lean_declaration
+    provenance = row.get("source_theorem_target_provenance", {})
+    provenance = dict(provenance) if isinstance(provenance, Mapping) else {}
+    provenance["target_lean_declaration"] = candidate_lean_declaration
+    row["source_theorem_target_provenance"] = provenance
 
 
-def _build_lean_candidate_revision_tool_prompt(
+def _build_lean_candidate_workspace_tool_prompt(
     *,
     question: OpenResearchQuestion,
+    theory_packet: Mapping[str, Any],
     parent_packet: Mapping[str, Any],
     candidate_id: str,
     candidate_source_field: str,
@@ -479,9 +655,14 @@ def _build_lean_candidate_revision_tool_prompt(
         environment_feedback,
         candidate_id=candidate_id,
     )
+    raw_target_rows = parent_packet.get("formal_targets", []) or []
+    if str(parent_packet.get("artifact_kind", "") or "") == (
+        "FormalizerWorkspaceTarget"
+    ):
+        raw_target_rows = [parent_packet.get("formal_target", {})]
     target_rows = [
         row
-        for row in parent_packet.get("formal_targets", []) or []
+        for row in raw_target_rows
         if isinstance(row, Mapping)
         and (
             str(row.get("id", "") or "") == candidate_id
@@ -506,17 +687,36 @@ def _build_lean_candidate_revision_tool_prompt(
         )
         if target_row.get(field) not in (None, "", [], {})
     }
+    initial_authoring = not initial_source.strip()
     payload = {
         "task": (
-            "Revise the complete exact current Lean source through model-selected "
+            ("Author" if initial_authoring else "Revise")
+            + " the complete exact current Lean source through model-selected "
             "search, inspection, and atomic source-submission actions. A successful "
             "submission hands the exact current source to independent semantic review."
         ),
+        "workspace_phase": (
+            "initial_authoring" if initial_authoring else "revision"
+        ),
         "tool_workflow": (
             "Choose searches and inspections from the current observations, then call "
-            "submit_lean_source with one complete source. Every submission is checked "
-            "immediately. Success hands that exact hash to independent semantic review; "
-            "failure returns raw Lean observations to this same source owner."
+            "submit_lean_source with one complete standalone source and "
+            "candidate_declaration_name set only to the Lean identifier introduced or "
+            "checked by that source (for example Namespace.myTheorem, never a theorem "
+            "header, binders, or type). Include every required import in the submitted "
+            "source; the runtime injects none. Every submission is checked "
+            "immediately. Prefer an early compiler-grounded source attempt when you can "
+            "state the target; use retrieval for concrete unresolved environment/API "
+            "questions rather than as a prerequisite. Success hands that exact hash to "
+            "independent semantic review; failure returns raw Lean observations to this "
+            "same source owner."
+            + (
+                " If concrete active-environment evidence establishes a missing "
+                "foundation primitive, report_formal_gap may record that blocker "
+                "without claiming proof."
+                if initial_authoring
+                else ""
+            )
         ),
         "question": {
             "id": question.id,
@@ -524,10 +724,14 @@ def _build_lean_candidate_revision_tool_prompt(
             "description": question.description,
         },
         "immutable_binding": {
-            "parent_packet_id": str(parent_packet.get("packet_id", "") or ""),
+            "parent_artifact_id": _formalizer_parent_artifact_id(parent_packet),
             "candidate_id": candidate_id,
             "candidate_source_field": candidate_source_field,
-            "candidate_lean_declaration": candidate_lean_declaration,
+            **(
+                {"candidate_lean_declaration": candidate_lean_declaration}
+                if candidate_lean_declaration
+                else {}
+            ),
             "source_theorem_target_identity_status": str(
                 review_context.get("source_theorem_target_identity_status", "")
                 or ""
@@ -549,7 +753,51 @@ def _build_lean_candidate_revision_tool_prompt(
             ),
         },
         "exact_target_contract": exact_target_contract,
-        "current_lean_source": initial_source,
+        "task_bound_theory_context": {
+            "theory_packet_id": str(theory_packet.get("packet_id", "") or ""),
+            "theorem_cards": _compact_rows(
+                theory_packet.get("theorem_cards", []),
+                keys=(
+                    "id",
+                    "title",
+                    "claim",
+                    "statement",
+                    "conclusion",
+                    "assumptions",
+                    "proof_strategy",
+                    "proof_obligations",
+                ),
+                limit=FORMALIZER_MAX_THEORY_ROWS,
+            ),
+            "formalization_requests": _compact_rows(
+                theory_packet.get("formalization_requests", []),
+                keys=(
+                    "id",
+                    "target",
+                    "target_theorem_card",
+                    "claim",
+                    "statement",
+                    "reason",
+                    "semantic_alignment_constraints",
+                    "proof_obligations",
+                ),
+                limit=FORMALIZER_MAX_THEORY_ROWS,
+            ),
+            "theory_derivation_trace": compact_theory_derivation_trace(
+                theory_packet
+            ),
+            "theory_trace_consumption_contract": (
+                theory_trace_consumption_contract(
+                    theory_packet,
+                    consumer_subsystem="FormalizerProofEngineer",
+                )
+            ),
+        },
+        **(
+            {"current_lean_source": initial_source}
+            if initial_source.strip()
+            else {}
+        ),
         "runtime_observations": runtime_observations,
         "model_owned_revision_contract": (
             formalizer_proof_construction_strategy_contract()
@@ -590,9 +838,9 @@ def _task_bound_formal_target_contract(
         keys=(
             "id",
             "title",
+            "informal_statement",
             "claim",
             "statement",
-            "informal_statement",
             "conclusion",
             "assumptions",
             "assumptions_used",
@@ -607,6 +855,7 @@ def _task_bound_formal_target_contract(
         keys=(
             "id",
             "title",
+            "informal_statement",
             "claim",
             "statement",
             "conclusion",
@@ -1125,11 +1374,12 @@ FORMALIZER_SYSTEM_PROMPT = """\
 You are the LLM Formalizer/ProofEngineer inside an AI Statistician AgentRuntime.
 
 Your job is to own one complete Lean source for one unchanged task-bound target at
-a time. Ground imports, namespaces, declarations, and signatures in the supplied
-active-project retrieval context or inspect them with the available search tools
-before relying on them. Use the supplied theory, independent-review findings,
-current source, and raw verifier observations to choose every definition, import,
-decomposition, tactic, query, and source revision. Do not weaken the target, replace
+a time. Use active-project retrieval when it resolves a concrete environment or API
+question, and use early source submission plus raw compiler feedback as the primary
+grounding loop when you can already formulate the target. Use the supplied theory,
+independent-review findings, current source, and raw verifier observations to choose
+every definition, import, declaration, decomposition, tactic, query, and source
+revision. Do not weaken the target, replace
 a mathematical assumption with a vacuous placeholder, or submit an admitted proof.
 When the active libraries lack a required primitive, report the precise formal gap
 instead of inventing an API or proving a weaker statement. AgentRuntime executes

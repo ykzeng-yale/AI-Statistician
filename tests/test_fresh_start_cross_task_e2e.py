@@ -320,7 +320,7 @@ def _complete_task(
             "counts": {"formal_gap": 0},
         },
         lean_tool_loop_id: {
-            "artifact_kind": "LeanCandidateRevisionClientToolLoop",
+            "artifact_kind": "LeanCandidateClientToolWorkspace",
             "artifact_id": lean_tool_loop_id,
             "question_id": question_id,
             "provider": "anthropic",

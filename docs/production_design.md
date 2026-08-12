@@ -244,21 +244,21 @@ the binding and removes closed rows from the active ledger.
 
 ## Lean formalization workspace
 
-Formalizer/ProofEngineer owns one complete standalone Lean candidate at a time.
-The workspace exposes task-bound retrieval, declaration inspection, current goal
-and local context, Lean LSP/MCP state, and exact compiler output. The same model
-chooses each read action and complete source submission. Each submission is stored
-unchanged and immediately checked by Lean; raw failure returns to that source owner.
-Runtime does not inject an import, theorem statement, tactic, or proof-body fragment.
+Formalizer/ProofEngineer receives one exact theorem-goal reference already owned by
+the outer research graph. Runtime resolves that upstream ID and hash only; it makes
+no second LLM target-binding call. Initial authoring and later revision use the same
+client-tool workspace. The model chooses retrieval, inspection, complete source plus
+declaration-name submission, or a concrete task-bound formal-gap report. Each source
+is stored unchanged and checked immediately; raw Lean failure returns to that model.
+Runtime injects no import, theorem statement, tactic, or proof-body fragment.
 
-Each source workspace has one global turn/call budget. Runtime does not preallocate
-action quotas; submission and read tools remain available and the model chooses the mix.
-Declaration inspection is not a Python Lean parser or a repair policy. After the
-model checks its current source, it may choose an identifier and call OpenProver's
-existing `lean-lsp-mcp` `lean_declaration_file` tool against the hash-bound
-project-local artifact. Lean returns the complete declaration plus bounded nearby
-source context; the default is 20 adjacent lines and the transport cap is 40. The
-observation remains in the same model session and is explicitly non-proof evidence.
+One global turn/call budget covers every workspace action. Nonterminal observations
+repeat the exact current source, source hash, declaration, and latest raw Lean check,
+so bounded transcript retention cannot erase the active failure state. Declaration
+inspection calls OpenProver's existing `lean-lsp-mcp` tooling against the hash-bound
+project-local artifact. Structured source packets remain only for static/replay
+providers without native client tools. Every retrieval, compile, inspection, and
+formal-gap result remains explicitly non-proof evidence.
 
 Every changed statement receives independent target-semantic review. A candidate
 can count as theorem evidence only when all of the following bind to the same

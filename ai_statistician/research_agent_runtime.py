@@ -151,6 +151,7 @@ from .formalizer_llm import (
     FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
     FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
     LLMFormalizerProofEngineerAgent,
+    build_formalizer_workspace_target,
     compact_lean_workspace_observation,
 )
 from .formalizer_feedback import (
@@ -10837,15 +10838,17 @@ class FormalizerWorkspaceRuntimeSubsystem:
                             payload=formal_source_grounding_summary,
                         )
                     )
-                client_tool_revision = (
-                    _runtime_formalizer_lean_candidate_client_tool_revision(
+                theory_context = packet if isinstance(packet, Mapping) else {}
+
+                def run_client_tool_workspace() -> (
+                    tuple[dict[str, Any], dict[str, Any]] | None
+                ):
+                    return _runtime_formalizer_lean_candidate_client_tool_workspace(
                         proposal_agent=self.proposal_agent,
                         question=question,
                         task=task,
                         blackboard=blackboard,
-                        theory_packet=(
-                            packet if isinstance(packet, Mapping) else {}
-                        ),
+                        theory_packet=theory_context,
                         environment_feedback=environment_feedback,
                         formal_source_retriever=self.formal_source_retriever,
                         proof_search_provider=self.proof_search_provider,
@@ -10860,20 +10863,45 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         lean_candidate_lean_timeout=(
                             self.lean_candidate_lean_timeout
                         ),
+                        registered_problem=_problem_to_json(problem),
+                        theorem_goals=[
+                            _theorem_goal_to_json(row) for row in theorem_goals
+                        ],
+                    )
+
+                client_tool_workspace_available = (
+                    _runtime_formalizer_client_tool_workspace_available(
+                        proposal_agent=self.proposal_agent,
+                        lean_candidate_local_lean=(
+                            self.lean_candidate_local_lean
+                        ),
+                        lean_candidate_lean_project=(
+                            self.lean_candidate_lean_project
+                        ),
                     )
                 )
-                if client_tool_revision is not None:
-                    (
-                        proposal_packet,
-                        lean_candidate_client_tool_loop_evidence,
-                    ) = client_tool_revision
+                if client_tool_workspace_available:
+                    with agent_runtime_substage(
+                        "formalizer_direct_lean_workspace"
+                    ):
+                        client_tool_workspace = run_client_tool_workspace()
+                    if client_tool_workspace is None:
+                        raise PacketValidationError(
+                            validation_label="Formalizer direct Lean workspace",
+                            attempts=1,
+                            errors=[
+                                "the configured direct Lean workspace could not start"
+                            ],
+                            history=[],
+                        )
+                    proposal_packet, lean_candidate_client_tool_loop_evidence = (
+                        client_tool_workspace
+                    )
                 else:
                     with agent_runtime_substage("formalizer_planning_envelope"):
                         proposal_packet = self.proposal_agent.propose(
                             question=question,
-                            theory_packet=(
-                                packet if isinstance(packet, Mapping) else {}
-                            ),
+                            theory_packet=theory_context,
                             simulation_manifest=(
                                 simulation_manifest
                                 if isinstance(simulation_manifest, Mapping)
@@ -10886,8 +10914,7 @@ class FormalizerWorkspaceRuntimeSubsystem:
                             ),
                             registered_problem=_problem_to_json(problem),
                             theorem_goals=[
-                                _theorem_goal_to_json(row)
-                                for row in theorem_goals
+                                _theorem_goal_to_json(row) for row in theorem_goals
                             ],
                             environment_feedback=environment_feedback,
                         )
@@ -10900,6 +10927,7 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
                         exc=exc,
                         environment_feedback=environment_feedback,
+                        workspace_artifacts=produced_artifacts,
                 )
             except Exception as exc:
                 return _formalizer_provider_failure_result(
@@ -11518,7 +11546,7 @@ class FormalizerWorkspaceRuntimeSubsystem:
                 ToolCallRecord(
                     tool_name=(
                         "LLMFormalizerProofEngineerAgent."
-                        "revise_lean_candidate_with_client_tools"
+                        "run_lean_candidate_workspace_with_client_tools"
                     ),
                     inputs={
                         "candidate_id": str(
@@ -12120,7 +12148,10 @@ def _formalizer_packet_validation_failure_result(
     lean_workspace_checkpoint_available = bool(
         complete_current_source_checkpoint_provided
         and str(recovery_checkpoint.get("artifact_kind", "") or "")
-        == "LeanCandidateRevisionRecoveryCheckpoint"
+        in {
+            "LeanCandidateWorkspaceRecoveryCheckpoint",
+            "LeanCandidateRevisionRecoveryCheckpoint",
+        }
     )
     history_tool_calls = [
         dict(call)
@@ -12179,7 +12210,9 @@ def _formalizer_packet_validation_failure_result(
             ),
             "provider": str(recovery_checkpoint.get("provider", "") or ""),
             "model": str(recovery_checkpoint.get("model", "") or ""),
-            "model_owned_lean_code": True,
+            "model_owned_lean_code": _bool_like(
+                recovery_checkpoint.get("model_owned_lean_code", False)
+            ),
             "runtime_selected_lean_code": False,
         }
         if lean_workspace_checkpoint_available
@@ -12189,8 +12222,13 @@ def _formalizer_packet_validation_failure_result(
         0,
         _int_like(task.inputs.get("formalizer_workspace_continuation_attempt", 0)),
     )
+    target_identity_validation_exhausted = exc.validation_label in {
+        "Formalizer workspace target identity",
+        "Formalizer workspace target lineage",
+    }
     workspace_continuation_allowed = (
         not lean_workspace_checkpoint_available
+        and not target_identity_validation_exhausted
         and workspace_continuation_attempt < 1
     )
     failure_classification = (
@@ -12300,9 +12338,9 @@ def _formalizer_packet_validation_failure_result(
             "the final source and observations as a blocker without duplicating "
             "the workspace or adding an Architect or Critic routing loop."
             if lean_workspace_checkpoint_available
-            else "The same Formalizer workspace exhausted its single full-packet "
-            "regeneration without a valid exact-target source. The runtime recorded "
-            "a blocker without adding an Architect or Critic routing loop."
+            else "The same Formalizer workspace exhausted its compact binding or "
+            "fallback packet validation without a valid exact target. The runtime "
+            "recorded a blocker without adding an Architect or Critic routing loop."
         )
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
@@ -13583,6 +13621,7 @@ def _runtime_architect_control_subsystem_for_artifact(
         "RuntimeFormalizationManifest": "FormalizationEvaluator",
         "RuntimeFormalizerLeanCandidateMaterialization": "FormalizationEvaluator",
         "LeanCandidateRevisionClientToolLoop": "FormalizationEvaluator",
+        "LeanCandidateClientToolWorkspace": "FormalizationEvaluator",
         "LeanKernelPromotionResult": "FormalizationEvaluator",
         "RuntimeCriticEvaluatorManifest": "CriticEvaluator",
     }
@@ -14144,7 +14183,7 @@ def _formalizer_candidate_workspace_context(
             "target_identity_status": "TARGET_DECLARATION_MATCHED",
             "target_identity_errors": list(identity_errors),
             "target_identity_source": (
-                "runtime_formalizer_candidate_artifact_and_target_binding"
+                "runtime_formalizer_candidate_artifact_and_upstream_target"
             ),
             "source_theorem_kernel_evidence_eligible": False,
             "candidate_artifact_path": artifact_path_text,
@@ -14821,7 +14860,31 @@ def _run_formalizer_lean_candidate_local_check(
     )
 
 
-def _runtime_formalizer_lean_candidate_client_tool_revision(
+def _runtime_formalizer_client_tool_workspace_available(
+    *,
+    proposal_agent: LLMFormalizerProofEngineerAgent,
+    lean_candidate_local_lean: bool,
+    lean_candidate_lean_project: Path | None,
+) -> bool:
+    config = getattr(proposal_agent, "config", None)
+    provider = getattr(proposal_agent, "provider", None)
+    return bool(
+        lean_candidate_local_lean
+        and lean_candidate_lean_project is not None
+        and Path(lean_candidate_lean_project).exists()
+        and getattr(config, "use_client_tool_lean_candidate_workspace", False)
+        and callable(getattr(provider, "generate_client_tool_turn", None))
+        and callable(
+            getattr(
+                proposal_agent,
+                "run_lean_candidate_workspace_with_client_tools",
+                None,
+            )
+        )
+    )
+
+
+def _runtime_formalizer_lean_candidate_client_tool_workspace(
     *,
     proposal_agent: LLMFormalizerProofEngineerAgent,
     question: OpenResearchQuestion,
@@ -14829,6 +14892,8 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
     blackboard: BlackboardState,
     theory_packet: Mapping[str, Any],
     environment_feedback: Mapping[str, Any],
+    registered_problem: Mapping[str, Any],
+    theorem_goals: Sequence[Mapping[str, Any]],
     formal_source_retriever: Any | None,
     proof_search_provider: LeanProofSearchProvider | None,
     proof_state_provider: ProofStateFeedbackProvider | None = None,
@@ -14839,20 +14904,19 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
     candidate_materialization: Mapping[str, Any] | None = None,
     parent_formalizer_packet: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]] | None:
-    """Run the same model's edit/search/Lean loop for one current target."""
+    """Run one direct model-owned Lean workspace for initial or revised source."""
 
-    config = getattr(proposal_agent, "config", None)
-    provider = getattr(proposal_agent, "provider", None)
-    if (
-        not lean_candidate_local_lean
-        or lean_candidate_lean_project is None
-        or not Path(lean_candidate_lean_project).exists()
-        or not bool(
-            getattr(config, "use_client_tool_lean_candidate_revision", False)
-        )
-        or not callable(getattr(provider, "generate_client_tool_turn", None))
+    if not _runtime_formalizer_client_tool_workspace_available(
+        proposal_agent=proposal_agent,
+        lean_candidate_local_lean=lean_candidate_local_lean,
+        lean_candidate_lean_project=lean_candidate_lean_project,
     ):
         return None
+    parent_packet = (
+        parent_formalizer_packet
+        if isinstance(parent_formalizer_packet, Mapping)
+        else {}
+    )
     materialization = (
         candidate_materialization
         if isinstance(candidate_materialization, Mapping)
@@ -14866,81 +14930,128 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
     ).strip()
     if not materialization:
         materialization = blackboard.artifacts.get(materialization_id, {})
-    if not isinstance(materialization, Mapping) or str(
-        materialization.get("artifact_kind", "") or ""
-    ) != "RuntimeFormalizerLeanCandidateMaterialization":
-        return None
-
-    requested_candidate_id = str(
-        environment_feedback.get("candidate_id", "") or ""
-    ).strip()
-    diagnostic_ids = {
-        str(row.get("candidate_id", "") or "").strip()
-        for row in environment_feedback.get("candidate_diagnostics", []) or []
-        if isinstance(row, Mapping)
-        and str(row.get("candidate_id", "") or "").strip()
-    }
-    if not requested_candidate_id and len(diagnostic_ids) == 1:
-        requested_candidate_id = next(iter(diagnostic_ids))
-    candidate_rows = [
-        row
-        for row in materialization.get("candidate_rows", []) or []
-        if isinstance(row, Mapping)
-        and (
-            not requested_candidate_id
-            or str(row.get("candidate_id", "") or "")
-            == requested_candidate_id
-        )
-    ]
-    if len(candidate_rows) != 1:
-        return None
-    candidate = candidate_rows[0]
-    candidate_id = str(candidate.get("candidate_id", "") or "").strip()
-    candidate_declaration = str(
-        candidate.get("candidate_lean_declaration", "")
-        or candidate.get("target_lean_declaration", "")
-        or ""
-    ).strip()
-    source_field = str(candidate.get("source_field", "") or "").strip()
-    artifact_path = Path(str(candidate.get("artifact_path", "") or ""))
-    expected_source_hash = str(candidate.get("source_hash", "") or "").strip()
-    if (
-        not candidate_id
-        or not candidate_declaration
-        or source_field != "formal_targets"
-    ):
-        return None
-    try:
-        parent_source = artifact_path.read_text(encoding="utf-8")
-    except OSError:
-        return None
-    if not expected_source_hash or stable_hash(parent_source) != expected_source_hash:
-        raise PacketValidationError(
-            validation_label="Formalizer Lean workspace lineage",
-            attempts=1,
-            errors=["current candidate artifact is missing or hash-stale"],
-            history=[],
-        )
-
-    parent_packet_id = str(
-        materialization.get("source_formalizer_packet_id", "") or ""
-    ).strip()
-    parent_packet = (
-        parent_formalizer_packet
-        if isinstance(parent_formalizer_packet, Mapping)
-        else {}
+    initial_authoring = not (
+        isinstance(materialization, Mapping)
+        and str(materialization.get("artifact_kind", "") or "")
+        == "RuntimeFormalizerLeanCandidateMaterialization"
     )
-    if not parent_packet:
-        parent_packet = blackboard.artifacts.get(parent_packet_id, {})
-    if not isinstance(parent_packet, Mapping) or str(
-        parent_packet.get("packet_id", "") or ""
-    ) != parent_packet_id:
-        raise PacketValidationError(
-            validation_label="Formalizer Lean workspace lineage",
-            attempts=1,
-            errors=["current Formalizer packet is missing or hash-stale"],
-            history=[],
+    artifact_path_text = ""
+    if initial_authoring:
+        parent_packet = build_formalizer_workspace_target(
+            question=question,
+            theory_packet=theory_packet,
+            registered_problem=registered_problem,
+            theorem_goals=theorem_goals,
         )
+        target = parent_packet.get("formal_target", {})
+        if not isinstance(target, Mapping):
+            return None
+        candidate = target
+        candidate_id = str(target.get("id", "") or "").strip()
+        candidate_declaration = ""
+        source_field = "formal_targets"
+        parent_source = ""
+        expected_source_hash = stable_hash(parent_source)
+        parent_packet_id = str(
+            parent_packet.get("target_ref_id", "") or ""
+        ).strip()
+        if not parent_packet_id:
+            return None
+        recovery_checkpoint = environment_feedback.get(
+            "formalizer_recovery_checkpoint", {}
+        )
+        recovery_checkpoint = (
+            recovery_checkpoint
+            if isinstance(recovery_checkpoint, Mapping)
+            else {}
+        )
+        expected_target_hash = str(
+            recovery_checkpoint.get(
+                "parent_formalizer_workspace_target_hash", ""
+            )
+            or ""
+        ).strip()
+        if expected_target_hash and expected_target_hash != stable_hash(parent_packet):
+            raise PacketValidationError(
+                validation_label="Formalizer workspace target lineage",
+                attempts=1,
+                errors=[
+                    "the task-bound theorem target changed across workspace resume"
+                ],
+                history=[],
+                recovery_checkpoint=recovery_checkpoint,
+            )
+    else:
+        if not isinstance(materialization, Mapping) or str(
+            materialization.get("artifact_kind", "") or ""
+        ) != "RuntimeFormalizerLeanCandidateMaterialization":
+            return None
+        requested_candidate_id = str(
+            environment_feedback.get("candidate_id", "") or ""
+        ).strip()
+        diagnostic_ids = {
+            str(row.get("candidate_id", "") or "").strip()
+            for row in environment_feedback.get("candidate_diagnostics", []) or []
+            if isinstance(row, Mapping)
+            and str(row.get("candidate_id", "") or "").strip()
+        }
+        if not requested_candidate_id and len(diagnostic_ids) == 1:
+            requested_candidate_id = next(iter(diagnostic_ids))
+        candidate_rows = [
+            row
+            for row in materialization.get("candidate_rows", []) or []
+            if isinstance(row, Mapping)
+            and (
+                not requested_candidate_id
+                or str(row.get("candidate_id", "") or "")
+                == requested_candidate_id
+            )
+        ]
+        if len(candidate_rows) != 1:
+            return None
+        candidate = candidate_rows[0]
+        candidate_id = str(candidate.get("candidate_id", "") or "").strip()
+        candidate_declaration = str(
+            candidate.get("candidate_lean_declaration", "")
+            or candidate.get("target_lean_declaration", "")
+            or ""
+        ).strip()
+        source_field = str(candidate.get("source_field", "") or "").strip()
+        artifact_path_text = str(candidate.get("artifact_path", "") or "")
+        artifact_path = Path(artifact_path_text)
+        expected_source_hash = str(candidate.get("source_hash", "") or "").strip()
+        if source_field != "formal_targets":
+            return None
+        try:
+            parent_source = artifact_path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+        if (
+            not expected_source_hash
+            or stable_hash(parent_source) != expected_source_hash
+        ):
+            raise PacketValidationError(
+                validation_label="Formalizer Lean workspace lineage",
+                attempts=1,
+                errors=["current candidate artifact is missing or hash-stale"],
+                history=[],
+            )
+        parent_packet_id = str(
+            materialization.get("source_formalizer_packet_id", "") or ""
+        ).strip()
+        if not parent_packet:
+            parent_packet = blackboard.artifacts.get(parent_packet_id, {})
+        if not isinstance(parent_packet, Mapping) or str(
+            parent_packet.get("packet_id", "") or ""
+        ) != parent_packet_id:
+            raise PacketValidationError(
+                validation_label="Formalizer Lean workspace lineage",
+                attempts=1,
+                errors=["current Formalizer packet is missing or hash-stale"],
+                history=[],
+            )
+    if not candidate_id or (not initial_authoring and not candidate_declaration):
+        return None
 
     revision_context_payload = environment_feedback.get(
         "formalizer_workspace_context", {}
@@ -14950,22 +15061,28 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
         if isinstance(revision_context_payload, Mapping)
         else {}
     )
-    initial_source, revision_start = resolve_lean_workspace_start_source(
-        candidate_id=candidate_id,
-        candidate_lean_declaration=candidate_declaration,
-        parent_source=parent_source,
-        environment_feedback=environment_feedback,
+    initial_source, candidate_declaration, revision_start = (
+        resolve_lean_workspace_start_source(
+            candidate_id=candidate_id,
+            candidate_lean_declaration=candidate_declaration,
+            parent_source=parent_source,
+            environment_feedback=environment_feedback,
+        )
     )
 
-    revision_root = (
+    workspace_root = (
         Path(lean_candidate_root)
         / _safe_identifier(question.id)
-        / "client_tool_revision"
+        / "client_tool_workspace"
         / stable_hash(
             [task.task_id, materialization_id, candidate_id, expected_source_hash]
         )[:12]
     )
-    def check_candidate(source: str) -> Mapping[str, Any]:
+
+    def check_candidate(
+        source: str,
+        submitted_declaration: str,
+    ) -> Mapping[str, Any]:
         source_hash = stable_hash(source)
         precheck_errors = _formalizer_lean_candidate_source_boundary_errors(
             source,
@@ -14981,9 +15098,10 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
                 "local_lean_exit_status": "",
                 "local_lean_stdout": "",
                 "local_lean_stderr": "",
+                "candidate_lean_declaration": submitted_declaration,
             }
-        revision_root.mkdir(parents=True, exist_ok=True)
-        path = revision_root / (
+        workspace_root.mkdir(parents=True, exist_ok=True)
+        path = workspace_root / (
             _safe_identifier(candidate_id) + "_" + source_hash[:12] + ".lean"
         )
         path.write_text(source, encoding="utf-8")
@@ -15000,12 +15118,13 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
         )
         local_result = _run_formalizer_lean_candidate_local_check(
             artifact_path=path,
-            candidate_lean_declaration=candidate_declaration,
+            candidate_lean_declaration=submitted_declaration,
             lean_project=Path(lean_candidate_lean_project),
             lean_timeout=lean_candidate_lean_timeout,
         )
         return {
             "source_hash": source_hash,
+            "candidate_lean_declaration": submitted_declaration,
             "compiled": _bool_like(
                 local_result.get("local_lean_compiled", False)
             ),
@@ -15102,7 +15221,10 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
             "artifact_kind": "FormalizerProofSearchToolRequest",
             "question_id": question.id,
             "candidate_id": candidate_id,
-            "target_lean_declaration": candidate_declaration,
+            "target_lean_declaration": str(
+                last_check.get("candidate_lean_declaration", "")
+                or candidate_declaration
+            ),
             "target_theorem_statement": source,
             "current_lean_source": source,
             "current_lean_source_hash": stable_hash(source),
@@ -15307,41 +15429,82 @@ def _runtime_formalizer_lean_candidate_client_tool_revision(
             }
         return deepcopy(dict(raw))
 
-    revised_packet, loop_evidence = (
-        proposal_agent.revise_lean_candidate_with_client_tools(
-            question=question,
-            theory_packet=theory_packet,
-            parent_packet=parent_packet,
-            candidate_id=candidate_id,
-            candidate_source_field=source_field,
-            candidate_lean_declaration=candidate_declaration,
-            initial_source=initial_source,
-            environment_feedback=environment_feedback,
-            check_candidate=check_candidate,
-            search_formal_environment=search_formal_environment,
-            search_proof_candidates=(
-                search_proof_candidates
-                if proof_search_provider is not None
-                else None
-            ),
-            inspect_lean_state=(
-                inspect_lean_state if proof_state_provider is not None else None
-            ),
-            inspect_lean_declaration=(
-                inspect_lean_declaration
-                if callable(declaration_inspector)
-                else None
-            ),
+    try:
+        revised_packet, loop_evidence = (
+            proposal_agent.run_lean_candidate_workspace_with_client_tools(
+                question=question,
+                theory_packet=theory_packet,
+                parent_packet=parent_packet,
+                candidate_id=candidate_id,
+                candidate_source_field=source_field,
+                candidate_lean_declaration=candidate_declaration,
+                initial_source=initial_source,
+                environment_feedback=environment_feedback,
+                check_candidate=check_candidate,
+                search_formal_environment=search_formal_environment,
+                search_proof_candidates=(
+                    search_proof_candidates
+                    if proof_search_provider is not None
+                    else None
+                ),
+                inspect_lean_state=(
+                    inspect_lean_state
+                    if proof_state_provider is not None
+                    else None
+                ),
+                inspect_lean_declaration=(
+                    inspect_lean_declaration
+                    if callable(declaration_inspector)
+                    else None
+                ),
+            )
         )
-    )
+    except PacketValidationError as exc:
+        checkpoint = (
+            deepcopy(dict(exc.recovery_checkpoint))
+            if isinstance(exc.recovery_checkpoint, Mapping)
+            else {}
+        )
+        checkpoint["parent_formalizer_artifact_id"] = parent_packet_id
+        if initial_authoring:
+            checkpoint.update(
+                {
+                    "parent_formalizer_workspace_target_id": parent_packet_id,
+                    "parent_formalizer_workspace_target_hash": stable_hash(
+                        parent_packet
+                    ),
+                }
+            )
+        else:
+            checkpoint["parent_formalizer_packet_id"] = parent_packet_id
+        raise PacketValidationError(
+            validation_label=exc.validation_label,
+            attempts=exc.attempts,
+            errors=list(exc.errors),
+            history=[dict(row) for row in exc.history],
+            last_invalid_packet=exc.last_invalid_packet,
+            recovery_checkpoint=checkpoint,
+        ) from exc
     evidence = {
         **dict(loop_evidence),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "question_id": question.id,
         "task_id": task.task_id,
+        "workspace_phase": (
+            "initial_authoring" if initial_authoring else "revision"
+        ),
         "parent_materialization_manifest_id": materialization_id,
-        "parent_formalizer_packet_id": parent_packet_id,
-        "parent_candidate_artifact_path": str(artifact_path),
+        "parent_formalizer_artifact_id": parent_packet_id,
+        "parent_formalizer_packet_id": (
+            parent_packet_id if not initial_authoring else ""
+        ),
+        "parent_formalizer_workspace_target_id": (
+            parent_packet_id if initial_authoring else ""
+        ),
+        "parent_formalizer_workspace_target_hash": (
+            stable_hash(parent_packet) if initial_authoring else ""
+        ),
+        "parent_candidate_artifact_path": artifact_path_text,
         "parent_candidate_source_hash": expected_source_hash,
         **revision_start,
         "active_lean_project": str(lean_candidate_lean_project),

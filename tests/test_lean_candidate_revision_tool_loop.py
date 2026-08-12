@@ -6,6 +6,7 @@ from pathlib import Path
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.lean_candidate_revision_tool_loop import (
+    LEAN_FORMAL_GAP_TOOL,
     LEAN_SOURCE_SUBMISSION_TOOL,
     run_lean_candidate_revision_tool_loop,
 )
@@ -116,7 +117,7 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
     checked_sources: list[str] = []
     searches: list[tuple[str, int]] = []
 
-    def check(source: str):
+    def check(source: str, _declaration: str):
         checked_sources.append(source)
         compiled = source == repaired
         return {
@@ -181,6 +182,179 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
     assert result.evidence["submit_and_check_atomic"] is True
 
 
+def test_lean_candidate_tool_loop_authors_first_source_from_empty_workspace() -> None:
+    authored = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "submit-initial-source",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": authored,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            )
+        ]
+    )
+    checked_sources: list[str] = []
+    checked_declarations: list[str] = []
+
+    def check(source: str, declaration: str):
+        checked_sources.append(source)
+        checked_declarations.append(declaration)
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": source == authored,
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Author the bound target.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=2,
+        max_no_progress_turns=1,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="",
+        initial_source="",
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+    )
+
+    assert checked_sources == [authored]
+    assert checked_declarations == ["target"]
+    assert result.lean_source == authored
+    assert result.candidate_lean_declaration == "target"
+    assert result.evidence["workspace_phase"] == "initial_authoring"
+    assert result.evidence["parent_source_hash"] == stable_hash("")
+    assert result.evidence["source_updates"] == 1
+    assert result.evidence["artifact_kind"] == (
+        "LeanCandidateClientToolWorkspace"
+    )
+    assert result.evidence["runtime_selected_lean_code"] is False
+    submit_tool = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == LEAN_SOURCE_SUBMISSION_TOOL
+    )
+    assert submit_tool.input_schema["required"] == [
+        "lean_source",
+        "candidate_declaration_name",
+    ]
+
+
+def test_lean_candidate_workspace_lets_model_report_task_bound_formal_gap() -> None:
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "report-gap",
+                    LEAN_FORMAL_GAP_TOOL,
+                    {
+                        "summary": "The active project lacks the required primitive.",
+                        "missing_primitives": ["Required.Primitive"],
+                    },
+                )
+            )
+        ]
+    )
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Formalize the bound target or report concrete blockers.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=2,
+        max_no_progress_turns=1,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="",
+        initial_source="",
+        check_candidate=lambda source, declaration: {},
+        search_formal_environment=lambda query, k: [],
+        allow_formal_gap=True,
+    )
+
+    assert result.disposition == "FORMAL_GAP"
+    assert result.lean_source == ""
+    assert result.formal_gap["missing_primitives"] == ["Required.Primitive"]
+    assert result.evidence["model_owned_lean_code"] is False
+    assert result.evidence["runtime_selected_lean_code"] is False
+    assert result.evidence["kernel_verified"] is False
+
+
+def test_search_observation_keeps_current_source_and_raw_lean_feedback_visible() -> None:
+    failing = "theorem target : True := by\n  exact missing\n"
+    passing = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "submit-failing",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": failing},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "search-after-failure",
+                    "search_formal_environment",
+                    {"query": "missing declaration"},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-passing",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": passing},
+                )
+            ),
+        ]
+    )
+
+    def check(source: str, _declaration: str):
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": source == passing,
+            "local_lean_stdout": (
+                "unknown identifier 'missing'" if source == failing else ""
+            ),
+        }
+
+    run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Author the exact target.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source="",
+        check_candidate=check,
+        search_formal_environment=lambda query, k: {"query": query, "hits": []},
+    )
+
+    search_result = json.loads(
+        backend.requests[2].messages[-1]["content"][0]["content"]
+    )
+    assert search_result["current_lean_source"] == failing
+    assert search_result["current_source_hash"] == stable_hash(failing)
+    assert search_result["latest_lean_check"]["local_lean_stdout"] == (
+        "unknown identifier 'missing'"
+    )
+
+
 def test_prover_candidates_are_observations_and_only_model_replaces_source() -> None:
     initial = "theorem target : True := by\n  sorry\n"
     model_source = "theorem target : True := by\n  exact True.intro\n"
@@ -212,7 +386,7 @@ def test_prover_candidates_are_observations_and_only_model_replaces_source() -> 
             "provider": "openprover",
         }
 
-    def check(source: str):
+    def check(source: str, _declaration: str):
         checked_sources.append(source)
         return {"source_hash": stable_hash(source), "compiled": source == model_source}
 
@@ -269,7 +443,7 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
     )
     inspections: list[tuple[str, dict]] = []
 
-    def check(source: str):
+    def check(source: str, _declaration: str):
         compiled = source == revised
         return {
             "source_hash": stable_hash(source),
@@ -354,7 +528,7 @@ def test_model_selects_exact_declaration_inspection_inside_same_source_loop() ->
     )
     inspections: list[tuple[str, str, int, dict]] = []
 
-    def check(source: str):
+    def check(source: str, _declaration: str):
         return {
             "source_hash": stable_hash(source),
             "compiled": source == revised,
@@ -452,7 +626,7 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
         initial_source=initial,
-        check_candidate=lambda source: {
+        check_candidate=lambda source, _declaration: {
             "source_hash": stable_hash(source),
             "compiled": source == revised,
         },
@@ -502,7 +676,7 @@ def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> No
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
         initial_source="theorem target : True := by\n  sorry\n",
-        check_candidate=lambda source: {
+        check_candidate=lambda source, _declaration: {
             "source_hash": stable_hash(source),
             "compiled": source == sources[-1],
             "local_lean_stderr": "unknown identifier"
@@ -536,7 +710,7 @@ def test_lean_candidate_tool_loop_hands_off_on_successful_requested_check() -> N
         ]
     )
 
-    def check(source: str):
+    def check(source: str, _declaration: str):
         return {"source_hash": stable_hash(source), "compiled": True}
 
     result = run_lean_candidate_revision_tool_loop(
@@ -606,7 +780,7 @@ def test_lean_candidate_tool_loop_stops_repeated_identical_submissions() -> None
             candidate_id="target-candidate",
             candidate_lean_declaration="target",
             initial_source=source,
-            check_candidate=lambda current: {
+            check_candidate=lambda current, _declaration: {
                 "source_hash": stable_hash(current),
                 "compiled": False,
                 "local_lean_stderr": "same compiler diagnostic",
@@ -636,7 +810,7 @@ def test_lean_candidate_tool_loop_checks_final_submission_at_turn_budget() -> No
     )
     checked_sources: list[str] = []
 
-    def check(source: str):
+    def check(source: str, _declaration: str):
         checked_sources.append(source)
         return {
             "source_hash": stable_hash(source),
@@ -694,7 +868,7 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
             candidate_id="target-candidate",
             candidate_lean_declaration="target",
             initial_source=initial,
-            check_candidate=lambda source: {
+            check_candidate=lambda source, _declaration: {
                 "source_hash": stable_hash(source),
                 "compiled": False,
                 "local_lean_stderr": "type mismatch",
@@ -705,7 +879,7 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
         checkpoint = exc.recovery_checkpoint
         assert checkpoint is not None
         assert checkpoint["artifact_kind"] == (
-            "LeanCandidateRevisionRecoveryCheckpoint"
+            "LeanCandidateWorkspaceRecoveryCheckpoint"
         )
         assert checkpoint["current_source"] == latest
         assert checkpoint["current_source_hash"] == stable_hash(latest)
@@ -729,12 +903,21 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
         + "y" * 4000
     )
     initial_source = "theorem target : True := by\n  exact True.intro\n"
-    prompt = formalizer_module._build_lean_candidate_revision_tool_prompt(
+    prompt = formalizer_module._build_lean_candidate_workspace_tool_prompt(
         question=OpenResearchQuestion(
             id="compact-context",
             title="Compact Lean context",
             description="Keep exact target context and retrieve signatures on demand.",
         ),
+        theory_packet={
+            "packet_id": "theory:compact",
+            "theorem_cards": [
+                {
+                    "id": "theory-target",
+                    "conclusion": "EXACT_PARENT_THEORY_CONCLUSION",
+                }
+            ],
+        },
         parent_packet={
             "packet_id": "formalizer_proposal:compact",
             "formal_targets": [
@@ -800,6 +983,9 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
 
     payload = json.loads(prompt)
     assert payload["current_lean_source"] == initial_source
+    assert payload["task_bound_theory_context"]["theorem_cards"][0][
+        "conclusion"
+    ] == "EXACT_PARENT_THEORY_CONCLUSION"
     assert payload["exact_target_contract"] == {
         "id": "target-candidate",
         "formal_target_role": "SOURCE_THEOREM_CANDIDATE",
@@ -833,6 +1019,54 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
     assert "required_repair" not in prompt
     assert "recommended_repair" not in prompt
     assert len(prompt) < 20000
+
+
+def test_formalizer_workspace_target_reuses_upstream_goal_without_model_call() -> None:
+    question = OpenResearchQuestion(
+        id="workspace-target",
+        title="Bind an exact theorem",
+        description="Reuse upstream identity before direct Lean authoring.",
+    )
+    target = formalizer_module.build_formalizer_workspace_target(
+        question=question,
+        theory_packet={
+            "theory_derivation_packet": {
+                "formalization_handoff": {
+                    "source_theorem_target": "goal-1",
+                    "semantic_alignment_constraints": [
+                        "Preserve every assumption."
+                    ],
+                }
+            }
+        },
+        registered_problem={},
+        theorem_goals=[
+            {
+                "id": "goal-1",
+                "title": "Exact goal",
+                "informal_statement": "The exact unchanged theorem target.",
+            },
+            {
+                "id": "goal-2",
+                "title": "Deferred goal",
+                "informal_statement": "A different theorem.",
+            },
+        ],
+    )
+
+    assert target["artifact_kind"] == "FormalizerWorkspaceTarget"
+    assert target["formal_target"]["id"] == "goal-1"
+    assert target["formal_target"]["informal_source"] == (
+        "The exact unchanged theorem target."
+    )
+    assert target["formal_target"]["semantic_alignment_constraints"] == [
+        "Preserve every assumption."
+    ]
+    assert target["formal_target"]["lean_statement_sketch"] == ""
+    assert target["formal_target"]["candidate_lean_declaration"] == ""
+    assert target["proof_evidence_status"] == (
+        "TASK_BOUND_TARGET_REFERENCE_NOT_PROOF_EVIDENCE"
+    )
 
 
 def test_exhausted_formalizer_source_loop_blocks_without_duplicate_workspace() -> None:
@@ -1161,8 +1395,13 @@ def test_formalizer_workspace_hydrates_observation_ref_before_source_loop(
 
     monkeypatch.setattr(
         runtime_module,
-        "_runtime_formalizer_lean_candidate_client_tool_revision",
+        "_runtime_formalizer_lean_candidate_client_tool_workspace",
         capture_source_loop,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_formalizer_client_tool_workspace_available",
+        lambda **kwargs: True,
     )
     monkeypatch.setattr(
         runtime_module,
@@ -1293,7 +1532,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     }
 
     class FakeConfig:
-        use_client_tool_lean_candidate_revision = True
+        use_client_tool_lean_candidate_workspace = True
 
     class FakeProvider:
         def generate_client_tool_turn(self, request):
@@ -1308,12 +1547,12 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             self.check_result = {}
             self.declaration_result = {}
 
-        def revise_lean_candidate_with_client_tools(self, **kwargs):
+        def run_lean_candidate_workspace_with_client_tools(self, **kwargs):
             assert kwargs["candidate_id"] == candidate_id
             assert kwargs["initial_source"] == self.expected_source
             assert "reviewed_parent_source_hash" not in kwargs
             self.check_result = dict(
-                kwargs["check_candidate"](self.expected_source)
+                    kwargs["check_candidate"](self.expected_source, "target")
             )
             declaration_tool = kwargs.get("inspect_lean_declaration")
             assert callable(declaration_tool)
@@ -1328,7 +1567,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             return (
                 {"packet_id": "formalizer_proposal:revised"},
                 {
-                    "artifact_kind": "LeanCandidateRevisionClientToolLoop",
+                    "artifact_kind": "LeanCandidateClientToolWorkspace",
                     "candidate_id": candidate_id,
                     "model": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
                     "model_tier": "haiku",
@@ -1374,13 +1613,15 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     )
     agent = FakeAgent()
     proof_state_provider = FakeProofStateProvider()
-    result = runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
+    result = runtime_module._runtime_formalizer_lean_candidate_client_tool_workspace(
         proposal_agent=agent,
         question=question,
         task=task,
         blackboard=blackboard,
         theory_packet={},
         environment_feedback=feedback,
+        registered_problem={},
+        theorem_goals=[],
         formal_source_retriever=None,
         proof_search_provider=None,
         proof_state_provider=proof_state_provider,
@@ -1420,13 +1661,15 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             "kernel_verified": False,
         },
     }
-    resumed = runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
+    resumed = runtime_module._runtime_formalizer_lean_candidate_client_tool_workspace(
         proposal_agent=FakeAgent(resumed_source),
         question=question,
         task=task,
         blackboard=blackboard,
         theory_packet={},
         environment_feedback=resume_feedback,
+        registered_problem={},
+        theorem_goals=[],
         formal_source_retriever=None,
         proof_search_provider=None,
         proof_state_provider=proof_state_provider,
@@ -1449,13 +1692,15 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
         },
     }
     try:
-        runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
+        runtime_module._runtime_formalizer_lean_candidate_client_tool_workspace(
             proposal_agent=FakeAgent(resumed_source),
             question=question,
             task=task,
             blackboard=blackboard,
             theory_packet={},
             environment_feedback=stale_feedback,
+            registered_problem={},
+            theorem_goals=[],
             formal_source_retriever=None,
             proof_search_provider=None,
             proof_state_provider=proof_state_provider,
@@ -1468,6 +1713,173 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
         assert exc.validation_label == "Lean workspace checkpoint lineage"
     else:
         raise AssertionError("stale model checkpoint source was not rejected")
+
+
+def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspace(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    question = OpenResearchQuestion(
+        id="canonical-initial-formalizer",
+        title="Canonical initial Formalizer",
+        description="Author exact initial Lean source through client tools.",
+    )
+    theory_packet_id = "theory:canonical-initial-formalizer"
+    theory_packet = {
+        "packet_id": theory_packet_id,
+        "artifact_kind": "TheoryDerivationPacket",
+        "problem_card": {
+            "observed_data": "One arbitrary real value.",
+            "estimand": "The unchanged exact identity.",
+            "assumptions": [],
+        },
+        "theorem_cards": [
+            {
+                "id": "goal-1",
+                "title": "Exact goal",
+                "informal_statement": "The exact unchanged theorem target.",
+                "conclusion": "The exact unchanged theorem target.",
+                "proof_strategy": "Formalize the identity directly.",
+            }
+        ],
+        "formalization_requests": [
+            {
+                "id": "formalize-goal-1",
+                "target_theorem_card": "goal-1",
+                "semantic_alignment_constraints": [
+                    "Preserve the exact target."
+                ],
+            }
+        ],
+        "theory_derivation_packet": {
+            "formalization_handoff": {
+                "source_theorem_target": "goal-1",
+                "semantic_alignment_constraints": [
+                    "Preserve the exact target."
+                ],
+            }
+        },
+    }
+    authored = "theorem Exact.target : True := by\n  exact True.intro\n"
+
+    class FormalizerBackend(ScriptedLeanToolBackend):
+        def __init__(self) -> None:
+            super().__init__(
+                [
+                    _response(
+                        ClientToolCall(
+                            "search-before-source",
+                            "search_formal_environment",
+                            {"query": "exact target declarations"},
+                        )
+                    ),
+                    _response(
+                        ClientToolCall(
+                            "submit-first-source",
+                            LEAN_SOURCE_SUBMISSION_TOOL,
+                            {
+                                "lean_source": authored,
+                                "candidate_declaration_name": "Exact.target",
+                            },
+                        )
+                    ),
+                ]
+            )
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_formalizer_lean_candidate_local_check",
+        lambda **kwargs: {
+            "local_lean_attempted": True,
+            "local_lean_compiled": True,
+            "local_lean_source_compiled": True,
+            "local_lean_exit_status": "0",
+            "local_lean_stdout": "Exact.target : True",
+            "local_lean_stderr": "",
+            "candidate_identity_lean_checked": True,
+            "candidate_identity_lean_verified": True,
+        },
+    )
+    backend = FormalizerBackend()
+    agent = LLMFormalizerProofEngineerAgent(
+        provider=backend,
+        config=FormalizerConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
+            client_tool_lean_candidate_max_turns=1,
+            client_tool_lean_candidate_max_no_progress_turns=1,
+        ),
+    )
+    subsystem = runtime_module.FormalizerWorkspaceRuntimeSubsystem(
+        proposal_agent=agent,
+        lean_candidate_root=tmp_path / "candidates",
+        lean_candidate_local_lean=True,
+        lean_candidate_lean_project=tmp_path,
+        formal_target_semantic_reviewer_available=False,
+    )
+    task = AgentTask(
+        task_id="formalize:canonical-initial",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Author one exact target.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "architect_context": {},
+        },
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={theory_packet_id: theory_packet},
+    )
+    first = subsystem.run(task, blackboard)
+
+    assert first.status == "REVISE"
+    assert first.next_task is not None
+    assert all(
+        row.get("artifact_kind") != "FormalizerTargetBindingPacket"
+        for row in first.produced_artifacts.values()
+    )
+    failure = next(
+        row
+        for row in first.produced_artifacts.values()
+        if row.get("artifact_kind") == "RuntimeFormalizerValidationFailure"
+    )
+    checkpoint = failure["formalizer_recovery_checkpoint"]
+    assert checkpoint["parent_formalizer_workspace_target_id"].startswith(
+        "formalizer_workspace_target:"
+    )
+    assert checkpoint["parent_formalizer_workspace_target_hash"]
+    assert checkpoint["current_source"] == ""
+    assert checkpoint["model_owned_lean_code"] is False
+    assert checkpoint["model_owned_workspace_actions"] is True
+
+    blackboard.artifacts.update(first.produced_artifacts)
+    result = subsystem.run(first.next_task, blackboard)
+
+    assert len(backend.requests) == 2
+    proposals = [
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind") == "FormalizerProofEngineerProposalPacket"
+    ]
+    assert len(proposals) == 1
+    assert proposals[0]["formal_targets"][0]["lean_statement_sketch"] == authored
+    workspaces = [
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind") == "LeanCandidateClientToolWorkspace"
+    ]
+    assert len(workspaces) == 1
+    assert workspaces[0]["workspace_phase"] == "initial_authoring"
+    assert workspaces[0]["runtime_selected_lean_code"] is False
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == "formalizer_workspace_exhausted"
+    assert any(
+        observation.observation_type
+        == "formalizer_lean_candidate_local_lean_feedback"
+        for observation in result.observations
+    )
 
 
 def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
@@ -1554,7 +1966,7 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
         },
     }
 
-    packet, evidence = agent.revise_lean_candidate_with_client_tools(
+    packet, evidence = agent.run_lean_candidate_workspace_with_client_tools(
         question=question,
         theory_packet={},
         parent_packet=parent_packet,
@@ -1563,7 +1975,7 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
         candidate_lean_declaration="target",
         initial_source=original,
         environment_feedback=feedback,
-        check_candidate=lambda source: {
+        check_candidate=lambda source, _declaration: {
             "source_hash": stable_hash(source),
             "compiled": source == repaired,
         },

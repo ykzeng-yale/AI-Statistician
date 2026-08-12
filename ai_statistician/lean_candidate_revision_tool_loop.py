@@ -15,7 +15,7 @@ from .structured_output_retry import PacketValidationError
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
 
 
-LeanCandidateCheck = Callable[[str], Mapping[str, Any]]
+LeanCandidateCheck = Callable[[str, str], Mapping[str, Any]]
 FormalEnvironmentSearch = Callable[[str, int], Any]
 ProofCandidateSearch = Callable[[str, str, int, Mapping[str, Any]], Any]
 LeanStateInspection = Callable[[str, Mapping[str, Any]], Any]
@@ -23,12 +23,16 @@ LeanDeclarationInspection = Callable[
     [str, str, int, Mapping[str, Any]], Any
 ]
 LEAN_SOURCE_SUBMISSION_TOOL = "submit_lean_source"
+LEAN_FORMAL_GAP_TOOL = "report_formal_gap"
 
 
 @dataclass(frozen=True)
 class LeanCandidateRevisionToolLoopResult:
     lean_source: str
     source_hash: str
+    candidate_lean_declaration: str
+    disposition: str
+    formal_gap: Mapping[str, Any]
     check_result: Mapping[str, Any]
     evidence: Mapping[str, Any]
 
@@ -39,26 +43,31 @@ def resolve_lean_workspace_start_source(
     candidate_lean_declaration: str,
     parent_source: str,
     environment_feedback: Mapping[str, Any],
-) -> tuple[str, dict[str, Any]]:
+) -> tuple[str, str, dict[str, Any]]:
     """Resume an exact model-owned source checkpoint when its hashes still bind."""
 
     parent_source_hash = stable_hash(parent_source)
     checkpoint = environment_feedback.get("formalizer_recovery_checkpoint", {})
     if not isinstance(checkpoint, Mapping) or not checkpoint:
-        return parent_source, {
+        return parent_source, candidate_lean_declaration, {
             "resumed_from_model_checkpoint": False,
             "parent_source_hash": parent_source_hash,
         }
 
     errors: list[str] = []
-    if str(checkpoint.get("artifact_kind", "") or "") != (
-        "LeanCandidateRevisionRecoveryCheckpoint"
-    ):
+    if str(checkpoint.get("artifact_kind", "") or "") not in {
+        "LeanCandidateWorkspaceRecoveryCheckpoint",
+        "LeanCandidateRevisionRecoveryCheckpoint",
+    }:
         errors.append("checkpoint artifact kind is not a Lean workspace checkpoint")
     if str(checkpoint.get("candidate_id", "") or "") != candidate_id:
         errors.append("checkpoint candidate id does not match the active workspace")
-    if str(checkpoint.get("candidate_lean_declaration", "") or "") != (
+    checkpoint_declaration = str(
+        checkpoint.get("candidate_lean_declaration", "") or ""
+    ).strip()
+    if (
         candidate_lean_declaration
+        and checkpoint_declaration != candidate_lean_declaration
     ):
         errors.append("checkpoint declaration does not match the active workspace")
     if str(checkpoint.get("parent_source_hash", "") or "") != parent_source_hash:
@@ -66,11 +75,26 @@ def resolve_lean_workspace_start_source(
 
     source = str(checkpoint.get("current_source", "") or "")
     source_hash = str(checkpoint.get("current_source_hash", "") or "")
-    if not source.strip() or source_hash != stable_hash(source):
+    empty_initial_checkpoint = bool(
+        not parent_source.strip()
+        and not source.strip()
+        and source_hash == stable_hash("")
+        and str(checkpoint.get("workspace_phase", "") or "")
+        == "initial_authoring"
+    )
+    if (
+        (not source.strip() and not empty_initial_checkpoint)
+        or source_hash != stable_hash(source)
+    ):
         errors.append("checkpoint current source is empty or hash-stale")
     if len(source) > 20000:
         errors.append("checkpoint current source exceeds the artifact-size boundary")
-    if checkpoint.get("model_owned_lean_code") is not True:
+    if source.strip() and not checkpoint_declaration:
+        errors.append("checkpoint source has no model-selected Lean declaration")
+    if (
+        checkpoint.get("model_owned_lean_code") is not True
+        and not empty_initial_checkpoint
+    ):
         errors.append("checkpoint is not marked as model-owned Lean source")
     if checkpoint.get("runtime_selected_lean_code") is not False:
         errors.append("checkpoint permits runtime-selected Lean source")
@@ -84,7 +108,7 @@ def resolve_lean_workspace_start_source(
             history=[],
             recovery_checkpoint=checkpoint,
         )
-    return source, {
+    return source, checkpoint_declaration or candidate_lean_declaration, {
         "resumed_from_model_checkpoint": True,
         "parent_source_hash": parent_source_hash,
         "resume_checkpoint_source_hash": source_hash,
@@ -113,14 +137,15 @@ def run_lean_candidate_revision_tool_loop(
     search_proof_candidates: ProofCandidateSearch | None = None,
     inspect_lean_state: LeanStateInspection | None = None,
     inspect_lean_declaration: LeanDeclarationInspection | None = None,
+    allow_formal_gap: bool = False,
     request_metadata: Mapping[str, Any] | None = None,
 ) -> LeanCandidateRevisionToolLoopResult:
-    """Let the model edit, search, and compile one immutable-bound Lean target."""
+    """Let the model author or revise one immutable-bound Lean target."""
 
-    if not candidate_id.strip() or not candidate_lean_declaration.strip():
-        raise ValueError("Lean candidate tool loop requires bound candidate identity")
-    if not initial_source.strip():
-        raise ValueError("Lean candidate tool loop requires nonempty source")
+    if not candidate_id.strip():
+        raise ValueError("Lean candidate tool loop requires a bound semantic target id")
+    if initial_source.strip() and not candidate_lean_declaration.strip():
+        raise ValueError("an existing Lean source requires its declaration identity")
     for value, label in (
         (max_turns, "turn"),
         (max_no_progress_turns, "no-progress"),
@@ -130,10 +155,13 @@ def run_lean_candidate_revision_tool_loop(
 
     parent_source = str(initial_source)
     parent_source_hash = stable_hash(parent_source)
+    workspace_phase = "revision" if parent_source.strip() else "initial_authoring"
     state: dict[str, Any] = {
         "source": parent_source,
         "source_hash": parent_source_hash,
+        "candidate_lean_declaration": candidate_lean_declaration.strip(),
         "source_updates": 0,
+        "declaration_updates": 0,
         "searches": 0,
         "proof_searches": 0,
         "state_inspections": 0,
@@ -148,10 +176,15 @@ def run_lean_candidate_revision_tool_loop(
         include_proof_search=search_proof_candidates is not None,
         include_state_inspection=inspect_lean_state is not None,
         include_declaration_inspection=inspect_lean_declaration is not None,
+        require_candidate_declaration=not candidate_lean_declaration.strip(),
+        include_formal_gap=allow_formal_gap,
     )
 
     def check_current_source() -> dict[str, Any]:
-        raw_result = check_candidate(str(state["source"]))
+        raw_result = check_candidate(
+            str(state["source"]),
+            str(state["candidate_lean_declaration"]),
+        )
         if not isinstance(raw_result, Mapping):
             raise ClientToolInputError("Lean checker returned a non-object result")
         check_result = deepcopy(dict(raw_result))
@@ -165,13 +198,39 @@ def run_lean_candidate_revision_tool_loop(
         state["latest_check_observation"] = check_result
         return check_result
 
+    def current_workspace_observation() -> dict[str, Any]:
+        source = str(state["source"])
+        return {
+            "current_source_hash": str(state["source_hash"]),
+            **(
+                {
+                    "candidate_lean_declaration": str(
+                        state["candidate_lean_declaration"]
+                    )
+                }
+                if state["candidate_lean_declaration"]
+                else {}
+            ),
+            **({"current_lean_source": source} if source else {}),
+            **(
+                {
+                    "latest_lean_check": deepcopy(
+                        dict(state["latest_check_observation"])
+                    )
+                }
+                if state["latest_check_observation"]
+                else {}
+            ),
+        }
+
     def execute_tool(call, context):
         del context
         tool_input = dict(call.input)
         if call.name == LEAN_SOURCE_SUBMISSION_TOOL:
-            if set(tool_input) != {"lean_source"}:
+            if set(tool_input) - {"lean_source", "candidate_declaration_name"}:
                 raise ClientToolInputError(
-                    "submit_lean_source requires exactly lean_source"
+                    "submit_lean_source accepts lean_source and "
+                    "candidate_declaration_name"
                 )
             source = tool_input.get("lean_source")
             if not isinstance(source, str) or not source.strip():
@@ -180,12 +239,23 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError(
                     "lean_source exceeds the runtime artifact-size boundary"
                 )
+            declaration = str(
+                tool_input.get("candidate_declaration_name", "")
+                or state["candidate_lean_declaration"]
+                or ""
+            ).strip()
+            if not declaration:
+                raise ClientToolInputError(
+                    "the first source submission requires the exact declaration name"
+                )
             source_hash = stable_hash(source)
             changed = source_hash != state["source_hash"]
+            declaration_changed = declaration != state["candidate_lean_declaration"]
             already_checked = bool(
                 state["last_check"]
                 and str(state["last_check"].get("source_hash", "") or "")
                 == source_hash
+                and not declaration_changed
             )
             if not changed and already_checked:
                 raise ClientToolInputError(
@@ -197,14 +267,21 @@ def run_lean_candidate_revision_tool_loop(
                 state["source_hash"] = source_hash
                 state["source_updates"] += 1
                 state["last_check"] = {}
+            if declaration_changed:
+                state["candidate_lean_declaration"] = declaration
+                state["declaration_updates"] += 1
+                state["last_check"] = {}
             check_result = check_current_source()
             compiled = bool(check_result.get("compiled", False))
             content = {
                 **check_result,
                 "ok": compiled,
                 "changed": changed,
+                "declaration_changed": declaration_changed,
                 "source_hash": source_hash,
+                "candidate_lean_declaration": declaration,
                 "source_updates": state["source_updates"],
+                "declaration_updates": state["declaration_updates"],
                 "checks": state["checks"],
                 "proof_evidence_status": (
                     "LOCAL_LEAN_OBSERVATION_REQUIRES_RUNTIME_PROMOTION_GATE"
@@ -221,12 +298,15 @@ def run_lean_candidate_revision_tool_loop(
             return ClientToolExecutionResult(
                 content=content,
                 is_error=not compiled,
-                state_changed=changed,
+                state_changed=changed or declaration_changed,
                 terminal=compiled,
                 terminal_payload=(
                     {
                         "lean_source": state["source"],
                         "source_hash": state["source_hash"],
+                        "candidate_lean_declaration": state[
+                            "candidate_lean_declaration"
+                        ],
                         "check_result": deepcopy(check_result),
                     }
                     if compiled
@@ -236,9 +316,66 @@ def run_lean_candidate_revision_tool_loop(
                 + stable_hash(
                     {
                         "source_hash": source_hash,
+                        "candidate_lean_declaration": declaration,
                         "check_result": check_result,
                     }
                 ),
+            )
+
+        if call.name == LEAN_FORMAL_GAP_TOOL:
+            if not allow_formal_gap:
+                raise ClientToolInputError("formal-gap reporting is unavailable")
+            if set(tool_input) - {
+                "summary",
+                "missing_primitives",
+                "blocking_observations",
+            }:
+                raise ClientToolInputError(
+                    "report_formal_gap accepts summary, missing_primitives, and "
+                    "blocking_observations"
+                )
+            summary = tool_input.get("summary")
+            if not isinstance(summary, str) or not summary.strip():
+                raise ClientToolInputError("formal-gap summary must be nonempty")
+            missing_primitives = tool_input.get("missing_primitives", [])
+            blocking_observations = tool_input.get("blocking_observations", [])
+            if not isinstance(missing_primitives, list) or not all(
+                isinstance(value, str) and value.strip()
+                for value in missing_primitives
+            ):
+                raise ClientToolInputError(
+                    "missing_primitives must be an array of nonempty strings"
+                )
+            if not isinstance(blocking_observations, list) or not all(
+                isinstance(value, str) and value.strip()
+                for value in blocking_observations
+            ):
+                raise ClientToolInputError(
+                    "blocking_observations must be an array of nonempty strings"
+                )
+            formal_gap = {
+                "summary": summary.strip(),
+                "missing_primitives": [value.strip() for value in missing_primitives],
+                "blocking_observations": [
+                    value.strip() for value in blocking_observations
+                ],
+            }
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    "disposition": "FORMAL_GAP",
+                    "formal_gap": deepcopy(formal_gap),
+                    "proof_evidence_status": (
+                        "MODEL_REPORTED_FORMAL_GAP_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                state_changed=True,
+                terminal=True,
+                terminal_payload={
+                    "disposition": "FORMAL_GAP",
+                    "formal_gap": formal_gap,
+                },
+                observation_key="formal-gap:" + stable_hash(formal_gap),
             )
 
         if call.name == "search_formal_environment":
@@ -260,6 +397,7 @@ def run_lean_candidate_revision_tool_loop(
                 "query": query.strip(),
                 "results": deepcopy(results),
                 "searches": state["searches"],
+                **current_workspace_observation(),
                 "proof_evidence_status": "FORMAL_SOURCE_SEARCH_NOT_PROOF_EVIDENCE",
             }
             return ClientToolExecutionResult(
@@ -299,6 +437,7 @@ def run_lean_candidate_revision_tool_loop(
                 "query": query.strip(),
                 "results": deepcopy(results),
                 "proof_searches": state["proof_searches"],
+                **current_workspace_observation(),
                 "proof_evidence_status": (
                     "PROOF_SEARCH_RESULT_NOT_PROOF_EVIDENCE"
                 ),
@@ -337,7 +476,7 @@ def run_lean_candidate_revision_tool_loop(
             state["latest_state_inspection"] = deepcopy(result)
             content = {
                 "ok": True,
-                "source_hash": state["source_hash"],
+                **current_workspace_observation(),
                 "observation": deepcopy(result),
                 "state_inspections": state["state_inspections"],
                 "proof_evidence_status": (
@@ -392,7 +531,7 @@ def run_lean_candidate_revision_tool_loop(
                 "ok": bool(result.get("ok", True))
                 if isinstance(result, Mapping)
                 else True,
-                "source_hash": state["source_hash"],
+                **current_workspace_observation(),
                 "symbol": symbol.strip(),
                 "observation": deepcopy(result),
                 "declaration_inspections": state["declaration_inspections"],
@@ -462,19 +601,23 @@ def run_lean_candidate_revision_tool_loop(
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(
-            validation_label="LLM Formalizer Lean candidate client-tool revision",
+            validation_label="LLM Formalizer Lean candidate client-tool workspace",
             attempts=exc.turns,
             errors=[exc.reason],
             history=[deepcopy(dict(row)) for row in exc.history],
             recovery_checkpoint={
                 "schema_version": 1,
-                "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
+                "artifact_kind": "LeanCandidateWorkspaceRecoveryCheckpoint",
                 "candidate_id": candidate_id,
-                "candidate_lean_declaration": candidate_lean_declaration,
+                "candidate_lean_declaration": state[
+                    "candidate_lean_declaration"
+                ],
+                "workspace_phase": workspace_phase,
                 "parent_source_hash": parent_source_hash,
                 "current_source_hash": state["source_hash"],
                 "current_source": state["source"],
                 "source_updates": state["source_updates"],
+                "declaration_updates": state["declaration_updates"],
                 "searches": state["searches"],
                 "proof_searches": state["proof_searches"],
                 "state_inspections": state["state_inspections"],
@@ -499,27 +642,69 @@ def run_lean_candidate_revision_tool_loop(
                 "model": exc.model or model,
                 "model_tier": model_tier,
                 "runtime_selected_lean_code": False,
-                "model_owned_lean_code": True,
+                "model_owned_lean_code": bool(str(state["source"]).strip()),
+                "model_owned_workspace_actions": bool(exc.tool_calls),
                 "kernel_verified": False,
                 "proof_evidence_status": (
-                    "CLIENT_TOOL_REVISION_CHECKPOINT_NOT_PROOF_EVIDENCE"
+                    "CLIENT_TOOL_WORKSPACE_CHECKPOINT_NOT_PROOF_EVIDENCE"
                 ),
             },
         ) from exc
 
     terminal = dict(loop.terminal_payload)
+    disposition = str(terminal.get("disposition", "AUTHOR_LEAN") or "AUTHOR_LEAN")
+    if disposition == "FORMAL_GAP":
+        formal_gap = terminal.get("formal_gap", {})
+        if not isinstance(formal_gap, Mapping) or not str(
+            formal_gap.get("summary", "") or ""
+        ).strip():
+            raise PacketValidationError(
+                validation_label="LLM Formalizer Lean candidate client-tool workspace",
+                attempts=loop.turns,
+                errors=["terminal formal-gap payload is incomplete"],
+                history=[deepcopy(dict(row)) for row in loop.history],
+            )
+        return _lean_candidate_revision_success_result(
+            source="",
+            check_result={},
+            state=state,
+            candidate_id=candidate_id,
+            candidate_lean_declaration="",
+            disposition=disposition,
+            formal_gap=formal_gap,
+            parent_source_hash=parent_source_hash,
+            tools=tools,
+            max_turns=max_turns,
+            max_tool_calls=max_tool_calls,
+            max_no_progress_turns=max_no_progress_turns,
+            turns=loop.turns,
+            tool_calls=loop.tool_calls,
+            runtime_executed_tool_calls=loop.runtime_executed_tool_calls,
+            provider=loop.provider,
+            model=loop.model,
+            model_tier=model_tier,
+            provider_usage=loop.provider_usage,
+            response_metadata=loop.final_response_metadata,
+            history=loop.history,
+            transcript_fingerprint=loop.transcript_fingerprint,
+            workspace_phase=workspace_phase,
+        )
     source = str(terminal.get("lean_source", "") or "")
     source_hash = str(terminal.get("source_hash", "") or "")
+    submitted_declaration = str(
+        terminal.get("candidate_lean_declaration", "") or ""
+    ).strip()
     check_result = terminal.get("check_result", {})
     if (
         not source.strip()
         or source_hash != stable_hash(source)
+        or not submitted_declaration
         or not isinstance(check_result, Mapping)
         or str(check_result.get("source_hash", "") or "") != source_hash
         or not bool(check_result.get("compiled", False))
     ):
         raise PacketValidationError(
-            validation_label="LLM Formalizer Lean candidate client-tool revision",
+            validation_label="LLM Formalizer Lean candidate client-tool workspace",
             attempts=loop.turns,
             errors=["terminal payload was not bound to a compiled current source"],
             history=[deepcopy(dict(row)) for row in loop.history],
@@ -530,7 +715,9 @@ def run_lean_candidate_revision_tool_loop(
         check_result=check_result,
         state=state,
         candidate_id=candidate_id,
-        candidate_lean_declaration=candidate_lean_declaration,
+        candidate_lean_declaration=submitted_declaration,
+        disposition="AUTHOR_LEAN",
+        formal_gap={},
         parent_source_hash=parent_source_hash,
         tools=tools,
         max_turns=max_turns,
@@ -546,6 +733,7 @@ def run_lean_candidate_revision_tool_loop(
         response_metadata=loop.final_response_metadata,
         history=loop.history,
         transcript_fingerprint=loop.transcript_fingerprint,
+        workspace_phase=workspace_phase,
     )
 
 
@@ -556,6 +744,8 @@ def _lean_candidate_revision_success_result(
     state: Mapping[str, Any],
     candidate_id: str,
     candidate_lean_declaration: str,
+    disposition: str,
+    formal_gap: Mapping[str, Any],
     parent_source_hash: str,
     tools: tuple[ClientToolDefinition, ...],
     max_turns: int,
@@ -571,8 +761,10 @@ def _lean_candidate_revision_success_result(
     response_metadata: Mapping[str, Any],
     history: Sequence[Mapping[str, Any]],
     transcript_fingerprint: str,
+    workspace_phase: str,
 ) -> LeanCandidateRevisionToolLoopResult:
     source_hash = stable_hash(source)
+    model_authored_source = disposition == "AUTHOR_LEAN"
     state_provider_tools = _lean_state_executed_tools(
         state.get("latest_state_inspection", {})
     )
@@ -584,10 +776,13 @@ def _lean_candidate_revision_success_result(
     )
     evidence = {
         "schema_version": 1,
-        "artifact_kind": "LeanCandidateRevisionClientToolLoop",
+        "artifact_kind": "LeanCandidateClientToolWorkspace",
         "transport": "native_client_tools",
         "candidate_id": candidate_id,
         "candidate_lean_declaration": candidate_lean_declaration,
+        "disposition": disposition,
+        **({"formal_gap": deepcopy(dict(formal_gap))} if formal_gap else {}),
+        "workspace_phase": workspace_phase,
         "parent_source_hash": parent_source_hash,
         "submitted_source_hash": source_hash,
         "source_changed": source_hash != parent_source_hash,
@@ -602,6 +797,7 @@ def _lean_candidate_revision_success_result(
         "submit_and_check_atomic": True,
         "tool_names": [tool.name for tool in tools],
         "source_updates": state["source_updates"],
+        "declaration_updates": state["declaration_updates"],
         "formal_environment_searches": state["searches"],
         "proof_candidate_searches": state["proof_searches"],
         "lean_state_inspections": state["state_inspections"],
@@ -614,17 +810,21 @@ def _lean_candidate_revision_success_result(
             tool.startswith("lean_lsp_mcp.") for tool in live_provider_tools
         ),
         "local_lean_checks": state["checks"],
-        "latest_check_compiled": True,
+        "latest_check_compiled": model_authored_source,
         "provider": provider,
         "model": model,
         "model_tier": model_tier,
         "provider_usage": dict(provider_usage),
         "history": [deepcopy(dict(row)) for row in history],
         "transcript_fingerprint": transcript_fingerprint,
-        "handoff_mode": "successful_model_source_submission",
-        "model_explicit_submit": True,
+        "handoff_mode": (
+            "successful_model_source_submission"
+            if model_authored_source
+            else "model_reported_formal_gap"
+        ),
+        "model_explicit_submit": model_authored_source,
         "budget_exhausted": False,
-        "local_candidate_validation_passed": True,
+        "local_candidate_validation_passed": model_authored_source,
         "tools_executed_by_runtime": bool(
             runtime_executed_tool_calls
         ),
@@ -632,9 +832,9 @@ def _lean_candidate_revision_success_result(
             response_metadata.get("tools_executed_by_backend", False)
         ),
         "runtime_selected_lean_code": False,
-        "model_owned_lean_code": True,
-        "independent_semantic_review_required": True,
-        "runtime_kernel_promotion_required": True,
+        "model_owned_lean_code": model_authored_source,
+        "independent_semantic_review_required": model_authored_source,
+        "runtime_kernel_promotion_required": model_authored_source,
         "kernel_verified": False,
         "proof_evidence_status": (
             "LEAN_CANDIDATE_CLIENT_TOOL_LOOP_RECORDED_NOT_PROOF_EVIDENCE"
@@ -643,6 +843,9 @@ def _lean_candidate_revision_success_result(
     return LeanCandidateRevisionToolLoopResult(
         lean_source=source,
         source_hash=source_hash,
+        candidate_lean_declaration=candidate_lean_declaration,
+        disposition=disposition,
+        formal_gap=deepcopy(dict(formal_gap)),
         check_result=deepcopy(dict(check_result)),
         evidence=evidence,
     )
@@ -680,20 +883,35 @@ def _lean_candidate_revision_tools(
     include_proof_search: bool = False,
     include_state_inspection: bool = False,
     include_declaration_inspection: bool = False,
+    require_candidate_declaration: bool = False,
+    include_formal_gap: bool = False,
 ) -> tuple[ClientToolDefinition, ...]:
     tools = [
         ClientToolDefinition(
             name=LEAN_SOURCE_SUBMISSION_TOOL,
             description=(
-                "Submit one complete model-authored Lean source. The runtime stores "
-                "and immediately checks the exact bytes in the configured Lean "
-                "project, then returns raw diagnostics to this same model."
+                "Submit one complete model-authored Lean source and identify the exact "
+                "declaration name to check. candidate_declaration_name is only the Lean "
+                "identifier introduced or checked by the source, not a theorem header "
+                "or type. The runtime stores and immediately checks those exact bytes "
+                "in the configured Lean project, then returns raw diagnostics to this "
+                "same model."
             ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["lean_source"],
-                "properties": {"lean_source": {"type": "string"}},
+                "required": [
+                    "lean_source",
+                    *(
+                        ["candidate_declaration_name"]
+                        if require_candidate_declaration
+                        else []
+                    ),
+                ],
+                "properties": {
+                    "lean_source": {"type": "string"},
+                    "candidate_declaration_name": {"type": "string"},
+                },
             },
             terminal=True,
         ),
@@ -719,6 +937,35 @@ def _lean_candidate_revision_tools(
             },
         ),
     ]
+    if include_formal_gap:
+        tools.append(
+            ClientToolDefinition(
+                name=LEAN_FORMAL_GAP_TOOL,
+                description=(
+                    "Report that the unchanged task-bound target cannot currently be "
+                    "formalized in the active Lean environment. Use only after concrete "
+                    "search or compiler observations identify a real missing primitive "
+                    "or foundation blocker. This is a non-proof terminal result."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["summary"],
+                    "properties": {
+                        "summary": {"type": "string"},
+                        "missing_primitives": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "blocking_observations": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                    },
+                },
+                terminal=True,
+            )
+        )
     if include_proof_search:
         tools.insert(
             2,
