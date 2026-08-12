@@ -155,6 +155,37 @@ def test_agent_task_continuation_deduplicates_and_restores_structured_inputs() -
     assert len(mapping_artifacts) == 1
 
 
+def test_agent_task_continuation_restores_linked_artifact_reference() -> None:
+    artifact_id = "manifest:q1"
+    artifact = {
+        "artifact_kind": "RuntimeExampleManifest",
+        "manifest_id": artifact_id,
+        "payload": {"value": 7},
+    }
+    task = AgentTask(
+        task_id="resume:q1",
+        owner_subsystem="ExampleSubsystem",
+        objective="Resume from one exact artifact.",
+        inputs={"source_manifest": artifact},
+    )
+    _, continuation, continuation_artifacts = materialize_agent_task_continuation(
+        task,
+        linked_input_references={
+            stable_hash(artifact): runtime_artifact_reference(
+                artifact_id,
+                artifact,
+            )
+        },
+    )
+
+    restored = restore_agent_task_continuation(
+        continuation,
+        {artifact_id: artifact, **continuation_artifacts},
+    )
+
+    assert restored == task
+
+
 def test_agent_task_continuation_rejects_tampered_input_artifact() -> None:
     task = AgentTask(
         task_id="theory:q1",

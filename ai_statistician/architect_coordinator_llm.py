@@ -623,6 +623,7 @@ def build_architect_feedback_route_prompt(
             "runtime_does_not_author_source_changes": True,
             "selected_worker_receives_complete_feedback": True,
             "exhausted_unchanged_producer_is_temporarily_unavailable": True,
+            "independently_rejected_unchanged_source_owner_is_unavailable": True,
             "materially_new_parent_artifact_starts_a_new_candidate_lineage": True,
             "question_theory_revision_budget_survives_new_feedback_and_parents": (
                 True
@@ -792,6 +793,10 @@ def _architect_feedback_route_subsystems(
     budget = architect_context.get("candidate_lineage_budget", {})
     available = list(ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS)
     unavailable: set[str] = set()
+    if environment_feedback.get("unchanged_source_retry_authorized") is False:
+        unavailable.add(
+            str(environment_feedback.get("source_subsystem", "") or "")
+        )
     revisions_used, max_revisions = runtime_theory_revision_budget(
         architect_context
     )

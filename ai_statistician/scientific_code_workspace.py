@@ -35,6 +35,7 @@ SCIENTIFIC_SOURCE_REVISE_CURRENT = "revise_current_source"
 SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER = (
     "return_to_bound_dependency_owner"
 )
+SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY = "scientific_consumer_revision"
 _SCIENTIFIC_PACKAGES = (
     PYTHON_SCIENTIFIC_DEPENDENCIES + R_SCIENTIFIC_DEPENDENCIES
 )
@@ -142,6 +143,334 @@ def scientific_workspace_prototype_observation(
         "source_replayed_to_model": False,
         "proof_evidence_status": "SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE",
     }
+
+
+def complete_scientific_source_draft(
+    row: Mapping[str, Any],
+    *,
+    include_estimator_selection: bool = False,
+) -> tuple[dict[str, Any], list[str]]:
+    """Recover one exact model-authored draft from persisted execution evidence."""
+
+    source = str(row.get("source_code", "") or "")
+    script_hash = str(row.get("script_hash", "") or "").strip()
+    errors: list[str] = []
+    if not source:
+        errors.append("executed scientific source is missing")
+    if not script_hash or (source and script_hash != stable_hash(source)):
+        errors.append("executed scientific source hash mismatch")
+    dependencies = row.get("dependencies", [])
+    if not isinstance(dependencies, list):
+        errors.append("executed scientific dependencies are not an array")
+        dependencies = []
+    draft = {
+        "language": str(row.get("language", "") or ""),
+        "execution_profile": str(
+            row.get("requested_execution_profile", "")
+            or row.get("executor_profile", "")
+            or ""
+        ),
+        "dependencies": deepcopy(dependencies),
+        "entrypoint": "run_sandbox",
+        "code": source,
+    }
+    if include_estimator_selection:
+        required_estimator_ids = row.get("required_estimator_ids", [])
+        if not isinstance(required_estimator_ids, list):
+            errors.append("consumer estimator selection is not an array")
+        else:
+            draft["required_estimator_ids"] = deepcopy(required_estimator_ids)
+    if not errors:
+        errors.extend(generated_code_execution_contract_errors(draft))
+    return draft, sorted(set(errors))
+
+
+def scientific_consumer_replay_drafts(
+    manifest: Mapping[str, Any],
+    *,
+    question_id: str,
+    theory_packet_id: str,
+) -> tuple[str, list[dict[str, Any]], list[str]]:
+    """Recover exact consumer source from one bound execution manifest."""
+
+    errors: list[str] = []
+    question = manifest.get("question", {})
+    if (
+        manifest.get("artifact_kind") != "RuntimeSimulationManifest"
+        or not str(manifest.get("manifest_id", "") or "").strip()
+        or str(manifest.get("theory_packet_id", "") or "") != theory_packet_id
+        or not isinstance(question, Mapping)
+        or str(question.get("id", "") or "") != question_id
+    ):
+        errors.append("consumer resume manifest lineage is invalid")
+    proposal_id = str(
+        manifest.get("llm_simulation_engineer_proposal_id", "") or ""
+    ).strip()
+    if not proposal_id:
+        errors.append("consumer resume proposal identity is missing")
+    drafts: list[dict[str, Any]] = []
+    for raw_row in manifest.get(
+        "generated_simulation_sandbox_prototypes", []
+    ) or []:
+        if not isinstance(raw_row, Mapping):
+            continue
+        draft, draft_errors = complete_scientific_source_draft(
+            raw_row,
+            include_estimator_selection=True,
+        )
+        simulation_id = str(raw_row.get("simulation_id", "") or "").strip()
+        if not simulation_id:
+            draft_errors.append("consumer resume simulation id is missing")
+        errors.extend(
+            f"{simulation_id or 'unknown consumer'}: {error}"
+            for error in draft_errors
+        )
+        if not draft_errors:
+            drafts.append({"simulation_id": simulation_id, **draft})
+    if not drafts:
+        errors.append("consumer resume has no exact executable source")
+    return proposal_id, drafts, sorted(set(errors))
+
+
+def scientific_consumer_revision_sources(
+    manifest: Mapping[str, Any],
+    *,
+    dependency_context: Mapping[str, Any],
+    revision_artifact_ids: Sequence[str],
+    implementation_artifact_ids: Sequence[str],
+    theory_packet_id: str,
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """Validate exact source rows selected by a downstream observation."""
+
+    revision_ids = sorted(set(revision_artifact_ids))
+    errors: list[str] = []
+    if (
+        not revision_ids
+        or str(dependency_context.get("source_owner_subsystem", "") or "")
+        != "AlgorithmEngineer"
+        or list(dependency_context.get("dependency_artifact_ids", []) or [])
+        != revision_ids
+        or manifest.get("artifact_kind") != "RuntimeAlgorithmSandboxManifest"
+        or str(manifest.get("manifest_id", "") or "")
+        != str(dependency_context.get("source_manifest_id", "") or "")
+        or stable_hash(manifest)
+        != str(dependency_context.get("source_manifest_hash", "") or "")
+        or str(manifest.get("theory_packet_id", "") or "") != theory_packet_id
+    ):
+        errors.append("algorithm consumer source lineage is incomplete or stale")
+    rows = {
+        str(row.get("estimator_id", "") or "").strip(): dict(row)
+        for row in manifest.get("prototypes", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("estimator_id", "") or "").strip()
+    }
+    expected_hashes = dependency_context.get("dependency_artifact_hashes", {})
+    expected_hashes = (
+        dict(expected_hashes) if isinstance(expected_hashes, Mapping) else {}
+    )
+    implementation_ids = set(implementation_artifact_ids)
+    for artifact_id in revision_ids:
+        row = rows.get(artifact_id, {})
+        _, source_errors = (
+            complete_scientific_source_draft(row)
+            if row
+            else ({}, ["executed scientific source is missing"])
+        )
+        if (
+            artifact_id not in implementation_ids
+            or row.get("smoke_passed") is not True
+            or str(row.get("script_hash", "") or "")
+            != str(expected_hashes.get(artifact_id, "") or "")
+            or source_errors
+        ):
+            errors.append(
+                f"consumer source artifact is unavailable or stale: {artifact_id}"
+            )
+    return rows, sorted(set(errors))
+
+
+def scientific_consumer_dependency_context(
+    rows: Sequence[Mapping[str, Any]],
+) -> tuple[dict[str, Any], list[str]]:
+    """Bind raw consumer failures to their exact source-owned dependencies."""
+
+    owners: list[dict[str, Any]] = []
+    consumer_sources: list[dict[str, str]] = []
+    observations_by_artifact: dict[str, list[dict[str, Any]]] = {}
+    errors: list[str] = []
+    for raw_row in rows:
+        if not isinstance(raw_row, Mapping):
+            continue
+        owner = raw_row.get("source_owner", {})
+        if not isinstance(owner, Mapping) or not owner:
+            continue
+        owner_row = deepcopy(dict(owner))
+        if str(owner_row.get("owner_subsystem", "") or "") != (
+            "AlgorithmEngineer"
+        ):
+            errors.append("consumer dependency source owner is not AlgorithmEngineer")
+            continue
+        artifact_ids = owner_row.get("artifact_ids", [])
+        artifact_hashes = owner_row.get("artifact_hashes", {})
+        if (
+            not isinstance(artifact_ids, list)
+            or not artifact_ids
+            or not isinstance(artifact_hashes, Mapping)
+        ):
+            errors.append("consumer dependency source identity is incomplete")
+            continue
+        normalized_ids = sorted(
+            {
+                str(value or "").strip()
+                for value in artifact_ids
+                if str(value or "").strip()
+            }
+        )
+        if not normalized_ids or any(
+            not str(artifact_hashes.get(artifact_id, "") or "").strip()
+            for artifact_id in normalized_ids
+        ):
+            errors.append("consumer dependency artifact hash is missing")
+            continue
+        simulation_id = str(raw_row.get("simulation_id", "") or "").strip()
+        script_hash = str(raw_row.get("script_hash", "") or "").strip()
+        if not simulation_id or not script_hash:
+            errors.append("failed consumer source identity is incomplete")
+            continue
+        consumer_sources.append(
+            {
+                "artifact_id": simulation_id,
+                "source_hash": script_hash,
+                "evaluation_contract_hash": stable_hash(
+                    {
+                        "metric_contracts": raw_row.get("metric_contracts", []),
+                        "required_estimator_ids": raw_row.get(
+                            "required_estimator_ids", []
+                        ),
+                    }
+                ),
+            }
+        )
+        observation = {
+            "consumer_artifact_id": simulation_id,
+            "consumer_source_hash": script_hash,
+            "observation": scientific_workspace_prototype_observation(raw_row),
+        }
+        for artifact_id in normalized_ids:
+            observations_by_artifact.setdefault(artifact_id, []).append(
+                deepcopy(observation)
+            )
+        owners.append(owner_row)
+    if not owners:
+        errors.append("no exact dependency source owner was recorded")
+        return {}, sorted(set(errors))
+
+    source_manifest_ids = {
+        str(row.get("source_manifest_id", "") or "").strip() for row in owners
+    }
+    source_manifest_hashes = {
+        str(row.get("source_manifest_hash", "") or "").strip() for row in owners
+    }
+    if "" in source_manifest_ids or len(source_manifest_ids) != 1:
+        errors.append("consumer dependency spans ambiguous source manifests")
+    if "" in source_manifest_hashes or len(source_manifest_hashes) != 1:
+        errors.append("consumer dependency source manifest hash is ambiguous")
+    merged_hashes: dict[str, str] = {}
+    for owner in owners:
+        for artifact_id in owner.get("artifact_ids", []) or []:
+            normalized_id = str(artifact_id or "").strip()
+            content_hash = str(
+                (owner.get("artifact_hashes", {}) or {}).get(normalized_id, "")
+                or ""
+            ).strip()
+            prior_hash = merged_hashes.get(normalized_id)
+            if prior_hash and prior_hash != content_hash:
+                errors.append(
+                    f"consumer dependency artifact hash conflicts: {normalized_id}"
+                )
+            elif normalized_id and content_hash:
+                merged_hashes[normalized_id] = content_hash
+    context = {
+        "source_owner_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": next(iter(source_manifest_ids), ""),
+        "source_manifest_hash": next(iter(source_manifest_hashes), ""),
+        "dependency_artifact_ids": sorted(merged_hashes),
+        "dependency_artifact_hashes": dict(sorted(merged_hashes.items())),
+        "consumer_source_artifacts": sorted(
+            consumer_sources,
+            key=lambda row: (row["artifact_id"], row["source_hash"]),
+        ),
+        "consumer_observations_by_dependency": observations_by_artifact,
+    }
+    return context, sorted(set(errors))
+
+
+def advance_scientific_consumer_revision_budget(
+    *,
+    task_budget: Mapping[str, Any],
+    question_id: str,
+    theory_packet_id: str,
+    dependency_context: Mapping[str, Any],
+    failure_classification: str,
+    max_revisions: int,
+) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
+    """Advance one bounded source-owner loop across outer runtime handoffs."""
+
+    budget = deepcopy(dict(task_budget))
+    prior_value = budget.get(SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY, {})
+    prior = dict(prior_value) if isinstance(prior_value, Mapping) else {}
+    lineage_identity = {
+        "question_id": question_id,
+        "theory_packet_id": theory_packet_id,
+        "consumer_owner_subsystem": "SimulationEvaluator",
+        "dependency_owner_subsystem": "AlgorithmEngineer",
+        "consumer_source_artifacts": deepcopy(
+            list(dependency_context.get("consumer_source_artifacts", []) or [])
+        ),
+    }
+    lineage_id = "scientific_consumer_lineage:" + stable_hash(lineage_identity)[:20]
+    errors: list[str] = []
+    prior_lineage_id = str(prior.get("lineage_id", "") or "")
+    if prior_lineage_id and prior_lineage_id != lineage_id:
+        errors.append("scientific consumer continuation changed source lineage")
+    try:
+        revisions_used = max(0, int(prior.get("revisions_used", 0) or 0))
+        frozen_max_revisions = (
+            max(0, int(prior.get("max_revisions", 0) or 0))
+            if prior
+            else max(0, int(max_revisions or 0))
+        )
+    except (TypeError, ValueError):
+        errors.append("scientific consumer revision budget is malformed")
+        revisions_used = 0
+        frozen_max_revisions = 0
+    revision_available = not errors and revisions_used < frozen_max_revisions
+    failure_fingerprint = stable_hash(
+        {
+            "failure_classification": failure_classification,
+            "dependency_artifact_hashes": dependency_context.get(
+                "dependency_artifact_hashes", {}
+            ),
+            "consumer_observations": dependency_context.get(
+                "consumer_observations_by_dependency", {}
+            ),
+        }
+    )
+    prior_fingerprints = [
+        str(value)
+        for value in prior.get("failure_fingerprints", []) or []
+        if str(value)
+    ]
+    row = {
+        "lineage_id": lineage_id,
+        "revisions_used": revisions_used + (1 if revision_available else 0),
+        "max_revisions": frozen_max_revisions,
+        "revision_scheduled": revision_available,
+        "budget_exhausted": not revision_available,
+        "failure_fingerprints": (prior_fingerprints + [failure_fingerprint])[-8:],
+    }
+    budget[SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY] = row
+    return budget, row, sorted(set(errors))
 
 
 def _bounded_observation_value(value: Any, *, depth: int = 0) -> Any:

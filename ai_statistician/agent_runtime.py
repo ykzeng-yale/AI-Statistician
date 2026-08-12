@@ -438,6 +438,12 @@ def restore_agent_task_continuation(
                     raise ValueError("runtime task input mapping hash mismatch")
                 hydrated_inputs[str(key)] = deepcopy(dict(mapping))
                 continue
+            if artifact_kind == "RuntimeArtifactRef":
+                hydrated_inputs[str(key)] = _resolve_runtime_artifact_references(
+                    value,
+                    artifacts,
+                )
+                continue
             if artifact_kind == "RuntimeAgentTaskContinuationRef":
                 nested_id = str(value.get("continuation_id", "") or "")
                 raw_nested = artifacts.get(nested_id, {})
@@ -468,6 +474,33 @@ def restore_agent_task_continuation(
         return task
 
     return restore(continuation)
+
+
+def restore_agent_task_continuation_reference(
+    reference: Mapping[str, Any],
+    artifacts: Mapping[str, Any],
+) -> AgentTask:
+    """Resolve and verify one compact continuation reference."""
+
+    continuation_id = str(reference.get("continuation_id", "") or "").strip()
+    continuation = artifacts.get(continuation_id, {})
+    if (
+        reference.get("artifact_kind") != "RuntimeAgentTaskContinuationRef"
+        or not continuation_id
+        or not isinstance(continuation, Mapping)
+        or stable_hash(dict(continuation))
+        != str(reference.get("continuation_hash", "") or "")
+        or continuation.get("task_ref") != reference.get("task_ref")
+    ):
+        raise RuntimeArtifactReferenceError(
+            "runtime task continuation reference mismatch"
+        )
+    task = restore_agent_task_continuation(continuation, artifacts)
+    if agent_task_reference(task) != reference.get("task_ref"):
+        raise RuntimeArtifactReferenceError(
+            "restored runtime task continuation identity mismatch"
+        )
+    return task
 
 
 @dataclass(frozen=True)

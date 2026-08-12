@@ -26,6 +26,7 @@ from .agent_runtime import (
     materialize_agent_task_continuation,
     resolve_runtime_artifact_references,
     restore_agent_task_continuation,
+    restore_agent_task_continuation_reference,
     runtime_artifact_reference,
 )
 from .architect_coordinator_llm import (
@@ -101,8 +102,14 @@ from .scientific_sandbox import (
     normalized_scientific_dependencies,
 )
 from .scientific_code_workspace import (
+    SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY,
     SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
+    advance_scientific_consumer_revision_budget,
+    complete_scientific_source_draft,
+    scientific_consumer_dependency_context,
+    scientific_consumer_replay_drafts,
+    scientific_consumer_revision_sources,
     scientific_workspace_prototype_observation,
 )
 from .evaluation_protocol_revision import (
@@ -3657,6 +3664,13 @@ def _runtime_outer_graph_continuation(
         "CriticEvaluator",
     }:
         return None
+    if (
+        result.status in {"BLOCKED", "FAILED"}
+        and str(result.failure_classification or "").startswith(
+            "scientific_consumer_"
+        )
+    ):
+        return None
     if subsystem_name == "TheoryDeveloper" and result.status in {
         "BLOCKED",
         "FAILED",
@@ -3933,6 +3947,13 @@ def _runtime_transition_policy(
         result=result,
         next_task=next_task,
         blackboard=blackboard,
+    ):
+        return result
+    if (
+        subsystem_name == GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        and next_task.owner_subsystem == "SimulationEvaluator"
+        and SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY in next_task.budget
+        and "consumer_resume_manifest" in next_task.inputs
     ):
         return result
     next_context = next_task.inputs.get("architect_context", {})
@@ -7923,6 +7944,24 @@ class SimulationEvaluatorRuntimeSubsystem:
         proposal_evidence: EvidenceLedgerEntry | None = None
         simulation_theory_trace_contract: dict[str, Any] = {}
         simulation_theory_trace_alignment_contract: dict[str, Any] = {}
+        raw_consumer_resume_manifest = task.inputs.get(
+            "consumer_resume_manifest",
+            {},
+        )
+        consumer_resume_manifest = (
+            dict(raw_consumer_resume_manifest)
+            if isinstance(raw_consumer_resume_manifest, Mapping)
+            else {}
+        )
+        consumer_resume_manifest_id = str(
+            consumer_resume_manifest.get("manifest_id", "") or ""
+        ).strip()
+        consumer_resume_manifest_hash = (
+            stable_hash(consumer_resume_manifest)
+            if consumer_resume_manifest
+            else ""
+        )
+        consumer_resume_code_drafts: list[dict[str, Any]] = []
         observations: list[EnvironmentObservation] = [
             EnvironmentObservation(
                 observation_type="research_problem_authority",
@@ -7942,7 +7981,87 @@ class SimulationEvaluatorRuntimeSubsystem:
                 },
             )
         ]
-        if self.proposal_agent is not None:
+        if raw_consumer_resume_manifest:
+            proposal_id, consumer_resume_code_drafts, resume_errors = (
+                scientific_consumer_replay_drafts(
+                    consumer_resume_manifest,
+                    question_id=question.id,
+                    theory_packet_id=packet_id,
+                )
+            )
+            prior_proposal = blackboard.artifacts.get(proposal_id, {})
+            if (
+                not isinstance(prior_proposal, Mapping)
+                or str(prior_proposal.get("packet_id", "") or "") != proposal_id
+            ):
+                resume_errors.append("consumer resume proposal artifact is missing")
+            else:
+                proposal_packet = dict(prior_proposal)
+            if resume_errors:
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "SimulationEvaluator rejected a stale or incomplete scientific "
+                        "consumer continuation before any model or sandbox call."
+                    ),
+                    observations=tuple(observations)
+                    + (
+                        EnvironmentObservation(
+                            observation_type=(
+                                "scientific_consumer_continuation_rejected"
+                            ),
+                            summary="; ".join(sorted(set(resume_errors)))[:500],
+                            payload={
+                                "consumer_resume_manifest_id": (
+                                    consumer_resume_manifest_id
+                                ),
+                                "validation_errors": sorted(set(resume_errors)),
+                                "model_call_authorized": False,
+                                "execution_authorized": False,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        ),
+                    ),
+                    failure_classification=(
+                        "scientific_consumer_continuation_invalid"
+                    ),
+                )
+            theory_trace_contracts = _runtime_theory_trace_consumption_contracts(
+                proposal_packet or {}
+            )
+            simulation_theory_trace_contract = (
+                theory_trace_contracts[0] if theory_trace_contracts else {}
+            )
+            simulation_theory_trace_alignment_contract = dict(
+                (proposal_packet or {}).get(
+                    "theory_trace_alignment_contract",
+                    {},
+                )
+                or {}
+            )
+            observations.append(
+                EnvironmentObservation(
+                    observation_type="scientific_consumer_continuation_restored",
+                    summary=(
+                        "The exact prior model-authored consumer source will be rerun "
+                        "with the newly reviewed dependency handoff."
+                    ),
+                    payload={
+                        "consumer_resume_manifest_id": consumer_resume_manifest_id,
+                        "consumer_resume_manifest_hash": (
+                            consumer_resume_manifest_hash
+                        ),
+                        "simulation_artifact_ids": [
+                            row["simulation_id"]
+                            for row in consumer_resume_code_drafts
+                        ],
+                        "planning_model_call_used": False,
+                        "runtime_edited_source": False,
+                        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                    },
+                )
+            )
+        elif self.proposal_agent is not None:
             available_upstream_estimator_ids = [
                 str(row.get("estimator_id", "") or "").strip()
                 for row in upstream_algorithm_handoff.get(
@@ -8139,7 +8258,11 @@ class SimulationEvaluatorRuntimeSubsystem:
                 GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
             )
             simulation_metric_authority_required = False
-        simulation_code_drafts = _simulation_code_drafts(proposal_packet)
+        simulation_code_drafts = (
+            consumer_resume_code_drafts
+            if consumer_resume_manifest_id
+            else _simulation_code_drafts(proposal_packet)
+        )
         if (
             requires_generated_simulation_code
             and self.proposal_agent is not None
@@ -8313,7 +8436,8 @@ class SimulationEvaluatorRuntimeSubsystem:
                     artifact_id=f"{question.id}:{simulation_id}",
                     code_draft=draft,
                     source_deferred=(
-                        _proposal_defers_scientific_source(proposal_packet)
+                        not consumer_resume_manifest_id
+                        and _proposal_defers_scientific_source(proposal_packet)
                     ),
                     workspace_context={
                         "theory_packet_id": packet_id,
@@ -8538,6 +8662,11 @@ class SimulationEvaluatorRuntimeSubsystem:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "question": _question_to_payload(question),
             "theory_packet_id": packet_id,
+            "consumer_resume_manifest_id": consumer_resume_manifest_id,
+            "consumer_resume_manifest_hash": consumer_resume_manifest_hash,
+            "consumer_resume_exact_source_replayed": bool(
+                consumer_resume_manifest_id
+            ),
             "empirical_evaluation_phase": empirical_evaluation_phase,
             "exploratory_diagnostic": exploratory_diagnostic,
             "confirmatory_empirical_evidence_eligible": (
@@ -8842,6 +8971,129 @@ class SimulationEvaluatorRuntimeSubsystem:
                 and isinstance(source_algorithm_manifest, Mapping)
                 and source_algorithm_manifest
             ):
+                (
+                    dependency_context,
+                    dependency_context_errors,
+                ) = scientific_consumer_dependency_context(
+                    generated_simulation_rows
+                )
+                if (
+                    str(dependency_context.get("source_manifest_id", "") or "")
+                    != source_algorithm_manifest_id
+                    or str(
+                        dependency_context.get("source_manifest_hash", "") or ""
+                    )
+                    != stable_hash(dict(source_algorithm_manifest))
+                ):
+                    dependency_context_errors.append(
+                        "consumer dependency does not match the accepted source manifest"
+                    )
+                (
+                    consumer_task_budget,
+                    consumer_budget_state,
+                    consumer_budget_errors,
+                ) = advance_scientific_consumer_revision_budget(
+                    task_budget=task.budget,
+                    question_id=question.id,
+                    theory_packet_id=packet_id,
+                    dependency_context=dependency_context,
+                    failure_classification=(
+                        generated_simulation_failure_classification
+                    ),
+                    max_revisions=self.semantic_review_max_revisions,
+                )
+                consumer_errors = sorted(
+                    set(dependency_context_errors + consumer_budget_errors)
+                )
+                if consumer_errors or consumer_budget_state.get(
+                    "budget_exhausted"
+                ) is True:
+                    failure_classification = (
+                        "scientific_consumer_lineage_invalid"
+                        if consumer_errors
+                        else "scientific_consumer_revision_budget_exhausted"
+                    )
+                    observations.append(
+                        EnvironmentObservation(
+                            observation_type=failure_classification,
+                            summary=(
+                                "; ".join(consumer_errors)[:500]
+                                if consumer_errors
+                                else "The frozen consumer-to-source revision budget "
+                                "is exhausted for this exact consumer lineage."
+                            ),
+                            payload={
+                                "simulation_manifest_id": manifest_id,
+                                "source_algorithm_manifest_id": (
+                                    source_algorithm_manifest_id
+                                ),
+                                "dependency_context": dependency_context,
+                                "consumer_revision_budget": consumer_budget_state,
+                                "validation_errors": consumer_errors,
+                                "next_owner_subsystem": "",
+                                "runtime_edited_source": False,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        )
+                    )
+                    return AgentStepResult(
+                        status="BLOCKED",
+                        rationale=(
+                            "The exact scientific consumer lineage cannot schedule "
+                            "another source-owner revision. The last raw observation "
+                            "remains unresolved and no unrelated evidence lane is run."
+                        ),
+                        produced_artifacts=produced_artifacts,
+                        observations=tuple(observations),
+                        tool_calls=(
+                            *registered_simulator_tool_calls,
+                            *generated_simulation_tool_calls,
+                        ),
+                        evidence_entries=tuple(
+                            row
+                            for row in (proposal_evidence, evidence)
+                            if row is not None
+                        ),
+                        failure_classification=failure_classification,
+                    )
+                resume_inputs = deepcopy(dict(task.inputs))
+                resume_context = deepcopy(dict(effective_context))
+                resume_context["simulation_manifest_id"] = manifest_id
+                resume_context["algorithm_sandbox_manifest_id"] = (
+                    source_algorithm_manifest_id
+                )
+                resume_inputs["architect_context"] = resume_context
+                resume_inputs["consumer_resume_manifest"] = manifest
+                consumer_resume_task = replace(
+                    task,
+                    task_id=(
+                        f"simulation-consumer-resume:{question.id}:"
+                        f"{stable_hash([manifest_id, consumer_budget_state])[:8]}"
+                    ),
+                    objective=(
+                        "Rerun the exact failed model-authored scientific consumer "
+                        "after its revised dependency passes independent review."
+                    ),
+                    inputs=resume_inputs,
+                    budget=consumer_task_budget,
+                )
+                (
+                    _consumer_continuation_id,
+                    consumer_continuation,
+                    consumer_continuation_artifacts,
+                ) = materialize_agent_task_continuation(
+                    consumer_resume_task,
+                    linked_input_references={
+                        stable_hash(manifest): runtime_artifact_reference(
+                            manifest_id,
+                            manifest,
+                        )
+                    },
+                )
+                produced_artifacts.update(consumer_continuation_artifacts)
+                consumer_continuation_ref = agent_task_continuation_reference(
+                    consumer_continuation
+                )
                 algorithm_feedback = _algorithm_sandbox_revision_feedback(
                     manifest=source_algorithm_manifest,
                     boundary=str(
@@ -8852,7 +9104,19 @@ class SimulationEvaluatorRuntimeSubsystem:
                         generated_simulation_failure_classification
                     ),
                 )
-                algorithm_feedback["consumer_execution_observation"] = feedback
+                algorithm_feedback.pop("prototypes", None)
+                observation_transport = dict(
+                    algorithm_feedback.get("observation_transport", {}) or {}
+                )
+                observation_transport["complete_candidate_rows"] = False
+                observation_transport["source_scope"] = (
+                    "exact_failed_dependency_artifacts"
+                )
+                observation_transport["source_retrieval"] = (
+                    "hash_bound_blackboard_manifest"
+                )
+                algorithm_feedback["observation_transport"] = observation_transport
+                algorithm_feedback["consumer_source_owner"] = dependency_context
                 algorithm_feedback["runtime_selected_source_edit"] = False
                 algorithm_feedback["feedback_id"] = (
                     "algorithm_sandbox_execution_feedback:"
@@ -8884,8 +9148,8 @@ class SimulationEvaluatorRuntimeSubsystem:
                     ),
                     owner_subsystem="AlgorithmEngineer",
                     objective=(
-                        "Regenerate the complete algorithm packet from its exact "
-                        "source and raw execution observation."
+                        "Revise only the exact failed algorithm source artifacts from "
+                        "their parent source and raw consumer execution observation."
                     ),
                     inputs={
                         "question": _question_to_payload(question),
@@ -8896,8 +9160,19 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "seed": seed,
                         "architect_context": revision_context,
                         "environment_feedback": algorithm_feedback,
+                        "consumer_source_manifest": source_algorithm_manifest,
+                        "source_revision_artifact_ids": deepcopy(
+                            dependency_context.get(
+                                "dependency_artifact_ids",
+                                [],
+                            )
+                        ),
+                        "deferred_consumer_task_continuation_ref": (
+                            consumer_continuation_ref
+                        ),
                     },
                     allowed_tools=("python", "filesystem_sandbox"),
+                    budget=consumer_task_budget,
                     expected_artifacts=_architect_expected_artifacts(
                         context,
                         "AlgorithmEngineer",
@@ -8915,8 +9190,9 @@ class SimulationEvaluatorRuntimeSubsystem:
                     status="REROUTE",
                     rationale=(
                         "A real consumer execution failed inside the accepted "
-                        "algorithm dependency, so its exact source and raw observation "
-                        "return to AlgorithmEngineer without a runtime-authored edit."
+                        "algorithm dependency, so only its exact source artifacts and "
+                        "raw observation return to AlgorithmEngineer. The failed "
+                        "consumer is retained as the deferred continuation."
                     ),
                     produced_artifacts=produced_artifacts,
                     observations=tuple(observations),
@@ -9361,13 +9637,197 @@ class AlgorithmEngineerRuntimeSubsystem:
         implementation_gaps = [
             row for row in task.inputs.get("implementation_gaps", []) or [] if isinstance(row, Mapping)
         ]
+        source_revision_artifact_ids = [
+            str(value or "").strip()
+            for value in task.inputs.get("source_revision_artifact_ids", []) or []
+            if str(value or "").strip()
+        ]
+        consumer_continuation_ref = task.inputs.get(
+            "deferred_consumer_task_continuation_ref",
+            {},
+        )
+        consumer_revision_mode = bool(
+            source_revision_artifact_ids or consumer_continuation_ref
+        )
+        consumer_revision_budget = task.budget.get(
+            SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY,
+            {},
+        )
+        if not isinstance(consumer_revision_budget, Mapping):
+            consumer_revision_budget = {}
+        consumer_source_manifest: dict[str, Any] = {}
+        consumer_source_rows_by_id: dict[str, dict[str, Any]] = {}
+        deferred_consumer_task: AgentTask | None = None
         proposal_packet: dict[str, Any] | None = None
         proposal_evidence: EvidenceLedgerEntry | None = None
         algorithm_theory_trace_contract: dict[str, Any] = {}
         algorithm_theory_trace_alignment_contract: dict[str, Any] = {}
         produced_artifacts: dict[str, Any] = {}
         observations: list[EnvironmentObservation] = []
-        if self.proposal_agent is not None and implementation_gaps:
+        if consumer_revision_mode:
+            consumer_errors: list[str] = []
+            if not self.semantic_reviewer_available:
+                consumer_errors.append(
+                    "revised dependency source requires independent semantic review"
+                )
+            if not (
+                self.proposal_agent is not None
+                and callable(
+                    getattr(self.proposal_agent, "iterate_code_with_tools", None)
+                )
+                and callable(
+                    getattr(
+                        getattr(self.proposal_agent, "provider", None),
+                        "generate_client_tool_turn",
+                        None,
+                    )
+                )
+            ):
+                consumer_errors.append(
+                    "AlgorithmEngineer source workspace is unavailable"
+                )
+            source_owner = environment_feedback.get("consumer_source_owner", {})
+            if not isinstance(source_owner, Mapping):
+                source_owner = {}
+            source_manifest_id = str(
+                source_owner.get("source_manifest_id", "") or ""
+            ).strip()
+            raw_source_manifest = task.inputs.get(
+                "consumer_source_manifest",
+                {},
+            )
+            if isinstance(raw_source_manifest, Mapping):
+                consumer_source_manifest = dict(raw_source_manifest)
+            consumer_source_rows_by_id, source_errors = (
+                scientific_consumer_revision_sources(
+                    consumer_source_manifest,
+                    dependency_context=source_owner,
+                    revision_artifact_ids=source_revision_artifact_ids,
+                    implementation_artifact_ids=[
+                        str(row.get("estimator_id", "") or "").strip()
+                        for row in implementation_gaps
+                    ],
+                    theory_packet_id=packet_id,
+                )
+            )
+            consumer_errors.extend(source_errors)
+            if (
+                not isinstance(consumer_continuation_ref, Mapping)
+                or not consumer_continuation_ref
+            ):
+                consumer_errors.append(
+                    "scientific consumer continuation reference is missing"
+                )
+            try:
+                deferred_consumer_task = restore_agent_task_continuation_reference(
+                    consumer_continuation_ref,
+                    blackboard.artifacts,
+                )
+            except ValueError as exc:
+                consumer_errors.append(str(exc))
+            else:
+                deferred_resume_manifest = deferred_consumer_task.inputs.get(
+                    "consumer_resume_manifest",
+                    {},
+                )
+                deferred_resume_manifest_id = (
+                    str(deferred_resume_manifest.get("artifact_id", "") or "")
+                    if isinstance(deferred_resume_manifest, Mapping)
+                    and deferred_resume_manifest.get("artifact_kind")
+                    == "RuntimeArtifactRef"
+                    else str(
+                        deferred_resume_manifest.get("manifest_id", "") or ""
+                    )
+                    if isinstance(deferred_resume_manifest, Mapping)
+                    else ""
+                )
+                if (
+                    deferred_consumer_task.owner_subsystem != "SimulationEvaluator"
+                    or deferred_consumer_task.budget != task.budget
+                    or deferred_resume_manifest_id != simulation_manifest_id
+                ):
+                    consumer_errors.append(
+                        "deferred scientific consumer continuation does not match "
+                        "the current revision lineage"
+                    )
+            prior_proposal_id = str(
+                consumer_source_manifest.get(
+                    "llm_algorithm_engineer_proposal_id",
+                    "",
+                )
+                or ""
+            ).strip()
+            prior_proposal = blackboard.artifacts.get(prior_proposal_id, {})
+            if (
+                not isinstance(prior_proposal, Mapping)
+                or str(prior_proposal.get("packet_id", "") or "")
+                != prior_proposal_id
+            ):
+                consumer_errors.append(
+                    "parent AlgorithmEngineer proposal artifact is missing"
+                )
+            else:
+                proposal_packet = dict(prior_proposal)
+            if consumer_errors:
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "AlgorithmEngineer rejected a stale scientific consumer "
+                        "backedge before any planning, source, or sandbox call."
+                    ),
+                    observations=(
+                        EnvironmentObservation(
+                            observation_type="scientific_consumer_backedge_rejected",
+                            summary="; ".join(sorted(set(consumer_errors)))[:500],
+                            payload={
+                                "validation_errors": sorted(set(consumer_errors)),
+                                "source_revision_artifact_ids": (
+                                    source_revision_artifact_ids
+                                ),
+                                "planning_model_call_authorized": False,
+                                "source_model_call_authorized": False,
+                                "runtime_edited_source": False,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        ),
+                    ),
+                    failure_classification="scientific_consumer_lineage_invalid",
+                )
+            theory_trace_contracts = _runtime_theory_trace_consumption_contracts(
+                proposal_packet or {}
+            )
+            algorithm_theory_trace_contract = (
+                theory_trace_contracts[0] if theory_trace_contracts else {}
+            )
+            algorithm_theory_trace_alignment_contract = dict(
+                (proposal_packet or {}).get(
+                    "theory_trace_alignment_contract",
+                    {},
+                )
+                or {}
+            )
+            observations.append(
+                EnvironmentObservation(
+                    observation_type="algorithm_consumer_source_workspace_resumed",
+                    summary=(
+                        "AlgorithmEngineer will revise only the hash-bound dependency "
+                        "sources named by the failed consumer observation."
+                    ),
+                    payload={
+                        "source_manifest_id": source_manifest_id,
+                        "source_revision_artifact_ids": (
+                            source_revision_artifact_ids
+                        ),
+                        "deferred_consumer_task_ref": agent_task_reference(
+                            deferred_consumer_task
+                        ),
+                        "planning_model_call_used": False,
+                        "runtime_edited_source": False,
+                        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                    },
+                )
+            )
+        elif self.proposal_agent is not None and implementation_gaps:
             try:
                 effective_context = _runtime_context_with_environment_feedback_contract(
                     context,
@@ -9459,17 +9919,90 @@ class AlgorithmEngineerRuntimeSubsystem:
             )
         sandbox_dir = self.out_dir / _safe_identifier(question.id) / stable_hash([task.task_id, packet_id])[:12]
         sandbox_dir.mkdir(parents=True, exist_ok=True)
-        prototype_rows: list[dict[str, Any]] = []
+        if consumer_revision_mode:
+            reused_prototype_rows = []
+            for estimator_id, source_row in consumer_source_rows_by_id.items():
+                if estimator_id in source_revision_artifact_ids:
+                    continue
+                reused_row = deepcopy(source_row)
+                reused_row["prototype_status"] = "REUSED_REVIEWED_SOURCE"
+                reused_row["source_reused_without_execution"] = True
+                reused_row["source_reuse_lineage"] = {
+                    "parent_manifest_id": str(
+                        consumer_source_manifest.get("manifest_id", "") or ""
+                    ),
+                    "parent_manifest_hash": stable_hash(consumer_source_manifest),
+                    "parent_script_hash": str(
+                        source_row.get("script_hash", "") or ""
+                    ),
+                    "runtime_edited_source": False,
+                    "proof_evidence_status": "SOURCE_REUSE_NOT_PROOF_EVIDENCE",
+                }
+                reused_prototype_rows.append(reused_row)
+            execution_gaps = [
+                row
+                for row in implementation_gaps
+                if str(row.get("estimator_id", "") or "")
+                in source_revision_artifact_ids
+            ]
+        else:
+            reused_prototype_rows = []
+            execution_gaps = implementation_gaps
+        prototype_rows: list[dict[str, Any]] = list(reused_prototype_rows)
         tool_calls: list[ToolCallRecord] = []
         requires_generated_algorithm_code = _runtime_requires_generated_algorithm_code(
             effective_context,
             environment_feedback,
         )
-        for gap in implementation_gaps:
+        for gap in execution_gaps:
             estimator_id = str(gap.get("estimator_id", ""))
             spec = _estimator_spec(packet, estimator_id)
             proposal_target = _algorithm_proposal_for_estimator(proposal_packet, estimator_id)
-            code_draft = _algorithm_code_draft_for_estimator(proposal_packet, estimator_id)
+            external_initial_observation: dict[str, Any] | None = None
+            if consumer_revision_mode:
+                parent_source_row = consumer_source_rows_by_id.get(
+                    estimator_id,
+                    {},
+                )
+                code_draft, parent_source_errors = (
+                    complete_scientific_source_draft(parent_source_row)
+                )
+                if parent_source_errors:
+                    code_draft = {}
+                external_initial_observation = {
+                    "artifact_kind": "ScientificConsumerExecutionObservation",
+                    "source_manifest_id": str(
+                        consumer_source_manifest.get("manifest_id", "") or ""
+                    ),
+                    "source_artifact_id": estimator_id,
+                    "source_artifact_hash": str(
+                        parent_source_row.get("script_hash", "") or ""
+                    ),
+                    "consumer_observations": deepcopy(
+                        list(
+                            (
+                                environment_feedback.get(
+                                    "consumer_source_owner",
+                                    {},
+                                )
+                                or {}
+                            ).get(
+                                "consumer_observations_by_dependency",
+                                {},
+                            ).get(estimator_id, [])
+                            or []
+                        )
+                    ),
+                    "runtime_selected_source_edit": False,
+                    "proof_evidence_status": (
+                        "SCIENTIFIC_CONSUMER_OBSERVATION_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            else:
+                code_draft = _algorithm_code_draft_for_estimator(
+                    proposal_packet,
+                    estimator_id,
+                )
             if code_draft:
                 execution_kwargs = {
                     "sandbox_dir": sandbox_dir,
@@ -9496,7 +10029,8 @@ class AlgorithmEngineerRuntimeSubsystem:
                         artifact_id=f"{question.id}:{estimator_id}",
                         code_draft=code_draft,
                         source_deferred=(
-                            _proposal_defers_scientific_source(proposal_packet)
+                            not consumer_revision_mode
+                            and _proposal_defers_scientific_source(proposal_packet)
                         ),
                         workspace_context={
                             "theory_packet_id": packet_id,
@@ -9516,6 +10050,9 @@ class AlgorithmEngineerRuntimeSubsystem:
                                 "named JSON-finite smoke diagnostics and exercises "
                                 "run_estimator"
                             ),
+                            "consumer_execution_observation": (
+                                external_initial_observation or {}
+                            ),
                         },
                         execute_candidate=lambda candidate: (
                             _run_generated_code_sandbox(
@@ -9528,6 +10065,9 @@ class AlgorithmEngineerRuntimeSubsystem:
                             "executor": "generated_python_sandbox",
                             "spec": dict(spec),
                         },
+                        external_initial_observation=(
+                            external_initial_observation
+                        ),
                     )
                 )
                 tool_calls.extend(source_tool_calls)
@@ -9559,6 +10099,17 @@ class AlgorithmEngineerRuntimeSubsystem:
                         source_feedback=environment_feedback,
                     )
                 )
+        if consumer_revision_mode:
+            estimator_order = {
+                str(row.get("estimator_id", "") or ""): index
+                for index, row in enumerate(implementation_gaps)
+            }
+            prototype_rows.sort(
+                key=lambda row: estimator_order.get(
+                    str(row.get("estimator_id", "") or ""),
+                    len(estimator_order),
+                )
+            )
         n_generated_code_execution_attempted = sum(
             1
             for row in prototype_rows
@@ -9640,6 +10191,31 @@ class AlgorithmEngineerRuntimeSubsystem:
             ),
             "llm_algorithm_engineer_theory_trace_alignment_contract": (
                 algorithm_theory_trace_alignment_contract
+            ),
+            "consumer_source_revision": consumer_revision_mode,
+            "consumer_parent_algorithm_manifest_id": str(
+                consumer_source_manifest.get("manifest_id", "") or ""
+            ),
+            "consumer_parent_algorithm_manifest_hash": (
+                stable_hash(consumer_source_manifest)
+                if consumer_source_manifest
+                else ""
+            ),
+            "consumer_source_revision_artifact_ids": (
+                source_revision_artifact_ids
+            ),
+            "n_consumer_source_artifacts_revised": (
+                len(source_revision_artifact_ids)
+                if consumer_revision_mode
+                else 0
+            ),
+            "n_consumer_source_artifacts_reused": (
+                len(reused_prototype_rows)
+                if consumer_revision_mode
+                else 0
+            ),
+            "consumer_source_revision_lineage_id": str(
+                consumer_revision_budget.get("lineage_id", "") or ""
             ),
             "prototypes": prototype_rows,
             "n_prototypes": len(prototype_rows),
@@ -9812,6 +10388,9 @@ class AlgorithmEngineerRuntimeSubsystem:
             and not revision_required
         )
         revision_failure_classification = (
+            "scientific_consumer_source_workspace_exhausted"
+            if consumer_revision_mode
+            else
             "generated_algorithm_sandbox_metric_gate_failed"
             if int(manifest.get("n_metric_gate_failed", 0) or 0) > 0
             else "generated_algorithm_typed_metric_contract_missing"
@@ -9873,7 +10452,10 @@ class AlgorithmEngineerRuntimeSubsystem:
                 ),
                 failure_classification=revision_failure_classification,
             )
-        if has_deferred_metric_protocol:
+        if consumer_revision_mode:
+            assert deferred_consumer_task is not None
+            next_task = deferred_consumer_task
+        elif has_deferred_metric_protocol:
             deferred_gate = _agent_task_from_runtime_payload(
                 deferred_metric_protocol_payload
             )
@@ -10112,6 +10694,7 @@ def _independent_semantic_review_architect_escalation_task(
             revision_feedback,
         ),
         "failure_classification": failure_classification,
+        "unchanged_source_retry_authorized": False,
         "source_failure_classification": str(
             revision_feedback.get("source_failure_classification", "") or ""
         ),
@@ -10152,6 +10735,7 @@ def _independent_semantic_review_architect_escalation_task(
         "feedback_id": str(observation_ref["feedback_id"]),
         "feedback_hash": stable_hash(dict(revision_feedback)),
         "failure_classification": failure_classification,
+        "unchanged_source_retry_authorized": False,
         "implementation_gaps": [
             dict(row)
             for row in task.inputs.get("implementation_gaps", []) or []
@@ -20277,6 +20861,7 @@ def _run_source_owner_scientific_workspace(
         [Mapping[str, Any]], tuple[dict[str, Any], ToolCallRecord]
     ],
     failure_identity: Mapping[str, Any],
+    external_initial_observation: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[ToolCallRecord]]:
     """Execute one initial or revision source loop without a second scheduler."""
 
@@ -20350,6 +20935,30 @@ def _run_source_owner_scientific_workspace(
                 "No source exists yet; author and run the complete candidate in "
                 "this workspace."
             ),
+        }
+        prototype = {
+            **dict(failure_identity),
+            "prototype_status": "MODEL_SOURCE_WORKSPACE_FAILED",
+            "smoke_passed": False,
+            "execution_smoke_passed": False,
+        }
+    elif external_initial_observation and can_use_workspace:
+        workspace_draft = {
+            key: deepcopy(code_draft[key])
+            for key in (
+                "language",
+                "execution_profile",
+                "dependencies",
+                "entrypoint",
+                "code",
+            )
+            if key in code_draft
+        }
+        workspace_operation = "targeted_revision"
+        initial_observation = {
+            **deepcopy(dict(external_initial_observation)),
+            "code_draft_hash": stable_hash(workspace_draft),
+            "accepted": False,
         }
         prototype = {
             **dict(failure_identity),

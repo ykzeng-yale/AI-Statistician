@@ -28,6 +28,8 @@ from ai_statistician.scientific_sandbox import (
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
+    advance_scientific_consumer_revision_budget,
+    scientific_consumer_dependency_context,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.simulation_engineer_llm import (
@@ -972,6 +974,190 @@ def test_runtime_simulation_dependency_failure_names_exact_source_owner(
         "artifact_ids": ["candidate"],
         "artifact_hashes": {"candidate": source_hash},
     }
+
+
+def test_external_consumer_observation_starts_targeted_source_workspace() -> None:
+    parent_source = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': request['value']}\n\n"
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'estimate': 1.0}\n"
+    )
+    revised_source = parent_source.replace(
+        "request['value']",
+        "request.get('value', 0.0)",
+    )
+    executions: list[str] = []
+    observed: dict[str, object] = {}
+
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("the fake workspace owns the model turn")
+
+    class SourceOwner:
+        provider = Provider()
+
+        @staticmethod
+        def iterate_code_with_tools(**kwargs):
+            observed["initial_observation"] = kwargs["initial_observation"]
+            observed["parent_source"] = kwargs["code_draft"]["code"]
+            candidate = {
+                **dict(kwargs["code_draft"]),
+                "code": revised_source,
+            }
+            check = dict(kwargs["check_candidate"](candidate))
+            from ai_statistician.scientific_code_workspace import (
+                ScientificCodeWorkspaceResult,
+            )
+
+            return ScientificCodeWorkspaceResult(
+                code_draft=candidate,
+                check_result=check,
+                evidence={
+                    "workspace_operation": "targeted_revision",
+                    "model_owned_source": True,
+                    "runtime_edited_source": False,
+                    "accepted": True,
+                },
+            )
+
+    def execute_candidate(candidate):
+        executions.append(str(candidate["code"]))
+        return (
+            {
+                "estimator_id": "candidate",
+                "prototype_status": "EXECUTED",
+                "execution_attempted": True,
+                "execution_smoke_passed": True,
+                "smoke_passed": True,
+                "source_code": candidate["code"],
+                "script_hash": stable_hash(candidate["code"]),
+            },
+            ToolCallRecord(
+                tool_name="python.generated_algorithm_sandbox",
+                exit_status="0",
+            ),
+        )
+
+    prototype, _ = runtime_module._run_source_owner_scientific_workspace(
+        proposal_agent=SourceOwner(),
+        question=OpenResearchQuestion(
+            id="generic-consumer-source",
+            title="Revise one failed dependency",
+            description="Use a raw downstream observation.",
+        ),
+        artifact_id="generic-consumer-source:candidate",
+        code_draft={
+            "language": "python",
+            "execution_profile": "stdlib",
+            "dependencies": [],
+            "entrypoint": "run_sandbox",
+            "code": parent_source,
+        },
+        source_deferred=False,
+        workspace_context={},
+        execute_candidate=execute_candidate,
+        failure_identity={"estimator_id": "candidate"},
+        external_initial_observation={
+            "artifact_kind": "ScientificConsumerExecutionObservation",
+            "consumer_observations": [
+                {"stderr_summary": "KeyError: value"}
+            ],
+        },
+    )
+
+    assert executions == [revised_source]
+    assert observed["parent_source"] == parent_source
+    assert observed["initial_observation"]["consumer_observations"] == [
+        {"stderr_summary": "KeyError: value"}
+    ]
+    assert prototype["source_code"] == revised_source
+    assert prototype["scientific_code_workspace"]["model_owned_source"] is True
+
+
+def test_consumer_revision_budget_survives_dependency_source_changes() -> None:
+    consumer_source = "def run_sandbox(seed, replicates, estimators): return {}"
+    base_row = {
+        "simulation_id": "generic-consumer",
+        "script_hash": stable_hash(consumer_source),
+        "source_code": consumer_source,
+        "estimator_runtime_failure_ids": ["candidate"],
+        "estimator_runtime_errors": ["raw dependency failure"],
+        "source_owner": {
+            "owner_subsystem": "AlgorithmEngineer",
+            "source_manifest_id": "algorithm:one",
+            "source_manifest_hash": "hash-one",
+            "artifact_ids": ["candidate"],
+            "artifact_hashes": {"candidate": "source-one"},
+        },
+    }
+    first_context, errors = scientific_consumer_dependency_context([base_row])
+    assert errors == []
+    budget, first, errors = advance_scientific_consumer_revision_budget(
+        task_budget={},
+        question_id="generic-question",
+        theory_packet_id="theory:generic",
+        dependency_context=first_context,
+        failure_classification="accepted_algorithm_estimator_runtime_failed",
+        max_revisions=2,
+    )
+    assert errors == []
+    assert first["revision_scheduled"] is True
+    assert first["revisions_used"] == 1
+
+    changed_row = {
+        **base_row,
+        "source_owner": {
+            **base_row["source_owner"],
+            "source_manifest_id": "algorithm:two",
+            "source_manifest_hash": "hash-two",
+            "artifact_hashes": {"candidate": "source-two"},
+        },
+    }
+    changed_context, errors = scientific_consumer_dependency_context([changed_row])
+    assert errors == []
+    budget, second, errors = advance_scientific_consumer_revision_budget(
+        task_budget=budget,
+        question_id="generic-question",
+        theory_packet_id="theory:generic",
+        dependency_context=changed_context,
+        failure_classification="accepted_algorithm_estimator_runtime_failed",
+        max_revisions=99,
+    )
+    assert errors == []
+    assert second["lineage_id"] == first["lineage_id"]
+    assert second["max_revisions"] == 2
+    assert second["revisions_used"] == 2
+
+    _, exhausted, errors = advance_scientific_consumer_revision_budget(
+        task_budget=budget,
+        question_id="generic-question",
+        theory_packet_id="theory:generic",
+        dependency_context=changed_context,
+        failure_classification="accepted_algorithm_estimator_runtime_failed",
+        max_revisions=99,
+    )
+    assert errors == []
+    assert exhausted["revision_scheduled"] is False
+    assert exhausted["budget_exhausted"] is True
+    assert exhausted["revisions_used"] == 2
+
+    changed_contract_context, errors = scientific_consumer_dependency_context(
+        [{**changed_row, "metric_contracts": [{"contract_id": "new-gate"}]}]
+    )
+    assert errors == []
+    _, _, errors = advance_scientific_consumer_revision_budget(
+        task_budget=budget,
+        question_id="generic-question",
+        theory_packet_id="theory:generic",
+        dependency_context=changed_contract_context,
+        failure_classification="accepted_algorithm_estimator_runtime_failed",
+        max_revisions=2,
+    )
+    assert errors == [
+        "scientific consumer continuation changed source lineage"
+    ]
 
 
 def test_estimator_abi_failure_preserves_typed_observation() -> None:

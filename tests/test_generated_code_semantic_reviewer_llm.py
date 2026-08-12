@@ -13,6 +13,10 @@ from ai_statistician.generated_code_semantic_review_replan import (
     build_generated_code_semantic_review_producer_revision_task,
     record_generated_code_semantic_review_lineage_action,
 )
+from ai_statistician.generated_code_semantic_review_scope import (
+    generated_code_semantic_review_proposal_projection,
+    generated_code_semantic_review_upstream_dependency_projection,
+)
 from ai_statistician.generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
     GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA,
@@ -38,6 +42,52 @@ def _question() -> OpenResearchQuestion:
         description="Determine whether the execution measures its stated claim.",
         tags=("semantic-review",),
     )
+
+
+def test_simulation_proposal_review_uses_current_dependency_projection_only() -> None:
+    projection = generated_code_semantic_review_proposal_projection(
+        source_subsystem="SimulationEvaluator",
+        proposal_packet={
+            "packet_id": "simulation-plan:1",
+            "simulation_targets": [{"procedure_id": "candidate"}],
+            "upstream_algorithm_handoff": {
+                "algorithm_sandbox_manifest_id": "algorithm:stale",
+                "exact_algorithm_artifacts": [
+                    {
+                        "estimator_id": "candidate",
+                        "exact_source_hash": "stale-source-hash",
+                    }
+                ],
+            },
+        },
+        assigned_requirements=[],
+    )
+
+    assert "upstream_algorithm_handoff" not in projection
+    assert "upstream_algorithm_handoff" in projection[
+        "proposal_review_projection"
+    ]["excluded_non_authoritative_fields"]
+
+    dependency = generated_code_semantic_review_upstream_dependency_projection(
+        source_subsystem="SimulationEvaluator",
+        upstream_algorithm_handoff={
+            "algorithm_sandbox_manifest_id": "algorithm:current",
+            "algorithm_sandbox_manifest_hash": "current-manifest-hash",
+            "semantic_review_execution_id": "review:execution",
+            "semantic_review_packet_id": "review:packet",
+            "exact_algorithm_artifacts": [
+                {
+                    "estimator_id": "candidate",
+                    "exact_source_code": "def run_estimator(request): return {}",
+                    "exact_source_hash": "source-hash",
+                    "exact_smoke_result": {},
+                    "exact_smoke_result_hash": stable_hash({}),
+                }
+            ],
+        },
+    )
+    assert "Architect" not in dependency["routing_rule"]
+    assert "source-owning workspace" in dependency["routing_rule"]
 
 
 def _review_material() -> dict[str, object]:
@@ -152,7 +202,8 @@ def test_prompt_is_observation_only_and_preserves_complete_source() -> None:
     assert "Do not propose source edits" in prompt
     assert "ArchitectCoordinator decides what subsystem acts next" in prompt
     assert "counterfactual question" in prompt
-    assert "current_source_edit_sufficient=false" in prompt
+    assert "NO_PARENT_ARTIFACT_CHANGE_REQUIRED" in prompt
+    assert "PARENT_ARTIFACT_CHANGE_REQUIRED" in prompt
     assert "Monte Carlo uncertainty" in prompt
     assert "belong exclusively to the empirical evaluator" in prompt
     assert "cannot create a semantic source finding" in prompt
@@ -251,6 +302,13 @@ def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:
     assert "source_revision_assessment" in (
         GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["required"]
     )
+    assessment_schema = GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA[
+        "properties"
+    ]["source_revision_assessment"]
+    assert "resolution_scope" in assessment_schema["required"]
+    assert "current_source_edit_sufficient" not in assessment_schema[
+        "properties"
+    ]
 
 
 def test_anthropic_reviewer_uses_provider_native_structured_output() -> None:
@@ -346,6 +404,16 @@ def test_reviewer_reports_evidence_bound_defect_without_source_edit() -> None:
                 ],
             }
         ],
+        "source_revision_assessment": {
+            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "rationale": (
+                "A complete rewrite of the current source can close this finding "
+                "while every supplied parent artifact remains fixed."
+            ),
+            "evidence_refs": [
+                "/exact_executed_artifacts/0/exact_source_code",
+            ],
+        },
     }
 
     packet = _agent(response).review(
@@ -362,6 +430,9 @@ def test_reviewer_reports_evidence_bound_defect_without_source_edit() -> None:
     assert packet["source_revision_assessment"][
         "current_source_edit_sufficient"
     ] is True
+    assert packet["source_revision_assessment"]["resolution_scope"] == (
+        "NO_PARENT_ARTIFACT_CHANGE_REQUIRED"
+    )
     assert validate_generated_code_semantic_review_packet(
         packet,
         review_material=_review_material(),
@@ -392,7 +463,7 @@ def test_reviewer_can_flag_cross_artifact_conflict_without_selecting_owner() -> 
             }
         ],
         "source_revision_assessment": {
-            "current_source_edit_sufficient": False,
+            "resolution_scope": "PARENT_ARTIFACT_CHANGE_REQUIRED",
             "rationale": (
                 "Changing source alone cannot satisfy two contradictory immutable "
                 "artifact meanings."
@@ -412,6 +483,9 @@ def test_reviewer_can_flag_cross_artifact_conflict_without_selecting_owner() -> 
 
     assessment = packet["source_revision_assessment"]
     assert packet["overall_verdict"] == "REVISE"
+    assert assessment["resolution_scope"] == (
+        "PARENT_ARTIFACT_CHANGE_REQUIRED"
+    )
     assert assessment["current_source_edit_sufficient"] is False
     assert assessment["evidence_refs"] == [
         "/review_material/theory_packet",

@@ -27,7 +27,7 @@ from .model_backend import (
 from .research_schema import OpenResearchQuestion
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 20
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 21
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -98,6 +98,14 @@ GENERATED_CODE_SEMANTIC_REVIEW_FINDING_ID_PREFIX = (
     "generated_code_semantic_finding:"
 )
 GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS = 6
+SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE = (
+    "NO_PARENT_ARTIFACT_CHANGE_REQUIRED"
+)
+SOURCE_REVISION_SCOPE_PARENT_CHANGE = "PARENT_ARTIFACT_CHANGE_REQUIRED"
+SOURCE_REVISION_SCOPES = (
+    SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE,
+    SOURCE_REVISION_SCOPE_PARENT_CHANGE,
+)
 
 def generated_code_semantic_review_finding_id(
     *,
@@ -584,12 +592,15 @@ def _source_revision_assessment_schema() -> dict[str, Any]:
         "type": "object",
         "additionalProperties": False,
         "required": [
-            "current_source_edit_sufficient",
+            "resolution_scope",
             "rationale",
             "evidence_refs",
         ],
         "properties": {
-            "current_source_edit_sufficient": {"type": "boolean"},
+            "resolution_scope": {
+                "type": "string",
+                "enum": list(SOURCE_REVISION_SCOPES),
+            },
             "rationale": {"type": "string", "minLength": 1},
             "evidence_refs": {
                 "type": "array",
@@ -714,9 +725,12 @@ def build_generated_code_semantic_review_prompt(
         "For source_revision_assessment, answer only the counterfactual question: "
         "could editing the current exact source alone close every active finding while "
         "holding the supplied theory, frozen contract, and runtime interface fixed? "
-        "Set current_source_edit_sufficient=false when those immutable artifacts are "
-        "themselves contradictory, incomplete, or require a cross-artifact decision, "
-        "and cite that evidence. This assessment is not a repair plan or owner choice. "
+        "Choose NO_PARENT_ARTIFACT_CHANGE_REQUIRED whenever a complete rewrite of the "
+        "current source could satisfy those fixed artifacts. Choose "
+        "PARENT_ARTIFACT_CHANGE_REQUIRED only when no possible current-source rewrite "
+        "could close every finding because an immutable parent is itself contradictory "
+        "or incomplete, and cite that parent evidence. This assessment is not a repair "
+        "plan or owner choice. "
         "Do not propose source edits, tactics, repair rules, owners, routes, or plans; "
         "ArchitectCoordinator decides what subsystem acts next. Do not infer omitted "
         "array values from a bounded projection. Review every prior finding exactly "
@@ -896,17 +910,28 @@ def _normalize_prior_reviews(
 def _normalize_source_revision_assessment(
     value: Any,
 ) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or "current_source_edit_sufficient" not in value:
+    if not isinstance(value, Mapping) or not value:
         return {
+            "resolution_scope": SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE,
             "current_source_edit_sufficient": True,
             "rationale": (
                 "No cross-artifact conflict was asserted by the reviewer."
             ),
             "evidence_refs": [],
         }
+    resolution_scope = str(value.get("resolution_scope", "") or "").strip()
+    if not resolution_scope and isinstance(
+        value.get("current_source_edit_sufficient"), bool
+    ):
+        resolution_scope = (
+            SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE
+            if value.get("current_source_edit_sufficient") is True
+            else SOURCE_REVISION_SCOPE_PARENT_CHANGE
+        )
     return {
-        "current_source_edit_sufficient": (
-            value.get("current_source_edit_sufficient") is True
+        "resolution_scope": resolution_scope,
+        "current_source_edit_sufficient": bool(
+            resolution_scope == SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE
         ),
         "rationale": str(value.get("rationale", "") or "").strip(),
         "evidence_refs": _evidence_ref_list(value.get("evidence_refs", [])),
@@ -1192,11 +1217,29 @@ def validate_generated_code_semantic_review_packet(
     if not isinstance(assessment, Mapping):
         errors.append("source_revision_assessment must be an object")
     else:
+        resolution_scope = str(
+            assessment.get("resolution_scope", "") or ""
+        ).strip()
+        if resolution_scope not in SOURCE_REVISION_SCOPES:
+            errors.append(
+                "source_revision_assessment requires a valid resolution_scope"
+            )
+        expected_source_sufficiency = bool(
+            resolution_scope == SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE
+        )
         if not isinstance(
             assessment.get("current_source_edit_sufficient"), bool
         ):
             errors.append(
                 "source_revision_assessment requires a boolean sufficiency decision"
+            )
+        elif (
+            assessment.get("current_source_edit_sufficient")
+            != expected_source_sufficiency
+        ):
+            errors.append(
+                "source_revision_assessment sufficiency must be derived from "
+                "resolution_scope"
             )
         if not str(assessment.get("rationale", "") or "").strip():
             errors.append("source_revision_assessment is missing rationale")

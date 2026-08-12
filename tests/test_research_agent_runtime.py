@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import json
 from dataclasses import asdict, fields, replace
+from pathlib import Path
 
 import pytest
 
@@ -12,6 +13,7 @@ from ai_statistician.agent_runtime import (
     AgentTask,
     BlackboardState,
     TaskHandoffRecord,
+    ToolCallRecord,
     restore_agent_task_continuation,
     resolve_runtime_artifact_references,
     runtime_artifact_reference,
@@ -41,6 +43,7 @@ from ai_statistician.research_agent_runtime_audit import (
     _formalizer_revision_summary,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.scientific_code_workspace import ScientificCodeWorkspaceResult
 from ai_statistician.simulation_engineer_llm import (
     SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
 )
@@ -671,6 +674,635 @@ def test_consumer_failure_reopens_exact_accepted_source_owner() -> None:
     assert continued.next_task.owner_subsystem == "AlgorithmEngineer"
 
 
+def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="generic-targeted-consumer",
+        title="Revise one failed dependency",
+        description="Keep the failed consumer as the exact deferred task.",
+    )
+    theory_packet_id = "theory:generic-targeted-consumer"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "estimator_specs": [
+            {"id": "failed-estimator", "formula": "model-authored formula"},
+            {"id": "stable-estimator", "formula": "model-authored formula"},
+        ],
+    }
+    proposal_id = "algorithm-proposal:generic-parent"
+    proposal = {
+        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "packet_id": proposal_id,
+        "source_agent": "LLMAlgorithmEngineerAgent",
+        "source_provider": "anthropic",
+        "backend_provider_name": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "scientific_source_transport": "native_client_tools",
+        "implementation_targets": [
+            {"estimator_id": "failed-estimator"},
+            {"estimator_id": "stable-estimator"},
+        ],
+        "sandbox_code_drafts": [
+            {"estimator_id": "failed-estimator"},
+            {"estimator_id": "stable-estimator"},
+        ],
+    }
+
+    def source_for(estimator_id: str, *, revised: bool = False) -> str:
+        lookup = "request.get('value', 0.0)" if revised else "request['value']"
+        return (
+            "def run_estimator(request):\n"
+            f"    return {{'{estimator_id}': {lookup}}}\n\n"
+            "def run_sandbox(seed, replicates):\n"
+            f"    return {{'{estimator_id}': 1.0}}\n"
+        )
+
+    def executed_row(estimator_id: str, source: str) -> dict[str, object]:
+        script_path = tmp_path / f"{estimator_id}.py"
+        result_path = tmp_path / f"{estimator_id}.json"
+        result = {estimator_id: 1.0}
+        script_path.write_text(source, encoding="utf-8")
+        result_path.write_text(json.dumps(result), encoding="utf-8")
+        return {
+            "estimator_id": estimator_id,
+            "prototype_status": "EXECUTED",
+            "executor": "generated_python_sandbox",
+            "language": "python",
+            "requested_execution_profile": "stdlib",
+            "executor_profile": "stdlib",
+            "dependencies": [],
+            "source_code": source,
+            "script_path": str(script_path),
+            "script_hash": runtime_module.stable_hash(source),
+            "result_path": str(result_path),
+            "result_hash": runtime_module.stable_hash(result),
+            "metrics": result,
+            "smoke_passed": True,
+            "execution_smoke_passed": True,
+            "execution_attempted": True,
+            "source_llm_proposal_id": proposal_id,
+            "source_llm_proposal_agent": "LLMAlgorithmEngineerAgent",
+            "source_llm_proposal_provider": "anthropic",
+            "source_llm_proposal_backend_provider": "anthropic",
+            "source_llm_proposal_model": "claude-haiku-4-5-20251001",
+            "source_llm_proposal_model_tier": "haiku",
+            "source_llm_proposal_live_generator": True,
+            "llm_algorithm_engineer_target": {"estimator_id": estimator_id},
+        }
+
+    failed_parent = executed_row(
+        "failed-estimator",
+        source_for("failed-estimator"),
+    )
+    stable_parent = executed_row(
+        "stable-estimator",
+        source_for("stable-estimator"),
+    )
+    source_manifest_id = "algorithm:generic-parent"
+    source_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": source_manifest_id,
+        "theory_packet_id": theory_packet_id,
+        "llm_algorithm_engineer_proposal_id": proposal_id,
+        "prototypes": [failed_parent, stable_parent],
+        "boundary": "algorithm execution is not proof evidence",
+    }
+    simulation_manifest_id = "simulation:generic-failed-consumer"
+    simulation_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": simulation_manifest_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_packet_id": theory_packet_id,
+    }
+    consumer_budget = {
+        runtime_module.SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY: {
+            "lineage_id": "scientific_consumer_lineage:generic",
+            "revisions_used": 1,
+            "max_revisions": 2,
+        }
+    }
+    deferred_consumer = AgentTask(
+        task_id="simulation-consumer-resume:generic",
+        owner_subsystem="SimulationEvaluator",
+        objective="Rerun the exact failed consumer.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "consumer_resume_manifest": simulation_manifest,
+            "architect_context": {},
+        },
+        budget=consumer_budget,
+    )
+    _, continuation, continuation_artifacts = (
+        runtime_module.materialize_agent_task_continuation(
+            deferred_consumer,
+            linked_input_references={
+                runtime_module.stable_hash(simulation_manifest): (
+                    runtime_artifact_reference(
+                        simulation_manifest_id,
+                        simulation_manifest,
+                    )
+                )
+            },
+        )
+    )
+    continuation_ref = runtime_module.agent_task_continuation_reference(
+        continuation
+    )
+    source_owner = {
+        "source_owner_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": source_manifest_id,
+        "source_manifest_hash": runtime_module.stable_hash(source_manifest),
+        "dependency_artifact_ids": ["failed-estimator"],
+        "dependency_artifact_hashes": {
+            "failed-estimator": failed_parent["script_hash"]
+        },
+        "consumer_observations_by_dependency": {
+            "failed-estimator": [
+                {
+                    "consumer_artifact_id": "generic-consumer",
+                    "consumer_source_hash": "consumer-source-hash",
+                    "observation": {
+                        "stderr_summary": "KeyError: value",
+                    },
+                }
+            ]
+        },
+    }
+    feedback = {
+        "feedback_id": "algorithm-feedback:generic-consumer",
+        "feedback_type": "algorithm_sandbox_execution_feedback",
+        "algorithm_sandbox_manifest_id": source_manifest_id,
+        "source_manifest_artifact_id": source_manifest_id,
+        "source_manifest_content_hash": runtime_module.stable_hash(
+            source_manifest
+        ),
+        "failure_classification": (
+            "accepted_algorithm_estimator_runtime_failed"
+        ),
+        "prototypes": [failed_parent],
+        "consumer_source_owner": source_owner,
+        "consumer_execution_observation": {
+            "generated_simulation_prototypes": [
+                {"estimator_runtime_errors": ["KeyError: value"]}
+            ]
+        },
+        "observation_transport": {
+            "same_source_producer_must_revise": True,
+            "runtime_selected_source_edit": False,
+        },
+    }
+
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("the fake source workspace owns model turns")
+
+    class SourceAgent:
+        provider = Provider()
+        propose_calls = 0
+        source_calls: list[str] = []
+        initial_observations: list[dict[str, object]] = []
+
+        @classmethod
+        def propose(cls, **_kwargs):
+            cls.propose_calls += 1
+            raise AssertionError("consumer revision must bypass planning")
+
+        @classmethod
+        def iterate_code_with_tools(cls, **kwargs):
+            cls.source_calls.append(str(kwargs["artifact_id"]))
+            cls.initial_observations.append(
+                dict(kwargs["initial_observation"])
+            )
+            candidate = {
+                **dict(kwargs["code_draft"]),
+                "code": source_for("failed-estimator", revised=True),
+            }
+            check = dict(kwargs["check_candidate"](candidate))
+            return ScientificCodeWorkspaceResult(
+                code_draft=candidate,
+                check_result=check,
+                evidence={
+                    "workspace_operation": "targeted_revision",
+                    "model_owned_source": True,
+                    "runtime_edited_source": False,
+                    "accepted": True,
+                },
+            )
+
+    def run_generated_code_sandbox(**kwargs):
+        estimator_id = str(kwargs["estimator_id"])
+        source = str(kwargs["code_draft"]["code"])
+        return (
+            executed_row(estimator_id, source),
+            ToolCallRecord(
+                tool_name="python.generated_algorithm_sandbox",
+                exit_status="0",
+            ),
+        )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_generated_code_sandbox",
+        run_generated_code_sandbox,
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={
+            theory_packet_id: theory_packet,
+            proposal_id: proposal,
+            source_manifest_id: source_manifest,
+            simulation_manifest_id: simulation_manifest,
+            **continuation_artifacts,
+        },
+    )
+    subsystem = runtime_module.AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path / "algorithm",
+        n_runs=8,
+        seed=11,
+        proposal_agent=SourceAgent(),
+        semantic_reviewer_available=True,
+        semantic_review_max_revisions=2,
+    )
+    task = AgentTask(
+        task_id="algorithm-consumer-observation:generic",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Revise the exact failed dependency source.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "implementation_gaps": [
+                {"estimator_id": "failed-estimator"},
+                {"estimator_id": "stable-estimator"},
+            ],
+            "architect_context": {},
+            "environment_feedback": feedback,
+            "consumer_source_manifest": source_manifest,
+            "source_revision_artifact_ids": ["failed-estimator"],
+            "deferred_consumer_task_continuation_ref": continuation_ref,
+        },
+        budget=consumer_budget,
+    )
+
+    unreviewed_result = runtime_module.AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path / "algorithm-unreviewed",
+        n_runs=8,
+        seed=11,
+        proposal_agent=SourceAgent(),
+        semantic_reviewer_available=False,
+        semantic_review_max_revisions=2,
+    ).run(task, blackboard)
+    assert unreviewed_result.status == "BLOCKED"
+    assert unreviewed_result.failure_classification == (
+        "scientific_consumer_lineage_invalid"
+    )
+    assert "requires independent semantic review" in (
+        unreviewed_result.observations[0].summary
+    )
+    assert SourceAgent.source_calls == []
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert SourceAgent.propose_calls == 0
+    assert SourceAgent.source_calls == [
+        "generic-targeted-consumer:failed-estimator"
+    ]
+    assert SourceAgent.initial_observations[0]["consumer_observations"][0][
+        "observation"
+    ]["stderr_summary"] == "KeyError: value"
+    manifests = [
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeAlgorithmSandboxManifest"
+    ]
+    assert len(manifests) == 1
+    manifest = manifests[0]
+    assert manifest["n_consumer_source_artifacts_revised"] == 1
+    assert manifest["n_consumer_source_artifacts_reused"] == 1
+    assert manifest["n_executed"] == 1
+    rows = {row["estimator_id"]: row for row in manifest["prototypes"]}
+    assert rows["stable-estimator"]["prototype_status"] == (
+        "REUSED_REVIEWED_SOURCE"
+    )
+    assert rows["stable-estimator"]["script_hash"] == stable_parent["script_hash"]
+    assert rows["failed-estimator"]["script_hash"] != failed_parent["script_hash"]
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == (
+        runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+    )
+    work_orders = [
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewWorkOrder"
+    ]
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    all_artifacts = {**blackboard.artifacts, **result.produced_artifacts}
+    restored_consumer = restore_agent_task_continuation(
+        all_artifacts[work_order["deferred_next_task_continuation_id"]],
+        all_artifacts,
+    )
+    assert restored_consumer.owner_subsystem == "SimulationEvaluator"
+    restored_resume_manifest = restored_consumer.inputs[
+        "consumer_resume_manifest"
+    ]
+    assert (
+        restored_resume_manifest.get("manifest_id")
+        or restored_resume_manifest.get("artifact_id")
+    ) == simulation_manifest_id
+    assert restored_consumer.budget == consumer_budget
+
+
+def test_simulation_consumer_resume_replays_exact_source_without_planning(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="generic-consumer-replay",
+        title="Replay one exact scientific consumer",
+        description="Rerun model-authored source after a dependency revision.",
+    )
+    theory_packet_id = "theory:generic-consumer-replay"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "problem_card": {"estimand": "a generic scalar"},
+        "estimator_specs": [],
+        "theorem_cards": [],
+    }
+    proposal_id = "simulation-proposal:generic-parent"
+    proposal = {
+        "artifact_kind": "SimulationEngineerProposalPacket",
+        "packet_id": proposal_id,
+        "source_agent": "LLMSimulationEngineerAgent",
+        "source_provider": "anthropic",
+        "backend_provider_name": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "scientific_source_transport": "native_client_tools",
+        "simulation_targets": [],
+        "metric_contracts": [],
+    }
+    exact_source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'generic_metric': float(replicates)}\n"
+    )
+    prior_manifest_id = "simulation:generic-consumer-parent"
+    prior_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": prior_manifest_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_packet_id": theory_packet_id,
+        "llm_simulation_engineer_proposal_id": proposal_id,
+        "generated_simulation_sandbox_prototypes": [
+            {
+                "simulation_id": "generic-consumer",
+                "prototype_status": "FAILED",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "required_estimator_ids": [],
+                "source_code": exact_source,
+                "script_hash": runtime_module.stable_hash(exact_source),
+            }
+        ],
+    }
+    context = _full_evidence_context(question.id)
+    context["theory_packet_id"] = theory_packet_id
+    context["empirical_evaluation_phase"] = "exploratory"
+    observed_sources: list[str] = []
+
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("passing exact replay must not open a source turn")
+
+    class SimulationAgent:
+        provider = Provider()
+        propose_calls = 0
+
+        @classmethod
+        def propose(cls, **_kwargs):
+            cls.propose_calls += 1
+            raise AssertionError("consumer replay must bypass planning")
+
+        @staticmethod
+        def iterate_code_with_tools(**_kwargs):
+            raise AssertionError("passing exact replay must not revise source")
+
+    def run_generated_simulation_sandbox(**kwargs):
+        source = str(kwargs["code_draft"]["code"])
+        observed_sources.append(source)
+        return (
+            {
+                "simulation_id": str(kwargs["simulation_id"]),
+                "prototype_status": "EXECUTED",
+                "executor": "generated_simulation_sandbox",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "required_estimator_ids": [],
+                "source_code": source,
+                "script_hash": runtime_module.stable_hash(source),
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+                "execution_attempted": True,
+                "metrics": {"generic_metric": 8.0},
+                "metric_contracts": [],
+                "metric_contract_evaluation": {},
+            },
+            ToolCallRecord(
+                tool_name="python.generated_simulation_sandbox",
+                exit_status="0",
+            ),
+        )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_generated_simulation_sandbox",
+        run_generated_simulation_sandbox,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "runtime_llm_research_authority_required",
+        lambda *_args, **_kwargs: False,
+    )
+    subsystem = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=SimulationAgent(),
+        sandbox_root=tmp_path / "simulation",
+        semantic_reviewer_available=False,
+        semantic_review_max_revisions=2,
+    )
+    task = AgentTask(
+        task_id="simulation-consumer-resume:generic",
+        owner_subsystem="SimulationEvaluator",
+        objective="Rerun the exact model-authored consumer source.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "n_runs": 8,
+            "seed": 11,
+            "empirical_evaluation_phase": "exploratory",
+            "consumer_resume_manifest": prior_manifest,
+            "architect_context": context,
+        },
+        budget={
+            runtime_module.SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY: {
+                "lineage_id": "scientific_consumer_lineage:generic",
+                "revisions_used": 1,
+                "max_revisions": 2,
+            }
+        },
+    )
+    result = subsystem.run(
+        task,
+        BlackboardState(
+            project_id=question.id,
+            artifacts={
+                theory_packet_id: theory_packet,
+                proposal_id: proposal,
+                prior_manifest_id: prior_manifest,
+            },
+        ),
+    )
+
+    assert SimulationAgent.propose_calls == 0
+    assert observed_sources == [exact_source]
+    manifests = [
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    ]
+    assert len(manifests) == 1
+    assert manifests[0]["consumer_resume_manifest_id"] == prior_manifest_id
+    assert manifests[0]["consumer_resume_exact_source_replayed"] is True
+    assert any(
+        observation.observation_type
+        == "scientific_consumer_continuation_restored"
+        for observation in result.observations
+    )
+
+
+def test_exhausted_consumer_loop_does_not_continue_unrelated_outer_lane() -> None:
+    question = OpenResearchQuestion(
+        id="generic-consumer-exhausted",
+        title="Stop an exhausted source loop",
+        description="Do not hide an unresolved consumer failure.",
+    )
+    context = _full_evidence_context(question.id)
+    task = AgentTask(
+        task_id="simulation-consumer-resume:exhausted",
+        owner_subsystem="SimulationEvaluator",
+        objective="Rerun one failed consumer.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic-consumer-exhausted",
+            "architect_context": context,
+        },
+    )
+    result = AgentStepResult(
+        status="BLOCKED",
+        rationale="The source-owner iteration budget is exhausted.",
+        failure_classification=(
+            "scientific_consumer_revision_budget_exhausted"
+        ),
+    )
+
+    transitioned = _runtime_transition_policy(
+        iteration=12,
+        task=task,
+        subsystem_name="SimulationEvaluator",
+        result=result,
+        blackboard=BlackboardState(
+            project_id=question.id,
+            artifacts={
+                "theory:generic-consumer-exhausted": {
+                    "artifact_kind": "TheoryDerivationPacket",
+                    "packet_id": "theory:generic-consumer-exhausted",
+                }
+            },
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert transitioned is result
+    assert transitioned.next_task is None
+
+
+def test_accepted_source_review_restores_bound_consumer_without_architect() -> None:
+    budget = {
+        runtime_module.SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY: {
+            "lineage_id": "scientific_consumer_lineage:generic",
+            "revisions_used": 1,
+            "max_revisions": 2,
+        }
+    }
+    next_task = AgentTask(
+        task_id="simulation-consumer-resume:reviewed",
+        owner_subsystem="SimulationEvaluator",
+        objective="Rerun the exact reviewed consumer.",
+        inputs={
+            "consumer_resume_manifest": {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": "simulation:failed",
+            },
+            "architect_context": {
+                "runtime_executed_subsystems": ["SimulationEvaluator"]
+            },
+        },
+        budget=budget,
+    )
+    result = AgentStepResult(
+        status="REROUTE",
+        rationale="Independent source review accepted the revised artifact.",
+        next_task=next_task,
+    )
+
+    transitioned = _runtime_transition_policy(
+        iteration=9,
+        task=AgentTask(
+            task_id="review:algorithm-source",
+            owner_subsystem=(
+                runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+            ),
+            objective="Review revised source semantics.",
+        ),
+        subsystem_name=(
+            runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        ),
+        result=result,
+        blackboard=BlackboardState(project_id="generic-reviewed-source"),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert transitioned is result
+    assert transitioned.next_task is next_task
+    assert transitioned.next_task.owner_subsystem == "SimulationEvaluator"
+
+
 def test_accepted_review_ledger_preserves_distinct_workspace_lineages() -> None:
     current_algorithm_review = {
         "execution_id": "review:algorithm-current",
@@ -1129,7 +1761,7 @@ def test_cross_artifact_review_assessment_can_escalate_before_budget_exhaustion(
             ),
             "semantic_review_packet_id": "review:cross-artifact",
             "source_revision_assessment": {
-                "current_source_edit_sufficient": False,
+                "resolution_scope": "PARENT_ARTIFACT_CHANGE_REQUIRED",
                 "rationale": "The immutable theory and protocol conflict.",
                 "evidence_refs": [
                     "/review_material/theory_packet",
@@ -1149,9 +1781,13 @@ def test_cross_artifact_review_assessment_can_escalate_before_budget_exhaustion(
     assert observation["source_artifact_id"] == (
         "algorithm_manifest:cross-artifact"
     )
+    assert observation["unchanged_source_retry_authorized"] is False
     assert next_task.inputs["architect_context"]["workspace_replan"][
         "failure_classification"
     ] == observation["failure_classification"]
+    assert next_task.inputs["architect_context"]["workspace_replan"][
+        "unchanged_source_retry_authorized"
+    ] is False
 
 
 def test_cross_artifact_review_skips_another_source_regeneration(tmp_path) -> None:
@@ -1257,7 +1893,7 @@ def test_cross_artifact_review_skips_another_source_regeneration(tmp_path) -> No
             }
         ],
         "source_revision_assessment": {
-            "current_source_edit_sufficient": False,
+            "resolution_scope": "PARENT_ARTIFACT_CHANGE_REQUIRED",
             "rationale": "Editing this source cannot reconcile immutable parents.",
             "evidence_refs": [
                 "/theory_packet",

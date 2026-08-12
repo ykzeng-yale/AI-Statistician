@@ -325,35 +325,6 @@ def generated_code_semantic_review_proposal_projection(
             if field in proposal_packet:
                 projected[field] = deepcopy(proposal_packet[field])
                 reviewed_claim_fields.append(field)
-        upstream_handoff = proposal_packet.get(
-            "upstream_algorithm_handoff",
-            {},
-        )
-        if isinstance(upstream_handoff, Mapping) and upstream_handoff:
-            projected["upstream_algorithm_handoff"] = {
-                field: deepcopy(value)
-                for field, value in upstream_handoff.items()
-                if field != "exact_algorithm_artifacts"
-            }
-            projected["upstream_algorithm_handoff"][
-                "exact_algorithm_artifact_refs"
-            ] = [
-                {
-                    "artifact_id": str(
-                        row.get("estimator_id", "") or ""
-                    ),
-                    "exact_source_hash": str(
-                        row.get("exact_source_hash", "") or ""
-                    ),
-                }
-                for row in upstream_handoff.get(
-                    "exact_algorithm_artifacts",
-                    [],
-                )
-                or []
-                if isinstance(row, Mapping)
-            ]
-            reviewed_claim_fields.append("upstream_algorithm_handoff")
     projected = generated_code_semantic_review_scope_projection(
         value=projected,
         assigned_requirements=assigned_requirements,
@@ -459,9 +430,10 @@ def generated_code_semantic_review_upstream_dependency_projection(
         "current_source_may_not_modify_dependency": True,
         "routing_rule": (
             "A defect in an injected dependency belongs to its immutable upstream "
-            "generated artifact, not to the current consumer source. Repair it "
-            "through ArchitectCoordinator and its owning coding subsystem, then "
-            "rerun every dependent artifact under unchanged evidence gates."
+            "generated artifact, not to the current consumer source. Return the "
+            "raw observation to that artifact's source-owning workspace, execute "
+            "the replacement unchanged, independently review its new hash, and "
+            "then rerun every dependent artifact under unchanged evidence gates."
         ),
         "proof_evidence_status": (
             "UPSTREAM_GENERATED_DEPENDENCY_NOT_PROOF_EVIDENCE"
