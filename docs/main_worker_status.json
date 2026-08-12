@@ -1,15 +1,17 @@
 {
-  "schema_version": 24,
-  "updated_at": "2026-08-11",
+  "schema_version": 25,
+  "updated_at": "2026-08-12",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
+  "validated_code_head": "d93c2cb1",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
   "operational_focus": "Keep one outer research graph and direct model-owned theory, Python, R, and Lean workspaces. The harness owns execution, validation, budgets, lineage, and evidence authority; it does not author or repair substantive research source.",
   "model_policy": {
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
     "production_maximum_tier": "sonnet",
-    "opus_allowed": false
+    "opus_allowed": false,
+    "v362_policy_passed": true
   },
   "canonical_architecture": {
     "outer_graph": [
@@ -20,9 +22,10 @@
       "Lean formalization workspace",
       "final critic and kernel gate"
     ],
-    "workspace_loop": "source model chooses read/search/submit actions; runtime executes the exact source and returns raw Python, R, simulation, or Lean observations to the same model",
-    "artifact_policy": "substantive artifacts are stored once by content hash; tasks, traces, and manifests carry references",
+    "workspace_loop": "the same source-owning model chooses tools or submits complete source; runtime executes the exact source and returns raw observations to that same model",
+    "artifact_policy": "substantive artifacts are stored once by content hash; control state carries references",
     "authority_policy": "review, retrieval, simulation, and compiler feedback are not proof; exact target-bound Lean or AXLE kernel evidence is required",
+    "repair_boundary": "there is no canonical RepairAgent or content-patching harness; only bounded same-owner source iteration and transient transport/schema retry",
     "forbidden_patterns": [
       "runtime-authored statistical or Lean source repair",
       "theorem-family grammar or tactic rules",
@@ -31,172 +34,84 @@
       "nested full task or artifact payload copies"
     ]
   },
-  "mechanism_commits": {
-    "6636d1ef": "Atomic model-owned scientific source submission and execution, bounded latest-observation context, and merged current-parent Algorithm/Simulation acceptance ledger.",
-    "f193b04a": "Atomic model-owned Lean source submission and immediate real Lean check; separate edit/check tools removed.",
-    "6c3da04c": "Exact content-addressed pending-task checkpoints, hash-verified resume, compact pending manifests, and resume-time task mutation removed.",
-    "db55142e": "The same exact checkpoint contract now covers bounded transient provider exhaustion; substantive failures remain terminal.",
-    "50f602b8": "Hash-bound downstream execution failures now return to the exact source owner before stale lane completion checks; agentic Simulation no longer declares the legacy simulator; large preflight schemas reuse definitions; new review materializations persist references instead of full review payloads.",
-    "213736db": "Hash-bound downstream dependency failures now return raw consumer observations to their exact Python or R source owner inside the direct scientific workspace.",
-    "9f11105b": "Independent code review now reports an evidence-bound source-only sufficiency counterfactual. Source-local defects stay with the coding model; cross-artifact conflicts expose one compact content-addressed observation to the existing Architect without copying source or creating a repair agent.",
-    "d0730033": "Initial and revised Lean authoring now use one client-tool Formalizer workspace. The extra model target-binding call was deleted; upstream theorem-goal identity is hash-bound, and exact source plus declaration goes directly through raw Lean feedback to the same model."
+  "latest_mechanism_commits": {
+    "d0730033": "Initial and revised Lean authoring share one client-tool Formalizer workspace; the separate model target-binding call was removed.",
+    "1a4bff1f": "Formalizer can inspect exact declarations before source authoring, retains its complete bounded transcript, and stops once at budget exhaustion instead of starting a content-regeneration session.",
+    "d93c2cb1": "Exact active-project declarations remain inspectable after source submission; candidate-file lookup is only a fallback for candidate-local symbols; misleading regeneration and continuation counters were removed."
   },
   "verification": {
-    "deterministic_suite": "542 passed",
+    "deterministic_suite": "544 passed",
     "compileall": "passed",
     "diff_check": "passed",
-    "legacy_v352_resume_roundtrip": "The formerly rejected mixed-panel manifest now restores sequential_anytime_bernoulli, its exact pending AlgorithmEngineer task, and 108 hash-verified blackboard artifacts.",
-    "v352_integrated_diagnostic": {
-      "path": "runs/main_worker_cross_family_development_20260811_v352_atomic_scientific_workspace_integrated_exact_haiku",
-      "status": "one BLOCKED and one MAX_ITERATIONS_REACHED",
-      "scorecard": "10/16",
-      "finding": "The Sequential lane repeatedly reopened already accepted Algorithm and Simulation work because reviewer acceptance was overwritten rather than merged. This motivated the current-parent acceptance ledger fix.",
-      "proof_closure": "0/2"
-    },
-    "v353_latest_fresh_integrated_panel": {
-      "path": "runs/main_worker_cross_family_development_20260811_v353_atomic_context_ledger_integrated_exact_haiku",
+    "latest_integrated_run": {
+      "id": "v362",
+      "path": "runs/main_worker_cross_family_development_20260812_v362_project_declaration_inspection_exact_haiku",
       "model": "claude-haiku-4-5-20251001 for every live LLM call",
       "status": "2 BLOCKED",
       "scorecard": "6/16",
-      "runtime_traces": 20,
-      "architect_traces": 7,
-      "generated_algorithm_executions": 3,
-      "generated_simulation_executions": 1,
-      "local_lean_checks": 2,
-      "local_lean_compiles": 0,
-      "kernel_verified_subclaims": 0,
-      "exact_source_theorem_closure": "0/2",
-      "context_result": "The Survival scientific loop retained the complete transcript while provider context stayed bounded to the initial task plus the latest tool turn.",
-      "boundary": "This is truthful integrated failure evidence, not readiness. It predates the atomic Lean and terminal-checkpoint commits."
-    },
-    "v355_atomic_lean_component": {
-      "path": "runs/main_worker_v355_atomic_lean_workspace_exact_haiku/component_result.json",
-      "model": "claude-haiku-4-5-20251001",
-      "initial_source_compiled": false,
-      "final_model_source_compiled": true,
-      "declaration_identity_verified": true,
-      "axiom_audit_clean": true,
-      "model_turns": 1,
-      "atomic_tool_calls": 1,
-      "input_tokens": 1342,
-      "runtime_authored_lean_source": false,
-      "boundary": "Component evidence for direct model submission and real Lean feedback only; not a statistical theorem, semantic-review acceptance, exact source-theorem proof, or E2E result."
-    },
-    "v356_fresh_integrated_attempt": {
-      "path": "runs/main_worker_cross_family_development_20260811_v356_atomic_source_checkpoint_integrated_exact_haiku",
-      "model": "claude-haiku-4-5-20251001 for every live LLM call",
-      "status": "one FAILED and one BLOCKED",
-      "scorecard": "5/16",
-      "survival_terminal_reason": "Anthropic returned 529 Overloaded twice at the same independent theory-preflight task; the single bounded transport retry was exhausted.",
-      "sequential_terminal_reason": "Two model-owned TheoryDeveloper revisions remained rejected by independent preflight, so dependent coding and proof lanes never ran.",
-      "exact_source_theorem_closure": "0/2",
-      "boundary": "This fresh attempt validates exact-Haiku policy and direct source-owner feedback, but provider contamination makes it unsuitable as a clean comparison of the new atomic Lean path."
-    },
-    "v357_fresh_integrated_attempt": {
-      "path": "runs/main_worker_cross_family_development_20260811_v357_atomic_source_checkpoint_clean_retry_exact_haiku",
-      "model": "claude-haiku-4-5-20251001 for every live LLM call",
-      "status": "one BLOCKED and one FAILED",
-      "scorecard": "5/16",
       "runtime_traces": 18,
-      "architect_traces": 6,
-      "generated_algorithm_executions": 3,
-      "generated_simulation_executions": 0,
-      "local_lean_checks": 1,
+      "trace_status_counts": {
+        "REROUTE": 16,
+        "BLOCKED": 2
+      },
+      "live_generated_code_executions": 3,
+      "live_generated_simulation_executions": 0,
+      "formalizer_workspaces": 1,
+      "formalizer_model_turns": 20,
+      "formalizer_source_updates": 6,
+      "formal_rag_calls": 11,
+      "exact_active_project_declaration_inspections": 2,
+      "local_lean_checks": 6,
       "local_lean_compiles": 0,
       "kernel_verified_subclaims": 0,
       "exact_source_theorem_closure": "0/2",
-      "survival_terminal_reason": "The accepted estimator returned a non-finite value inside its Simulation consumer. The raw source-owner backedge was produced correctly but then overridden by stale completed-lane topology; 50f602b8 fixes this shared transition rule.",
-      "sequential_terminal_reason": "Anthropic rejected the second theory-preflight tool schema as too complex after a model-owned theory revision; the shared-definition and ordered-array schema fix removes that transport failure.",
-      "boundary": "This is fresh integrated failure evidence. It is not readiness and predates commit 50f602b8."
-    },
-    "v357_sequential_preflight_replay": {
-      "path": "runs/main_worker_cross_family_development_20260811_v357_atomic_source_checkpoint_clean_retry_exact_haiku/v357_sequential_preflight_schema_replay.json",
-      "model": "claude-haiku-4-5-20251001",
-      "client_tool_turns": 2,
-      "validation_errors": [],
-      "prior_findings_resolved": 4,
-      "reviewer_verdict": "ACCEPT",
-      "semantic_warning": "The accepted theory and reviewer still agree on a reversed likelihood-ratio martingale orientation. This demonstrates that model agreement is not mathematical authority and motivates general executable, symbolic, retrieval, and formal counterchecks rather than a task-specific rule.",
-      "boundary": "Live component evidence for the corrected schema and feedback transport only; not E2E completion, semantic truth, simulation acceptance, or proof."
-    },
-    "v359_latest_fresh_integrated_panel": {
-      "path": "runs/main_worker_cross_family_development_20260811_v359_terminal_dependency_owner_integrated_exact_haiku",
-      "model": "claude-haiku-4-5-20251001 for every live LLM call",
-      "status": "one BLOCKED and one MAX_ITERATIONS_REACHED",
-      "scorecard": "5/16",
-      "runtime_traces": 32,
-      "architect_traces": 10,
-      "generated_algorithm_executions": 2,
-      "generated_simulation_executions": 0,
-      "local_lean_checks": 0,
-      "local_lean_compiles": 0,
-      "kernel_verified_subclaims": 0,
-      "exact_source_theorem_closure": "0/2",
-      "survival_terminal_reason": "Six rejected code reviews repeatedly returned to the same Algorithm source. Later reviews explicitly found conflicts with immutable theory or the frozen contract that source-only edits could not close.",
-      "sequential_terminal_reason": "The task exhausted its outer budget in independent theory preflight and never reached scientific simulation or formalization.",
-      "boundary": "This is truthful integrated failure evidence and the latest authoritative panel. It predates the source-sufficiency routing commit and does not establish readiness."
-    },
-    "v359_cross_artifact_reviewer_replay": {
-      "path": "runs/main_worker_cross_family_development_20260811_v359_terminal_dependency_owner_integrated_exact_haiku/v359_cross_artifact_reviewer_schema20_replay.json",
-      "model": "claude-haiku-4-5-20251001",
-      "source_revision_sufficient": false,
-      "evidence_refs_present": true,
-      "runtime_authored_source": false,
-      "boundary": "Component evidence that the model can identify a source-insufficient cross-artifact conflict. Deterministic tests cover routing; this is not integrated simulation, formalization, kernel, or E2E evidence."
-    },
-    "v5_formalizer_single_workspace_component": {
-      "path": "runs/main_worker_formalizer_single_workspace_component_20260811_v5_exact_haiku/component_evidence.json",
-      "model": "claude-haiku-4-5-20251001",
-      "structured_generator_calls": 0,
-      "separate_target_binding_llm_calls": 0,
-      "client_tool_transport_calls": 2,
-      "local_lean_checks": 2,
-      "failed_then_passed_same_workspace": true,
-      "first_check_error_observed": true,
-      "latest_check_compiled": true,
-      "candidate_lean_declaration": "statistic_add_zero_exact",
-      "upstream_target_hash_present": true,
-      "model_owned_lean_code": true,
-      "runtime_selected_lean_code": false,
-      "status": "REROUTE",
-      "boundary": "Exact-Haiku component evidence for one direct Formalizer workspace and real local Lean feedback only. Independent target-semantic review and kernel promotion were not executed, so this is not theorem closure or E2E readiness."
+      "survival_result": "Algorithm execution and independent review passed. Simulation did not produce accepted source. The single Formalizer workspace searched, inspected declarations, wrote and checked six Lean candidates, but exhausted its 20-turn budget without a compiling candidate.",
+      "sequential_result": "Initial theory and two targeted model-owned revisions failed independent theory preflight; the third review closed none of the prior findings, so coding and proving were correctly withheld.",
+      "boundary": "all_ok=true records audit integrity only. This run is truthful integrated failure evidence, not readiness or proof."
     }
+  },
+  "design_assessment": {
+    "correct_decisions_to_keep": [
+      "one outer typed runtime",
+      "same-model source iteration from raw Python, R, simulation, and Lean observations",
+      "independent semantic review",
+      "task-bound formal retrieval",
+      "content-addressed lineage and explicit budgets",
+      "Lean kernel as final authority"
+    ],
+    "remaining_structural_problems": [
+      "research_agent_runtime.py still concentrates about 21k lines of protocol, review, evidence, and transition logic",
+      "theory authoring and independent preflight can agree on mathematically wrong semantics; general executable, retrieval, counterexample, and formal counterchecks are still weak",
+      "scientific planning envelopes and source authoring still require more model calls than the minimal direct workspace needs, and v362 produced no accepted Simulation execution",
+      "the full Formalizer transcript avoids forgetting but reached a large context; durable model-owned premise and proof notes should replace repeated transcript text without adding a scheduler",
+      "lean-lsp-mcp declaration inspection can fail for an exact active-project structure even when indexed source resolution succeeds",
+      "production R/package coverage, arbitrary paper-to-theorem graph ingestion, and learned research or tactic policies remain incomplete"
+    ],
+    "wrong_next_move": "Do not add a RepairAgent, Lean grammar fixes, theorem-specific bridges, more packet routers, or another orchestration framework around the current graph."
   },
   "readiness": {
     "ready_for_full_ai_statistician": false,
-    "latest_authoritative_integrated_run": "v359",
-    "latest_fresh_integrated_attempt": "v359",
+    "latest_authoritative_integrated_run": "v362",
     "development_exact_source_theorem_closure": "0/2",
     "held_out_panel": "sealed",
-    "post_atomic_lean_and_checkpoint_fresh_panel_attempted": true,
-    "post_atomic_lean_and_checkpoint_clean_panel_completed": true,
-    "post_single_formalizer_workspace_fresh_panel_completed": false,
+    "post_single_formalizer_workspace_fresh_panel_completed": true,
     "strict_e2e_completion_rate": "0%"
   },
   "current_structure": {
-    "research_agent_runtime_lines": 21377,
+    "research_agent_runtime_lines": 21375,
     "agent_runtime_lines": 1174,
     "cli_lines": 6896,
-    "production_design_lines": 399,
+    "production_design_lines": 407,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 125450,
-    "latest_runtime_manifest_bytes": 67895
+    "top_level_package_lines": 125451,
+    "latest_runtime_manifest_bytes": 58155
   },
-  "remaining_design_debt": [
-    "No development task has reached exact source-theorem kernel closure. Native initial and revised Lean authoring now share one model-owned workspace, but only the v5 component has exercised it; no fresh integrated panel has carried its output through independent target-semantic review and exact kernel promotion. Static/replay providers still retain the legacy structured-source packet fallback.",
-    "Theory and independent-review quality are substantive blockers: the exact-Haiku v357 replay resolved all tracked findings but accepted a mathematically reversed likelihood-ratio martingale claim. Production can use Sonnet, while tests stay exact Haiku; both need general calculator, sandbox, retrieval, and formal counterchecks rather than task-specific assertions.",
-    "v359 completed neither generated Simulation nor Lean authoring and closed 0/2 exact targets. The new source-sufficiency observation has exact-Haiku component evidence and deterministic routing coverage, but no fresh integrated evidence yet.",
-    "Architect consumed 10 of 32 v359 outer iterations. Cross-workspace conflicts belong there, but routine source-local failures must remain inside source sessions and must not spend Architect budget.",
-    "Metric protocol work remains concentrated in the central runtime. Further extraction must delete observed routing duplication rather than introduce another interface layer.",
-    "The central research runtime is still 21377 lines. It is much smaller than the stale 101k-line audit, but should shrink through deletion of inactive paths after fresh traces prove replacements.",
-    "Production R execution, arbitrary paper-to-theorem-graph ingestion, and learned research or tactic policies remain incomplete."
-  ],
   "next_gates": [
-    "Run a clean fresh exact-Haiku v360 two-family development panel from mechanism commit d0730033; do not treat the v5 Formalizer component probe as integrated protocol evidence.",
-    "Verify that source-sufficient findings return directly to the same coding workspace and source-insufficient findings cause at most one content-addressed Architect observation instead of repeated source regeneration.",
-    "Verify that each development task reaches the same direct Formalizer workspace, receives task-bound Statlib/Mathlib/EmpericalProcessLEAN retrieval and raw Lean observations, then passes independent exact-target review and kernel promotion without a binding model call or runtime-authored Lean repair.",
-    "Require current-parent Algorithm and Simulation acceptance, nonvacuous frozen metric execution, task-bound formal RAG, exact-target review, model-owned Lean iteration, and kernel closure for each task.",
-    "Fix only shared source-workspace, execution, retrieval, lineage, or evidence mechanisms exposed by that run; do not add survival, sequential, FDR, conformal, Lean grammar, or theorem-specific rules.",
-    "Keep PCA and extremes held out until both development tasks close their exact targets."
+    "Do not add another Formalizer repair or control layer. Improve source success through better model context, task-bound premises, and direct environment tools.",
+    "Give TheoryDeveloper general model-owned calculator, counterexample, sandbox, and retrieval actions before relying on reviewer agreement; add no sequential-task formula rule.",
+    "Collapse avoidable scientific planning-envelope calls while preserving the same-owner source and execution loop; expose raw consumer and performance observations directly.",
+    "Improve active-project declaration inspection through the supported lean-lsp-mcp or OpenProver API rather than regex, grammar, or theorem-specific fallback.",
+    "Use exact Haiku for every test and evaluation; production capability probes may use Sonnet but never Opus.",
+    "Require both development tasks to reach exact source-theorem kernel closure before opening PCA or extremes held-out tasks."
   ]
 }

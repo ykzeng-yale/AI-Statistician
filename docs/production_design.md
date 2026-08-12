@@ -252,13 +252,16 @@ declaration-name submission, or a concrete task-bound formal-gap report. Each so
 is stored unchanged and checked immediately; raw Lean failure returns to that model.
 Runtime injects no import, theorem statement, tactic, or proof-body fragment.
 
-One global turn/call budget covers every workspace action. Nonterminal observations
-repeat the exact current source, source hash, declaration, and latest raw Lean check,
-so bounded transcript retention cannot erase the active failure state. Declaration
-inspection calls OpenProver's existing `lean-lsp-mcp` tooling against the hash-bound
-project-local artifact. Structured source packets remain only for static/replay
-providers without native client tools. Every retrieval, compile, inspection, and
-formal-gap result remains explicitly non-proof evidence.
+One global turn/call budget covers every workspace action. The complete bounded
+workspace transcript retains exact retrieval and inspection observations, while
+each nonterminal source observation repeats the current source, source hash,
+declaration, and latest raw Lean check. Declaration inspection first resolves an
+exact model-selected active-project declaration through task-bound RAG and calls
+OpenProver's existing `lean-lsp-mcp` tooling on that source file. The hash-bound
+candidate file is only a fallback for the candidate declaration or other local
+symbols. Structured source packets remain only for static/replay providers without
+native client tools. Every retrieval, compile, inspection, and formal-gap result
+remains explicitly non-proof evidence.
 
 Every changed statement receives independent target-semantic review. A candidate
 can count as theorem evidence only when all of the following bind to the same
@@ -339,18 +342,20 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-11, v359 is the latest fresh integrated panel. Every live call used
-exact Haiku. It scored 5/16, ended with one `BLOCKED` and one
-`MAX_ITERATIONS_REACHED`, closed 0/2 exact source theorems, used ten of 32 steps
-for Architect, executed two Algorithm candidates and no Simulation or Lean
-candidate, and left held-out tasks sealed.
+As of 2026-08-12, v362 is the latest fresh integrated panel. Every live call used
+exact `claude-haiku-4-5-20251001`. It scored 6/16, ended with two `BLOCKED`
+tasks, and closed 0/2 exact source theorems. Survival executed and independently
+accepted its Algorithm, but produced no accepted Simulation source. Its one
+Formalizer workspace used 20 model turns, 11 formal retrieval calls, two exact
+active-project declaration inspections, and six complete source submissions with
+local Lean checks; none compiled. No second generation or repair session ran.
 
-Survival spent six rejected reviews revising the same source even after later
-findings said immutable theory or frozen-contract conflicts could not be closed by
-source edits alone. Sequential remained in theory preflight. The compact
-source-sufficiency observation removes that avoidable source churn without making
-the reviewer a router. Its exact-Haiku component replay recognized the real v359
-cross-artifact conflict, but component evidence is not an integrated E2E result.
+Sequential used initial theory plus two targeted revisions and remained rejected
+by independent preflight, so downstream coding and proving were correctly withheld.
+The panel therefore validates direct same-owner source feedback and honest stopping,
+not autonomous research readiness. Held-out tasks remain sealed. Audit
+`all_ok=true` means artifact integrity passed; it does not override the 0/2 kernel
+closure result.
 
 New review materializations persist immutable refs, fingerprints, and only the current executable handoff projection instead of complete theory, proposal, source/deferred tasks, and review packets. Old full materializations remain migration-readable but are never written by the canonical path.
 
@@ -386,9 +391,12 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-Immediate priorities are an integrated source-sufficiency check, one direct
-Formalizer workspace for authoring and revision, countercheck tools, and better
-retrieval. New mechanisms must remove control paths or enforce real authority.
+Immediate priorities are general model-owned theory counterchecks, a leaner
+scientific source workspace, and reliable active-project declaration inspection.
+The Formalizer already has one direct authoring/revision session; failed source
+quality must not be answered with a repair agent, a second generation pass, Lean
+grammar rules, or theorem-specific bridges. New mechanisms must delete control
+paths, improve direct tools or context, or enforce real authority.
 
 ## Basic checks
 
