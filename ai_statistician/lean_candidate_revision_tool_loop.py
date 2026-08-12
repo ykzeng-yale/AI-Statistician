@@ -156,6 +156,7 @@ def run_lean_candidate_revision_tool_loop(
     parent_source = str(initial_source)
     parent_source_hash = stable_hash(parent_source)
     workspace_phase = "revision" if parent_source.strip() else "initial_authoring"
+    max_consecutive_context_actions = max(0, min(3, max_turns - 1))
     state: dict[str, Any] = {
         "source": parent_source,
         "source_hash": parent_source_hash,
@@ -166,6 +167,8 @@ def run_lean_candidate_revision_tool_loop(
         "proof_searches": 0,
         "state_inspections": 0,
         "declaration_inspections": 0,
+        "context_actions_since_source_submission": 0,
+        "max_consecutive_context_actions": max_consecutive_context_actions,
         "checks": 0,
         "last_check": {},
         "latest_check_observation": {},
@@ -271,6 +274,7 @@ def run_lean_candidate_revision_tool_loop(
                 state["candidate_lean_declaration"] = declaration
                 state["declaration_updates"] += 1
                 state["last_check"] = {}
+            state["context_actions_since_source_submission"] = 0
             check_result = check_current_source()
             compiled = bool(check_result.get("compiled", False))
             content = {
@@ -391,6 +395,7 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError("max_results must be an integer")
             k = max(1, min(8, requested_k))
             state["searches"] += 1
+            state["context_actions_since_source_submission"] += 1
             results = search_formal_environment(query.strip(), k)
             content = {
                 "ok": True,
@@ -426,6 +431,7 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError("max_results must be an integer")
             k = max(1, min(8, requested_k))
             state["proof_searches"] += 1
+            state["context_actions_since_source_submission"] += 1
             results = search_proof_candidates(
                 str(state["source"]),
                 query.strip(),
@@ -469,6 +475,7 @@ def run_lean_candidate_revision_tool_loop(
                     "inspection is bound to the exact current source and diagnostics"
                 )
             state["state_inspections"] += 1
+            state["context_actions_since_source_submission"] += 1
             result = inspect_lean_state(
                 str(state["source"]),
                 deepcopy(dict(state["last_check"])),
@@ -515,6 +522,7 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError("context_lines must be an integer")
             context_lines = max(0, min(40, requested_context))
             state["declaration_inspections"] += 1
+            state["context_actions_since_source_submission"] += 1
             result = inspect_lean_declaration(
                 str(state["source"]),
                 symbol.strip(),
@@ -564,6 +572,7 @@ def run_lean_candidate_revision_tool_loop(
             "candidate_id": candidate_id,
             "candidate_lean_declaration": candidate_lean_declaration,
             "parent_source_hash": parent_source_hash,
+            "max_consecutive_context_actions": max_consecutive_context_actions,
         },
     )
 
@@ -571,16 +580,27 @@ def run_lean_candidate_revision_tool_loop(
         _turn_index: int,
         available_tools: tuple[ClientToolDefinition, ...],
     ) -> tuple[ClientToolDefinition, ...]:
+        context_budget_available = bool(
+            state["context_actions_since_source_submission"]
+            < max_consecutive_context_actions
+        )
         return tuple(
             tool
             for tool in available_tools
-            if tool.name != "inspect_lean_state"
-            or bool(state["last_check"])
+            if (
+                tool.terminal
+                or (
+                    context_budget_available
+                    and (
+                        tool.name != "inspect_lean_state"
+                        or bool(state["last_check"])
+                    )
+                )
+            )
         )
 
-    # One global budget lets the model allocate effort between editing, retrieval,
-    # inspection, and compilation. Only state-dependent inspection preconditions
-    # affect tool visibility; previously used actions never disappear mid-session.
+    # Retrieval and inspection remain model-selected, but a bounded streak cannot
+    # consume the workspace without returning to a compiler-grounded source attempt.
     max_tool_calls = max_turns
     try:
         loop = run_bounded_client_tool_loop(
@@ -618,6 +638,12 @@ def run_lean_candidate_revision_tool_loop(
                 "declaration_inspections": state[
                     "declaration_inspections"
                 ],
+                "context_actions_since_source_submission": state[
+                    "context_actions_since_source_submission"
+                ],
+                "max_consecutive_context_actions": (
+                    max_consecutive_context_actions
+                ),
                 "checks": state["checks"],
                 "last_check": deepcopy(state["last_check"]),
                 "latest_check_observation": deepcopy(
@@ -788,6 +814,12 @@ def _lean_candidate_revision_success_result(
         "max_tool_calls": max_tool_calls,
         "max_no_progress_turns": max_no_progress_turns,
         "max_retained_tool_turns": max_turns,
+        "max_consecutive_context_actions": state[
+            "max_consecutive_context_actions"
+        ],
+        "context_actions_since_source_submission": state[
+            "context_actions_since_source_submission"
+        ],
         "submit_and_check_atomic": True,
         "tool_names": [tool.name for tool in tools],
         "source_updates": state["source_updates"],

@@ -709,7 +709,7 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
     assert all(request.disable_parallel_tool_use for request in backend.requests)
 
 
-def test_lean_candidate_workspace_retains_its_complete_bounded_transcript() -> None:
+def test_lean_candidate_workspace_returns_to_source_after_bounded_context_streak() -> None:
     authored = "theorem target : True := by\n  exact True.intro\n"
     backend = ScriptedLeanToolBackend(
         [
@@ -721,7 +721,7 @@ def test_lean_candidate_workspace_retains_its_complete_bounded_transcript() -> N
                         {"query": f"declaration query {index}"},
                     )
                 )
-                for index in range(5)
+                for index in range(3)
             ],
             _response(
                 ClientToolCall(
@@ -756,9 +756,14 @@ def test_lean_candidate_workspace_retains_its_complete_bounded_transcript() -> N
         },
     )
 
-    assert len(backend.requests[-1].messages) == 11
+    assert len(backend.requests[-1].messages) == 7
+    assert [tool.name for tool in backend.requests[-1].tools] == [
+        LEAN_SOURCE_SUBMISSION_TOOL
+    ]
     assert result.evidence["max_retained_tool_turns"] == 6
-    assert result.evidence["formal_environment_searches"] == 5
+    assert result.evidence["formal_environment_searches"] == 3
+    assert result.evidence["max_consecutive_context_actions"] == 3
+    assert result.evidence["context_actions_since_source_submission"] == 0
 
 
 def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> None:
@@ -1688,8 +1693,13 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
         config = FakeConfig()
         provider = FakeProvider()
 
-        def __init__(self, expected_source: str = source) -> None:
+        def __init__(
+            self,
+            expected_source: str = source,
+            inspection_symbol: str = "Example.Source",
+        ) -> None:
             self.expected_source = expected_source
+            self.inspection_symbol = inspection_symbol
             self.check_result = {}
             self.declaration_result = {}
 
@@ -1705,7 +1715,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             self.declaration_result = dict(
                 declaration_tool(
                     self.expected_source,
-                    "Example.Source",
+                    self.inspection_symbol,
                     10,
                     self.check_result,
                 )
@@ -1789,6 +1799,63 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     assert stable_hash(
         Path(inspected_path).read_text(encoding="utf-8")
     ) == stable_hash(source)
+
+    indexed_source_path = tmp_path / "IndexedSource.lean"
+    indexed_source_path.write_text(
+        "namespace Example.Namespace\n\nstructure Source where\n  value : Nat\n\nend Example.Namespace\n",
+        encoding="utf-8",
+    )
+
+    class IndexedDeclaration:
+        name = "Example.Namespace.Source"
+        namespace = "Example.Namespace"
+        path = str(indexed_source_path)
+        line = 3
+
+    class IndexedHit:
+        declaration = IndexedDeclaration()
+
+    class IndexedRetriever:
+        def search(self, symbol: str, *, k: int):
+            assert symbol == "Example.Namespace.Source"
+            assert k == 8
+            return [IndexedHit()]
+
+    indexed_agent = FakeAgent(
+        inspection_symbol="Example.Namespace.Source",
+    )
+    indexed_provider = FakeProofStateProvider()
+    indexed_result = (
+        runtime_module._runtime_formalizer_lean_candidate_client_tool_workspace(
+            proposal_agent=indexed_agent,
+            question=question,
+            task=task,
+            blackboard=blackboard,
+            theory_packet={},
+            environment_feedback=feedback,
+            registered_problem={},
+            theorem_goals=[],
+            formal_source_retriever=IndexedRetriever(),
+            proof_search_provider=None,
+            proof_state_provider=indexed_provider,
+            lean_candidate_root=tmp_path / "indexed-candidates",
+            lean_candidate_local_lean=True,
+            lean_candidate_lean_project=tmp_path,
+            lean_candidate_lean_timeout=5,
+        )
+    )
+
+    assert indexed_result is not None
+    assert indexed_provider.calls[0]["symbol"] == "Source"
+    assert indexed_provider.calls[0]["artifact_path"] == str(indexed_source_path)
+    assert indexed_agent.declaration_result["requested_symbol"] == (
+        "Example.Namespace.Source"
+    )
+    assert indexed_agent.declaration_result["inspected_source_symbol"] == "Source"
+    assert indexed_agent.declaration_result["indexed_declaration_namespace"] == (
+        "Example.Namespace"
+    )
+    assert indexed_agent.declaration_result["indexed_declaration_line"] == 3
 
     resumed_source = "theorem target : True := by\n  exact True.intro\n"
     resume_feedback = {

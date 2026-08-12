@@ -528,6 +528,273 @@ def test_theory_revision_retires_active_descendant_authority() -> None:
     assert "formalization_manifest_id" not in invalidated
     assert "accepted_generated_code_semantic_reviews" not in invalidated
     assert "upstream_algorithm_handoff" not in invalidated
+    assert invalidated[
+        "previous_accepted_generated_code_semantic_reviews"
+    ] == [{"review_id": "review:old"}]
+    assert invalidated["previous_upstream_algorithm_handoff"] == {
+        "handoff_id": "handoff:old"
+    }
+
+
+def test_theory_revision_replays_only_exact_accepted_algorithm_source_seed() -> None:
+    question = OpenResearchQuestion(
+        id="generic-theory-source-seed",
+        title="Generic theory source seed",
+        description="Replay unchanged source against an unchanged estimator ABI.",
+    )
+    estimator_spec = {
+        "id": "generic-estimator",
+        "formula": "theta_hat = mean(X)",
+        "inputs": ["observations"],
+        "outputs": ["estimate"],
+    }
+    source = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': request.get('value', 0.0)}\n\n"
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'estimate': 0.0}\n"
+    )
+    manifest_id = "algorithm_sandbox_manifest:accepted-parent"
+    manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": manifest_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_packet_id": "theory:parent",
+        "prototypes": [
+            {
+                "estimator_id": "generic-estimator",
+                "prototype_status": "EXECUTED",
+                "executor": "generated_python_sandbox",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "source_code": source,
+                "script_hash": runtime_module.stable_hash(source),
+                "spec": estimator_spec,
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+            }
+        ],
+    }
+    accepted_review = {
+        "execution_id": "semantic-review-execution:accepted-parent",
+        "review_packet_id": "semantic-review:accepted-parent",
+        "source_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": manifest_id,
+        "source_manifest_hash": runtime_module.stable_hash(manifest),
+        "overall_verdict": "ACCEPT",
+    }
+    context = {
+        "previous_algorithm_sandbox_manifest_id": manifest_id,
+        "previous_accepted_generated_code_semantic_reviews": [accepted_review],
+    }
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={manifest_id: manifest},
+    )
+
+    seeds, lineage = (
+        runtime_module._runtime_theory_revision_algorithm_source_seeds(
+            architect_context=context,
+            blackboard=blackboard,
+            question_id=question.id,
+            theory_packet={"estimator_specs": [estimator_spec]},
+        )
+    )
+
+    assert seeds["generic-estimator"]["code"] == source
+    assert lineage["parent_manifest_id"] == manifest_id
+    assert lineage["reuse_basis"] == "exact_estimator_spec_and_source_hash"
+    changed_spec = {**estimator_spec, "formula": "theta_hat = median(X)"}
+    changed_seeds, changed_lineage = (
+        runtime_module._runtime_theory_revision_algorithm_source_seeds(
+            architect_context=context,
+            blackboard=blackboard,
+            question_id=question.id,
+            theory_packet={"estimator_specs": [changed_spec]},
+        )
+    )
+    assert changed_seeds == {}
+    assert changed_lineage == {}
+
+
+def test_algorithm_workspace_executes_exact_theory_revision_seed_before_reauthoring(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="generic-theory-seed-execution",
+        title="Generic theory seed execution",
+        description="Execute accepted unchanged source before asking for new source.",
+    )
+    theory_packet_id = "theory:revised-source-seed"
+    estimator_spec = {
+        "id": "generic-estimator",
+        "formula": "theta_hat = request value",
+        "inputs": ["value"],
+        "outputs": ["estimate"],
+    }
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "estimator_specs": [estimator_spec],
+    }
+    source = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': float(request.get('value', 0.0))}\n\n"
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'estimate': 0.0}\n"
+    )
+    prior_manifest_id = "algorithm_sandbox_manifest:source-seed-parent"
+    prior_manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": prior_manifest_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_packet_id": "theory:source-seed-parent",
+        "prototypes": [
+            {
+                "estimator_id": "generic-estimator",
+                "prototype_status": "EXECUTED",
+                "executor": "generated_python_sandbox",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "source_code": source,
+                "script_hash": runtime_module.stable_hash(source),
+                "spec": estimator_spec,
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+            }
+        ],
+    }
+    prior_review = {
+        "execution_id": "semantic-review-execution:source-seed-parent",
+        "review_packet_id": "semantic-review:source-seed-parent",
+        "source_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": prior_manifest_id,
+        "source_manifest_hash": runtime_module.stable_hash(prior_manifest),
+        "overall_verdict": "ACCEPT",
+    }
+
+    class ProposalAgent:
+        provider = object()
+
+        def __init__(self) -> None:
+            self.proposal_calls = 0
+            self.source_calls = 0
+
+        def propose(self, **_kwargs):
+            self.proposal_calls += 1
+            return {
+                "artifact_kind": "AlgorithmEngineerProposalPacket",
+                "packet_id": "algorithm-proposal:source-seed-rebind",
+                "source_agent": "LLMAlgorithmEngineerAgent",
+                "source_provider": "anthropic",
+                "backend_provider_name": "anthropic",
+                "model": "claude-haiku-4-5-20251001",
+                "model_tier": "haiku",
+                "scientific_source_transport": "native_client_tools",
+                "implementation_targets": [
+                    {"estimator_id": "generic-estimator"}
+                ],
+                "sandbox_code_drafts": [
+                    {"estimator_id": "generic-estimator"}
+                ],
+            }
+
+        def iterate_code_with_tools(self, **_kwargs):
+            self.source_calls += 1
+            raise AssertionError("passing source seed must not be regenerated")
+
+    proposal_agent = ProposalAgent()
+    context = _full_evidence_context(question.id)
+    context.update(
+        {
+            "theory_packet_id": theory_packet_id,
+            "previous_algorithm_sandbox_manifest_id": prior_manifest_id,
+            "previous_accepted_generated_code_semantic_reviews": [prior_review],
+            "empirical_evaluation_phase": (
+                runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            ),
+            "architect_metric_protocol_gate": {
+                "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                "algorithm_execution_authorized": True,
+                "confirmatory_simulation_authorized": False,
+                "execution_authorized": False,
+                "preflight_acceptance_id": "preflight:accepted",
+            },
+        }
+    )
+    deferred_task = AgentTask(
+        task_id="architect-metric-after-source-seed",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Continue metric authoring after implementation review.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": context,
+            "runtime_architect_operation": (
+                runtime_module.RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+            ),
+        },
+    )
+    task = AgentTask(
+        task_id="algorithm-before-metric:source-seed",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Execute the current estimator implementation.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "architect_context": context,
+            "implementation_gaps": [
+                {"estimator_id": "generic-estimator"}
+            ],
+            "implementation_before_metric_freeze": True,
+            "empirical_evaluation_phase": (
+                runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            ),
+            "deferred_metric_protocol_task": asdict(deferred_task),
+            "n_runs": 2,
+            "seed": 7,
+        },
+    )
+    subsystem = runtime_module.AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path,
+        n_runs=2,
+        seed=7,
+        proposal_agent=proposal_agent,
+        semantic_reviewer_available=False,
+    )
+
+    result = subsystem.run(
+        task,
+        BlackboardState(
+            project_id=question.id,
+            artifacts={
+                theory_packet_id: theory_packet,
+                prior_manifest_id: prior_manifest,
+            },
+        ),
+    )
+
+    manifests = [
+        row
+        for row in result.produced_artifacts.values()
+        if isinstance(row, dict)
+        and row.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
+    ]
+    assert len(manifests) == 1, (
+        result.status,
+        result.rationale,
+        result.failure_classification,
+        [observation.payload for observation in result.observations],
+    )
+    assert manifests[0]["n_theory_revision_source_seeds_replayed"] == 1
+    replay = manifests[0]["prototypes"][0]["theory_revision_source_seed"]
+    assert replay["replay_execution_attempted"] is True
+    assert replay["replay_execution_passed"] is True
+    assert proposal_agent.proposal_calls == 1
+    assert proposal_agent.source_calls == 0
 
 
 def test_outer_graph_reopens_algorithm_for_revised_theory_parent() -> None:

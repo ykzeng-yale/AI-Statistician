@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import ai_statistician.cli as cli_module
+from ai_statistician.fingerprint import stable_hash
 from ai_statistician.cli import (
     _apply_research_agent_runtime_evaluation_model_policy,
     _build_algorithm_engineer_agent_from_args,
@@ -1186,7 +1187,6 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
             "formalization_difficulty": "medium",
         }
     )
-    estimator = parent["estimator_specs"][0]
     provider = ScriptedTheoryToolBackend(
         tool_responses=[
             _theory_tool_response(
@@ -1211,13 +1211,7 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
                 )
             ),
         ],
-        generator_responses=[
-            {
-                "interfaces": {
-                    estimator["id"]: estimator["estimator_interface_contract"]
-                }
-            },
-        ],
+        generator_responses=[],
     )
     developer = LLMTheoryDeveloperAgent(
         provider=provider,
@@ -1238,7 +1232,7 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
         "bounded_outcome_moment_control"
     )
     assert len(provider.tool_requests) == 2
-    assert len(provider.generator_requests) == 1
+    assert provider.generator_requests == []
     first_tool_request = provider.tool_requests[0]
     assert first_tool_request.metadata["theory_developer_phase"] == (
         "artifact_workspace_revision"
@@ -1259,9 +1253,6 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     assert "The bounded-outcome premise is not explicit." in str(
         provider.tool_requests[1].messages
     )
-    assert provider.generator_requests[0].metadata[
-        "theory_developer_phase"
-    ] == "estimator_interface_authoring"
     transport = packet["theory_revision_transport"]
     assert transport["artifact_kind"] == (
         "TheoryDeveloperWorkspaceRevisionTransport"
@@ -1271,8 +1262,9 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     assert transport["model_owned_artifact_replacements"] is True
     assert transport["runtime_edited_theory"] is False
     assert "revision_obligations" not in transport
-    assert "The bounded-outcome premise is not explicit." not in (
-        provider.generator_requests[0].user_prompt
+    assert packet["estimator_interface_authoring"]["model_call_used"] is False
+    assert packet["theory_generation_phases"][1]["phase"] == (
+        "estimator_interface_reuse"
     )
     workspace_evidence = packet["llm_client_tool_loop"]
     assert workspace_evidence["model_owned_theory"] is True
@@ -1359,6 +1351,24 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> N
     assert revision_inputs["base_core_payload"]["problem_card"]["estimand"] == (
         "psi = E[m_1(X)-m_0(X)]"
     )
+    assert revision_inputs["parent_estimator_interface_bindings"] == [
+        {
+            "estimator_id": "crossfit_aipw",
+            "core_spec_fingerprint": stable_hash(
+                revision_inputs["base_core_payload"]["estimator_specs"][0]
+            ),
+            "estimator_interface_contract": (
+                parent["estimator_specs"][0]["estimator_interface_contract"]
+            ),
+            "estimator_interface_contract_id": (
+                estimator_interface_contract_id(
+                    parent["estimator_specs"][0][
+                        "estimator_interface_contract"
+                    ]
+                )
+            ),
+        }
+    ]
     prompt = build_theory_developer_prompt(question, architect_context=context)
     assert "model_owned_theory_artifact_workspace" in prompt
     assert "generated_code_semantic_review_postexecution" in prompt
@@ -1385,6 +1395,100 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> N
         )
 
 
+def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged() -> None:
+    parent = _serious_sample_response()
+    question = OpenResearchQuestion(
+        id="targeted_revision_interface_reuse",
+        title="Targeted revision interface reuse",
+        description="Keep an unchanged model-authored estimator ABI stable.",
+    )
+    context = _metric_theory_revision_context(question=question, parent=parent)
+    revision_inputs = build_theory_developer_revision_inputs(
+        context,
+        question=question,
+    )
+    revised_problem = json.loads(
+        json.dumps(revision_inputs["base_core_payload"]["problem_card"])
+    )
+    revised_problem["assumptions"] = [
+        *revised_problem["assumptions"],
+        "bounded outcomes",
+    ]
+    provider = ScriptedTheoryToolBackend(
+        tool_responses=[
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="submit-revised-problem-card-for-abi-reuse",
+                    name="submit_theory_artifacts",
+                    input={"problem_card": revised_problem},
+                )
+            )
+        ],
+        generator_responses=[],
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            serious_model_tier="haiku",
+            max_validation_retries=1,
+        ),
+    )
+
+    packet = developer.derive(question, architect_context=context)
+
+    assert validate_theory_packet(packet) == []
+    assert len(provider.tool_requests) == 1
+    assert provider.generator_requests == []
+    assert packet["estimator_specs"][0][
+        "estimator_interface_contract"
+    ] == parent["estimator_specs"][0]["estimator_interface_contract"]
+    assert packet["estimator_specs"][0][
+        "estimator_interface_contract_id"
+    ] == estimator_interface_contract_id(
+        parent["estimator_specs"][0]["estimator_interface_contract"]
+    )
+    assert packet["estimator_interface_authoring"]["artifact_kind"] == (
+        "TheoryEstimatorInterfaceReuseRecord"
+    )
+    assert packet["estimator_interface_authoring"]["model_call_used"] is False
+    assert packet["estimator_interface_authoring"]["runtime_edited_interfaces"] is (
+        False
+    )
+    assert [row["phase"] for row in packet["theory_generation_phases"]] == [
+        "artifact_workspace_revision",
+        "estimator_interface_reuse",
+    ]
+
+
+def test_theory_revision_inputs_do_not_fill_optional_model_content() -> None:
+    parent = _serious_sample_response()
+    parent_derivation = dict(parent["theory_derivation_packet"])
+    parent_derivation.pop("self_critique", None)
+    parent_derivation.pop("rejected_alternatives", None)
+    parent["theory_derivation_packet"] = parent_derivation
+    question = OpenResearchQuestion(
+        id="targeted_revision_no_runtime_content_fill",
+        title="Targeted revision without runtime content fill",
+        description="Preserve the exact parent theory workspace.",
+    )
+    context = _metric_theory_revision_context(question=question, parent=parent)
+
+    revision_inputs = build_theory_developer_revision_inputs(
+        context,
+        question=question,
+    )
+
+    derivation = revision_inputs["base_core_payload"][
+        "theory_derivation_packet"
+    ]
+    assert "self_critique" not in derivation
+    assert "rejected_alternatives" not in derivation
+
+
 def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
     parent = _serious_sample_response()
     question = OpenResearchQuestion(
@@ -1400,6 +1504,10 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
     revised_core = json.loads(json.dumps(revision_inputs["base_core_payload"]))
     revised_core["problem_card"]["assumptions"] = [
         *revised_core["problem_card"]["assumptions"],
+        "bounded outcomes",
+    ]
+    revised_core["estimator_specs"][0]["required_assumptions"] = [
+        *revised_core["estimator_specs"][0]["required_assumptions"],
         "bounded outcomes",
     ]
     estimator = parent["estimator_specs"][0]
@@ -1426,6 +1534,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
                     name="submit_theory_artifacts",
                     input={
                         "problem_card": revised_core["problem_card"],
+                        "estimator_specs": revised_core["estimator_specs"],
                     },
                 )
             )

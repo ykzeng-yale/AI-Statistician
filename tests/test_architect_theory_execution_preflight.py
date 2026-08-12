@@ -9,6 +9,9 @@ from ai_statistician.agent_runtime import AgentTask
 from ai_statistician.architect_metric_contract_authoring import (
     ArchitectMetricContractAuthoringConfig,
     ArchitectMetricSemanticReviewRejected,
+    FRESH_METRIC_AUTHORING_AUTHORITY_KIND,
+    _materialize_metric_authoring_model_requirement,
+    _metric_authoring_model_requirement_schema,
     author_reviewed_architect_metric_requirements,
 )
 from ai_statistician.architect_theory_execution_preflight import (
@@ -39,6 +42,54 @@ from ai_statistician.research_schema import OpenResearchQuestion
 
 
 TEST_HAIKU_MODEL = "claude-haiku-4-5-20251001"
+
+
+def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
+    anchor_id = "theory#/guarantee"
+    schema = _metric_authoring_model_requirement_schema(
+        authority_anchor_ids=[anchor_id]
+    )
+    predicate_properties = schema["properties"]["predicate_authority"][
+        "properties"
+    ]
+    gate_properties = schema["properties"]["gate_fields"]["items"][
+        "properties"
+    ]
+    assert "authority_kind" not in predicate_properties
+    assert "authority_kind" not in gate_properties
+
+    materialized, errors = _materialize_metric_authoring_model_requirement(
+        {
+            "requirement_id": "generic-risk-bound",
+            "metric_semantics": "estimated risk of the generated procedure",
+            "metric_value_kind": "numeric",
+            "measurement_protocol": "return the empirical risk over fresh replicates",
+            "operator": "<=",
+            "aggregation": "identity",
+            "predicate_authority": {
+                "source_anchors": [anchor_id],
+                "rationale": "the theory identifies risk as the target quantity",
+            },
+            "gate_fields": [
+                {
+                    "field": "threshold",
+                    "value": 0.1,
+                    "source_anchors": [anchor_id],
+                    "rationale": "pre-execution decision threshold",
+                }
+            ],
+        },
+        requirement_index=0,
+    )
+
+    assert errors == []
+    assert materialized["threshold"] == 0.1
+    assert materialized["acceptance_authority_kind"] == (
+        FRESH_METRIC_AUTHORING_AUTHORITY_KIND
+    )
+    assert materialized["gate_field_authorities"][0]["authority_kind"] == (
+        FRESH_METRIC_AUTHORING_AUTHORITY_KIND
+    )
 
 
 class _Backend:

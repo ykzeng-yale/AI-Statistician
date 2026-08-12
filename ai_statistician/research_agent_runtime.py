@@ -545,12 +545,16 @@ def _context_with_invalidated_theory_descendants(
 
     context = dict(architect_context)
     historical_fields = {
+        "accepted_generated_code_semantic_reviews": (
+            "previous_accepted_generated_code_semantic_reviews"
+        ),
         "algorithm_sandbox_manifest_id": "previous_algorithm_sandbox_manifest_id",
         "formalization_manifest_id": "previous_formalization_manifest_id",
         "formalizer_lean_candidate_materialization_manifest_id": (
             "previous_formalizer_lean_candidate_materialization_manifest_id"
         ),
         "simulation_manifest_id": "previous_simulation_manifest_id",
+        "upstream_algorithm_handoff": "previous_upstream_algorithm_handoff",
     }
     for field in _THEORY_DESCENDANT_CONTEXT_FIELDS:
         value = context.pop(field, None)
@@ -9888,6 +9892,105 @@ class SimulationEvaluatorRuntimeSubsystem:
         )
 
 
+def _runtime_theory_revision_algorithm_source_seeds(
+    *,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+    question_id: str,
+    theory_packet: Mapping[str, Any],
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Recover accepted source only across an exactly unchanged estimator ABI."""
+
+    manifest_id = str(
+        architect_context.get("previous_algorithm_sandbox_manifest_id", "")
+        or ""
+    ).strip()
+    manifest = blackboard.artifacts.get(manifest_id, {})
+    reviews = architect_context.get(
+        "previous_accepted_generated_code_semantic_reviews",
+        [],
+    )
+    if not (
+        manifest_id
+        and isinstance(manifest, Mapping)
+        and manifest.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
+        and str(manifest.get("manifest_id", "") or "") == manifest_id
+        and isinstance(manifest.get("question", {}), Mapping)
+        and str(manifest.get("question", {}).get("id", "") or "")
+        == question_id
+        and isinstance(reviews, list)
+    ):
+        return {}, {}
+    accepted_review = next(
+        (
+            dict(row)
+            for row in reversed(reviews)
+            if isinstance(row, Mapping)
+            and row.get("source_subsystem") == "AlgorithmEngineer"
+            and row.get("overall_verdict") == "ACCEPT"
+            and str(row.get("source_manifest_id", "") or "") == manifest_id
+            and str(row.get("source_manifest_hash", "") or "")
+            == stable_hash(manifest)
+        ),
+        {},
+    )
+    if not accepted_review:
+        return {}, {}
+
+    current_specs = {
+        str(row.get("id", "") or "").strip(): dict(row)
+        for row in theory_packet.get("estimator_specs", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("id", "") or "").strip()
+    }
+    source_rows = {
+        str(row.get("estimator_id", "") or "").strip(): dict(row)
+        for row in manifest.get("prototypes", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("estimator_id", "") or "").strip()
+        and row.get("smoke_passed") is True
+    }
+    seeds: dict[str, dict[str, Any]] = {}
+    source_hashes: dict[str, str] = {}
+    for estimator_id, spec in current_specs.items():
+        source_row = source_rows.get(estimator_id, {})
+        if stable_hash(source_row.get("spec", {})) != stable_hash(spec):
+            continue
+        draft, errors = complete_scientific_source_draft(source_row)
+        if errors:
+            continue
+        seeds[estimator_id] = draft
+        source_hashes[estimator_id] = str(
+            source_row.get("script_hash", "") or ""
+        )
+    if not seeds:
+        return {}, {}
+    return seeds, {
+        "artifact_kind": "RuntimeTheoryRevisionAlgorithmSourceSeed",
+        "parent_manifest_id": manifest_id,
+        "parent_manifest_hash": stable_hash(manifest),
+        "parent_theory_packet_id": str(
+            manifest.get("theory_packet_id", "") or ""
+        ),
+        "accepted_review_execution_id": str(
+            accepted_review.get("execution_id", "") or ""
+        ),
+        "accepted_review_packet_id": str(
+            accepted_review.get("review_packet_id", "") or ""
+        ),
+        "source_hashes": source_hashes,
+        "reusable_estimator_ids": sorted(seeds),
+        "reuse_basis": "exact_estimator_spec_and_source_hash",
+        "runtime_edited_source": False,
+        "proof_evidence_status": "SOURCE_SEED_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "This record permits exact previously accepted source to be replayed "
+            "against an unchanged estimator ABI. The replay and a fresh independent "
+            "semantic review remain required; prior acceptance is not transferred."
+        ),
+    }
+
+
 class AlgorithmEngineerRuntimeSubsystem:
     name = "AlgorithmEngineer"
 
@@ -9998,6 +10101,14 @@ class AlgorithmEngineerRuntimeSubsystem:
         algorithm_control = _architect_control_payload(context, "AlgorithmEngineer")
         packet_id = str(task.inputs.get("theory_packet_id", ""))
         packet = blackboard.artifacts.get(packet_id, {})
+        theory_revision_source_seeds, theory_revision_source_seed_lineage = (
+            _runtime_theory_revision_algorithm_source_seeds(
+                architect_context=context,
+                blackboard=blackboard,
+                question_id=question.id,
+                theory_packet=packet if isinstance(packet, Mapping) else {},
+            )
+        )
         runtime_theory_trace_contract = _runtime_theory_trace_consumption_contract(
             consumer_subsystem="AlgorithmEngineer",
             source_theory_packet_id=packet_id,
@@ -10382,11 +10493,19 @@ class AlgorithmEngineerRuntimeSubsystem:
                     ),
                 }
             else:
-                code_draft = _algorithm_code_draft_for_estimator(
-                    proposal_packet,
-                    estimator_id,
+                code_draft = deepcopy(
+                    theory_revision_source_seeds.get(estimator_id, {})
                 )
+                if not code_draft:
+                    code_draft = _algorithm_code_draft_for_estimator(
+                        proposal_packet,
+                        estimator_id,
+                    )
             if code_draft:
+                source_seed_replayed = bool(
+                    not consumer_revision_mode
+                    and estimator_id in theory_revision_source_seeds
+                )
                 execution_kwargs = {
                     "sandbox_dir": sandbox_dir,
                     "estimator_id": estimator_id,
@@ -10413,6 +10532,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                         code_draft=code_draft,
                         source_deferred=(
                             not consumer_revision_mode
+                            and not source_seed_replayed
                             and _proposal_defers_scientific_source(proposal_packet)
                         ),
                         workspace_context={
@@ -10436,6 +10556,19 @@ class AlgorithmEngineerRuntimeSubsystem:
                             "consumer_execution_observation": (
                                 external_initial_observation or {}
                             ),
+                            "theory_revision_source_seed": (
+                                {
+                                    **theory_revision_source_seed_lineage,
+                                    "estimator_id": estimator_id,
+                                    "source_hash": str(
+                                        theory_revision_source_seed_lineage.get(
+                                            "source_hashes", {}
+                                        ).get(estimator_id, "")
+                                    ),
+                                }
+                                if source_seed_replayed
+                                else {}
+                            ),
                         },
                         execute_candidate=lambda candidate: (
                             _run_generated_code_sandbox(
@@ -10454,6 +10587,20 @@ class AlgorithmEngineerRuntimeSubsystem:
                     )
                 )
                 tool_calls.extend(source_tool_calls)
+                if source_seed_replayed:
+                    prototype["theory_revision_source_seed"] = {
+                        **theory_revision_source_seed_lineage,
+                        "estimator_id": estimator_id,
+                        "source_hash": str(
+                            theory_revision_source_seed_lineage.get(
+                                "source_hashes", {}
+                            ).get(estimator_id, "")
+                        ),
+                        "replay_execution_attempted": True,
+                        "replay_execution_passed": bool(
+                            prototype.get("smoke_passed") is True
+                        ),
+                    }
                 prototype["llm_algorithm_engineer_target"] = proposal_target
                 prototype_rows.append(
                     _annotate_generated_sandbox_prototype_provenance(
@@ -10596,6 +10743,17 @@ class AlgorithmEngineerRuntimeSubsystem:
                 len(reused_prototype_rows)
                 if consumer_revision_mode
                 else 0
+            ),
+            "n_theory_revision_source_seeds_replayed": sum(
+                1
+                for row in prototype_rows
+                if isinstance(
+                    row.get("theory_revision_source_seed", {}), Mapping
+                )
+                and row.get("theory_revision_source_seed", {}).get(
+                    "replay_execution_attempted"
+                )
+                is True
             ),
             "consumer_source_revision_lineage_id": str(
                 consumer_revision_budget.get("lineage_id", "") or ""
@@ -16269,7 +16427,9 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
         None,
     )
 
-    def active_project_declaration_path(symbol: str) -> Path | None:
+    def active_project_declaration_location(
+        symbol: str,
+    ) -> dict[str, Any] | None:
         if formal_source_retriever is None:
             return None
         try:
@@ -16279,7 +16439,10 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
         project_root = Path(lean_candidate_lean_project).resolve()
         for hit in hits:
             declaration = getattr(hit, "declaration", None)
-            if str(getattr(declaration, "name", "") or "") != symbol:
+            indexed_name = str(
+                getattr(declaration, "name", "") or ""
+            ).strip()
+            if indexed_name != symbol:
                 continue
             path_text = str(getattr(declaration, "path", "") or "").strip()
             if not path_text:
@@ -16289,7 +16452,23 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                 path if path.is_absolute() else project_root / path
             ).resolve()
             if resolved.is_file() and project_root in resolved.parents:
-                return resolved
+                namespace = str(
+                    getattr(declaration, "namespace", "") or ""
+                ).strip()
+                namespace_prefix = f"{namespace}." if namespace else ""
+                source_symbol = (
+                    indexed_name[len(namespace_prefix) :]
+                    if namespace_prefix
+                    and indexed_name.startswith(namespace_prefix)
+                    else indexed_name
+                )
+                return {
+                    "path": resolved,
+                    "qualified_symbol": indexed_name,
+                    "source_symbol": source_symbol,
+                    "namespace": namespace,
+                    "line": int(getattr(declaration, "line", 0) or 0),
+                }
         return None
 
     def inspect_lean_declaration(
@@ -16312,9 +16491,11 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                     ],
                     history=[],
                 )
-        active_declaration_path = active_project_declaration_path(symbol)
-        if active_declaration_path is not None:
-            check_artifact_path = active_declaration_path
+        active_declaration = active_project_declaration_location(symbol)
+        provider_symbol = symbol
+        if active_declaration is not None:
+            check_artifact_path = Path(active_declaration["path"])
+            provider_symbol = str(active_declaration["source_symbol"])
             inspection_binding = "active_project_declaration_source"
         elif candidate_source_checked:
             check_artifact_path = Path(
@@ -16365,7 +16546,7 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             }
         raw = declaration_inspector(
             artifact_path=str(check_artifact_path),
-            symbol=symbol,
+            symbol=provider_symbol,
             context_lines=context_lines,
         )
         if not isinstance(raw, Mapping):
@@ -16388,8 +16569,22 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
         result.update(
             {
                 "inspection_binding": inspection_binding,
+                "requested_symbol": symbol,
+                "inspected_source_symbol": provider_symbol,
                 "candidate_source_hash": source_hash,
                 "candidate_source_checked": candidate_source_checked,
+                **(
+                    {
+                        "indexed_declaration_namespace": str(
+                            active_declaration["namespace"]
+                        ),
+                        "indexed_declaration_line": int(
+                            active_declaration["line"]
+                        ),
+                    }
+                    if active_declaration is not None
+                    else {}
+                ),
             }
         )
         return result

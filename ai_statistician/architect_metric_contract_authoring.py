@@ -17,7 +17,6 @@ from .architect_metric_semantic_reviewer_llm import (
 from .fingerprint import stable_hash
 from .generated_metric_contract import (
     GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS,
-    GENERATED_METRIC_ACCEPTANCE_GATING_AUTHORITY_KINDS,
     GENERATED_METRIC_CONTRACT_AGGREGATIONS,
     GENERATED_METRIC_CONTRACT_OPERATORS,
     GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS,
@@ -56,10 +55,11 @@ from .research_schema import OpenResearchQuestion
 from .semantic_review_feedback import model_observations_without_repair_recipes
 
 
-ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 4
+ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 5
 _METRIC_AUTHORING_LARGE_PROMPT_CHARS = 60_000
 _METRIC_AUTHORING_LARGE_RESPONSE_TOKENS = 8_000
 MAX_CONFIRMATORY_METRIC_REQUIREMENTS = 8
+FRESH_METRIC_AUTHORING_AUTHORITY_KIND = "architect_preregistered_design"
 FROZEN_METRIC_PROTOCOL_REBINDING_MUTABLE_FIELDS = frozenset(
     {
         "source_anchors",
@@ -422,23 +422,17 @@ class ArchitectMetricContractAuthoringConfig:
     max_tokens: int = 5000
     model_tier: str = "sonnet"
     provider_name: str = "anthropic"
-    max_validation_retries: int = 2
+    max_validation_retries: int = 1
     metric_semantic_reviewer_max_revisions: int = 1
 
 
-def _metric_authoring_model_authority_schema(
+def _metric_authoring_model_support_schema(
     *,
     authority_anchor_ids: list[str],
     include_value: bool,
 ) -> dict[str, Any]:
-    required = ["authority_kind", "source_anchors", "rationale"]
+    required = ["source_anchors", "rationale"]
     properties: dict[str, Any] = {
-        "authority_kind": {
-            "type": "string",
-            "enum": list(
-                GENERATED_METRIC_ACCEPTANCE_GATING_AUTHORITY_KINDS
-            ),
-        },
         "source_anchors": {
             "type": "array",
             "minItems": 1,
@@ -467,11 +461,11 @@ def _metric_authoring_model_requirement_schema(
 ) -> dict[str, Any]:
     """Return the compact model ACI; final evaluator fields are runtime mirrors."""
 
-    predicate_authority = _metric_authoring_model_authority_schema(
+    predicate_authority = _metric_authoring_model_support_schema(
         authority_anchor_ids=authority_anchor_ids,
         include_value=False,
     )
-    gate_authority = _metric_authoring_model_authority_schema(
+    gate_authority = _metric_authoring_model_support_schema(
         authority_anchor_ids=authority_anchor_ids,
         include_value=True,
     )
@@ -554,12 +548,8 @@ def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
             "identity|mean|min|max|all|any|at_least_count|at_least_fraction"
         ),
         "predicate_authority": {
-            "authority_kind": (
-                "theory_derived|theory_parameter_instantiation|"
-                "evaluation_mandated|architect_preregistered_design"
-            ),
             "source_anchors": ["exact acceptance_authority_catalog anchor_id"],
-            "rationale": "why the cited source authorizes this predicate",
+            "rationale": "why the cited context supports this predicate",
         },
         "gate_fields": [
             {
@@ -568,10 +558,6 @@ def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
                     "minimum_pass_fraction; omit threshold/tolerance for boolean"
                 ),
                 "value": "the substantive numeric value, stated exactly once",
-                "authority_kind": (
-                    "theory_derived|theory_parameter_instantiation|"
-                    "evaluation_mandated|architect_preregistered_design"
-                ),
                 "source_anchors": [
                     "field-specific exact acceptance_authority_catalog anchor_id; "
                     "predicate_authority anchors are inherited automatically"
@@ -626,9 +612,7 @@ def _materialize_metric_authoring_model_requirement(
         "minimum_pass_fraction": None,
         "required": True,
         "source_anchors": list(dict.fromkeys(predicate_anchors)),
-        "acceptance_authority_kind": str(
-            predicate_authority.get("authority_kind", "") or ""
-        ).strip(),
+        "acceptance_authority_kind": FRESH_METRIC_AUTHORING_AUTHORITY_KIND,
         "acceptance_authority_rationale": str(
             predicate_authority.get("rationale", "") or ""
         ).strip(),
@@ -675,9 +659,7 @@ def _materialize_metric_authoring_model_requirement(
         requirement["gate_field_authorities"].append(
             {
                 "field": field,
-                "authority_kind": str(
-                    gate.get("authority_kind", "") or ""
-                ).strip(),
+                "authority_kind": FRESH_METRIC_AUTHORING_AUTHORITY_KIND,
                 "source_anchors": list(
                     dict.fromkeys([*predicate_anchors, *gate_anchors])
                 ),
@@ -1609,11 +1591,9 @@ def author_reviewed_architect_metric_requirements(
                 "binding_stage": "before_hash_validation_and_review",
             },
             "acceptance_authority_kind": {
-                "source": (
-                    "generated_metric_gate_field_authority_rollup"
-                ),
+                "source": "preexecution_architect_authorship",
+                "value": FRESH_METRIC_AUTHORING_AUTHORITY_KIND,
                 "model_authored": False,
-                "model_authored_predicate_fallback_allowed": True,
                 "binding_stage": "before_hash_validation_and_review",
             },
             "gate_field_authority_mode": {
@@ -1665,12 +1645,12 @@ def author_reviewed_architect_metric_requirements(
             ),
             (
                 "Copy every source anchor exactly from acceptance_authority_catalog. "
-                "For theory_derived or evaluation_mandated numeric fields, the cited "
-                "node must contain the exact value. For theory_parameter_instantiation, "
-                "cite both the symbolic theory node and the evaluation_design node "
-                "containing the exact instantiated value. Diagnostic-only material is "
-                "excluded because this packet contains required confirmatory rows only; "
-                "omit any proposed row that has no exact eligible authority anchor."
+                "Use those anchors to identify the statistical context supporting each "
+                "predicate and numeric choice. Fresh rows are recorded by AgentRuntime "
+                "as architect_preregistered_design because this Architect authors and "
+                "freezes them before execution; do not emit provenance labels yourself. "
+                "Diagnostic-only material is excluded because this packet contains "
+                "required confirmatory rows only."
             ),
             (
                 "When a necessary finite-sample decision is not fixed upstream, the "
@@ -2212,11 +2192,9 @@ def author_reviewed_architect_metric_requirements(
                         ),
                     },
                     "acceptance_authority_kind": {
-                        "source": (
-                            "generated_metric_gate_field_authority_rollup"
-                        ),
+                        "source": "preexecution_architect_authorship",
+                        "value": FRESH_METRIC_AUTHORING_AUTHORITY_KIND,
                         "model_authored": False,
-                        "model_authored_predicate_fallback_allowed": True,
                         "binding_stage": (
                             "before_hash_validation_and_review"
                         ),
@@ -2253,7 +2231,7 @@ def author_reviewed_architect_metric_requirements(
                     confirmatory_required_rows_only
                 ),
                 "model_requirement_transport": (
-                    "compact_gate_fields_v1"
+                    "compact_gate_fields_runtime_provenance_v2"
                     if not frozen_rebinding
                     else "frozen_authority_rebinding"
                 ),

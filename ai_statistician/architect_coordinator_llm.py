@@ -301,7 +301,10 @@ class LLMArchitectCoordinatorAgent:
                     max_tokens=self.config.max_tokens,
                     model_tier=self.config.model_tier,
                     provider_name=self.config.provider_name,
-                    max_validation_retries=self.config.max_validation_retries,
+                    max_validation_retries=min(
+                        self.config.max_validation_retries,
+                        ArchitectMetricContractAuthoringConfig().max_validation_retries,
+                    ),
                     metric_semantic_reviewer_max_revisions=(
                         self.config.metric_semantic_reviewer_max_revisions
                     ),

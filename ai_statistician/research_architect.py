@@ -200,6 +200,7 @@ class LLMTheoryDeveloperAgent:
             if transport_recovery
             else self.config.max_validation_retries
         )
+        revision_inputs: Mapping[str, Any] | None = None
         recovered_core_packet = _theory_developer_recovered_core_checkpoint(
             context,
             question=question,
@@ -341,6 +342,16 @@ class LLMTheoryDeveloperAgent:
             max_tokens=effective_max_tokens,
             max_validation_retries=effective_max_validation_retries,
             use_provider_structured_output=use_provider_structured_output,
+            parent_estimator_interface_bindings=(
+                revision_inputs.get("parent_estimator_interface_bindings", [])
+                if isinstance(revision_inputs, Mapping)
+                else []
+            ),
+            parent_estimator_interface_authoring=(
+                revision_inputs.get("parent_estimator_interface_authoring", {})
+                if isinstance(revision_inputs, Mapping)
+                else {}
+            ),
         )
 
 
@@ -2095,6 +2106,7 @@ def build_theory_developer_revision_inputs(
         for field in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
         if field in semantic_material
     }
+    parent_estimator_interface_bindings: list[dict[str, Any]] = []
     raw_specs = base_core_payload.get("estimator_specs", [])
     if isinstance(raw_specs, list):
         stripped_specs: list[Any] = []
@@ -2104,8 +2116,32 @@ def build_theory_developer_revision_inputs(
                 stripped_specs.append(deepcopy(raw_spec))
                 continue
             spec = deepcopy(dict(raw_spec))
-            spec.pop("estimator_interface_contract", None)
-            spec.pop("estimator_interface_contract_id", None)
+            interface_contract = spec.pop("estimator_interface_contract", None)
+            interface_contract_id = spec.pop(
+                "estimator_interface_contract_id",
+                None,
+            )
+            estimator_id = str(spec.get("id", "") or "").strip()
+            if (
+                estimator_id
+                and isinstance(interface_contract, Mapping)
+                and interface_contract
+            ):
+                parent_estimator_interface_bindings.append(
+                    {
+                        "estimator_id": estimator_id,
+                        "core_spec_fingerprint": stable_hash(spec),
+                        "estimator_interface_contract": deepcopy(
+                            dict(interface_contract)
+                        ),
+                        "estimator_interface_contract_id": str(
+                            interface_contract_id
+                            or estimator_interface_contract_id(
+                                interface_contract
+                            )
+                        ),
+                    }
+                )
             stripped_specs.append(spec)
         base_core_payload["estimator_specs"] = stripped_specs
     else:
@@ -2113,10 +2149,9 @@ def build_theory_developer_revision_inputs(
 
     derivation = base_core_payload.get("theory_derivation_packet", {})
     if isinstance(derivation, Mapping):
-        derivation = deepcopy(dict(derivation))
-        derivation.setdefault("self_critique", [])
-        derivation.setdefault("rejected_alternatives", [])
-        base_core_payload["theory_derivation_packet"] = derivation
+        base_core_payload["theory_derivation_packet"] = deepcopy(
+            dict(derivation)
+        )
     else:
         errors.append("prior theory_derivation_packet must be an object")
 
@@ -2163,6 +2198,17 @@ def build_theory_developer_revision_inputs(
         "transport_feedback": transport_feedback,
         "base_core_payload": base_core_payload,
         "base_core_payload_fingerprint": stable_hash(base_core_payload),
+        "parent_estimator_interface_bindings": (
+            parent_estimator_interface_bindings
+        ),
+        "parent_estimator_interface_authoring": deepcopy(
+            dict(semantic_material.get("estimator_interface_authoring", {}))
+            if isinstance(
+                semantic_material.get("estimator_interface_authoring", {}),
+                Mapping,
+            )
+            else {}
+        ),
     }
 
 
@@ -2847,6 +2893,92 @@ def _theory_core_generation_phase(core_packet: Mapping[str, Any]) -> str:
     return "full_core_revision"
 
 
+def _reusable_parent_estimator_interfaces(
+    core_packet: Mapping[str, Any],
+    parent_bindings: Sequence[Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Return exact parent ABIs only when every estimator core is unchanged."""
+
+    expected_ids = _theory_estimator_ids(core_packet)
+    bindings_by_id = {
+        str(row.get("estimator_id", "") or "").strip(): row
+        for row in parent_bindings
+        if isinstance(row, Mapping)
+        and str(row.get("estimator_id", "") or "").strip()
+    }
+    if not expected_ids or set(bindings_by_id) != set(expected_ids):
+        return {}
+
+    allowed_refs = theory_semantic_reference_ids(core_packet)
+    reusable: dict[str, dict[str, Any]] = {}
+    for raw_spec in core_packet.get("estimator_specs", []) or []:
+        if not isinstance(raw_spec, Mapping):
+            return {}
+        spec = deepcopy(dict(raw_spec))
+        spec.pop("estimator_interface_contract", None)
+        spec.pop("estimator_interface_contract_id", None)
+        estimator_id = str(spec.get("id", "") or "").strip()
+        binding = bindings_by_id.get(estimator_id, {})
+        if str(binding.get("core_spec_fingerprint", "") or "") != stable_hash(
+            spec
+        ):
+            return {}
+        contract = binding.get("estimator_interface_contract", {})
+        if not isinstance(contract, Mapping) or not contract:
+            return {}
+        contract = deepcopy(dict(contract))
+        if str(
+            binding.get("estimator_interface_contract_id", "") or ""
+        ) != estimator_interface_contract_id(contract):
+            return {}
+        if estimator_interface_contract_errors(
+            contract,
+            label=f"estimator_specs[{estimator_id!r}].estimator_interface_contract",
+            required=True,
+            allowed_derivation_refs=allowed_refs,
+            require_typed_rate=True,
+        ):
+            return {}
+        expected_outputs = spec.get("outputs", [])
+        response_fields = contract.get("response_fields", [])
+        if (
+            isinstance(expected_outputs, list)
+            and expected_outputs
+            and (
+                not isinstance(response_fields, list)
+                or len(response_fields) != len(expected_outputs)
+            )
+        ):
+            return {}
+        reusable[estimator_id] = contract
+    return reusable
+
+
+def _theory_core_generation_phase_record(
+    core_packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    phase: dict[str, Any] = {
+        "phase": _theory_core_generation_phase(core_packet),
+        "model": str(core_packet.get("model", "")),
+        "model_tier": str(core_packet.get("model_tier", "")),
+        "structured_output_retry_attempts": core_packet.get(
+            "structured_output_retry_attempts", 0
+        ),
+    }
+    client_tool_loop = core_packet.get("llm_client_tool_loop", {})
+    if isinstance(client_tool_loop, Mapping) and client_tool_loop:
+        phase["client_tool_transport"] = str(
+            client_tool_loop.get("transport", "") or ""
+        )
+        phase["client_tool_turns"] = int(
+            client_tool_loop.get("turns", 0) or 0
+        )
+        phase["client_tool_calls"] = int(
+            client_tool_loop.get("tool_calls", 0) or 0
+        )
+    return phase
+
+
 def _complete_theory_estimator_interfaces(
     core_packet: Mapping[str, Any],
     *,
@@ -2859,8 +2991,97 @@ def _complete_theory_estimator_interfaces(
     max_tokens: int,
     max_validation_retries: int,
     use_provider_structured_output: bool,
+    parent_estimator_interface_bindings: Sequence[Mapping[str, Any]] = (),
+    parent_estimator_interface_authoring: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Author bounded executable interfaces after core theory is frozen."""
+
+    reusable_interfaces = _reusable_parent_estimator_interfaces(
+        core_packet,
+        parent_estimator_interface_bindings,
+    )
+    if reusable_interfaces:
+        merged = deepcopy(dict(core_packet))
+        merged_specs: list[Any] = []
+        for raw_spec in merged.get("estimator_specs", []) or []:
+            if not isinstance(raw_spec, Mapping):
+                merged_specs.append(raw_spec)
+                continue
+            spec = dict(raw_spec)
+            estimator_id = str(spec.get("id", "") or "").strip()
+            spec["estimator_interface_contract"] = deepcopy(
+                reusable_interfaces[estimator_id]
+            )
+            spec.pop("estimator_interface_contract_id", None)
+            merged_specs.append(spec)
+        merged["estimator_specs"] = merged_specs
+        normalize_theory_estimator_interface_contracts(merged)
+        parent_authoring = (
+            dict(parent_estimator_interface_authoring)
+            if isinstance(parent_estimator_interface_authoring, Mapping)
+            else {}
+        )
+        parent_packet_id = str(
+            (
+                core_packet.get("theory_revision_transport", {})
+                if isinstance(
+                    core_packet.get("theory_revision_transport", {}), Mapping
+                )
+                else {}
+            ).get("source_theory_packet_id", "")
+            or ""
+        )
+        reuse_identity = {
+            "source_theory_packet_id": str(core_packet.get("packet_id", "")),
+            "parent_theory_packet_id": parent_packet_id,
+            "interface_contract_ids": {
+                estimator_id: estimator_interface_contract_id(contract)
+                for estimator_id, contract in reusable_interfaces.items()
+            },
+        }
+        merged["estimator_interface_authoring"] = {
+            "artifact_kind": "TheoryEstimatorInterfaceReuseRecord",
+            "artifact_id": (
+                "theory_estimator_interfaces_reuse:"
+                + stable_hash(reuse_identity)[:24]
+            ),
+            **reuse_identity,
+            "provider": str(parent_authoring.get("provider", "") or ""),
+            "model": str(parent_authoring.get("model", "") or ""),
+            "model_tier": str(parent_authoring.get("model_tier", "") or ""),
+            "n_interfaces": len(reusable_interfaces),
+            "n_interfaces_reused": len(reusable_interfaces),
+            "model_call_used": False,
+            "runtime_edited_interfaces": False,
+            "reuse_basis": "exact_unchanged_estimator_core_fingerprints",
+            "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+            "kernel_verified": False,
+        }
+        merged["theory_generation_phases"] = [
+            _theory_core_generation_phase_record(core_packet),
+            {
+                "phase": "estimator_interface_reuse",
+                "model": str(parent_authoring.get("model", "") or ""),
+                "model_tier": str(
+                    parent_authoring.get("model_tier", "") or ""
+                ),
+                "model_call_used": False,
+                "n_interfaces_reused": len(reusable_interfaces),
+            },
+        ]
+        _refresh_theory_packet_id(merged, question=question)
+        errors = validate_theory_packet(merged)
+        if errors:
+            raise PacketValidationError(
+                validation_label="reused TheoryDeveloper estimator interfaces",
+                attempts=0,
+                errors=errors,
+                history=[],
+                last_invalid_packet=merged,
+            )
+        merged["validation_errors"] = []
+        merged["ok"] = True
+        return merged
 
     interface_schema = _theory_estimator_interface_authoring_json_schema(
         core_packet
@@ -3016,27 +3237,8 @@ def _complete_theory_estimator_interfaces(
         "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
         "kernel_verified": False,
     }
-    core_phase = {
-        "phase": _theory_core_generation_phase(core_packet),
-        "model": str(core_packet.get("model", "")),
-        "model_tier": str(core_packet.get("model_tier", "")),
-        "structured_output_retry_attempts": core_packet.get(
-            "structured_output_retry_attempts", 0
-        ),
-    }
-    core_client_tool_loop = core_packet.get("llm_client_tool_loop", {})
-    if isinstance(core_client_tool_loop, Mapping) and core_client_tool_loop:
-        core_phase["client_tool_transport"] = str(
-            core_client_tool_loop.get("transport", "") or ""
-        )
-        core_phase["client_tool_turns"] = int(
-            core_client_tool_loop.get("turns", 0) or 0
-        )
-        core_phase["client_tool_calls"] = int(
-            core_client_tool_loop.get("tool_calls", 0) or 0
-        )
     merged["theory_generation_phases"] = [
-        core_phase,
+        _theory_core_generation_phase_record(core_packet),
         {
             "phase": "estimator_interface_authoring",
             "model": interface_packet["model"],
