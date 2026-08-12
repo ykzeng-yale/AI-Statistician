@@ -1,9 +1,9 @@
 {
-  "schema_version": 27,
+  "schema_version": 28,
   "updated_at": "2026-08-12",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "dd35149b",
+  "validated_code_head": "612b0c57",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
   "operational_focus": "Keep one outer research graph and direct model-owned theory, Python, R, and Lean workspaces. The harness owns execution, validation, budgets, lineage, evaluation blindness, and evidence authority; it does not author or repair substantive research source.",
@@ -11,7 +11,7 @@
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
     "production_maximum_tier": "sonnet",
     "opus_allowed": false,
-    "v367_policy_passed": true
+    "v369_policy_passed": true
   },
   "canonical_architecture": {
     "outer_graph": [
@@ -37,65 +37,60 @@
     ]
   },
   "latest_mechanism_commits": {
-    "15a69eb5": "Blind confirmatory outcomes from source iteration, gate immutable outcomes behind independent semantic review, and prohibit unchanged-source retries.",
-    "f985746a": "Remove the remaining outcome-derived execution hash from source and semantic-review model projections.",
-    "dd35149b": "Allocate hash-bound evaluator cohorts, withhold their seeds from candidate prompts, and record fresh post-outcome transitions without selecting research content."
+    "dd35149b": "Allocate hash-bound evaluator cohorts, withhold their seeds from candidate prompts, and record fresh post-outcome transitions without selecting research content.",
+    "141a94c4": "Expose incomplete required evidence lanes directly to the Architect model without runtime-selected routes.",
+    "d0025a6c": "Carry exact task-bound RAG declarations into the Lean workspace and preserve source-activation provenance.",
+    "612b0c57": "Return outcome-blind failed request shapes to the original scientific source owner and scope cohort seed auditing per question."
   },
   "verification": {
-    "deterministic_suite": "560 passed",
+    "deterministic_suite": "562 passed",
     "compileall": "passed",
     "diff_check": "passed",
     "latest_integrated_run": {
-      "id": "v367",
-      "path": "runs/main_worker_cross_family_development_20260812_v367_fresh_cohort_exact_haiku",
-      "run_code_head": "dd35149b",
+      "id": "v369",
+      "path": "runs/main_worker_cross_family_development_20260812_v369_independent_preflight_rag_carry_exact_haiku",
+      "run_code_head": "d0025a6c",
       "model": "claude-haiku-4-5-20251001 for every observed live LLM call",
       "model_policy_status": "OK with zero violations",
       "status": "2 BLOCKED",
-      "scorecard": "5/16",
-      "runtime_traces": 25,
-      "runtime_architect_traces": 8,
+      "scorecard": "8/16",
+      "runtime_traces": 27,
+      "runtime_architect_traces": 7,
       "trace_status_counts": {
-        "REROUTE": 23,
+        "REROUTE": 25,
         "BLOCKED": 2
       },
-      "runtime_tool_calls": 16,
-      "live_generated_code_executions": 1,
+      "runtime_tool_calls": 18,
+      "runtime_observations": 48,
+      "live_generated_code_executions": 4,
       "live_generated_simulation_executions": 1,
       "candidate_gate_independence": {
-        "status": "POST_OUTCOME_FRESH_COHORT_ALLOCATED_NOT_EXECUTED",
-        "confirmatory_execution_rows": 3,
-        "distinct_executed_cohorts": 1,
-        "fresh_transitions": 1,
+        "recorded_v369_status": "VIOLATION",
+        "recorded_v369_error": "distinct confirmatory cohorts reused one seed",
+        "corrected_612b0c57_replay_status": "NO_POST_OUTCOME_CONTINUATION_OBSERVED",
+        "confirmatory_execution_rows": 4,
+        "distinct_executed_cohorts": 2,
+        "distinct_question_ids": 2,
+        "fresh_transitions": 0,
         "post_outcome_fresh_cohort_executions": 0,
-        "verified": false
+        "verified": false,
+        "interpretation": "The two initial cohorts belonged to different questions and may share the frozen base seed. No outcome-informed continuation occurred, so independence remains unverified."
       },
       "confirmatory_source_acceptance_scope": "execution_validity_only",
       "confirmatory_outcomes_withheld_from_source": true,
       "confirmatory_candidate_seed_withheld": true,
       "runtime_edited_confirmatory_source": false,
       "independent_semantic_review_before_outcome_release": true,
-      "formalizer_workspaces": 0,
-      "local_lean_checks": 0,
+      "formalizer_workspaces": 1,
+      "formalizer_source_updates": 8,
+      "formal_rag_tool_calls": 9,
+      "local_lean_checks": 8,
+      "compiled_lean_checkpoints": 0,
       "kernel_verified_subclaims": 0,
       "exact_source_theorem_closure": "0/2",
-      "survival_result": "Three model-authored Algorithm targets executed and passed independent review. The Simulation workspace made three direct source submissions, then two real accepted-estimator failures returned to the hash-bound Algorithm source owner. The final confirmatory execution passed 7 of 8 frozen contracts. After result-blind semantic ACCEPT, Architect selected terminal Critic before any Formalizer task; Critic blocked because required formal evidence was absent.",
-      "sequential_result": "Initial theory plus two model-owned revisions were each independently reviewed. The final review closed none of the active preflight findings, so the global revision budget blocked coding, simulation, and proof rather than resetting through Architect.",
-      "latency_evidence": {
-        "client_tool_model_turn_calls": 27,
-        "client_tool_model_turn_seconds": 764.46,
-        "theory_packet_generation_calls": 4,
-        "theory_packet_generation_seconds": 463.01,
-        "theory_preflight_calls": 4,
-        "theory_preflight_seconds": 200.26,
-        "generated_code_semantic_review_calls": 4,
-        "generated_code_semantic_review_seconds": 68.12,
-        "metric_author_calls": 1,
-        "metric_author_seconds": 37.48,
-        "independent_metric_review_calls": 1,
-        "independent_metric_review_seconds": 29.72
-      },
-      "boundary": "The run proves evaluator-owned seed withholding and one integrated fresh-cohort allocation, but no post-outcome candidate executed on that cohort. It therefore does not prove candidate-gate independence, statistical success, formal closure, or full-system readiness."
+      "survival_result": "The task reached one direct Formalizer workspace with nine model-selected RAG calls, eight complete source submissions, and eight local Lean checks. No source compiled, and Critic correctly blocked formal_required_unverified.",
+      "sequential_result": "One independent preflight finding returned directly to the same TheoryDeveloper; its model-owned revision was accepted and the task advanced through Algorithm, review, metric authoring, Simulation, and three same-owner Algorithm revisions. The source owner repeatedly misread a string-valued consumer field as an object because failure feedback exposed the traceback but not the caller ABI shape, then the global consumer revision budget blocked.",
+      "boundary": "The run demonstrates a broader single-runtime path and real same-owner Python and Lean feedback loops. It does not demonstrate a passed generated simulation, post-outcome fresh-cohort execution, compiled Lean target, kernel proof, exact source-theorem closure, or full-system readiness."
     }
   },
   "design_assessment": {
@@ -111,17 +106,19 @@
     "corrected_stale_diagnoses": [
       "research_agent_runtime.py is about 22k lines, not 101k",
       "the canonical path has no active second post-runtime scheduler",
-      "v367 used direct model-to-tool source loops and hash-bound dependency return; adding a RepairAgent or ownership router would duplicate working behavior"
+      "v369 used direct model-to-tool source loops and hash-bound dependency return; adding a RepairAgent or ownership router would duplicate working behavior",
+      "v369 manifests are about 59 KB and use content-addressed payload references; they are not 13 MB recursive task copies"
     ],
     "remaining_structural_problems": [
-      "research_agent_runtime.py still concentrates 22357 lines of protocol, review, evidence, and transition logic",
+      "research_agent_runtime.py still concentrates 22387 lines of protocol, review, evidence, and transition logic",
       "three initial Algorithm targets each opened a separate two-turn source workspace; shared multi-target implementations should avoid repeated context when one model session can author them coherently",
       "serial planning envelopes plus independent review consumed substantial wall time; independent gates should stay, but redundant envelopes and uninstrumented post-turn validation time should shrink",
-      "TheoryDeveloper still lacks general model-owned calculator, Python or R experiment, counterexample, and task-bound retrieval tools",
-      "candidate-gate independence remains unverified because v367 allocated but did not execute the fresh post-outcome cohort",
-      "Architect selected terminal Critic on a formal-required task before Formalizer was attempted; the model-owned stopping contract and capability context are still too weak",
+      "TheoryDeveloper still lacks general model-owned calculator, Python or R experiment, counterexample, and task-bound retrieval tools; the independent preflight can search sources but cannot execute a discriminating symbolic or numeric check",
+      "candidate-gate independence remains unverified because v369 observed no outcome-informed continuation",
+      "the v369 Formalizer spent nine retrieval calls and eight source submissions without one compiled checkpoint; the model-visible action loop needs better use of carried declarations and earlier compiler-grounded attempts, not tactic rules",
+      "v369 scientific consumer failures returned raw tracebacks but omitted the caller ABI shape; 612b0c57 fixes that observation gap without prescribing a source repair and still needs fresh exact-Haiku integrated validation",
       "the capability scorecard undercounts the observed direct source and dependency revisions; this is an audit limitation and must not be fixed by adding control-plane counters to the research loop",
-      "the live Formalizer and prover did not run in v367, and exact source-theorem closure remains 0/2",
+      "the live Formalizer ran in v369 but produced zero compiled checkpoints and zero kernel evidence; exact source-theorem closure remains 0/2",
       "production R/package coverage, arbitrary paper-to-theorem graph ingestion, and learned research or tactic policies remain incomplete"
     ],
     "wrong_next_move": "Do not add a RepairAgent, Lean grammar fixes, theorem-specific bridges, packet routers, or another orchestration framework around the current graph."
@@ -137,7 +134,7 @@
   },
   "readiness": {
     "ready_for_full_ai_statistician": false,
-    "latest_authoritative_integrated_run": "v367",
+    "latest_authoritative_integrated_run": "v369",
     "development_exact_source_theorem_closure": "0/2",
     "held_out_panel": "sealed",
     "post_result_blind_source_iteration_fresh_panel_completed": true,
@@ -145,20 +142,21 @@
     "strict_e2e_completion_rate": "0%"
   },
   "current_structure": {
-    "research_agent_runtime_lines": 22357,
+    "research_agent_runtime_lines": 22387,
     "agent_runtime_lines": 1207,
     "cli_lines": 6896,
     "production_design_lines": 399,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 127212,
-    "latest_runtime_manifest_bytes": 58795
+    "top_level_package_lines": 127316,
+    "latest_runtime_manifest_bytes": 59059
   },
   "next_gates": [
-    "Strengthen the Architect model's stopping contract so terminal Critic is selected only after every required evidence lane is completed or explicitly evidenced unavailable; runtime must not choose the substitute route.",
-    "Execute an outcome-informed candidate on the already implemented fresh evaluator cohort before claiming candidate-gate independence.",
+    "Run an exact-Haiku component replay and then a fresh integrated development panel to verify that outcome-blind ABI shape feedback lets the same AlgorithmEngineer resolve consumer mismatches without a RepairAgent.",
+    "Execute an outcome-informed candidate on a fresh evaluator-owned cohort before claiming candidate-gate independence.",
     "Collapse avoidable scientific planning envelopes and consolidate compatible multi-target source sessions while preserving independent review and same-owner execution loops.",
-    "Give TheoryDeveloper general model-owned calculator, counterexample, Python or R sandbox, and retrieval actions without adding task-family formulas.",
-    "Resume task-bound Formalizer and prover work with Statlib, Mathlib, EmpericalProcessLEAN, OpenProver, and CodexProver context until both development targets reach exact kernel closure.",
+    "Give TheoryDeveloper and its independent critic a bounded general calculator, counterexample, Python or R sandbox, and task-bound retrieval actions without adding task-family formulas or a new scheduler.",
+    "Reduce redundant Formalizer searches by making carried Statlib, Mathlib, EmpericalProcessLEAN, OpenProver, and CodexProver declarations directly inspectable and measuring source-first versus retrieval-first behavior; keep Lean feedback model-owned.",
+    "Drive both development targets to exact local kernel closure before opening held-out tasks.",
     "Use exact Haiku for every test and evaluation; production capability probes may use Sonnet but never Opus.",
     "Keep PCA and extremes held out until both development tasks close under the corrected independence contract."
   ]
