@@ -12145,9 +12145,8 @@ def _formalizer_packet_validation_failure_result(
         "local_validators_unchanged": True,
         "kernel_gate_unchanged": True,
     }
-    lean_workspace_checkpoint_available = bool(
-        complete_current_source_checkpoint_provided
-        and str(recovery_checkpoint.get("artifact_kind", "") or "")
+    lean_workspace_observation_available = bool(
+        str(recovery_checkpoint.get("artifact_kind", "") or "")
         in {
             "LeanCandidateWorkspaceRecoveryCheckpoint",
             "LeanCandidateRevisionRecoveryCheckpoint",
@@ -12215,25 +12214,12 @@ def _formalizer_packet_validation_failure_result(
             ),
             "runtime_selected_lean_code": False,
         }
-        if lean_workspace_checkpoint_available
+        if lean_workspace_observation_available
         else {}
-    )
-    workspace_continuation_attempt = max(
-        0,
-        _int_like(task.inputs.get("formalizer_workspace_continuation_attempt", 0)),
-    )
-    target_identity_validation_exhausted = exc.validation_label in {
-        "Formalizer workspace target identity",
-        "Formalizer workspace target lineage",
-    }
-    workspace_continuation_allowed = (
-        not lean_workspace_checkpoint_available
-        and not target_identity_validation_exhausted
-        and workspace_continuation_attempt < 1
     )
     failure_classification = (
         "formalizer_client_tool_loop_exhausted"
-        if lean_workspace_checkpoint_available
+        if lean_workspace_observation_available
         else "formalizer_packet_validation_failed"
     )
     feedback = {
@@ -12254,8 +12240,8 @@ def _formalizer_packet_validation_failure_result(
         "complete_current_source_checkpoint_provided": (
             complete_current_source_checkpoint_provided
         ),
-        "workspace_continuation_attempt": workspace_continuation_attempt,
-        "workspace_continuation_allowed": workspace_continuation_allowed,
+        "workspace_continuation_attempt": 0,
+        "workspace_continuation_allowed": False,
         "attempt_history_ref": (
             {
                 "artifact_id": attempt_history_id,
@@ -12291,57 +12277,16 @@ def _formalizer_packet_validation_failure_result(
             "reported separately; neither is a runtime source edit or proof artifact."
         ),
     }
-    if workspace_continuation_allowed:
-        next_inputs = dict(task.inputs)
-        next_inputs["environment_feedback"] = {
-            "schema_version": RUNTIME_SCHEMA_VERSION,
-            "artifact_kind": "RuntimeWorkspaceObservationRef",
-            "feedback_type": "same_workspace_observation_ref",
-            "feedback_id": str(feedback["feedback_id"]),
-            "source_task_id": task.task_id,
-            "source_subsystem": task.owner_subsystem,
-            "source_artifact_id": failure_id,
-            "source_artifact_hash": stable_hash(failure_artifact),
-            "failure_classification": failure_classification,
-            "runtime_edits_candidate": False,
-            "proof_evidence_status": str(feedback["proof_evidence_status"]),
-        }
-        next_inputs["formalizer_workspace_continuation_attempt"] = (
-            workspace_continuation_attempt + 1
-        )
-        next_task = replace(
-            task,
-            task_id=(
-                f"formalizer-workspace-continuation:{question.id}:"
-                f"{stable_hash([failure_id, workspace_continuation_attempt])[:8]}"
-            ),
-            objective=(
-                "Continue the same model-owned Lean workspace from the exact "
-                "stored model artifact and raw final environment observations."
-            ),
-            inputs=next_inputs,
-        )
-        result_rationale = (
-            "The bounded Lean tool loop returned its exact model-owned source "
-            "checkpoint and raw final observation directly to the same Formalizer "
-            "workspace for one continuation."
-            if lean_workspace_checkpoint_available
-            else "Formalizer packet validation returned the complete rejected model "
-            "artifact and raw observations directly to the same source-owning "
-            "workspace for one full regeneration."
-        )
-    else:
-        next_task = None
-        result_rationale = (
-            "The bounded model-owned Lean workspace exhausted its direct source "
-            "iteration without a valid exact-target source. The runtime preserved "
-            "the final source and observations as a blocker without duplicating "
-            "the workspace or adding an Architect or Critic routing loop."
-            if lean_workspace_checkpoint_available
-            else "The same Formalizer workspace exhausted its compact binding or "
-            "fallback packet validation without a valid exact target. The runtime "
-            "recorded a blocker without adding an Architect or Critic routing loop."
-        )
+    result_rationale = (
+        "The bounded model-owned Lean workspace exhausted its direct tool loop "
+        "without a valid exact-target source. The runtime preserved its complete "
+        "transcript, current source checkpoint, and raw observations as a blocker "
+        "without launching a packet-regeneration session."
+        if lean_workspace_observation_available
+        else "Formalizer packet validation exhausted its model-owned structured "
+        "generation budget. The runtime recorded the rejected packet and raw "
+        "observations as a blocker without launching another generation session."
+    )
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
         task_id=task.task_id,
@@ -12352,7 +12297,7 @@ def _formalizer_packet_validation_failure_result(
         payload={
             "validation_errors": validation_errors,
             "same_owner_subsystem": task.owner_subsystem,
-            "workspace_continuation_allowed": workspace_continuation_allowed,
+            "workspace_continuation_allowed": False,
             "runtime_edits_candidate": False,
             **client_tool_loop_observation,
             "proof_evidence_status": (
@@ -12379,7 +12324,7 @@ def _formalizer_packet_validation_failure_result(
         }
     produced_artifacts[failure_id] = failure_artifact
     return AgentStepResult(
-        status="REVISE" if workspace_continuation_allowed else "BLOCKED",
+        status="BLOCKED",
         rationale=result_rationale,
         produced_artifacts=produced_artifacts,
         observations=(
@@ -12390,9 +12335,7 @@ def _formalizer_packet_validation_failure_result(
                     "failure_id": failure_id,
                     "validation_errors": validation_errors,
                     "same_owner_subsystem": task.owner_subsystem,
-                    "workspace_continuation_allowed": (
-                        workspace_continuation_allowed
-                    ),
+                    "workspace_continuation_allowed": False,
                     "runtime_edits_candidate": False,
                     **client_tool_loop_observation,
                     "proof_evidence_status": (
@@ -12402,12 +12345,8 @@ def _formalizer_packet_validation_failure_result(
             ),
         ),
         evidence_entries=(evidence,),
-        next_task=next_task,
-        failure_classification=(
-            failure_classification
-            if next_task is not None
-            else "formalizer_workspace_continuation_exhausted"
-        ),
+        next_task=None,
+        failure_classification=failure_classification,
     )
 
 
@@ -15367,6 +15306,29 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
         None,
     )
 
+    def active_project_declaration_path(symbol: str) -> Path | None:
+        if formal_source_retriever is None:
+            return None
+        try:
+            hits = formal_source_retriever.search(symbol, k=8)
+        except Exception:
+            return None
+        project_root = Path(lean_candidate_lean_project).resolve()
+        for hit in hits:
+            declaration = getattr(hit, "declaration", None)
+            if str(getattr(declaration, "name", "") or "") != symbol:
+                continue
+            path_text = str(getattr(declaration, "path", "") or "").strip()
+            if not path_text:
+                continue
+            path = Path(path_text).expanduser()
+            resolved = (
+                path if path.is_absolute() else project_root / path
+            ).resolve()
+            if resolved.is_file() and project_root in resolved.parents:
+                return resolved
+        return None
+
     def inspect_lean_declaration(
         source: str,
         symbol: str,
@@ -15374,38 +15336,68 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
         last_check: Mapping[str, Any],
     ) -> Any:
         source_hash = stable_hash(source)
-        if str(last_check.get("source_hash", "") or "") != source_hash:
-            raise PacketValidationError(
-                validation_label="Formalizer Lean declaration inspection lineage",
-                attempts=1,
-                errors=[
-                    "Lean declaration inspection is not bound to current source hash"
-                ],
-                history=[],
+        candidate_source_checked = bool(last_check)
+        if candidate_source_checked:
+            if str(last_check.get("source_hash", "") or "") != source_hash:
+                raise PacketValidationError(
+                    validation_label=(
+                        "Formalizer Lean declaration inspection lineage"
+                    ),
+                    attempts=1,
+                    errors=[
+                        "Lean declaration inspection is not bound to current source hash"
+                    ],
+                    history=[],
+                )
+            check_artifact_path = Path(
+                str(
+                    last_check.get("proof_state_artifact_path", "")
+                    or last_check.get("artifact_path", "")
+                    or ""
+                )
             )
-        check_artifact_path = Path(
-            str(
-                last_check.get("proof_state_artifact_path", "")
-                or last_check.get("artifact_path", "")
-                or ""
-            )
-        )
-        try:
-            checked_source = check_artifact_path.read_text(encoding="utf-8")
-        except OSError as exc:
-            raise PacketValidationError(
-                validation_label="Formalizer Lean declaration inspection lineage",
-                attempts=1,
-                errors=[f"checked Lean artifact is unavailable: {exc}"],
-                history=[],
-            ) from exc
-        if stable_hash(checked_source) != source_hash:
-            raise PacketValidationError(
-                validation_label="Formalizer Lean declaration inspection lineage",
-                attempts=1,
-                errors=["checked Lean artifact is not bound to current source hash"],
-                history=[],
-            )
+            try:
+                checked_source = check_artifact_path.read_text(encoding="utf-8")
+            except OSError as exc:
+                raise PacketValidationError(
+                    validation_label=(
+                        "Formalizer Lean declaration inspection lineage"
+                    ),
+                    attempts=1,
+                    errors=[f"checked Lean artifact is unavailable: {exc}"],
+                    history=[],
+                ) from exc
+            if stable_hash(checked_source) != source_hash:
+                raise PacketValidationError(
+                    validation_label=(
+                        "Formalizer Lean declaration inspection lineage"
+                    ),
+                    attempts=1,
+                    errors=[
+                        "checked Lean artifact is not bound to current source hash"
+                    ],
+                    history=[],
+                )
+            inspection_binding = "checked_candidate_source"
+        else:
+            check_artifact_path = active_project_declaration_path(symbol)
+            if check_artifact_path is None:
+                return {
+                    "ok": False,
+                    "status": "ACTIVE_PROJECT_DECLARATION_NOT_FOUND",
+                    "symbol": symbol,
+                    "error": (
+                        "No exact active-project declaration path was found for "
+                        "this model-selected symbol. Search the formal environment "
+                        "for its exact qualified name before retrying inspection."
+                    ),
+                    "candidate_source_hash": source_hash,
+                    "candidate_source_checked": False,
+                    "proof_evidence_status": (
+                        "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            inspection_binding = "active_project_declaration_source"
         raw = declaration_inspector(
             artifact_path=str(check_artifact_path),
             symbol=symbol,
@@ -15427,7 +15419,15 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                     "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
                 ),
             }
-        return deepcopy(dict(raw))
+        result = deepcopy(dict(raw))
+        result.update(
+            {
+                "inspection_binding": inspection_binding,
+                "candidate_source_hash": source_hash,
+                "candidate_source_checked": candidate_source_checked,
+            }
+        )
+        return result
 
     try:
         revised_packet, loop_evidence = (

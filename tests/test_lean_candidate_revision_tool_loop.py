@@ -583,11 +583,75 @@ def test_model_selects_exact_declaration_inspection_inside_same_source_loop() ->
         "lean_lsp_mcp.lean_declaration_file"
     ]
     assert result.evidence["lean_lsp_mcp_live_called"] is True
-    assert "inspect_lean_declaration" not in {
+    assert "inspect_lean_declaration" in {
         tool.name for tool in backend.requests[0].tools
     }
     assert "inspect_lean_declaration" in {
         tool.name for tool in backend.requests[1].tools
+    }
+
+
+def test_model_can_inspect_exact_declaration_before_first_source() -> None:
+    authored = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "declaration-before-source",
+                    "inspect_lean_declaration",
+                    {"symbol": "True.intro", "context_lines": 12},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-first-source",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": authored,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+        ]
+    )
+    inspections: list[tuple[str, str, int, dict]] = []
+
+    def inspect(source: str, symbol: str, context_lines: int, last_check):
+        inspections.append((source, symbol, context_lines, dict(last_check)))
+        return {
+            "ok": True,
+            "status": "OBSERVED",
+            "executed_tools": ["lean_lsp_mcp.lean_declaration_file"],
+            "observation": {"content": "theorem True.intro : True"},
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Inspect the active API, then author the exact source.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=4,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="",
+        initial_source="",
+        check_candidate=lambda source, declaration: {
+            "source_hash": stable_hash(source),
+            "compiled": source == authored and declaration == "target",
+        },
+        search_formal_environment=lambda query, k: [],
+        inspect_lean_declaration=inspect,
+    )
+
+    assert inspections == [("", "True.intro", 12, {})]
+    assert result.lean_source == authored
+    assert result.evidence["lean_declaration_inspections"] == 1
+    assert result.evidence["lean_lsp_mcp_live_called"] is True
+    assert "inspect_lean_declaration" in {
+        tool.name for tool in backend.requests[0].tools
     }
 
 
@@ -643,6 +707,58 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
     ]
     assert backend.requests[1].tool_choice == "any"
     assert all(request.disable_parallel_tool_use for request in backend.requests)
+
+
+def test_lean_candidate_workspace_retains_its_complete_bounded_transcript() -> None:
+    authored = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            *[
+                _response(
+                    ClientToolCall(
+                        f"search-{index}",
+                        "search_formal_environment",
+                        {"query": f"declaration query {index}"},
+                    )
+                )
+                for index in range(5)
+            ],
+            _response(
+                ClientToolCall(
+                    "submit-source",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": authored},
+                )
+            ),
+        ]
+    )
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Retain observations and author the exact source.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=6,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source="",
+        check_candidate=lambda source, _declaration: {
+            "source_hash": stable_hash(source),
+            "compiled": source == authored,
+        },
+        search_formal_environment=lambda query, k: {
+            "query": query,
+            "max_results": k,
+        },
+    )
+
+    assert len(backend.requests[-1].messages) == 11
+    assert result.evidence["max_retained_tool_turns"] == 6
+    assert result.evidence["formal_environment_searches"] == 5
 
 
 def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> None:
@@ -1118,9 +1234,7 @@ def test_exhausted_formalizer_source_loop_blocks_without_duplicate_workspace() -
 
     assert result.status == "BLOCKED"
     assert result.next_task is None
-    assert result.failure_classification == (
-        "formalizer_workspace_continuation_exhausted"
-    )
+    assert result.failure_classification == "formalizer_client_tool_loop_exhausted"
     failure = next(iter(result.produced_artifacts.values()))
     assert failure["formalizer_recovery_checkpoint"]["current_source"] == latest
     assert failure["rejected_candidate_complete"] is False
@@ -1132,8 +1246,7 @@ def test_exhausted_formalizer_source_loop_blocks_without_duplicate_workspace() -
         "complete_current_source_checkpoint_provided"
     ] is True
     assert failure["workspace_continuation_allowed"] is False
-    assert "without duplicating the workspace" in result.rationale
-    assert "Architect or Critic routing loop" in result.rationale
+    assert "without launching a packet-regeneration session" in result.rationale
     assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
 
 
@@ -1283,7 +1396,7 @@ def test_formalizer_failure_preserves_workspace_refs_without_payload_copy() -> N
     assert loop_evidence["n_formal_rag_tool_calls"] == 1
 
 
-def test_formalizer_packet_failure_stays_with_source_owner_then_blocks() -> None:
+def test_formalizer_packet_failure_blocks_without_regeneration_session() -> None:
     question = OpenResearchQuestion(
         id="packet-owner-loop",
         title="Keep packet failure with its source owner",
@@ -1305,7 +1418,7 @@ def test_formalizer_packet_failure_stays_with_source_owner_then_blocks() -> None
         history=[],
     )
 
-    first = runtime_module._formalizer_packet_validation_failure_result(
+    result = runtime_module._formalizer_packet_validation_failure_result(
         task=task,
         question=question,
         theory_packet_id="theory:packet-owner-loop",
@@ -1314,29 +1427,14 @@ def test_formalizer_packet_failure_stays_with_source_owner_then_blocks() -> None
         exc=error,
     )
 
-    assert first.status == "REVISE"
-    assert first.next_task is not None
-    assert first.next_task.owner_subsystem == "FormalizationEvaluator"
-    assert first.next_task.inputs["formalizer_workspace_continuation_attempt"] == 1
-    assert first.next_task.inputs["environment_feedback"]["artifact_kind"] == (
-        "RuntimeWorkspaceObservationRef"
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == "formalizer_packet_validation_failed"
+    failure = next(iter(result.produced_artifacts.values()))
+    assert failure["workspace_continuation_allowed"] is False
+    assert (
+        "without launching another generation session" in result.rationale
     )
-
-    exhausted = runtime_module._formalizer_packet_validation_failure_result(
-        task=first.next_task,
-        question=question,
-        theory_packet_id="theory:packet-owner-loop",
-        simulation_manifest_id="",
-        algorithm_sandbox_manifest_id="",
-        exc=error,
-    )
-
-    assert exhausted.status == "BLOCKED"
-    assert exhausted.next_task is None
-    assert exhausted.failure_classification == (
-        "formalizer_workspace_continuation_exhausted"
-    )
-    assert "Architect or Critic routing loop" in exhausted.rationale
 
 
 def test_formalizer_workspace_hydrates_observation_ref_before_source_loop(
@@ -1761,6 +1859,43 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
         },
     }
     authored = "theorem Exact.target : True := by\n  exact True.intro\n"
+    project_source = tmp_path / "Project.lean"
+    project_source.write_text(
+        "theorem Project.Source : True := by exact True.intro\n",
+        encoding="utf-8",
+    )
+
+    class FormalSourceRetriever:
+        def search(self, query, *, k):
+            assert query == "Project.Source"
+            assert k == 8
+
+            class Declaration:
+                name = "Project.Source"
+                path = "Project.lean"
+
+            class Hit:
+                declaration = Declaration()
+
+            return [Hit()]
+
+    class ProofStateProvider:
+        name = "fake_lean_lsp_mcp"
+
+        def __init__(self) -> None:
+            self.calls = []
+
+        def inspect_declaration(self, **kwargs):
+            self.calls.append(dict(kwargs))
+            return {
+                "ok": True,
+                "status": "OBSERVED",
+                "executed_tools": ["lean_lsp_mcp.lean_declaration_file"],
+                "symbol": kwargs["symbol"],
+                "proof_evidence_status": (
+                    "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
+                ),
+            }
 
     class FormalizerBackend(ScriptedLeanToolBackend):
         def __init__(self) -> None:
@@ -1768,9 +1903,9 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
                 [
                     _response(
                         ClientToolCall(
-                            "search-before-source",
-                            "search_formal_environment",
-                            {"query": "exact target declarations"},
+                            "inspect-before-source",
+                            "inspect_lean_declaration",
+                            {"symbol": "Project.Source"},
                         )
                     ),
                     _response(
@@ -1807,12 +1942,15 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             model_tier="haiku",
             max_validation_retries=0,
-            client_tool_lean_candidate_max_turns=1,
+            client_tool_lean_candidate_max_turns=2,
             client_tool_lean_candidate_max_no_progress_turns=1,
         ),
     )
+    proof_state_provider = ProofStateProvider()
     subsystem = runtime_module.FormalizerWorkspaceRuntimeSubsystem(
         proposal_agent=agent,
+        proof_state_provider=proof_state_provider,
+        formal_source_retriever=FormalSourceRetriever(),
         lean_candidate_root=tmp_path / "candidates",
         lean_candidate_local_lean=True,
         lean_candidate_lean_project=tmp_path,
@@ -1832,32 +1970,21 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
         project_id=question.id,
         artifacts={theory_packet_id: theory_packet},
     )
-    first = subsystem.run(task, blackboard)
+    result = subsystem.run(task, blackboard)
 
-    assert first.status == "REVISE"
-    assert first.next_task is not None
     assert all(
         row.get("artifact_kind") != "FormalizerTargetBindingPacket"
-        for row in first.produced_artifacts.values()
+        for row in result.produced_artifacts.values()
     )
-    failure = next(
-        row
-        for row in first.produced_artifacts.values()
-        if row.get("artifact_kind") == "RuntimeFormalizerValidationFailure"
-    )
-    checkpoint = failure["formalizer_recovery_checkpoint"]
-    assert checkpoint["parent_formalizer_workspace_target_id"].startswith(
-        "formalizer_workspace_target:"
-    )
-    assert checkpoint["parent_formalizer_workspace_target_hash"]
-    assert checkpoint["current_source"] == ""
-    assert checkpoint["model_owned_lean_code"] is False
-    assert checkpoint["model_owned_workspace_actions"] is True
-
-    blackboard.artifacts.update(first.produced_artifacts)
-    result = subsystem.run(first.next_task, blackboard)
-
     assert len(backend.requests) == 2
+    assert "at most 2 model-tool turns" in backend.requests[0].system_prompt
+    assert proof_state_provider.calls == [
+        {
+            "artifact_path": str(project_source),
+            "symbol": "Project.Source",
+            "context_lines": 20,
+        }
+    ]
     proposals = [
         row
         for row in result.produced_artifacts.values()
@@ -1872,14 +1999,11 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
     ]
     assert len(workspaces) == 1
     assert workspaces[0]["workspace_phase"] == "initial_authoring"
+    assert workspaces[0]["lean_declaration_inspections"] == 1
+    assert workspaces[0]["lean_lsp_mcp_live_called"] is True
     assert workspaces[0]["runtime_selected_lean_code"] is False
-    assert result.status == "BLOCKED"
-    assert result.failure_classification == "formalizer_workspace_exhausted"
-    assert any(
-        observation.observation_type
-        == "formalizer_lean_candidate_local_lean_feedback"
-        for observation in result.observations
-    )
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
 
 
 def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(

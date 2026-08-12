@@ -503,11 +503,6 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError(
                     "inspect_lean_declaration accepts symbol and optional context_lines"
                 )
-            if not state["last_check"]:
-                raise ClientToolInputError(
-                    "submit_lean_source must run before inspect_lean_declaration so "
-                    "the lookup is bound to the exact current source artifact"
-                )
             symbol = tool_input.get("symbol")
             if not isinstance(symbol, str) or not symbol.strip():
                 raise ClientToolInputError(
@@ -579,8 +574,7 @@ def run_lean_candidate_revision_tool_loop(
         return tuple(
             tool
             for tool in available_tools
-            if tool.name
-            not in {"inspect_lean_state", "inspect_lean_declaration"}
+            if tool.name != "inspect_lean_state"
             or bool(state["last_check"])
         )
 
@@ -597,7 +591,7 @@ def run_lean_candidate_revision_tool_loop(
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
             select_tools=select_available_tools,
-            max_retained_tool_turns=4,
+            max_retained_tool_turns=max_turns,
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(
@@ -793,7 +787,7 @@ def _lean_candidate_revision_success_result(
         "max_turns": max_turns,
         "max_tool_calls": max_tool_calls,
         "max_no_progress_turns": max_no_progress_turns,
-        "max_retained_tool_turns": 4,
+        "max_retained_tool_turns": max_turns,
         "submit_and_check_atomic": True,
         "tool_names": [tool.name for tool in tools],
         "source_updates": state["source_updates"],

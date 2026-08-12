@@ -265,6 +265,10 @@ class LLMFormalizerProofEngineerAgent:
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
         )
+        workspace_turn_budget = max(
+            1,
+            self.config.client_tool_lean_candidate_max_turns,
+        )
         loop = run_lean_candidate_revision_tool_loop(
             provider=self.provider,
             system_prompt=(
@@ -282,7 +286,11 @@ class LLMFormalizerProofEngineerAgent:
                 "prerequisite to an early compiler-grounded source attempt. Do not "
                 "answer with prose or JSON, and do not weaken the target. If concrete "
                 "environment observations establish a missing foundation primitive, "
-                "report that exact gap instead of inventing an API or weaker theorem."
+                "report that exact gap instead of inventing an API or weaker theorem. "
+                f"This workspace has at most {workspace_turn_budget} model-tool "
+                "turns. Retain and use declarations already observed, avoid cycling "
+                "through synonymous searches, and finish by choosing either a "
+                "complete submit_lean_source call or a concrete report_formal_gap call."
             ),
             user_prompt=_build_lean_candidate_workspace_tool_prompt(
                 question=question,
@@ -298,7 +306,7 @@ class LLMFormalizerProofEngineerAgent:
             model_tier=self.config.model_tier,
             temperature=self.config.temperature,
             max_tokens=self.config.max_tokens,
-            max_turns=max(1, self.config.client_tool_lean_candidate_max_turns),
+            max_turns=workspace_turn_budget,
             max_no_progress_turns=max(
                 1,
                 self.config.client_tool_lean_candidate_max_no_progress_turns,

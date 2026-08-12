@@ -448,7 +448,7 @@ def test_formal_blocker_does_not_starve_unvisited_empirical_lanes() -> None:
         result=AgentStepResult(
             status="BLOCKED",
             rationale="Lean workspace budget exhausted.",
-            failure_classification="formalizer_workspace_continuation_exhausted",
+            failure_classification="formalizer_client_tool_loop_exhausted",
         ),
         blackboard=blackboard,
         runtime_config=ResearchAgentRuntimeConfig(
@@ -533,7 +533,7 @@ def test_outer_graph_reopens_algorithm_for_revised_theory_parent() -> None:
         result=AgentStepResult(
             status="BLOCKED",
             rationale="The formal workspace recorded a typed blocker.",
-            failure_classification="formalizer_workspace_continuation_exhausted",
+            failure_classification="formalizer_client_tool_loop_exhausted",
         ),
         blackboard=BlackboardState(
             project_id=question.id,
