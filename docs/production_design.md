@@ -165,6 +165,11 @@ contract, result schema, and theory alignment. After `ACCEPT`, the immutable out
 is released once to Architect by reference, and the same Simulation source cannot
 retry. Execution is not statistical validity or theorem proof.
 
+If Architect assigns a released outcome to AlgorithmEngineer, runtime restores the exact
+parent source and frozen Simulation continuation by hash. The same coding workspace
+revises complete source, receives independent review, and replays the frozen consumer
+on the new cohort without a new proposal, Formalizer detour, or runtime-authored edit.
+
 For rejected source, the reviewer asks whether editing only that source can close
 all findings with theory, contract, and consumer fixed; it names no owner, route,
 or edit. Sufficient findings return to the coding workspace; otherwise one compact
@@ -341,18 +346,15 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-12, v362 is the latest fresh integrated panel. Every live call used
-exact `claude-haiku-4-5-20251001`. It scored 6/16, ended with two `BLOCKED`
-tasks, and closed 0/2 exact source theorems. Survival executed and independently
-accepted its Algorithm, but produced no accepted Simulation source. Its one
-Formalizer workspace used 20 model turns, 11 formal retrieval calls, two exact
-active-project declaration inspections, and six complete source submissions with
-local Lean checks; none compiled. No second generation or repair session ran.
-
-Sequential used initial theory plus two targeted revisions and remained rejected
-by independent preflight, so downstream coding and proving were correctly withheld.
-The panel therefore validates direct same-owner source feedback and honest stopping,
-not autonomous research readiness. Held-out tasks remain sealed. Audit
+As of 2026-08-12, v384 is the latest fresh integrated panel. Every live call used
+exact `claude-haiku-4-5-20251001`. It scored 8/16, ended with one `BLOCKED` and
+one `MAX_ITERATIONS_REACHED` task, and closed 0/2 exact source theorems. Survival
+exercised Algorithm, Simulation, independent review, and a 20-turn Formalizer
+workspace, but Formalizer ran before the released confirmatory failure returned
+to the exact Algorithm source; no Lean candidate compiled. Sequential stopped at
+unresolved theory preflight. Commit `bcc74d6d` corrects that shared continuation
+topology but has no integrated credit until a fresh panel exercises it. Held-out
+tasks remain sealed. Audit
 `all_ok=true` means artifact integrity passed; it does not override the 0/2 kernel
 closure result.
 
@@ -390,8 +392,7 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-Immediate priorities are general model-owned theory counterchecks, a leaner
-scientific source workspace, and reliable active-project declaration inspection.
+Immediate priorities are a fresh confirmatory source-continuation run, general model-owned theory counterchecks, and reliable active-project declaration inspection.
 The Formalizer already has one direct authoring/revision session; failed source
 quality must not be answered with a repair agent, a second generation pass, Lean
 grammar rules, or theorem-specific bridges. New mechanisms must delete control

@@ -58,9 +58,15 @@ content-addressed lineage, and single runtime endpoint are implemented and cover
 by deterministic tests. The old repair/bridge/planner side systems have been
 removed from the canonical package.
 
-The latest authoritative live development panel still has 0/2 exact theorem
-closures, and no post-simplification full live panel has run. The system therefore
-must not be described as fully end to end.
+The latest authoritative live development panel, v384, scored 8/16 and still has
+0/2 exact theorem closures. It exposed one shared topology error: after a released
+confirmatory failure, a model-selected Algorithm revision was replanned and preceded
+by Formalizer work instead of restoring the exact source workspace and frozen
+Simulation continuation. Commit `bcc74d6d` fixes that mechanism without adding a
+task-family rule or content repair, but it has no integrated capability credit until
+a fresh exact-Haiku panel exercises the corrected path. The current execution goal
+is therefore v385 source-owner revision, independent review, fresh consumer replay,
+and then formalization. The system must not yet be described as fully end to end.
 
 The machine-readable frozen split is
 [`benchmarks/autonomous_cross_family_e2e_protocol_20260713.json`](../benchmarks/autonomous_cross_family_e2e_protocol_20260713.json).
