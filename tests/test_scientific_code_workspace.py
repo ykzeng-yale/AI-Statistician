@@ -457,7 +457,6 @@ def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:
                         "response": {"estimate": 0.2},
                         "request_shape": {
                             "type": "object",
-                            "field_count": 1,
                             "fields": {
                                 "mode": {"type": "string", "length": 23}
                             },
@@ -490,10 +489,8 @@ def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:
     assert observation["empirical_outcomes_withheld"] is True
     assert observation["empirical_outcome_authority"] == "EmpiricalEvaluator"
     invocation = observation["estimator_invocation_samples"]["candidate"][0]
-    assert invocation["request_shape"]["fields"]["mode"] == {
-        "type": "string",
-        "length": 23,
-    }
+    assert invocation["request_shape"]["fields"]["mode"] == {"type": "string"}
+    assert "invocation_index" not in invocation
     assert "request" not in invocation
     assert "response" not in invocation
     for key in (
@@ -509,3 +506,4 @@ def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:
         assert key not in observation
     assert "0.2" not in str(observation)
     assert "withheld-realized-value" not in str(observation)
+    assert "23" not in str(observation)

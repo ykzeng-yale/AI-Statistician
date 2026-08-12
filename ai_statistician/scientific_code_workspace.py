@@ -39,6 +39,9 @@ SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY = "scientific_consumer_revision"
 _SCIENTIFIC_PACKAGES = (
     PYTHON_SCIENTIFIC_DEPENDENCIES + R_SCIENTIFIC_DEPENDENCIES
 )
+_OUTCOME_DERIVED_SHAPE_FIELDS = frozenset(
+    {"length", "dimensions", "field_count", "truncated_field_count"}
+)
 
 
 @dataclass(frozen=True)
@@ -46,6 +49,18 @@ class ScientificCodeWorkspaceResult:
     code_draft: Mapping[str, Any]
     check_result: Mapping[str, Any]
     evidence: Mapping[str, Any]
+
+
+def _outcome_blind_request_shape(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _outcome_blind_request_shape(child)
+            for key, child in value.items()
+            if str(key) not in _OUTCOME_DERIVED_SHAPE_FIELDS
+        }
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return [_outcome_blind_request_shape(child) for child in value]
+    return deepcopy(value)
 
 
 def scientific_workspace_prototype_observation(
@@ -141,14 +156,16 @@ def scientific_workspace_prototype_observation(
         direct_fields["estimator_invocation_samples"] = {
             str(artifact_id): [
                 {
-                    key: deepcopy(row[key])
-                    for key in (
-                        "invocation_index",
-                        "request_shape",
-                        "response_status",
-                        "error_type",
-                    )
-                    if key in row
+                    **{
+                        "request_shape": _outcome_blind_request_shape(
+                            row["request_shape"]
+                        )
+                    },
+                    **{
+                        key: deepcopy(row[key])
+                        for key in ("response_status", "error_type")
+                        if key in row
+                    },
                 }
                 for row in rows
                 if isinstance(row, Mapping) and row.get("request_shape")

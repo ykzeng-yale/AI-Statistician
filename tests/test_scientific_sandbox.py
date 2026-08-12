@@ -1613,7 +1613,7 @@ def test_live_estimator_failure_is_tagged_as_algorithm_runtime_feedback(
     assert result.estimator_runtime_failure_ids == ("candidate",)
     assert len(result.estimator_runtime_errors) == 1
     assert "ACCEPTED_ESTIMATOR_RUNTIME_ERROR" in result.estimator_runtime_errors[0]
-    assert 'request_shape={"field_count":1,"fields":{"seed":{"type":"integer"}}' in (
+    assert 'request_shape={"fields":{"seed":{"type":"integer"}}' in (
         result.estimator_runtime_errors[0]
     )
 
@@ -1671,12 +1671,10 @@ def test_live_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
             "invocation_index": 1,
             "request_shape": {
                 "type": "object",
-                "field_count": 2,
                 "fields": {
-                    "mode": {"type": "string", "length": 23},
+                    "mode": {"type": "string"},
                     "values": {
                         "type": "array",
-                        "length": 2,
                         "element_types": ["integer"],
                     },
                 },
@@ -1740,8 +1738,7 @@ def test_live_r_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
             "invocation_index": 1,
             "request_shape": {
                 "type": "object",
-                "field_count": 1,
-                    "fields": {"seed": {"type": "number"}},
+                "fields": {"seed": {"type": "number"}},
             },
             "response_status": "ERROR",
             "error_type": "simpleError",
