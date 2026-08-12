@@ -446,6 +446,27 @@ def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:
             "stdout_summary": "metric=0.2",
             "stderr_summary": "",
             "script_hash": "source-hash",
+            "mechanical_estimator_invocation_verified": False,
+            "estimator_runtime_failure_ids": ["candidate"],
+            "estimator_runtime_errors": ["AttributeError: incompatible request"],
+            "estimator_invocation_samples": {
+                "candidate": [
+                    {
+                        "invocation_index": 1,
+                        "request": {"mode": "withheld-realized-value"},
+                        "response": {"estimate": 0.2},
+                        "request_shape": {
+                            "type": "object",
+                            "field_count": 1,
+                            "fields": {
+                                "mode": {"type": "string", "length": 23}
+                            },
+                        },
+                        "response_status": "ERROR",
+                        "error_type": "AttributeError",
+                    }
+                ]
+            },
             "execution_envelope_hash": "outcome-derived-envelope-hash",
             "result_hash": "result-hash",
             "metric_gate_errors": ["observed 0.2 is below 0.9"],
@@ -468,6 +489,13 @@ def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:
     assert observation["execution_smoke_passed"] is True
     assert observation["empirical_outcomes_withheld"] is True
     assert observation["empirical_outcome_authority"] == "EmpiricalEvaluator"
+    invocation = observation["estimator_invocation_samples"]["candidate"][0]
+    assert invocation["request_shape"]["fields"]["mode"] == {
+        "type": "string",
+        "length": 23,
+    }
+    assert "request" not in invocation
+    assert "response" not in invocation
     for key in (
         "prototype_status",
         "smoke_passed",
@@ -480,3 +508,4 @@ def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:
     ):
         assert key not in observation
     assert "0.2" not in str(observation)
+    assert "withheld-realized-value" not in str(observation)

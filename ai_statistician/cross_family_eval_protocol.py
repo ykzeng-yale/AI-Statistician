@@ -542,11 +542,12 @@ def summarize_candidate_gate_independence(
             transition = payload.get("transition", {})
             if isinstance(transition, Mapping) and transition:
                 transitions.append(transition)
-    seed_to_ids: dict[int, set[str]] = {}
+    seed_to_ids: dict[tuple[str, int], set[str]] = {}
     for cohort_id, cohort in cohorts.items():
         seed = cohort.get("seed")
         if isinstance(seed, int) and not isinstance(seed, bool):
-            seed_to_ids.setdefault(seed, set()).add(cohort_id)
+            seed_scope = (str(cohort.get("question_id", "") or ""), seed)
+            seed_to_ids.setdefault(seed_scope, set()).add(cohort_id)
     post_outcome_ids = {
         cohort_id
         for cohort_id, cohort in cohorts.items()
@@ -557,7 +558,7 @@ def summarize_candidate_gate_independence(
     }
     errors = []
     if any(len(ids) > 1 for ids in seed_to_ids.values()):
-        errors.append("distinct confirmatory cohorts reused one seed")
+        errors.append("distinct confirmatory cohorts for one question reused one seed")
     if post_outcome_ids - transition_targets:
         errors.append("post-outcome cohort execution lacks a recorded transition")
     if any(

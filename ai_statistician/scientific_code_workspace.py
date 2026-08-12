@@ -137,6 +137,25 @@ def scientific_workspace_prototype_observation(
         for key in direct_field_names
         if prototype.get(key) not in (None, "", [], {})
     }
+    if not include_empirical_outcomes and "estimator_invocation_samples" in direct_fields:
+        direct_fields["estimator_invocation_samples"] = {
+            str(artifact_id): [
+                {
+                    key: deepcopy(row[key])
+                    for key in (
+                        "invocation_index",
+                        "request_shape",
+                        "response_status",
+                        "error_type",
+                    )
+                    if key in row
+                }
+                for row in rows
+                if isinstance(row, Mapping) and row.get("request_shape")
+            ]
+            for artifact_id, rows in direct_fields["estimator_invocation_samples"].items()
+            if isinstance(rows, Sequence) and not isinstance(rows, (str, bytes))
+        }
     return {
         "artifact_kind": "ScientificSandboxWorkspaceObservation",
         **{

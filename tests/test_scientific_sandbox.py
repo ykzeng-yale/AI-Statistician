@@ -1613,6 +1613,9 @@ def test_live_estimator_failure_is_tagged_as_algorithm_runtime_feedback(
     assert result.estimator_runtime_failure_ids == ("candidate",)
     assert len(result.estimator_runtime_errors) == 1
     assert "ACCEPTED_ESTIMATOR_RUNTIME_ERROR" in result.estimator_runtime_errors[0]
+    assert 'request_shape={"field_count":1,"fields":{"seed":{"type":"integer"}}' in (
+        result.estimator_runtime_errors[0]
+    )
 
 
 def test_live_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
@@ -1623,12 +1626,15 @@ def test_live_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
         pytest.skip("pinned Pyodide runtime is not installed on this host")
     algorithm = (
         "def run_estimator(request):\n"
-        "    return {'estimate': 1.0, 'by_time': {1.5: 2}}\n"
+        "    return {'estimate': request['mode'].get('estimate', 0.0)}\n"
     )
     simulation = (
         "def run_sandbox(seed, replicates, estimators):\n"
         "    try:\n"
-        "        estimators['candidate']({'seed': seed})\n"
+        "        estimators['candidate']({\n"
+        "            'mode': 'withheld-threshold-name',\n"
+        "            'values': [seed, replicates],\n"
+        "        })\n"
         "    except Exception as exc:\n"
         "        return {'caught': True, 'message': str(exc)}\n"
         "    return {'caught': False}\n"
@@ -1658,8 +1664,27 @@ def test_live_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
     assert result.estimator_invocation_counts == {"candidate": 0}
     assert result.estimator_runtime_failure_ids == ("candidate",)
     assert len(result.estimator_runtime_errors) == 1
-    assert "object keys must be strings" in result.estimator_runtime_errors[0]
-    assert "float" in result.estimator_runtime_errors[0]
+    assert "request_shape=" in result.estimator_runtime_errors[0]
+    assert "withheld-threshold-name" not in result.estimator_runtime_errors[0]
+    assert result.estimator_invocation_samples["candidate"] == [
+        {
+            "invocation_index": 1,
+            "request_shape": {
+                "type": "object",
+                "field_count": 2,
+                "fields": {
+                    "mode": {"type": "string", "length": 23},
+                    "values": {
+                        "type": "array",
+                        "length": 2,
+                        "element_types": ["integer"],
+                    },
+                },
+            },
+            "response_status": "ERROR",
+            "error_type": "AttributeError",
+        }
+    ]
 
 
 def test_live_r_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
@@ -1709,3 +1734,16 @@ def test_live_r_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
     assert result.estimator_runtime_failure_ids == ("candidate",)
     assert len(result.estimator_runtime_errors) == 1
     assert "finite JSON-compatible values" in result.estimator_runtime_errors[0]
+    assert "request_shape=" in result.estimator_runtime_errors[0]
+    assert result.estimator_invocation_samples["candidate"] == [
+        {
+            "invocation_index": 1,
+            "request_shape": {
+                "type": "object",
+                "field_count": 1,
+                    "fields": {"seed": {"type": "number"}},
+            },
+            "response_status": "ERROR",
+            "error_type": "simpleError",
+        }
+    ]

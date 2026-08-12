@@ -98,6 +98,34 @@ async function runPython(request, source, estimatorSources) {
       `            return [_ai_stat_trace_preview(_item, _depth + 1) for _item in _value]\n` +
       `        return {"__preview__": "sequence", "length": len(_value), "head": [_ai_stat_trace_preview(_item, _depth + 1) for _item in _value[:5]], "tail": [_ai_stat_trace_preview(_item, _depth + 1) for _item in _value[-2:]]}\n` +
       `    return _ai_stat_trace_preview(_ai_stat_json_native(_value), _depth + 1)\n` +
+      `def _ai_stat_trace_shape(_value, _depth=0):\n` +
+      `    if _value is None:\n` +
+      `        return {"type": "null"}\n` +
+      `    if isinstance(_value, bool):\n` +
+      `        return {"type": "boolean"}\n` +
+      `    if isinstance(_value, int):\n` +
+      `        return {"type": "integer"}\n` +
+      `    if isinstance(_value, float):\n` +
+      `        return {"type": "number"}\n` +
+      `    if isinstance(_value, str):\n` +
+      `        return {"type": "string", "length": len(_value)}\n` +
+      `    if _depth >= 4:\n` +
+      `        return {"type": type(_value).__name__, "depth_limited": True}\n` +
+      `    if isinstance(_value, dict):\n` +
+      `        _keys = list(_value)\n` +
+      `        _shape = {"type": "object", "field_count": len(_keys), "fields": {str(_key): _ai_stat_trace_shape(_value[_key], _depth + 1) for _key in _keys[:16]}}\n` +
+      `        if len(_keys) > 16:\n` +
+      `            _shape["truncated_field_count"] = len(_keys) - 16\n` +
+      `        return _shape\n` +
+      `    if isinstance(_value, (list, tuple)):\n` +
+      `        return {"type": "array", "length": len(_value), "element_types": sorted({str(_ai_stat_trace_shape(_item, _depth + 1).get("type", "unknown")) for _item in _value[:16]})}\n` +
+      `    _array_shape = getattr(_value, "shape", None)\n` +
+      `    if _array_shape is not None:\n` +
+      `        try:\n` +
+      `            return {"type": "array", "dimensions": [int(_item) for _item in _array_shape], "element_type": str(getattr(_value, "dtype", type(_value).__name__))}\n` +
+      `        except Exception:\n` +
+      `            pass\n` +
+      `    return {"type": type(_value).__name__}\n` +
       `def _ai_stat_bind_estimator(_artifact_id, _source):\n` +
       `    _namespace = {}\n` +
       `    exec(compile(_source, "<accepted_algorithm:" + _artifact_id + ">", "exec"), _namespace, _namespace)\n` +
@@ -107,6 +135,7 @@ async function runPython(request, source, estimatorSources) {
       `    def _bound_estimator(request):\n` +
       `        if not isinstance(request, dict):\n` +
       `            raise TypeError("run_estimator request must be a dict: " + _artifact_id)\n` +
+      `        request_shape = _ai_stat_trace_shape(request)\n` +
       `        try:\n` +
       `            normalized_request = _ai_stat_json_native(request)\n` +
       `            _ai_stat_json.dumps(normalized_request, allow_nan=False, sort_keys=True)\n` +
@@ -116,7 +145,8 @@ async function runPython(request, source, estimatorSources) {
       `            response = _ai_stat_json_native(raw_response)\n` +
       `            _ai_stat_json.dumps(response, allow_nan=False, sort_keys=True)\n` +
       `        except Exception as exc:\n` +
-      `            failure_message = "ACCEPTED_ESTIMATOR_RUNTIME_ERROR: " + _artifact_id + ": " + type(exc).__name__ + ": " + str(exc)\n` +
+      `            failure_message = "ACCEPTED_ESTIMATOR_RUNTIME_ERROR: " + _artifact_id + ": " + type(exc).__name__ + ": " + str(exc) + "; request_shape=" + _ai_stat_json.dumps(request_shape, separators=(",", ":"), sort_keys=True)\n` +
+      `            _ai_stat_invocation_samples[_artifact_id] = [{"invocation_index": _ai_stat_invocation_counts[_artifact_id] + 1, "request_shape": request_shape, "response_status": "ERROR", "error_type": type(exc).__name__}]\n` +
       `            if not _ai_stat_runtime_failure["artifact_id"]:\n` +
       `                _ai_stat_runtime_failure["artifact_id"] = _artifact_id\n` +
       `                _ai_stat_runtime_failure["error_message"] = failure_message\n` +
@@ -223,6 +253,30 @@ async function runR(request, source, estimatorSources) {
         `  }\n` +
         `  list(.preview="unsupported", type=class(value)[[1]])\n` +
         `}\n` +
+        `.ai_stat_trace_shape <- function(value, depth=0L) {\n` +
+        `  if (is.null(value)) return(list(type="null"))\n` +
+        `  if (is.logical(value) && length(value) == 1L) return(list(type="boolean"))\n` +
+        `  if (is.integer(value) && length(value) == 1L) return(list(type="integer"))\n` +
+        `  if (is.numeric(value) && length(value) == 1L) return(list(type="number"))\n` +
+        `  if (is.character(value) && length(value) == 1L) return(list(type="string", length=nchar(value)))\n` +
+        `  if (depth >= 4L) return(list(type=class(value)[[1]], depth_limited=TRUE))\n` +
+        `  if (is.list(value) && !is.null(names(value))) {\n` +
+        `    kept <- head(seq_along(value), 16L)\n` +
+        `    fields <- lapply(value[kept], .ai_stat_trace_shape, depth=depth + 1L)\n` +
+        `    shape <- list(type="object", field_count=length(value), fields=fields)\n` +
+        `    if (length(value) > 16L) shape$truncated_field_count <- length(value) - 16L\n` +
+        `    return(shape)\n` +
+        `  }\n` +
+        `  if (is.list(value)) {\n` +
+        `    element_types <- sort(unique(vapply(head(value, 16L), function(item) .ai_stat_trace_shape(item, depth + 1L)$type, character(1))))\n` +
+        `    return(list(type="array", length=length(value), element_types=unname(element_types)))\n` +
+        `  }\n` +
+        `  if (is.atomic(value)) {\n` +
+        `    element_type <- if (is.logical(value)) "boolean" else if (is.integer(value)) "integer" else if (is.numeric(value)) "number" else if (is.character(value)) "string" else class(value)[[1]]\n` +
+        `    return(list(type="array", length=length(value), element_types=element_type))\n` +
+        `  }\n` +
+        `  list(type=class(value)[[1]])\n` +
+        `}\n` +
         `.ai_stat_estimators <- lapply(names(.ai_stat_estimator_sources), function(.artifact_id) {\n` +
         `  local({\n` +
         `    .id <- .artifact_id\n` +
@@ -233,13 +287,16 @@ async function runR(request, source, estimatorSources) {
         `    function(request) {\n` +
         `      if (!is.list(request) || is.null(names(request))) stop(paste("run_estimator request must be a named list:", .id))\n` +
         `      if (!.ai_stat_json_finite(request)) stop(paste("run_estimator request must contain finite JSON-compatible values:", .id))\n` +
+        `      .request_shape <- .ai_stat_trace_shape(request)\n` +
         `      .response <- tryCatch({\n` +
         `        .candidate <- .implementation(request)\n` +
         `        if (!is.list(.candidate) || is.null(names(.candidate))) stop("run_estimator response must be a named list")\n` +
         `        if (!.ai_stat_json_finite(.candidate)) stop("run_estimator response must contain finite JSON-compatible values")\n` +
         `        .candidate\n` +
         `      }, error=function(.error) {\n` +
-        `        .message <- paste0("ACCEPTED_ESTIMATOR_RUNTIME_ERROR: ", .id, ": ", class(.error)[[1]], ": ", conditionMessage(.error))\n` +
+        `        .shape_text <- paste(capture.output(dput(.request_shape)), collapse="")\n` +
+        `        .message <- paste0("ACCEPTED_ESTIMATOR_RUNTIME_ERROR: ", .id, ": ", class(.error)[[1]], ": ", conditionMessage(.error), "; request_shape=", .shape_text)\n` +
+        `        .ai_stat_invocation_samples[[.id]] <<- list(list(invocation_index=.ai_stat_invocation_counts[[.id]] + 1L, request_shape=.request_shape, response_status="ERROR", error_type=class(.error)[[1]]))\n` +
         `        if (!nzchar(.ai_stat_runtime_failure$artifact_id)) .ai_stat_runtime_failure <<- list(artifact_id=.id, error_message=.message)\n` +
         `        stop(.message, call.=FALSE)\n` +
         `      })\n` +

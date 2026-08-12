@@ -132,6 +132,85 @@ def test_outcome_informed_candidate_uses_a_fresh_evaluator_owned_cohort() -> Non
     assert summary["n_distinct_executed_cohorts"] == 2
 
 
+def test_candidate_gate_seed_independence_is_scoped_to_each_question() -> None:
+    protocol = load_cross_family_eval_protocol(PROTOCOL_PATH)
+    questions = load_open_research_questions(Path("examples/research_questions.json"))
+    selection = resolve_cross_family_eval_panel(
+        protocol,
+        panel_id="development",
+        questions=questions,
+    )
+    context = {"cross_family_evaluation_protocol": selection}
+    survival, survival_errors = resolve_confirmatory_evaluation_cohort(
+        context,
+        question_id="right_censored_survival_km",
+        execution_seed=29,
+    )
+    sequential, sequential_errors = resolve_confirmatory_evaluation_cohort(
+        context,
+        question_id="sequential_anytime_bernoulli",
+        execution_seed=29,
+    )
+
+    assert survival_errors == sequential_errors == []
+    assert survival["seed"] == sequential["seed"] == 29
+    assert survival["cohort_id"] != sequential["cohort_id"]
+    summary = summarize_candidate_gate_independence(
+        [
+            {
+                "evidence_type": "simulation",
+                "payload": {"confirmatory_evaluation_cohort": survival},
+            },
+            {
+                "evidence_type": "simulation",
+                "payload": {"confirmatory_evaluation_cohort": sequential},
+            },
+        ],
+        architect_context=context,
+    )
+
+    assert summary["status"] == "NO_POST_OUTCOME_CONTINUATION_OBSERVED"
+    assert summary["validation_errors"] == []
+    assert summary["n_distinct_executed_cohorts"] == 2
+
+
+def test_candidate_gate_rejects_seed_reuse_within_one_question() -> None:
+    protocol = load_cross_family_eval_protocol(PROTOCOL_PATH)
+    questions = load_open_research_questions(Path("examples/research_questions.json"))
+    selection = resolve_cross_family_eval_panel(
+        protocol,
+        panel_id="development",
+        questions=questions,
+    )
+    context = {"cross_family_evaluation_protocol": selection}
+    initial, errors = resolve_confirmatory_evaluation_cohort(
+        context,
+        question_id="right_censored_survival_km",
+        execution_seed=29,
+    )
+    reused = {**initial, "cohort_id": initial["cohort_id"] + ":duplicate"}
+
+    assert errors == []
+    summary = summarize_candidate_gate_independence(
+        [
+            {
+                "evidence_type": "simulation",
+                "payload": {"confirmatory_evaluation_cohort": initial},
+            },
+            {
+                "evidence_type": "simulation",
+                "payload": {"confirmatory_evaluation_cohort": reused},
+            },
+        ],
+        architect_context=context,
+    )
+
+    assert summary["status"] == "VIOLATION"
+    assert summary["validation_errors"] == [
+        "distinct confirmatory cohorts for one question reused one seed"
+    ]
+
+
 def test_cross_family_protocol_rejects_family_overlap() -> None:
     protocol = load_cross_family_eval_protocol(PROTOCOL_PATH)
     bad_protocol = copy.deepcopy(protocol)
