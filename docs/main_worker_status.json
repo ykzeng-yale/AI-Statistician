@@ -3,7 +3,7 @@
   "updated_at": "2026-08-12",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "612b0c57",
+  "validated_code_head": "8c3ed3ff",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
   "operational_focus": "Keep one outer research graph and direct model-owned theory, Python, R, and Lean workspaces. The harness owns execution, validation, budgets, lineage, evaluation blindness, and evidence authority; it does not author or repair substantive research source.",
@@ -40,7 +40,8 @@
     "dd35149b": "Allocate hash-bound evaluator cohorts, withhold their seeds from candidate prompts, and record fresh post-outcome transitions without selecting research content.",
     "141a94c4": "Expose incomplete required evidence lanes directly to the Architect model without runtime-selected routes.",
     "d0025a6c": "Carry exact task-bound RAG declarations into the Lean workspace and preserve source-activation provenance.",
-    "612b0c57": "Return outcome-blind failed request shapes to the original scientific source owner and scope cohort seed auditing per question."
+    "612b0c57": "Return outcome-blind failed request shapes to the original scientific source owner and scope cohort seed auditing per question.",
+    "8c3ed3ff": "Remove request cardinalities and invocation positions from confirmatory model feedback while retaining field and type structure."
   },
   "verification": {
     "deterministic_suite": "562 passed",
@@ -91,6 +92,30 @@
       "survival_result": "The task reached one direct Formalizer workspace with nine model-selected RAG calls, eight complete source submissions, and eight local Lean checks. No source compiled, and Critic correctly blocked formal_required_unverified.",
       "sequential_result": "One independent preflight finding returned directly to the same TheoryDeveloper; its model-owned revision was accepted and the task advanced through Algorithm, review, metric authoring, Simulation, and three same-owner Algorithm revisions. The source owner repeatedly misread a string-valued consumer field as an object because failure feedback exposed the traceback but not the caller ABI shape, then the global consumer revision budget blocked.",
       "boundary": "The run demonstrates a broader single-runtime path and real same-owner Python and Lean feedback loops. It does not demonstrate a passed generated simulation, post-outcome fresh-cohort execution, compiled Lean target, kernel proof, exact source-theorem closure, or full-system readiness."
+    },
+    "latest_component_replay": {
+      "artifact_kind": "ExactHaikuScientificABIProductPathReplaySummary",
+      "code_head": "8c3ed3ff",
+      "model": "claude-haiku-4-5-20251001",
+      "model_tier": "haiku",
+      "source_owner": "AlgorithmEngineer",
+      "product_path": "_run_source_owner_scientific_workspace -> iterate_code_with_tools -> submit_scientific_source -> Pyodide estimator-bound consumer",
+      "turns": 1,
+      "tool_calls": 1,
+      "source_updates": 1,
+      "sandbox_checks": 1,
+      "source_changed": true,
+      "cardinality_free_observation": true,
+      "sandbox_status": "EXECUTED",
+      "sandbox_errors": 0,
+      "model_owned_source": true,
+      "runtime_edited_source": false,
+      "accepted": true,
+      "provider_usage": {
+        "input_tokens": 3970,
+        "output_tokens": 2358
+      },
+      "boundary": "This verifies one exact-Haiku same-owner ABI revision on the v369 failed source with cardinality-free request-shape feedback. It is component evidence only, not statistical acceptance, theorem proof, cross-task generalization, or full E2E closure."
     }
   },
   "design_assessment": {
