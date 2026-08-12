@@ -1,9 +1,9 @@
 {
-  "schema_version": 31,
+  "schema_version": 32,
   "updated_at": "2026-08-12",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "d67bb0a5",
+  "validated_code_head": "f7a8538f",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
   "operating_principle": "Use one outer research graph and direct model-owned theory, scientific-code, and Lean workspaces. The harness owns execution, immutable identity, budgets, evaluation blindness, review separation, and evidence authority; it never authors a substantive statistical, Python, R, or Lean fix.",
@@ -41,53 +41,54 @@
     ]
   },
   "validated_changes": {
-    "commit": "d67bb0a5",
+    "commit": "f7a8538f",
     "changes": [
-      "A consumer-triggered AlgorithmEngineer workspace now checks every complete candidate with both its standalone sandbox and the exact frozen Simulation source before the workspace can exit.",
-      "Outcome-blind ABI, binding, request-shape, traceback, and runtime observations return immediately to the same source-owning model; confirmatory metrics, thresholds, and values remain withheld.",
-      "Multiple failed candidates remain inside one bounded coding session, then one independently reviewed artifact releases the existing frozen Simulation continuation.",
-      "The mechanism reuses the existing source workspace, sandbox, continuation, and artifact hashes; it adds no RepairAgent, Architect hop, task-family branch, content patcher, or new failure-status family."
+      "Simulation source validity now reuses the exact same outcome-blind acceptance predicate as its direct model-owned source workspace: successful execution plus a valid frozen measurement interface.",
+      "An unresolved literal metric_path or result-schema failure remains with SimulationEvaluator and blocks after its bounded source session; it can no longer be mislabeled source-valid and sent through semantic review and Architect routing.",
+      "Architect receives immutable current_source_owner identity and may correct a semantic review's source-versus-parent assessment within existing lineage budgets; confirmatory result-conditioned source revision remains forbidden.",
+      "The Simulation and reviewer prompts distinguish mutable source conventions from immutable parent contradictions. They add no repair agent, content patch, task-family rule, or runtime-authored source edit."
     ],
     "verification": {
-      "pytest": "578 passed in 98.47s",
-      "focused_runtime_tests": "40 passed in 1.03s",
+      "pytest": "579 passed in 97.70s",
+      "focused_tests": "86 passed in 1.06s",
       "py_compile": "passed",
-      "git_diff_check": "passed"
+      "git_diff_check": "passed",
+      "exact_haiku_frozen_artifact_replay": "The v387 Simulation review changed from PARENT_ARTIFACT_CHANGE_REQUIRED to NO_PARENT_ARTIFACT_CHANGE_REQUIRED while preserving source_subsystem=SimulationEvaluator. This is prompt/reviewer evidence only, not an integrated runtime pass."
     },
-    "integrated_evidence_status": "not yet run after d67bb0a5; a fresh v387 panel is required"
+    "integrated_evidence_status": "not yet run after f7a8538f; a fresh v388 panel is required"
   },
   "latest_authoritative_integrated_run": {
-    "id": "v386",
-    "path": "runs/main_worker_cross_family_development_20260812_v386_exact_source_continuation_exact_haiku",
-    "run_code_head": "273c2cd8",
+    "id": "v387",
+    "path": "runs/main_worker_cross_family_development_20260812_v387_frozen_consumer_workspace_exact_haiku",
+    "run_code_head": "a519a1ca",
     "model": "claude-haiku-4-5-20251001 for every observed live LLM call",
     "status_counts": {
       "BLOCKED": 2
     },
-    "capability_scorecard": "5/16",
+    "capability_scorecard": "7/16",
     "capability_ready_for_full_ai_statistician": false,
-    "runtime_traces": 22,
-    "architect_traces": 7,
-    "runtime_tool_calls": 14,
-    "runtime_observations": 35,
-    "live_generated_code_executions": 2,
-    "live_generated_simulation_executions": 0,
+    "runtime_traces": 50,
+    "architect_traces": 17,
+    "runtime_tool_calls": 58,
+    "runtime_observations": 85,
+    "live_generated_code_executions": 5,
+    "live_generated_simulation_executions": 2,
     "formalizer_local_lean_checked": 0,
     "formalizer_local_lean_compiled": 0,
     "kernel_verified_subclaims": 0,
     "exact_source_theorem_closure": "0/2",
     "candidate_gate_independence": {
-      "status": "NO_POST_OUTCOME_CONTINUATION_OBSERVED",
-      "distinct_executed_cohorts": 1,
-      "post_outcome_transitions": 0,
-      "post_outcome_fresh_cohort_executions": 0,
-      "verified": false
+      "status": "POST_OUTCOME_FRESH_COHORT_VERIFIED",
+      "distinct_executed_cohorts": 3,
+      "post_outcome_transitions": 3,
+      "post_outcome_fresh_cohort_executions": 1,
+      "verified": true
     },
     "diagnosis": {
-      "right_censored_survival_km": "The exact source-owner continuation worked without Architect or Formalizer detours, but each Algorithm revision exited after standalone smoke success. Three outer Simulation attempts exposed successive integration errors and exhausted the consumer budget after 14 iterations.",
-      "sequential_anytime_bernoulli": "Two direct preflight-to-TheoryDeveloper revisions remained unresolved and the run stopped honestly after 8 iterations; no downstream proof credit was fabricated."
+      "right_censored_survival_km": "The run reached real Algorithm and Simulation execution, independent review, two outcome-driven Theory revisions, and fresh post-outcome cohorts, then blocked honestly at theory-to-execution preflight after 22 iterations.",
+      "sequential_anytime_bernoulli": "The run reached real Algorithm and Simulation work plus one Formalizer attempt, but a Simulation source workspace exhausted eight direct Haiku submissions on unchanged literal metric-path failures. Runtime then incorrectly treated execution_smoke_passed as source-valid, and a reviewer/Architect detour mislabeled the Simulation rewrite as AlgorithmEngineer work before the metric authoring loop ultimately blocked at 28 iterations."
     },
-    "boundary": "v386 demonstrates a shorter and more honest source-owner topology, not a passed simulation, candidate-independence transition, or theorem proof."
+    "boundary": "v387 proves fresh-cohort independence and broader live traversal, not a passed Simulation lane or theorem proof. It did not naturally exercise d67bb0a5's frozen-consumer dependency backedge, so that mechanism still has deterministic credit only."
   },
   "current_design_assessment": {
     "correct_to_keep": [
@@ -103,8 +104,9 @@
       "compatible multi-estimator targets still open separate source sessions, although each session now owns its frozen-consumer integration loop",
       "TheoryDeveloper lacks general calculator, Python/R experiment, counterexample, and task-bound retrieval actions in one durable workspace",
       "the scientific Python/R environment and arbitrary paper ingest remain incomplete",
-      "the Formalizer source loop is real but v386 never reached formalization and exact theorem closure remains absent",
-      "d67bb0a5 has deterministic coverage but no fresh integrated evidence yet",
+      "the Formalizer was reached once in v387 but produced no Lean candidate or local Lean check before its no-progress client-tool budget ended",
+      "Simulation Haiku can still repeat an unchanged measurement-interface defect across changed source bytes; f7a8538f improves literal interface context and fail-closed ownership but has no fresh integrated evidence yet",
+      "the metric-protocol and theory preflight source workspaces still exhaust without accepted artifacts on the two development tasks",
       "development exact source-theorem closure remains 0/2, so held-out tasks remain sealed"
     ],
     "wrong_next_move": "Do not add a repair worker, packet-patch queue, theorem-specific bridge, Lean grammar fixer, or another scheduler. Improve direct model tools and context, then evaluate the unchanged shared mechanism across unrelated tasks."
@@ -119,15 +121,16 @@
     "boundary": "The authoritative completion fact is development exact source-theorem closure 0/2; percentages are engineering estimates only."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 23131,
+    "research_agent_runtime_lines": 23141,
     "agent_runtime_lines": 1207,
     "cli_lines": 6897,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 128615,
-    "latest_runtime_manifest_bytes": 58785
+    "top_level_package_lines": 128660,
+    "latest_runtime_manifest_bytes": 58796
   },
   "next_gates": [
-    "Run a fresh exact-Haiku v387 development panel and verify that successive frozen-consumer integration errors remain inside one Algorithm source workspace before a single independent review and outer confirmatory replay.",
+    "Run a fresh exact-Haiku v388 development panel and verify that unresolved Simulation measurement-interface failures remain inside one source workspace and never enter semantic review or a mislabeled owner route.",
+    "Verify that d67bb0a5's frozen-consumer Algorithm dependency backedge is naturally exercised; deterministic coverage alone does not earn integrated credit.",
     "If that topology works, consolidate compatible estimator targets into one source session without weakening per-artifact hashes and review lineage.",
     "Add bounded general calculator, counterexample, Python/R, and retrieval tools to the same TheoryDeveloper workspace rather than creating helper agents.",
     "Drive the Formalizer against directly inspectable Statlib, Mathlib, lean-stat-learning-theory, EmpericalProcessLEAN, OpenProver, and CodexProver declarations while preserving raw Lean feedback and kernel authority.",

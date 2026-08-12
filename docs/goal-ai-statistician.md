@@ -58,16 +58,20 @@ content-addressed lineage, and single runtime endpoint are implemented and cover
 by deterministic tests. The old repair/bridge/planner side systems have been
 removed from the canonical package.
 
-The latest authoritative live development panel, v386, scored 5/16 and still has
-0/2 exact theorem closures. It confirmed that an Algorithm-owned consumer failure
-now bypasses planning and unrelated Formalizer work, but exposed a narrower shared
-bug: each revised Algorithm source exited after its standalone smoke test, so the
-outer Simulation loop had to reveal successive integration errors. Commit
-`d67bb0a5` runs the exact frozen consumer inside the same bounded coding workspace
-and returns only outcome-blind runtime observations to the source model. It adds no
-repair agent, content patch, or task-family rule, and earns no integrated capability
-credit until fresh exact-Haiku v387 exercises it. The system must not yet be
-described as fully end to end.
+The latest authoritative live development panel, v387, scored 7/16 and still has
+0/2 exact theorem closures. It verified fresh post-outcome cohort independence and
+reached real Algorithm, Simulation, review, theory revision, RAG, and one Formalizer
+attempt. It also exposed a shared source-ownership bug: after eight direct Haiku
+Simulation submissions still violated literal frozen metric paths, runtime treated
+successful process execution as source validity, sent the failed artifact to review,
+and allowed Architect to rename a Simulation rewrite as AlgorithmEngineer work.
+Commit `f7a8538f` makes the direct workspace and downstream gate use one outcome-blind
+source-validity predicate, preserves immutable source identity, and clarifies mutable
+source versus contradictory parent semantics. An exact-Haiku replay of the frozen
+v387 review now selects source-only revision under `SimulationEvaluator`; this is
+diagnostic replay evidence, not integrated capability credit. No repair agent,
+content patch, or task-family rule was added. The system must not yet be described
+as fully end to end.
 
 The machine-readable frozen split is
 [`benchmarks/autonomous_cross_family_e2e_protocol_20260713.json`](../benchmarks/autonomous_cross_family_e2e_protocol_20260713.json).
