@@ -226,6 +226,10 @@ def test_prompt_is_observation_only_and_preserves_complete_source() -> None:
     assert "counterfactual question" in prompt
     assert "NO_PARENT_ARTIFACT_CHANGE_REQUIRED" in prompt
     assert "PARENT_ARTIFACT_CHANGE_REQUIRED" in prompt
+    assert "The current source is mutable" in prompt
+    assert "A mismatch between mutable source and one frozen contract" in prompt
+    assert "cannot all be satisfied by any complete source rewrite" in prompt
+    assert "attempt history and artifact satisfiability" in prompt
     assert "Monte Carlo uncertainty" in prompt
     assert "belong exclusively to the empirical evaluator" in prompt
     assert "cannot create a semantic source finding" in prompt

@@ -9014,10 +9014,9 @@ class SimulationEvaluatorRuntimeSubsystem:
         generated_simulation_rows_all_source_valid = bool(
             generated_simulation_rows
         ) and all(
-            (
-                row.get("execution_smoke_passed") is True
-                if not exploratory_diagnostic
-                else row.get("smoke_passed") is True
+            _scientific_source_candidate_accepted(
+                row,
+                confirmatory_result_blind=not exploratory_diagnostic,
             )
             for row in generated_simulation_rows
         )
@@ -11640,7 +11639,6 @@ def _independent_semantic_review_architect_escalation_task(
             revision_feedback,
         ),
         "failure_classification": failure_classification,
-        "unchanged_source_retry_authorized": False,
         "source_failure_classification": str(
             revision_feedback.get("source_failure_classification", "") or ""
         ),
@@ -11681,7 +11679,6 @@ def _independent_semantic_review_architect_escalation_task(
         "feedback_id": str(observation_ref["feedback_id"]),
         "feedback_hash": stable_hash(dict(revision_feedback)),
         "failure_classification": failure_classification,
-        "unchanged_source_retry_authorized": False,
         "implementation_gaps": [
             dict(row)
             for row in task.inputs.get("implementation_gaps", []) or []
@@ -21980,6 +21977,23 @@ def _run_algorithm_candidate_against_frozen_consumers(
     return prototype, tool_calls, observations_by_dependency
 
 
+def _scientific_source_candidate_accepted(
+    prototype: Mapping[str, Any],
+    *,
+    confirmatory_result_blind: bool,
+) -> bool:
+    """Use one source-validity predicate before and after model iteration."""
+
+    if confirmatory_result_blind:
+        return bool(
+            prototype.get("execution_smoke_passed") is True
+            and not scientific_workspace_measurement_interface_failures(
+                prototype
+            )
+        )
+    return prototype.get("smoke_passed") is True
+
+
 def _run_source_owner_scientific_workspace(
     *,
     proposal_agent: Any,
@@ -22026,14 +22040,10 @@ def _run_source_owner_scientific_workspace(
         tool_calls.extend(value)
 
     def source_candidate_accepted(prototype: Mapping[str, Any]) -> bool:
-        if confirmatory_result_blind:
-            return bool(
-                prototype.get("execution_smoke_passed") is True
-                and not scientific_workspace_measurement_interface_failures(
-                    prototype
-                )
-            )
-        return prototype.get("smoke_passed") is True
+        return _scientific_source_candidate_accepted(
+            prototype,
+            confirmatory_result_blind=confirmatory_result_blind,
+        )
 
     def source_observation(prototype: Mapping[str, Any]) -> dict[str, Any]:
         return scientific_workspace_prototype_observation(

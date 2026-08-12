@@ -494,7 +494,7 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
     ]
 
 
-def test_cross_artifact_review_cannot_immediately_restart_unchanged_source() -> None:
+def test_cross_artifact_review_keeps_true_source_owner_available_to_architect() -> None:
     feedback = {
         "feedback_id": "feedback:cross-artifact",
         "feedback_type": "workspace_replan_observation_ref",
@@ -503,7 +503,6 @@ def test_cross_artifact_review_cannot_immediately_restart_unchanged_source() -> 
         "failure_classification": (
             "generated_code_semantic_review_requires_cross_artifact_resolution"
         ),
-        "unchanged_source_retry_authorized": False,
     }
     prompt = build_architect_feedback_route_prompt(
         question=_question(),
@@ -512,8 +511,9 @@ def test_cross_artifact_review_cannot_immediately_restart_unchanged_source() -> 
     )
     payload = json.loads(prompt.rsplit("\n\n", 1)[1])
 
-    assert "AlgorithmEngineer" not in payload["available_route_subsystems"]
-    assert payload["unavailable_route_subsystems"] == ["AlgorithmEngineer"]
+    assert payload["current_source_owner"] == "AlgorithmEngineer"
+    assert "AlgorithmEngineer" in payload["available_route_subsystems"]
+    assert payload["unavailable_route_subsystems"] == []
 
     backend = _RouteSequenceBackend(
         [
@@ -522,12 +522,6 @@ def test_cross_artifact_review_cannot_immediately_restart_unchanged_source() -> 
                 "selected_subsystem": "AlgorithmEngineer",
                 "objective": "Restart the unchanged source workspace.",
                 "rationale": "Try another complete source.",
-            },
-            {
-                "decision": "ROUTE",
-                "selected_subsystem": "FormalizationEvaluator",
-                "objective": "Produce independent formal evidence for the target.",
-                "rationale": "The rejected source owner cannot resolve fixed parents.",
             },
         ]
     )
@@ -545,8 +539,14 @@ def test_cross_artifact_review_cannot_immediately_restart_unchanged_source() -> 
         environment_feedback=feedback,
     )
 
-    assert packet["selected_subsystem"] == "FormalizationEvaluator"
-    assert len(backend.requests) == 2
+    assert packet["selected_subsystem"] == "AlgorithmEngineer"
+    assert len(backend.requests) == 1
+    assert "Treat current_source_owner as immutable artifact identity" in (
+        backend.requests[0].user_prompt
+    )
+    assert "do not rename another producer as that source owner" in (
+        backend.requests[0].user_prompt
+    )
 
 
 def test_rejected_algorithm_lineage_is_not_a_simulation_handoff() -> None:

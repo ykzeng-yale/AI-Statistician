@@ -604,6 +604,11 @@ client tools to replace and run the exact source. Read every raw sandbox and met
 observation and choose every source change yourself. The runtime executes source
 unchanged and never supplies a correction rule. Do not answer with prose, delegate
 an edit, weaken the frozen metric contract, or claim theorem-proof evidence. When
+metric_path contracts are supplied, treat every path segment as a literal,
+punctuation-sensitive JSON key. Before each submission, compare the nested keys
+returned by run_sandbox with every frozen path segment; do not normalize names or
+reuse a nearby name from theory prose. A measurement_interface_failure is a failed
+source ABI until the submitted result resolves the exact frozen path. When
 required_estimator_ids are bound, the estimators argument contains runtime-injected
 callbacks at those exact keys. Call every bound callback with its declared request
 object and consume its declared response; never reimplement, wrap, or substitute a

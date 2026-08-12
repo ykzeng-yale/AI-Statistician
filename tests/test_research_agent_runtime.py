@@ -364,6 +364,12 @@ def test_source_workspace_prompts_give_tools_to_the_source_owner() -> None:
         assert "never supplies a correction rule" in prompt
     assert "request's data scope" in SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
     assert "consumer control flow" in SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
+    assert "literal,\npunctuation-sensitive JSON key" in (
+        SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
+    )
+    assert "measurement_interface_failure is a failed\nsource ABI" in (
+        SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
+    )
 
 
 def test_unreviewed_compiled_lean_candidate_cannot_claim_generic_kernel_proof() -> None:
@@ -2150,6 +2156,50 @@ def test_confirmatory_output_interface_failure_stays_with_source_owner() -> None
     assert prototype["scientific_code_workspace"]["runtime_edited_source"] is False
 
 
+def test_confirmatory_source_validity_reuses_workspace_interface_gate() -> None:
+    unresolved = {
+        "execution_smoke_passed": True,
+        "smoke_passed": False,
+        "metric_contract_evaluation": {
+            "evaluations": [
+                {
+                    "contract_id": "frozen-interface",
+                    "metric_path": ["results", "literal_key"],
+                    "measurement_interface_valid": False,
+                    "measurement_interface_status": "PATH_UNRESOLVED",
+                    "measurement_interface_errors": [
+                        "metric_path /results/literal_key resolved no values"
+                    ],
+                }
+            ]
+        },
+    }
+    resolved_threshold_failure = {
+        **unresolved,
+        "metric_contract_evaluation": {
+            "evaluations": [
+                {
+                    "contract_id": "frozen-threshold",
+                    "metric_path": ["results", "literal_key"],
+                    "measurement_interface_valid": True,
+                    "measurement_interface_status": "VALID",
+                    "measurement_interface_errors": [],
+                    "passed": False,
+                }
+            ]
+        },
+    }
+
+    assert runtime_module._scientific_source_candidate_accepted(
+        unresolved,
+        confirmatory_result_blind=True,
+    ) is False
+    assert runtime_module._scientific_source_candidate_accepted(
+        resolved_threshold_failure,
+        confirmatory_result_blind=True,
+    ) is True
+
+
 def test_exhausted_consumer_loop_does_not_continue_unrelated_outer_lane() -> None:
     question = OpenResearchQuestion(
         id="generic-consumer-exhausted",
@@ -2731,13 +2781,13 @@ def test_cross_artifact_review_assessment_can_escalate_before_budget_exhaustion(
     assert observation["source_artifact_id"] == (
         "algorithm_manifest:cross-artifact"
     )
-    assert observation["unchanged_source_retry_authorized"] is False
+    assert "unchanged_source_retry_authorized" not in observation
     assert next_task.inputs["architect_context"]["workspace_replan"][
         "failure_classification"
     ] == observation["failure_classification"]
-    assert next_task.inputs["architect_context"]["workspace_replan"][
-        "unchanged_source_retry_authorized"
-    ] is False
+    assert "unchanged_source_retry_authorized" not in (
+        next_task.inputs["architect_context"]["workspace_replan"]
+    )
 
 
 def test_cross_artifact_review_skips_another_source_regeneration(tmp_path) -> None:
