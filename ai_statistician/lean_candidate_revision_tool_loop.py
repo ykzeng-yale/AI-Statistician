@@ -1011,10 +1011,11 @@ def _lean_candidate_revision_tools(
                 name="inspect_lean_declaration",
                 description=(
                     "Ask Lean LSP/MCP for the exact source context of a declaration "
-                    "identifier present in the current checked source. Choose the "
-                    "symbol and context yourself. This read-only observation can show "
+                    "identifier selected from formal-environment search or referenced "
+                    "by the current checked source. Choose the exact symbol and context "
+                    "yourself. This read-only active-project observation can show "
                     "structure fields and nearby declarations; it never edits or "
-                    "promotes the source."
+                    "promotes source."
                 ),
                 input_schema={
                     "type": "object",

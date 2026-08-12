@@ -12240,8 +12240,6 @@ def _formalizer_packet_validation_failure_result(
         "complete_current_source_checkpoint_provided": (
             complete_current_source_checkpoint_provided
         ),
-        "workspace_continuation_attempt": 0,
-        "workspace_continuation_allowed": False,
         "attempt_history_ref": (
             {
                 "artifact_id": attempt_history_id,
@@ -12266,9 +12264,9 @@ def _formalizer_packet_validation_failure_result(
         "theory_packet_id": theory_packet_id,
         "simulation_manifest_id": simulation_manifest_id,
         "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
-        "internal_json_regeneration_attempts": max(
-            0,
-            int(exc.attempts or 0) - 1,
+        "model_generation_attempts": max(0, int(exc.attempts or 0)),
+        "client_tool_turns": (
+            len(attempt_history_rows) if lean_workspace_observation_available else 0
         ),
         "boundary": (
             "This artifact records the exact model artifact available at failure "
@@ -12297,7 +12295,6 @@ def _formalizer_packet_validation_failure_result(
         payload={
             "validation_errors": validation_errors,
             "same_owner_subsystem": task.owner_subsystem,
-            "workspace_continuation_allowed": False,
             "runtime_edits_candidate": False,
             **client_tool_loop_observation,
             "proof_evidence_status": (
@@ -12335,7 +12332,6 @@ def _formalizer_packet_validation_failure_result(
                     "failure_id": failure_id,
                     "validation_errors": validation_errors,
                     "same_owner_subsystem": task.owner_subsystem,
-                    "workspace_continuation_allowed": False,
                     "runtime_edits_candidate": False,
                     **client_tool_loop_observation,
                     "proof_evidence_status": (
@@ -15349,6 +15345,11 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                     ],
                     history=[],
                 )
+        active_declaration_path = active_project_declaration_path(symbol)
+        if active_declaration_path is not None:
+            check_artifact_path = active_declaration_path
+            inspection_binding = "active_project_declaration_source"
+        elif candidate_source_checked:
             check_artifact_path = Path(
                 str(
                     last_check.get("proof_state_artifact_path", "")
@@ -15380,24 +15381,21 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                 )
             inspection_binding = "checked_candidate_source"
         else:
-            check_artifact_path = active_project_declaration_path(symbol)
-            if check_artifact_path is None:
-                return {
-                    "ok": False,
-                    "status": "ACTIVE_PROJECT_DECLARATION_NOT_FOUND",
-                    "symbol": symbol,
-                    "error": (
-                        "No exact active-project declaration path was found for "
-                        "this model-selected symbol. Search the formal environment "
-                        "for its exact qualified name before retrying inspection."
-                    ),
-                    "candidate_source_hash": source_hash,
-                    "candidate_source_checked": False,
-                    "proof_evidence_status": (
-                        "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
-                    ),
-                }
-            inspection_binding = "active_project_declaration_source"
+            return {
+                "ok": False,
+                "status": "ACTIVE_PROJECT_DECLARATION_NOT_FOUND",
+                "symbol": symbol,
+                "error": (
+                    "No exact active-project declaration path was found for "
+                    "this model-selected symbol. Search the formal environment "
+                    "for its exact qualified name before retrying inspection."
+                ),
+                "candidate_source_hash": source_hash,
+                "candidate_source_checked": False,
+                "proof_evidence_status": (
+                    "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
+                ),
+            }
         raw = declaration_inspector(
             artifact_path=str(check_artifact_path),
             symbol=symbol,

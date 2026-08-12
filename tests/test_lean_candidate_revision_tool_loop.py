@@ -1245,7 +1245,10 @@ def test_exhausted_formalizer_source_loop_blocks_without_duplicate_workspace() -
     assert failure["validation_boundary"][
         "complete_current_source_checkpoint_provided"
     ] is True
-    assert failure["workspace_continuation_allowed"] is False
+    assert failure["model_generation_attempts"] == 2
+    assert failure["client_tool_turns"] == 0
+    assert "workspace_continuation_allowed" not in failure
+    assert "internal_json_regeneration_attempts" not in failure
     assert "without launching a packet-regeneration session" in result.rationale
     assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
 
@@ -1386,6 +1389,8 @@ def test_formalizer_failure_preserves_workspace_refs_without_payload_copy() -> N
         "raw transcript observation"
     )
     assert "result_excerpt" not in json.dumps(failure)
+    assert failure["model_generation_attempts"] == 4
+    assert failure["client_tool_turns"] == 1
     loop_evidence = result.evidence_entries[0].payload
     assert loop_evidence["model_owned_lean_code"] is True
     assert loop_evidence["runtime_selected_lean_code"] is False
@@ -1431,7 +1436,9 @@ def test_formalizer_packet_failure_blocks_without_regeneration_session() -> None
     assert result.next_task is None
     assert result.failure_classification == "formalizer_packet_validation_failed"
     failure = next(iter(result.produced_artifacts.values()))
-    assert failure["workspace_continuation_allowed"] is False
+    assert failure["model_generation_attempts"] == 2
+    assert failure["client_tool_turns"] == 0
+    assert "workspace_continuation_allowed" not in failure
     assert (
         "without launching another generation session" in result.rationale
     )
@@ -1858,6 +1865,10 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
             }
         },
     }
+    draft = (
+        "theorem Exact.target : True := by\n"
+        "  exact False.elim (by contradiction)\n"
+    )
     authored = "theorem Exact.target : True := by\n  exact True.intro\n"
     project_source = tmp_path / "Project.lean"
     project_source.write_text(
@@ -1913,6 +1924,23 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
                             "submit-first-source",
                             LEAN_SOURCE_SUBMISSION_TOOL,
                             {
+                                "lean_source": draft,
+                                "candidate_declaration_name": "Exact.target",
+                            },
+                        )
+                    ),
+                    _response(
+                        ClientToolCall(
+                            "inspect-after-source",
+                            "inspect_lean_declaration",
+                            {"symbol": "Project.Source"},
+                        )
+                    ),
+                    _response(
+                        ClientToolCall(
+                            "submit-revised-source",
+                            LEAN_SOURCE_SUBMISSION_TOOL,
+                            {
                                 "lean_source": authored,
                                 "candidate_declaration_name": "Exact.target",
                             },
@@ -1920,19 +1948,27 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
                     ),
                 ]
             )
+
+    def fake_local_check(**kwargs):
+        submitted = Path(kwargs["artifact_path"]).read_text(encoding="utf-8")
+        compiled = submitted == authored
+        return {
+            "local_lean_attempted": True,
+            "local_lean_compiled": compiled,
+            "local_lean_source_compiled": compiled,
+            "local_lean_exit_status": "0" if compiled else "1",
+            "local_lean_stdout": (
+                "Exact.target : True" if compiled else "type mismatch"
+            ),
+            "local_lean_stderr": "",
+            "candidate_identity_lean_checked": compiled,
+            "candidate_identity_lean_verified": compiled,
+        }
+
     monkeypatch.setattr(
         runtime_module,
         "_run_formalizer_lean_candidate_local_check",
-        lambda **kwargs: {
-            "local_lean_attempted": True,
-            "local_lean_compiled": True,
-            "local_lean_source_compiled": True,
-            "local_lean_exit_status": "0",
-            "local_lean_stdout": "Exact.target : True",
-            "local_lean_stderr": "",
-            "candidate_identity_lean_checked": True,
-            "candidate_identity_lean_verified": True,
-        },
+        fake_local_check,
     )
     backend = FormalizerBackend()
     agent = LLMFormalizerProofEngineerAgent(
@@ -1942,7 +1978,7 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             model_tier="haiku",
             max_validation_retries=0,
-            client_tool_lean_candidate_max_turns=2,
+            client_tool_lean_candidate_max_turns=4,
             client_tool_lean_candidate_max_no_progress_turns=1,
         ),
     )
@@ -1976,14 +2012,19 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
         row.get("artifact_kind") != "FormalizerTargetBindingPacket"
         for row in result.produced_artifacts.values()
     )
-    assert len(backend.requests) == 2
-    assert "at most 2 model-tool turns" in backend.requests[0].system_prompt
+    assert len(backend.requests) == 4
+    assert "at most 4 model-tool turns" in backend.requests[0].system_prompt
     assert proof_state_provider.calls == [
         {
             "artifact_path": str(project_source),
             "symbol": "Project.Source",
             "context_lines": 20,
-        }
+        },
+        {
+            "artifact_path": str(project_source),
+            "symbol": "Project.Source",
+            "context_lines": 20,
+        },
     ]
     proposals = [
         row
@@ -1999,11 +2040,14 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
     ]
     assert len(workspaces) == 1
     assert workspaces[0]["workspace_phase"] == "initial_authoring"
-    assert workspaces[0]["lean_declaration_inspections"] == 1
+    assert workspaces[0]["lean_declaration_inspections"] == 2
+    assert workspaces[0]["local_lean_checks"] == 2
     assert workspaces[0]["lean_lsp_mcp_live_called"] is True
     assert workspaces[0]["runtime_selected_lean_code"] is False
-    assert result.status == "REROUTE"
-    assert result.next_task is not None
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == "formalizer_workspace_exhausted"
+    assert result.next_task is None
+    assert "no independent exact-target reviewer is available" in result.rationale
 
 
 def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
