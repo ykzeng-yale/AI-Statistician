@@ -1,11 +1,13 @@
 {
-  "schema_version": 33,
+  "schema_version": 34,
   "updated_at": "2026-08-13",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "1fdb1e6a",
+  "validated_code_head": "527b2b3c",
+  "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
+  "current_goal_focus": "Remove generic retrieval and environment-feedback blockers, make model-owned theory/scientific/Lean workspaces consume real observations reliably, and require exact cross-family kernel closure without task-specific fixes.",
   "operating_principle": "Use one outer research graph and direct model-owned theory, scientific-code, and Lean workspaces. The harness owns execution, immutable identity, budgets, evaluation blindness, review separation, and evidence authority; it never authors a substantive statistical, Python, R, or Lean fix.",
   "model_policy": {
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
@@ -25,7 +27,7 @@
   "harness_boundary": {
     "kept": [
       "content-addressed artifact references",
-      "source and target hashes",
+      "source and target identity hashes",
       "isolated execution and resource limits",
       "independent semantic review",
       "fresh confirmatory cohorts",
@@ -42,103 +44,88 @@
   },
   "validated_changes": {
     "commits": [
-      "e5df3330",
-      "0a422d53",
-      "1fdb1e6a"
+      "4a53a9b3",
+      "6dc15d34",
+      "f76da2df",
+      "e7918707",
+      "527b2b3c"
     ],
     "changes": [
-      "A resumed Lean source is rechecked in the active Lake project before the first model turn, so current raw diagnostics come from the environment rather than a copied repair packet.",
-      "The Formalizer keeps one stable tool surface and a four-tool-turn transcript. Its per-turn authoritative snapshot contains only the complete current source, current Lean check, usage, and budget; old search, declaration, and proof-state payloads expire with the transcript.",
-      "Static Formalizer prompts no longer duplicate an old current source or old checkpoint check on every turn.",
-      "The final rejected source submission receives one bounded terminal recovery turn, without a repair worker or runtime-authored Lean edit.",
-      "A model-authored formal-gap tool remains available during initial authoring and revision. Revision gaps bind to the exact candidate as non-proof rows while preserving source-theorem provenance.",
-      "model_explicit_submit now records an actual model source or declaration update, not the runtime's initial source recheck."
+      "Confirmatory empirical failures return to the source-owning coding model with the released outcome and exact parent source; a changed source must execute on a fresh cohort.",
+      "Theory workspaces reject dangling or duplicate theorem IDs before downstream work and return the validation error to the same TheoryDeveloper model.",
+      "The EmpericalProcessLEAN shared search API now returns the database namespace, and AI-Statistician no longer substitutes the Lean module name for it.",
+      "Local Lean and Lean LSP/MCP now share one explicit timeout budget; the hidden 20-second MCP default was removed without adding another CLI option.",
+      "No task answer, Lean grammar rule, tactic rule, repair worker, or post-runtime scheduler was added."
     ],
     "verification": {
-      "pytest": "582 passed in 94.93s",
-      "focused_lean_workspace_tests": "41 passed",
-      "formalizer_cross_module_tests": "62 passed",
+      "ai_statistician_pytest": "587 passed in 94.69s",
+      "focused_provider_and_workspace_tests": "45 passed",
+      "focused_timeout_and_runtime_tests": "57 passed; compact CLI follow-up 15 passed",
+      "emperical_process_lean_rag_tests": "64 passed",
       "git_diff_check": "passed",
-      "model_policy_scan": "Executable model configuration contains Haiku and Sonnet only; Opus appears only in prohibition and audit checks."
+      "real_provider_replay": "strict fresh-index search returned the exact martingale declaration with namespace StatInference.ProbabilityTheory and source line 604",
+      "real_lsp_replay": "lean_lsp_mcp.lean_declaration_file returned OBSERVED with exact source lines 596-612 under the shared 90-second budget"
     },
-    "integrated_evidence_status": "The latest fresh integrated run is v390 and did not reach Formalizer. Direct v391-v394 ablations therefore test the frozen v389 theorem target but do not earn integrated end-to-end credit."
+    "evidence_boundary": "Tests and direct component replays validate mechanisms only. They do not earn integrated theorem-closure credit."
   },
   "latest_authoritative_integrated_run": {
-    "id": "v390",
-    "path": "runs/main_worker_cross_family_development_20260813_v390_bounded_formalizer_context_exact_haiku",
-    "run_code_head": "daf9b48b",
+    "id": "v399",
+    "path": "runs/main_worker_cross_family_development_20260813_v399_early_formal_target_identity_exact_haiku",
+    "run_code_head": "6dc15d34",
     "model": "claude-haiku-4-5-20251001 for every observed live LLM call",
     "status_counts": {
       "BLOCKED": 2
     },
-    "capability_scorecard": "6/16",
+    "capability_scorecard": "9/16",
     "capability_ready_for_full_ai_statistician": false,
-    "runtime_traces": 34,
-    "architect_traces": 14,
-    "runtime_tool_calls": 34,
-    "runtime_observations": 50,
-    "live_generated_code_executions": 5,
-    "live_generated_simulation_executions": 1,
-    "formalizer_local_lean_checked": 0,
+    "runtime_traces": 43,
+    "architect_traces": 12,
+    "runtime_tool_calls": 41,
+    "runtime_observations": 80,
+    "live_generated_code_executions": 4,
+    "live_generated_simulation_executions": 2,
+    "formalizer_source_updates": 8,
+    "formalizer_local_lean_checks": 8,
     "formalizer_local_lean_compiled": 0,
     "kernel_verified_subclaims": 0,
+    "materialized_formal_gaps": 1,
     "exact_source_theorem_closure": "0/2",
     "candidate_gate_independence": {
       "status": "POST_OUTCOME_FRESH_COHORT_VERIFIED",
-      "distinct_executed_cohorts": 2,
-      "post_outcome_transitions": 2,
-      "post_outcome_fresh_cohort_executions": 1,
+      "distinct_executed_cohorts": 5,
+      "post_outcome_transitions": 4,
+      "post_outcome_fresh_cohort_executions": 3,
       "verified": true
     },
     "diagnosis": {
-      "right_censored_survival_km": "The run executed accepted Algorithm code and real Simulation candidates, then routed outcome-level contradictions to TheoryDeveloper. After a second theory revision, independent theory-to-execution preflight rejected the remaining DGP/estimand contract.",
-      "sequential_anytime_bernoulli": "Independent review first found an output-scale/interface conflict and later a distinct continuous-mixture versus finite-grid semantic mismatch. Both correctly returned to TheoryDeveloper; the second revised theory then failed preflight.",
-      "shared_efficiency_issue": "Several generated scientific candidates consumed the full 60-second subprocess timeout before the same source owner revised them. Metric authoring and independent review also remain serial and expensive after source acceptance."
+      "right_censored_survival_km": "The task reached Formalizer and the same Haiku model submitted eight Lean source revisions against raw local diagnostics. None compiled before the bounded workspace ended, so Critic correctly blocked the task.",
+      "sequential_anytime_bernoulli": "Two theory revisions and a fresh post-outcome coding cohort passed upstream gates. Formalizer searched and inspected Lean sources, submitted five candidates, then reported a model-authored foundation gap; Critic correctly denied proof credit.",
+      "resolved_after_run": "The sequential declaration inspection failure was caused by module/namespace conflation in the external RAG adapter. After the generic upstream/downstream fix and index refresh, the exact martingale declaration was retrieved and inspected successfully by Lean LSP/MCP.",
+      "remaining_efficiency_issue": "A large Lean file needed more than 30 seconds on a cold LSP start. The hidden timeout mismatch is fixed, but repeated per-call MCP process startup still needs measured session-reuse work rather than a new scheduler."
     },
-    "boundary": "v390 proves fresh model-owned theory/code traversal and evaluation independence, not a passed Simulation lane or theorem proof. Neither task reached Formalizer, so it cannot validate the later Lean workspace changes."
-  },
-  "latest_direct_formalizer_ablation": {
-    "id": "v394",
-    "path": "runs/main_worker_formalizer_exact_target_replay_20260813_v394_stable_gap_and_prover_prompt_exact_haiku",
-    "code_head": "1fdb1e6a",
-    "source_target": "the exact v389 sequential_anytime_bernoulli FormalizerWorkspaceTarget and checkpoint",
-    "target_hash": "46ffbac73d0cfb10023d087381868918a25fe0ea8bf3356eb4f25ac76e2ed701",
-    "model": "claude-haiku-4-5-20251001",
-    "outcome": "FORMAL_GAP",
-    "model_requests": 20,
-    "input_tokens": 278120,
-    "max_request_message_chars": 47826,
-    "model_source_updates": 5,
-    "local_lean_checks": 6,
-    "formal_environment_searches": 10,
-    "proof_state_inspections": 1,
-    "proof_candidate_searches": 0,
-    "kernel_verified": false,
-    "comparison": "v393 retained active source iteration with 291767 input tokens versus 435185 in v391; the intentionally tested two-turn v392 policy used fewer tokens but regressed to 12 searches and zero source updates, so it was reverted.",
-    "boundary": "v394 is a direct component ablation, not AgentRuntime-consumed end-to-end evidence. The model's reported missing primitives include potentially fixable Lean API/type issues and require independent review; the gap is not proof and does not establish a true foundation limitation. OpenProver was available but never selected."
+    "boundary": "v399 proves broader integrated traversal and same-model Lean revision, not exact proof. The post-run declaration replay invalidates one infrastructure failure mode but does not retroactively change v399 or establish that the reported formal gap is false."
   },
   "current_design_assessment": {
     "correct_to_keep": [
       "one typed outer runtime",
-      "same-model iteration from raw environment feedback",
+      "same-model source iteration from raw environment feedback",
       "stable direct source-workspace tools",
-      "independent candidate review",
+      "independent semantic and confirmatory gates",
       "task-bound Statlib-centered formal RAG",
       "fresh post-outcome cohorts",
       "exact Lean kernel promotion"
     ],
     "remaining_structural_problems": [
-      "research_agent_runtime.py still concentrates 23141 lines and should shrink through deletion and workspace extraction, not another framework wrapper",
-      "TheoryDeveloper lacks general calculator, Python/R experiment, counterexample, and task-bound retrieval actions in one durable workspace",
-      "fresh integrated development tasks currently stop at repeated theory-to-execution preflight before Formalizer",
-      "scientific subprocess execution is opaque in progress telemetry and repeatedly consumes the 60-second timeout before model revision",
-      "routine metric authoring and semantic review remain serial and add roughly one minute after an accepted source",
-      "the scientific Python/R environment and arbitrary paper ingest remain incomplete",
-      "Formalizer can now iterate and report an honest gap, but exact theorem closure remains absent and live Haiku has not selected the configured OpenProver proof-candidate tool",
-      "direct Formalizer gap claims are not yet independently classified as fixable API issues versus true missing foundations",
-      "development exact source-theorem closure remains 0/2, so held-out tasks remain sealed"
+      "development exact source-theorem closure remains 0/2, so held-out tasks remain sealed",
+      "TheoryDeveloper still needs a durable mathematical workspace with calculator, Python/R counterexample experiments, and task-bound retrieval rather than tighter JSON limits",
+      "the survival Formalizer revised real source repeatedly but did not turn compiler feedback into a compiled checkpoint",
+      "the sequential model-authored gap has not been independently separated into fixable API/type issues versus genuinely missing foundations",
+      "Lean LSP/MCP starts a new project process for each declaration inspection; cold-start timing should be measured before adding durable session reuse",
+      "scientific subprocess progress remains opaque and survival exhausted source-lineage budget without an accepted simulation",
+      "the audit's source_producer_owns_code_revision row does not count outcome-driven revisions routed through Architect, so that row is an audit limitation rather than authority over the trace",
+      "live R research, arbitrary paper ingest, and learned research/proof policies remain incomplete"
     ],
-    "wrong_next_move": "Do not add a repair worker, packet-patch queue, theorem-specific bridge, Lean grammar fixer, forced tactic policy, or another scheduler. Improve direct model tools, workspace state, and evaluators, then measure the unchanged shared mechanism across unrelated tasks."
+    "wrong_next_move": "Do not add a repair worker, packet-patch queue, theorem-specific bridge, Lean grammar fixer, forced tactic policy, or another scheduler. Improve direct model tools and evaluator feedback, then measure the unchanged shared mechanism across unrelated tasks."
   },
   "maturity_estimate": {
     "evidence_and_control_plane": "about 85%",
@@ -150,19 +137,19 @@
     "boundary": "The authoritative completion fact is development exact source-theorem closure 0/2; percentages are engineering estimates only."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 23141,
+    "research_agent_runtime_lines": 23392,
     "agent_runtime_lines": 1207,
-    "cli_lines": 6897,
+    "cli_lines": 6907,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 128800,
-    "latest_runtime_manifest_bytes": 58804
+    "top_level_package_lines": 129331,
+    "latest_runtime_manifest_bytes": 58867
   },
   "next_gates": [
+    "Replay the sequential Formalizer target with the corrected declaration namespace and require the model to consume the observed source before accepting any foundation-gap classification.",
+    "Add independent semantic classification of model-authored formal gaps using the existing reviewer boundary; return fixable findings to the same Formalizer and route only genuine cross-workspace gaps outward.",
+    "Measure Lean LSP/MCP cold starts and repeated declaration calls, then reuse one project session only if the ablation lowers wall time without weakening isolation or evidence lineage.",
     "Instrument scientific subprocess start, finish, timeout, and source-lineage timing without adding another scheduler or repair route.",
-    "Reduce avoidable 60-second candidate timeouts through generic executor feedback and model-visible resource observations, not task-specific code rules.",
-    "Strengthen the existing TheoryDeveloper workspace with general calculator, counterexample, Python/R scratch, and task-bound retrieval tools before another full panel.",
-    "Independently review model-reported formal gaps and return fixable API/type findings to the same Formalizer while routing only genuine cross-workspace or missing-foundation conflicts outward.",
-    "Exercise the existing OpenProver proof-candidate provider from a concrete checked proof state and measure whether it improves exact closure; availability alone earns no capability credit.",
-    "Run a fresh exact-Haiku v395 development panel after the shared upstream changes and require exact local kernel closure for both development families before opening held-out PCA and extremes."
+    "Strengthen the existing TheoryDeveloper workspace with general calculator, counterexample, Python/R scratch, and task-bound retrieval tools.",
+    "Run a fresh exact-Haiku development panel after the shared RAG fixes and require exact local kernel closure for both development families before opening held-out PCA and extremes."
   ]
 }

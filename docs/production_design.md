@@ -350,18 +350,16 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-13, v390 is the latest fresh integrated panel. Exact Haiku scored
-6/16, ended with two `BLOCKED` tasks, and closed 0/2 exact source theorems. Both
-tasks executed Algorithm code but exhausted Theory revision/preflight before
-Formalizer; this is an upstream contract failure, not Lean evidence.
+As of 2026-08-13, exact-Haiku v399 is the latest fresh integrated panel: 9/16,
+two `BLOCKED` tasks, and 0/2 exact source-theorem closures. Both reached
+Formalizer; survival made eight source updates and Lean checks without compiling,
+while sequential reported one model-authored gap. Neither is proof.
 
-Direct v391-v394 ablations reuse one exact v389 target. Four retained tool turns
-reduced input from 435185 tokens in v391 to 291767 in v393 while preserving eight
-source updates; a two-turn test regressed to zero updates and was reverted. At
-`1fdb1e6a`, v394 made five updates and six Lean checks, then reported a typed gap
-without proof credit. OpenProver search remained unused and the claimed primitives
-remain unreviewed. This is component evidence only. Held-out tasks remain sealed;
-`all_ok=true` cannot override 0/2 kernel closure.
+The run exposed a generic RAG bug where a Lean module was used as a declaration
+namespace. `EmpericalProcessLEAN` `4cec7860` and AI-Statistician `f76da2df` fix
+the identity, and fresh-index LSP replay retrieved the exact source. That validates
+the mechanism only: it does not close v399 or prove the reported gap false.
+Held-out tasks remain sealed; `all_ok=true` cannot override 0/2 kernel closure.
 
 ## Structural constraints
 
@@ -395,5 +393,5 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-Immediate priorities are model-owned theory counterchecks, execution timing, formal-gap review,
-and integrated v395 evidence. New work must simplify tools, never add repair agents or theorem-specific rules.
+Priorities are model-owned theory counterchecks, execution timing, independent
+gap review, and fresh evidence. Never add repair agents or theorem-specific rules.
