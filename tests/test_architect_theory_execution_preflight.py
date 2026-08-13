@@ -381,6 +381,9 @@ def _theory_material() -> dict[str, object]:
                 "termination_guarantee": (
                     "Return after consuming at most the finite serialized input."
                 ),
+                "model_authored_execution_notes": {
+                    "bounded_outcome": "The censored flag is part of the estimand."
+                },
                 "sample_size_order": "The ideal procedure has unspecified duration.",
                 "estimator_interface_contract": {
                     "request_fields": [
@@ -1144,6 +1147,9 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
             "Return after consuming at most the finite serialized input."
         ),
     }
+    assert estimator_anchor["content"][0]["source_estimator"][
+        "model_authored_execution_notes"
+    ] == {"bounded_outcome": "The censored flag is part of the estimand."}
     assert backend.requests[0].model == TEST_HAIKU_MODEL
     assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert backend.requests[0].max_tokens == 7000

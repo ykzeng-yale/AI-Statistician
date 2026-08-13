@@ -95,6 +95,16 @@ class SequentialGeneratorBackend:
         )
 
 
+def test_theory_core_contract_exposes_finite_execution_semantics() -> None:
+    estimator_contract = THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT[
+        "estimator_specs"
+    ][0]
+
+    assert "output_contract" in estimator_contract
+    assert "termination_guarantee" in estimator_contract
+    assert "estimator_interface_contract" not in estimator_contract
+
+
 class ScriptedTheoryToolBackend:
     provider_name = "anthropic"
 

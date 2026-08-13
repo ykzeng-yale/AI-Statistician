@@ -293,22 +293,8 @@ def _project_estimator_specs(value: Any) -> tuple[list[dict[str, Any]], list[str
             estimator_id = f"{estimator_id}#{index}"
         used_ids.add(estimator_id)
         estimator_ids.append(estimator_id)
-        selected = {
-            key: raw_row.get(key)
-            for key in (
-                "id",
-                "name",
-                "formula",
-                "algorithm",
-                "algorithm_sketch",
-                "inputs",
-                "outputs",
-                "normalization",
-                "sample_size_order",
-                "required_assumptions",
-            )
-            if key in raw_row
-        }
+        selected = deepcopy(dict(raw_row))
+        selected.pop("estimator_interface_contract_id", None)
         interface = raw_row.get("estimator_interface_contract", {})
         interface = interface if isinstance(interface, Mapping) else {}
 

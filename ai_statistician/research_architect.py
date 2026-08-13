@@ -1430,6 +1430,14 @@ THEORY_DEVELOPER_OUTPUT_CONTRACT: dict[str, Any] = {
             "algorithm_sketch": "string",
             "inputs": ["string"],
             "outputs": ["string"],
+            "output_contract": (
+                "typed behavior for every admitted input, including bounded, "
+                "censored, unavailable, or timeout outcomes when applicable"
+            ),
+            "termination_guarantee": (
+                "why execution is total, or the exact resource bound and typed "
+                "outcome used when the ideal procedure does not terminate"
+            ),
             "normalization": "string",
             "sample_size_order": "string",
             "tuning": ["string"],

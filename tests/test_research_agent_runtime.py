@@ -468,6 +468,47 @@ def test_zero_materialized_gap_rows_do_not_claim_formal_closure() -> None:
     assert summary["formal_closure_verified_for_all_questions"] is False
 
 
+def test_formalizer_observation_summary_keeps_distinct_workspace_history() -> None:
+    base_payload = {
+        "model_owned_lean_code": True,
+        "runtime_selected_lean_code": False,
+        "candidate_source_hash": "source-hash",
+        "source_updates": 1,
+        "local_lean_checks": 2,
+        "n_formal_rag_tool_calls": 3,
+        "latest_check_compiled": True,
+    }
+    first = {
+        "question_id": "generic-formalizer-summary",
+        "evidence_id": "evidence:first",
+        "artifact_id": "workspace:first",
+        "evidence_type": "formalizer_lean_candidate_client_tool_loop",
+        "payload": base_payload,
+    }
+    second = {
+        "question_id": "generic-formalizer-summary",
+        "evidence_id": "evidence:second",
+        "artifact_id": "workspace:second",
+        "evidence_type": "formalizer_lean_candidate_client_tool_loop",
+        "payload": {
+            **base_payload,
+            "source_updates": 0,
+            "local_lean_checks": 1,
+            "n_formal_rag_tool_calls": 2,
+        },
+    }
+
+    summary = runtime_module._runtime_formalizer_client_tool_observation_summary(
+        [first, second, first]
+    )
+
+    assert summary["n_workspaces_observed"] == 2
+    assert summary["n_source_updates"] == 1
+    assert summary["n_local_lean_checks"] == 3
+    assert summary["n_formal_rag_tool_calls"] == 5
+    assert summary["n_compiled_checkpoints"] == 2
+
+
 @pytest.mark.parametrize(
     "evidence_type",
     [
@@ -655,6 +696,12 @@ def test_architect_repeat_cannot_starve_runnable_unvisited_primary_lane() -> Non
     context["architect_runtime_plan"]["evidence_contract"][
         "recommended_research_path"
     ] = "dual_track"
+    context["runtime_outer_graph_workspace_outcomes"] = [
+        {
+            "source_subsystem": "AlgorithmEngineer",
+            "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
+        }
+    ]
     architect_task = AgentTask(
         task_id="architect:generic-initial-lane-coverage",
         owner_subsystem="ArchitectCoordinator",
@@ -707,15 +754,91 @@ def test_architect_repeat_cannot_starve_runnable_unvisited_primary_lane() -> Non
     )
 
     assert continued.next_task is not None
-    assert continued.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert continued.next_task.owner_subsystem == "SimulationEvaluator"
     assert continued.failure_classification == (
         "runtime_required_evidence_lane_continuation"
     )
     coverage = continued.observations[-1]
     assert coverage.observation_type == "runtime_required_evidence_lane_continuation"
     assert coverage.payload["initial_lane_coverage_override"] is True
-    assert coverage.payload["next_owner_subsystem"] == "FormalizationEvaluator"
+    assert coverage.payload["next_owner_subsystem"] == "SimulationEvaluator"
     assert coverage.payload["runtime_authored_research_content"] is False
+
+
+def test_lane_coverage_does_not_count_invalidated_parent_lineage() -> None:
+    question = OpenResearchQuestion(
+        id="generic-revised-theory-lineage",
+        title="Rebuild revised-theory descendants first",
+        description="An old algorithm visit cannot satisfy a new theory parent.",
+    )
+    context = _full_evidence_context(question.id)
+    context["architect_runtime_plan"]["evidence_contract"][
+        "recommended_research_path"
+    ] = "dual_track"
+    context["theory_packet_id"] = "theory:revised"
+    context["runtime_dependency_rebuild"] = {
+        "artifact_kind": "RuntimeTheoryRevisionDependencyRebuild",
+        "revised_theory_packet_id": "theory:revised",
+    }
+    context["runtime_outer_graph_workspace_outcomes"] = [
+        {
+            "source_subsystem": "AlgorithmEngineer",
+            "parent_artifact_ids": {"theory_packet_id": "theory:parent"},
+        }
+    ]
+    proposed_algorithm = AgentTask(
+        task_id="algorithm:generic-revised-theory-lineage",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Rebuild the algorithm against the revised theory.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:revised",
+            "architect_context": context,
+        },
+    )
+    result = AgentStepResult(
+        status="REROUTE",
+        rationale="Preflight accepted the revised theory lineage.",
+        next_task=proposed_algorithm,
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={"theory:revised": {"packet_id": "theory:revised"}},
+    )
+    blackboard.handoff_ledger.append(
+        TaskHandoffRecord(
+            handoff_id="handoff:old-algorithm",
+            from_task_id="architect:old",
+            to_task_id="algorithm:old",
+            from_subsystem="ArchitectCoordinator",
+            to_subsystem="AlgorithmEngineer",
+            status="REROUTE",
+            rationale="Algorithm ran against the invalidated parent theory.",
+        )
+    )
+
+    transitioned = _runtime_transition_policy(
+        iteration=14,
+        task=AgentTask(
+            task_id="architect:generic-revised-theory-lineage",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Continue the revised lineage.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": context,
+            },
+        ),
+        subsystem_name="ArchitectCoordinator",
+        result=result,
+        blackboard=blackboard,
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert transitioned is result
+    assert transitioned.next_task is proposed_algorithm
 
 
 def test_initial_lane_coverage_does_not_interrupt_bound_source_owner_loop() -> None:

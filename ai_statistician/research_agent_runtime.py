@@ -4400,12 +4400,7 @@ def _runtime_architect_initial_lane_coverage(
     primary, _plan_context = _runtime_outer_graph_plan(context)
     if proposed_owner not in primary:
         return None
-    visited = {
-        subsystem
-        for handoff in blackboard.handoff_ledger
-        for subsystem in (handoff.from_subsystem, handoff.to_subsystem)
-        if subsystem in RUNTIME_PRIMARY_EVIDENCE_SUBSYSTEMS
-    }
+    visited = _runtime_executed_subsystems(architect_context=context)
     if proposed_owner not in visited:
         return None
     unvisited = [subsystem for subsystem in primary if subsystem not in visited]
@@ -4417,9 +4412,6 @@ def _runtime_architect_initial_lane_coverage(
         theory_packet_id
         and _architect_blackboard_artifact_present(blackboard, theory_packet_id)
     )
-    current_lineage_executed = _runtime_executed_subsystems(
-        architect_context=context
-    )
     runnable = [
         subsystem
         for subsystem in unvisited
@@ -4427,7 +4419,7 @@ def _runtime_architect_initial_lane_coverage(
             theory_available
             and (
                 subsystem != "SimulationEvaluator"
-                or "AlgorithmEngineer" in current_lineage_executed
+                or "AlgorithmEngineer" in visited
             )
         )
     ]
@@ -19323,17 +19315,6 @@ def run_research_agent_runtime(
     simulation_payloads = payloads("simulation")
     formalization_payloads = payloads("formalization_proof_feedback")
     formalizer_payloads = payloads("llm_formalizer_proof_engineer_proposal")
-    formalizer_client_tool_payloads = [
-        payload
-        for evidence_type in (
-            "formalizer_lean_candidate_client_tool_loop",
-            "formalizer_packet_validation_failure",
-        )
-        for payload in payloads(evidence_type)
-        if _bool_like(payload.get("model_owned_lean_code", False))
-        and not _bool_like(payload.get("runtime_selected_lean_code", True))
-        and bool(str(payload.get("candidate_source_hash", "") or ""))
-    ]
     n_kernel_verified_subclaims = sum(
         payload_int(
             payload.get("counts", {})
@@ -19362,27 +19343,9 @@ def run_research_agent_runtime(
         completion_summary=completion_summary,
         n_materialized_formal_gap_rows=n_formal_gaps,
     )
-    formalizer_client_tool_observation_summary = {
-        "n_workspaces_observed": len(formalizer_client_tool_payloads),
-        "n_source_updates": sum(
-            payload_int(payload, "source_updates")
-            for payload in formalizer_client_tool_payloads
-        ),
-        "n_local_lean_checks": sum(
-            payload_int(payload, "local_lean_checks")
-            for payload in formalizer_client_tool_payloads
-        ),
-        "n_formal_rag_tool_calls": sum(
-            payload_int(payload, "n_formal_rag_tool_calls")
-            for payload in formalizer_client_tool_payloads
-        ),
-        "n_compiled_checkpoints": sum(
-            1
-            for payload in formalizer_client_tool_payloads
-            if _bool_like(payload.get("latest_check_compiled", False))
-        ),
-        "proof_evidence_status": "FORMALIZER_CLIENT_TOOL_OBSERVATIONS_NOT_PROOF_EVIDENCE",
-    }
+    formalizer_client_tool_observation_summary = (
+        _runtime_formalizer_client_tool_observation_summary(evidence_rows)
+    )
     candidate_gate_independence_summary = summarize_candidate_gate_independence(
         evidence_rows,
         architect_context=runtime_architect_context,
@@ -19494,18 +19457,26 @@ def run_research_agent_runtime(
         "n_formalizer_lean_candidate_local_lean_checked": sum(
             payload_int(payload, "n_local_lean_checked")
             for payload in formalizer_payloads
-        ) + sum(
-            1
-            for payload in formalizer_client_tool_payloads
-            if payload_int(payload, "local_lean_checks") > 0
+        )
+        if not payload_int(
+            formalizer_client_tool_observation_summary,
+            "n_workspaces_observed",
+        )
+        else payload_int(
+            formalizer_client_tool_observation_summary,
+            "n_local_lean_checks",
         ),
         "n_formalizer_lean_candidate_local_lean_compiled": sum(
             payload_int(payload, "n_local_lean_compiled")
             for payload in formalizer_payloads
-        ) + sum(
-            1
-            for payload in formalizer_client_tool_payloads
-            if _bool_like(payload.get("latest_check_compiled", False))
+        )
+        if not payload_int(
+            formalizer_client_tool_observation_summary,
+            "n_workspaces_observed",
+        )
+        else payload_int(
+            formalizer_client_tool_observation_summary,
+            "n_compiled_checkpoints",
         ),
         "llm_topology_policy_ok": llm_topology["policy_status"] == "OK",
         "llm_runtime_topology": llm_topology,
@@ -21952,6 +21923,63 @@ def _runtime_formal_closure_summary(
             "Materialized formal-gap rows are an observed inventory, not an "
             "exhaustive complement of proof. Zero rows never imply formal closure; "
             "closure requires each question's target-bound formal_satisfied gate."
+        ),
+    }
+
+
+def _runtime_formalizer_client_tool_observation_summary(
+    evidence_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Aggregate every distinct model-owned Formalizer workspace observation."""
+
+    evidence_types = {
+        "formalizer_lean_candidate_client_tool_loop",
+        "formalizer_packet_validation_failure",
+    }
+    distinct_payloads: dict[tuple[str, str, str], Mapping[str, Any]] = {}
+    for row in evidence_rows:
+        evidence_type = str(row.get("evidence_type", "") or "")
+        payload = row.get("payload", {})
+        if evidence_type not in evidence_types or not isinstance(payload, Mapping):
+            continue
+        if not _bool_like(payload.get("model_owned_lean_code", False)):
+            continue
+        if _bool_like(payload.get("runtime_selected_lean_code", True)):
+            continue
+        if not str(payload.get("candidate_source_hash", "") or "").strip():
+            continue
+        identity = str(
+            row.get("artifact_id", "")
+            or row.get("evidence_id", "")
+            or stable_hash(dict(payload))
+        )
+        key = (
+            str(row.get("question_id", "") or ""),
+            evidence_type,
+            identity,
+        )
+        distinct_payloads[key] = payload
+    payloads = list(distinct_payloads.values())
+    return {
+        "n_workspaces_observed": len(payloads),
+        "n_source_updates": sum(
+            _runtime_safe_int(payload.get("source_updates")) for payload in payloads
+        ),
+        "n_local_lean_checks": sum(
+            _runtime_safe_int(payload.get("local_lean_checks"))
+            for payload in payloads
+        ),
+        "n_formal_rag_tool_calls": sum(
+            _runtime_safe_int(payload.get("n_formal_rag_tool_calls"))
+            for payload in payloads
+        ),
+        "n_compiled_checkpoints": sum(
+            1
+            for payload in payloads
+            if _bool_like(payload.get("latest_check_compiled", False))
+        ),
+        "proof_evidence_status": (
+            "FORMALIZER_CLIENT_TOOL_OBSERVATIONS_NOT_PROOF_EVIDENCE"
         ),
     }
 
