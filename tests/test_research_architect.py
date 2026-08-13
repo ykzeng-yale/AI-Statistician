@@ -540,6 +540,36 @@ def test_llm_theory_developer_validation_rejects_empty_required_structures() -> 
     assert any("formalization_handoff" in error for error in errors)
 
 
+def test_theory_validation_rejects_dangling_formal_target_references() -> None:
+    bad = _sample_response()
+    theorem_cards = [dict(row) for row in bad["theorem_cards"]]
+    theorem_cards.append(dict(theorem_cards[0]))
+    bad["theorem_cards"] = theorem_cards
+    derivation = dict(bad["theory_derivation_packet"])
+    handoff = dict(derivation["formalization_handoff"])
+    handoff["source_theorem_target"] = "invented_aggregate_alias"
+    derivation["formalization_handoff"] = handoff
+    bad["theory_derivation_packet"] = derivation
+    requests = [dict(row) for row in bad["formalization_requests"]]
+    requests[0]["target_theorem_card"] = "missing_theorem_card"
+    bad["formalization_requests"] = requests
+
+    errors = validate_theory_core_packet(bad)
+
+    assert "theorem_cards ids must be unique" in errors
+    assert any(
+        "source_theorem_target must exactly match a theorem_cards id" in error
+        and "invented_aggregate_alias" in error
+        for error in errors
+    )
+    assert any(
+        "formalization_requests[0].target_theorem_card must exactly match"
+        in error
+        and "missing_theorem_card" in error
+        for error in errors
+    )
+
+
 def test_theory_validation_allows_model_selected_supporting_row_counts() -> None:
     packet = _sample_response()
     derivation = dict(packet["theory_derivation_packet"])
@@ -926,6 +956,10 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         for field in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
         if field not in optional_artifacts
     }
+    invalid_core_artifacts = json.loads(json.dumps(core_artifacts))
+    invalid_core_artifacts["theory_derivation_packet"][
+        "formalization_handoff"
+    ]["source_theorem_target"] = "invented_aggregate_alias"
     provider = ScriptedTheoryToolBackend(
         tool_responses=[
             _theory_tool_response(
@@ -949,7 +983,23 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
                                 "path": "",
                                 "value": value,
                             }
-                            for name, value in core_artifacts.items()
+                            for name, value in invalid_core_artifacts.items()
+                        ]
+                    },
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="fix-formal-target-reference",
+                    name="edit_theory_workspace",
+                    input={
+                        "operations": [
+                            {
+                                "op": "replace",
+                                "artifact_name": "theory_derivation_packet",
+                                "path": "/formalization_handoff/source_theorem_target",
+                                "value": "aipw_asymptotic_normality",
+                            }
                         ]
                     },
                 )
@@ -976,7 +1026,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     packet = developer.derive(question)
 
     assert validate_theory_packet(packet) == []
-    assert len(provider.tool_requests) == 2
+    assert len(provider.tool_requests) == 3
     assert len(provider.generator_requests) == 1
     first_request = provider.tool_requests[0]
     assert first_request.metadata["theory_developer_phase"] == (
@@ -998,16 +1048,24 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert "desired_theorem_type" in str(
         provider.tool_requests[1].messages
     )
+    assert (
+        "source_theorem_target must exactly match a theorem_cards id"
+        in str(provider.tool_requests[2].messages)
+    )
+    assert "invented_aggregate_alias" in str(
+        provider.tool_requests[2].messages
+    )
     assert packet["problem_card"]["dgp"] == core_response["problem_card"][
         "dgp"
     ]
     evidence = packet["llm_client_tool_loop"]
     assert evidence["workspace_operation"] == "initial_discovery"
     assert evidence["write_transport"] == "rfc6902_json_patch"
-    assert evidence["n_model_edit_operations"] == len(core_artifacts)
+    assert evidence["n_model_edit_operations"] == len(core_artifacts) + 1
     assert evidence["model_owned_theory"] is True
     assert evidence["runtime_edited_theory"] is False
     assert evidence["reads"] == 1
+    assert evidence["submissions"] == 2
     assert set(evidence["changed_artifact_names"]) == (
         set(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT) - optional_artifacts
     )

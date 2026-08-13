@@ -1950,14 +1950,82 @@ def _validate_theory_packet(
                 )
     elif simulation_ademp_spec not in (None, "", [], {}):
         errors.append("simulation_ademp_spec must be an object")
-    for row in packet.get("theorem_cards", []) or []:
+    theorem_card_ids: list[str] = []
+    for idx, row in enumerate(packet.get("theorem_cards", []) or []):
         if not isinstance(row, Mapping):
             errors.append("theorem_cards entries must be objects")
             continue
+        theorem_card_id = str(row.get("id", "") or "").strip()
+        if not theorem_card_id:
+            errors.append(f"theorem_cards[{idx}].id must be non-empty")
+        else:
+            theorem_card_ids.append(theorem_card_id)
         if not str(row.get("informal_statement", "")).strip():
             errors.append("theorem card missing informal_statement")
         if not str(row.get("proof_strategy", "")).strip():
             errors.append("theorem card missing proof_strategy")
+    if len(theorem_card_ids) != len(set(theorem_card_ids)):
+        errors.append("theorem_cards ids must be unique")
+
+    theorem_card_id_set = set(theorem_card_ids)
+    formalization_handoff = (
+        derivation.get("formalization_handoff", {})
+        if isinstance(derivation, Mapping)
+        else {}
+    )
+    source_theorem_target = (
+        str(formalization_handoff.get("source_theorem_target", "") or "").strip()
+        if isinstance(formalization_handoff, Mapping)
+        else ""
+    )
+    if not source_theorem_target:
+        errors.append(
+            "theory_derivation_packet.formalization_handoff."
+            "source_theorem_target must be non-empty"
+        )
+    elif source_theorem_target not in theorem_card_id_set:
+        errors.append(
+            "theory_derivation_packet.formalization_handoff."
+            "source_theorem_target must exactly match a theorem_cards id; "
+            f"got {source_theorem_target!r}, available={sorted(theorem_card_id_set)}"
+        )
+
+    formalization_request_ids: list[str] = []
+    formalization_request_targets: list[str] = []
+    for idx, row in enumerate(packet.get("formalization_requests", []) or []):
+        if not isinstance(row, Mapping):
+            errors.append("formalization_requests entries must be objects")
+            continue
+        request_id = str(row.get("id", "") or "").strip()
+        if not request_id:
+            errors.append(f"formalization_requests[{idx}].id must be non-empty")
+        else:
+            formalization_request_ids.append(request_id)
+        request_target = str(row.get("target_theorem_card", "") or "").strip()
+        if not request_target:
+            errors.append(
+                f"formalization_requests[{idx}].target_theorem_card must be non-empty"
+            )
+        else:
+            formalization_request_targets.append(request_target)
+            if request_target not in theorem_card_id_set:
+                errors.append(
+                    f"formalization_requests[{idx}].target_theorem_card must "
+                    "exactly match a theorem_cards id; "
+                    f"got {request_target!r}, "
+                    f"available={sorted(theorem_card_id_set)}"
+                )
+    if len(formalization_request_ids) != len(set(formalization_request_ids)):
+        errors.append("formalization_requests ids must be unique")
+    if (
+        source_theorem_target
+        and source_theorem_target in theorem_card_id_set
+        and source_theorem_target not in formalization_request_targets
+    ):
+        errors.append(
+            "theory_derivation_packet.formalization_handoff."
+            "source_theorem_target must be targeted by a formalization request"
+        )
     if packet.get("proof_evidence_status") != THEORY_DERIVATION_NOT_PROOF_EVIDENCE:
         errors.append("proof_evidence_status must preserve LLM-not-proof boundary")
     if packet.get("kernel_verified") is not False:
@@ -2377,7 +2445,9 @@ def _initial_theory_workspace_prompt(
         "every still-empty required artifact. Derive definitions and claims rather "
         "than treating retrieval as an answer key. Keep assumptions, equations, "
         "estimators, theorem cards, simulation semantics, and formal targets mutually "
-        "consistent. Record uncertainty explicitly. Do not claim execution, Lean "
+        "consistent. Treat IDs as exact references: the formalization handoff and "
+        "every formalization request must name an existing theorem-card ID. Record "
+        "uncertainty explicitly. Do not claim execution, Lean "
         "proof, or kernel verification. The runtime applies only your exact edits and "
         "will not choose, fill, or rewrite any substantive field."
     )
