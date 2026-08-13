@@ -264,7 +264,7 @@ def test_large_results_are_projected_without_mutating_full_artifact() -> None:
     ] is trajectory
 
 
-def test_prompt_projection_excludes_empirical_gate_authority_and_outcomes() -> None:
+def test_prompt_projection_preserves_frozen_comparator_but_excludes_outcomes() -> None:
     material = _review_material()
     requirement = material["architect_frozen_evidence_contract"][
         "empirical_metric_requirements"
@@ -302,12 +302,22 @@ def test_prompt_projection_excludes_empirical_gate_authority_and_outcomes() -> N
 
     assert projected_requirement["requirement_id"] == "metric:estimate"
     assert projected_requirement["measurement_protocol"]
-    assert not {"operator", "threshold", "tolerance", "required"}.intersection(
-        projected_requirement
-    )
+    assert projected_requirement["operator"] == "=="
+    assert projected_requirement["threshold"] == 1.0
+    assert projected_requirement["tolerance"] == 0.0
+    assert projected_requirement["required"] is True
+    projected_contract = projected_row["metric_contracts"][0]
+    assert projected_contract["requirement_id"] == "metric:estimate"
+    assert projected_contract["metric_path"] == ["estimate"]
+    assert projected_contract["operator"] == "=="
+    assert projected_contract["threshold"] == 1.0
     assert "metric_contract_evaluation" not in projected_row
     assert "stdout_summary" not in projected_row
     assert projected_row["metrics_schema"]["realized_values_withheld"] is True
+    assert "For every emitted metric path" in build_generated_code_semantic_review_prompt(
+        question=_question(),
+        review_material=material,
+    )
 
 
 def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:

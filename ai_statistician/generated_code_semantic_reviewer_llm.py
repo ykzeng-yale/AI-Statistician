@@ -324,6 +324,8 @@ def _prompt_projection_value(
 
 _SEMANTIC_METRIC_FIELDS = frozenset(
     {
+        "acceptance_authority_kind",
+        "acceptance_authority_rationale",
         "aggregation",
         "artifact_id",
         "authority_requirement_fingerprint",
@@ -331,14 +333,24 @@ _SEMANTIC_METRIC_FIELDS = frozenset(
         "authority_source_subsystem",
         "boundary",
         "contract_id",
+        "gate_field_authorities",
+        "gate_field_authority_mode",
+        "lower",
         "measurement_protocol",
         "metric_path",
         "metric_semantics",
         "metric_value_kind",
+        "minimum_pass_count",
+        "minimum_pass_fraction",
+        "operator",
+        "required",
         "required_runtime_replicates",
         "requirement_id",
         "source_anchors",
         "target_subsystems",
+        "threshold",
+        "tolerance",
+        "upper",
     }
 )
 _SEMANTIC_REVIEW_RESULT_VALUE_KEYS = frozenset(
@@ -726,6 +738,12 @@ def build_generated_code_semantic_review_prompt(
         "when source, interface, arguments, or emitted statistic directly compute the "
         "wrong object. For frozen_measurement_protocol_alignment, review the statistic "
         "binding, path, shape, units, and meaning, never the realized threshold result. "
+        "For every emitted metric path, compare the source computation and returned "
+        "field meaning with the exact bound requirement's metric semantics, measurement "
+        "protocol, operator, bounds, and authority rationale. A field that measures a "
+        "different statistic cannot borrow another requirement's comparator; mark "
+        "metric_semantics_alignment FAIL before execution. Frozen comparators are "
+        "pre-execution context, not realized outcomes. "
         "Each finding must describe "
         "observed_behavior and expected_behavior and correspond to at least one FAIL "
         "or UNCERTAIN dimension. If every dimension is PASS, findings must be empty. "
