@@ -702,7 +702,7 @@ class EmpericalProcessLeanRetrievalProvider:
                     line=int(_row_value(row, "line_start", 0) or 0),
                     kind=str(_row_value(row, "kind", "declaration") or "declaration"),
                     name=str(_row_value(row, "name", "") or ""),
-                    namespace=str(_row_value(row, "module", "") or ""),
+                    namespace=str(_row_value(row, "namespace", "") or ""),
                     signature=str(_row_value(row, "signature", "") or ""),
                 )
                 raw_score = _row_value(row, "match_score", None)

@@ -305,6 +305,7 @@ def test_emperical_process_lean_provider_calls_structured_graph_api(
                     "path": "StatInference/Test.lean",
                     "line_start": 42,
                     "module": "StatInference.Test",
+                    "namespace": "StatInference",
                     "signature": "theorem exchangeable_coverage : True",
                     "match_score": 8,
                     "fan_in": 3,
@@ -341,6 +342,7 @@ def test_emperical_process_lean_provider_calls_structured_graph_api(
     assert len(hits) == 1
     hit = hits[0]
     assert hit.declaration.name == "StatInference.exchangeable_coverage"
+    assert hit.declaration.namespace == "StatInference"
     assert hit.provenance["branch"] == "codex/lean-reuse-source-integration"
     assert hit.provenance["commit"] == "e8d5513d"
     assert hit.provenance["index_signature_state"] == "unchanged"
