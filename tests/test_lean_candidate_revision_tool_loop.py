@@ -467,6 +467,10 @@ def test_formalizer_agent_keeps_formal_gap_available_after_workspace_resume() ->
     assert "your own submitted source is revision feedback" in (
         backend.requests[0].system_prompt
     )
+    assert "inspected declaration source" in backend.requests[0].system_prompt
+    assert "prioritize a complete source revision" in (
+        backend.requests[0].system_prompt
+    )
     assert evidence["disposition"] == "FORMAL_GAP"
     assert evidence["local_lean_checks"] == 1
     assert evidence["model_explicit_submit"] is False

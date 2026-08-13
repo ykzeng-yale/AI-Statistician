@@ -836,11 +836,29 @@ def architect_preexecution_metric_protocol_rejection_result(
             for row in final_review.get("findings", []) or []
             if isinstance(row, Mapping)
         ]
+        current_unresolved_finding_reviews = [
+            {
+                key: deepcopy(row[key])
+                for key in (
+                    "finding_id",
+                    "status",
+                    "rationale",
+                    "evidence_refs",
+                    "source_evidence_refs",
+                )
+                if key in row
+            }
+            for row in final_review.get("prior_finding_reviews", []) or []
+            if isinstance(row, Mapping)
+            and str(row.get("status", "") or "").strip().upper()
+            == "UNRESOLVED"
+        ]
         feedback_id = "metric_protocol_preexecution_observation:" + stable_hash(
             [
                 manifest_id,
                 next_revision_count,
                 observed_findings,
+                current_unresolved_finding_reviews,
             ]
         )[:20]
         feedback = {
@@ -872,6 +890,9 @@ def architect_preexecution_metric_protocol_rejection_result(
                 final_review.get("portfolio_review", {}) or {}
             ),
             "findings": observed_findings,
+            "current_unresolved_finding_reviews": (
+                current_unresolved_finding_reviews
+            ),
             "active_unresolved_finding_ids": [
                 str(value)
                 for value in final_review.get(

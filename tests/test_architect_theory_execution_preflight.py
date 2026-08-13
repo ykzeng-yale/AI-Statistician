@@ -2158,6 +2158,18 @@ def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -
             "estimator_execution_checks": rejected_packet[
                 "estimator_execution_checks"
             ],
+            "prior_finding_reviews": [
+                {
+                    "finding_id": finding_id,
+                    "status": "UNRESOLVED",
+                    "rationale": (
+                        "The current parent now covers the bounded branch, but its "
+                        "unbounded branch still lacks a current derivation."
+                    ),
+                    "evidence_refs": ["theory.derivation_steps"],
+                    "source_evidence_refs": ["preflight_source_hit:current"],
+                }
+            ],
             "findings": rejected_packet["findings"],
             "cumulative_finding_ledger": rejected_packet[
                 "cumulative_finding_ledger"
@@ -2213,6 +2225,21 @@ def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -
     ]
     assert progress["same_lineage_no_progress_observed"] is True
     assert progress["runtime_selected_disposition"] is False
+    current_reviews = result.next_task.inputs["environment_feedback"][
+        "current_unresolved_finding_reviews"
+    ]
+    assert current_reviews == [
+        {
+            "finding_id": finding_id,
+            "status": "UNRESOLVED",
+            "rationale": (
+                "The current parent now covers the bounded branch, but its "
+                "unbounded branch still lacks a current derivation."
+            ),
+            "evidence_refs": ["theory.derivation_steps"],
+            "source_evidence_refs": ["preflight_source_hit:current"],
+        }
+    ]
 
 
 def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
