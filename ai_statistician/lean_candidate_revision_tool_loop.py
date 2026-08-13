@@ -1021,7 +1021,12 @@ def _lean_candidate_revision_tools(
                     "Report that the unchanged task-bound target cannot currently be "
                     "formalized in the active Lean environment. Use only after concrete "
                     "search or compiler observations identify a real missing primitive "
-                    "or foundation blocker. This is a non-proof terminal result."
+                    "or foundation blocker required by that target. Errors caused by "
+                    "imports, identifiers, types, or proof terms chosen in the current "
+                    "model-authored source are feedback to rewrite the complete source, "
+                    "not by themselves formal gaps. Do not claim an attempted revision "
+                    "without a corresponding tool observation. This is a non-proof "
+                    "terminal result."
                 ),
                 input_schema={
                     "type": "object",

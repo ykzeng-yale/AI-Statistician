@@ -28,6 +28,9 @@ from ai_statistician.formalizer_llm import (
     LLMFormalizerProofEngineerAgent,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician import (
+    lean_candidate_revision_tool_loop as lean_candidate_tool_loop_module,
+)
 import ai_statistician.formalizer_llm as formalizer_module
 import ai_statistician.research_agent_runtime as runtime_module
 
@@ -263,6 +266,17 @@ def test_lean_candidate_tool_loop_authors_first_source_from_empty_workspace() ->
     ]
 
 
+def test_formal_gap_tool_keeps_model_authored_errors_in_source_revision_loop() -> None:
+    tools = lean_candidate_tool_loop_module._lean_candidate_revision_tools(
+        include_formal_gap=True,
+    )
+    gap_tool = next(tool for tool in tools if tool.name == LEAN_FORMAL_GAP_TOOL)
+
+    assert "current model-authored source" in gap_tool.description
+    assert "rewrite the complete source" in gap_tool.description
+    assert "corresponding tool observation" in gap_tool.description
+
+
 def test_lean_candidate_workspace_lets_model_report_task_bound_formal_gap() -> None:
     backend = ScriptedLeanToolBackend(
         [
@@ -450,6 +464,9 @@ def test_formalizer_agent_keeps_formal_gap_available_after_workspace_resume() ->
     assert LEAN_FORMAL_GAP_TOOL in {
         tool.name for tool in backend.requests[0].tools
     }
+    assert "your own submitted source is revision feedback" in (
+        backend.requests[0].system_prompt
+    )
     assert evidence["disposition"] == "FORMAL_GAP"
     assert evidence["local_lean_checks"] == 1
     assert evidence["model_explicit_submit"] is False
