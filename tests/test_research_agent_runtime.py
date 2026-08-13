@@ -387,6 +387,25 @@ def test_final_critic_does_not_restart_exhausted_formalizer_for_missing_proof() 
     assert result.failure_classification == "formal_required_unverified"
 
 
+def test_summary_flags_and_subclaims_do_not_satisfy_exact_theorem_gate() -> None:
+    decision = runtime_module._critic_evidence_contract_decision(
+        critic_control={
+            "evidence_contract": {"formal_verification_policy": "required"}
+        },
+        formalization_manifest={
+            "counts": {"formal_gap": 0, "kernel_verified": 12},
+            "full_frontier_theorem_proved": True,
+        },
+        revision_required=False,
+    )
+
+    assert decision["kernel_verified"] == 12
+    assert decision["source_theorem_kernel_verified"] is False
+    assert decision["formal_satisfied"] is False
+    assert decision["runtime_status"] == "BLOCKED"
+    assert decision["failure_classification"] == "formal_required_unverified"
+
+
 def test_workspace_parent_lineage_reopens_only_after_parent_artifact_changes() -> None:
     formalizer_parents = runtime_module._runtime_workspace_parent_artifact_ids(
         "FormalizationEvaluator",
@@ -2868,6 +2887,127 @@ def test_accepted_review_ledger_preserves_distinct_workspace_lineages() -> None:
             architect_context=context
         )
     )
+
+
+def test_algorithm_workspace_blocks_partial_artifact_set_before_review(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = OpenResearchQuestion(
+        id="generic-partial-algorithm-workspace",
+        title="Complete every requested implementation artifact",
+        description="Do not independently review a partial coding workspace.",
+    )
+    theory_packet_id = "theory:generic-partial-algorithm-workspace"
+    simulation_manifest_id = "simulation:generic-partial-algorithm-workspace"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "estimator_specs": [
+            {"id": "passing-estimator"},
+            {"id": "failed-estimator"},
+        ],
+    }
+    simulation_manifest = {
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": simulation_manifest_id,
+        "theory_packet_id": theory_packet_id,
+    }
+
+    class ProposalAgent:
+        provider = object()
+
+        @staticmethod
+        def propose(**_kwargs):
+            return {
+                "artifact_kind": "AlgorithmEngineerProposalPacket",
+                "packet_id": "algorithm-proposal:generic-partial-workspace",
+                "source_agent": "LLMAlgorithmEngineerAgent",
+                "model": "source-author",
+                "model_tier": "haiku",
+                "implementation_targets": [
+                    {"estimator_id": "passing-estimator"},
+                    {"estimator_id": "failed-estimator"},
+                ],
+                "sandbox_code_drafts": [
+                    {"estimator_id": "passing-estimator", "code": "passing"},
+                    {"estimator_id": "failed-estimator", "code": "failed"},
+                ],
+            }
+
+    def run_source_workspace(**kwargs):
+        estimator_id = str(kwargs["failure_identity"]["estimator_id"])
+        passed = estimator_id == "passing-estimator"
+        return {
+            "estimator_id": estimator_id,
+            "prototype_status": "EXECUTED" if passed else "FAILED",
+            "executor": "generated_python_sandbox",
+            "language": "python",
+            "dependencies": [],
+            "execution_attempted": True,
+            "execution_smoke_passed": passed,
+            "smoke_passed": passed,
+            "stderr_summary": "" if passed else "raw execution failure",
+        }, []
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_source_owner_scientific_workspace",
+        run_source_workspace,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_generated_code_semantic_review_dispatch",
+        lambda **_kwargs: pytest.fail(
+            "partial implementation was sent to independent review"
+        ),
+    )
+    context = _full_evidence_context(question.id)
+    context["theory_packet_id"] = theory_packet_id
+    result = runtime_module.AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path,
+        n_runs=8,
+        seed=7,
+        proposal_agent=ProposalAgent(),
+        semantic_reviewer_available=True,
+    ).run(
+        AgentTask(
+            task_id="algorithm:generic-partial-workspace",
+            owner_subsystem="AlgorithmEngineer",
+            objective="Author every requested estimator source.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "simulation_manifest_id": simulation_manifest_id,
+                "implementation_gaps": [
+                    {"estimator_id": "passing-estimator"},
+                    {"estimator_id": "failed-estimator"},
+                ],
+                "architect_context": context,
+            },
+        ),
+        BlackboardState(
+            project_id=question.id,
+            artifacts={
+                theory_packet_id: theory_packet,
+                simulation_manifest_id: simulation_manifest,
+            },
+        ),
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "generated_algorithm_sandbox_execution_failed"
+    )
+    blocked = next(
+        row
+        for row in result.observations
+        if row.observation_type == "algorithm_workspace_blocked"
+    )
+    assert blocked.payload["incomplete_estimator_ids"] == [
+        "failed-estimator"
+    ]
 
 
 def test_accepted_simulation_review_completes_current_outer_graph_lane(

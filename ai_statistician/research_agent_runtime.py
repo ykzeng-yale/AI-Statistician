@@ -11631,6 +11631,20 @@ class AlgorithmEngineerRuntimeSubsystem:
             _generated_metric_contract_evaluation_count(row, "n_failed")
             for row in prototype_rows
         )
+        required_estimator_ids = {
+            str(row.get("estimator_id", "") or "").strip()
+            for row in implementation_gaps
+            if str(row.get("estimator_id", "") or "").strip()
+        }
+        passed_estimator_ids = {
+            str(row.get("estimator_id", "") or "").strip()
+            for row in prototype_rows
+            if row.get("smoke_passed") is True
+            and str(row.get("estimator_id", "") or "").strip()
+        }
+        incomplete_estimator_ids = tuple(
+            sorted(required_estimator_ids - passed_estimator_ids)
+        )
         manifest_id = "algorithm_sandbox_manifest:" + stable_hash([task.task_id, prototype_rows])[:20]
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -11860,7 +11874,8 @@ class AlgorithmEngineerRuntimeSubsystem:
             self.proposal_agent is not None
             and implementation_gaps
             and (
-                (
+                bool(incomplete_estimator_ids)
+                or (
                     requires_generated_algorithm_code
                     and (
                         manifest["n_generated_code_executed"] == 0
@@ -11921,6 +11936,9 @@ class AlgorithmEngineerRuntimeSubsystem:
                     payload={
                         "algorithm_sandbox_manifest_id": manifest_id,
                         "failure_classification": revision_failure_classification,
+                        "incomplete_estimator_ids": list(
+                            incomplete_estimator_ids
+                        ),
                         "complete_parent_source_supplied": all(
                             row.get("parent_source_complete") is True
                             for row in feedback.get("prototypes", [])
@@ -13042,8 +13060,16 @@ class FormalizerWorkspaceRuntimeSubsystem:
                 )
                 else {}
             )
-            precomputed_materialization: dict[str, Any] | None = None
-            if not lean_candidate_client_tool_loop_evidence:
+            precomputed_materialization: dict[str, Any] | None = (
+                dict(lean_candidate_materialization)
+                if source_theorem_kernel_verified
+                and isinstance(lean_candidate_materialization, Mapping)
+                else None
+            )
+            if (
+                precomputed_materialization is None
+                and not lean_candidate_client_tool_loop_evidence
+            ):
                 precomputed_materialization = (
                     _materialize_formalizer_lean_candidate_artifacts(
                         root=self.lean_candidate_root,
@@ -13919,7 +13945,10 @@ class FormalizerWorkspaceRuntimeSubsystem:
                 _formalizer_compiled_exact_candidate_semantic_review_feedback(
                     lean_candidate_materialization
                 )
-                if isinstance(lean_candidate_materialization, Mapping)
+                if (
+                    not source_theorem_kernel_verified
+                    and isinstance(lean_candidate_materialization, Mapping)
+                )
                 else None
             )
             compiled_exact_review_dispatch: dict[str, Any] | None = None
@@ -14037,10 +14066,17 @@ class FormalizerWorkspaceRuntimeSubsystem:
             else:
                 next_task = critic_task
                 result_rationale = (
-                    "Runtime recorded the model-owned formalization workspace. The "
-                    "theorem remains unproved unless the unchanged exact target is "
-                    "closed by the kernel; references now route to the independent "
-                    "CriticEvaluator."
+                    "The independently reviewed exact model source passed the local "
+                    "kernel promotion gate. Its unchanged proof artifact now routes "
+                    "directly to CriticEvaluator without another source review or "
+                    "model rewrite."
+                    if source_theorem_kernel_verified
+                    else (
+                        "Runtime recorded the model-owned formalization workspace. "
+                        "The theorem remains unproved unless the unchanged exact "
+                        "target is closed by the kernel; references now route to the "
+                        "independent CriticEvaluator."
+                    )
                 )
                 result_status = "REROUTE"
                 failure_classification = ""
@@ -18025,6 +18061,12 @@ class CriticEvaluatorRuntimeSubsystem:
             or formalization_manifest.get("manifest_id", "")
             or ""
         )
+        source_theorem_kernel_verified = (
+            _runtime_source_theorem_kernel_closure_verified(
+                formalization_manifest=formalization_manifest,
+                blackboard=blackboard,
+            )
+        )
         critic_round = _critic_revision_round(context)
         max_critic_revision_rounds = _effective_critic_revision_rounds(
             context,
@@ -18045,11 +18087,9 @@ class CriticEvaluatorRuntimeSubsystem:
         formal_debt_blocks_research_acceptance = bool(
             formal_required_for_final or not explicit_formal_verification_policy
         )
-        critic_environment_feedback = (
+        explicit_critic_environment_feedback = (
             task.inputs.get("environment_feedback", {})
             if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
-            else context.get("environment_feedback", {})
-            if isinstance(context.get("environment_feedback", {}), Mapping)
             else {}
         )
         formalization_counts = (
@@ -18059,9 +18099,7 @@ class CriticEvaluatorRuntimeSubsystem:
         )
         formal_proof_work_pending = bool(
             int(formalization_counts.get("formal_gap", 0) or 0) > 0
-            or not _bool_like(
-                formalization_manifest.get("full_frontier_theorem_proved", False)
-            )
+            or not source_theorem_kernel_verified
         )
         formal_debt_deferred_nonblocking = bool(
             formal_proof_work_pending
@@ -18083,6 +18121,11 @@ class CriticEvaluatorRuntimeSubsystem:
             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
             "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         }
+        critic_environment_feedback = (
+            dict(explicit_critic_environment_feedback)
+            if explicit_critic_environment_feedback
+            else dict(critic_runtime_observations)
+        )
         proposal_packet: dict[str, Any] | None = None
         proposal_evidence: EvidenceLedgerEntry | None = None
         proposal_validation_failure_id = ""
@@ -18228,6 +18271,9 @@ class CriticEvaluatorRuntimeSubsystem:
         evidence_contract_decision = _critic_evidence_contract_decision(
             critic_control=critic_control,
             formalization_manifest=formalization_manifest,
+            source_theorem_kernel_verified=(
+                source_theorem_kernel_verified
+            ),
             revision_required=bool(
                 architect_replan_required
                 or proposal_validation_failure_feedback is not None
@@ -20728,10 +20774,64 @@ def _effective_critic_revision_rounds(
 
 
 
+def _runtime_source_theorem_kernel_closure_verified(
+    *,
+    formalization_manifest: Mapping[str, Any],
+    blackboard: BlackboardState,
+) -> bool:
+    """Recheck the exact promotion linked by a Formalizer manifest."""
+
+    counts = formalization_manifest.get("counts", {})
+    if not isinstance(counts, Mapping):
+        counts = {}
+    promotion_id = str(
+        formalization_manifest.get("lean_kernel_promotion_id", "") or ""
+    )
+    promotion = blackboard.artifacts.get(promotion_id, {})
+    manifest_target_ids = tuple(
+        str(value or "").strip()
+        for value in formalization_manifest.get(
+            "source_theorem_kernel_verified_target_ids", []
+        )
+        or []
+        if str(value or "").strip()
+    )
+    promotion_target_ids = tuple(
+        str(value or "").strip()
+        for value in (
+            promotion.get("target_ids", [])
+            if isinstance(promotion, Mapping)
+            else []
+        )
+        or []
+        if str(value or "").strip()
+    )
+    return bool(
+        promotion_id
+        and isinstance(promotion, Mapping)
+        and promotion.get("artifact_kind") == "LeanKernelPromotionResult"
+        and str(promotion.get("promotion_id", "") or "") == promotion_id
+        and _bool_like(
+            formalization_manifest.get(
+                "source_theorem_kernel_verified", False
+            )
+        )
+        and _int_like(counts.get("source_theorem_kernel_verified", 0)) > 0
+        and str(formalization_manifest.get("proof_evidence_status", "") or "")
+        == "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+        and _bool_like(promotion.get("source_theorem_kernel_verified", False))
+        and str(promotion.get("proof_evidence_status", "") or "")
+        == "EXACT_MODEL_SOURCE_KERNEL_VERIFIED"
+        and manifest_target_ids
+        and manifest_target_ids == promotion_target_ids
+    )
+
+
 def _critic_evidence_contract_decision(
     *,
     critic_control: Mapping[str, Any],
     formalization_manifest: Mapping[str, Any],
+    source_theorem_kernel_verified: bool = False,
     revision_required: bool,
 ) -> dict[str, Any]:
     """Classify terminal critic status under the Architect evidence contract."""
@@ -20758,13 +20858,9 @@ def _critic_evidence_contract_decision(
     )
     formal_gaps = _int_like(counts.get("formal_gap", 0))
     kernel_verified = _int_like(counts.get("kernel_verified", 0))
-    full_theorem_proved = _bool_like(
-        formalization_manifest.get("full_frontier_theorem_proved", False)
-        if isinstance(formalization_manifest, Mapping)
-        else False
-    )
     formal_satisfied = bool(
-        formal_gaps <= 0 and (full_theorem_proved or kernel_verified > 0)
+        formal_gaps <= 0
+        and source_theorem_kernel_verified
     )
     if revision_required:
         final_status = "REROUTE_REQUIRED_BEFORE_FINAL"
@@ -20802,7 +20898,10 @@ def _critic_evidence_contract_decision(
         ),
         "formal_gaps": formal_gaps,
         "kernel_verified": kernel_verified,
-        "full_frontier_theorem_proved": full_theorem_proved,
+        "source_theorem_kernel_verified": (
+            source_theorem_kernel_verified
+        ),
+        "full_frontier_theorem_proved": source_theorem_kernel_verified,
         "formal_satisfied": formal_satisfied,
         "runtime_status": runtime_status,
         "final_acceptance_status": final_status,

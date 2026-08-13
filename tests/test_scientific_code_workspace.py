@@ -134,6 +134,15 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
     assert "json" not in submission_schema["properties"]["dependencies"][
         "items"
     ]["enum"]
+    dependency_description = submission_schema["properties"]["dependencies"][
+        "description"
+    ]
+    assert "language=python" in dependency_description
+    assert "numpy, scipy, pandas, scikit-learn, statsmodels" in (
+        dependency_description
+    )
+    assert "language=r" in dependency_description
+    assert "base, stats, utils, methods" in dependency_description
 
 
 def test_same_model_authors_initial_source_before_sandbox_execution() -> None:

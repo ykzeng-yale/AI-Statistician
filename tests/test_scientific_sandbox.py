@@ -105,6 +105,13 @@ def test_generated_code_schema_uses_one_compact_runtime_validated_shape() -> Non
         "utils",
         "methods",
     ]
+    dependency_description = schema["properties"]["dependencies"]["description"]
+    assert "language=python" in dependency_description
+    assert "numpy, scipy, pandas, scikit-learn, statsmodels" in (
+        dependency_description
+    )
+    assert "language=r" in dependency_description
+    assert "base, stats, utils, methods" in dependency_description
 
 
 def test_scientific_python_guard_requires_declared_packages_and_blocks_bridges() -> None:

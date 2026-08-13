@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.lean_candidate_revision_tool_loop import (
@@ -2270,6 +2272,146 @@ def test_formalizer_workspace_hydrates_observation_ref_before_source_loop(
         checkpoint
     )
     assert captured["task_environment_feedback"] == stored_feedback
+
+
+def test_kernel_verified_formalizer_source_skips_repeat_semantic_review(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    question = OpenResearchQuestion(
+        id="verified-formalizer-source",
+        title="Preserve a verified exact source",
+        description="Do not reopen semantic review after kernel promotion.",
+    )
+    theory_packet_id = "theory:verified-formalizer-source"
+    proposal_packet_id = "formalizer-proposal:verified-formalizer-source"
+    materialization_id = "lean-candidate:verified-formalizer-source"
+    source = "theorem verified_target : True := by trivial\n"
+    materialization = {
+        "manifest_id": materialization_id,
+        "source_formalizer_packet_id": proposal_packet_id,
+        "n_candidate_sources": 0,
+        "n_candidate_artifacts_written": 0,
+        "n_local_lean_checked": 0,
+        "n_local_lean_compiled": 0,
+    }
+    promotion = {
+        "artifact_kind": "LeanKernelPromotionResult",
+        "promotion_id": "lean-kernel-promotion:verified-formalizer-source",
+        "candidate_materialization_id": materialization_id,
+        "candidate_id": "verified-target",
+        "candidate_source_hash": stable_hash(source),
+        "target_ids": ["verified-target"],
+        "target_lean_declaration": "verified_target",
+        "source_theorem_kernel_verified": True,
+        "blockers": [],
+        "proof_evidence_status": "EXACT_MODEL_SOURCE_KERNEL_VERIFIED",
+    }
+    monkeypatch.setattr(
+        runtime_module,
+        "evaluate_lean_kernel_promotion",
+        lambda **_kwargs: promotion,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_materialize_formalizer_lean_candidate_artifacts",
+        lambda **_kwargs: pytest.fail(
+            "kernel-verified source was materialized a second time"
+        ),
+    )
+
+    def reject_repeat_review(_materialization):
+        pytest.fail("kernel-verified source was sent through semantic review again")
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_formalizer_compiled_exact_candidate_semantic_review_feedback",
+        reject_repeat_review,
+    )
+    subsystem = runtime_module.FormalizerWorkspaceRuntimeSubsystem(
+        lean_candidate_root=tmp_path / "candidates",
+        lean_candidate_lean_project=tmp_path,
+        formal_target_semantic_reviewer_available=True,
+    )
+    task = AgentTask(
+        task_id="formalize:verified-formalizer-source",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Promote the independently reviewed exact source.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "architect_context": {},
+        },
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={
+            theory_packet_id: {
+                "artifact_kind": "TheoryDerivationPacket",
+                "packet_id": theory_packet_id,
+            },
+            proposal_packet_id: {
+                "schema_version": 1,
+                "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                "packet_id": proposal_packet_id,
+                "formal_targets": [],
+                "retrieval_queries": [],
+                "proof_bank_obligation_requests": [],
+                "gap_taxonomy": [],
+            },
+            materialization_id: materialization,
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.failure_classification == ""
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "CriticEvaluator"
+    assert "without another source review or model rewrite" in result.rationale
+    assert not any(
+        row.get("artifact_kind") == "RuntimeFormalTargetSemanticReviewWorkOrder"
+        for row in result.produced_artifacts.values()
+        if isinstance(row, dict)
+    )
+    manifest = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind") == "RuntimeFormalizationManifest"
+    )
+    assert manifest["source_theorem_kernel_verified"] is True
+    assert manifest["source_theorem_kernel_verified_target_ids"] == [
+        "verified-target"
+    ]
+    blackboard.artifacts.update(result.produced_artifacts)
+    critic_result = runtime_module.CriticEvaluatorRuntimeSubsystem().run(
+        result.next_task,
+        blackboard,
+    )
+    assert critic_result.status == "ACCEPTED"
+    critic_manifest = next(
+        row
+        for row in critic_result.produced_artifacts.values()
+        if row.get("artifact_kind") == "RuntimeCriticEvaluatorManifest"
+    )
+    assert critic_manifest["evidence_contract_decision"][
+        "source_theorem_kernel_verified"
+    ] is True
+    assert critic_manifest["evidence_contract_decision"][
+        "final_acceptance_status"
+    ] == "FORMAL_CONTRACT_SATISFIED"
+    assert critic_manifest["runtime_reroute_decision"][
+        "observed_conditions"
+    ]["formal_proof_work_pending"] is False
+    blackboard.artifacts[promotion["promotion_id"]] = {
+        **blackboard.artifacts[promotion["promotion_id"]],
+        "target_ids": ["different-target"],
+    }
+    assert runtime_module._runtime_source_theorem_kernel_closure_verified(
+        formalization_manifest=manifest,
+        blackboard=blackboard,
+    ) is False
 
 
 def test_formalizer_workspace_rejects_mismatched_observation_ref() -> None:

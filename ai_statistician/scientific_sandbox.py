@@ -503,6 +503,11 @@ def generated_code_draft_json_schema(
             "language": {
                 "type": "string",
                 "enum": list(SCIENTIFIC_SANDBOX_LANGUAGES),
+                "description": (
+                    "Select python for Python source and r for R source. The "
+                    "dependency list must use only the corresponding language's "
+                    "allowed packages."
+                ),
             },
             "execution_profile": {
                 "type": "string",
@@ -511,6 +516,13 @@ def generated_code_draft_json_schema(
             "dependencies": {
                 "type": "array",
                 "uniqueItems": True,
+                "description": (
+                    "For language=python, use only: "
+                    + ", ".join(PYTHON_SCIENTIFIC_DEPENDENCIES)
+                    + ". For language=r, use only: "
+                    + ", ".join(R_SCIENTIFIC_DEPENDENCIES)
+                    + ". Never mix Python and R dependency names."
+                ),
                 "items": {
                     "type": "string",
                     "enum": dependency_values,

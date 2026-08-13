@@ -1010,7 +1010,12 @@ def _scientific_code_tools() -> tuple[ClientToolDefinition, ...]:
             description=(
                 "Submit one complete Python or R candidate. The runtime stores and "
                 "immediately executes the exact source, then returns the raw sandbox "
-                "observation to this same model."
+                "observation to this same model. Match dependencies to language: "
+                "Python allows "
+                + ", ".join(PYTHON_SCIENTIFIC_DEPENDENCIES)
+                + "; R allows "
+                + ", ".join(R_SCIENTIFIC_DEPENDENCIES)
+                + ". Never mix Python and R dependency names."
             ),
             input_schema={
                 "type": "object",
@@ -1033,6 +1038,13 @@ def _scientific_code_tools() -> tuple[ClientToolDefinition, ...]:
                     },
                     "dependencies": {
                         "type": "array",
+                        "description": (
+                            "For language=python, use only: "
+                            + ", ".join(PYTHON_SCIENTIFIC_DEPENDENCIES)
+                            + ". For language=r, use only: "
+                            + ", ".join(R_SCIENTIFIC_DEPENDENCIES)
+                            + ". Use [] when the source imports none of them."
+                        ),
                         "items": {
                             "type": "string",
                             "enum": list(_SCIENTIFIC_PACKAGES),
