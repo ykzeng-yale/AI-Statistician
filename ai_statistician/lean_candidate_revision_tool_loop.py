@@ -182,7 +182,6 @@ def run_lean_candidate_revision_tool_loop(
         include_proof_search=search_proof_candidates is not None,
         include_state_inspection=inspect_lean_state is not None,
         include_declaration_inspection=inspect_lean_declaration is not None,
-        require_candidate_declaration=not candidate_lean_declaration.strip(),
         include_formal_gap=allow_formal_gap,
     )
 
@@ -228,10 +227,10 @@ def run_lean_candidate_revision_tool_loop(
         del context
         tool_input = dict(call.input)
         if call.name == LEAN_SOURCE_SUBMISSION_TOOL:
-            if set(tool_input) - {"lean_source", "candidate_declaration_name"}:
+            if set(tool_input) != {"lean_source", "candidate_declaration_name"}:
                 raise ClientToolInputError(
-                    "submit_lean_source accepts lean_source and "
-                    "candidate_declaration_name"
+                    "submit_lean_source requires exactly lean_source and "
+                    "candidate_declaration_name on every submission"
                 )
             source = tool_input.get("lean_source")
             if not isinstance(source, str) or not source.strip():
@@ -241,13 +240,12 @@ def run_lean_candidate_revision_tool_loop(
                     "lean_source exceeds the runtime artifact-size boundary"
                 )
             declaration = str(
-                tool_input.get("candidate_declaration_name", "")
-                or state["candidate_lean_declaration"]
-                or ""
+                tool_input.get("candidate_declaration_name", "") or ""
             ).strip()
             if not declaration:
                 raise ClientToolInputError(
-                    "the first source submission requires the exact declaration name"
+                    "every source submission requires the exact globally resolvable "
+                    "declaration name"
                 )
             source_hash = stable_hash(source)
             changed = source_hash != state["source_hash"]
@@ -959,7 +957,6 @@ def _lean_candidate_revision_tools(
     include_proof_search: bool = False,
     include_state_inspection: bool = False,
     include_declaration_inspection: bool = False,
-    require_candidate_declaration: bool = False,
     include_formal_gap: bool = False,
 ) -> tuple[ClientToolDefinition, ...]:
     tools = [
@@ -967,23 +964,16 @@ def _lean_candidate_revision_tools(
             name=LEAN_SOURCE_SUBMISSION_TOOL,
             description=(
                 "Submit one complete model-authored Lean source and identify the exact "
-                "declaration name to check. candidate_declaration_name is only the Lean "
-                "identifier introduced or checked by the source, not a theorem header "
-                "or type. The runtime stores and immediately checks those exact bytes "
-                "in the configured Lean project, then returns raw diagnostics to this "
-                "same model."
+                "globally resolvable declaration name to check on every submission. "
+                "candidate_declaration_name is only the fully qualified Lean identifier "
+                "introduced or checked by the source, not a theorem header or type. The "
+                "runtime stores and immediately checks those exact bytes in the "
+                "configured Lean project, then returns raw diagnostics to this same model."
             ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
-                "required": [
-                    "lean_source",
-                    *(
-                        ["candidate_declaration_name"]
-                        if require_candidate_declaration
-                        else []
-                    ),
-                ],
+                "required": ["lean_source", "candidate_declaration_name"],
                 "properties": {
                     "lean_source": {"type": "string"},
                     "candidate_declaration_name": {"type": "string"},

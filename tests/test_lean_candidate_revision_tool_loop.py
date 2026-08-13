@@ -122,7 +122,10 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
                 ClientToolCall(
                     "submit-1",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": repaired},
+                    {
+                        "lean_source": repaired,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
@@ -264,6 +267,75 @@ def test_lean_candidate_tool_loop_authors_first_source_from_empty_workspace() ->
         "lean_source",
         "candidate_declaration_name",
     ]
+
+
+def test_model_can_correct_declaration_identity_without_rewriting_source() -> None:
+    authored = (
+        "namespace Example\n\n"
+        "theorem target : True := by exact True.intro\n\n"
+        "end Example\n"
+    )
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "submit-unqualified-identity",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": authored,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-qualified-identity",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": authored,
+                        "candidate_declaration_name": "Example.target",
+                    },
+                )
+            ),
+        ]
+    )
+    checked: list[tuple[str, str]] = []
+
+    def check(source: str, declaration: str):
+        checked.append((source, declaration))
+        compiled = declaration == "Example.target"
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": compiled,
+            "local_lean_source_compiled": True,
+            "candidate_identity_lean_verified": compiled,
+            "candidate_identity_lean_stderr": (
+                "Unknown identifier `target`" if not compiled else ""
+            ),
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Author the exact target and identify its declaration.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=2,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source="",
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+    )
+
+    assert checked == [(authored, "target"), (authored, "Example.target")]
+    assert result.lean_source == authored
+    assert result.candidate_lean_declaration == "Example.target"
+    assert result.evidence["source_updates"] == 1
+    assert result.evidence["declaration_updates"] == 1
 
 
 def test_formal_gap_tool_keeps_model_authored_errors_in_source_revision_loop() -> None:
@@ -496,7 +568,10 @@ def test_search_observation_reuses_retained_source_and_raw_lean_feedback() -> No
                 ClientToolCall(
                     "submit-failing",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": failing},
+                    {
+                        "lean_source": failing,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
             _response(
@@ -510,7 +585,10 @@ def test_search_observation_reuses_retained_source_and_raw_lean_feedback() -> No
                 ClientToolCall(
                     "submit-passing",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": passing},
+                    {
+                        "lean_source": passing,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
@@ -572,7 +650,10 @@ def test_prover_candidates_are_observations_and_only_model_replaces_source() -> 
                 ClientToolCall(
                     "submit-1",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": model_source},
+                    {
+                        "lean_source": model_source,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
@@ -634,7 +715,10 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
                 ClientToolCall(
                     "submit-initial",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": initial},
+                    {
+                        "lean_source": initial,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
             _response(ClientToolCall("state-1", "inspect_lean_state", {})),
@@ -642,7 +726,10 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
                 ClientToolCall(
                     "submit-revised",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": revised},
+                    {
+                        "lean_source": revised,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
@@ -711,7 +798,10 @@ def test_model_selects_exact_declaration_inspection_inside_same_source_loop() ->
                 ClientToolCall(
                     "submit-initial",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": initial},
+                    {
+                        "lean_source": initial,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
             _response(
@@ -725,7 +815,10 @@ def test_model_selects_exact_declaration_inspection_inside_same_source_loop() ->
                 ClientToolCall(
                     "submit-revised",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": revised},
+                    {
+                        "lean_source": revised,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
@@ -875,7 +968,10 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
                 ClientToolCall(
                     "submit-1",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": revised},
+                    {
+                        "lean_source": revised,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
@@ -931,7 +1027,10 @@ def test_lean_candidate_workspace_keeps_stable_tools_and_current_snapshot() -> N
                 ClientToolCall(
                     "submit-source",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": authored},
+                    {
+                        "lean_source": authored,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
@@ -1002,14 +1101,20 @@ def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -
                 ClientToolCall(
                     "submit-failing",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": failing},
+                    {
+                        "lean_source": failing,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
             _response(
                 ClientToolCall(
                     "submit-compiled",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": compiled},
+                    {
+                        "lean_source": compiled,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
@@ -1077,14 +1182,20 @@ def test_lean_candidate_workspace_revises_after_context_stall_compile_error() ->
                 ClientToolCall(
                     "submit-failing",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": failing},
+                    {
+                        "lean_source": failing,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
             _response(
                 ClientToolCall(
                     "submit-compiled",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": compiled},
+                    {
+                        "lean_source": compiled,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
@@ -1151,7 +1262,10 @@ def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> No
                 ClientToolCall(
                     f"submit-{index}",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": source},
+                    {
+                        "lean_source": source,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             )
             for index, source in enumerate(sources)
@@ -1199,7 +1313,10 @@ def test_lean_candidate_tool_loop_hands_off_on_successful_requested_check() -> N
                 ClientToolCall(
                     "submit-1",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": revised},
+                    {
+                        "lean_source": revised,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
@@ -1241,21 +1358,30 @@ def test_lean_candidate_tool_loop_stops_repeated_identical_submissions() -> None
                 ClientToolCall(
                     "submit-1",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": source},
+                    {
+                        "lean_source": source,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
             _response(
                 ClientToolCall(
                     "submit-2",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": source},
+                    {
+                        "lean_source": source,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
             _response(
                 ClientToolCall(
                     "submit-3",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": source},
+                    {
+                        "lean_source": source,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
@@ -1298,7 +1424,10 @@ def test_lean_candidate_tool_loop_checks_final_submission_at_turn_budget() -> No
                 ClientToolCall(
                     "submit-final",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": repaired},
+                    {
+                        "lean_source": repaired,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
@@ -1343,14 +1472,20 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
                 ClientToolCall(
                     "submit-final",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": latest},
+                    {
+                        "lean_source": latest,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
             _response(
                 ClientToolCall(
                     "submit-identical-recovery",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": latest},
+                    {
+                        "lean_source": latest,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
@@ -2721,7 +2856,10 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
                 ClientToolCall(
                     "submit",
                     LEAN_SOURCE_SUBMISSION_TOOL,
-                    {"lean_source": repaired},
+                    {
+                        "lean_source": repaired,
+                        "candidate_declaration_name": "target",
+                    },
                 )
             ),
         ]
