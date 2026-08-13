@@ -801,7 +801,10 @@ def _lean_candidate_revision_success_result(
     source_hash = stable_hash(source)
     accepted_model_source = disposition == "AUTHOR_LEAN"
     model_owned_lean_code = bool(source.strip())
-    model_explicit_submit = bool(int(state["checks"] or 0))
+    model_explicit_submit = bool(
+        int(state["source_updates"] or 0)
+        or int(state["declaration_updates"] or 0)
+    )
     latest_check_compiled = bool(
         check_result.get(
             "local_lean_source_compiled",

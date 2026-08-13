@@ -376,6 +376,96 @@ def test_formal_gap_preserves_prior_model_source_and_exact_lean_observation() ->
     assert result.evidence["kernel_verified"] is False
 
 
+def test_formalizer_agent_keeps_formal_gap_available_after_workspace_resume() -> None:
+    source = "theorem target : True := by\n  sorry\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "report-resumed-gap",
+                    LEAN_FORMAL_GAP_TOOL,
+                    {
+                        "summary": "The checked target needs a missing project lemma.",
+                        "missing_primitives": ["Project.requiredLemma"],
+                        "blocking_observations": [
+                            "The active source remains dependent on sorryAx."
+                        ],
+                    },
+                )
+            )
+        ]
+    )
+    agent = LLMFormalizerProofEngineerAgent(
+        provider=backend,
+        config=FormalizerConfig(
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            max_tokens=1200,
+            client_tool_lean_candidate_max_turns=2,
+        ),
+    )
+
+    packet, evidence = agent.run_lean_candidate_workspace_with_client_tools(
+        question=OpenResearchQuestion(
+            id="resumed-gap",
+            title="Resume an exact target",
+            description="Continue the same target or report a concrete gap.",
+        ),
+        theory_packet={"packet_id": "theory:resumed-gap"},
+        parent_packet={
+            "artifact_kind": "FormalizerProofEngineerProposalPacket",
+            "packet_id": "formalizer:resumed-gap",
+            "formal_targets": [
+                {
+                    "id": "target-candidate",
+                    "formal_target_role": "SOURCE_THEOREM_CANDIDATE",
+                    "candidate_lean_declaration": "target",
+                    "informal_source": "The exact target.",
+                    "lean_statement_sketch": source,
+                    "lean_imports": [],
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "source_theorem_goal_id": "goal-target",
+                        "target_lean_declaration": "target",
+                    },
+                }
+            ],
+            "retrieval_queries": [],
+            "gap_taxonomy": [],
+        },
+        candidate_id="target-candidate",
+        candidate_source_field="formal_targets",
+        candidate_lean_declaration="target",
+        initial_source=source,
+        environment_feedback={},
+        check_candidate=lambda current, _declaration: {
+            "source_hash": stable_hash(current),
+            "compiled": False,
+            "local_lean_stderr": "target depends on axioms: [sorryAx]",
+        },
+        search_formal_environment=lambda query, k: [],
+    )
+
+    assert LEAN_FORMAL_GAP_TOOL in {
+        tool.name for tool in backend.requests[0].tools
+    }
+    assert evidence["disposition"] == "FORMAL_GAP"
+    assert evidence["local_lean_checks"] == 1
+    assert evidence["model_explicit_submit"] is False
+    assert evidence["model_owned_lean_code"] is True
+    assert evidence["kernel_verified"] is False
+    target = packet["formal_targets"][0]
+    assert target["formal_target_role"] == (
+        FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+    )
+    assert target["lean_statement_sketch"] == ""
+    assert target["candidate_lean_declaration"] == ""
+    assert target["formal_gap"]["missing_primitives"] == [
+        "Project.requiredLemma"
+    ]
+
+
 def test_search_observation_reuses_retained_source_and_raw_lean_feedback() -> None:
     failing = "theorem target : True := by\n  exact missing\n"
     passing = "theorem target : True := by\n  exact True.intro\n"

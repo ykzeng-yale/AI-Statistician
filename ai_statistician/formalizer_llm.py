@@ -295,7 +295,9 @@ class LLMFormalizerProofEngineerAgent:
                 "inspection results remain in a short rolling transcript. Make an "
                 "early compiler-grounded source attempt, retain useful declarations, "
                 "avoid cycling through synonymous searches, reserve time to revise "
-                "from compiler feedback, and finish by choosing either a "
+                "from compiler feedback, and use proof-candidate search or proof-state "
+                "inspection when a checked source exposes concrete proof obligations. "
+                "Finish by choosing either a "
                 "complete submit_lean_source call or a concrete report_formal_gap call."
             ),
             user_prompt=_build_lean_candidate_workspace_tool_prompt(
@@ -325,7 +327,7 @@ class LLMFormalizerProofEngineerAgent:
             search_proof_candidates=search_proof_candidates,
             inspect_lean_state=inspect_lean_state,
             inspect_lean_declaration=inspect_lean_declaration,
-            allow_formal_gap=not initial_source.strip(),
+            allow_formal_gap=True,
             request_metadata={
                 "subsystem": "FormalizerProofEngineer",
                 "agent": "LLMFormalizerProofEngineerAgent",
@@ -355,6 +357,13 @@ class LLMFormalizerProofEngineerAgent:
                 candidate_source_field=candidate_source_field,
                 candidate_lean_declaration=loop.candidate_lean_declaration,
                 lean_source=loop.lean_source,
+            )
+        elif loop.disposition == "FORMAL_GAP":
+            _bind_model_reported_formal_gap(
+                revised_payload,
+                candidate_id=candidate_id,
+                candidate_source_field=candidate_source_field,
+                formal_gap=loop.formal_gap,
             )
         revised_payload["ok"] = True
         revised_payload["validation_errors"] = []
@@ -644,6 +653,45 @@ def _bind_model_authored_lean_candidate_source(
     provenance = dict(provenance) if isinstance(provenance, Mapping) else {}
     provenance["target_lean_declaration"] = candidate_lean_declaration
     row["source_theorem_target_provenance"] = provenance
+
+
+def _bind_model_reported_formal_gap(
+    payload: dict[str, Any],
+    *,
+    candidate_id: str,
+    candidate_source_field: str,
+    formal_gap: Mapping[str, Any],
+) -> None:
+    """Bind one model-reported non-proof blocker to the active target row."""
+
+    source_field = str(candidate_source_field or "").strip()
+    if source_field != "formal_targets":
+        raise ValueError("unsupported Formalizer formal-gap source field")
+    rows = payload.get(source_field, [])
+    if not isinstance(rows, list):
+        raise ValueError("parent Formalizer candidate container is not a list")
+    matches = [
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and str(row.get("id", "") or "") == candidate_id
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            "runtime-bound Formalizer gap did not resolve to exactly one parent row"
+        )
+    gap = deepcopy(dict(formal_gap))
+    matches[0].update(
+        {
+            "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP,
+            "lean_statement_sketch": "",
+            "candidate_lean_declaration": "",
+            "lean_imports": [],
+            "expected_status": "FORMAL_GAP",
+            "formal_gap": gap,
+        }
+    )
+    payload["gap_taxonomy"] = [gap]
 
 
 def _build_lean_candidate_workspace_tool_prompt(
