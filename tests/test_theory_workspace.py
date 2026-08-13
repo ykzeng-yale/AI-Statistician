@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from ai_statistician.client_tool_loop import ClientToolInputError
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
@@ -18,8 +19,11 @@ from ai_statistician.theory_workspace import (
     THEORY_SCRATCHPAD_TOOL,
     THEORY_WORKSPACE_CHECKPOINT_KIND,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
+    THEORY_WORKSPACE_MAX_WRITES_PER_CALL,
     THEORY_WORKSPACE_WRITE_TOOL,
     TheoryScratchpadConfig,
+    _replace_theory_workspace_artifacts,
+    _theory_workspace_tools,
     run_theory_artifact_workspace,
 )
 
@@ -601,3 +605,43 @@ def test_targeted_revision_rejects_duplicate_artifact_names_atomically() -> None
     rejected_payload = json.loads(rejected_observation["content"])
     assert rejected_payload["error"] == "client_tool_input_rejected"
     assert "repeats 'problem_card'" in rejected_payload["detail"]
+
+
+def test_theory_workspace_bounds_each_complete_write_batch() -> None:
+    tools = _theory_workspace_tools(
+        {
+            "problem_card": "object",
+            "lemma_cards": "array",
+            "theorem_cards": "array",
+        },
+        {
+            "problem_card": "object",
+            "lemma_cards": "array",
+            "theorem_cards": "array",
+        },
+        scratchpad_enabled=False,
+    )
+    write_tool = next(tool for tool in tools if tool.name == THEORY_WORKSPACE_WRITE_TOOL)
+
+    assert write_tool.input_schema["properties"]["writes"]["maxItems"] == (
+        THEORY_WORKSPACE_MAX_WRITES_PER_CALL
+    )
+
+    with pytest.raises(ClientToolInputError, match="at most two"):
+        _replace_theory_workspace_artifacts(
+            {
+                "problem_card": {},
+                "lemma_cards": [],
+                "theorem_cards": [],
+            },
+            [
+                {"artifact_name": "problem_card", "value": {"claim": "x"}},
+                {"artifact_name": "lemma_cards", "value": [{"id": "l"}]},
+                {"artifact_name": "theorem_cards", "value": [{"id": "t"}]},
+            ],
+            writable_artifact_shapes={
+                "problem_card": "object",
+                "lemma_cards": "array",
+                "theorem_cards": "array",
+            },
+        )

@@ -49,7 +49,11 @@ def _tool(name: str, *, terminal: bool = False) -> ClientToolDefinition:
     )
 
 
-def _response(*calls: ClientToolCall, text: str = "") -> ClientToolTurnResponse:
+def _response(
+    *calls: ClientToolCall,
+    text: str = "",
+    stop_reason: str = "tool_use",
+) -> ClientToolTurnResponse:
     blocks = []
     if text:
         blocks.append({"type": "text", "text": text})
@@ -71,7 +75,7 @@ def _response(*calls: ClientToolCall, text: str = "") -> ClientToolTurnResponse:
         metadata={
             "client_tool_transport": True,
             "tools_executed_by_backend": False,
-            "provider_stop_reason": "tool_use",
+            "provider_stop_reason": stop_reason,
             "provider_usage": {"input_tokens": 11, "output_tokens": 3},
         },
     )
@@ -150,6 +154,48 @@ def test_bounded_client_tool_loop_returns_terminal_runtime_payload() -> None:
     assert result.history[0]["response_metadata"][
         "tools_executed_by_backend"
     ] is False
+
+
+def test_bounded_client_tool_loop_never_executes_truncated_tool_input() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(
+                ClientToolCall("call-truncated", "edit", {}),
+                stop_reason="max_tokens",
+            ),
+            _response(ClientToolCall("call-submit", "submit", {})),
+        ]
+    )
+    executed_tools: list[str] = []
+
+    def execute(call, _context):
+        executed_tools.append(call.name)
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            terminal=call.name == "submit",
+            terminal_payload={"submitted": True} if call.name == "submit" else None,
+            observation_key=call.name,
+        )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute,
+        max_turns=2,
+        max_tool_calls=2,
+        max_no_progress_turns=2,
+    )
+
+    assert result.terminal_payload == {"submitted": True}
+    assert executed_tools == ["submit"]
+    assert result.runtime_executed_tool_calls == 1
+    truncated = result.history[0]
+    assert truncated["provider_output_truncated"] is True
+    assert truncated["tool_calls"][0]["executed_by_runtime"] is False
+    assert truncated["tool_calls"][0]["is_error"] is True
+    assert "provider_tool_input_truncated" in str(
+        backend.requests[1].messages[-1]["content"]
+    )
 
 
 def test_bounded_client_tool_loop_injects_one_current_workspace_snapshot() -> None:

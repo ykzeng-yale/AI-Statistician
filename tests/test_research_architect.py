@@ -981,6 +981,11 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     fixed_derivation["formalization_handoff"][
         "source_theorem_target"
     ] = "aipw_asymptotic_normality"
+    initial_artifact_items = list(invalid_core_artifacts.items())
+    initial_artifact_batches = [
+        dict(initial_artifact_items[index : index + 2])
+        for index in range(0, len(initial_artifact_items), 2)
+    ]
     provider = ScriptedTheoryToolBackend(
         tool_responses=[
             _theory_tool_response(
@@ -992,13 +997,16 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
                     },
                 )
             ),
-            _theory_tool_response(
-                ClientToolCall(
-                    call_id="edit-initial-theory",
-                    name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input=_theory_artifact_writes(invalid_core_artifacts),
+            *[
+                _theory_tool_response(
+                    ClientToolCall(
+                        call_id=f"edit-initial-theory-{index}",
+                        name=THEORY_WORKSPACE_WRITE_TOOL,
+                        input=_theory_artifact_writes(batch),
+                    )
                 )
-            ),
+                for index, batch in enumerate(initial_artifact_batches)
+            ],
             _theory_tool_response(
                 ClientToolCall(
                     call_id="fix-formal-target-reference",
@@ -1030,7 +1038,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     packet = developer.derive(question)
 
     assert validate_theory_packet(packet) == []
-    assert len(provider.tool_requests) == 3
+    assert len(provider.tool_requests) == 6
     assert len(provider.generator_requests) == 1
     first_request = provider.tool_requests[0]
     assert first_request.metadata["theory_developer_phase"] == (
@@ -1057,10 +1065,10 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     )
     assert (
         "source_theorem_target must exactly match a theorem_cards id"
-        in str(provider.tool_requests[2].messages)
+        in str(provider.tool_requests[-1].messages)
     )
     assert "invented_aggregate_alias" in str(
-        provider.tool_requests[2].messages
+        provider.tool_requests[-1].messages
     )
     assert packet["problem_card"]["dgp"] == core_response["problem_card"][
         "dgp"
@@ -1074,7 +1082,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert evidence["model_owned_theory"] is True
     assert evidence["runtime_edited_theory"] is False
     assert evidence["reads"] == 1
-    assert evidence["submissions"] == 2
+    assert evidence["submissions"] == 5
     assert set(evidence["changed_artifact_names"]) == (
         set(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT) - optional_artifacts
     )

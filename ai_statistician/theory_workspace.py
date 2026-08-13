@@ -23,8 +23,9 @@ from .structured_output_retry import PacketValidationError
 
 
 THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
-THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "direct_artifact_replacement_v2"
+THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "direct_artifact_replacement_v3"
 THEORY_WORKSPACE_WRITE_TOOL = "write_theory_artifacts"
+THEORY_WORKSPACE_MAX_WRITES_PER_CALL = 2
 THEORY_SCRATCHPAD_TOOL = "run_theory_scratchpad"
 THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE = (
     "THEORY_SCRATCHPAD_EXECUTION_NOT_PROOF_EVIDENCE"
@@ -448,9 +449,10 @@ def run_theory_artifact_workspace(
     write_guidance = (
         "Use write_theory_artifacts to replace one or more writable artifacts "
         "with your complete model-authored JSON values. Omitted artifacts remain "
-        "byte-identical. Group mutually dependent artifacts into one atomic writes "
-        "array, using each artifact_name at most once. The runtime stores those "
-        "exact values without merging, patching, or inventing content. "
+        "byte-identical. Submit at most two complete artifacts per call and use later "
+        "calls for other dependent artifacts; accepted writes remain in the workspace. "
+        "Use each artifact_name at most once per call. The runtime stores those exact "
+        "values without merging, patching, or inventing content. "
     )
     scratch_guidance = (
         "Use run_theory_scratchpad when a small Python or R calculation, numerical "
@@ -720,7 +722,7 @@ def _theory_workspace_tools(
             description=(
                 "Atomically replace one or more writable theory artifacts with "
                 "complete model-authored JSON values. Omitted artifacts are retained "
-                "exactly. Supply a nonempty writes array with one unique "
+                "exactly. Supply one or two rows in writes, with one unique "
                 "artifact_name and complete value per row. The runtime does not "
                 "merge or infer content."
             ),
@@ -732,7 +734,10 @@ def _theory_workspace_tools(
                     "writes": {
                         "type": "array",
                         "minItems": 1,
-                        "maxItems": len(writable_artifact_shapes),
+                        "maxItems": min(
+                            THEORY_WORKSPACE_MAX_WRITES_PER_CALL,
+                            len(writable_artifact_shapes),
+                        ),
                         "items": {
                             "type": "object",
                             "additionalProperties": False,
@@ -775,9 +780,9 @@ def _replace_theory_workspace_artifacts(
         raise ClientToolInputError(
             "write_theory_artifacts requires a nonempty writes array"
         )
-    if len(raw_writes) > len(writable_artifact_shapes):
+    if len(raw_writes) > THEORY_WORKSPACE_MAX_WRITES_PER_CALL:
         raise ClientToolInputError(
-            "write_theory_artifacts exceeds the writable artifact count"
+            "write_theory_artifacts accepts at most two complete artifacts per call"
         )
     candidate = deepcopy(dict(current_artifacts))
     records: list[dict[str, Any]] = []

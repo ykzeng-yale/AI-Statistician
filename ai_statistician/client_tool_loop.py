@@ -324,13 +324,16 @@ def run_bounded_client_tool_loop(
         ]
         messages.append({"role": "assistant", "content": assistant_blocks})
         calls = list(response.tool_calls)
+        provider_stop_reason = str(
+            response.metadata.get("provider_stop_reason", "") or ""
+        )
+        provider_output_truncated = provider_stop_reason == "max_tokens"
         turn_row: dict[str, Any] = {
             "turn_index": turn_index,
             "provider": response.provider,
             "model": response.model,
-            "stop_reason": str(
-                response.metadata.get("provider_stop_reason", "") or ""
-            ),
+            "stop_reason": provider_stop_reason,
+            "provider_output_truncated": provider_output_truncated,
             "n_tool_calls": len(calls),
             "tool_calls": [],
             "response_metadata": _compact_tool_response_metadata(
@@ -340,8 +343,10 @@ def run_bounded_client_tool_loop(
         history.append(turn_row)
 
         if not calls:
-            observation_key = "no_tool_call:" + stable_hash(
-                [response.text, assistant_blocks]
+            observation_key = (
+                "provider_tool_output_truncated"
+                if provider_output_truncated
+                else "no_tool_call:" + stable_hash([response.text, assistant_blocks])
             )
             new_observation = observation_key not in seen_observations
             seen_observations.add(observation_key)
@@ -352,9 +357,14 @@ def run_bounded_client_tool_loop(
                 {
                     "role": "user",
                     "content": (
-                        "No client tool was called. Continue by calling one of "
-                        "the supplied tools; prose alone cannot change or submit "
-                        "the runtime artifact."
+                        "The provider stopped at max_tokens before completing a "
+                        "client-tool call. Retry with a smaller complete tool input."
+                        if provider_output_truncated
+                        else (
+                            "No client tool was called. Continue by calling one of "
+                            "the supplied tools; prose alone cannot change or submit "
+                            "the runtime artifact."
+                        )
                     ),
                 }
             )
@@ -434,6 +444,23 @@ def run_bounded_client_tool_loop(
                     is_error=True,
                     observation_key=(
                         "client_tool_unavailable_this_turn:" + call.name
+                    ),
+                )
+            elif provider_output_truncated:
+                execution = ClientToolExecutionResult(
+                    content={
+                        "ok": False,
+                        "error": "provider_tool_input_truncated",
+                        "provider_stop_reason": provider_stop_reason,
+                        "detail": (
+                            "The provider stopped at max_tokens before completing "
+                            "this tool input. Retry with a smaller complete call; "
+                            "the partial input was not executed."
+                        ),
+                    },
+                    is_error=True,
+                    observation_key=(
+                        "provider_tool_input_truncated:" + call.name
                     ),
                 )
             elif (
