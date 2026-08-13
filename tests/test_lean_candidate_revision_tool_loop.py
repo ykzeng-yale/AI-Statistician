@@ -1147,9 +1147,10 @@ def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -
     assert result.evidence["max_turns"] == 1
     assert result.evidence["max_terminal_recovery_turns"] == 1
     assert [tool.name for tool in backend.requests[1].tools] == [
-        LEAN_SOURCE_SUBMISSION_TOOL
+        LEAN_SOURCE_SUBMISSION_TOOL,
+        "search_formal_environment",
     ]
-    assert backend.requests[1].tool_choice == LEAN_SOURCE_SUBMISSION_TOOL
+    assert backend.requests[1].tool_choice == "any"
     recovery_context = json.dumps(backend.requests[1].messages, sort_keys=True)
     assert failing in recovery_context.replace("\\n", "\n")
     assert "unknown identifier 'missing_name'" in recovery_context
@@ -1231,7 +1232,11 @@ def test_lean_candidate_workspace_revises_after_context_stall_compile_error() ->
     assert result.evidence["local_lean_checks"] == 2
     assert all(
         [tool.name for tool in request.tools]
-        == [LEAN_SOURCE_SUBMISSION_TOOL, LEAN_FORMAL_GAP_TOOL]
+        == [
+            LEAN_SOURCE_SUBMISSION_TOOL,
+            "search_formal_environment",
+            LEAN_FORMAL_GAP_TOOL,
+        ]
         for request in backend.requests[-2:]
     )
     recovery_context = json.dumps(backend.requests[-1].messages, sort_keys=True)
@@ -1416,6 +1421,81 @@ def test_lean_candidate_tool_loop_stops_repeated_identical_submissions() -> None
         raise AssertionError("repeated identical Lean submissions did not stop")
 
 
+def test_lean_candidate_tool_loop_does_not_recheck_an_older_candidate() -> None:
+    initial = "theorem target : True := by exact missing_initial\n"
+    first_revision = "theorem target : True := by exact missing_revision\n"
+    accepted_revision = "theorem target : True := by exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "submit-first",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": first_revision,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-old",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": initial,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-accepted",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": accepted_revision,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+        ]
+    )
+    checked_sources: list[str] = []
+
+    def check(source, _declaration):
+        checked_sources.append(source)
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": source == accepted_revision,
+            "local_lean_stderr": (
+                "" if source == accepted_revision else "unknown identifier"
+            ),
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Repair this target.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=initial,
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+    )
+
+    assert result.lean_source == accepted_revision
+    assert checked_sources == [initial, first_revision, accepted_revision]
+    assert result.evidence["source_updates"] == 2
+    old = result.evidence["history"][1]["tool_calls"][0]
+    assert old["is_error"] is True
+    assert "previously checked" in old["result_excerpt"]
+
+
 def test_semantic_revision_cannot_handoff_the_independently_rejected_source() -> None:
     rejected = "theorem target : True := by exact True.intro\n"
     failing_revision = "theorem target : True := by exact missing_name\n"
@@ -1491,12 +1571,11 @@ def test_semantic_revision_cannot_handoff_the_independently_rejected_source() ->
     assert checked_sources == [
         rejected,
         failing_revision,
-        rejected,
         accepted_revision,
     ]
     assert len(backend.requests) == 3
     repeated_parent_observation = str(backend.requests[2].messages[-1])
-    assert "independently_rejected_source_unchanged" in repeated_parent_observation
+    assert "previously checked Lean candidate" in repeated_parent_observation
     initial_workspace = _initial_workspace(backend.requests[0])
     assert initial_workspace["revision_requirement"][
         "rejected_source_hash"
@@ -2420,7 +2499,6 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     assert stable_hash(
         Path(inspected_path).read_text(encoding="utf-8")
     ) == stable_hash(source)
-
     indexed_source_path = tmp_path / "IndexedSource.lean"
     indexed_source_path.write_text(
         "import Mathlib\n\nnamespace Example.Namespace\n\n"
@@ -2566,6 +2644,54 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
         assert exc.validation_label == "Lean workspace checkpoint lineage"
     else:
         raise AssertionError("stale model checkpoint source was not rejected")
+
+
+def test_formalizer_materialization_preserves_exact_workspace_source_hash(
+    tmp_path,
+) -> None:
+    source = "theorem target : True := by exact True.intro\n\n"
+    question = OpenResearchQuestion(
+        id="exact-source-identity",
+        title="Exact source identity",
+        description="Preserve model-authored Lean bytes through materialization.",
+    )
+    task = AgentTask(
+        task_id="formalize:exact-source-identity:1",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Materialize the exact model source.",
+    )
+    proposal_packet = {
+        "packet_id": "formalizer_proposal:exact-source-identity",
+        "formal_targets": [
+            {
+                "id": "target-candidate",
+                "formal_target_role": (
+                    FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+                ),
+                "candidate_lean_declaration": "target",
+                "lean_statement_sketch": source,
+                "lean_imports": [],
+                "expected_status": "NEEDS_KERNEL_CHECK",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "target",
+                },
+            }
+        ],
+    }
+
+    materialization = (
+        runtime_module._materialize_formalizer_lean_candidate_artifacts(
+            root=tmp_path,
+            question=question,
+            task=task,
+            proposal_packet=proposal_packet,
+        )
+    )
+
+    row = materialization["candidate_rows"][0]
+    assert row["source_hash"] == stable_hash(source)
+    assert Path(row["artifact_path"]).read_text(encoding="utf-8") == source
 
 
 def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspace(
@@ -2792,6 +2918,20 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
     assert workspaces[0]["local_lean_checks"] == 2
     assert workspaces[0]["lean_lsp_mcp_live_called"] is True
     assert workspaces[0]["runtime_selected_lean_code"] is False
+    materializations = [
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeFormalizerLeanCandidateMaterialization"
+    ]
+    assert len(materializations) == 1
+    materialized_row = materializations[0]["candidate_rows"][0]
+    assert materialized_row["source_hash"] == workspaces[0][
+        "submitted_source_hash"
+    ]
+    assert Path(materialized_row["artifact_path"]).read_text(
+        encoding="utf-8"
+    ) == authored
     assert result.status == "BLOCKED"
     assert result.failure_classification == "formalizer_workspace_exhausted"
     assert result.next_task is None

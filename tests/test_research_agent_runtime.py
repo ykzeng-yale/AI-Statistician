@@ -111,6 +111,53 @@ def test_confirmatory_simulation_prompt_can_withhold_the_execution_seed() -> Non
     )
 
 
+def test_scientific_workspace_receives_the_complete_metric_output_abi() -> None:
+    projected = runtime_module._scientific_workspace_metric_contracts(
+        [
+            {
+                "contract_id": "coverage",
+                "requirement_id": "coverage-requirement",
+                "artifact_id": "simulation",
+                "metric_path": ["coverage"],
+                "metric_semantics": "Per-replicate interval coverage",
+                "measurement_protocol": "Return one raw predicate per replicate.",
+                "metric_value_kind": "boolean",
+                "operator": "==",
+                "aggregation": "at_least_fraction",
+                "threshold": 1,
+                "lower": None,
+                "upper": None,
+                "tolerance": 0.0,
+                "minimum_pass_count": None,
+                "minimum_pass_fraction": 0.92,
+                "required_runtime_replicates": 80,
+                "acceptance_authority_rationale": "not needed by source author",
+            }
+        ]
+    )
+
+    assert projected == [
+        {
+            "contract_id": "coverage",
+            "requirement_id": "coverage-requirement",
+            "artifact_id": "simulation",
+            "metric_path": ["coverage"],
+            "metric_semantics": "Per-replicate interval coverage",
+            "measurement_protocol": "Return one raw predicate per replicate.",
+            "metric_value_kind": "boolean",
+            "operator": "==",
+            "aggregation": "at_least_fraction",
+            "threshold": 1,
+            "lower": None,
+            "upper": None,
+            "tolerance": 0.0,
+            "minimum_pass_count": None,
+            "minimum_pass_fraction": 0.92,
+            "required_runtime_replicates": 80,
+        }
+    ]
+
+
 def test_required_formal_policy_does_not_hardcode_proof_first_execution() -> None:
     contract = runtime_module._runtime_requested_evidence_contract(
         formal_verification_policy="required",

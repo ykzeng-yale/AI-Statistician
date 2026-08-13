@@ -215,6 +215,12 @@ def scientific_workspace_measurement_interface_failures(
 ) -> list[dict[str, Any]]:
     """Return outcome-blind failures in the generated metric output ABI."""
 
+    contracts = {
+        str(row.get("contract_id", "") or ""): row
+        for row in prototype.get("metric_contracts", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("contract_id", "") or "").strip()
+    }
     evaluation = prototype.get("metric_contract_evaluation", {})
     rows = (
         evaluation.get("evaluations", [])
@@ -227,13 +233,31 @@ def scientific_workspace_measurement_interface_failures(
             continue
         if row.get("measurement_interface_valid") is not False:
             continue
+        contract_id = str(row.get("contract_id", "") or "").strip()
+        contract = contracts.get(contract_id, {})
         failures.append(
             {
                 key: deepcopy(value)
                 for key, value in {
-                    "contract_id": row.get("contract_id", ""),
+                    "contract_id": contract_id,
                     "requirement_id": row.get("requirement_id", ""),
                     "metric_path": row.get("metric_path", []),
+                    "metric_value_kind": contract.get("metric_value_kind"),
+                    "operator": contract.get("operator"),
+                    "aggregation": contract.get("aggregation"),
+                    "threshold": contract.get("threshold"),
+                    "lower": contract.get("lower"),
+                    "upper": contract.get("upper"),
+                    "tolerance": contract.get("tolerance"),
+                    "minimum_pass_count": contract.get(
+                        "minimum_pass_count"
+                    ),
+                    "minimum_pass_fraction": contract.get(
+                        "minimum_pass_fraction"
+                    ),
+                    "required_runtime_replicates": contract.get(
+                        "required_runtime_replicates"
+                    ),
                     "measurement_interface_status": row.get(
                         "measurement_interface_status", "INVALID"
                     ),
@@ -667,6 +691,7 @@ def run_scientific_code_workspace(
     if workspace_operation == "targeted_revision" and not parent_draft:
         raise ValueError("targeted scientific source revision requires parent source")
     parent_hash = stable_hash(parent_draft) if parent_draft else ""
+    observed_draft_hashes = {parent_hash} if parent_hash else set()
     state: dict[str, Any] = {
         "code_draft": parent_draft,
         "code_draft_hash": parent_hash,
@@ -698,15 +723,16 @@ def run_scientific_code_workspace(
             draft = _complete_code_draft(tool_input)
             draft_hash = stable_hash(draft)
             changed = draft_hash != state["code_draft_hash"]
-            if not changed:
+            if draft_hash in observed_draft_hashes:
                 raise ClientToolInputError(
-                    "replacement is byte-identical to the current scientific source; "
-                    "the deterministic observation is already recorded, so submit a "
-                    "changed complete candidate"
+                    "replacement is byte-identical to a previously executed "
+                    "scientific source; its deterministic observation is already "
+                    "recorded, so submit a new complete candidate"
                 )
             state["code_draft"] = draft
             state["code_draft_hash"] = draft_hash
             state["source_updates"] += 1
+            observed_draft_hashes.add(draft_hash)
             raw = check_candidate(deepcopy(dict(state["code_draft"])))
             if not isinstance(raw, Mapping):
                 raise ClientToolInputError("scientific sandbox returned a non-object result")

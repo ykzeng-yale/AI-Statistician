@@ -166,6 +166,7 @@ def run_lean_candidate_revision_tool_loop(
         "source": parent_source,
         "source_hash": parent_source_hash,
         "candidate_lean_declaration": candidate_lean_declaration.strip(),
+        "checked_candidate_keys": set(),
         "source_updates": 0,
         "declaration_updates": 0,
         "searches": 0,
@@ -203,6 +204,12 @@ def run_lean_candidate_revision_tool_loop(
         state["checks"] += 1
         state["last_check"] = check_result
         state["latest_check_observation"] = check_result
+        state["checked_candidate_keys"].add(
+            (
+                str(state["source_hash"]),
+                str(state["candidate_lean_declaration"]),
+            )
+        )
         return check_result
 
     # A resumed source is rechecked in the active project before the first model
@@ -252,16 +259,12 @@ def run_lean_candidate_revision_tool_loop(
             source_hash = stable_hash(source)
             changed = source_hash != state["source_hash"]
             declaration_changed = declaration != state["candidate_lean_declaration"]
-            already_checked = bool(
-                state["last_check"]
-                and str(state["last_check"].get("source_hash", "") or "")
-                == source_hash
-                and not declaration_changed
-            )
-            if not changed and already_checked:
+            candidate_key = (source_hash, declaration)
+            if candidate_key in state["checked_candidate_keys"]:
                 raise ClientToolInputError(
-                    "submitted source is byte-identical to the current source and "
-                    "its deterministic Lean observation is already recorded"
+                    "submitted source and declaration are byte-identical to a "
+                    "previously checked Lean candidate; its deterministic "
+                    "observation is already recorded"
                 )
             if changed:
                 state["source"] = source

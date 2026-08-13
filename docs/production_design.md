@@ -10,8 +10,7 @@ research question or paper, it should be able to:
 3. implement and test scientific Python or R code;
 4. design and run simulations under a protocol frozen before confirmatory results;
 5. formalize the exact target in Lean using task-bound retrieval and live Lean state;
-6. revise its own artifacts from raw environment feedback and stop only with an
-   honest result: accepted evidence, an explicit gap, or a budget-bound failure.
+6. revise its own artifacts from raw environment feedback and stop only with an honest result: accepted evidence, an explicit gap, or a budget-bound failure.
 
 The product is not a collection of task-specific scripts, a theorem answer bank,
 or an audit dashboard. The model performs semantic research and source authoring.
@@ -92,8 +91,7 @@ The harness must not own:
 - Lean grammar fixes, tactic recipes, or model-facing compiler interpretations;
 - reviewer-selected repair owners followed by deterministic routing;
 - hidden bridge, queue, materializer, promotion, or fallback workflows;
-- proof credit for retrieval hits, LLM judgments, pseudo-formal text, or compilation
-  of a weaker theorem.
+- proof credit for retrieval hits, LLM judgments, pseudo-formal text, or compilation of a weaker theorem.
 
 `structured_output_retry.py` is transport, not a semantic repair system. It is
 limited to compact control and handoff envelopes. Substantive theory, Python, R,
@@ -374,8 +372,7 @@ New work must not reintroduce:
 - theorem-specific bridge/executor module families;
 - a repair-patch-rerun queue hierarchy;
 - routine Architect hops for local environment failures;
-- dependent lanes consuming an older rejected parent after its required revision
-  fails;
+- dependent lanes consuming an older rejected parent after its required revision fails;
 - recursive artifact payloads or manifest truth-table expansion;
 - task-family conditionals in canonical authoring, proving, or review code;
 - proof-bank candidates as the default live proving policy;

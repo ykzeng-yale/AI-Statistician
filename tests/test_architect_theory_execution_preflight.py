@@ -1040,7 +1040,7 @@ def test_preflight_client_tool_loop_failure_is_fail_closed() -> None:
     assert len(backend.requests) == 5
     assert all(
         [tool.name for tool in request.tools]
-        == ["submit_theory_preflight_review"]
+        == ["search_preflight_sources", "submit_theory_preflight_review"]
         for request in backend.requests[-2:]
     )
     assert backend.requests[-1].metadata[

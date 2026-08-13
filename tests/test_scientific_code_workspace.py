@@ -342,6 +342,89 @@ def test_byte_identical_replacement_is_returned_to_same_model_as_noop() -> None:
     assert "byte-identical" in str(backend.requests[1].messages)
 
 
+def test_scientific_workspace_does_not_reexecute_an_older_source() -> None:
+    def draft(value: int) -> dict[str, object]:
+        return {
+            "language": "python",
+            "execution_profile": "stdlib",
+            "dependencies": [],
+            "entrypoint": "run_sandbox",
+            "code": (
+                "def run_sandbox(seed, replicates):\n"
+                f"    return {{'value': {value}}}\n"
+            ),
+        }
+
+    initial = draft(0)
+    first_revision = draft(1)
+    accepted_revision = draft(2)
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "submit-first",
+                    SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    first_revision,
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-old",
+                    SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    initial,
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-accepted",
+                    SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    accepted_revision,
+                )
+            ),
+        ]
+    )
+    executed_hashes: list[str] = []
+
+    def check(candidate):
+        candidate_hash = stable_hash(dict(candidate))
+        executed_hashes.append(candidate_hash)
+        return {
+            "code_draft_hash": candidate_hash,
+            "accepted": dict(candidate) == accepted_revision,
+        }
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Revise the failed source.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_no_progress_turns=2,
+        artifact_id="question:no-source-cycling",
+        initial_code_draft=initial,
+        initial_check_result={
+            "code_draft_hash": stable_hash(initial),
+            "accepted": False,
+            "stderr": "initial failure",
+        },
+        check_candidate=check,
+    )
+
+    assert dict(result.code_draft) == accepted_revision
+    assert executed_hashes == [
+        stable_hash(first_revision),
+        stable_hash(accepted_revision),
+    ]
+    assert result.evidence["source_updates"] == 2
+    old = result.evidence["history"][1]["tool_calls"][0]
+    assert old["executed_by_runtime"] is True
+    assert old["is_error"] is True
+    assert "previously executed" in old["result_excerpt"]
+
+
 def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
     drafts = [
         {
@@ -470,7 +553,18 @@ def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:
             "execution_envelope_hash": "outcome-derived-envelope-hash",
             "result_hash": "result-hash",
             "metric_gate_errors": ["observed 0.2 is below 0.9"],
-            "metric_contracts": [{"contract_id": "frozen-gate"}],
+            "metric_contracts": [
+                {
+                    "contract_id": "frozen-gate",
+                    "metric_value_kind": "boolean",
+                    "operator": "==",
+                    "aggregation": "at_least_fraction",
+                    "threshold": 1,
+                    "tolerance": 0.0,
+                    "minimum_pass_fraction": 0.92,
+                    "required_runtime_replicates": 80,
+                }
+            ],
             "metric_contract_evaluation": {
                 "evaluations": [
                     {
@@ -502,6 +596,13 @@ def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:
             "contract_id": "frozen-gate",
             "requirement_id": "frozen-requirement",
             "metric_path": ["metric"],
+            "metric_value_kind": "boolean",
+            "operator": "==",
+            "aggregation": "at_least_fraction",
+            "threshold": 1,
+            "tolerance": 0.0,
+            "minimum_pass_fraction": 0.92,
+            "required_runtime_replicates": 80,
             "measurement_interface_status": "VALUE_TYPE_INVALID",
             "measurement_interface_errors": [
                 "metric contract frozen-gate: metric_path resolved a "

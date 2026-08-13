@@ -199,9 +199,10 @@ def run_bounded_client_tool_loop(
                 request_terminal_decision("standard client-tool turn budget exhausted")
             terminal_decision_pending = False
             terminal_decision_turns_used += 1
-            turn_tools = terminal_tools
-        else:
-            turn_tools = request.tools
+        # Keep one stable tool definition surface across the whole transcript so
+        # provider prompt caches retain the accumulated workspace prefix. The
+        # runtime still rejects nonterminal calls once final disposition is due.
+        turn_tools = request.tools
         terminal_only_turn = bool(
             turn_tools and all(tool.terminal for tool in turn_tools)
         )
@@ -218,6 +219,7 @@ def run_bounded_client_tool_loop(
                 "model": request.model,
                 "n_available_tools": len(turn_tools),
                 "terminal_only_turn": terminal_only_turn,
+                "terminal_decision_turn": terminal_decision_turn,
                 "n_transcript_messages": len(messages),
                 "n_model_context_messages": len(messages),
                 "terminal_decision_reason": (
@@ -252,6 +254,9 @@ def run_bounded_client_tool_loop(
                         "client_tool_loop_max_calls": max_tool_calls,
                         "client_tool_loop_terminal_only_turn": (
                             terminal_only_turn
+                        ),
+                        "client_tool_loop_terminal_decision_turn": (
+                            terminal_decision_turn
                         ),
                         "client_tool_loop_terminal_decision_reason": (
                             terminal_decision_reason
@@ -382,6 +387,29 @@ def run_bounded_client_tool_loop(
                         "client_tool_unavailable_this_turn:" + call.name
                     ),
                 )
+            elif (
+                terminal_decision_turn
+                and not tool_definitions[call.name].terminal
+            ):
+                execution = ClientToolExecutionResult(
+                    content={
+                        "ok": False,
+                        "error": "final_disposition_requires_terminal_tool",
+                        "terminal_tools": sorted(
+                            tool.name for tool in terminal_tools
+                        ),
+                        "detail": (
+                            "The standard workspace budget is exhausted. Use one "
+                            "of the supplied terminal tools for the final "
+                            "disposition; nonterminal tools remain visible only to "
+                            "preserve the stable model tool surface."
+                        ),
+                    },
+                    is_error=True,
+                    observation_key=(
+                        "final_disposition_requires_terminal_tool:" + call.name
+                    ),
+                )
             elif provider_output_truncated:
                 execution = ClientToolExecutionResult(
                     content={
@@ -481,7 +509,15 @@ def run_bounded_client_tool_loop(
             turn_state_changed = (
                 turn_state_changed or execution.state_changed
             )
-            result_text = _client_tool_result_text(execution.content)
+            model_result_content = _client_tool_result_with_budget(
+                execution.content,
+                turn_index=turn_index,
+                max_turns=max_turns,
+                total_calls=total_calls,
+                max_tool_calls=max_tool_calls,
+                terminal_decision_turn=terminal_decision_turn,
+            )
+            result_text = _client_tool_result_text(model_result_content)
             tool_result_blocks.append(
                 {
                     "type": "tool_result",
@@ -593,6 +629,33 @@ def _client_tool_result_text(value: Any, *, max_chars: int = 60000) -> str:
     if len(text) <= max_chars:
         return text
     return text[:max_chars] + "\n[tool result truncated by runtime]"
+
+
+def _client_tool_result_with_budget(
+    value: Any,
+    *,
+    turn_index: int,
+    max_turns: int,
+    total_calls: int,
+    max_tool_calls: int,
+    terminal_decision_turn: bool,
+) -> Any:
+    """Expose only generic remaining workspace budget in the next observation."""
+
+    if not isinstance(value, Mapping):
+        return value
+    return {
+        **deepcopy(dict(value)),
+        "_client_tool_budget": {
+            "standard_turns_remaining_after_current_turn": max(
+                0, max_turns - turn_index - 1
+            ),
+            "model_tool_calls_remaining_after_current_call": max(
+                0, max_tool_calls - total_calls
+            ),
+            "final_disposition_required": bool(terminal_decision_turn),
+        },
+    }
 
 
 def _compact_tool_response_metadata(

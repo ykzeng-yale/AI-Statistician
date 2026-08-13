@@ -13919,12 +13919,14 @@ class FormalizerWorkspaceRuntimeSubsystem:
                 _formalizer_compiled_exact_candidate_semantic_review_feedback(
                     lean_candidate_materialization
                 )
-                if self.formal_target_semantic_reviewer_available
-                and isinstance(lean_candidate_materialization, Mapping)
+                if isinstance(lean_candidate_materialization, Mapping)
                 else None
             )
             compiled_exact_review_dispatch: dict[str, Any] | None = None
-            if compiled_exact_review_feedback is not None:
+            if (
+                compiled_exact_review_feedback is not None
+                and self.formal_target_semantic_reviewer_available
+            ):
                 compiled_next_inputs = dict(task.inputs)
                 compiled_next_inputs["environment_feedback"] = (
                     compiled_exact_review_feedback
@@ -14018,6 +14020,20 @@ class FormalizerWorkspaceRuntimeSubsystem:
                     "mathematical review before source-proof promotion or further "
                     "prover work."
                 )
+                result_status = "REROUTE"
+                failure_classification = ""
+            elif (
+                compiled_exact_review_feedback is not None
+                and not self.formal_target_semantic_reviewer_available
+            ):
+                next_task = None
+                result_status = "BLOCKED"
+                result_rationale = (
+                    "The model-owned exact target compiled locally, but no "
+                    "independent exact-target reviewer is available; the candidate "
+                    "fails closed before Critic or kernel promotion."
+                )
+                failure_classification = "formalizer_workspace_exhausted"
             else:
                 next_task = critic_task
                 result_rationale = (
@@ -14026,8 +14042,8 @@ class FormalizerWorkspaceRuntimeSubsystem:
                     "closed by the kernel; references now route to the independent "
                     "CriticEvaluator."
                 )
-            result_status = "REROUTE"
-            failure_classification = ""
+                result_status = "REROUTE"
+                failure_classification = ""
         return AgentStepResult(
             status=result_status,
             rationale=result_rationale,
@@ -14523,7 +14539,7 @@ def _materialize_formalizer_lean_candidate_artifacts(
             for value in candidate.get("lean_imports", []) or []
             if str(value).strip()
         ]
-        source = str(candidate.get("lean_source", "") or "").strip()
+        source = str(candidate.get("lean_source", "") or "")
         candidate_id = str(candidate.get("candidate_id", "") or f"candidate_{index}")
         candidate_metadata = dict(candidate.get("candidate_metadata", {}) or {})
         candidate_lean_declaration = str(
@@ -16833,8 +16849,8 @@ def _formalizer_lean_candidate_sources(
     for index, row in enumerate(proposal_packet.get("formal_targets", []) or [], start=1):
         if not isinstance(row, Mapping):
             continue
-        source = str(row.get("lean_statement_sketch", "") or "").strip()
-        if not source:
+        source = str(row.get("lean_statement_sketch", "") or "")
+        if not source.strip():
             continue
         expected_status = str(row.get("expected_status", "") or "")
         if expected_status not in {"NEEDS_KERNEL_CHECK", "OPEN"}:
@@ -22985,6 +23001,15 @@ def _scientific_workspace_metric_contracts(
         "metric_path",
         "metric_semantics",
         "measurement_protocol",
+        "metric_value_kind",
+        "operator",
+        "aggregation",
+        "threshold",
+        "lower",
+        "upper",
+        "tolerance",
+        "minimum_pass_count",
+        "minimum_pass_fraction",
         "required_runtime_replicates",
     )
     return [

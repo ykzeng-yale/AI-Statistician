@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 from dataclasses import replace
 
@@ -147,6 +148,14 @@ def test_bounded_client_tool_loop_returns_terminal_runtime_payload() -> None:
     second_messages = backend.requests[1].messages
     assert second_messages[-2]["role"] == "assistant"
     assert second_messages[-1]["content"][0]["type"] == "tool_result"
+    first_observation = json.loads(
+        second_messages[-1]["content"][0]["content"]
+    )
+    assert first_observation["_client_tool_budget"] == {
+        "standard_turns_remaining_after_current_turn": 2,
+        "model_tool_calls_remaining_after_current_call": 4,
+        "final_disposition_required": False,
+    }
     assert result.history[0]["tool_calls"][0]["name"] == "edit"
     assert '"value":2' in result.history[0]["tool_calls"][0][
         "result_excerpt"
@@ -393,8 +402,15 @@ def test_bounded_client_tool_loop_allows_one_rejected_terminal_recovery() -> Non
     assert result.terminal_payload == {"submitted": True}
     assert result.turns == 3
     assert terminal_attempts == 2
-    assert [tool.name for tool in backend.requests[2].tools] == ["submit"]
-    assert backend.requests[2].tool_choice == "submit"
+    assert [tool.name for tool in backend.requests[2].tools] == [
+        "edit",
+        "check",
+        "submit",
+    ]
+    assert backend.requests[2].tool_choice == "any"
+    assert backend.requests[2].metadata[
+        "client_tool_loop_terminal_decision_turn"
+    ] is True
     assert backend.requests[2].metadata[
         "client_tool_loop_max_terminal_recovery_turns"
     ] == 1
@@ -429,11 +445,58 @@ def test_bounded_client_tool_loop_requests_terminal_decision_at_standard_budget(
 
     assert result.terminal_payload == {"submitted": True}
     assert result.turns == 3
-    assert [tool.name for tool in backend.requests[-1].tools] == ["submit"]
+    assert [tool.name for tool in backend.requests[-1].tools] == [
+        "edit",
+        "check",
+        "submit",
+    ]
     assert "final disposition" in str(backend.requests[-1].messages[-1]["content"])
     assert backend.requests[-1].metadata[
         "client_tool_loop_terminal_decision_reason"
     ] == "standard client-tool turn budget exhausted"
+
+
+def test_terminal_decision_keeps_tools_visible_but_rejects_nonterminal_calls() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit", "edit", {"value": 2})),
+            _response(ClientToolCall("call-check-late", "check", {})),
+            _response(ClientToolCall("call-submit", "submit", {})),
+        ]
+    )
+    executed_tools: list[str] = []
+
+    def execute(call, _context):
+        executed_tools.append(call.name)
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            state_changed=call.name == "edit",
+            terminal=call.name == "submit",
+            terminal_payload=(
+                {"submitted": True} if call.name == "submit" else None
+            ),
+            observation_key=call.name,
+        )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute,
+        max_turns=1,
+        max_tool_calls=3,
+        max_no_progress_turns=2,
+        max_terminal_recovery_turns=1,
+    )
+
+    assert result.terminal_payload == {"submitted": True}
+    assert executed_tools == ["edit", "submit"]
+    rejected = result.history[1]["tool_calls"][0]
+    assert rejected["executed_by_runtime"] is False
+    assert "final_disposition_requires_terminal_tool" in rejected["result_excerpt"]
+    assert all(
+        [tool.name for tool in request.tools] == ["edit", "check", "submit"]
+        for request in backend.requests
+    )
 
 
 def test_bounded_client_tool_loop_requests_terminal_decision_on_no_progress() -> None:
@@ -464,7 +527,11 @@ def test_bounded_client_tool_loop_requests_terminal_decision_on_no_progress() ->
 
     assert result.terminal_payload == {"submitted": True}
     assert result.turns == 3
-    assert [tool.name for tool in backend.requests[-1].tools] == ["submit"]
+    assert [tool.name for tool in backend.requests[-1].tools] == [
+        "edit",
+        "check",
+        "submit",
+    ]
     assert backend.requests[-1].metadata[
         "client_tool_loop_terminal_decision_reason"
     ] == "repeated client-tool turns made no new progress"
@@ -512,7 +579,7 @@ def test_terminal_decision_keeps_one_same_model_recovery_turn() -> None:
     assert result.turns == 4
     assert submissions == 2
     assert all(
-        [tool.name for tool in request.tools] == ["submit"]
+        [tool.name for tool in request.tools] == ["edit", "check", "submit"]
         for request in backend.requests[-2:]
     )
     assert "compiler rejected the first source" in str(
@@ -562,7 +629,7 @@ def test_standard_submission_does_not_consume_forced_terminal_recovery() -> None
     assert result.turns == 4
     assert submissions == 3
     assert all(
-        [tool.name for tool in request.tools] == ["submit"]
+        [tool.name for tool in request.tools] == ["edit", "check", "submit"]
         for request in backend.requests[-2:]
     )
     assert "raw compiler failure 2" in str(
