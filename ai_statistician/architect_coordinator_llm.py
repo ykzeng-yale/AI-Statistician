@@ -602,6 +602,18 @@ def build_architect_feedback_route_prompt(
         set(ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS)
         - set(available_route_subsystems)
     )
+    source_revision_assessment: Mapping[str, Any] = {}
+    for candidate in (
+        environment_feedback,
+        environment_feedback.get("observation_artifact_ref", {}),
+        environment_feedback.get("current_environment_observation", {}),
+    ):
+        if not isinstance(candidate, Mapping):
+            continue
+        assessment = candidate.get("source_revision_assessment", {})
+        if isinstance(assessment, Mapping) and assessment:
+            source_revision_assessment = assessment
+            break
     payload = {
         "question": {
             "id": question.id,
@@ -612,6 +624,9 @@ def build_architect_feedback_route_prompt(
         "available_route_subsystems": list(available_route_subsystems),
         "unavailable_route_subsystems": unavailable_route_subsystems,
         "current_source_owner": current_source_owner or "NONE",
+        "active_source_revision_assessment": deepcopy(
+            dict(source_revision_assessment)
+        ),
         "current_validated_plan": {
             key: deepcopy(runtime_plan.get(key))
             for key in (
@@ -634,6 +649,7 @@ def build_architect_feedback_route_prompt(
             "selected_worker_receives_complete_feedback": True,
             "current_source_owner_is_identity_not_causal_attribution": True,
             "source_rewrite_stays_with_exact_source_owner": True,
+            "source_only_review_cannot_be_reclassified_as_parent_defect": True,
             "confirmatory_unchanged_source_retry_is_forbidden": True,
             "outcome_informed_new_source_requires_fresh_cohort": True,
             "unvisited_required_lanes_are_independent": True,
@@ -660,6 +676,9 @@ def build_architect_feedback_route_prompt(
             "unavailable_route_subsystems"
         ],
         "current_source_owner": payload["current_source_owner"],
+        "active_source_revision_assessment": payload[
+            "active_source_revision_assessment"
+        ],
         "environment_observations": _bounded_architect_route_prompt_value(
             payload["environment_observations"],
             max_chars=48_000,
@@ -699,7 +718,10 @@ def build_architect_feedback_route_prompt(
         "a repair, patch, correction, or adapter agent. A statistically non-diagnostic "
         "result does not justify a source or theory revision. Numbers in reviewer prose "
         "are not execution observations unless the supplied authority marks them as "
-        "observed.\n"
+        "observed. When active_source_revision_assessment says the current source edit "
+        "is sufficient or no parent artifact change is required, do not reinterpret "
+        "source-budget exhaustion as a TheoryDeveloper defect; choose an available "
+        "unvisited independent lane or BLOCK.\n"
         "5. Required evidence lanes are independent once their actual prerequisites "
         "exist. Before repeating a visited lane, prefer an available unvisited required "
         "lane unless the current observation establishes a missing mathematical "

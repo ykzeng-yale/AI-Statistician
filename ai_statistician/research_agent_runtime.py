@@ -4429,6 +4429,18 @@ def _runtime_transition_policy(
         and "consumer_resume_manifest" in next_task.inputs
     ):
         return result
+    if next_task.owner_subsystem == "CriticEvaluator":
+        continuation = _runtime_outer_graph_continuation(
+            iteration=iteration,
+            task=task,
+            subsystem_name=subsystem_name,
+            result=result,
+            blackboard=blackboard,
+            runtime_config=runtime_config,
+            proposed_next_task=next_task,
+        )
+        if continuation is not None:
+            return continuation
     next_context = next_task.inputs.get("architect_context", {})
     completed_next_lane = bool(
         isinstance(next_context, Mapping)
@@ -12323,8 +12335,6 @@ def _algorithm_engineer_packet_validation_failure_result(
         evidence_entries=(evidence,),
         failure_classification=failure_classification,
     )
-
-
 
 
 

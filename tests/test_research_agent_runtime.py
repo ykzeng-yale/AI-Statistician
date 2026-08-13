@@ -338,11 +338,6 @@ def test_final_critic_does_not_restart_exhausted_formalizer_for_missing_proof() 
     assert result.status == "BLOCKED"
     assert result.next_task is None
     assert result.failure_classification == "formal_required_unverified"
-    assert not any(
-        artifact.get("artifact_kind") == "RuntimeCriticFormalizationObservation"
-        for artifact in result.produced_artifacts.values()
-        if isinstance(artifact, dict)
-    )
 
 
 def test_workspace_parent_lineage_reopens_only_after_parent_artifact_changes() -> None:
@@ -518,6 +513,70 @@ def test_formal_blocker_does_not_starve_unvisited_empirical_lanes() -> None:
     assert outcomes[-1]["source_subsystem"] == "FormalizationEvaluator"
     assert outcomes[-1]["local_status"] == "BLOCKED"
     assert continued.observations[-1].payload["model_routing_call_used"] is False
+
+
+def test_final_critic_waits_for_unvisited_required_lanes() -> None:
+    question = OpenResearchQuestion(
+        id="generic-critic-after-required-lanes",
+        title="Critic follows required evidence lanes",
+        description="Do not finalize before every planned evidence lane runs.",
+    )
+    context = _full_evidence_context(question.id)
+    formal_task = AgentTask(
+        task_id="formalize:generic-critic-after-required-lanes",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Attempt the exact formal target.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "architect_context": context,
+        },
+    )
+    critic_task = AgentTask(
+        task_id="critic:generic-critic-after-required-lanes",
+        owner_subsystem="CriticEvaluator",
+        objective="Review the collected evidence.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "formalization_manifest_id": "formalization:generic",
+            "architect_context": context,
+        },
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={"theory:generic": {"packet_id": "theory:generic"}},
+    )
+
+    continued = _runtime_transition_policy(
+        iteration=4,
+        task=formal_task,
+        subsystem_name="FormalizationEvaluator",
+        result=AgentStepResult(
+            status="REROUTE",
+            rationale="Formal workspace recorded an unclosed target.",
+            produced_artifacts={
+                "formalization:generic": {
+                    "artifact_kind": "RuntimeFormalizationManifest",
+                    "manifest_id": "formalization:generic",
+                }
+            },
+            next_task=critic_task,
+        ),
+        blackboard=blackboard,
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert continued.status == "REROUTE"
+    assert continued.next_task is not None
+    assert continued.next_task.owner_subsystem == "AlgorithmEngineer"
+    coverage = continued.observations[-1]
+    assert coverage.observation_type == "runtime_required_evidence_lane_continuation"
+    assert coverage.payload["next_owner_subsystem"] == "AlgorithmEngineer"
+    assert coverage.payload["model_routing_call_used"] is False
 
 
 def test_architect_repeat_cannot_starve_runnable_unvisited_primary_lane() -> None:

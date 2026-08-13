@@ -411,6 +411,12 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
         "failure_classification": "generated_simulation_sandbox_metric_gate_failed",
         "parent_source": "def run_sandbox(seed, replicates):\n    return {}\n",
         "runtime_errors": ["metric_path /estimate resolved no values"],
+        "observation_artifact_ref": {
+            "source_revision_assessment": {
+                "current_source_edit_sufficient": True,
+                "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            }
+        },
     }
     context = {
         "candidate_lineage_budget": {
@@ -438,6 +444,10 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
     assert prompt_payload["active_runtime_context"]["candidate_lineage_budget"][
         "budget_exhausted"
     ] is True
+    assert prompt_payload["active_source_revision_assessment"][
+        "current_source_edit_sufficient"
+    ] is True
+    assert "do not reinterpret source-budget exhaustion" in prompt
 
     critic_wrapped_feedback = {
         "feedback_id": "critic-wrapper:new-envelope",
@@ -469,9 +479,9 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
             },
             {
                 "decision": "ROUTE",
-                "selected_subsystem": "TheoryDeveloper",
-                "objective": "Reassess the assumptions using the empirical observations.",
-                "rationale": "A new upstream artifact is needed before more code generation.",
+                "selected_subsystem": "FormalizationEvaluator",
+                "objective": "Run the independent formal evidence lane.",
+                "rationale": "The source-only defect does not establish a theory defect.",
             },
         ]
     )
@@ -489,7 +499,7 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
         environment_feedback=feedback,
     )
 
-    assert packet["selected_subsystem"] == "TheoryDeveloper"
+    assert packet["selected_subsystem"] == "FormalizationEvaluator"
     assert len(backend.requests) == 2
     assert "SimulationEvaluator" not in backend.requests[0].metadata[
         "available_route_subsystems"

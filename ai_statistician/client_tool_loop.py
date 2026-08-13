@@ -409,17 +409,6 @@ def run_bounded_client_tool_loop(
         turn_new_observation = False
         terminal_payload: Mapping[str, Any] | None = None
         for call_index, call in enumerate(calls):
-            if (
-                not terminal_decision_turn
-                and call.name in tool_definitions
-                and tool_definitions[call.name].terminal
-            ):
-                # A submission in the standard loop is the initial disposition;
-                # only the explicitly budgeted recovery turns remain afterward.
-                terminal_decision_turns_used = max(
-                    1,
-                    terminal_decision_turns_used,
-                )
             total_calls += 1
             if total_calls > max_tool_calls:
                 raise loop_error(

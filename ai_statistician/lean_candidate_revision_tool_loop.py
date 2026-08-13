@@ -892,6 +892,34 @@ def _lean_candidate_revision_success_result(
             "LEAN_CANDIDATE_CLIENT_TOOL_LOOP_RECORDED_NOT_PROOF_EVIDENCE"
         ),
     }
+    if formal_gap:
+        evidence["formal_gap_observation"] = {
+            "formal_gap": deepcopy(dict(formal_gap)),
+            "candidate_id": candidate_id,
+            "candidate_lean_declaration": candidate_lean_declaration,
+            "current_source": source,
+            "current_source_hash": source_hash,
+            "parent_source_hash": parent_source_hash,
+            "latest_check_observation": deepcopy(dict(check_result)),
+            "latest_formal_environment_search": deepcopy(
+                dict(state.get("latest_formal_environment_search", {}) or {})
+            ),
+            "latest_proof_search": deepcopy(
+                dict(state.get("latest_proof_search", {}) or {})
+            ),
+            "latest_state_inspection": deepcopy(
+                dict(state.get("latest_state_inspection", {}) or {})
+            ),
+            "latest_declaration_inspection": deepcopy(
+                dict(state.get("latest_declaration_inspection", {}) or {})
+            ),
+            "model_owned_lean_code": model_owned_lean_code,
+            "runtime_selected_lean_code": False,
+            "kernel_verified": False,
+            "proof_evidence_status": (
+                "MODEL_REPORTED_FORMAL_GAP_OBSERVATION_NOT_PROOF_EVIDENCE"
+            ),
+        }
     return LeanCandidateRevisionToolLoopResult(
         lean_source=source,
         source_hash=source_hash,

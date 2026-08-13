@@ -460,6 +460,15 @@ def test_formal_gap_preserves_prior_model_source_and_exact_lean_observation() ->
     assert result.evidence["local_candidate_validation_passed"] is False
     assert result.evidence["independent_semantic_review_required"] is False
     assert result.evidence["kernel_verified"] is False
+    gap_observation = result.evidence["formal_gap_observation"]
+    assert gap_observation["current_source"] == attempted
+    assert gap_observation["current_source_hash"] == stable_hash(attempted)
+    assert gap_observation["candidate_lean_declaration"] == "target"
+    assert gap_observation["latest_check_observation"][
+        "local_lean_stderr"
+    ].endswith("[sorryAx]")
+    assert gap_observation["runtime_selected_lean_code"] is False
+    assert gap_observation["kernel_verified"] is False
 
 
 def test_formalizer_agent_keeps_formal_gap_available_after_workspace_resume() -> None:
@@ -1384,6 +1393,16 @@ def test_lean_candidate_tool_loop_stops_repeated_identical_submissions() -> None
                     },
                 )
             ),
+            _response(
+                ClientToolCall(
+                    "submit-4",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": source,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
         ]
     )
 
@@ -1481,6 +1500,16 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
             _response(
                 ClientToolCall(
                     "submit-identical-recovery",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": latest,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-identical-final-recovery",
                     LEAN_SOURCE_SUBMISSION_TOOL,
                     {
                         "lean_source": latest,
@@ -2746,14 +2775,14 @@ def test_formalizer_subsystem_records_direct_workspace_gap_without_packet_failur
         "retrieval_queries": [],
         "gap_taxonomy": [formal_gap],
     }
+    attempted_source = "theorem exact_target : True := by sorry\n"
     workspace = {
         "schema_version": 1,
         "artifact_kind": "LeanCandidateClientToolWorkspace",
         "disposition": "FORMAL_GAP",
         "candidate_id": "exact-target",
-        "submitted_source_hash": stable_hash(
-            "theorem exact_target : True := by sorry\n"
-        ),
+        "submitted_source_hash": stable_hash(attempted_source),
+        "workspace_phase": "initial_authoring",
         "source_updates": 1,
         "formal_environment_searches": 2,
         "proof_candidate_searches": 1,
@@ -2767,6 +2796,30 @@ def test_formalizer_subsystem_records_direct_workspace_gap_without_packet_failur
         "proof_evidence_status": (
             "MODEL_REPORTED_FORMAL_GAP_NOT_PROOF_EVIDENCE"
         ),
+        "formal_gap_observation": {
+            "formal_gap": formal_gap,
+            "candidate_id": "exact-target",
+            "candidate_lean_declaration": "exact_target",
+            "current_source": attempted_source,
+            "current_source_hash": stable_hash(attempted_source),
+            "parent_source_hash": stable_hash(""),
+            "latest_check_observation": {
+                "source_hash": stable_hash(attempted_source),
+                "compiled": False,
+                "local_lean_source_compiled": True,
+                "local_lean_stderr": "declaration uses sorryAx",
+            },
+            "latest_formal_environment_search": {},
+            "latest_proof_search": {},
+            "latest_state_inspection": {},
+            "latest_declaration_inspection": {},
+            "model_owned_lean_code": True,
+            "runtime_selected_lean_code": False,
+            "kernel_verified": False,
+            "proof_evidence_status": (
+                "MODEL_REPORTED_FORMAL_GAP_OBSERVATION_NOT_PROOF_EVIDENCE"
+            ),
+        },
     }
 
     monkeypatch.setattr(
