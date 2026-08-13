@@ -11,10 +11,14 @@ from ai_statistician.model_backend import (
     ClientToolTurnRequest,
     ClientToolTurnResponse,
 )
+from ai_statistician.scientific_sandbox import ScientificSandboxExecution
 from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.theory_workspace import (
+    THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+    THEORY_SCRATCHPAD_TOOL,
     THEORY_WORKSPACE_CHECKPOINT_KIND,
     THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
+    TheoryScratchpadConfig,
     run_theory_artifact_workspace,
 )
 
@@ -304,6 +308,138 @@ def test_targeted_revision_uses_atomic_model_owned_json_edits() -> None:
     prompt = str(backend.requests[0].messages[0]["content"])
     assert "RFC 6902" in prompt
     assert "runtime applies those exact operations" in prompt
+
+
+def test_same_theory_model_runs_exact_scratch_source_then_revises(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'counterexample_gap': 0.25, 'seed': seed}\n"
+    )
+    captured: dict[str, object] = {}
+
+    def fake_execute_scientific_sandbox(**kwargs):
+        captured.update(kwargs)
+        return ScientificSandboxExecution(
+            status="EXECUTED",
+            language="python",
+            execution_profile="scientific_wasm",
+            backend="pyodide",
+            isolation_provider="test-isolation",
+            dependencies=("numpy",),
+            execution_attempted=True,
+            returncode=0,
+            metrics={"counterexample_gap": 0.25, "seed": 17},
+            errors=(),
+            stdout_summary="exact scratch stdout",
+            stderr_summary="",
+            result_parse_error="",
+            code_path=str(tmp_path / "scratch.py"),
+            request_path=str(tmp_path / "request.json"),
+            result_path=str(tmp_path / "result.json"),
+            code_hash=stable_hash(source),
+            request_hash="scratch-request-hash",
+            result_hash=stable_hash(
+                {"counterexample_gap": 0.25, "seed": 17}
+            ),
+            subprocess_environment_keys=("HOME", "PATH"),
+            resource_limits={"cpu_seconds": 9},
+        )
+
+    monkeypatch.setattr(
+        "ai_statistician.theory_workspace.execute_scientific_sandbox",
+        fake_execute_scientific_sandbox,
+    )
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="run-counterexample",
+                    name=THEORY_SCRATCHPAD_TOOL,
+                    input={
+                        "language": "python",
+                        "execution_profile": "scientific_wasm",
+                        "dependencies": ["numpy"],
+                        "entrypoint": "run_sandbox",
+                        "code": source,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="revise-from-counterexample",
+                    name="edit_theory_workspace",
+                    input={
+                        "operations": [
+                            {
+                                "op": "replace",
+                                "artifact_name": "problem_card",
+                                "path": "/claim",
+                                "value": "revised claim",
+                            },
+                            {
+                                "op": "add",
+                                "artifact_name": "lemma_cards",
+                                "path": "/-",
+                                "value": {"id": "counterexample-qualified-lemma"},
+                            },
+                        ]
+                    },
+                )
+            ),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        scratchpad=TheoryScratchpadConfig(
+            sandbox_dir=tmp_path / "theory-scratch",
+            seed=17,
+            replicates=12,
+            timeout_s=9,
+            max_runs=1,
+        ),
+    )
+
+    assert captured["code"] == source
+    assert captured["language"] == "python"
+    assert captured["dependencies"] == ["numpy"]
+    assert captured["seed"] == 17
+    assert captured["replicates"] == 12
+    assert captured["timeout_s"] == 9
+    assert captured["max_output_bytes"] == 64 * 1024
+    assert result.core_packet["artifacts"]["problem_card"]["claim"] == (
+        "revised claim"
+    )
+    assert result.evidence["scratchpad_enabled"] is True
+    assert result.evidence["scratch_runs"] == 1
+    scratch = result.evidence["scratch_execution_refs"][0]
+    assert scratch["metrics_hash"] == stable_hash(
+        {"counterexample_gap": 0.25, "seed": 17}
+    )
+    assert scratch["code_hash"] == stable_hash(source)
+    assert scratch["runtime_edited_source"] is False
+    assert scratch["runtime_edited_theory"] is False
+    assert scratch["proof_evidence_status"] == (
+        THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE
+    )
+    tool_names = [tool.name for tool in backend.requests[0].tools]
+    assert tool_names == [
+        "read_theory_workspace",
+        THEORY_SCRATCHPAD_TOOL,
+        "edit_theory_workspace",
+    ]
+    observation = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert observation["status"] == "EXECUTED"
+    assert observation["metrics"]["counterexample_gap"] == 0.25
+    assert observation["proof_evidence_status"] == (
+        THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE
+    )
+    assert "not confirmatory simulation" in observation["boundary"]
 
 
 def test_targeted_revision_retains_valid_edits_across_raw_validator_feedback() -> None:

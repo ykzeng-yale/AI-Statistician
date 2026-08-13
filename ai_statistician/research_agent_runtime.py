@@ -233,7 +233,10 @@ from .research_architect import (
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
     theory_developer_source_environment_feedback,
 )
-from .theory_workspace import THEORY_WORKSPACE_CHECKPOINT_KIND
+from .theory_workspace import (
+    THEORY_WORKSPACE_CHECKPOINT_KIND,
+    TheoryScratchpadConfig,
+)
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
     build_architect_routed_theory_revision_binding,
@@ -296,6 +299,8 @@ class ResearchAgentRuntimeConfig:
     n_runs: int = 100
     seed: int = 20260528
     generated_simulation_timeout_seconds: int = 60
+    theory_scratch_timeout_seconds: int = 20
+    theory_scratch_max_runs: int = 2
     max_iterations: int = 12
     max_subsystem_retries: int = 1
     max_critic_revision_rounds: int = 1
@@ -4766,10 +4771,16 @@ class TheoryDeveloperRuntimeSubsystem:
         theory_developer: LLMTheoryDeveloperAgent,
         n_runs: int,
         seed: int,
+        scratch_sandbox_root: Path | None = None,
+        scratch_timeout_s: int = 20,
+        scratch_max_runs: int = 2,
     ) -> None:
         self.theory_developer = theory_developer
         self.n_runs = n_runs
         self.seed = seed
+        self.scratch_sandbox_root = scratch_sandbox_root
+        self.scratch_timeout_s = max(1, int(scratch_timeout_s))
+        self.scratch_max_runs = max(0, int(scratch_max_runs))
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -4950,6 +4961,23 @@ class TheoryDeveloperRuntimeSubsystem:
                 packet = self.theory_developer.derive(
                     question,
                     architect_context=context,
+                    theory_scratchpad=(
+                        TheoryScratchpadConfig(
+                            sandbox_dir=(
+                                self.scratch_sandbox_root
+                                / stable_hash(
+                                    [question.id, task.task_id]
+                                )[:16]
+                            ),
+                            seed=self.seed,
+                            replicates=max(1, self.n_runs),
+                            timeout_s=self.scratch_timeout_s,
+                            max_runs=self.scratch_max_runs,
+                        )
+                        if self.scratch_sandbox_root is not None
+                        and self.scratch_max_runs > 0
+                        else None
+                    ),
                 )
         except PacketValidationError as exc:
             return _theory_developer_packet_validation_failure_result(
@@ -5043,6 +5071,8 @@ class TheoryDeveloperRuntimeSubsystem:
                     "runtime_edited_theory",
                     "reads",
                     "submissions",
+                    "scratchpad_enabled",
+                    "scratch_runs",
                     "changed_artifact_names",
                     "provider",
                     "model",
@@ -18236,6 +18266,9 @@ def run_research_agent_runtime(
                 theory_developer=theory_developer,
                 n_runs=config.n_runs,
                 seed=config.seed,
+                scratch_sandbox_root=out_dir / "theory_scratch_sandbox",
+                scratch_timeout_s=config.theory_scratch_timeout_seconds,
+                scratch_max_runs=config.theory_scratch_max_runs,
             ),
             "SimulationEvaluator": SimulationEvaluatorRuntimeSubsystem(
                 proposal_agent=simulation_engineer,

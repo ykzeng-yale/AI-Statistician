@@ -43,6 +43,7 @@ from .theory_revision_lineage import (
 )
 from .theory_workspace import (
     THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
+    TheoryScratchpadConfig,
     run_theory_artifact_workspace,
 )
 
@@ -169,6 +170,7 @@ class LLMTheoryDeveloperAgent:
         question: OpenResearchQuestion,
         *,
         architect_context: Mapping[str, Any] | None = None,
+        theory_scratchpad: TheoryScratchpadConfig | None = None,
     ) -> dict[str, Any]:
         context = dict(architect_context or {})
         theory_prompt_mode = _theory_developer_prompt_mode(context)
@@ -245,6 +247,7 @@ class LLMTheoryDeveloperAgent:
                 max_no_progress_turns=(
                     self.config.theory_workspace_max_no_progress_turns
                 ),
+                theory_scratchpad=theory_scratchpad,
             )
         elif callable(
             getattr(self.provider, "generate_client_tool_turn", None)
@@ -267,6 +270,7 @@ class LLMTheoryDeveloperAgent:
                 max_no_progress_turns=(
                     self.config.theory_workspace_max_no_progress_turns
                 ),
+                theory_scratchpad=theory_scratchpad,
             )
         else:
             user_prompt = build_theory_developer_prompt(
@@ -2663,6 +2667,7 @@ def _generate_initial_theory_artifact_workspace(
     max_turns: int,
     max_submissions: int,
     max_no_progress_turns: int,
+    theory_scratchpad: TheoryScratchpadConfig | None = None,
 ) -> dict[str, Any]:
     initial_artifacts = _empty_theory_core_workspace()
     read_only_artifacts = _initial_theory_workspace_read_only_artifacts(
@@ -2733,6 +2738,7 @@ def _generate_initial_theory_artifact_workspace(
         read_only_artifacts=read_only_artifacts,
         build_candidate=build_candidate,
         validate_candidate=validate_theory_core_packet,
+        scratchpad=theory_scratchpad,
         request_metadata={
             "subsystem": "TheoryDeveloper",
             "agent": "LLMTheoryDeveloperAgent",
@@ -2806,6 +2812,7 @@ def _generate_theory_workspace_revision(
     max_reads: int,
     max_submissions: int,
     max_no_progress_turns: int,
+    theory_scratchpad: TheoryScratchpadConfig | None = None,
 ) -> dict[str, Any]:
     initial_artifacts = revision_inputs.get("base_core_payload", {})
     if not isinstance(initial_artifacts, Mapping):
@@ -2895,6 +2902,7 @@ def _generate_theory_workspace_revision(
                 workspace_id=workspace_id,
             )
         ),
+        scratchpad=theory_scratchpad,
         request_metadata={
             "subsystem": "TheoryDeveloper",
             "agent": "LLMTheoryDeveloperAgent",

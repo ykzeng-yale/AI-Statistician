@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 import jsonpatch
@@ -15,11 +16,20 @@ from .client_tool_loop import (
 )
 from .fingerprint import stable_hash
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
+from .scientific_sandbox import (
+    SCIENTIFIC_WASM_SANDBOX_PROFILE,
+    execute_scientific_sandbox,
+    generated_code_draft_json_schema,
+)
 from .structured_output_retry import PacketValidationError
 
 
 THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
 THEORY_WORKSPACE_JSON_PATCH_TRANSPORT = "rfc6902_json_patch"
+THEORY_SCRATCHPAD_TOOL = "run_theory_scratchpad"
+THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE = (
+    "THEORY_SCRATCHPAD_EXECUTION_NOT_PROOF_EVIDENCE"
+)
 TheoryWorkspaceCandidateBuilder = Callable[
     [Mapping[str, Any], tuple[str, ...]],
     Mapping[str, Any],
@@ -31,6 +41,17 @@ TheoryWorkspaceCandidateValidator = Callable[[Mapping[str, Any]], Sequence[str]]
 class TheoryWorkspaceResult:
     core_packet: Mapping[str, Any]
     evidence: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
+class TheoryScratchpadConfig:
+    """Resource boundary for model-authored exploratory Python/R calculations."""
+
+    sandbox_dir: Path
+    seed: int
+    replicates: int
+    timeout_s: int = 20
+    max_runs: int = 2
 
 
 def run_theory_artifact_workspace(
@@ -55,6 +76,7 @@ def run_theory_artifact_workspace(
     build_candidate: TheoryWorkspaceCandidateBuilder,
     validate_candidate: TheoryWorkspaceCandidateValidator,
     request_metadata: Mapping[str, Any] | None = None,
+    scratchpad: TheoryScratchpadConfig | None = None,
 ) -> TheoryWorkspaceResult:
     """Let one model author authoritative theory artifacts in place."""
 
@@ -79,6 +101,14 @@ def run_theory_artifact_workspace(
     ):
         if value < 1:
             raise ValueError(f"theory workspace {label} budget must be positive")
+    if scratchpad is not None:
+        for value, label in (
+            (scratchpad.replicates, "scratch replicate"),
+            (scratchpad.timeout_s, "scratch timeout"),
+            (scratchpad.max_runs, "scratch run"),
+        ):
+            if value < 1:
+                raise ValueError(f"theory workspace {label} budget must be positive")
     parent = {
         str(name): deepcopy(value)
         for name, value in initial_artifacts.items()
@@ -110,10 +140,13 @@ def run_theory_artifact_workspace(
         "last_validation_errors": [],
         "last_candidate": {},
         "model_edit_operations": [],
+        "scratch_runs": 0,
+        "scratch_execution_refs": [],
     }
     tools = _theory_workspace_tools(
         artifact_names,
         parent_shapes,
+        scratchpad_enabled=scratchpad is not None,
     )
 
     def changed_artifact_names(artifacts: Mapping[str, Any]) -> tuple[str, ...]:
@@ -299,6 +332,107 @@ def run_theory_artifact_workspace(
                 edit_operations=operation_records,
             )
 
+        if call.name == THEORY_SCRATCHPAD_TOOL:
+            if scratchpad is None:
+                raise ClientToolInputError("theory scratchpad is unavailable")
+            if state["scratch_runs"] >= scratchpad.max_runs:
+                raise ClientToolInputError(
+                    "theory scratchpad run budget is exhausted"
+                )
+            run_index = state["scratch_runs"] + 1
+            language = str(tool_input.get("language", "") or "")
+            execution_profile = str(
+                tool_input.get("execution_profile", "") or ""
+            )
+            dependencies = tool_input.get("dependencies", [])
+            code = str(tool_input.get("code", "") or "")
+            entrypoint = str(tool_input.get("entrypoint", "") or "")
+            if entrypoint != "run_sandbox":
+                raise ClientToolInputError(
+                    "theory scratchpad entrypoint must be run_sandbox"
+                )
+            if execution_profile != SCIENTIFIC_WASM_SANDBOX_PROFILE:
+                raise ClientToolInputError(
+                    "theory scratchpad execution_profile must be scientific_wasm"
+                )
+            if not isinstance(dependencies, list):
+                raise ClientToolInputError(
+                    "theory scratchpad dependencies must be an array"
+                )
+            execution = execute_scientific_sandbox(
+                sandbox_dir=(
+                    scratchpad.sandbox_dir
+                    / stable_hash([workspace_id, authoring_binding_id])[:16]
+                ),
+                artifact_id=(
+                    f"theory-scratch-{stable_hash(workspace_id)[:12]}-{run_index}"
+                ),
+                language=language,
+                code=code,
+                dependencies=[str(value) for value in dependencies],
+                seed=int(scratchpad.seed),
+                replicates=int(scratchpad.replicates),
+                timeout_s=int(scratchpad.timeout_s),
+                max_output_bytes=64 * 1024,
+            )
+            state["scratch_runs"] = run_index
+            observation = {
+                "scratch_run": run_index,
+                "remaining_scratch_runs": scratchpad.max_runs - run_index,
+                **execution.to_json(),
+                "seed": int(scratchpad.seed),
+                "replicates": int(scratchpad.replicates),
+                "timeout_s": int(scratchpad.timeout_s),
+                "runtime_edited_source": False,
+                "runtime_edited_theory": False,
+                "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+                "boundary": (
+                    "This is a model-authored exploratory calculation returned to "
+                    "the same TheoryDeveloper session. It may expose a counterexample "
+                    "or numerical inconsistency, but it is not confirmatory simulation "
+                    "evidence and not theorem proof evidence."
+                ),
+            }
+            state["scratch_execution_refs"].append(
+                {
+                    "scratch_run": run_index,
+                    "status": execution.status,
+                    "language": execution.language,
+                    "execution_attempted": execution.execution_attempted,
+                    "returncode": execution.returncode,
+                    "dependencies": list(execution.dependencies),
+                    "errors": list(execution.errors),
+                    "code_hash": execution.code_hash,
+                    "request_hash": execution.request_hash,
+                    "result_hash": execution.result_hash,
+                    "metrics_hash": stable_hash(execution.metrics),
+                    "code_path": execution.code_path,
+                    "request_path": execution.request_path,
+                    "result_path": execution.result_path,
+                    "runtime_edited_source": False,
+                    "runtime_edited_theory": False,
+                    "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+                }
+            )
+            return ClientToolExecutionResult(
+                content={"ok": True, **observation},
+                state_changed=True,
+                observation_key=(
+                    "theory-scratchpad:"
+                    + stable_hash(
+                        [
+                            workspace_id,
+                            run_index,
+                            execution.code_hash,
+                            execution.request_hash,
+                            execution.status,
+                            execution.result_hash,
+                            list(execution.errors),
+                        ]
+                    )
+                ),
+            )
+
         raise ClientToolInputError("unsupported theory workspace tool")
 
     catalog = {
@@ -323,6 +457,16 @@ def run_theory_artifact_workspace(
         "array. The runtime applies those exact operations without inventing "
         "content. "
     )
+    scratch_guidance = (
+        "Use run_theory_scratchpad when a small Python or R calculation, numerical "
+        "check, or counterexample would resolve a mathematical uncertainty. Submit "
+        "complete source defining run_sandbox(seed, replicates); the isolated runtime "
+        "executes those exact bytes and returns the raw observation. Interpret the "
+        "observation yourself before editing theory. Scratch output is exploratory, "
+        "not confirmatory simulation and not proof. "
+        if scratchpad is not None
+        else ""
+    )
     request = ClientToolTurnRequest(
         system_prompt=system_prompt,
         messages=(
@@ -333,6 +477,7 @@ def run_theory_artifact_workspace(
                     + "\n\nAuthoritative theory workspace catalog:\n"
                     + _compact_json(catalog)
                     + "\n\nRead the artifacts needed for mathematical judgment. "
+                    + scratch_guidance
                     + write_guidance
                     + "Each structurally valid model write is retained even when the "
                     "combined workspace still fails validation, so a validator "
@@ -383,6 +528,10 @@ def run_theory_artifact_workspace(
             "model_edit_operations": deepcopy(
                 state["model_edit_operations"]
             ),
+            "scratch_runs": state["scratch_runs"],
+            "scratch_execution_refs": deepcopy(
+                state["scratch_execution_refs"]
+            ),
             "last_validation_errors": list(state["last_validation_errors"]),
             "model_owned_theory": True,
             "runtime_edited_theory": False,
@@ -398,7 +547,12 @@ def run_theory_artifact_workspace(
             request=request,
             execute_tool=execute_tool,
             max_turns=max_turns,
-            max_tool_calls=max(max_turns, max_reads + max_submissions),
+            max_tool_calls=max(
+                max_turns,
+                max_reads
+                + max_submissions
+                + (scratchpad.max_runs if scratchpad is not None else 0),
+            ),
             max_no_progress_turns=max_no_progress_turns,
         )
     except ClientToolLoopError as exc:
@@ -494,6 +648,9 @@ def run_theory_artifact_workspace(
         "model_edit_operations": deepcopy(
             state["model_edit_operations"]
         ),
+        "scratchpad_enabled": scratchpad is not None,
+        "scratch_runs": state["scratch_runs"],
+        "scratch_execution_refs": deepcopy(state["scratch_execution_refs"]),
         "turns": loop.turns,
         "tool_calls": loop.tool_calls,
         "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
@@ -515,6 +672,8 @@ def run_theory_artifact_workspace(
 def _theory_workspace_tools(
     artifact_names: Sequence[str],
     writable_artifact_shapes: Mapping[str, str],
+    *,
+    scratchpad_enabled: bool = False,
 ) -> tuple[ClientToolDefinition, ...]:
     name_schema = {"type": "string", "enum": list(artifact_names)}
     read_tool = ClientToolDefinition(
@@ -537,8 +696,28 @@ def _theory_workspace_tools(
             },
         },
     )
-    return (
-        read_tool,
+    tools = [read_tool]
+    if scratchpad_enabled:
+        scratch_schema = generated_code_draft_json_schema(
+            artifact_properties={},
+            artifact_required=(),
+            code_max_length=100_000,
+        )
+        scratch_schema["properties"]["execution_profile"]["enum"] = [
+            SCIENTIFIC_WASM_SANDBOX_PROFILE
+        ]
+        tools.append(
+            ClientToolDefinition(
+                name=THEORY_SCRATCHPAD_TOOL,
+                description=(
+                    "Run one complete model-authored exploratory Python or R "
+                    "calculation in the isolated scientific sandbox. Raw execution "
+                    "results return to this session and never edit theory automatically."
+                ),
+                input_schema=scratch_schema,
+            )
+        )
+    tools.append(
         ClientToolDefinition(
             name="edit_theory_workspace",
             description=(
@@ -587,8 +766,9 @@ def _theory_workspace_tools(
                 },
             },
             terminal=True,
-        ),
+        )
     )
+    return tuple(tools)
 
 
 def _apply_theory_workspace_json_patch(
