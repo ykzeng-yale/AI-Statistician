@@ -4272,6 +4272,67 @@ def _lineage_bound_execution_return_to_source_producer(
     feedback = next_task.inputs.get("environment_feedback", {})
     if not isinstance(feedback, Mapping):
         return False
+    if feedback.get("feedback_type") == "confirmatory_simulation_outcome":
+        source_manifest_id = str(
+            feedback.get("source_manifest_id", "") or ""
+        ).strip()
+        source_manifest = blackboard.artifacts.get(source_manifest_id, {})
+        question = next_task.inputs.get("question", {})
+        source_question = (
+            source_manifest.get("question", {})
+            if isinstance(source_manifest, Mapping)
+            else {}
+        )
+        architect_context = next_task.inputs.get("architect_context", {})
+        accepted_reviews = (
+            architect_context.get(
+                "accepted_generated_code_semantic_reviews",
+                [],
+            )
+            if isinstance(architect_context, Mapping)
+            else []
+        )
+        source_manifest_hash = (
+            stable_hash(dict(source_manifest))
+            if isinstance(source_manifest, Mapping) and source_manifest
+            else ""
+        )
+        exact_source_reviewed = any(
+            isinstance(review, Mapping)
+            and review.get("overall_verdict") == "ACCEPT"
+            and review.get("source_subsystem") == "SimulationEvaluator"
+            and str(review.get("source_manifest_id", "") or "")
+            == source_manifest_id
+            and str(review.get("source_manifest_hash", "") or "")
+            == source_manifest_hash
+            for review in accepted_reviews or []
+        )
+        return bool(
+            next_task.owner_subsystem == "SimulationEvaluator"
+            and source_manifest_id
+            and isinstance(source_manifest, Mapping)
+            and source_manifest.get("artifact_kind")
+            == "RuntimeSimulationManifest"
+            and str(source_manifest.get("manifest_id", "") or "")
+            == source_manifest_id
+            and str(feedback.get("source_manifest_hash", "") or "")
+            == source_manifest_hash
+            and feedback.get("source_execution_valid") is True
+            and feedback.get("unchanged_source_retry_authorized") is False
+            and feedback.get("runtime_edited_source") is False
+            and str(feedback.get("source_subsystem", "") or "")
+            == "SimulationEvaluator"
+            and str(feedback.get("theory_packet_id", "") or "")
+            == str(source_manifest.get("theory_packet_id", "") or "")
+            and isinstance(question, Mapping)
+            and isinstance(source_question, Mapping)
+            and str(feedback.get("question_id", "") or "")
+            == str(question.get("id", "") or "")
+            == str(source_question.get("id", "") or "")
+            and feedback.get("confirmatory_evaluation_cohort")
+            == source_manifest.get("confirmatory_evaluation_cohort")
+            and exact_source_reviewed
+        )
     transport = feedback.get("observation_transport", {})
     if (
         not isinstance(transport, Mapping)

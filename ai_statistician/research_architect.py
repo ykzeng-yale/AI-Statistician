@@ -2521,7 +2521,10 @@ def _theory_workspace_revision_prompt(
             (
                 "Propagate each chosen revision through all dependent equations, "
                 "assumptions, estimators, theorem cards, simulation predictions, and "
-                "formalization requests that need to change."
+                "formalization requests that need to change. A self-critique or "
+                "sanity-check note does not override a contradictory authoritative "
+                "artifact; rewrite every affected authoritative artifact before "
+                "submitting."
             ),
             (
                 "Keep unresolved concerns explicit. Do not claim execution, observed "

@@ -722,6 +722,145 @@ def test_initial_lane_coverage_does_not_interrupt_bound_source_owner_loop() -> N
     assert continued.next_task is source_owner_task
 
 
+def test_lane_coverage_preserves_reviewed_confirmatory_source_revision() -> None:
+    question = OpenResearchQuestion(
+        id="generic-confirmatory-source-revision",
+        title="Generic confirmatory source revision",
+        description="Let the exact source owner revise from a reviewed outcome.",
+    )
+    theory_packet_id = "theory:generic"
+    algorithm_manifest_id = "algorithm:accepted"
+    simulation_manifest_id = "simulation:confirmatory-failed"
+    cohort = {
+        "artifact_kind": "RuntimeConfirmatoryEvaluationCohort",
+        "cohort_id": "confirmatory-cohort:parent",
+        "seed": 37,
+    }
+    source_manifest = {
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": simulation_manifest_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_packet_id": theory_packet_id,
+        "confirmatory_evaluation_cohort": cohort,
+        "simulation_passed": False,
+    }
+    source_manifest_hash = runtime_module.stable_hash(source_manifest)
+    context = _full_evidence_context(question.id)
+    context.update(
+        {
+            "theory_packet_id": theory_packet_id,
+            "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "accepted_generated_code_semantic_reviews": [
+                {
+                    "source_subsystem": "SimulationEvaluator",
+                    "source_manifest_id": simulation_manifest_id,
+                    "source_manifest_hash": source_manifest_hash,
+                    "overall_verdict": "ACCEPT",
+                    "parent_artifact_ids": {
+                        "theory_packet_id": theory_packet_id,
+                        "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+                    },
+                }
+            ],
+        }
+    )
+    feedback = {
+        "feedback_type": "confirmatory_simulation_outcome",
+        "source_subsystem": "SimulationEvaluator",
+        "source_manifest_id": simulation_manifest_id,
+        "source_manifest_hash": source_manifest_hash,
+        "question_id": question.id,
+        "theory_packet_id": theory_packet_id,
+        "confirmatory_evaluation_cohort": cohort,
+        "source_execution_valid": True,
+        "unchanged_source_retry_authorized": False,
+        "runtime_edited_source": False,
+    }
+    source_revision_task = AgentTask(
+        task_id="simulation-confirmatory-source-revision:generic",
+        owner_subsystem="SimulationEvaluator",
+        objective="Revise the exact source from the reviewed outcome.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "architect_context": context,
+            "environment_feedback": feedback,
+        },
+    )
+    result = AgentStepResult(
+        status="REROUTE",
+        rationale="Independent review accepted the source and released its outcome.",
+        next_task=source_revision_task,
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={
+            theory_packet_id: {"packet_id": theory_packet_id},
+            simulation_manifest_id: source_manifest,
+        },
+    )
+
+    continued = _runtime_transition_policy(
+        iteration=9,
+        task=AgentTask(
+            task_id="review:confirmatory-source",
+            owner_subsystem=(
+                runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+            ),
+            objective="Review the exact confirmatory source.",
+        ),
+        subsystem_name=(
+            runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        ),
+        result=result,
+        blackboard=blackboard,
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert continued is result
+    assert continued.next_task is source_revision_task
+
+    stale_feedback_task = replace(
+        source_revision_task,
+        inputs={
+            **source_revision_task.inputs,
+            "environment_feedback": {
+                **feedback,
+                "source_manifest_hash": "stale-source-manifest-hash",
+            },
+        },
+    )
+    rerouted = _runtime_transition_policy(
+        iteration=9,
+        task=AgentTask(
+            task_id="review:stale-confirmatory-source",
+            owner_subsystem=(
+                runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+            ),
+            objective="Reject stale confirmatory lineage.",
+        ),
+        subsystem_name=(
+            runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        ),
+        result=replace(result, next_task=stale_feedback_task),
+        blackboard=blackboard,
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert rerouted.next_task is not None
+    assert rerouted.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert rerouted.failure_classification == (
+        "runtime_required_evidence_lane_continuation"
+    )
+
+
 def test_theory_revision_retires_active_descendant_authority() -> None:
     context = {
         **_full_evidence_context("generic-parent-change"),
