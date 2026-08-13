@@ -1297,6 +1297,16 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     )
 
 
+def test_default_theory_workspace_budget_allows_observation_recovery() -> None:
+    config = ResearchArchitectConfig()
+
+    assert config.theory_workspace_max_turns >= (
+        config.theory_workspace_max_reads
+        + config.theory_workspace_max_submissions
+        + 2
+    )
+
+
 def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> None:
     parent = _serious_sample_response()
     stale_parent = _serious_sample_response()

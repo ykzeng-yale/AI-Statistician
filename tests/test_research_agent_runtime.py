@@ -82,6 +82,10 @@ def test_research_evaluation_is_pinned_to_exact_haiku_snapshot() -> None:
         )
 
 
+def test_theory_scratch_budget_allows_failure_correction_and_recheck() -> None:
+    assert ResearchAgentRuntimeConfig().theory_scratch_max_runs >= 3
+
+
 def test_confirmatory_simulation_prompt_can_withhold_the_execution_seed() -> None:
     question = OpenResearchQuestion(
         id="generic-seed-blind",

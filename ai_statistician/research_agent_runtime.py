@@ -300,7 +300,7 @@ class ResearchAgentRuntimeConfig:
     seed: int = 20260528
     generated_simulation_timeout_seconds: int = 60
     theory_scratch_timeout_seconds: int = 20
-    theory_scratch_max_runs: int = 2
+    theory_scratch_max_runs: int = 3
     max_iterations: int = 12
     max_subsystem_retries: int = 1
     max_critic_revision_rounds: int = 1
@@ -4773,7 +4773,7 @@ class TheoryDeveloperRuntimeSubsystem:
         seed: int,
         scratch_sandbox_root: Path | None = None,
         scratch_timeout_s: int = 20,
-        scratch_max_runs: int = 2,
+        scratch_max_runs: int = 3,
     ) -> None:
         self.theory_developer = theory_developer
         self.n_runs = n_runs

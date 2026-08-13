@@ -463,7 +463,9 @@ def run_theory_artifact_workspace(
         "complete source defining run_sandbox(seed, replicates); the isolated runtime "
         "executes those exact bytes and returns the raw observation. Interpret the "
         "observation yourself before editing theory. Scratch output is exploratory, "
-        "not confirmatory simulation and not proof. "
+        "not confirmatory simulation and not proof. Never promote finite scratch "
+        "output into a universal mathematical premise; supply a mathematical "
+        "argument or narrow the claim instead. "
         if scratchpad is not None
         else ""
     )
