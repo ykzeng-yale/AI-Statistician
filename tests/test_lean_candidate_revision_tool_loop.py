@@ -558,12 +558,10 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
     assert result.lean_source == revised
     assert result.evidence["lean_state_inspections"] == 1
     assert "inspect_lean_state" in result.evidence["tool_names"]
-    assert "inspect_lean_state" not in {
-        tool.name for tool in backend.requests[0].tools
-    }
-    assert "inspect_lean_state" in {
-        tool.name for tool in backend.requests[1].tools
-    }
+    assert all(
+        "inspect_lean_state" in {tool.name for tool in request.tools}
+        for request in backend.requests
+    )
 
 
 def test_model_selects_exact_declaration_inspection_inside_same_source_loop() -> None:
@@ -785,7 +783,7 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
     assert all(request.disable_parallel_tool_use for request in backend.requests)
 
 
-def test_lean_candidate_workspace_returns_to_source_after_bounded_context_streak() -> None:
+def test_lean_candidate_workspace_keeps_stable_tools_and_full_history() -> None:
     authored = "theorem target : True := by\n  exact True.intro\n"
     backend = ScriptedLeanToolBackend(
         [
@@ -797,7 +795,7 @@ def test_lean_candidate_workspace_returns_to_source_after_bounded_context_streak
                         {"query": f"declaration query {index}"},
                     )
                 )
-                for index in range(3)
+                for index in range(5)
             ],
             _response(
                 ClientToolCall(
@@ -817,7 +815,7 @@ def test_lean_candidate_workspace_returns_to_source_after_bounded_context_streak
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=6,
+        max_turns=7,
         max_no_progress_turns=2,
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
@@ -832,14 +830,25 @@ def test_lean_candidate_workspace_returns_to_source_after_bounded_context_streak
         },
     )
 
-    assert len(backend.requests[-1].messages) == 7
-    assert [tool.name for tool in backend.requests[-1].tools] == [
-        LEAN_SOURCE_SUBMISSION_TOOL
-    ]
-    assert result.evidence["max_retained_tool_turns"] == 4
-    assert result.evidence["formal_environment_searches"] == 3
-    assert result.evidence["max_consecutive_context_actions"] == 3
-    assert result.evidence["context_actions_since_source_submission"] == 0
+    expected_tools = {
+        LEAN_SOURCE_SUBMISSION_TOOL,
+        "search_formal_environment",
+    }
+    assert all(
+        {tool.name for tool in request.tools} == expected_tools
+        for request in backend.requests
+    )
+    assert len(backend.requests[-1].messages) == 11
+    final_context = json.dumps(backend.requests[-1].messages, sort_keys=True)
+    assert all(
+        f"declaration query {index}" in final_context for index in range(5)
+    )
+    assert result.evidence["max_retained_tool_turns"] is None
+    assert result.evidence["transcript_policy"] == "full_linear_history"
+    assert result.evidence["tool_surface_policy"] == "stable_for_workspace"
+    assert result.evidence["formal_environment_searches"] == 5
+    assert "max_consecutive_context_actions" not in result.evidence
+    assert "context_actions_since_source_submission" not in result.evidence
 
 
 def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> None:
