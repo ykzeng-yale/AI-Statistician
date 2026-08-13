@@ -857,13 +857,11 @@ def test_lean_candidate_workspace_keeps_stable_tools_and_current_snapshot() -> N
         {tool.name for tool in request.tools} == expected_tools
         for request in backend.requests
     )
-    assert len(backend.requests[-1].messages) == 5
+    assert len(backend.requests[-1].messages) == 9
     final_context = json.dumps(backend.requests[-1].messages, sort_keys=True)
     assert "declaration query 0" not in final_context
-    assert "declaration query 1" not in final_context
-    assert "declaration query 2" not in final_context
     assert all(
-        f"declaration query {index}" in final_context for index in range(3, 5)
+        f"declaration query {index}" in final_context for index in range(1, 5)
     )
     assert final_context.count("CURRENT_WORKSPACE_SNAPSHOT") == 2
     snapshot = _workspace_snapshot(backend.requests[-1])
@@ -872,7 +870,7 @@ def test_lean_candidate_workspace_keeps_stable_tools_and_current_snapshot() -> N
     assert "latest_proof_search" not in snapshot
     assert "latest_state_inspection" not in snapshot
     assert "latest_declaration_inspection" not in snapshot
-    assert result.evidence["max_retained_tool_turns"] == 2
+    assert result.evidence["max_retained_tool_turns"] == 4
     assert result.evidence["max_terminal_recovery_turns"] == 1
     assert result.evidence["transcript_policy"] == (
         "rolling_history_plus_authoritative_snapshot"

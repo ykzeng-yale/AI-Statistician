@@ -158,7 +158,7 @@ def run_lean_candidate_revision_tool_loop(
     workspace_phase = "revision" if parent_source.strip() else "initial_authoring"
     # Lean authoring is one durable coding-agent session. Keep its tool surface
     # stable while carrying current authoritative state outside the rolling history.
-    max_retained_tool_turns = min(max_turns, 2)
+    max_retained_tool_turns = min(max_turns, 4)
     max_terminal_recovery_turns = 1
     state: dict[str, Any] = {
         "source": parent_source,
