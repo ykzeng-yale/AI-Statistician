@@ -2608,6 +2608,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         temperature=temperature,
         tool_choice="any",
         disable_parallel_tool_use=False,
+        enable_prompt_caching=True,
         metadata={
             "subsystem": "ArchitectMetricSemanticReviewer",
             "agent": "LLMArchitectMetricSemanticReviewerAgent",

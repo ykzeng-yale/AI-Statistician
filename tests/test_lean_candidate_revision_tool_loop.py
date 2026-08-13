@@ -186,6 +186,7 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
         request.model == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
         for request in backend.requests
     )
+    assert all(request.enable_prompt_caching for request in backend.requests)
     assert set(tool.name for tool in backend.requests[0].tools) == {
         LEAN_SOURCE_SUBMISSION_TOOL,
         "search_formal_environment",

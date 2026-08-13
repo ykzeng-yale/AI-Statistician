@@ -117,6 +117,7 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
     assert result.evidence["runtime_executed_tool_calls"] == 1
     assert result.evidence["submit_and_execute_atomic"] is True
     assert "NameError: missing_name" in str(backend.requests[0].messages)
+    assert all(request.enable_prompt_caching for request in backend.requests)
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL
     ]

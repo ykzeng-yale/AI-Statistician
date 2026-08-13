@@ -840,6 +840,7 @@ def run_scientific_code_workspace(
         temperature=temperature,
         tool_choice="any",
         disable_parallel_tool_use=True,
+        enable_prompt_caching=True,
         metadata={
             **dict(request_metadata or {}),
             "model_tier": model_tier,

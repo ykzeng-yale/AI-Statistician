@@ -590,6 +590,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert backend.requests[0].tools[1].strict is True
     assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert backend.requests[0].disable_parallel_tool_use is False
+    assert all(request.enable_prompt_caching for request in backend.requests)
     first_result = json.loads(
         backend.requests[1].messages[-1]["content"][0]["content"]
     )
