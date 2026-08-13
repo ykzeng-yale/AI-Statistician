@@ -409,31 +409,74 @@ def test_bounded_client_tool_loop_allows_one_rejected_terminal_recovery() -> Non
     ] == 1
 
 
-def test_bounded_client_tool_loop_does_not_extend_without_rejected_submit() -> None:
+def test_bounded_client_tool_loop_requests_terminal_decision_at_standard_budget() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit", "edit", {})),
             _response(text="I am not ready."),
+            _response(ClientToolCall("call-submit", "submit", {})),
         ]
     )
 
-    with pytest.raises(ClientToolLoopError) as exc_info:
-        run_bounded_client_tool_loop(
-            backend=backend,
-            request=_request(),
-            execute_tool=lambda call, context: ClientToolExecutionResult(
-                content={"ok": True},
-                state_changed=True,
-                observation_key="edited",
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=lambda call, context: ClientToolExecutionResult(
+            content={"ok": True},
+            state_changed=call.name == "edit",
+            terminal=call.name == "submit",
+            terminal_payload=(
+                {"submitted": True} if call.name == "submit" else None
             ),
-            max_turns=2,
-            max_tool_calls=3,
-            max_no_progress_turns=2,
-            max_terminal_recovery_turns=1,
-        )
+            observation_key=call.name,
+        ),
+        max_turns=2,
+        max_tool_calls=3,
+        max_no_progress_turns=2,
+        max_terminal_recovery_turns=1,
+    )
 
-    assert exc_info.value.turns == 2
-    assert len(backend.requests) == 2
+    assert result.terminal_payload == {"submitted": True}
+    assert result.turns == 3
+    assert [tool.name for tool in backend.requests[-1].tools] == ["submit"]
+    assert "final disposition" in str(backend.requests[-1].messages[-1]["content"])
+    assert backend.requests[-1].metadata[
+        "client_tool_loop_terminal_decision_reason"
+    ] == "standard client-tool turn budget exhausted"
+
+
+def test_bounded_client_tool_loop_requests_terminal_decision_on_no_progress() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-check-1", "check", {})),
+            _response(ClientToolCall("call-check-2", "check", {})),
+            _response(ClientToolCall("call-submit", "submit", {})),
+        ]
+    )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=lambda call, context: ClientToolExecutionResult(
+            content={"ok": True},
+            terminal=call.name == "submit",
+            terminal_payload=(
+                {"submitted": True} if call.name == "submit" else None
+            ),
+            observation_key=call.name,
+        ),
+        max_turns=5,
+        max_tool_calls=3,
+        max_no_progress_turns=1,
+        max_terminal_recovery_turns=1,
+    )
+
+    assert result.terminal_payload == {"submitted": True}
+    assert result.turns == 3
+    assert [tool.name for tool in backend.requests[-1].tools] == ["submit"]
+    assert backend.requests[-1].metadata[
+        "client_tool_loop_terminal_decision_reason"
+    ] == "repeated client-tool turns made no new progress"
 
 
 def test_bounded_client_tool_loop_never_executes_unknown_tool() -> None:

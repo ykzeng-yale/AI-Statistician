@@ -1033,6 +1033,76 @@ def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -
     assert recovery_snapshot["budget"]["terminal_recovery_turn"] is True
 
 
+def test_lean_candidate_workspace_makes_terminal_decision_after_repeated_context() -> None:
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "search-1",
+                    "search_formal_environment",
+                    {"query": "target premise"},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "search-2",
+                    "search_formal_environment",
+                    {"query": "target premise"},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "gap",
+                    LEAN_FORMAL_GAP_TOOL,
+                    {
+                        "summary": "The active project lacks the required premise.",
+                        "missing_primitives": ["target premise"],
+                        "blocking_observations": ["Repeated search returned no premise."],
+                    },
+                )
+            ),
+        ]
+    )
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Author the exact target or report a grounded gap.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=5,
+        max_no_progress_turns=1,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source="",
+        check_candidate=lambda source, _declaration: {
+            "source_hash": stable_hash(source),
+            "compiled": False,
+        },
+        search_formal_environment=lambda query, k: {
+            "query": query,
+            "max_results": k,
+            "results": [],
+        },
+        allow_formal_gap=True,
+    )
+
+    assert result.disposition == "FORMAL_GAP"
+    assert result.evidence["turns"] == 3
+    assert [tool.name for tool in backend.requests[-1].tools] == [
+        LEAN_SOURCE_SUBMISSION_TOOL,
+        LEAN_FORMAL_GAP_TOOL,
+    ]
+    assert _workspace_snapshot(backend.requests[-1])["budget"][
+        "terminal_recovery_turn"
+    ] is True
+    assert backend.requests[-1].metadata[
+        "client_tool_loop_terminal_decision_reason"
+    ] == "repeated client-tool turns made no new progress"
+
+
 def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> None:
     sources = [
         f"theorem target : True := by\n  exact candidate_{index}\n"
