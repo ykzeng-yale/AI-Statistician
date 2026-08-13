@@ -3815,6 +3815,10 @@ RUNTIME_PRIMARY_EVIDENCE_SUBSYSTEMS = (
     "SimulationEvaluator",
     "FormalizationEvaluator",
 )
+RUNTIME_REVIEWED_SOURCE_MANIFEST_FIELD_BY_SUBSYSTEM = {
+    "AlgorithmEngineer": "algorithm_sandbox_manifest_id",
+    "SimulationEvaluator": "simulation_manifest_id",
+}
 
 
 def _runtime_outer_graph_plan(
@@ -3877,17 +3881,16 @@ def _runtime_executed_subsystems(
             and dict(observed_parents) == expected_parents
         ):
             executed.add(subsystem)
-    manifest_field_by_subsystem = {
-        "AlgorithmEngineer": "algorithm_sandbox_manifest_id",
-        "SimulationEvaluator": "simulation_manifest_id",
-    }
     for review in architect_context.get(
         "accepted_generated_code_semantic_reviews", []
     ) or []:
         if not isinstance(review, Mapping):
             continue
         subsystem = str(review.get("source_subsystem", "") or "")
-        manifest_field = manifest_field_by_subsystem.get(subsystem, "")
+        manifest_field = RUNTIME_REVIEWED_SOURCE_MANIFEST_FIELD_BY_SUBSYSTEM.get(
+            subsystem,
+            "",
+        )
         if (
             not manifest_field
             or str(review.get("overall_verdict", "") or "").strip().upper()
@@ -7767,6 +7770,18 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     accepted_review=accepted_review,
                 )
             )
+            reviewed_manifest_field = (
+                RUNTIME_REVIEWED_SOURCE_MANIFEST_FIELD_BY_SUBSYSTEM.get(
+                    source_subsystem,
+                    "",
+                )
+            )
+            reviewed_manifest_id = str(
+                accepted_review.get("source_manifest_id", "") or ""
+            ).strip()
+            if reviewed_manifest_field and reviewed_manifest_id:
+                next_inputs[reviewed_manifest_field] = reviewed_manifest_id
+                next_context[reviewed_manifest_field] = reviewed_manifest_id
             if algorithm_handoff:
                 next_inputs["upstream_algorithm_handoff"] = algorithm_handoff
                 next_context["upstream_algorithm_handoff"] = algorithm_handoff

@@ -2448,7 +2448,9 @@ def _initial_theory_workspace_prompt(
         "estimators, theorem cards, simulation semantics, and formal targets mutually "
         "consistent. Treat IDs as exact references: the formalization handoff and "
         "every formalization request must name an existing theorem-card ID. Record "
-        "uncertainty explicitly. Do not claim execution, Lean "
+        "uncertainty explicitly. A failed scratch execution is diagnostic only; do "
+        "not promote guessed or model-computed numbers from it into observed results. "
+        "Do not claim execution, Lean "
         "proof, or kernel verification. The runtime applies only your exact edits and "
         "will not choose, fill, or rewrite any substantive field."
     )
@@ -2522,9 +2524,14 @@ def _theory_workspace_revision_prompt(
                 "Propagate each chosen revision through all dependent equations, "
                 "assumptions, estimators, theorem cards, simulation predictions, and "
                 "formalization requests that need to change. A self-critique or "
-                "sanity-check note does not override a contradictory authoritative "
-                "artifact; rewrite every affected authoritative artifact before "
-                "submitting."
+                "sanity-check note, critic finding, or next action does not override "
+                "a contradictory authoritative artifact; rewrite every affected "
+                "authoritative artifact before submitting."
+            ),
+            (
+                "A scratch execution with a failed status or nonempty errors is "
+                "diagnostic only. Do not promote guessed or model-computed numbers "
+                "from it into observed results or empirical evidence."
             ),
             (
                 "Keep unresolved concerns explicit. Do not claim execution, observed "

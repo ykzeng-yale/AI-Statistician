@@ -2823,6 +2823,201 @@ def test_accepted_review_ledger_preserves_distinct_workspace_lineages() -> None:
     )
 
 
+def test_accepted_simulation_review_completes_current_outer_graph_lane(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="generic-reviewed-simulation",
+        title="Generic reviewed simulation",
+        description="Do not rerun an accepted simulation lineage after formalization.",
+    )
+    theory_packet_id = "theory:generic"
+    algorithm_manifest_id = "algorithm:accepted"
+    simulation_manifest_id = "simulation:accepted"
+    source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'generic_metric': 1.0}\n"
+    )
+    result_payload = {"generic_metric": 1.0}
+    source_path = tmp_path / "simulation.py"
+    result_path = tmp_path / "simulation.json"
+    source_path.write_text(source, encoding="utf-8")
+    result_path.write_text(json.dumps(result_payload), encoding="utf-8")
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+    }
+    proposal_packet = {
+        "artifact_kind": "SimulationEngineerProposalPacket",
+        "packet_id": "simulation-proposal:accepted",
+        "source_agent": "LLMSimulationEngineerAgent",
+        "model": "static-author",
+        "model_tier": "haiku",
+    }
+    source_manifest = {
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": simulation_manifest_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_packet_id": theory_packet_id,
+        "llm_simulation_engineer_proposal_id": proposal_packet["packet_id"],
+        "generated_simulation_sandbox_prototypes": [
+            {
+                "simulation_id": "generic-simulation",
+                "prototype_status": "EXECUTED",
+                "executor": "generated_simulation_sandbox",
+                "language": "python",
+                "source_code": source,
+                "script_path": str(source_path),
+                "script_hash": runtime_module.stable_hash(source),
+                "result_path": str(result_path),
+                "result_hash": runtime_module.stable_hash(result_payload),
+                "metrics": result_payload,
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+                "execution_attempted": True,
+                "runtime_seed": 7,
+                "runtime_replicates": 8,
+            }
+        ],
+    }
+    accepted_algorithm_review = {
+        "execution_id": "review:algorithm-accepted",
+        "source_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": algorithm_manifest_id,
+        "overall_verdict": "ACCEPT",
+        "parent_artifact_ids": {"theory_packet_id": theory_packet_id},
+    }
+    context = _full_evidence_context(question.id)
+    context.update(
+        {
+            "theory_packet_id": theory_packet_id,
+            "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+            "accepted_generated_code_semantic_reviews": [
+                accepted_algorithm_review
+            ],
+        }
+    )
+    source_task = AgentTask(
+        task_id="simulation:generic-reviewed-simulation",
+        owner_subsystem="SimulationEvaluator",
+        objective="Author and execute the simulation source.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+            "architect_context": context,
+        },
+    )
+    deferred_task = AgentTask(
+        task_id="formalize:generic-reviewed-simulation",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Formalize after accepted simulation evidence.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+            "architect_context": context,
+        },
+    )
+    base_artifacts = {
+        theory_packet_id: theory_packet,
+        proposal_packet["packet_id"]: proposal_packet,
+        simulation_manifest_id: source_manifest,
+    }
+    dispatch = _runtime_generated_code_semantic_review_dispatch(
+        task=source_task,
+        question=question,
+        source_subsystem="SimulationEvaluator",
+        source_manifest=source_manifest,
+        theory_packet=theory_packet,
+        proposal_packet=proposal_packet,
+        architect_context=context,
+        deferred_next_task=deferred_task,
+        blackboard_artifacts=base_artifacts,
+        max_revisions=1,
+    )
+    assert dispatch is not None
+    response = {
+        "prior_finding_reviews": [],
+        "dimension_reviews": {
+            dimension: {
+                "status": "PASS",
+                "rationale": "The exact executed source matches its supplied contract.",
+                "evidence_refs": [
+                    "/exact_executed_artifacts/0/exact_source_code"
+                ],
+            }
+            for dimension in GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
+        },
+        "findings": [],
+        "source_revision_assessment": {
+            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "rationale": "No parent artifact change is required.",
+            "evidence_refs": [
+                "/exact_executed_artifacts/0/exact_source_code"
+            ],
+        },
+    }
+    reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+    blackboard = BlackboardState(project_id=question.id)
+    blackboard.artifacts.update(base_artifacts)
+    blackboard.artifacts.update(dispatch["artifacts"])
+
+    outcome = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=reviewer,
+        max_revisions=1,
+    ).run(dispatch["next_task"], blackboard)
+
+    assert outcome.status == "REROUTE", (
+        outcome.rationale,
+        outcome.failure_classification,
+        outcome.observations,
+    )
+    assert outcome.next_task is not None
+    assert outcome.next_task.owner_subsystem == "FormalizationEvaluator"
+    next_context = outcome.next_task.inputs["architect_context"]
+    assert outcome.next_task.inputs["simulation_manifest_id"] == (
+        simulation_manifest_id
+    )
+    assert next_context["simulation_manifest_id"] == simulation_manifest_id
+    assert "SimulationEvaluator" in runtime_module._runtime_executed_subsystems(
+        architect_context=next_context
+    )
+
+    after_formalization = _runtime_transition_policy(
+        iteration=10,
+        task=outcome.next_task,
+        subsystem_name="FormalizationEvaluator",
+        result=AgentStepResult(
+            status="BLOCKED",
+            rationale="The formal workspace recorded its exact blocker.",
+            failure_classification="formalizer_client_tool_loop_exhausted",
+        ),
+        blackboard=BlackboardState(
+            project_id=question.id,
+            artifacts={
+                **blackboard.artifacts,
+                **outcome.produced_artifacts,
+            },
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert after_formalization.next_task is not None
+    assert after_formalization.next_task.owner_subsystem == "CriticEvaluator"
+
+
 def test_review_acceptance_does_not_reopen_the_same_algorithm_task() -> None:
     question = OpenResearchQuestion(
         id="generic-reviewed-continuation",

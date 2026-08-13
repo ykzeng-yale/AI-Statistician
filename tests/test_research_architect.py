@@ -1335,7 +1335,8 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     assert json.dumps(revision_inputs["base_core_payload"]) not in first_prompt
     assert "Authoritative theory workspace catalog" in first_prompt
     assert "First read reviewer_observations by itself" in first_prompt
-    assert "self-critique or sanity-check note does not override" in first_prompt
+    assert "critic finding, or next action does not override" in first_prompt
+    assert "failed status or nonempty errors is diagnostic only" in first_prompt
     assert revised_core["lemma_cards"][0]["id"] in str(
         provider.tool_requests[1].messages
     )
