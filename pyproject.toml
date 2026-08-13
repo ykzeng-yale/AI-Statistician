@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "Agentic AI statistician prototype with simulation and Lean proof verification hooks"
 requires-python = ">=3.11"
 dependencies = [
-  "jsonpatch>=1.33",
   "numpy>=1.26",
 ]
 

@@ -42,7 +42,7 @@ from .theory_revision_lineage import (
     theory_developer_revision_binding_errors,
 )
 from .theory_workspace import (
-    THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
+    THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
     TheoryScratchpadConfig,
     run_theory_artifact_workspace,
 )
@@ -2513,10 +2513,9 @@ def _theory_workspace_revision_prompt(
                 "possible defects and are not an answer key or repair recipe."
             ),
             (
-                "Use atomic edit_theory_workspace operations for the exact values "
-                "whose semantics you choose to change. Unedited values remain "
-                "byte-identical; replace an artifact root only for a genuinely broad "
-                "rewrite."
+                "Use write_theory_artifacts for complete artifact values whose "
+                "semantics you choose to change. Unsubmitted artifacts remain "
+                "byte-identical."
             ),
             (
                 "Propagate each chosen revision through all dependent equations, "
@@ -2609,7 +2608,7 @@ def _attach_theory_workspace_revision_transport(
         "changed_artifact_names": sorted(
             {str(name) for name in changed_artifact_names if str(name)}
         ),
-        "write_transport": THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
+        "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
         "model_owned_artifact_edits": True,
         "runtime_edited_theory": False,
         "semantic_revision_owner": "TheoryDeveloper",
@@ -2646,7 +2645,7 @@ def _theory_revision_transport_lineage_errors(
         "parent_core_payload_fingerprint": revision_inputs.get(
             "base_core_payload_fingerprint", ""
         ),
-        "write_transport": THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
+        "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
         "model_owned_artifact_edits": True,
         "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
         "kernel_verified": False,
@@ -2685,25 +2684,25 @@ def _validate_theory_workspace_revision_packet(
     if transport.get("model_owned_artifact_edits") is not True:
         errors.append("theory workspace revision is not model-owned")
     if require_workspace_edit_evidence:
-        operation_count = transport.get("model_edit_operation_count", 0)
-        if not isinstance(operation_count, int) or operation_count < 1:
-            errors.append("theory workspace revision has no model-authored edits")
+        write_count = transport.get("model_artifact_write_count", 0)
+        if not isinstance(write_count, int) or write_count < 1:
+            errors.append("theory workspace revision has no model-authored writes")
         workspace_evidence = packet.get("llm_client_tool_loop", {})
         if not isinstance(workspace_evidence, Mapping):
             errors.append("theory workspace revision has no workspace evidence")
         else:
-            operations = workspace_evidence.get("model_edit_operations", [])
-            if not isinstance(operations, list):
-                errors.append("theory workspace edit evidence is not an array")
-                operations = []
-            if operation_count != len(operations):
-                errors.append("theory workspace edit operation count mismatch")
-            if transport.get("model_edit_operations_hash") != stable_hash(
-                operations
+            writes = workspace_evidence.get("model_artifact_writes", [])
+            if not isinstance(writes, list):
+                errors.append("theory workspace write evidence is not an array")
+                writes = []
+            if write_count != len(writes):
+                errors.append("theory workspace artifact write count mismatch")
+            if transport.get("model_artifact_writes_hash") != stable_hash(
+                writes
             ):
-                errors.append("theory workspace edit operation hash mismatch")
+                errors.append("theory workspace artifact write hash mismatch")
             if workspace_evidence.get("write_transport") != (
-                THEORY_WORKSPACE_JSON_PATCH_TRANSPORT
+                THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT
             ):
                 errors.append("theory workspace write transport evidence mismatch")
     if transport.get("runtime_edited_theory") is not False:
@@ -2847,11 +2846,11 @@ def _generate_initial_theory_artifact_workspace(
     if workspace_evidence.get("workspace_operation") != "initial_discovery":
         errors.append("initial theory workspace operation identity mismatch")
     if workspace_evidence.get("write_transport") != (
-        THEORY_WORKSPACE_JSON_PATCH_TRANSPORT
+        THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT
     ):
         errors.append("initial theory workspace write transport mismatch")
-    if int(workspace_evidence.get("n_model_edit_operations", 0) or 0) < 1:
-        errors.append("initial theory workspace has no model-authored edits")
+    if int(workspace_evidence.get("n_model_artifact_writes", 0) or 0) < 1:
+        errors.append("initial theory workspace has no model-authored writes")
     if workspace_evidence.get("runtime_edited_theory") is not False:
         errors.append("runtime cannot edit initial theory workspace semantics")
     if errors:
@@ -3004,11 +3003,11 @@ def _generate_theory_workspace_revision(
         workspace_evidence.get("artifact_id", "") or ""
     )
     transport["workspace_evidence_hash"] = stable_hash(workspace_evidence)
-    transport["model_edit_operation_count"] = int(
-        workspace_evidence.get("n_model_edit_operations", 0) or 0
+    transport["model_artifact_write_count"] = int(
+        workspace_evidence.get("n_model_artifact_writes", 0) or 0
     )
-    transport["model_edit_operations_hash"] = stable_hash(
-        workspace_evidence.get("model_edit_operations", [])
+    transport["model_artifact_writes_hash"] = stable_hash(
+        workspace_evidence.get("model_artifact_writes", [])
     )
     packet["theory_revision_transport"] = transport
     errors = _validate_theory_workspace_revision_packet(

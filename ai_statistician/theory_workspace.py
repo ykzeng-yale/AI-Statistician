@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-import jsonpatch
-
 from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
@@ -25,7 +23,8 @@ from .structured_output_retry import PacketValidationError
 
 
 THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
-THEORY_WORKSPACE_JSON_PATCH_TRANSPORT = "rfc6902_json_patch"
+THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "direct_artifact_replacement_v1"
+THEORY_WORKSPACE_WRITE_TOOL = "write_theory_artifacts"
 THEORY_SCRATCHPAD_TOOL = "run_theory_scratchpad"
 THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE = (
     "THEORY_SCRATCHPAD_EXECUTION_NOT_PROOF_EVIDENCE"
@@ -139,7 +138,7 @@ def run_theory_artifact_workspace(
         "submissions": 0,
         "last_validation_errors": [],
         "last_candidate": {},
-        "model_edit_operations": [],
+        "model_artifact_writes": [],
         "scratch_runs": 0,
         "scratch_execution_refs": [],
     }
@@ -164,21 +163,21 @@ def run_theory_artifact_workspace(
     def evaluate_model_write(
         candidate_artifacts: Mapping[str, Any],
         *,
-        edit_operations: Sequence[Mapping[str, Any]] = (),
+        artifact_writes: Sequence[Mapping[str, Any]] = (),
     ) -> ClientToolExecutionResult:
         state["submissions"] += 1
         state_changed = stable_hash(candidate_artifacts) != stable_hash(
             state["artifacts"]
         )
         state["artifacts"] = deepcopy(dict(candidate_artifacts))
-        if state_changed and edit_operations:
-            state["model_edit_operations"].extend(
+        if state_changed and artifact_writes:
+            state["model_artifact_writes"].extend(
                 [
                     {
                         "submission_index": state["submissions"] - 1,
                         **deepcopy(dict(row)),
                     }
-                    for row in edit_operations
+                    for row in artifact_writes
                 ]
             )
         changed = changed_artifact_names(candidate_artifacts)
@@ -210,8 +209,8 @@ def run_theory_artifact_workspace(
             "changed_artifact_names": list(changed),
             "submissions": state["submissions"],
             "remaining_submissions": remaining_submissions,
-            "write_transport": THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
-            "model_edit_operations_applied": len(edit_operations),
+            "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
+            "model_artifact_writes_applied": len(artifact_writes),
             "runtime_edited_theory": False,
         }
         if errors:
@@ -315,21 +314,21 @@ def run_theory_artifact_workspace(
                 ),
             )
 
-        if call.name == "edit_theory_workspace":
+        if call.name == THEORY_WORKSPACE_WRITE_TOOL:
             if state["submissions"] >= max_submissions:
                 raise ClientToolInputError(
                     "theory workspace submission budget is exhausted"
                 )
-            candidate_artifacts, operation_records = (
-                _apply_theory_workspace_json_patch(
+            candidate_artifacts, write_records = (
+                _replace_theory_workspace_artifacts(
                     state["artifacts"],
-                    tool_input.get("operations"),
+                    tool_input.get("artifacts"),
                     writable_artifact_shapes=parent_shapes,
                 )
             )
             return evaluate_model_write(
                 candidate_artifacts,
-                edit_operations=operation_records,
+                artifact_writes=write_records,
             )
 
         if call.name == THEORY_SCRATCHPAD_TOOL:
@@ -447,19 +446,11 @@ def run_theory_artifact_workspace(
         for name in artifact_names
     }
     write_guidance = (
-        "Use edit_theory_workspace to apply model-authored RFC 6902 add, "
-        "remove, or replace operations to writable artifacts. Each path is "
-        "an RFC 6901 JSON Pointer inside the named artifact; path '' addresses "
-        "the artifact root and '/-' appends one element to an array. Preserve "
-        "each artifact's catalog shape: populate an array with '/-' operations "
-        "or replace its root with an array, never with a single object. An add at "
-        "an object-member path sets that one member; repeated adds at "
-        "the same object path replace the previous value rather than accumulating. "
-        "To create a nested array, add the complete array once, or add [] once and "
-        "then append elements through '/field/-'. Put every "
-        "mutually dependent edit you already know into one atomic operations "
-        "array. The runtime applies those exact operations without inventing "
-        "content. "
+        "Use write_theory_artifacts to replace one or more writable artifacts "
+        "with your complete model-authored JSON values. Omitted artifacts remain "
+        "byte-identical. Group mutually dependent artifacts into one atomic "
+        "artifacts object. The runtime stores those exact values without merging, "
+        "patching, or inventing content. "
     )
     scratch_guidance = (
         "Use run_theory_scratchpad when a small Python or R calculation, numerical "
@@ -508,7 +499,7 @@ def run_theory_artifact_workspace(
             "question_id": question_id,
             "authoring_binding_id": authoring_binding_id,
             "workspace_operation": workspace_operation,
-            "write_transport": THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
+            "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
             "parent_workspace_hash": parent_hash,
         },
     )
@@ -522,7 +513,7 @@ def run_theory_artifact_workspace(
             "question_id": question_id,
             "authoring_binding_id": authoring_binding_id,
             "workspace_operation": workspace_operation,
-            "write_transport": THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
+            "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
             "parent_workspace_hash": parent_hash,
             "current_workspace_hash": stable_hash(current_artifacts),
             "current_artifacts": current_artifacts,
@@ -531,8 +522,8 @@ def run_theory_artifact_workspace(
             ),
             "reads": state["reads"],
             "submissions": state["submissions"],
-            "model_edit_operations": deepcopy(
-                state["model_edit_operations"]
+            "model_artifact_writes": deepcopy(
+                state["model_artifact_writes"]
             ),
             "scratch_runs": state["scratch_runs"],
             "scratch_execution_refs": deepcopy(
@@ -638,7 +629,7 @@ def run_theory_artifact_workspace(
         "authoring_binding_id": authoring_binding_id,
         "workspace_operation": workspace_operation,
         "transport": "native_client_tools",
-        "write_transport": THEORY_WORKSPACE_JSON_PATCH_TRANSPORT,
+        "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
         "parent_workspace_hash": parent_hash,
         "submitted_workspace_hash": str(terminal.get("workspace_hash", "") or ""),
         "submitted_core_packet_hash": packet_hash,
@@ -650,9 +641,9 @@ def run_theory_artifact_workspace(
         ),
         "reads": state["reads"],
         "submissions": state["submissions"],
-        "n_model_edit_operations": len(state["model_edit_operations"]),
-        "model_edit_operations": deepcopy(
-            state["model_edit_operations"]
+        "n_model_artifact_writes": len(state["model_artifact_writes"]),
+        "model_artifact_writes": deepcopy(
+            state["model_artifact_writes"]
         ),
         "scratchpad_enabled": scratchpad is not None,
         "scratch_runs": state["scratch_runs"],
@@ -725,51 +716,26 @@ def _theory_workspace_tools(
         )
     tools.append(
         ClientToolDefinition(
-            name="edit_theory_workspace",
+            name=THEORY_WORKSPACE_WRITE_TOOL,
             description=(
-                "Atomically apply model-authored RFC 6902 add, remove, or replace "
-                "operations. artifact_name selects one writable JSON artifact and "
-                "path is an RFC 6901 pointer inside it. Use an empty path to replace "
-                "an artifact root or '/-' to append one element to an array. Every "
-                "add at an object-member path sets that member, so repeated adds at "
-                "the same path do not accumulate; use one array value or append via "
-                "'/field/-'. Every "
-                "add or replace operation requires value; remove must omit value. "
-                "The runtime applies these exact operations and does not infer edits."
+                "Atomically replace one or more writable theory artifacts with "
+                "complete model-authored JSON values. Omitted artifacts are retained "
+                "exactly. The runtime does not merge or infer content."
             ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["operations"],
+                "required": ["artifacts"],
                 "properties": {
-                    "operations": {
-                        "type": "array",
-                        "minItems": 1,
-                        "items": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": ["op", "artifact_name", "path"],
-                            "properties": {
-                                "op": {
-                                    "type": "string",
-                                    "enum": ["add", "remove", "replace"],
-                                },
-                                "artifact_name": {
-                                    "type": "string",
-                                    "enum": sorted(writable_artifact_shapes),
-                                },
-                                "path": {"type": "string"},
-                                "value": {
-                                    "type": [
-                                        "object",
-                                        "array",
-                                        "string",
-                                        "number",
-                                        "boolean",
-                                        "null",
-                                    ]
-                                },
-                            },
+                    "artifacts": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "minProperties": 1,
+                        "properties": {
+                            name: {"type": shape}
+                            for name, shape in sorted(
+                                writable_artifact_shapes.items()
+                            )
                         },
                     }
                 },
@@ -780,93 +746,45 @@ def _theory_workspace_tools(
     return tuple(tools)
 
 
-def _apply_theory_workspace_json_patch(
+def _replace_theory_workspace_artifacts(
     current_artifacts: Mapping[str, Any],
-    raw_operations: Any,
+    raw_artifacts: Any,
     *,
     writable_artifact_shapes: Mapping[str, str],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Apply model-authored RFC 6902 edits atomically to local candidates."""
+    """Replace complete model-authored artifacts atomically."""
 
-    if not isinstance(raw_operations, list) or not raw_operations:
+    if not isinstance(raw_artifacts, Mapping) or not raw_artifacts:
         raise ClientToolInputError(
-            "edit_theory_workspace requires a nonempty operations array"
+            "write_theory_artifacts requires a nonempty artifacts object"
         )
-    if len(raw_operations) > 64:
+    if len(raw_artifacts) > len(writable_artifact_shapes):
         raise ClientToolInputError(
-            "edit_theory_workspace accepts at most 64 operations per atomic write"
+            "write_theory_artifacts exceeds the writable artifact count"
+        )
+    unknown = sorted(set(raw_artifacts) - set(writable_artifact_shapes))
+    if unknown:
+        raise ClientToolInputError(
+            "write_theory_artifacts names unknown writable artifacts: "
+            + ", ".join(str(name) for name in unknown)
         )
     candidate = deepcopy(dict(current_artifacts))
     records: list[dict[str, Any]] = []
-    for index, raw_operation in enumerate(raw_operations):
-        if not isinstance(raw_operation, Mapping):
-            raise ClientToolInputError(
-                f"theory edit operation {index} must be an object"
-            )
-        operation = dict(raw_operation)
-        unexpected = sorted(
-            set(operation) - {"op", "artifact_name", "path", "value"}
-        )
-        if unexpected:
-            raise ClientToolInputError(
-                f"theory edit operation {index} has unknown fields: "
-                + ", ".join(unexpected)
-            )
-        op = str(operation.get("op", "") or "").strip()
-        if op not in {"add", "remove", "replace"}:
-            raise ClientToolInputError(
-                f"theory edit operation {index} has unsupported op {op!r}"
-            )
-        artifact_name = str(
-            operation.get("artifact_name", "") or ""
-        ).strip()
-        if artifact_name not in writable_artifact_shapes:
-            raise ClientToolInputError(
-                f"theory edit operation {index} names unknown writable artifact "
-                f"{artifact_name!r}"
-            )
-        path = operation.get("path")
-        if not isinstance(path, str):
-            raise ClientToolInputError(
-                f"theory edit operation {index} path must be a string"
-            )
-        has_value = "value" in operation
-        if op in {"add", "replace"} and not has_value:
-            raise ClientToolInputError(
-                f"theory edit operation {index} {op} requires value"
-            )
-        if op == "remove" and has_value:
-            raise ClientToolInputError(
-                f"theory edit operation {index} remove must omit value"
-            )
-        patch_operation = {"op": op, "path": path}
-        if has_value:
-            patch_operation["value"] = deepcopy(operation["value"])
-        try:
-            candidate[artifact_name] = jsonpatch.apply_patch(
-                candidate[artifact_name],
-                [patch_operation],
-                in_place=False,
-            )
-        except (jsonpatch.JsonPatchException, TypeError, ValueError) as exc:
-            raise ClientToolInputError(
-                f"theory edit operation {index} was rejected: {exc}"
-            ) from exc
+    for artifact_name, value in raw_artifacts.items():
         expected_shape = writable_artifact_shapes[artifact_name]
-        if _artifact_shape(candidate[artifact_name]) != expected_shape:
+        actual_shape = _artifact_shape(value)
+        if actual_shape != expected_shape:
             raise ClientToolInputError(
-                f"theory edit operation {index} changed {artifact_name} from "
-                f"{expected_shape} to {_artifact_shape(candidate[artifact_name])}"
+                f"write_theory_artifacts requires {artifact_name} to remain "
+                f"{expected_shape}, received {actual_shape}"
             )
-        record = {
-            "operation_index": index,
-            "op": op,
-            "artifact_name": artifact_name,
-            "path": path,
-        }
-        if has_value:
-            record["value_hash"] = stable_hash(operation["value"])
-        records.append(record)
+        candidate[artifact_name] = deepcopy(value)
+        records.append(
+            {
+                "artifact_name": artifact_name,
+                "value_hash": stable_hash(value),
+            }
+        )
     return candidate, records
 
 

@@ -64,6 +64,10 @@ from ai_statistician.theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
     build_theory_developer_revision_binding,
 )
+from ai_statistician.theory_workspace import (
+    THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
+    THEORY_WORKSPACE_WRITE_TOOL,
+)
 
 
 class SequentialGeneratorBackend:
@@ -960,6 +964,12 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     invalid_core_artifacts["theory_derivation_packet"][
         "formalization_handoff"
     ]["source_theorem_target"] = "invented_aggregate_alias"
+    fixed_derivation = json.loads(
+        json.dumps(invalid_core_artifacts["theory_derivation_packet"])
+    )
+    fixed_derivation["formalization_handoff"][
+        "source_theorem_target"
+    ] = "aipw_asymptotic_normality"
     provider = ScriptedTheoryToolBackend(
         tool_responses=[
             _theory_tool_response(
@@ -974,33 +984,18 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
             _theory_tool_response(
                 ClientToolCall(
                     call_id="edit-initial-theory",
-                    name="edit_theory_workspace",
-                    input={
-                        "operations": [
-                            {
-                                "op": "replace",
-                                "artifact_name": name,
-                                "path": "",
-                                "value": value,
-                            }
-                            for name, value in invalid_core_artifacts.items()
-                        ]
-                    },
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input={"artifacts": invalid_core_artifacts},
                 )
             ),
             _theory_tool_response(
                 ClientToolCall(
                     call_id="fix-formal-target-reference",
-                    name="edit_theory_workspace",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
                     input={
-                        "operations": [
-                            {
-                                "op": "replace",
-                                "artifact_name": "theory_derivation_packet",
-                                "path": "/formalization_handoff/source_theorem_target",
-                                "value": "aipw_asymptotic_normality",
-                            }
-                        ]
+                        "artifacts": {
+                            "theory_derivation_packet": fixed_derivation
+                        }
                     },
                 )
             ),
@@ -1037,7 +1032,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     )
     assert {tool.name for tool in first_request.tools} == {
         "read_theory_workspace",
-        "edit_theory_workspace",
+        THEORY_WORKSPACE_WRITE_TOOL,
     }
     initial_prompt = str(first_request.messages[0]["content"])
     assert core_response["problem_card"]["dgp"] not in initial_prompt
@@ -1063,8 +1058,10 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     ]
     evidence = packet["llm_client_tool_loop"]
     assert evidence["workspace_operation"] == "initial_discovery"
-    assert evidence["write_transport"] == "rfc6902_json_patch"
-    assert evidence["n_model_edit_operations"] == len(core_artifacts) + 1
+    assert evidence["write_transport"] == (
+        THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT
+    )
+    assert evidence["n_model_artifact_writes"] == len(core_artifacts) + 1
     assert evidence["model_owned_theory"] is True
     assert evidence["runtime_edited_theory"] is False
     assert evidence["reads"] == 1
@@ -1277,16 +1274,11 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
             _theory_tool_response(
                 ClientToolCall(
                     call_id="edit-lemmas",
-                    name="edit_theory_workspace",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
                     input={
-                        "operations": [
-                            {
-                                "op": "add",
-                                "artifact_name": "lemma_cards",
-                                "path": "/-",
-                                "value": revised_core["lemma_cards"][-1],
-                            }
-                        ]
+                        "artifacts": {
+                            "lemma_cards": revised_core["lemma_cards"]
+                        }
                     },
                 )
             ),
@@ -1322,7 +1314,7 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     )
     assert {tool.name for tool in first_tool_request.tools} == {
         "read_theory_workspace",
-        "edit_theory_workspace",
+        THEORY_WORKSPACE_WRITE_TOOL,
     }
     first_prompt = str(first_tool_request.messages[0]["content"])
     assert json.dumps(revision_inputs["base_core_payload"]) not in first_prompt
@@ -1341,7 +1333,9 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     assert transport["revision_mode"] == "model_owned_artifact_workspace"
     assert transport["changed_artifact_names"] == ["lemma_cards"]
     assert transport["model_owned_artifact_edits"] is True
-    assert transport["write_transport"] == "rfc6902_json_patch"
+    assert transport["write_transport"] == (
+        THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT
+    )
     assert transport["runtime_edited_theory"] is False
     assert "revision_obligations" not in transport
     assert packet["estimator_interface_authoring"]["model_call_used"] is False
@@ -1474,7 +1468,7 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> N
     assert prompt_payload["reviewer_observations"]["workspace_artifact"] == (
         "reviewer_observations"
     )
-    assert "atomic edit_theory_workspace" in " ".join(
+    assert "write_theory_artifacts" in " ".join(
         prompt_payload["instructions"]
     )
 
@@ -1497,21 +1491,18 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged() -> 
         description="Keep an unchanged model-authored estimator ABI stable.",
     )
     context = _metric_theory_revision_context(question=question, parent=parent)
+    revised_problem_card = json.loads(json.dumps(parent["problem_card"]))
+    revised_problem_card["assumptions"].append("bounded outcomes")
     provider = ScriptedTheoryToolBackend(
         tool_responses=[
             _theory_tool_response(
                 ClientToolCall(
                     call_id="edit-revised-problem-card-for-abi-reuse",
-                    name="edit_theory_workspace",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
                     input={
-                        "operations": [
-                            {
-                                "op": "add",
-                                "artifact_name": "problem_card",
-                                "path": "/assumptions/-",
-                                "value": "bounded outcomes",
-                            }
-                        ]
+                        "artifacts": {
+                            "problem_card": revised_problem_card
+                        }
                     },
                 )
             )
@@ -1634,22 +1625,12 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
             _theory_tool_response(
                 ClientToolCall(
                     call_id="edit-revised-problem-card",
-                    name="edit_theory_workspace",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
                     input={
-                        "operations": [
-                            {
-                                "op": "add",
-                                "artifact_name": "problem_card",
-                                "path": "/assumptions/-",
-                                "value": "bounded outcomes",
-                            },
-                            {
-                                "op": "add",
-                                "artifact_name": "estimator_specs",
-                                "path": "/0/required_assumptions/-",
-                                "value": "bounded outcomes",
-                            },
-                        ]
+                        "artifacts": {
+                            "problem_card": revised_core["problem_card"],
+                            "estimator_specs": revised_core["estimator_specs"],
+                        }
                     },
                 )
             )
