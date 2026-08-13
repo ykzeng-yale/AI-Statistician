@@ -131,6 +131,7 @@ from .model_backend import (
     default_generator_provider,
 )
 from .proof_state_feedback import (
+    DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS,
     LeanLspMcpProofStateFeedbackProvider,
     LocalLeanProofStateFeedbackProvider,
 )
@@ -1416,8 +1417,16 @@ def _proof_verifier_from_args(args: argparse.Namespace):
         lean_timeout = getattr(
             args,
             "lean_timeout",
-            getattr(args, "local_lean_timeout", 90),
-        ) or getattr(args, "local_lean_timeout", 90)
+            getattr(
+                args,
+                "local_lean_timeout",
+                DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS,
+            ),
+        ) or getattr(
+            args,
+            "local_lean_timeout",
+            DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS,
+        )
         return LocalLeanProofVerifier(
             project_root=lean_project,
             timeout_s=lean_timeout,
@@ -1457,9 +1466,17 @@ def _proof_state_provider_from_args(args: argparse.Namespace):
         or getattr(
             args,
             "lean_timeout",
-            getattr(args, "local_lean_timeout", 90),
+            getattr(
+                args,
+                "local_lean_timeout",
+                DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS,
+            ),
         )
-        or getattr(args, "local_lean_timeout", 90)
+        or getattr(
+            args,
+            "local_lean_timeout",
+            DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS,
+        )
     )
     provider_cls = (
         LeanLspMcpProofStateFeedbackProvider
@@ -3867,7 +3884,11 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 or ""
             ),
             formalizer_candidate_lean_timeout=int(
-                getattr(args, "formalizer_candidate_lean_timeout", 30)
+                getattr(
+                    args,
+                    "formalizer_candidate_lean_timeout",
+                    DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS,
+                )
             ),
         ),
     )
@@ -4409,7 +4430,14 @@ def _research_agent_runtime_local_lean_preflight_errors(
         project,
         timeout_seconds=max(
             30,
-            int(getattr(args, "formalizer_candidate_lean_timeout", 30) or 30),
+            int(
+                getattr(
+                    args,
+                    "formalizer_candidate_lean_timeout",
+                    DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS,
+                )
+                or DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS
+            ),
         ),
     )
 
@@ -6474,7 +6502,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument(
         "--formalizer-candidate-lean-timeout",
         type=int,
-        default=30,
+        default=DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS,
         help="timeout seconds for each materialized Formalizer candidate local Lean check",
     )
     research_agent_runtime.add_argument(

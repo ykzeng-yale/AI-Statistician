@@ -20,6 +20,7 @@ PROOF_STATE_FEEDBACK_STATUS = "PROOF_STATE_FEEDBACK_NOT_PROOF_EVIDENCE"
 LEAN_DECLARATION_INSPECTION_STATUS = (
     "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
 )
+DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS = 90
 PROOF_STATE_FEEDBACK_BOUNDARY = (
     "Proof-state feedback, Lean diagnostics, residual goals, and LSP/MCP tool "
     "requests are diagnostic/search evidence only. They do not prove a theorem "
@@ -69,7 +70,7 @@ class LocalLeanProofStateFeedbackProvider:
         self,
         *,
         project_root: str | Path | None = None,
-        timeout_s: int = 90,
+        timeout_s: int = DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS,
         lean_command: Sequence[str] | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve() if project_root else None
@@ -244,10 +245,10 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
         self,
         *,
         project_root: str | Path | None = None,
-        timeout_s: int = 90,
+        timeout_s: int = DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS,
         lean_command: Sequence[str] | None = None,
         mcp_command: Sequence[str] | None = None,
-        mcp_timeout_s: int = 20,
+        mcp_timeout_s: int | None = None,
         openprover_root: str | Path | None = None,
         mcp_transcript_collector: Callable[..., Mapping[str, Any]] | None = None,
     ) -> None:
@@ -261,7 +262,9 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
             if mcp_command is not None
             else ("uvx", "lean-lsp-mcp")
         )
-        self.mcp_timeout_s = int(mcp_timeout_s)
+        self.mcp_timeout_s = int(
+            timeout_s if mcp_timeout_s is None else mcp_timeout_s
+        )
         self.openprover_root = (
             Path(openprover_root).expanduser().resolve()
             if openprover_root

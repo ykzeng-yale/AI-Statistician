@@ -88,6 +88,7 @@ def test_lsp_provider_returns_exact_model_selected_declaration_source(
 
     provider = LeanLspMcpProofStateFeedbackProvider(
         project_root=project,
+        timeout_s=37,
         mcp_command=("lean-lsp-mcp",),
     )
     monkeypatch.setattr(
@@ -118,4 +119,10 @@ def test_lsp_provider_returns_exact_model_selected_declaration_source(
         )
     ]
     assert clients[0].kwargs["project"] == project.resolve()
+    assert (
+        clients[0].kwargs["timeout_s"]
+        == provider.mcp_timeout_s
+        == provider.timeout_s
+        == 37
+    )
     assert clients[0].closed is True

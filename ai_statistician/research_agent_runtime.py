@@ -222,6 +222,7 @@ from .lean_agent_providers import (
 )
 from .proof_bank_formal_source import build_default_formal_source_retriever
 from .proof_state_feedback import (
+    DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS,
     PROOF_STATE_FEEDBACK_BOUNDARY,
     ProofStateFeedbackProvider,
     proof_state_feedback_row_to_json,
@@ -316,7 +317,7 @@ class ResearchAgentRuntimeConfig:
     evaluation_claude_model: str = ""
     formalizer_candidate_local_lean: bool = False
     formalizer_candidate_lean_project: str = ""
-    formalizer_candidate_lean_timeout: int = 30
+    formalizer_candidate_lean_timeout: int = DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS
 RUNTIME_RESEARCH_EVALUATION_MODES = frozenset(
     {"research_eval", "capability_eval"}
 )
