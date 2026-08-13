@@ -308,6 +308,15 @@ def test_targeted_revision_uses_atomic_model_owned_json_edits() -> None:
     prompt = str(backend.requests[0].messages[0]["content"])
     assert "RFC 6902" in prompt
     assert "runtime applies those exact operations" in prompt
+    assert "repeated adds at the same object path replace" in prompt
+    edit_tool = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == "edit_theory_workspace"
+    )
+    assert "repeated adds at the same path do not accumulate" in (
+        edit_tool.description
+    )
 
 
 def test_same_theory_model_runs_exact_scratch_source_then_revises(

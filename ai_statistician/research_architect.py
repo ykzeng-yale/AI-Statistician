@@ -2196,7 +2196,7 @@ def build_theory_developer_revision_inputs(
 
     semantic_material = material.get("theory_semantic_material", {})
     if not isinstance(semantic_material, Mapping) or not semantic_material:
-        errors.append("prior theory material must contain lossless semantic material")
+        errors.append("prior theory material must contain current semantic material")
         semantic_material = {}
     semantic_packet_id = str(semantic_material.get("packet_id", "") or "").strip()
     if semantic_packet_id and semantic_packet_id != material_packet_id:

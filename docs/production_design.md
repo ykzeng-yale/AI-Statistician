@@ -311,7 +311,9 @@ Substantive artifacts live once in the content-addressed store. Tasks and traces
 carry references, not recursive copies of prior tasks, deferred tasks, source,
 and manifests. Full raw output remains available by reference; prompts receive
 only the current source, active observations, target identity, and bounded
-retrieval context.
+retrieval context. Semantic handoffs explicitly project current substantive
+fields; provider transport, tool history, telemetry, and prior drafts stay in
+the source trace rather than becoming review or retrieval inputs.
 
 Workspace completion is parent-bound. A Theory revision retires active Algorithm,
 Simulation, Formalization, accepted-review, and handoff references; historical IDs

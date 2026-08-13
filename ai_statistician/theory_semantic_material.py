@@ -29,17 +29,22 @@ THEORY_SEMANTIC_MATERIAL_PROOF_STATUSES = frozenset(
     }
 )
 
-_THEORY_PACKET_NON_SEMANTIC_FIELDS = frozenset(
-    {
-        "created_at",
-        "structured_output_retry_attempts",
-        "structured_output_retry_history",
-        "ok",
-        "raw_response",
-        "raw_response_fingerprint",
-        "runtime_architect_control",
-        "validation_errors",
-    }
+_THEORY_PACKET_SEMANTIC_FIELDS = (
+    "artifact_kind",
+    "packet_id",
+    "question",
+    "problem_card",
+    "theory_derivation_packet",
+    "estimator_specs",
+    "estimator_interface_authoring",
+    "theorem_cards",
+    "lemma_cards",
+    "proof_plan",
+    "formalization_requests",
+    "simulation_ademp_spec",
+    "critic_findings",
+    "next_actions",
+    "proof_evidence_boundary",
 )
 
 
@@ -48,7 +53,7 @@ def theory_semantic_material_payload(
     theory_packet: Mapping[str, Any],
     theory_packet_id: str,
 ) -> dict[str, Any]:
-    """Return immutable semantic bytes and identity without a consumer label."""
+    """Return current substantive theory state and its complete source identity."""
 
     source_packet_id = str(
         theory_packet_id or theory_packet.get("packet_id", "") or ""
@@ -57,9 +62,9 @@ def theory_semantic_material_payload(
         "source_theory_packet_id": source_packet_id,
         "source_theory_packet_hash": stable_hash(dict(theory_packet)),
         "theory_semantic_material": {
-            str(key): deepcopy(value)
-            for key, value in theory_packet.items()
-            if str(key) not in _THEORY_PACKET_NON_SEMANTIC_FIELDS
+            field: deepcopy(theory_packet[field])
+            for field in _THEORY_PACKET_SEMANTIC_FIELDS
+            if field in theory_packet
         },
         "execution_results_available": False,
     }
@@ -80,8 +85,10 @@ def build_theory_semantic_material(
         ),
         "proof_evidence_status": THEORY_SEMANTIC_MATERIAL_NOT_PROOF_EVIDENCE,
         "boundary": (
-            "This is a lossless immutable projection of one TheoryDeveloper "
-            "proposal for a downstream semantic handoff. It contains no execution "
-            "result, acceptance decision, or kernel proof."
+            "This is an immutable projection of the current substantive state of one "
+            "TheoryDeveloper proposal. Provider transport, tool history, prior drafts, "
+            "and runtime telemetry remain in the source packet and are not semantic "
+            "review inputs. This contains no execution result, acceptance decision, "
+            "or kernel proof."
         ),
     }

@@ -49,9 +49,10 @@ def build_theory_informed_metric_protocol_material(
             LEGACY_METRIC_THEORY_MATERIAL_NOT_PROOF_EVIDENCE
         ),
         "boundary": (
-            "This is a lossless semantic handoff from a TheoryDeveloper proposal "
-            "to pre-execution metric-protocol authoring. It contains no generated "
-            "code results, simulation results, acceptance decision, or kernel proof."
+            "This is a current-state semantic handoff from a TheoryDeveloper proposal "
+            "to pre-execution metric-protocol authoring. Transport history and prior "
+            "drafts remain in the source packet. It contains no generated code results, "
+            "simulation results, acceptance decision, or kernel proof."
         ),
     }
 

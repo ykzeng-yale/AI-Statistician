@@ -477,7 +477,7 @@ def theory_developer_revision_binding_errors(
 
     semantic_material = material.get("theory_semantic_material", {})
     if not isinstance(semantic_material, Mapping) or not semantic_material:
-        errors.append("theory revision parent has no lossless semantic material")
+        errors.append("theory revision parent has no current semantic material")
         semantic_material = {}
     semantic_packet_id = str(
         semantic_material.get("packet_id", "") or ""

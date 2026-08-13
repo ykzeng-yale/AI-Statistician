@@ -21,6 +21,19 @@ def _theory_packet() -> dict:
         "packet_id": "theory:consumer-neutral",
         "question": {"id": "question:consumer-neutral"},
         "problem_card": {"estimand": "theta"},
+        "estimator_specs": [
+            {"id": "current-estimator", "formula": "log integral Lambda"}
+        ],
+        "llm_client_tool_loop": {
+            "history": [
+                {
+                    "role": "tool",
+                    "content": "stale draft used integral log Lambda",
+                }
+            ]
+        },
+        "provider": "anthropic",
+        "model": "test-model",
         "runtime_architect_control": {"status": "PRESENT"},
         "validation_errors": [],
     }
@@ -42,6 +55,13 @@ def test_theory_semantic_material_is_consumer_neutral_and_nonproof() -> None:
     )
     assert "runtime_architect_control" not in material["theory_semantic_material"]
     assert "validation_errors" not in material["theory_semantic_material"]
+    assert "llm_client_tool_loop" not in material["theory_semantic_material"]
+    assert "provider" not in material["theory_semantic_material"]
+    assert "model" not in material["theory_semantic_material"]
+    assert material["theory_semantic_material"]["estimator_specs"] == [
+        {"id": "current-estimator", "formula": "log integral Lambda"}
+    ]
+    assert "stale draft" not in str(material["theory_semantic_material"])
 
 
 def test_metric_protocol_wrapper_keeps_legacy_consumer_identity() -> None:
