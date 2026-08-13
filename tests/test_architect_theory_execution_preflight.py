@@ -356,6 +356,13 @@ def _theory_material() -> dict[str, object]:
                 "algorithm": "Read observations until the event occurs and return T.",
                 "inputs": ["a finite serialized observation array"],
                 "outputs": ["T"],
+                "output_contract": (
+                    "Return (T, observed) when the event occurs and "
+                    "(input_length, censored) otherwise."
+                ),
+                "termination_guarantee": (
+                    "Return after consuming at most the finite serialized input."
+                ),
                 "sample_size_order": "The ideal procedure has unspecified duration.",
                 "estimator_interface_contract": {
                     "request_fields": [
@@ -1041,6 +1048,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         "fixed-candidate result does not automatically survive",
         "source_interface_inventory",
         "present-but-incomplete contract",
+        "declared output contract and termination guarantee",
         "do not substitute a hypothetical branch",
         "same DGP, probability law",
         "finite executable observation",
@@ -1086,6 +1094,13 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
                 "sample_size_order": "bounded by the serialized input length",
             }
         ],
+        "declared_output_contract": (
+            "Return (T, observed) when the event occurs and "
+            "(input_length, censored) otherwise."
+        ),
+        "declared_termination_guarantee": (
+            "Return after consuming at most the finite serialized input."
+        ),
     }
     assert backend.requests[0].model == TEST_HAIKU_MODEL
     assert backend.requests[0].metadata["model_tier"] == "haiku"

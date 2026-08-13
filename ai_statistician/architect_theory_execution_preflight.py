@@ -122,9 +122,11 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "Use each estimator's source_interface_inventory before judging interface "
         "presence. Distinguish a present-but-incomplete contract from an absent one: "
         "never call outputs or request/response fields MISSING when the inventory "
-        "lists them, and identify the exact unresolved mapping instead. Reconstruct "
-        "every execution branch from the listed field meanings before proposing a "
-        "counterexample; do not substitute a hypothetical branch for a declared one."
+        "lists them, and identify the exact unresolved mapping instead. Treat any "
+        "declared output contract and termination guarantee in that inventory as "
+        "current source semantics. Reconstruct every execution branch from the listed "
+        "field meanings before proposing a counterexample; do not substitute a "
+        "hypothetical branch for a declared one."
     ),
     (
         "Every executable procedure must return for every admitted sandbox input, "
@@ -342,6 +344,18 @@ def _project_estimator_specs(value: Any) -> tuple[list[dict[str, Any]], list[str
             "request_fields": field_inventory(interface.get("request_fields", [])),
             "response_fields": field_inventory(interface.get("response_fields", [])),
         }
+        for source_key, inventory_key in (
+            ("output_contract", "declared_output_contract"),
+            ("termination_guarantee", "declared_termination_guarantee"),
+        ):
+            source_value = raw_row.get(source_key)
+            if source_value not in (None, "", [], {}):
+                source_interface_inventory[inventory_key] = _compact_value(
+                    source_value,
+                    max_depth=5,
+                    list_limit=8,
+                    text_limit=800,
+                )
         projected.append(
             {
                 "preflight_estimator_id": estimator_id,

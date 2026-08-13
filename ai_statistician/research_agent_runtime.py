@@ -9395,6 +9395,9 @@ class SimulationEvaluatorRuntimeSubsystem:
             "consumer_resume_exact_source_replayed": bool(
                 consumer_resume_manifest_id
             ),
+            "confirmatory_source_revision_parent_manifest_id": (
+                confirmatory_source_parent_manifest_id
+            ),
             "empirical_evaluation_phase": empirical_evaluation_phase,
             "exploratory_diagnostic": exploratory_diagnostic,
             "candidate_gate_independence_required": bool(
@@ -10115,6 +10118,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 "deferred_metric_protocol_task", {}
             )
             confirmatory_feedback_id = ""
+            confirmatory_cohort_transition_evidence: EvidenceLedgerEntry | None = None
             if confirmatory_generated_metric_failure:
                 source_algorithm_manifest_id = str(
                     upstream_algorithm_handoff.get(
@@ -10221,6 +10225,9 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "source_subsystem": "SimulationEvaluator",
                     "source_manifest_id": manifest_id,
                     "source_manifest_hash": stable_hash(manifest),
+                    "source_revision_parent_manifest_id": (
+                        confirmatory_source_parent_manifest_id
+                    ),
                     "theory_packet_id": packet_id,
                     "confirmatory_evaluation_cohort": (
                         confirmatory_evaluation_cohort
@@ -10278,30 +10285,158 @@ class SimulationEvaluatorRuntimeSubsystem:
                 revision_context = dict(effective_context)
                 revision_context["previous_theory_packet_id"] = packet_id
                 revision_context["simulation_manifest_id"] = manifest_id
-                next_task = AgentTask(
-                    task_id=(
-                        f"confirmatory-outcome:{question.id}:"
-                        f"{stable_hash(confirmatory_feedback)[:8]}"
-                    ),
-                    owner_subsystem="ArchitectCoordinator",
-                    objective=(
-                        "Choose a materially new upstream lineage or block from this "
-                        "immutable confirmatory outcome."
-                    ),
-                    inputs={
-                        "question": _question_to_payload(question),
-                        "architect_context": revision_context,
-                        "environment_feedback": confirmatory_feedback,
-                        "runtime_architect_operation": (
-                            ARCHITECT_FEEDBACK_ROUTE_OPERATION
+                if not confirmatory_source_parent_manifest_id:
+                    next_confirmatory_cohort: dict[str, Any] = {}
+                    confirmatory_cohort_transition: dict[str, Any] = {}
+                    cohort_transition_errors: list[str] = []
+                    if candidate_gate_independence_required(context):
+                        (
+                            next_confirmatory_cohort,
+                            confirmatory_cohort_transition,
+                            cohort_transition_errors,
+                        ) = advance_confirmatory_evaluation_cohort(
+                            context,
+                            confirmatory_outcome=confirmatory_feedback,
+                            question_id=question.id,
+                        )
+                    if cohort_transition_errors:
+                        return AgentStepResult(
+                            status="BLOCKED",
+                            rationale=(
+                                "SimulationEvaluator rejected an invalid confirmatory "
+                                "cohort lineage before releasing the outcome."
+                            ),
+                            produced_artifacts=produced_artifacts,
+                            observations=tuple(observations)
+                            + (
+                                EnvironmentObservation(
+                                    observation_type=(
+                                        "confirmatory_evaluation_cohort_transition_rejected"
+                                    ),
+                                    summary="; ".join(cohort_transition_errors)[:500],
+                                    payload={
+                                        "validation_errors": cohort_transition_errors,
+                                        "model_call_authorized": False,
+                                        "execution_authorized": False,
+                                        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                                    },
+                                ),
+                            ),
+                            failure_classification=(
+                                "confirmatory_evaluation_cohort_lineage_invalid"
+                            ),
+                        )
+                    revision_inputs = deepcopy(dict(task.inputs))
+                    revision_inputs.pop("consumer_resume_manifest", None)
+                    revision_inputs.update(
+                        {
+                            "architect_context": revision_context,
+                            "environment_feedback": confirmatory_feedback,
+                        }
+                    )
+                    cohort_id = ""
+                    if next_confirmatory_cohort and confirmatory_cohort_transition:
+                        cohort_id = str(next_confirmatory_cohort["cohort_id"])
+                        transition_id = str(
+                            confirmatory_cohort_transition["transition_id"]
+                        )
+                        produced_artifacts.update(
+                            {
+                                cohort_id: next_confirmatory_cohort,
+                                transition_id: confirmatory_cohort_transition,
+                            }
+                        )
+                        revision_context[
+                            CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY
+                        ] = next_confirmatory_cohort
+                        revision_context[
+                            "runtime_confirmatory_evaluation_cohort_transition_id"
+                        ] = transition_id
+                        revision_inputs["architect_context"] = revision_context
+                        revision_inputs["seed"] = int(
+                            next_confirmatory_cohort["seed"]
+                        )
+                        confirmatory_cohort_transition_evidence = EvidenceLedgerEntry(
+                            evidence_id=(
+                                "evidence:"
+                                + stable_hash([task.task_id, transition_id])[:20]
+                            ),
+                            task_id=task.task_id,
+                            artifact_id=transition_id,
+                            evidence_type=(
+                                "confirmatory_evaluation_cohort_transition"
+                            ),
+                            status="FRESH_POST_OUTCOME_COHORT_ALLOCATED",
+                            boundary=str(
+                                confirmatory_cohort_transition.get("boundary", "")
+                                or ""
+                            ),
+                            payload={
+                                "transition": confirmatory_cohort_transition,
+                                "next_cohort": next_confirmatory_cohort,
+                                "next_owner_subsystem": "SimulationEvaluator",
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        )
+                    next_task = replace(
+                        task,
+                        task_id=(
+                            f"simulation-confirmatory-source-revision:{question.id}:"
+                            f"{stable_hash(confirmatory_feedback)[:8]}"
                         ),
-                    },
-                    expected_artifacts=("architect_feedback_route_decision",),
-                    acceptance_gate=(
-                        "Architect does not retry the unchanged confirmatory source"
-                    ),
-                    stop_condition="a new lineage is scheduled or the failure blocks",
-                )
+                        objective=(
+                            "Revise the exact model-authored simulation source from its "
+                            "released execution observation and run the changed source "
+                            "on the fresh blinded cohort."
+                        ),
+                        inputs=revision_inputs,
+                    )
+                    observations.append(
+                        EnvironmentObservation(
+                            observation_type=(
+                                "confirmatory_outcome_routed_to_source_owner"
+                            ),
+                            summary=(
+                                "Independent source review gates one direct full-source "
+                                "revision by the current SimulationEvaluator model."
+                            ),
+                            payload={
+                                "source_manifest_id": manifest_id,
+                                "next_owner_subsystem": "SimulationEvaluator",
+                                "next_cohort_id": cohort_id,
+                                "unchanged_source_execution_authorized": False,
+                                "runtime_edited_source": False,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        )
+                    )
+                else:
+                    next_task = AgentTask(
+                        task_id=(
+                            f"confirmatory-outcome:{question.id}:"
+                            f"{stable_hash(confirmatory_feedback)[:8]}"
+                        ),
+                        owner_subsystem="ArchitectCoordinator",
+                        objective=(
+                            "Choose a materially new upstream lineage or block after "
+                            "the current source owner's post-outcome revision failed."
+                        ),
+                        inputs={
+                            "question": _question_to_payload(question),
+                            "architect_context": revision_context,
+                            "environment_feedback": confirmatory_feedback,
+                            "runtime_architect_operation": (
+                                ARCHITECT_FEEDBACK_ROUTE_OPERATION
+                            ),
+                        },
+                        expected_artifacts=("architect_feedback_route_decision",),
+                        acceptance_gate=(
+                            "Architect does not retry the unchanged confirmatory source"
+                        ),
+                        stop_condition=(
+                            "a new lineage is scheduled or the failure blocks"
+                        ),
+                    )
             elif (
                 exploratory_diagnostic
                 and isinstance(deferred_metric_protocol_payload, Mapping)
@@ -10443,6 +10578,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         proposal_evidence,
                         evidence,
                         semantic_review_evidence,
+                        confirmatory_cohort_transition_evidence,
                     )
                     if row is not None
                 ),
