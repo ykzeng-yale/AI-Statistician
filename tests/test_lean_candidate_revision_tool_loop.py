@@ -2192,6 +2192,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
         namespace = "Example.Namespace"
         path = str(indexed_source_path)
         line = 3
+        signature = "structure Source where"
 
     class IndexedHit:
         declaration = IndexedDeclaration()
@@ -2237,6 +2238,15 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
         "Example.Namespace"
     )
     assert indexed_agent.declaration_result["indexed_declaration_line"] == 3
+    assert indexed_agent.declaration_result["indexed_declaration_signature"] == (
+        "structure Source where"
+    )
+    assert indexed_agent.declaration_result[
+        "indexed_symbol_context_observed"
+    ] is True
+    assert "structure Source where" in indexed_agent.declaration_result[
+        "indexed_source_context"
+    ]["content"]
 
     resumed_source = "theorem target : True := by\n  exact True.intro\n"
     resume_feedback = {

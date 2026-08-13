@@ -238,15 +238,119 @@ def _has_direct_revision(
     grouped = _rows_by_question(evidence_rows)
     n_failures = 0
     n_resolved = 0
-    for rows in grouped.values():
+
+    def workspace_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+        rows = payload.get("scientific_code_workspaces", [])
+        return [row for row in rows or [] if isinstance(row, Mapping)]
+
+    def workspace_identity(
+        row: Mapping[str, Any],
+        *,
+        question_id: str,
+    ) -> tuple[str, str] | None:
+        artifact_id = str(row.get("artifact_id", "") or "").strip()
+        child_hash = str(
+            row.get("submitted_code_draft_hash", "") or ""
+        ).strip()
+        if not (
+            artifact_id.startswith(question_id + ":")
+            and child_hash
+            and _bool(row.get("model_owned_source", False))
+            and not _bool(row.get("runtime_edited_source", True))
+            and _int(row.get("source_updates")) > 0
+            and _int(row.get("sandbox_checks")) > 0
+            and _int(row.get("runtime_executed_tool_calls")) > 0
+            and bool(str(row.get("provider", "") or "").strip())
+            and bool(str(row.get("model", "") or "").strip())
+            and bool(
+                str(row.get("initial_check_result_hash", "") or "").strip()
+            )
+            and bool(
+                str(row.get("terminal_check_result_hash", "") or "").strip()
+            )
+            and bool(str(row.get("transcript_fingerprint", "") or "").strip())
+        ):
+            return None
+        return artifact_id, child_hash
+
+    for question_id, rows in grouped.items():
         for index, row in enumerate(rows):
-            if _evidence_type(row) != failure_type or not failed(_payload(row)):
+            payload = _payload(row)
+            if _evidence_type(row) != failure_type or not failed(payload):
                 continue
             n_failures += 1
-            if any(
-                _evidence_type(later) == proposal_type
-                for later in rows[index + 1 :]
-            ):
+            failure_artifact_id = str(row.get("artifact_id", "") or "").strip()
+            frontier = {
+                identity
+                for summary in workspace_rows(payload)
+                if (
+                    identity := workspace_identity(
+                        summary,
+                        question_id=question_id,
+                    )
+                )
+                is not None
+            }
+            resolved = False
+            for later in rows[index + 1 :]:
+                for summary in workspace_rows(_payload(later)):
+                    identity = workspace_identity(
+                        summary,
+                        question_id=question_id,
+                    )
+                    if identity is None:
+                        continue
+                    parent_hash = str(
+                        summary.get("parent_code_draft_hash", "") or ""
+                    ).strip()
+                    valid_revision = bool(
+                        summary.get("workspace_operation") == "targeted_revision"
+                        and summary.get("initial_check_accepted") is False
+                        and _bool(summary.get("source_changed", False))
+                        and parent_hash
+                        and parent_hash != identity[1]
+                    )
+                    if not valid_revision:
+                        continue
+                    linked_by_hash = bool(
+                        (identity[0], parent_hash) in frontier
+                    )
+                    source_lineage = summary.get("source_revision_lineage", {})
+                    source_lineage = (
+                        source_lineage
+                        if isinstance(source_lineage, Mapping)
+                        else {}
+                    )
+                    linked_by_manifest = bool(
+                        failure_artifact_id
+                        and str(
+                            source_lineage.get("parent_manifest_id", "") or ""
+                        ).strip()
+                        == failure_artifact_id
+                        and _bool(
+                            source_lineage.get(
+                                "feedback_supplied_to_generator",
+                                False,
+                            )
+                        )
+                        and _bool(
+                            source_lineage.get("lineage_contract_complete", False)
+                        )
+                    )
+                    if not (linked_by_hash or linked_by_manifest):
+                        continue
+                    frontier.add(identity)
+                    if _bool(summary.get("accepted", False)):
+                        resolved = True
+                        break
+                if resolved:
+                    break
+            if not resolved and "scientific_code_workspaces" not in payload:
+                resolved = any(
+                    _evidence_type(later) == proposal_type
+                    for later in rows[index + 1 :]
+                )
+            if resolved:
                 n_resolved += 1
     return (n_failures == n_resolved, n_failures, n_resolved)
 

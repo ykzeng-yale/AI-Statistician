@@ -361,9 +361,24 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
                 if isinstance(structured, Mapping)
                 else {"text": _structured_mcp_text(result)}
             )
+            observation_text = "\n".join(
+                str(observation.get(key, "") or "")
+                for key in ("content", "text")
+            )
+            source_symbol = symbol.rsplit(".", 1)[-1]
+            symbol_context_observed = bool(
+                source_symbol and source_symbol in observation_text
+            )
+            is_error = bool(is_error or not symbol_context_observed)
             return {
                 "ok": not is_error,
-                "status": "TOOL_ERROR" if is_error else "OBSERVED",
+                "status": (
+                    "SYMBOL_CONTEXT_MISSING"
+                    if not symbol_context_observed and not response_error
+                    else "TOOL_ERROR"
+                    if is_error
+                    else "OBSERVED"
+                ),
                 "provider": self.name,
                 "tool": requested_tool,
                 "executed_tools": [requested_tool],
@@ -372,10 +387,16 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
                 "project_root": str(project_root),
                 "context_lines": bounded_context,
                 "observation": observation,
+                "symbol_context_observed": symbol_context_observed,
                 "error": _json_excerpt(response_error)
                 if response_error
                 else _structured_mcp_text(result)
-                if is_error
+                if result.get("isError", False)
+                else (
+                    "lean-lsp-mcp did not return source context containing the "
+                    "requested declaration symbol"
+                )
+                if not symbol_context_observed
                 else "",
                 "proof_evidence_status": LEAN_DECLARATION_INSPECTION_STATUS,
             }

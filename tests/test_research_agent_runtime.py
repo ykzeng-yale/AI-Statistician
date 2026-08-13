@@ -1829,6 +1829,14 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
             "empirical_evaluation_phase": "confirmatory",
             "architect_context": context,
         },
+        budget={
+            runtime_module.SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY: {
+                "lineage_id": "scientific_consumer_lineage:preserved",
+                "revisions_used": 1,
+                "max_revisions": 2,
+                "budget_exhausted": False,
+            }
+        },
     )
     blackboard = BlackboardState(
         project_id=question.id,
@@ -1887,6 +1895,9 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     assert feedback["source_subsystem"] == "SimulationEvaluator"
     assert feedback["confirmatory_evaluation_cohort"] == cohort
     assert feedback["unchanged_source_retry_authorized"] is False
+    assert feedback[
+        runtime_module.SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY
+    ] == task.budget[runtime_module.SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY]
     assert feedback["empirical_outcomes"][0]["metric_gate_errors"]
     assert "SimulationEvaluator" in (
         _architect_feedback_route_subsystems(

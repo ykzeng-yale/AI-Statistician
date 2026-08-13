@@ -9584,6 +9584,11 @@ class SimulationEvaluatorRuntimeSubsystem:
                 "n_generated_simulation_typed_metric_contracts_failed": (
                     n_generated_simulation_typed_metric_contracts_failed
                 ),
+                "scientific_code_workspaces": (
+                    _scientific_code_workspace_evidence_summaries(
+                        generated_simulation_rows
+                    )
+                ),
                 "typed_metric_contract_proof_evidence_status": (
                     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
                 ),
@@ -10150,6 +10155,15 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
                     **source_continuation_fields,
                 }
+                consumer_revision_budget = task.budget.get(
+                    SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY
+                )
+                if isinstance(consumer_revision_budget, Mapping) and (
+                    consumer_revision_budget
+                ):
+                    confirmatory_feedback_payload[
+                        SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY
+                    ] = deepcopy(dict(consumer_revision_budget))
                 if source_continuation_errors:
                     confirmatory_feedback_payload[
                         "algorithm_source_continuation_errors"
@@ -11516,6 +11530,11 @@ class AlgorithmEngineerRuntimeSubsystem:
                 "n_typed_metric_contracts_failed": manifest[
                     "n_typed_metric_contracts_failed"
                 ],
+                "scientific_code_workspaces": (
+                    _scientific_code_workspace_evidence_summaries(
+                        prototype_rows
+                    )
+                ),
                 "typed_metric_contract_proof_evidence_status": (
                     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
                 ),
@@ -17147,6 +17166,9 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                     "source_symbol": source_symbol,
                     "namespace": namespace,
                     "line": int(getattr(declaration, "line", 0) or 0),
+                    "signature": str(
+                        getattr(declaration, "signature", "") or ""
+                    ).strip(),
                 }
         return None
 
@@ -17245,6 +17267,55 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                 ),
             }
         result = deepcopy(dict(raw))
+        indexed_source_context: dict[str, Any] = {}
+        if active_declaration is not None:
+            indexed_path = Path(active_declaration["path"])
+            try:
+                indexed_lines = indexed_path.read_text(
+                    encoding="utf-8"
+                ).splitlines()
+            except OSError:
+                indexed_lines = []
+            if indexed_lines:
+                indexed_line = max(
+                    1,
+                    min(int(active_declaration["line"] or 1), len(indexed_lines)),
+                )
+                start_line = max(1, indexed_line - context_lines)
+                end_line = min(len(indexed_lines), indexed_line + context_lines)
+                indexed_content = "\n".join(
+                    indexed_lines[start_line - 1 : end_line]
+                )
+                indexed_source_context = {
+                    "file_path": str(indexed_path),
+                    "indexed_line": indexed_line,
+                    "start_line": start_line,
+                    "end_line": end_line,
+                    "content": indexed_content[:20_000],
+                    "content_truncated": len(indexed_content) > 20_000,
+                }
+            indexed_signature = str(
+                active_declaration.get("signature", "") or ""
+            )
+            indexed_symbol = str(
+                active_declaration.get("source_symbol", "") or ""
+            )
+            indexed_context_observed = bool(
+                indexed_symbol
+                and (
+                    indexed_symbol in indexed_signature
+                    or indexed_symbol
+                    in str(indexed_source_context.get("content", "") or "")
+                )
+            )
+            result["provider_observation_ok"] = bool(result.get("ok", False))
+            result["indexed_declaration_signature"] = indexed_signature
+            result["indexed_source_context"] = indexed_source_context
+            result["indexed_symbol_context_observed"] = indexed_context_observed
+            if indexed_context_observed:
+                result["ok"] = True
+                if not result["provider_observation_ok"]:
+                    result["status"] = "INDEXED_SOURCE_OBSERVED"
         result.update(
             {
                 "inspection_binding": inspection_binding,
@@ -21657,6 +21728,62 @@ LEAN_LSP_MCP_EXECUTED_TOOL_STATUSES = frozenset(
         "mcp_tool_call_timeout",
     }
 )
+
+
+def _scientific_code_workspace_evidence_summaries(
+    rows: Sequence[Any],
+) -> list[dict[str, Any]]:
+    """Project source lineage without copying code or tool-loop history."""
+
+    summaries: list[dict[str, Any]] = []
+    workspace_fields = (
+        "artifact_id",
+        "workspace_operation",
+        "parent_code_draft_hash",
+        "submitted_code_draft_hash",
+        "initial_check_result_hash",
+        "terminal_check_result_hash",
+        "initial_check_accepted",
+        "source_changed",
+        "source_updates",
+        "sandbox_checks",
+        "runtime_executed_tool_calls",
+        "provider",
+        "model",
+        "model_owned_source",
+        "runtime_edited_source",
+        "accepted",
+        "transcript_fingerprint",
+    )
+    lineage_fields = (
+        "parent_manifest_id",
+        "feedback_id",
+        "feedback_type",
+        "feedback_failure_classification",
+        "feedback_supplied_to_generator",
+        "lineage_contract_complete",
+    )
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        workspace = row.get("scientific_code_workspace", {})
+        if not isinstance(workspace, Mapping) or not workspace:
+            continue
+        summary = {
+            key: deepcopy(workspace.get(key))
+            for key in workspace_fields
+        }
+        summary["executed_source_hash"] = str(
+            row.get("script_hash", "") or ""
+        )
+        lineage = row.get("source_revision_lineage", {})
+        if isinstance(lineage, Mapping) and lineage:
+            summary["source_revision_lineage"] = {
+                key: deepcopy(lineage.get(key))
+                for key in lineage_fields
+            }
+        summaries.append(summary)
+    return summaries
 
 
 def generated_sandbox_workspace_closure_counts(

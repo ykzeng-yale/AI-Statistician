@@ -72,7 +72,7 @@ def test_lsp_provider_returns_exact_model_selected_declaration_source(
                 "result": {
                     "isError": False,
                     "structuredContent": {
-                        "file_path": "Library/Example.lean",
+                        "file_path": "Library/Source.lean",
                         "start_line": 10,
                         "end_line": 18,
                         "content": (
@@ -126,3 +126,55 @@ def test_lsp_provider_returns_exact_model_selected_declaration_source(
         == 37
     )
     assert clients[0].closed is True
+
+
+def test_lsp_provider_rejects_mislocalized_declaration_context(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "LeanProject"
+    project.mkdir()
+    (project / "lean-toolchain").write_text("leanprover/lean4:test\n")
+    artifact = project / "Candidate.lean"
+    artifact.write_text("import Mathlib\n", encoding="utf-8")
+
+    class FakeClient:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        @staticmethod
+        def call_tool(_name: str, _arguments: dict):
+            return {
+                "result": {
+                    "isError": False,
+                    "structuredContent": {
+                        "file_path": "Library/Example.lean",
+                        "start_line": 1,
+                        "end_line": 2,
+                        "content": "module\n\npublic import Mathlib",
+                    },
+                }
+            }
+
+        def close(self) -> None:
+            pass
+
+    provider = LeanLspMcpProofStateFeedbackProvider(
+        project_root=project,
+        mcp_command=("lean-lsp-mcp",),
+    )
+    monkeypatch.setattr(
+        provider,
+        "_load_openprover_mcp_module",
+        lambda: SimpleNamespace(LeanLspMcpClient=FakeClient),
+    )
+
+    result = provider.inspect_declaration(
+        artifact_path=str(artifact),
+        symbol="Example.Source",
+    )
+
+    assert result["ok"] is False
+    assert result["status"] == "SYMBOL_CONTEXT_MISSING"
+    assert result["symbol_context_observed"] is False
+    assert "requested declaration symbol" in result["error"]

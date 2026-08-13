@@ -45,6 +45,9 @@ from .research_schema import OpenResearchQuestion
 from .semantic_review_feedback import (
     architect_observations_without_runtime_routing,
 )
+from .scientific_code_workspace import (
+    SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY,
+)
 from .theory_revision_lineage import (
     RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY,
     runtime_theory_revision_budget,
@@ -841,6 +844,29 @@ def _architect_feedback_route_subsystems(
         )
         if exhausted_source:
             unavailable.add(exhausted_source)
+    consumer_budget = environment_feedback.get(
+        SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY,
+        {},
+    )
+    if isinstance(consumer_budget, Mapping) and consumer_budget:
+        revisions_used = _architect_gap_int(
+            consumer_budget.get("revisions_used", 0), fallback=0
+        )
+        max_consumer_revisions = _architect_gap_int(
+            consumer_budget.get("max_revisions", 0), fallback=0
+        )
+        consumer_budget_exhausted = bool(
+            consumer_budget.get("budget_exhausted") is True
+            or max_consumer_revisions <= 0
+            or revisions_used >= max_consumer_revisions
+        )
+        source_owner = environment_feedback.get("consumer_source_owner", {})
+        source_owner = source_owner if isinstance(source_owner, Mapping) else {}
+        exhausted_owner = str(
+            source_owner.get("source_owner_subsystem", "") or ""
+        ).strip()
+        if consumer_budget_exhausted and exhausted_owner:
+            unavailable.add(exhausted_owner)
     revisions_used, max_revisions = runtime_theory_revision_budget(
         architect_context
     )

@@ -26,6 +26,9 @@ from ai_statistician.research_agent_runtime import (
     ResearchAgentRuntimeConfig,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.scientific_code_workspace import (
+    SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY,
+)
 
 
 EXACT_HAIKU_MODEL = "claude-haiku-4-5-20251001"
@@ -492,6 +495,53 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
     assert "SimulationEvaluator" not in backend.requests[0].metadata[
         "available_route_subsystems"
     ]
+
+
+def test_exhausted_consumer_budget_removes_only_bound_source_owner() -> None:
+    feedback = {
+        "feedback_type": "confirmatory_simulation_outcome",
+        "failure_classification": "confirmatory_simulation_metric_gate_failed",
+        "consumer_source_owner": {
+            "source_owner_subsystem": "AlgorithmEngineer",
+        },
+        SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY: {
+            "lineage_id": "scientific_consumer_lineage:exact",
+            "revisions_used": 2,
+            "max_revisions": 2,
+            "budget_exhausted": False,
+        },
+    }
+
+    prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context={},
+        environment_feedback=feedback,
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+
+    assert "AlgorithmEngineer" not in payload["available_route_subsystems"]
+    assert "AlgorithmEngineer" in payload["unavailable_route_subsystems"]
+    assert "TheoryDeveloper" in payload["available_route_subsystems"]
+    assert "SimulationEvaluator" in payload["available_route_subsystems"]
+
+
+def test_missing_consumer_budget_keeps_first_source_revision_available() -> None:
+    feedback = {
+        "feedback_type": "confirmatory_simulation_outcome",
+        "failure_classification": "confirmatory_simulation_metric_gate_failed",
+        "consumer_source_owner": {
+            "source_owner_subsystem": "AlgorithmEngineer",
+        },
+    }
+
+    prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context={},
+        environment_feedback=feedback,
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+
+    assert "AlgorithmEngineer" in payload["available_route_subsystems"]
 
 
 def test_cross_artifact_review_keeps_true_source_owner_available_to_architect() -> None:
