@@ -63,10 +63,8 @@ def test_bridge_only_gap_planner_is_not_a_generic_feedback_owner() -> None:
     assert "Lean must not substitute" in route_prompt
     assert "candidate-source failures" in route_prompt
     assert "missing proof dependencies" in route_prompt
-    assert "Selecting CriticEvaluator is terminal" in route_prompt
-    assert "numbers or empirical outcomes mentioned inside reviewer prose" in (
-        route_prompt
-    )
+    assert "CriticEvaluator is terminal" in route_prompt
+    assert "Numbers in reviewer prose are not execution observations" in route_prompt
     invalid_route = {
         "decision": "ROUTE",
         "selected_subsystem": "FormalizationGapPlanner",
@@ -320,6 +318,11 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
                 "recent_task_ids": ["retrieve:done", "theory:done"],
                 "recent_handoffs": [],
                 "active_blockers": [],
+                "evidence_lane_inventory": {
+                    "remaining_primary_subsystems": [
+                        "FormalizationEvaluator"
+                    ]
+                },
             },
             "workspace_replan": {
                 "historical_context": "y" * 100_000,
@@ -336,35 +339,31 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     assert request.metadata["operation"] == ARCHITECT_FEEDBACK_ROUTE_OPERATION
     assert request.schema == ARCHITECT_FEEDBACK_ROUTE_JSON_SCHEMA
     assert request.max_tokens == 2000
-    assert len(request.user_prompt) < 100_000
-    assert "regenerate the full research plan" in request.user_prompt
+    assert len(request.user_prompt) < 10_000
+    assert "Do not regenerate the research plan" in request.user_prompt
     assert "runtime_progress_snapshot" in request.user_prompt
     assert "remaining_primary_subsystems" in request.user_prompt
-    assert "the run is not ready for final audit" in request.user_prompt
+    assert "unvisited required lane" in request.user_prompt
     assert "retrieval_memory_manifest:existing" in request.user_prompt
     assert "prior intent" in request.user_prompt
     assert "NameError: estimate is not defined" in request.user_prompt
     assert "The stochastic diagnostic may not identify a code defect" in (
         request.user_prompt
     )
-    assert "Never propose a new repair, patch, correction, or adapter agent" in (
+    assert "repair, patch, correction, or adapter agent" in (
         request.user_prompt
     )
     assert "unavailable_route_subsystems" in request.user_prompt
     assert "statistically non-diagnostic result does not" in (
         request.user_prompt
     )
-    assert "never ask a worker to edit the currently frozen gate" in (
-        request.user_prompt
-    )
+    assert "weaken a frozen gate" in request.user_prompt
     assert "Simulation and algorithm artifacts are not prerequisites" in (
         request.user_prompt
     )
-    assert "exactly one next task" in request.user_prompt
-    assert "no other lane runs in the background" in request.user_prompt
-    assert "Superseded observations are complete attempt history" in (
-        request.user_prompt
-    )
+    assert "exactly one task" in request.user_prompt
+    assert "no lane runs in the background" in request.user_prompt
+    assert "superseded observations are history" in request.user_prompt
     assert "historical_error_is_not_an_active_blocker_unless_reobserved" not in (
         request.user_prompt
     )
@@ -591,10 +590,10 @@ def test_cross_artifact_review_keeps_true_source_owner_available_to_architect() 
 
     assert packet["selected_subsystem"] == "AlgorithmEngineer"
     assert len(backend.requests) == 1
-    assert "Treat current_source_owner as the immutable identity" in (
+    assert "current_source_owner identifies the artifact producer" in (
         backend.requests[0].user_prompt
     )
-    assert "do not rename another producer as that source owner" in (
+    assert "source rewrite only to that exact owner" in (
         backend.requests[0].user_prompt
     )
 
@@ -744,7 +743,9 @@ def test_question_theory_revision_budget_does_not_reset_on_new_feedback() -> Non
     assert payload["active_runtime_context"][
         "architect_metric_protocol_gate"
     ]["upstream_theory_revision_count"] == 2
-    assert "does not reset when feedback is wrapped" in prompt
+    assert payload["active_runtime_context"][
+        "architect_metric_protocol_gate"
+    ]["max_upstream_theory_revisions"] == 2
 
     reserved_feedback = {
         **feedback,

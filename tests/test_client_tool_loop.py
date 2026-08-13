@@ -608,9 +608,10 @@ def test_bounded_client_tool_loop_uses_existing_runtime_substage(
 
     @contextmanager
     def record_substage(name, *, metadata):
-        observed.append(("start", name, dict(metadata)))
-        yield
-        observed.append(("finish", name, dict(metadata)))
+        details = dict(metadata)
+        observed.append(("start", name, dict(details)))
+        yield details
+        observed.append(("finish", name, dict(details)))
 
     monkeypatch.setattr(
         "ai_statistician.client_tool_loop.agent_runtime_substage",
@@ -637,6 +638,11 @@ def test_bounded_client_tool_loop_uses_existing_runtime_substage(
     assert [row[:2] for row in observed] == [
         ("start", "client_tool_model_turn"),
         ("finish", "client_tool_model_turn"),
+        ("start", "client_tool_execution"),
+        ("finish", "client_tool_execution"),
     ]
     assert observed[0][2]["turn_index"] == 0
     assert observed[0][2]["model"] == "claude-haiku-4-5-20251001"
+    assert observed[2][2]["tool_name"] == "submit"
+    assert observed[3][2]["tool_terminal"] is True
+    assert observed[3][2]["tool_result_is_error"] is False

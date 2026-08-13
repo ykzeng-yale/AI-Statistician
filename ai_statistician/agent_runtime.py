@@ -1014,17 +1014,17 @@ def agent_runtime_substage(
     substage: str,
     *,
     metadata: Mapping[str, Any] | None = None,
-) -> Iterator[None]:
+) -> Iterator[dict[str, Any]]:
     """Expose work inside a subsystem through its existing progress callback."""
 
     context = _ACTIVE_PROGRESS_CONTEXT.get()
     if not context:
-        yield
+        yield dict(metadata or {})
         return
     callback = context.get("progress_callback")
     task = context.get("task")
     if not callable(callback) or not isinstance(task, AgentTask):
-        yield
+        yield dict(metadata or {})
         return
     iteration = int(context.get("iteration", 0) or 0)
     subsystem = str(context.get("subsystem", "") or task.owner_subsystem)
@@ -1040,7 +1040,7 @@ def agent_runtime_substage(
         metadata=details,
     )
     try:
-        yield
+        yield details
     except Exception as exc:
         _emit_progress(
             callback,

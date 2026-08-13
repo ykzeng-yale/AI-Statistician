@@ -382,8 +382,8 @@ def test_agent_runtime_exposes_compound_substage_progress_without_new_scheduler(
             with agent_runtime_substage(
                 "independent_semantic_review",
                 metadata={"model_tier": "sonnet", "attempt": 1},
-            ):
-                pass
+            ) as progress_metadata:
+                progress_metadata["verdict"] = "ACCEPT"
             return AgentStepResult(status="ACCEPTED", rationale="compound work complete")
 
     progress_rows: list[dict[str, object]] = []
@@ -412,6 +412,7 @@ def test_agent_runtime_exposes_compound_substage_progress_without_new_scheduler(
     assert substage_rows[1]["metadata"] == {
         "model_tier": "sonnet",
         "attempt": 1,
+        "verdict": "ACCEPT",
     }
 
 

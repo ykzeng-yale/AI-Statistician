@@ -2,6 +2,7 @@ from ai_statistician.research_agent_runtime_audit import (
     _failed_simulation,
     _has_direct_revision,
     _scorecard,
+    _source_owner_revision_summary,
 )
 
 
@@ -14,6 +15,7 @@ def _row(scorecard: dict[str, object], requirement_id: str) -> dict[str, object]
 
 
 def test_code_revision_ownership_cannot_pass_without_executed_sources() -> None:
+    assert _source_owner_revision_summary([], []) == (True, 0, 0, 0, set())
     traces = [
         {"question_id": "task-one", "status": "BLOCKED"},
         {"question_id": "task-two", "status": "BLOCKED"},
@@ -107,6 +109,74 @@ def test_code_revision_ownership_uses_hash_bound_workspace_lineage() -> None:
         failed=_failed_simulation,
     )
     assert bound == (True, 1, 1)
+
+
+def test_source_owner_revision_audit_uses_explicit_backedge_and_replay() -> None:
+    question_id = "task-one"
+    task_id = "algorithm-consumer-observation:task-one:abc"
+    workspace = {
+        "artifact_id": "task-one:estimator",
+        "workspace_operation": "targeted_revision",
+        "parent_code_draft_hash": "parent-source",
+        "submitted_code_draft_hash": "child-source",
+        "initial_check_result_hash": "initial-check",
+        "terminal_check_result_hash": "terminal-check",
+        "initial_check_accepted": False,
+        "source_changed": True,
+        "source_updates": 1,
+        "sandbox_checks": 1,
+        "runtime_executed_tool_calls": 1,
+        "provider": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "model_owned_source": True,
+        "runtime_edited_source": False,
+        "accepted": True,
+        "transcript_fingerprint": "transcript",
+    }
+    evidence = [
+        {
+            "question_id": question_id,
+            "task_id": task_id,
+            "evidence_type": "algorithm_sandbox",
+            "payload": {"scientific_code_workspaces": [workspace]},
+        },
+        {
+            "question_id": question_id,
+            "task_id": "simulation:statistical-failure",
+            "evidence_type": "simulation",
+            "artifact_id": "simulation:failed-metric",
+            "payload": {
+                "n_generated_simulation_sandbox_executed": 1,
+                "n_generated_simulation_sandbox_passed": 0,
+                "n_generated_simulation_sandbox_metric_gate_failed": 1,
+            },
+        },
+    ]
+    observations = [
+        {
+            "question_id": question_id,
+            "task_id": task_id,
+            "observation_type": "algorithm_consumer_source_workspace_resumed",
+            "payload": {
+                "source_manifest_id": "algorithm:parent",
+                "source_revision_artifact_ids": ["estimator"],
+            },
+        },
+        {
+            "question_id": question_id,
+            "task_id": "simulation:restored",
+            "observation_type": "scientific_consumer_continuation_restored",
+            "payload": {"consumer_resume_manifest_id": "simulation:parent"},
+        },
+    ]
+
+    assert _source_owner_revision_summary(evidence, observations) == (
+        True,
+        1,
+        1,
+        1,
+        {question_id},
+    )
 
 
 def test_direct_formalizer_workspace_supplies_rag_source_and_revision_evidence() -> None:

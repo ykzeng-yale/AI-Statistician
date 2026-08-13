@@ -451,36 +451,55 @@ def run_bounded_client_tool_loop(
             else:
                 executed_by_runtime = True
                 runtime_executed_tool_calls += 1
-                try:
-                    execution = execute_tool(call, context)
-                except ClientToolInputError as exc:
-                    execution = ClientToolExecutionResult(
-                        content={
-                            "ok": False,
-                            "error": "client_tool_input_rejected",
-                            "exception_type": type(exc).__name__,
-                            "detail": str(exc)[:1200],
-                        },
-                        is_error=True,
-                        observation_key=(
-                            "client_tool_input_rejected:"
-                            + stable_hash([call.name, type(exc).__name__, str(exc)])
-                        ),
-                    )
-                except Exception as exc:
-                    execution = ClientToolExecutionResult(
-                        content={
-                            "ok": False,
-                            "error": "client_tool_internal_failure",
-                            "exception_type": type(exc).__name__,
-                            "detail_withheld": True,
-                        },
-                        is_error=True,
-                        observation_key=(
-                            "client_tool_internal_failure:"
-                            + stable_hash([call.name, type(exc).__name__])
-                        ),
-                    )
+                with agent_runtime_substage(
+                    "client_tool_execution",
+                    metadata={
+                        "turn_index": turn_index,
+                        "call_index": call_index,
+                        "calls_in_turn": len(calls),
+                        "tool_name": call.name,
+                    },
+                ) as progress_metadata:
+                    try:
+                        execution = execute_tool(call, context)
+                    except ClientToolInputError as exc:
+                        execution = ClientToolExecutionResult(
+                            content={
+                                "ok": False,
+                                "error": "client_tool_input_rejected",
+                                "exception_type": type(exc).__name__,
+                                "detail": str(exc)[:1200],
+                            },
+                            is_error=True,
+                            observation_key=(
+                                "client_tool_input_rejected:"
+                                + stable_hash(
+                                    [call.name, type(exc).__name__, str(exc)]
+                                )
+                            ),
+                        )
+                    except Exception as exc:
+                        execution = ClientToolExecutionResult(
+                            content={
+                                "ok": False,
+                                "error": "client_tool_internal_failure",
+                                "exception_type": type(exc).__name__,
+                                "detail_withheld": True,
+                            },
+                            is_error=True,
+                            observation_key=(
+                                "client_tool_internal_failure:"
+                                + stable_hash([call.name, type(exc).__name__])
+                            ),
+                        )
+                    if isinstance(progress_metadata, dict):
+                        progress_metadata.update(
+                            {
+                                "tool_result_is_error": bool(execution.is_error),
+                                "tool_state_changed": bool(execution.state_changed),
+                                "tool_terminal": bool(execution.terminal),
+                            }
+                        )
             if execution.terminal and not tool_definitions[call.name].terminal:
                 execution = ClientToolExecutionResult(
                     content={

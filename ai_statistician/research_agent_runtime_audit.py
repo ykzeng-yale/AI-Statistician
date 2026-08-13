@@ -355,6 +355,115 @@ def _has_direct_revision(
     return (n_failures == n_resolved, n_failures, n_resolved)
 
 
+def _source_owner_revision_summary(
+    evidence_rows: list[Mapping[str, Any]],
+    observation_rows: list[Mapping[str, Any]],
+) -> tuple[bool, int, int, int, set[str]]:
+    """Audit explicit source-owner backedges, not arbitrary metric failures."""
+
+    evidence_by_task: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    for row in evidence_rows:
+        task_id = str(row.get("task_id", "") or "").strip()
+        if task_id:
+            evidence_by_task[task_id].append(row)
+
+    requests = [
+        row
+        for row in observation_rows
+        if str(row.get("observation_type", "") or "")
+        == "algorithm_consumer_source_workspace_resumed"
+    ]
+    restores_by_question = Counter(
+        str(row.get("question_id", "") or "").strip()
+        for row in observation_rows
+        if str(row.get("observation_type", "") or "")
+        == "scientific_consumer_continuation_restored"
+    )
+    valid_revisions = 0
+    request_counts_by_question: Counter[str] = Counter()
+    valid_questions: set[str] = set()
+    for request in requests:
+        question_id = str(request.get("question_id", "") or "").strip()
+        task_id = str(request.get("task_id", "") or "").strip()
+        payload = _payload(request)
+        requested_ids = {
+            str(value or "").strip()
+            for value in payload.get("source_revision_artifact_ids", []) or []
+            if str(value or "").strip()
+        }
+        source_manifest_id = str(
+            payload.get("source_manifest_id", "") or ""
+        ).strip()
+        if question_id:
+            request_counts_by_question[question_id] += 1
+        valid_ids: set[str] = set()
+        for evidence in evidence_by_task.get(task_id, []):
+            if _evidence_type(evidence) != "algorithm_sandbox":
+                continue
+            for summary in _payload(evidence).get(
+                "scientific_code_workspaces", []
+            ) or []:
+                if not isinstance(summary, Mapping):
+                    continue
+                artifact_id = str(summary.get("artifact_id", "") or "").strip()
+                short_id = artifact_id.removeprefix(question_id + ":")
+                parent_hash = str(
+                    summary.get("parent_code_draft_hash", "") or ""
+                ).strip()
+                child_hash = str(
+                    summary.get("submitted_code_draft_hash", "") or ""
+                ).strip()
+                if not (
+                    question_id
+                    and artifact_id.startswith(question_id + ":")
+                    and short_id in requested_ids
+                    and summary.get("workspace_operation") == "targeted_revision"
+                    and summary.get("initial_check_accepted") is False
+                    and _bool(summary.get("source_changed", False))
+                    and parent_hash
+                    and child_hash
+                    and parent_hash != child_hash
+                    and _int(summary.get("source_updates")) > 0
+                    and _int(summary.get("sandbox_checks")) > 0
+                    and _int(summary.get("runtime_executed_tool_calls")) > 0
+                    and _bool(summary.get("model_owned_source", False))
+                    and not _bool(summary.get("runtime_edited_source", True))
+                    and _bool(summary.get("accepted", False))
+                    and bool(str(summary.get("provider", "") or "").strip())
+                    and bool(str(summary.get("model", "") or "").strip())
+                    and bool(
+                        str(summary.get("transcript_fingerprint", "") or "").strip()
+                    )
+                ):
+                    continue
+                valid_ids.add(short_id)
+        if (
+            source_manifest_id
+            and requested_ids
+            and valid_ids == requested_ids
+        ):
+            valid_revisions += 1
+            valid_questions.add(question_id)
+
+    restored_requests = sum(
+        min(count, restores_by_question.get(question_id, 0))
+        for question_id, count in request_counts_by_question.items()
+    )
+    request_questions = set(request_counts_by_question)
+    complete = bool(
+        valid_revisions == len(requests)
+        and restored_requests == len(requests)
+        and valid_questions == request_questions
+    )
+    return (
+        complete,
+        len(requests),
+        valid_revisions,
+        restored_requests,
+        valid_questions,
+    )
+
+
 def _failed_algorithm(payload: Mapping[str, Any]) -> bool:
     return bool(
         _int(payload.get("n_generated_code_execution_failed")) > 0
@@ -414,21 +523,15 @@ def _scorecard(
     observation_by_question = _rows_by_question(observations)
     model_policy = _model_policy_summary(manifest)
 
-    algorithm_revision_ok, algorithm_failures, algorithm_revisions = (
-        _has_direct_revision(
-            evidence,
-            failure_type="algorithm_sandbox",
-            proposal_type="llm_algorithm_engineer_proposal",
-            failed=_failed_algorithm,
-        )
-    )
-    simulation_revision_ok, simulation_failures, simulation_revisions = (
-        _has_direct_revision(
-            evidence,
-            failure_type="simulation",
-            proposal_type="llm_simulation_engineer_proposal",
-            failed=_failed_simulation,
-        )
+    (
+        source_revision_ok,
+        source_revision_requests,
+        source_revisions,
+        consumer_replays,
+        source_revision_questions,
+    ) = _source_owner_revision_summary(
+        evidence,
+        observations,
     )
     lean_revision_ok, lean_loops, lean_revisions = _formalizer_revision_summary(
         evidence
@@ -670,14 +773,13 @@ def _scorecard(
         (
             "source_producer_owns_code_revision",
             all_have(algorithm_questions)
-            and all_have(simulation_questions)
-            and algorithm_revision_ok
-            and simulation_revision_ok,
+            and source_revision_ok,
             f"algorithm_executed={sorted(algorithm_questions)}; "
             f"simulation_executed={sorted(simulation_questions)}; "
-            "algorithm_failures="
-            f"{algorithm_failures} revisions={algorithm_revisions}; "
-            f"simulation_failures={simulation_failures} revisions={simulation_revisions}",
+            f"source_revision_questions={sorted(source_revision_questions)}; "
+            f"requests={source_revision_requests} "
+            f"model_owned_revisions={source_revisions} "
+            f"consumer_replays={consumer_replays}",
         ),
         (
             "independent_generated_code_review_accepted",

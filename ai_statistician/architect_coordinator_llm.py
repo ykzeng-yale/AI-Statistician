@@ -564,27 +564,28 @@ def build_architect_feedback_route_prompt(
     architect_context: Mapping[str, Any],
     environment_feedback: Mapping[str, Any],
 ) -> str:
-    """Build a bounded routing prompt; the selected worker gets full feedback."""
+    """Build a compact routing prompt; the selected worker gets full feedback."""
 
     runtime_plan = architect_context.get("architect_runtime_plan", {})
     runtime_plan = runtime_plan if isinstance(runtime_plan, Mapping) else {}
     active_runtime_context = {
-        str(key): value
+        key: deepcopy(architect_context[key])
+        for key in (
+            "runtime_evaluation_mode",
+            "empirical_evaluation_phase",
+            "candidate_lineage_budget",
+            RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY,
+            "runtime_progress_snapshot",
+            "architect_metric_protocol_gate",
+        )
+        if key in architect_context
+    }
+    active_runtime_context["active_artifact_refs"] = {
+        str(key): deepcopy(value)
         for key, value in architect_context.items()
         if (
-            str(key).endswith("_id")
-            or str(key).endswith("_hash")
-            or str(key)
-            in {
-                "runtime_evaluation_mode",
-                "empirical_evaluation_phase",
-                "candidate_lineage_budget",
-                RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY,
-                "runtime_feedback_loop",
-                "runtime_progress_snapshot",
-                "runtime_outer_graph_workspace_outcomes",
-                "architect_metric_protocol_gate",
-            }
+            (str(key).endswith("_id") or str(key).endswith("_hash"))
+            and value not in (None, "", [], {})
         )
     }
     active_runtime_context = architect_observations_without_runtime_routing(
@@ -629,33 +630,17 @@ def build_architect_feedback_route_prompt(
         ),
         "environment_feedback_fingerprint": stable_hash(dict(environment_feedback)),
         "routing_contract": {
-            "content_owner": "ArchitectCoordinator model",
-            "runtime_does_not_select_owner": True,
-            "runtime_does_not_author_source_changes": True,
+            "owner_selected_by_architect_model": True,
             "selected_worker_receives_complete_feedback": True,
-            "exhausted_unchanged_producer_is_temporarily_unavailable": True,
-            "semantic_review_source_owner_remains_model_routable_within_budget": True,
+            "current_source_owner_is_identity_not_causal_attribution": True,
+            "source_rewrite_stays_with_exact_source_owner": True,
             "confirmatory_unchanged_source_retry_is_forbidden": True,
             "outcome_informed_new_source_requires_fresh_cohort": True,
-            "materially_new_parent_artifact_starts_a_new_candidate_lineage": True,
-            "question_theory_revision_budget_survives_new_feedback_and_parents": (
-                True
-            ),
-            "block_only_when_no_existing_subsystem_can_produce_next_evidence": True,
+            "unvisited_required_lanes_are_independent": True,
+            "critic_requires_no_routable_required_lane": True,
             "new_repair_patch_or_adapter_subsystem_forbidden": True,
-            "implementation_revision_owner_is_existing_source_producer": True,
-            "runtime_progress_snapshot_is_authoritative_for_availability": True,
-            "remaining_primary_evidence_lanes_preclude_terminal_audit": True,
-            "current_validated_plan_is_prior_intent_not_missing_work": True,
-            "recommended_research_path_controls_lane_order_not_prerequisites": True,
-            "one_route_materializes_one_task_no_background_parallelism": True,
-            "completed_stage_restart_requires_observed_staleness_or_incompatibility": (
-                True
-            ),
-            "failed_artifacts_remain_failed": True,
-            "top_level_environment_observation_is_current": True,
-            "superseded_observations_are_history_not_active_failures": True,
             "immutable_evidence_gates_cannot_be_weakened": True,
+            "block_only_when_no_available_owner_can_produce_evidence": True,
         },
         "required_output": {
             "decision": "ROUTE or BLOCK",
@@ -677,15 +662,15 @@ def build_architect_feedback_route_prompt(
         "current_source_owner": payload["current_source_owner"],
         "environment_observations": _bounded_architect_route_prompt_value(
             payload["environment_observations"],
-            max_chars=64_000,
+            max_chars=48_000,
         ),
         "current_validated_plan": _bounded_architect_route_prompt_value(
             payload["current_validated_plan"],
-            max_chars=12_000,
+            max_chars=6_000,
         ),
         "active_runtime_context": _bounded_architect_route_prompt_value(
             payload["active_runtime_context"],
-            max_chars=12_000,
+            max_chars=8_000,
         ),
         "environment_feedback_fingerprint": payload[
             "environment_feedback_fingerprint"
@@ -694,102 +679,37 @@ def build_architect_feedback_route_prompt(
         "required_output": payload["required_output"],
     }
     return (
-        "Review the current environment observations as the existing AI Statistician "
-        "ArchitectCoordinator. Choose only the next evidence-producing owner; do not "
-        "regenerate the full research plan and do not prescribe source edits. The "
-        "selected worker will receive the complete candidate and exact diagnostics. "
-        "Treat current_validated_plan as prior intent, not as evidence that its early "
-        "steps are still missing. Treat runtime_progress_snapshot as authoritative for "
-        "artifact availability and recent execution. Its evidence_lane_inventory is a "
-        "read-only summary of the frozen evidence obligations; it does not select the "
-        "next owner. Before selecting terminal CriticEvaluator, compare its "
-        "remaining_primary_subsystems with available_route_subsystems. If a required "
-        "primary evidence lane remains and its existing subsystem is available, the "
-        "run is not ready for final audit: choose one evidence-producing owner, using "
-        "recommended_research_path to decide lane order. Do not send an empirical "
-        "outcome to CriticEvaluator merely to decide whether it warrants revision; "
-        "make that routing decision here from the observed evidence. Do not restart "
-        "a completed stage "
-        "unless the environment observations identify its current artifact as stale, "
-        "incompatible, or insufficient for the concrete next objective. "
-        "Treat current_source_owner as the immutable identity of the artifact that "
-        "produced the observation, not as automatic causal attribution. Do not relabel "
-        "that artifact ownership from words such as algorithm, simulation, or proof in "
-        "reviewer prose. If you conclude that a complete rewrite of the currently "
-        "reviewed source can close the observation, route only to current_source_owner. "
-        "Route to an upstream dependency owner only when the observation and exact "
-        "dependency lineage support revising that dependency; a consumer_source_owner "
-        "field identifies an available dependency artifact and does not itself prove "
-        "that the dependency caused a statistical metric failure. An independent "
-        "reviewer's source-versus-"
-        "parent assessment is evidence for this decision, not an irreversible runtime "
-        "owner choice; you may disagree with it explicitly while staying within the "
-        "listed availability and lineage budgets. If current_source_owner is unavailable "
-        "because its lineage budget is exhausted, do not rename another producer as "
-        "that source owner. A released confirmatory outcome may inform a materially new "
-        "candidate only when the runtime supplies a fresh evaluator-owned cohort; it "
-        "never authorizes rerunning the unchanged source hash or weakening the frozen "
-        "gate. "
-        "CriticEvaluator findings are evidence-grounded hypotheses, not accepted "
-        "defects. Before routing a source revision, verify that the cited defect and "
-        "proposed correction are materially different; algebraically or logically "
-        "equivalent expressions do not justify another source-authoring round. "
-        "This route materializes exactly one next task; no other lane runs in the "
-        "background. Do not claim parallel progress as a reason to schedule only one "
-        "lane indefinitely. Selecting CriticEvaluator is terminal for the current "
-        "run: use it only for the final evidence audit, never as an intermediate "
-        "diagnosis that is expected to route another worker afterward. Honor the "
-        "current evidence contract's "
-        "recommended_research_path when choosing lane order: after theory review, "
-        "proof_first selects FormalizationEvaluator before AlgorithmEngineer or "
-        "SimulationEvaluator unless the current observations identify a concrete "
-        "missing mathematical prerequisite; simulation_first prefers the empirical "
-        "lane; dual_track selects one lane now and must leave the other for a later "
-        "Architect turn. Simulation and algorithm artifacts are not prerequisites "
-        "for starting formalization. "
-        "Treat the top-level observation marked CURRENT_ACTIVE_OBSERVATION as the current "
-        "blocker. Superseded observations are complete attempt history: use them to avoid "
-        "repeating failed work, but never route on an old error unless the current artifact "
-        "re-observes it. A producer listed in unavailable_route_subsystems cannot be "
-        "selected under the current runtime budgets. An exhausted candidate-lineage "
-        "producer becomes "
-        "eligible again only on a later route bound to a materially new parent artifact "
-        "and feedback identity. The question-level TheoryDeveloper revision budget does "
-        "not reset when feedback is wrapped, a candidate changes, or a revised parent "
-        "artifact is produced. Never propose a new repair, "
-        "patch, correction, or adapter "
-        "agent: implementation revision belongs to the existing source producer, while "
-        "theory, measurement, simulation design, and environment defects belong to their "
-        "existing agents. Route missing mathematical assumptions, definitions, or "
-        "derivations to TheoryDeveloper. Route to ProofEngineer only when the target "
-        "and premises are mathematically specified and the remaining blocker is Lean "
-        "formalization or proof; Lean must not substitute for an upstream theory "
-        "revision. A parser, elaborator, compiler, unresolved-goal, or generated "
-        "declaration-identity observation belongs to the existing FormalizationEvaluator "
-        "or ProofEngineer source producer when independent semantic review has not found "
-        "a target-level mathematical defect. Do not send candidate-source failures or "
-        "missing proof dependencies to TheoryDeveloper merely because the generated Lean "
-        "is malformed or incomplete. A truncated routing view is not evidence that an artifact or "
-        "worker is unavailable; the selected worker receives the complete feedback. "
-        "Route from direct evidence; a statistically non-diagnostic result does not "
-        "justify source or theory revision, and a frozen gate cannot change post hoc. "
-        "Honor preexecution_evidence_authority exactly. When generated_code_observed, "
-        "simulation_results_observed, and empirical_measurements_observed are false, "
-        "numbers or empirical outcomes mentioned inside reviewer prose are not observed "
-        "execution facts and cannot justify a TheoryDeveloper revision. Route a check "
-        "that needs code or Monte Carlo evidence to AlgorithmEngineer or "
-        "SimulationEngineer; route to TheoryDeveloper only when the cited source "
-        "material itself exposes a mathematical inconsistency, missing assumption, "
-        "definition, or derivation. "
-        "If the observation shows that a frozen measurement protocol is semantically "
-        "inconsistent with its upstream artifact, preserve the failed result and route "
-        "for a new upstream artifact. Only a later, independently authored and reviewed "
-        "protocol on that materially new lineage may replace the old protocol; never ask "
-        "a worker to edit the currently frozen gate. "
-        "Choose BLOCK only when no listed existing subsystem can produce the next "
-        "required evidence. If your rationale can name an available subsystem and a "
-        "concrete action it can take, choose ROUTE to that subsystem instead of BLOCK. "
-        "Return ONLY one JSON object matching required_output.\n\n"
+        "Choose one next evidence-producing owner as the existing AI Statistician "
+        "ArchitectCoordinator. Do not regenerate the research plan or prescribe an "
+        "implementation. The selected worker receives the complete unabridged feedback.\n\n"
+        "Routing rules:\n"
+        "1. Use CURRENT_ACTIVE_OBSERVATION; superseded observations are history unless "
+        "the current artifact re-observes them. Treat current_validated_plan as prior "
+        "intent and runtime_progress_snapshot as the authority for availability.\n"
+        "2. current_source_owner identifies the artifact producer, not the cause. Route "
+        "a source rewrite only to that exact owner; route an upstream dependency only "
+        "when the observation and lineage support it. A consumer_source_owner field "
+        "does not itself prove causation.\n"
+        "3. Route missing mathematical assumptions, definitions, or derivations to "
+        "TheoryDeveloper; route Lean elaboration, proof-state, and proof-source failures "
+        "to FormalizationEvaluator. Lean must not substitute for missing upstream "
+        "mathematics; candidate-source failures and missing proof dependencies are not "
+        "theory defects.\n"
+        "4. Never rerun an unchanged confirmatory source, weaken a frozen gate, or invent "
+        "a repair, patch, correction, or adapter agent. A statistically non-diagnostic "
+        "result does not justify a source or theory revision. Numbers in reviewer prose "
+        "are not execution observations unless the supplied authority marks them as "
+        "observed.\n"
+        "5. Required evidence lanes are independent once their actual prerequisites "
+        "exist. Before repeating a visited lane, prefer an available unvisited required "
+        "lane unless the current observation establishes a missing mathematical "
+        "prerequisite. Simulation and algorithm artifacts are not prerequisites for "
+        "starting formalization.\n"
+        "6. This decision materializes exactly one task; no lane runs in the background. "
+        "CriticEvaluator is terminal and is allowed only when no routable required lane "
+        "remains.\n"
+        "7. Choose BLOCK only when no available subsystem can produce the next evidence. "
+        "Return only one JSON object matching required_output.\n\n"
         + json.dumps(bounded_payload, separators=(",", ":"), default=str)
     )
 
