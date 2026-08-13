@@ -256,16 +256,20 @@ declaration-name submission, or a concrete task-bound formal-gap report. Each so
 is stored unchanged and checked immediately; raw Lean failure returns to that model.
 Runtime injects no import, theorem statement, tactic, or proof-body fragment.
 
-One global turn/call budget covers every workspace action. The complete bounded
-workspace transcript retains exact retrieval and inspection observations, while
-each nonterminal source observation repeats the current source, source hash,
-declaration, and latest raw Lean check. Declaration inspection first resolves an
-exact model-selected active-project declaration through task-bound RAG and calls
-OpenProver's existing `lean-lsp-mcp` tooling on that source file. The hash-bound
-candidate file is only a fallback for the candidate declaration or other local
-symbols. Structured source packets remain only for static/replay providers without
-native client tools. Every retrieval, compile, inspection, and formal-gap result
-remains explicitly non-proof evidence.
+One global turn/call budget covers every action. A short rolling transcript retains
+recent retrieval and inspection results; one authoritative snapshot carries the
+complete current source, hash, declaration, latest raw Lean check, usage, and budget.
+A resumed source is rechecked in the active Lake project before the first model turn.
+Old checkpoint checks and search/state payloads are not permanent prompt fields.
+Declaration inspection resolves the model-selected active-project symbol through
+task-bound RAG and OpenProver's `lean-lsp-mcp`; the candidate file is only a local
+fallback. All such observations remain explicitly non-proof evidence.
+
+The stable initial/revision tool surface offers complete-source submission,
+declaration/proof-state inspection, formal RAG, proof-candidate search, and a typed
+formal gap. A revision gap preserves exact target provenance, clears proof-candidate
+source fields, and remains non-proof. Independent review must distinguish a true
+missing foundation from a fixable API or modeling error.
 
 Every changed statement receives independent target-semantic review. A candidate
 can count as theorem evidence only when all of the following bind to the same
@@ -346,19 +350,18 @@ remain sealed until the development gate passes, and their outcomes may not be
 used to add theorem-family rules. A capability scorecard, support lemma count, or
 audit percentage cannot substitute for exact closure on each task.
 
-As of 2026-08-12, v387 is the latest fresh integrated panel. Every live call used
-exact `claude-haiku-4-5-20251001`. It scored 7/16, ended with two `BLOCKED` tasks,
-verified one fresh post-outcome cohort execution, and closed 0/2 exact source
-theorems. Survival blocked at theory preflight. Sequential reached Algorithm,
-Simulation, review, task-bound RAG, and Formalizer, but its Simulation source
-exhausted eight submissions on literal metric paths. The old gate then mistook
-process execution for source validity and allowed an incorrect cross-owner route.
-Commit `f7a8538f` unifies the direct workspace and downstream interface gate,
-preserves source identity, and separates exhausted history from parent
-satisfiability. Exact-Haiku frozen-artifact replay corrected the review assessment,
-but earns no integrated credit until v388. Held-out tasks remain sealed. Audit
-`all_ok=true` cannot override 0/2 kernel closure. New review materializations store
-immutable refs and fingerprints rather than recursive payloads.
+As of 2026-08-13, v390 is the latest fresh integrated panel. Exact Haiku scored
+6/16, ended with two `BLOCKED` tasks, and closed 0/2 exact source theorems. Both
+tasks executed Algorithm code but exhausted Theory revision/preflight before
+Formalizer; this is an upstream contract failure, not Lean evidence.
+
+Direct v391-v394 ablations reuse one exact v389 target. Four retained tool turns
+reduced input from 435185 tokens in v391 to 291767 in v393 while preserving eight
+source updates; a two-turn test regressed to zero updates and was reverted. At
+`1fdb1e6a`, v394 made five updates and six Lean checks, then reported a typed gap
+without proof credit. OpenProver search remained unused and the claimed primitives
+remain unreviewed. This is component evidence only. Held-out tasks remain sealed;
+`all_ok=true` cannot override 0/2 kernel closure.
 
 ## Structural constraints
 
@@ -392,8 +395,5 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-Immediate priorities are fresh v388 source-ownership evidence, general model-owned theory counterchecks, and reliable active-project declaration inspection.
-The Formalizer already has one direct authoring/revision session; failed source
-quality must not be answered with a repair agent, a second generation pass, Lean
-grammar rules, or theorem-specific bridges. New mechanisms must delete control
-paths, improve direct tools or context, or enforce real authority.
+Immediate priorities are model-owned theory counterchecks, execution timing, formal-gap review,
+and integrated v395 evidence. New work must simplify tools, never add repair agents or theorem-specific rules.
