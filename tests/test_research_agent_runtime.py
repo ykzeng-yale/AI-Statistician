@@ -520,6 +520,149 @@ def test_formal_blocker_does_not_starve_unvisited_empirical_lanes() -> None:
     assert continued.observations[-1].payload["model_routing_call_used"] is False
 
 
+def test_architect_repeat_cannot_starve_runnable_unvisited_primary_lane() -> None:
+    question = OpenResearchQuestion(
+        id="generic-initial-lane-coverage",
+        title="Generic initial lane coverage",
+        description="Visit independent evidence workspaces before reopening one.",
+    )
+    context = _full_evidence_context(question.id)
+    context["architect_runtime_plan"]["evidence_contract"][
+        "recommended_research_path"
+    ] = "dual_track"
+    architect_task = AgentTask(
+        task_id="architect:generic-initial-lane-coverage",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route the next workspace.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": context,
+        },
+    )
+    repeated_algorithm = AgentTask(
+        task_id="algorithm:generic-initial-lane-coverage:repeat",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Reopen the algorithm workspace on a revised theory.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "architect_context": context,
+        },
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={"theory:generic": {"packet_id": "theory:generic"}},
+    )
+    blackboard.handoff_ledger.append(
+        TaskHandoffRecord(
+            handoff_id="handoff:architect-algorithm",
+            from_task_id="architect:initial",
+            to_task_id="algorithm:initial",
+            from_subsystem="ArchitectCoordinator",
+            to_subsystem="AlgorithmEngineer",
+            status="REROUTE",
+            rationale="Initial algorithm workspace visit.",
+        )
+    )
+
+    continued = _runtime_transition_policy(
+        iteration=9,
+        task=architect_task,
+        subsystem_name="ArchitectCoordinator",
+        result=AgentStepResult(
+            status="REROUTE",
+            rationale="Architect proposed another algorithm workspace.",
+            next_task=repeated_algorithm,
+        ),
+        blackboard=blackboard,
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert continued.next_task is not None
+    assert continued.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert continued.failure_classification == (
+        "runtime_required_evidence_lane_continuation"
+    )
+    coverage = continued.observations[-1]
+    assert coverage.observation_type == "runtime_required_evidence_lane_continuation"
+    assert coverage.payload["initial_lane_coverage_override"] is True
+    assert coverage.payload["next_owner_subsystem"] == "FormalizationEvaluator"
+    assert coverage.payload["runtime_authored_research_content"] is False
+
+
+def test_initial_lane_coverage_does_not_interrupt_bound_source_owner_loop() -> None:
+    question = OpenResearchQuestion(
+        id="generic-bound-source-owner",
+        title="Generic bound source owner",
+        description="Keep raw consumer feedback with its exact source owner.",
+    )
+    context = _full_evidence_context(question.id)
+    context["architect_runtime_plan"]["evidence_contract"][
+        "recommended_research_path"
+    ] = "dual_track"
+    source_owner_task = AgentTask(
+        task_id="algorithm-consumer-observation:generic-bound-source-owner",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Revise the exact source from its raw consumer observation.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "architect_context": context,
+            "deferred_consumer_task_continuation_ref": {
+                "artifact_kind": "RuntimeAgentTaskContinuationRef"
+            },
+        },
+        budget={
+            runtime_module.SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY: {
+                "revisions_used": 1,
+                "max_revisions": 2,
+            }
+        },
+    )
+    result = AgentStepResult(
+        status="REROUTE",
+        rationale="Return the raw observation to the exact source owner.",
+        next_task=source_owner_task,
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={"theory:generic": {"packet_id": "theory:generic"}},
+    )
+    blackboard.handoff_ledger.append(
+        TaskHandoffRecord(
+            handoff_id="handoff:architect-algorithm",
+            from_task_id="architect:initial",
+            to_task_id="algorithm:initial",
+            from_subsystem="ArchitectCoordinator",
+            to_subsystem="AlgorithmEngineer",
+            status="REROUTE",
+            rationale="Initial algorithm workspace visit.",
+        )
+    )
+
+    continued = _runtime_transition_policy(
+        iteration=9,
+        task=AgentTask(
+            task_id="architect:generic-bound-source-owner",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Route exact feedback.",
+        ),
+        subsystem_name="ArchitectCoordinator",
+        result=result,
+        blackboard=blackboard,
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert continued is result
+    assert continued.next_task is source_owner_task
+
+
 def test_theory_revision_retires_active_descendant_authority() -> None:
     context = {
         **_full_evidence_context("generic-parent-change"),

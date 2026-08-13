@@ -4046,11 +4046,11 @@ def _runtime_outer_graph_continuation(
     blackboard: BlackboardState,
     runtime_config: ResearchAgentRuntimeConfig | None,
     proposed_next_task: AgentTask | None = None,
+    next_owner_override: str = "",
 ) -> AgentStepResult | None:
-    if runtime_config is None or subsystem_name in {
-        "ArchitectCoordinator",
-        "CriticEvaluator",
-    }:
+    if runtime_config is None or subsystem_name == "CriticEvaluator":
+        return None
+    if subsystem_name == "ArchitectCoordinator" and not next_owner_override:
         return None
     if (
         result.status in {"BLOCKED", "FAILED"}
@@ -4080,7 +4080,11 @@ def _runtime_outer_graph_continuation(
         return None
     executed = _runtime_executed_subsystems(architect_context=context)
     remaining = [subsystem for subsystem in primary if subsystem not in executed]
-    next_owner = remaining[0] if remaining else ""
+    next_owner = (
+        next_owner_override
+        if next_owner_override in primary
+        else (remaining[0] if remaining else "")
+    )
     if not next_owner and "CriticEvaluator" in planned and (
         "CriticEvaluator" not in executed
     ):
@@ -4149,6 +4153,7 @@ def _runtime_outer_graph_continuation(
             "executed_subsystems": sorted(executed),
             "remaining_primary_subsystems": remaining,
             "next_owner_subsystem": next_owner,
+            "initial_lane_coverage_override": bool(next_owner_override),
             "model_routing_call_used": False,
             "runtime_authored_research_content": False,
             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
@@ -4305,6 +4310,77 @@ def _lineage_bound_execution_return_to_source_producer(
     )
 
 
+def _runtime_architect_initial_lane_coverage(
+    *,
+    iteration: int,
+    task: AgentTask,
+    result: AgentStepResult,
+    blackboard: BlackboardState,
+    runtime_config: ResearchAgentRuntimeConfig | None,
+) -> AgentStepResult | None:
+    """Prevent a visited workspace from starving an independent planned lane."""
+
+    next_task = result.next_task
+    if runtime_config is None or next_task is None:
+        return None
+    if (
+        SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY in next_task.budget
+        and "deferred_consumer_task_continuation_ref" in next_task.inputs
+    ):
+        return None
+    proposed_owner = next_task.owner_subsystem
+    if proposed_owner not in RUNTIME_PRIMARY_EVIDENCE_SUBSYSTEMS:
+        return None
+    context_value = next_task.inputs.get("architect_context", {})
+    context = dict(context_value) if isinstance(context_value, Mapping) else {}
+    primary, _plan_context = _runtime_outer_graph_plan(context)
+    if proposed_owner not in primary:
+        return None
+    visited = {
+        subsystem
+        for handoff in blackboard.handoff_ledger
+        for subsystem in (handoff.from_subsystem, handoff.to_subsystem)
+        if subsystem in RUNTIME_PRIMARY_EVIDENCE_SUBSYSTEMS
+    }
+    if proposed_owner not in visited:
+        return None
+    unvisited = [subsystem for subsystem in primary if subsystem not in visited]
+    if not unvisited:
+        return None
+
+    theory_packet_id = _architect_context_theory_packet_id(context)
+    theory_available = bool(
+        theory_packet_id
+        and _architect_blackboard_artifact_present(blackboard, theory_packet_id)
+    )
+    current_lineage_executed = _runtime_executed_subsystems(
+        architect_context=context
+    )
+    runnable = [
+        subsystem
+        for subsystem in unvisited
+        if (
+            theory_available
+            and (
+                subsystem != "SimulationEvaluator"
+                or "AlgorithmEngineer" in current_lineage_executed
+            )
+        )
+    ]
+    if not runnable:
+        return None
+    return _runtime_outer_graph_continuation(
+        iteration=iteration,
+        task=task,
+        subsystem_name="ArchitectCoordinator",
+        result=result,
+        blackboard=blackboard,
+        runtime_config=runtime_config,
+        proposed_next_task=next_task,
+        next_owner_override=runnable[0],
+    )
+
+
 def _runtime_transition_policy(
     *,
     iteration: int,
@@ -4326,7 +4402,16 @@ def _runtime_transition_policy(
         )
         return continuation or result
     if subsystem_name == "ArchitectCoordinator":
-        return result
+        return (
+            _runtime_architect_initial_lane_coverage(
+                iteration=iteration,
+                task=task,
+                result=result,
+                blackboard=blackboard,
+                runtime_config=runtime_config,
+            )
+            or result
+        )
     if next_task.owner_subsystem == "ArchitectCoordinator":
         return result
     if next_task.owner_subsystem == subsystem_name:
