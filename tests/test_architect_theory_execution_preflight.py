@@ -247,6 +247,7 @@ class _PreflightToolBackend:
         payload: dict[str, object] | None = None,
         submit_before_search: bool = False,
         submit_unknown_ref_once: bool = False,
+        exhaust_search_budget: bool = False,
         source_scope: str = "theory",
         cite_sources: bool = True,
     ) -> None:
@@ -254,6 +255,7 @@ class _PreflightToolBackend:
         self.payload = deepcopy(payload) if payload is not None else None
         self.submit_before_search = submit_before_search
         self.submit_unknown_ref_once = submit_unknown_ref_once
+        self.exhaust_search_budget = exhaust_search_budget
         self.source_scope = source_scope
         self.cite_sources = cite_sources
         self.requests = []
@@ -283,6 +285,21 @@ class _PreflightToolBackend:
     def generate_client_tool_turn(self, request):
         self.requests.append(request)
         turn = len(self.requests)
+        if turn == 1 and self.exhaust_search_budget:
+            return _tool_response(
+                *[
+                    ClientToolCall(
+                        f"search-{index}",
+                        "search_preflight_sources",
+                        {
+                            "query": f"finite input censored outcome {index}",
+                            "source_scope": self.source_scope,
+                            "k": 4,
+                        },
+                    )
+                    for index in range(1, 4)
+                ]
+            )
         if turn == 1 and self.submit_before_search:
             return _tool_response(
                 ClientToolCall(
@@ -304,10 +321,11 @@ class _PreflightToolBackend:
                 )
             )
         result_blocks = request.messages[-1]["content"]
-        result = json.loads(result_blocks[0]["content"])
-        if result.get("hits"):
-            self.hit_id = result["hits"][0]["source_hit_id"]
-            self.source_ref = result["hits"][0]["source_ref"]
+        for result_block in result_blocks:
+            result = json.loads(result_block["content"])
+            if result.get("hits"):
+                self.hit_id = result["hits"][0]["source_hit_id"]
+                self.source_ref = result["hits"][0]["source_ref"]
         if self.submit_unknown_ref_once and not any(
             row.get("is_error")
             for row in request.messages[-1].get("content", [])
@@ -595,6 +613,27 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
         backend.requests[1].messages[-1]["content"][0]["content"]
     )
     assert first_result["hits"][0]["source_ref"] == "S1H1"
+
+
+def test_preflight_keeps_search_tool_visible_after_its_budget_is_spent() -> None:
+    backend = _PreflightToolBackend(
+        accept=False,
+        exhaust_search_budget=True,
+    )
+
+    packet = _tool_review(backend)
+
+    assert packet["preflight_source_search_count"] == 3
+    assert len(backend.requests) == 2
+    expected_tools = {
+        "search_preflight_sources",
+        "submit_theory_preflight_review",
+    }
+    assert all(
+        {tool.name for tool in request.tools} == expected_tools
+        for request in backend.requests
+    )
+    assert all(request.enable_prompt_caching for request in backend.requests)
 
 
 def test_preflight_canonicalizes_prior_finding_source_ref_before_binding() -> None:
@@ -939,9 +978,11 @@ def test_preflight_recovers_from_rejected_final_submission() -> None:
 
     assert len(backend.requests) == 5
     assert [tool.name for tool in backend.requests[3].tools] == [
+        "search_preflight_sources",
         "submit_theory_preflight_review",
     ]
     assert [tool.name for tool in backend.requests[4].tools] == [
+        "search_preflight_sources",
         "submit_theory_preflight_review",
     ]
     assert backend.requests[4].metadata[

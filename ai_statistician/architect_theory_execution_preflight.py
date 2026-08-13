@@ -2631,21 +2631,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         + ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS
     )
 
-    def select_preflight_tools(
-        _turn_index: int,
-        available_tools: tuple[ClientToolDefinition, ...],
-    ) -> tuple[ClientToolDefinition, ...]:
-        selected: list[ClientToolDefinition] = []
-        for tool in available_tools:
-            if (
-                tool.name == "search_preflight_sources"
-                and int(state["searches"])
-                >= ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-            ):
-                continue
-            selected.append(tool)
-        return tuple(selected)
-
     try:
         loop = run_bounded_client_tool_loop(
             backend=provider,
@@ -2659,7 +2644,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             max_terminal_recovery_turns=(
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TERMINAL_RECOVERY_TURNS
             ),
-            select_tools=select_preflight_tools,
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(

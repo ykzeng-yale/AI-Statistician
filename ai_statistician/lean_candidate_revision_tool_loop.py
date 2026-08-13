@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Sequence
@@ -137,6 +138,7 @@ def run_lean_candidate_revision_tool_loop(
     search_proof_candidates: ProofCandidateSearch | None = None,
     inspect_lean_state: LeanStateInspection | None = None,
     inspect_lean_declaration: LeanDeclarationInspection | None = None,
+    rejected_source_hash: str = "",
     allow_formal_gap: bool = False,
     request_metadata: Mapping[str, Any] | None = None,
 ) -> LeanCandidateRevisionToolLoopResult:
@@ -155,10 +157,10 @@ def run_lean_candidate_revision_tool_loop(
 
     parent_source = str(initial_source)
     parent_source_hash = stable_hash(parent_source)
+    rejected_source_hash = str(rejected_source_hash or "").strip()
+    if rejected_source_hash and not parent_source.strip():
+        raise ValueError("a rejected source hash requires an existing Lean source")
     workspace_phase = "revision" if parent_source.strip() else "initial_authoring"
-    # Lean authoring is one durable coding-agent session. Keep its tool surface
-    # stable while carrying current authoritative state outside the rolling history.
-    max_retained_tool_turns = min(max_turns, 4)
     max_terminal_recovery_turns = 1
     state: dict[str, Any] = {
         "source": parent_source,
@@ -272,9 +274,14 @@ def run_lean_candidate_revision_tool_loop(
                 state["last_check"] = {}
             check_result = check_current_source()
             compiled = bool(check_result.get("compiled", False))
+            rejected_source_reused = bool(
+                compiled
+                and rejected_source_hash
+                and source_hash == rejected_source_hash
+            )
             content = {
                 **check_result,
-                "ok": compiled,
+                "ok": compiled and not rejected_source_reused,
                 "changed": changed,
                 "declaration_changed": declaration_changed,
                 "source_hash": source_hash,
@@ -286,7 +293,20 @@ def run_lean_candidate_revision_tool_loop(
                     "LOCAL_LEAN_OBSERVATION_REQUIRES_RUNTIME_PROMOTION_GATE"
                 ),
             }
-            if compiled:
+            if rejected_source_reused:
+                content.update(
+                    {
+                        "error": "independently_rejected_source_unchanged",
+                        "rejected_source_hash": rejected_source_hash,
+                        "detail": (
+                            "Lean compiled these bytes, but they are byte-identical "
+                            "to the source rejected by independent semantic review. "
+                            "Use the supplied review findings to submit a changed "
+                            "complete source, or report a grounded formal gap."
+                        ),
+                    }
+                )
+            elif compiled:
                 content.update(
                     {
                         "handed_off": True,
@@ -296,9 +316,9 @@ def run_lean_candidate_revision_tool_loop(
                 )
             return ClientToolExecutionResult(
                 content=content,
-                is_error=not compiled,
+                is_error=not compiled or rejected_source_reused,
                 state_changed=changed or declaration_changed,
-                terminal=compiled,
+                terminal=compiled and not rejected_source_reused,
                 terminal_payload=(
                     {
                         "lean_source": state["source"],
@@ -308,7 +328,7 @@ def run_lean_candidate_revision_tool_loop(
                         ],
                         "check_result": deepcopy(check_result),
                     }
-                    if compiled
+                    if compiled and not rejected_source_reused
                     else None
                 ),
                 observation_key="lean-submission:"
@@ -317,6 +337,7 @@ def run_lean_candidate_revision_tool_loop(
                         "source_hash": source_hash,
                         "candidate_lean_declaration": declaration,
                         "check_result": check_result,
+                        "rejected_source_reused": rejected_source_reused,
                     }
                 ),
             )
@@ -550,9 +571,47 @@ def run_lean_candidate_revision_tool_loop(
 
         raise ClientToolInputError("unsupported Lean candidate client tool")
 
+    initial_workspace = {
+        "artifact_kind": "LeanCandidateWorkspaceInitialState",
+        "candidate_id": candidate_id,
+        "candidate_lean_declaration": state["candidate_lean_declaration"],
+        "current_lean_source": state["source"],
+        "current_source_hash": state["source_hash"],
+        "latest_check_observation": _compact_lean_check_observation(
+            state["latest_check_observation"]
+        ),
+        **(
+            {
+                "revision_requirement": {
+                    "rejected_source_hash": rejected_source_hash,
+                    "required_disposition": (
+                        "submit changed complete source or report grounded formal gap"
+                    ),
+                }
+            }
+            if rejected_source_hash
+            else {}
+        ),
+        "proof_evidence_status": "WORKSPACE_STATE_NOT_PROOF_EVIDENCE",
+    }
     request = ClientToolTurnRequest(
         system_prompt=system_prompt,
-        messages=({"role": "user", "content": user_prompt},),
+        messages=(
+            {
+                "role": "user",
+                "content": (
+                    user_prompt
+                    + "\n\nInitial authoritative Lean workspace state:\n"
+                    + json.dumps(
+                        initial_workspace,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        default=str,
+                        ensure_ascii=False,
+                    )
+                ),
+            },
+        ),
         tools=tools,
         model=model,
         max_tokens=max_tokens,
@@ -566,44 +625,9 @@ def run_lean_candidate_revision_tool_loop(
             "candidate_id": candidate_id,
             "candidate_lean_declaration": candidate_lean_declaration,
             "parent_source_hash": parent_source_hash,
+            "rejected_source_hash": rejected_source_hash,
         },
     )
-
-    def build_workspace_snapshot(turn_index: int) -> dict[str, Any]:
-        return {
-            "artifact_kind": "LeanCandidateWorkspaceSnapshot",
-            "candidate_id": candidate_id,
-            "candidate_lean_declaration": state[
-                "candidate_lean_declaration"
-            ],
-            "current_lean_source": state["source"],
-            "current_source_hash": state["source_hash"],
-            "latest_check_observation": _lean_check_workspace_snapshot(
-                state["latest_check_observation"]
-            ),
-            "usage": {
-                "source_updates": state["source_updates"],
-                "checks": state["checks"],
-                "searches": state["searches"],
-                "proof_searches": state["proof_searches"],
-                "state_inspections": state["state_inspections"],
-                "declaration_inspections": state[
-                    "declaration_inspections"
-                ],
-            },
-            "budget": {
-                "standard_turn_index": min(turn_index, max_turns),
-                "standard_turns_remaining_including_current": max(
-                    0,
-                    max_turns - turn_index,
-                ),
-                "terminal_recovery_turn": turn_index >= max_turns,
-                "terminal_recovery_turns_available": (
-                    max_terminal_recovery_turns
-                ),
-            },
-            "proof_evidence_status": "WORKSPACE_STATE_NOT_PROOF_EVIDENCE",
-        }
 
     max_tool_calls = max_turns + max_terminal_recovery_turns + 1
     try:
@@ -615,8 +639,6 @@ def run_lean_candidate_revision_tool_loop(
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
             max_terminal_recovery_turns=max_terminal_recovery_turns,
-            max_retained_tool_turns=max_retained_tool_turns,
-            build_workspace_snapshot=build_workspace_snapshot,
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(
@@ -633,6 +655,7 @@ def run_lean_candidate_revision_tool_loop(
                 ],
                 "workspace_phase": workspace_phase,
                 "parent_source_hash": parent_source_hash,
+                "rejected_source_hash": rejected_source_hash,
                 "current_source_hash": state["source_hash"],
                 "current_source": state["source"],
                 "source_updates": state["source_updates"],
@@ -706,7 +729,7 @@ def run_lean_candidate_revision_tool_loop(
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
             max_terminal_recovery_turns=max_terminal_recovery_turns,
-            max_retained_tool_turns=max_retained_tool_turns,
+            rejected_source_hash=rejected_source_hash,
             turns=loop.turns,
             tool_calls=loop.tool_calls,
             runtime_executed_tool_calls=loop.runtime_executed_tool_calls,
@@ -732,6 +755,7 @@ def run_lean_candidate_revision_tool_loop(
         or not isinstance(check_result, Mapping)
         or str(check_result.get("source_hash", "") or "") != source_hash
         or not bool(check_result.get("compiled", False))
+        or bool(rejected_source_hash and source_hash == rejected_source_hash)
     ):
         raise PacketValidationError(
             validation_label="LLM Formalizer Lean candidate client-tool workspace",
@@ -754,7 +778,7 @@ def run_lean_candidate_revision_tool_loop(
         max_tool_calls=max_tool_calls,
         max_no_progress_turns=max_no_progress_turns,
         max_terminal_recovery_turns=max_terminal_recovery_turns,
-        max_retained_tool_turns=max_retained_tool_turns,
+        rejected_source_hash=rejected_source_hash,
         turns=loop.turns,
         tool_calls=loop.tool_calls,
         runtime_executed_tool_calls=loop.runtime_executed_tool_calls,
@@ -784,7 +808,7 @@ def _lean_candidate_revision_success_result(
     max_tool_calls: int,
     max_no_progress_turns: int,
     max_terminal_recovery_turns: int,
-    max_retained_tool_turns: int | None,
+    rejected_source_hash: str,
     turns: int,
     tool_calls: int,
     runtime_executed_tool_calls: int,
@@ -842,13 +866,17 @@ def _lean_candidate_revision_success_result(
         "max_tool_calls": max_tool_calls,
         "max_no_progress_turns": max_no_progress_turns,
         "max_terminal_recovery_turns": max_terminal_recovery_turns,
-        "max_retained_tool_turns": max_retained_tool_turns,
-        "transcript_policy": "rolling_history_plus_authoritative_snapshot",
+        "transcript_policy": "full_linear_history",
         "tool_surface_policy": "stable_for_workspace",
         "submit_and_check_atomic": True,
         "tool_names": [tool.name for tool in tools],
         "source_updates": state["source_updates"],
         "declaration_updates": state["declaration_updates"],
+        **(
+            {"independently_rejected_source_hash": rejected_source_hash}
+            if rejected_source_hash
+            else {}
+        ),
         "formal_environment_searches": state["searches"],
         "proof_candidate_searches": state["proof_searches"],
         "lean_state_inspections": state["state_inspections"],
@@ -932,7 +960,7 @@ def _lean_candidate_revision_success_result(
     )
 
 
-def _lean_check_workspace_snapshot(value: Any) -> dict[str, Any]:
+def _compact_lean_check_observation(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         return {}
     keys = (

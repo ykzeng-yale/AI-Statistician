@@ -76,12 +76,12 @@ def _response(*calls: ClientToolCall) -> ClientToolTurnResponse:
     )
 
 
-def _workspace_snapshot(request: ClientToolTurnRequest) -> dict:
+def _initial_workspace(request: ClientToolTurnRequest) -> dict:
     content = request.messages[0]["content"]
     assert isinstance(content, str)
-    encoded = content.split("<CURRENT_WORKSPACE_SNAPSHOT>\n", 1)[1].split(
-        "\n</CURRENT_WORKSPACE_SNAPSHOT>", 1
-    )[0]
+    encoded = content.split(
+        "Initial authoritative Lean workspace state:\n", 1
+    )[1]
     return json.loads(encoded)
 
 
@@ -192,9 +192,9 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
         "search_formal_environment",
     }
     assert all(request.disable_parallel_tool_use for request in backend.requests)
-    initial_snapshot = _workspace_snapshot(backend.requests[0])
-    assert initial_snapshot["current_lean_source"] == initial
-    assert initial_snapshot["latest_check_observation"][
+    initial_workspace = _initial_workspace(backend.requests[0])
+    assert initial_workspace["current_lean_source"] == initial
+    assert initial_workspace["latest_check_observation"][
         "local_lean_stderr"
     ] == "unknown module"
     assert result.evidence["handoff_mode"] == (
@@ -1019,7 +1019,7 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
     assert all(request.disable_parallel_tool_use for request in backend.requests)
 
 
-def test_lean_candidate_workspace_keeps_stable_tools_and_current_snapshot() -> None:
+def test_lean_candidate_workspace_keeps_stable_tools_and_linear_history() -> None:
     authored = "theorem target : True := by\n  exact True.intro\n"
     backend = ScriptedLeanToolBackend(
         [
@@ -1077,24 +1077,13 @@ def test_lean_candidate_workspace_keeps_stable_tools_and_current_snapshot() -> N
         {tool.name for tool in request.tools} == expected_tools
         for request in backend.requests
     )
-    assert len(backend.requests[-1].messages) == 9
+    assert len(backend.requests[-1].messages) == 11
     final_context = json.dumps(backend.requests[-1].messages, sort_keys=True)
-    assert "declaration query 0" not in final_context
     assert all(
-        f"declaration query {index}" in final_context for index in range(1, 5)
+        f"declaration query {index}" in final_context for index in range(5)
     )
-    assert final_context.count("CURRENT_WORKSPACE_SNAPSHOT") == 2
-    snapshot = _workspace_snapshot(backend.requests[-1])
-    assert snapshot["budget"]["standard_turns_remaining_including_current"] == 2
-    assert "latest_formal_environment_search" not in snapshot
-    assert "latest_proof_search" not in snapshot
-    assert "latest_state_inspection" not in snapshot
-    assert "latest_declaration_inspection" not in snapshot
-    assert result.evidence["max_retained_tool_turns"] == 4
     assert result.evidence["max_terminal_recovery_turns"] == 1
-    assert result.evidence["transcript_policy"] == (
-        "rolling_history_plus_authoritative_snapshot"
-    )
+    assert result.evidence["transcript_policy"] == "full_linear_history"
     assert result.evidence["tool_surface_policy"] == "stable_for_workspace"
     assert result.evidence["formal_environment_searches"] == 5
     assert "max_consecutive_context_actions" not in result.evidence
@@ -1161,12 +1150,9 @@ def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -
         LEAN_SOURCE_SUBMISSION_TOOL
     ]
     assert backend.requests[1].tool_choice == LEAN_SOURCE_SUBMISSION_TOOL
-    recovery_snapshot = _workspace_snapshot(backend.requests[1])
-    assert recovery_snapshot["current_lean_source"] == failing
-    assert recovery_snapshot["latest_check_observation"][
-        "local_lean_stderr"
-    ] == "unknown identifier 'missing_name'"
-    assert recovery_snapshot["budget"]["terminal_recovery_turn"] is True
+    recovery_context = json.dumps(backend.requests[1].messages, sort_keys=True)
+    assert failing in recovery_context.replace("\\n", "\n")
+    assert "unknown identifier 'missing_name'" in recovery_context
 
 
 def test_lean_candidate_workspace_revises_after_context_stall_compile_error() -> None:
@@ -1248,14 +1234,9 @@ def test_lean_candidate_workspace_revises_after_context_stall_compile_error() ->
         == [LEAN_SOURCE_SUBMISSION_TOOL, LEAN_FORMAL_GAP_TOOL]
         for request in backend.requests[-2:]
     )
-    recovery_snapshot = _workspace_snapshot(backend.requests[-1])
-    assert recovery_snapshot["budget"][
-        "terminal_recovery_turn"
-    ] is True
-    assert recovery_snapshot["current_lean_source"] == failing
-    assert recovery_snapshot["latest_check_observation"][
-        "local_lean_stderr"
-    ] == "unknown identifier 'missing_name'"
+    recovery_context = json.dumps(backend.requests[-1].messages, sort_keys=True)
+    assert failing in recovery_context.replace("\\n", "\n")
+    assert "unknown identifier 'missing_name'" in recovery_context
     assert backend.requests[-1].metadata[
         "client_tool_loop_terminal_decision_reason"
     ] == "repeated client-tool turns made no new progress"
@@ -1433,6 +1414,96 @@ def test_lean_candidate_tool_loop_stops_repeated_identical_submissions() -> None
         assert exc.recovery_checkpoint["checks"] == 1
     else:
         raise AssertionError("repeated identical Lean submissions did not stop")
+
+
+def test_semantic_revision_cannot_handoff_the_independently_rejected_source() -> None:
+    rejected = "theorem target : True := by exact True.intro\n"
+    failing_revision = "theorem target : True := by exact missing_name\n"
+    accepted_revision = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "submit-failing-revision",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": failing_revision,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-rejected-parent-again",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": rejected,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-changed-revision",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": accepted_revision,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+        ]
+    )
+    checked_sources: list[str] = []
+
+    def check(source: str, _declaration: str):
+        checked_sources.append(source)
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": source != failing_revision,
+            "local_lean_stderr": (
+                "unknown identifier 'missing_name'"
+                if source == failing_revision
+                else ""
+            ),
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Resolve the independent semantic review findings.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=4,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=rejected,
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+        rejected_source_hash=stable_hash(rejected),
+        allow_formal_gap=True,
+    )
+
+    assert result.lean_source == accepted_revision
+    assert checked_sources == [
+        rejected,
+        failing_revision,
+        rejected,
+        accepted_revision,
+    ]
+    assert len(backend.requests) == 3
+    repeated_parent_observation = str(backend.requests[2].messages[-1])
+    assert "independently_rejected_source_unchanged" in repeated_parent_observation
+    initial_workspace = _initial_workspace(backend.requests[0])
+    assert initial_workspace["revision_requirement"][
+        "rejected_source_hash"
+    ] == stable_hash(rejected)
+    assert result.evidence["independently_rejected_source_hash"] == stable_hash(
+        rejected
+    )
 
 
 def test_lean_candidate_tool_loop_checks_final_submission_at_turn_budget() -> None:
@@ -2978,11 +3049,15 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
         "next_actions": [],
     }
     feedback = {
-        "overall_verdict": "ACCEPT",
+        "overall_verdict": "REVISE",
+        "candidate_source_hash": stable_hash(original),
         "formalizer_workspace_context": {
             "formalizer_candidate_semantic_review_status": (
-                "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"
-            )
+                "INDEPENDENT_SEMANTIC_REVIEW_REVISE_NOT_PROOF_EVIDENCE"
+            ),
+            "formalizer_candidate_semantic_review_candidate_source_hash": (
+                stable_hash(original)
+            ),
         },
     }
 
@@ -3019,6 +3094,10 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
     assert packet["packet_id"] != parent_packet["packet_id"]
     assert packet["model"] == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
     assert evidence["runtime_selected_lean_code"] is False
+    initial_workspace = _initial_workspace(backend.requests[0])
+    assert initial_workspace["revision_requirement"][
+        "rejected_source_hash"
+    ] == stable_hash(original)
     assert backend.requests[0].metadata["client_tool_loop_max_turns"] == (
         FormalizerConfig().client_tool_lean_candidate_max_turns
     )

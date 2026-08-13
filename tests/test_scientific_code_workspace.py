@@ -399,7 +399,7 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
     assert dict(result.code_draft) == drafts[-1]
     assert result.evidence["source_updates"] == 5
     assert result.evidence["sandbox_checks"] == 5
-    assert result.evidence["max_retained_tool_turns"] == 5
+    assert result.evidence["transcript_policy"] == "full_linear_history"
     assert [len(request.messages) for request in backend.requests] == [1, 3, 5, 7, 9]
     assert "at most 5 total model/tool turns" in str(backend.requests[0].messages)
     assert "attempt': 0" in str(backend.requests[-1].messages)

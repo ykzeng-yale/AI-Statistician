@@ -269,6 +269,34 @@ class LLMFormalizerProofEngineerAgent:
             1,
             self.config.client_tool_lean_candidate_max_turns,
         )
+        workspace_context = environment_feedback.get(
+            "formalizer_workspace_context", {}
+        )
+        workspace_context = (
+            dict(workspace_context)
+            if isinstance(workspace_context, Mapping)
+            else {}
+        )
+        semantic_revision_required = str(
+            workspace_context.get(
+                "formalizer_candidate_semantic_review_status", ""
+            )
+            or ""
+        ) == "INDEPENDENT_SEMANTIC_REVIEW_REVISE_NOT_PROOF_EVIDENCE"
+        rejected_source_hash = ""
+        if semantic_revision_required:
+            rejected_source_hash = str(
+                workspace_context.get(
+                    "formalizer_candidate_semantic_review_candidate_source_hash",
+                    "",
+                )
+                or environment_feedback.get("candidate_source_hash", "")
+                or ""
+            ).strip()
+            if not rejected_source_hash:
+                raise ValueError(
+                    "formal-target semantic revision lacks its rejected source hash"
+                )
         loop = run_lean_candidate_revision_tool_loop(
             provider=self.provider,
             system_prompt=(
@@ -341,6 +369,7 @@ class LLMFormalizerProofEngineerAgent:
             search_proof_candidates=search_proof_candidates,
             inspect_lean_state=inspect_lean_state,
             inspect_lean_declaration=inspect_lean_declaration,
+            rejected_source_hash=rejected_source_hash,
             allow_formal_gap=True,
             request_metadata={
                 "subsystem": "FormalizerProofEngineer",

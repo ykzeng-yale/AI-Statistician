@@ -95,13 +95,6 @@ ClientToolExecutor = Callable[
     [ClientToolCall, ClientToolExecutionContext],
     ClientToolExecutionResult,
 ]
-ClientToolSelector = Callable[
-    [int, tuple[ClientToolDefinition, ...]],
-    tuple[ClientToolDefinition, ...],
-]
-WorkspaceSnapshotBuilder = Callable[[int], Mapping[str, Any] | None]
-
-
 def run_bounded_client_tool_loop(
     *,
     backend: Any,
@@ -111,9 +104,6 @@ def run_bounded_client_tool_loop(
     max_tool_calls: int,
     max_no_progress_turns: int,
     max_terminal_recovery_turns: int = 0,
-    select_tools: ClientToolSelector | None = None,
-    max_retained_tool_turns: int | None = None,
-    build_workspace_snapshot: WorkspaceSnapshotBuilder | None = None,
 ) -> ClientToolLoopResult:
     """Run model -> client tool -> observation turns under caller-owned bounds.
 
@@ -126,8 +116,6 @@ def run_bounded_client_tool_loop(
         raise ValueError("client-tool loop budgets must all be positive")
     if max_terminal_recovery_turns < 0:
         raise ValueError("terminal recovery turn budget cannot be negative")
-    if max_retained_tool_turns is not None and max_retained_tool_turns < 1:
-        raise ValueError("retained client-tool turn budget must be positive")
     generate_turn = getattr(backend, "generate_client_tool_turn", None)
     if not callable(generate_turn):
         raise ValueError("backend does not support client-tool turns")
@@ -156,7 +144,6 @@ def run_bounded_client_tool_loop(
     terminal_decision_pending = False
     terminal_decision_reason = ""
     terminal_decision_turns_used = 0
-    initial_message_count = len(messages)
 
     def request_terminal_decision(reason: str) -> None:
         nonlocal terminal_decision_pending, terminal_decision_reason
@@ -213,45 +200,12 @@ def run_bounded_client_tool_loop(
             terminal_decision_pending = False
             terminal_decision_turns_used += 1
             turn_tools = terminal_tools
-        elif select_tools is None:
-            turn_tools = request.tools
         else:
-            turn_tools = tuple(select_tools(turn_index, request.tools))
-            selected_names = [tool.name for tool in turn_tools]
-            if (
-                not selected_names
-                or len(set(selected_names)) != len(selected_names)
-                or any(name not in tool_definitions for name in selected_names)
-            ):
-                raise ValueError(
-                    "client-tool selector must return a nonempty subset of "
-                    "the request tools"
-                )
-            turn_tools = tuple(
-                tool_definitions[name] for name in selected_names
-            )
+            turn_tools = request.tools
         terminal_only_turn = bool(
             turn_tools and all(tool.terminal for tool in turn_tools)
         )
         turn_allowed_tools = {tool.name for tool in turn_tools}
-        model_messages = messages
-        if max_retained_tool_turns is not None and turn_index > 0:
-            interaction_messages = messages[initial_message_count:]
-            model_messages = [
-                *messages[:initial_message_count],
-                *interaction_messages[-2 * max_retained_tool_turns :],
-            ]
-        workspace_snapshot: Mapping[str, Any] | None = None
-        if build_workspace_snapshot is not None:
-            workspace_snapshot = build_workspace_snapshot(
-                max_turns if terminal_decision_turn else turn_index
-            )
-            if workspace_snapshot is not None:
-                model_messages = _with_workspace_snapshot(
-                    model_messages,
-                    initial_message_count=initial_message_count,
-                    snapshot=workspace_snapshot,
-                )
         with agent_runtime_substage(
             "client_tool_model_turn",
             metadata={
@@ -265,23 +219,16 @@ def run_bounded_client_tool_loop(
                 "n_available_tools": len(turn_tools),
                 "terminal_only_turn": terminal_only_turn,
                 "n_transcript_messages": len(messages),
-                "n_model_context_messages": len(model_messages),
-                "max_retained_tool_turns": max_retained_tool_turns,
-                "workspace_snapshot_supplied": workspace_snapshot is not None,
+                "n_model_context_messages": len(messages),
                 "terminal_decision_reason": (
                     terminal_decision_reason if terminal_decision_turn else ""
-                ),
-                "workspace_snapshot_fingerprint": (
-                    stable_hash(workspace_snapshot)
-                    if workspace_snapshot is not None
-                    else ""
                 ),
             },
         ):
             response = generate_turn(
                 replace(
                     request,
-                    messages=tuple(model_messages),
+                    messages=tuple(messages),
                     tools=turn_tools,
                     tool_choice=(
                         turn_tools[0].name
@@ -630,44 +577,6 @@ def run_bounded_client_tool_loop(
         turns=len(history),
         tool_calls=total_calls,
     )
-
-
-def _with_workspace_snapshot(
-    messages: list[Mapping[str, Any]],
-    *,
-    initial_message_count: int,
-    snapshot: Mapping[str, Any],
-) -> list[Mapping[str, Any]]:
-    """Inject one current-state view without retaining another history copy."""
-
-    if initial_message_count < 1 or len(messages) < initial_message_count:
-        raise ValueError("workspace snapshot requires an initial model message")
-    result = [deepcopy(dict(message)) for message in messages]
-    message = result[initial_message_count - 1]
-    if str(message.get("role", "") or "") != "user":
-        raise ValueError("workspace snapshot requires a final initial user message")
-    snapshot_text = (
-        "\n\n<CURRENT_WORKSPACE_SNAPSHOT>\n"
-        + json.dumps(
-            snapshot,
-            sort_keys=True,
-            separators=(",", ":"),
-            default=str,
-            ensure_ascii=False,
-        )
-        + "\n</CURRENT_WORKSPACE_SNAPSHOT>"
-    )
-    content = message.get("content", "")
-    if isinstance(content, str):
-        message["content"] = content + snapshot_text
-    elif isinstance(content, (list, tuple)):
-        message["content"] = [
-            *[deepcopy(dict(block)) for block in content],
-            {"type": "text", "text": snapshot_text},
-        ]
-    else:
-        raise ValueError("workspace snapshot requires string or block-list content")
-    return result
 
 
 def _client_tool_result_text(value: Any, *, max_chars: int = 60000) -> str:

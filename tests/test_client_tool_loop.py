@@ -198,7 +198,7 @@ def test_bounded_client_tool_loop_never_executes_truncated_tool_input() -> None:
     )
 
 
-def test_bounded_client_tool_loop_injects_one_current_workspace_snapshot() -> None:
+def test_bounded_client_tool_loop_keeps_one_linear_model_tool_history() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit-1", "edit", {"value": 1})),
@@ -230,20 +230,16 @@ def test_bounded_client_tool_loop_injects_one_current_workspace_snapshot() -> No
         max_turns=3,
         max_tool_calls=3,
         max_no_progress_turns=2,
-        max_retained_tool_turns=1,
-        build_workspace_snapshot=lambda turn_index: {
-            "turn_index": turn_index,
-            "value": state["value"],
-        },
     )
 
     assert result.terminal_payload == {"value": 2}
-    assert len(backend.requests[-1].messages) == 3
-    current_prompt = str(backend.requests[-1].messages[0]["content"])
-    assert current_prompt.count("<CURRENT_WORKSPACE_SNAPSHOT>") == 1
-    assert '"turn_index":2' in current_prompt
-    assert '"value":2' in current_prompt
-    assert '"value":1' not in current_prompt
+    assert [len(request.messages) for request in backend.requests] == [1, 3, 5]
+    assert backend.requests[-1].messages[0] == backend.requests[0].messages[0]
+    final_context = str(backend.requests[-1].messages)
+    assert "call-edit-1" in final_context
+    assert "call-edit-2" in final_context
+    assert "'value': 1" in final_context
+    assert "'value': 2" in final_context
 
 
 def test_bounded_client_tool_loop_stops_repeated_no_tool_turns() -> None:
@@ -354,57 +350,6 @@ def test_bounded_client_tool_loop_keeps_normal_final_turn_model_directed() -> No
     assert backend.requests[1].metadata[
         "client_tool_loop_terminal_only_turn"
     ] is False
-
-
-def test_bounded_client_tool_loop_can_hide_exhausted_tools() -> None:
-    backend = ScriptedToolTurnBackend(
-        [
-            _response(ClientToolCall("call-edit", "edit", {"value": 2})),
-            _response(ClientToolCall("call-submit", "submit", {})),
-        ]
-    )
-    state = {"edited": False}
-
-    def execute(call, context):
-        if call.name == "edit":
-            state["edited"] = True
-            return ClientToolExecutionResult(
-                content={"ok": True},
-                state_changed=True,
-                observation_key="edited",
-            )
-        return ClientToolExecutionResult(
-            content={"ok": True},
-            terminal=True,
-            terminal_payload={"submitted": True},
-            observation_key="submitted",
-        )
-
-    result = run_bounded_client_tool_loop(
-        backend=backend,
-        request=_request(),
-        execute_tool=execute,
-        max_turns=4,
-        max_tool_calls=3,
-        max_no_progress_turns=1,
-        select_tools=lambda _turn, tools: (
-            tuple(tool for tool in tools if tool.terminal)
-            if state["edited"]
-            else tools
-        ),
-    )
-
-    assert result.terminal_payload == {"submitted": True}
-    assert [tool.name for tool in backend.requests[0].tools] == [
-        "edit",
-        "check",
-        "submit",
-    ]
-    assert [tool.name for tool in backend.requests[1].tools] == ["submit"]
-    assert backend.requests[1].tool_choice == "submit"
-    assert backend.requests[1].metadata[
-        "client_tool_loop_terminal_only_turn"
-    ] is True
 
 
 def test_bounded_client_tool_loop_allows_one_rejected_terminal_recovery() -> None:

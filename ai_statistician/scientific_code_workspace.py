@@ -858,7 +858,6 @@ def run_scientific_code_workspace(
             max_turns=max_turns,
             max_tool_calls=max_turns,
             max_no_progress_turns=max_no_progress_turns,
-            max_retained_tool_turns=max_turns,
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(
@@ -921,7 +920,7 @@ def run_scientific_code_workspace(
         "source_updates": state["source_updates"],
         "sandbox_checks": state["checks"],
         "submit_and_execute_atomic": True,
-        "max_retained_tool_turns": max_turns,
+        "transcript_policy": "full_linear_history",
         "turns": loop.turns,
         "tool_calls": loop.tool_calls,
         "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
