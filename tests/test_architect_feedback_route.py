@@ -613,8 +613,14 @@ def test_confirmatory_outcome_allows_only_a_new_source_on_a_fresh_cohort() -> No
         "feedback_id": "confirmatory-outcome:generic",
         "feedback_type": "confirmatory_simulation_outcome",
         "source_subsystem": "SimulationEvaluator",
+        "source_manifest_id": "simulation:current",
         "failure_classification": "confirmatory_simulation_metric_gate_failed",
         "unchanged_source_retry_authorized": False,
+        "consumer_source_owner_is_dependency_identity_only": True,
+        "consumer_source_owner": {
+            "source_owner_subsystem": "AlgorithmEngineer",
+            "dependency_artifact_ids": ["estimator:upstream"],
+        },
     }
     prompt = build_architect_feedback_route_prompt(
         question=_question(),
@@ -630,7 +636,21 @@ def test_confirmatory_outcome_allows_only_a_new_source_on_a_fresh_cohort() -> No
     assert payload["routing_contract"][
         "outcome_informed_new_source_requires_fresh_cohort"
     ] is True
+    ownership = payload["active_artifact_ownership"]
+    assert ownership["current_observation_source"] == {
+        "owner_subsystem": "SimulationEvaluator",
+        "artifact_id": "simulation:current",
+    }
+    assert ownership["upstream_dependencies"] == {
+        "owner_subsystem": "AlgorithmEngineer",
+        "artifact_ids": ["estimator:upstream"],
+        "identity_only": True,
+    }
+    assert payload["routing_contract"][
+        "selected_source_editor_must_own_the_target_artifact"
+    ] is True
     assert "does not itself prove" in prompt
+    assert "including its DGP" in prompt
 
 
 def test_rejected_algorithm_lineage_is_not_a_simulation_handoff() -> None:

@@ -765,6 +765,69 @@ def test_architect_repeat_cannot_starve_runnable_unvisited_primary_lane() -> Non
     assert coverage.payload["runtime_authored_research_content"] is False
 
 
+def test_architect_feedback_route_is_not_replaced_by_initial_lane_coverage() -> None:
+    question = OpenResearchQuestion(
+        id="generic-feedback-owner",
+        title="Generic feedback owner",
+        description="Resolve an active cross-artifact observation first.",
+    )
+    context = _full_evidence_context(question.id)
+    context["runtime_outer_graph_workspace_outcomes"] = [
+        {
+            "source_subsystem": "AlgorithmEngineer",
+            "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
+        }
+    ]
+    selected_owner_task = AgentTask(
+        task_id="algorithm-feedback:generic-feedback-owner",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Resolve the active observation in the selected workspace.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "architect_context": context,
+        },
+    )
+    result = AgentStepResult(
+        status="REROUTE",
+        rationale="Architect selected the evidence-bound source owner.",
+        next_task=selected_owner_task,
+    )
+
+    transitioned = _runtime_transition_policy(
+        iteration=12,
+        task=AgentTask(
+            task_id="architect-feedback:generic-feedback-owner",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Route the active observation.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": context,
+                "environment_feedback": {
+                    "feedback_type": "workspace_replan_observation_ref"
+                },
+                "runtime_architect_operation": (
+                    runtime_module.ARCHITECT_FEEDBACK_ROUTE_OPERATION
+                ),
+            },
+        ),
+        subsystem_name="ArchitectCoordinator",
+        result=result,
+        blackboard=BlackboardState(
+            project_id=question.id,
+            artifacts={"theory:generic": {"packet_id": "theory:generic"}},
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert transitioned is result
+    assert transitioned.next_task is selected_owner_task
+    assert transitioned.next_task.owner_subsystem == "AlgorithmEngineer"
+
+
 def test_lane_coverage_does_not_count_invalidated_parent_lineage() -> None:
     question = OpenResearchQuestion(
         id="generic-revised-theory-lineage",
@@ -2614,7 +2677,6 @@ def test_architect_algorithm_route_restores_source_and_frozen_simulation() -> No
         "question_id": question.id,
         "source_manifest_id": simulation_manifest_id,
         "consumer_source_owner": source_owner,
-        "source_revision_artifact_ids": ["generic-estimator"],
         "deferred_consumer_task_continuation_ref": continuation_ref,
     }
     context = _full_evidence_context(question.id)

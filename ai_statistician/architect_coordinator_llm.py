@@ -598,6 +598,46 @@ def build_architect_feedback_route_prompt(
     current_source_owner = str(
         environment_feedback.get("source_subsystem", "") or ""
     ).strip()
+    consumer_source_owner_value = environment_feedback.get(
+        "consumer_source_owner",
+        {},
+    )
+    consumer_source_owner = (
+        dict(consumer_source_owner_value)
+        if isinstance(consumer_source_owner_value, Mapping)
+        else {}
+    )
+    active_artifact_ownership = {
+        "current_observation_source": {
+            "owner_subsystem": current_source_owner or "NONE",
+            "artifact_id": str(
+                environment_feedback.get("source_manifest_id", "")
+                or environment_feedback.get("source_artifact_id", "")
+                or "NONE"
+            ),
+        },
+        "upstream_dependencies": {
+            "owner_subsystem": str(
+                consumer_source_owner.get("source_owner_subsystem", "")
+                or "NONE"
+            ),
+            "artifact_ids": [
+                str(value)
+                for value in consumer_source_owner.get(
+                    "dependency_artifact_ids",
+                    [],
+                )
+                or []
+                if str(value).strip()
+            ],
+            "identity_only": bool(
+                environment_feedback.get(
+                    "consumer_source_owner_is_dependency_identity_only",
+                    False,
+                )
+            ),
+        },
+    }
     unavailable_route_subsystems = sorted(
         set(ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS)
         - set(available_route_subsystems)
@@ -624,6 +664,7 @@ def build_architect_feedback_route_prompt(
         "available_route_subsystems": list(available_route_subsystems),
         "unavailable_route_subsystems": unavailable_route_subsystems,
         "current_source_owner": current_source_owner or "NONE",
+        "active_artifact_ownership": active_artifact_ownership,
         "active_source_revision_assessment": deepcopy(
             dict(source_revision_assessment)
         ),
@@ -648,6 +689,7 @@ def build_architect_feedback_route_prompt(
             "owner_selected_by_architect_model": True,
             "selected_worker_receives_complete_feedback": True,
             "current_source_owner_is_identity_not_causal_attribution": True,
+            "selected_source_editor_must_own_the_target_artifact": True,
             "source_rewrite_stays_with_exact_source_owner": True,
             "source_only_review_cannot_be_reclassified_as_parent_defect": True,
             "confirmatory_unchanged_source_retry_is_forbidden": True,
@@ -676,6 +718,7 @@ def build_architect_feedback_route_prompt(
             "unavailable_route_subsystems"
         ],
         "current_source_owner": payload["current_source_owner"],
+        "active_artifact_ownership": payload["active_artifact_ownership"],
         "active_source_revision_assessment": payload[
             "active_source_revision_assessment"
         ],
@@ -708,7 +751,12 @@ def build_architect_feedback_route_prompt(
         "2. current_source_owner identifies the artifact producer, not the cause. Route "
         "a source rewrite only to that exact owner; route an upstream dependency only "
         "when the observation and lineage support it. A consumer_source_owner field "
-        "does not itself prove causation.\n"
+        "does not itself prove causation. Use active_artifact_ownership to distinguish "
+        "the current observation source from upstream dependency identities. Content "
+        "implemented inside the current source, including its DGP, stress test, metric "
+        "calculation, or simulation protocol, stays with current_observation_source; "
+        "choose an upstream dependency owner only when the raw observation localizes "
+        "the defect to that dependency's interface or output.\n"
         "3. Route missing mathematical assumptions, definitions, or derivations to "
         "TheoryDeveloper; route Lean elaboration, proof-state, and proof-source failures "
         "to FormalizationEvaluator. Lean must not substitute for missing upstream "

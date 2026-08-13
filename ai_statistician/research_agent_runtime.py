@@ -2571,7 +2571,7 @@ def _architect_confirmatory_algorithm_source_route(
     revision_ids = sorted(
         {
             str(value or "").strip()
-            for value in feedback.get("source_revision_artifact_ids", []) or []
+            for value in source_owner.get("dependency_artifact_ids", []) or []
             if str(value or "").strip()
         }
     )
@@ -4386,6 +4386,10 @@ def _runtime_architect_initial_lane_coverage(
 
     next_task = result.next_task
     if runtime_config is None or next_task is None:
+        return None
+    if _runtime_architect_operation(task) == ARCHITECT_FEEDBACK_ROUTE_OPERATION:
+        # Feedback routing resolves the active observation; initial lane coverage
+        # must not replace the model's selected owner.
         return None
     if (
         SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY in next_task.budget
@@ -10271,11 +10275,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                         )
                         source_continuation_fields = {
                             "consumer_source_owner": consumer_source_owner,
-                            "source_revision_artifact_ids": deepcopy(
-                                consumer_source_owner.get(
-                                    "dependency_artifact_ids", []
-                                )
-                            ),
                             "deferred_consumer_task_continuation_ref": (
                                 agent_task_continuation_reference(
                                     consumer_continuation
