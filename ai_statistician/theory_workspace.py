@@ -23,7 +23,7 @@ from .structured_output_retry import PacketValidationError
 
 
 THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
-THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "direct_artifact_replacement_v1"
+THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "direct_artifact_replacement_v2"
 THEORY_WORKSPACE_WRITE_TOOL = "write_theory_artifacts"
 THEORY_SCRATCHPAD_TOOL = "run_theory_scratchpad"
 THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE = (
@@ -322,7 +322,7 @@ def run_theory_artifact_workspace(
             candidate_artifacts, write_records = (
                 _replace_theory_workspace_artifacts(
                     state["artifacts"],
-                    tool_input.get("artifacts"),
+                    tool_input.get("writes"),
                     writable_artifact_shapes=parent_shapes,
                 )
             )
@@ -448,9 +448,9 @@ def run_theory_artifact_workspace(
     write_guidance = (
         "Use write_theory_artifacts to replace one or more writable artifacts "
         "with your complete model-authored JSON values. Omitted artifacts remain "
-        "byte-identical. Group mutually dependent artifacts into one atomic "
-        "artifacts object. The runtime stores those exact values without merging, "
-        "patching, or inventing content. "
+        "byte-identical. Group mutually dependent artifacts into one atomic writes "
+        "array, using each artifact_name at most once. The runtime stores those "
+        "exact values without merging, patching, or inventing content. "
     )
     scratch_guidance = (
         "Use run_theory_scratchpad when a small Python or R calculation, numerical "
@@ -720,22 +720,35 @@ def _theory_workspace_tools(
             description=(
                 "Atomically replace one or more writable theory artifacts with "
                 "complete model-authored JSON values. Omitted artifacts are retained "
-                "exactly. The runtime does not merge or infer content."
+                "exactly. Supply a nonempty writes array with one unique "
+                "artifact_name and complete value per row. The runtime does not "
+                "merge or infer content."
             ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["artifacts"],
+                "required": ["writes"],
                 "properties": {
-                    "artifacts": {
-                        "type": "object",
-                        "additionalProperties": False,
-                        "minProperties": 1,
-                        "properties": {
-                            name: {"type": shape}
-                            for name, shape in sorted(
-                                writable_artifact_shapes.items()
-                            )
+                    "writes": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": len(writable_artifact_shapes),
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["artifact_name", "value"],
+                            "properties": {
+                                "artifact_name": {
+                                    "type": "string",
+                                    "enum": sorted(writable_artifact_shapes),
+                                },
+                                "value": {
+                                    "anyOf": [
+                                        {"type": "object"},
+                                        {"type": "array"},
+                                    ]
+                                },
+                            },
                         },
                     }
                 },
@@ -748,29 +761,54 @@ def _theory_workspace_tools(
 
 def _replace_theory_workspace_artifacts(
     current_artifacts: Mapping[str, Any],
-    raw_artifacts: Any,
+    raw_writes: Any,
     *,
     writable_artifact_shapes: Mapping[str, str],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Replace complete model-authored artifacts atomically."""
 
-    if not isinstance(raw_artifacts, Mapping) or not raw_artifacts:
+    if (
+        not isinstance(raw_writes, Sequence)
+        or isinstance(raw_writes, (str, bytes))
+        or not raw_writes
+    ):
         raise ClientToolInputError(
-            "write_theory_artifacts requires a nonempty artifacts object"
+            "write_theory_artifacts requires a nonempty writes array"
         )
-    if len(raw_artifacts) > len(writable_artifact_shapes):
+    if len(raw_writes) > len(writable_artifact_shapes):
         raise ClientToolInputError(
             "write_theory_artifacts exceeds the writable artifact count"
         )
-    unknown = sorted(set(raw_artifacts) - set(writable_artifact_shapes))
-    if unknown:
-        raise ClientToolInputError(
-            "write_theory_artifacts names unknown writable artifacts: "
-            + ", ".join(str(name) for name in unknown)
-        )
     candidate = deepcopy(dict(current_artifacts))
     records: list[dict[str, Any]] = []
-    for artifact_name, value in raw_artifacts.items():
+    observed_names: set[str] = set()
+    for index, raw_write in enumerate(raw_writes):
+        if not isinstance(raw_write, Mapping):
+            raise ClientToolInputError(
+                f"theory artifact write {index} must be an object"
+            )
+        write = dict(raw_write)
+        if set(write) != {"artifact_name", "value"}:
+            raise ClientToolInputError(
+                f"theory artifact write {index} requires exactly "
+                "artifact_name and value"
+            )
+        artifact_name = write["artifact_name"]
+        if not isinstance(artifact_name, str):
+            raise ClientToolInputError(
+                f"theory artifact write {index} artifact_name must be a string"
+            )
+        if artifact_name not in writable_artifact_shapes:
+            raise ClientToolInputError(
+                f"theory artifact write {index} names unknown writable artifact "
+                f"{artifact_name!r}"
+            )
+        if artifact_name in observed_names:
+            raise ClientToolInputError(
+                f"theory artifact write {index} repeats {artifact_name!r}"
+            )
+        observed_names.add(artifact_name)
+        value = write["value"]
         expected_shape = writable_artifact_shapes[artifact_name]
         actual_shape = _artifact_shape(value)
         if actual_shape != expected_shape:

@@ -58,6 +58,15 @@ def _response(*calls: ClientToolCall) -> ClientToolTurnResponse:
     )
 
 
+def _artifact_writes(artifacts: dict[str, object]) -> dict[str, object]:
+    return {
+        "writes": [
+            {"artifact_name": name, "value": value}
+            for name, value in artifacts.items()
+        ]
+    }
+
+
 def _run_workspace(backend, **overrides):
     kwargs = {
         "provider": backend,
@@ -111,22 +120,18 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
                 ClientToolCall(
                     call_id="edit-incomplete",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
-                            "problem_card": {"claim": "revised claim"}
-                        }
-                    },
+                    input=_artifact_writes(
+                        {"problem_card": {"claim": "revised claim"}}
+                    ),
                 )
             ),
             _response(
                 ClientToolCall(
                     call_id="edit-complete",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
-                            "lemma_cards": [{"id": "lemma-1"}]
-                        }
-                    },
+                    input=_artifact_writes(
+                        {"lemma_cards": [{"id": "lemma-1"}]}
+                    ),
                 )
             ),
         ]
@@ -170,22 +175,34 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
         for tool in backend.requests[0].tools
         if tool.name == THEORY_WORKSPACE_WRITE_TOOL
     )
-    artifact_schema = write_schema["properties"]["artifacts"]
-    assert sorted(artifact_schema["properties"]) == [
+    writes_schema = write_schema["properties"]["writes"]
+    item_schema = writes_schema["items"]
+    assert write_schema["required"] == ["writes"]
+    assert writes_schema["minItems"] == 1
+    assert item_schema["required"] == ["artifact_name", "value"]
+    assert item_schema["properties"]["artifact_name"]["enum"] == [
         "lemma_cards",
         "problem_card",
     ]
-    assert artifact_schema["properties"]["lemma_cards"]["type"] == "array"
-    assert artifact_schema["properties"]["problem_card"]["type"] == "object"
+    assert item_schema["properties"]["value"]["anyOf"] == [
+        {"type": "object"},
+        {"type": "array"},
+    ]
+    write_tool = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == THEORY_WORKSPACE_WRITE_TOOL
+    )
+    assert write_tool.strict is False
 
 
 def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     rejected_call = ClientToolCall(
         call_id="edit-rejected",
         name=THEORY_WORKSPACE_WRITE_TOOL,
-        input={
-            "artifacts": {"problem_card": {"claim": "still invalid"}}
-        },
+        input=_artifact_writes(
+            {"problem_card": {"claim": "still invalid"}}
+        ),
     )
     backend = ScriptedTheoryWorkspaceBackend([_response(rejected_call)])
 
@@ -231,12 +248,12 @@ def test_targeted_revision_uses_atomic_model_owned_artifact_writes() -> None:
                 ClientToolCall(
                     call_id="edit-related-values",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
+                    input=_artifact_writes(
+                        {
                             "problem_card": {"claim": "revised claim"},
                             "lemma_cards": [{"id": "lemma-1"}],
                         }
-                    },
+                    ),
                 )
             ),
         ]
@@ -341,14 +358,14 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
                 ClientToolCall(
                     call_id="revise-from-counterexample",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
+                    input=_artifact_writes(
+                        {
                             "problem_card": {"claim": "revised claim"},
                             "lemma_cards": [
                                 {"id": "counterexample-qualified-lemma"}
                             ],
                         }
-                    },
+                    ),
                 )
             ),
         ]
@@ -413,22 +430,18 @@ def test_targeted_revision_retains_valid_edits_across_raw_validator_feedback() -
                 ClientToolCall(
                     call_id="edit-incomplete",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
-                            "problem_card": {"claim": "revised claim"}
-                        }
-                    },
+                    input=_artifact_writes(
+                        {"problem_card": {"claim": "revised claim"}}
+                    ),
                 )
             ),
             _response(
                 ClientToolCall(
                     call_id="edit-after-observation",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
-                            "lemma_cards": [{"id": "lemma-1"}]
-                        }
-                    },
+                    input=_artifact_writes(
+                        {"lemma_cards": [{"id": "lemma-1"}]}
+                    ),
                 )
             ),
         ]
@@ -462,23 +475,25 @@ def test_targeted_revision_rejects_noop_edit_then_returns_observation() -> None:
                 ClientToolCall(
                     call_id="noop-edit",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
-                            "problem_card": {"claim": "parent-private-claim"}
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {
+                                "claim": "parent-private-claim"
+                            }
                         }
-                    },
+                    ),
                 )
             ),
             _response(
                 ClientToolCall(
                     call_id="substantive-edit-after-noop",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
+                    input=_artifact_writes(
+                        {
                             "problem_card": {"claim": "revised claim"},
                             "lemma_cards": [{"id": "lemma-1"}],
                         }
-                    },
+                    ),
                 )
             ),
         ]
@@ -505,23 +520,21 @@ def test_targeted_revision_rejects_invalid_artifact_shape_atomically() -> None:
                 ClientToolCall(
                     call_id="invalid-atomic-edit",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
-                            "problem_card": ["invalid object replacement"]
-                        }
-                    },
+                    input=_artifact_writes(
+                        {"problem_card": ["invalid object replacement"]}
+                    ),
                 )
             ),
             _response(
                 ClientToolCall(
                     call_id="valid-atomic-edit",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
+                    input=_artifact_writes(
+                        {
                             "problem_card": {"claim": "revised claim"},
                             "lemma_cards": [{"id": "lemma-1"}],
                         }
-                    },
+                    ),
                 )
             ),
         ]
@@ -539,3 +552,52 @@ def test_targeted_revision_rejects_invalid_artifact_shape_atomically() -> None:
     rejected_payload = json.loads(rejected_observation["content"])
     assert rejected_payload["error"] == "client_tool_input_rejected"
     assert "problem_card to remain object" in rejected_payload["detail"]
+
+
+def test_targeted_revision_rejects_duplicate_artifact_names_atomically() -> None:
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="duplicate-artifact-edit",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input={
+                        "writes": [
+                            {
+                                "artifact_name": "problem_card",
+                                "value": {"claim": "first revision"},
+                            },
+                            {
+                                "artifact_name": "problem_card",
+                                "value": {"claim": "second revision"},
+                            },
+                        ]
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="valid-edit-after-duplicate",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "lemma-1"}],
+                        }
+                    ),
+                )
+            ),
+        ]
+    )
+
+    result = _run_workspace(backend)
+
+    assert result.core_packet["artifacts"]["problem_card"] == {
+        "claim": "revised claim"
+    }
+    assert result.evidence["submissions"] == 1
+    rejected_observation = backend.requests[1].messages[-1]["content"][0]
+    assert rejected_observation["is_error"] is True
+    rejected_payload = json.loads(rejected_observation["content"])
+    assert rejected_payload["error"] == "client_tool_input_rejected"
+    assert "repeats 'problem_card'" in rejected_payload["detail"]

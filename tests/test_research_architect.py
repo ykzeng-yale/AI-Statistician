@@ -155,6 +155,17 @@ def _theory_tool_response(*calls: ClientToolCall) -> ClientToolTurnResponse:
     )
 
 
+def _theory_artifact_writes(
+    artifacts: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "writes": [
+            {"artifact_name": name, "value": value}
+            for name, value in artifacts.items()
+        ]
+    }
+
+
 class ProviderWithoutIdentity:
     def generate(self, request: GeneratorRequest) -> GeneratorResponse:
         return GeneratorResponse(text="{}", provider="", model=request.model)
@@ -985,18 +996,16 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
                 ClientToolCall(
                     call_id="edit-initial-theory",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={"artifacts": invalid_core_artifacts},
+                    input=_theory_artifact_writes(invalid_core_artifacts),
                 )
             ),
             _theory_tool_response(
                 ClientToolCall(
                     call_id="fix-formal-target-reference",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
-                            "theory_derivation_packet": fixed_derivation
-                        }
-                    },
+                    input=_theory_artifact_writes(
+                        {"theory_derivation_packet": fixed_derivation}
+                    ),
                 )
             ),
         ],
@@ -1275,11 +1284,9 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
                 ClientToolCall(
                     call_id="edit-lemmas",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
-                            "lemma_cards": revised_core["lemma_cards"]
-                        }
-                    },
+                    input=_theory_artifact_writes(
+                        {"lemma_cards": revised_core["lemma_cards"]}
+                    ),
                 )
             ),
         ],
@@ -1499,11 +1506,9 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged() -> 
                 ClientToolCall(
                     call_id="edit-revised-problem-card-for-abi-reuse",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
-                            "problem_card": revised_problem_card
-                        }
-                    },
+                    input=_theory_artifact_writes(
+                        {"problem_card": revised_problem_card}
+                    ),
                 )
             )
         ],
@@ -1626,12 +1631,12 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
                 ClientToolCall(
                     call_id="edit-revised-problem-card",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input={
-                        "artifacts": {
+                    input=_theory_artifact_writes(
+                        {
                             "problem_card": revised_core["problem_card"],
                             "estimator_specs": revised_core["estimator_specs"],
                         }
-                    },
+                    ),
                 )
             )
         ],
