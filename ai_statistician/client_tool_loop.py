@@ -117,8 +117,9 @@ def run_bounded_client_tool_loop(
 ) -> ClientToolLoopResult:
     """Run model -> client tool -> observation turns under caller-owned bounds.
 
-    ``max_terminal_recovery_turns`` is the retained API name for same-model,
-    terminal-only disposition turns. It does not invoke a separate repair agent.
+    A positive ``max_terminal_recovery_turns`` enables one same-model terminal
+    disposition plus that many rejected-disposition retries. It does not invoke a
+    separate repair agent.
     """
 
     if max_turns < 1 or max_tool_calls < 1 or max_no_progress_turns < 1:
@@ -146,9 +147,12 @@ def run_bounded_client_tool_loop(
     no_progress_turns = 0
     last_response: ClientToolTurnResponse | None = None
     terminal_tools = tuple(tool for tool in request.tools if tool.terminal)
-    total_turn_budget = max_turns + (
-        max_terminal_recovery_turns if terminal_tools else 0
+    terminal_decision_budget = (
+        1 + max_terminal_recovery_turns
+        if terminal_tools and max_terminal_recovery_turns
+        else 0
     )
+    total_turn_budget = max_turns + terminal_decision_budget
     terminal_decision_pending = False
     terminal_decision_reason = ""
     terminal_decision_turns_used = 0
@@ -198,7 +202,7 @@ def run_bounded_client_tool_loop(
     for turn_index in range(total_turn_budget):
         terminal_decision_turn = bool(
             terminal_tools
-            and terminal_decision_turns_used < max_terminal_recovery_turns
+            and terminal_decision_turns_used < terminal_decision_budget
             and (terminal_decision_pending or turn_index >= max_turns)
         )
         if turn_index >= max_turns and not terminal_decision_turn:
@@ -355,7 +359,7 @@ def run_bounded_client_tool_loop(
                 }
             )
             if terminal_decision_turn:
-                if terminal_decision_turns_used < max_terminal_recovery_turns:
+                if terminal_decision_turns_used < terminal_decision_budget:
                     request_terminal_decision(
                         terminal_decision_reason
                         or "terminal client-tool turn omitted its decision"
@@ -376,7 +380,7 @@ def run_bounded_client_tool_loop(
                 if (
                     terminal_tools
                     and terminal_decision_turns_used
-                    < max_terminal_recovery_turns
+                    < terminal_decision_budget
                 ):
                     request_terminal_decision(
                         "repeated turns without a client tool call"
@@ -395,6 +399,17 @@ def run_bounded_client_tool_loop(
         turn_new_observation = False
         terminal_payload: Mapping[str, Any] | None = None
         for call_index, call in enumerate(calls):
+            if (
+                not terminal_decision_turn
+                and call.name in tool_definitions
+                and tool_definitions[call.name].terminal
+            ):
+                # A submission in the standard loop is the initial disposition;
+                # only the explicitly budgeted recovery turns remain afterward.
+                terminal_decision_turns_used = max(
+                    1,
+                    terminal_decision_turns_used,
+                )
             total_calls += 1
             if total_calls > max_tool_calls:
                 raise loop_error(
@@ -542,7 +557,7 @@ def run_bounded_client_tool_loop(
         else:
             no_progress_turns += 1
         if terminal_decision_turn:
-            if terminal_decision_turns_used < max_terminal_recovery_turns:
+            if terminal_decision_turns_used < terminal_decision_budget:
                 request_terminal_decision(
                     terminal_decision_reason
                     or "terminal client-tool decision was not accepted"
@@ -562,7 +577,7 @@ def run_bounded_client_tool_loop(
         if no_progress_turns >= max_no_progress_turns:
             if (
                 terminal_tools
-                and terminal_decision_turns_used < max_terminal_recovery_turns
+                and terminal_decision_turns_used < terminal_decision_budget
             ):
                 request_terminal_decision(
                     "repeated client-tool turns made no new progress"

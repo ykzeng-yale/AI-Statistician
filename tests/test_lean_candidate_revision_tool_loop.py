@@ -1033,7 +1033,9 @@ def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -
     assert recovery_snapshot["budget"]["terminal_recovery_turn"] is True
 
 
-def test_lean_candidate_workspace_makes_terminal_decision_after_repeated_context() -> None:
+def test_lean_candidate_workspace_revises_after_context_stall_compile_error() -> None:
+    failing = "theorem target : True := by\n  exact missing_name\n"
+    compiled = "theorem target : True := by\n  exact True.intro\n"
     backend = ScriptedLeanToolBackend(
         [
             _response(
@@ -1052,13 +1054,16 @@ def test_lean_candidate_workspace_makes_terminal_decision_after_repeated_context
             ),
             _response(
                 ClientToolCall(
-                    "gap",
-                    LEAN_FORMAL_GAP_TOOL,
-                    {
-                        "summary": "The active project lacks the required premise.",
-                        "missing_primitives": ["target premise"],
-                        "blocking_observations": ["Repeated search returned no premise."],
-                    },
+                    "submit-failing",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": failing},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-compiled",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": compiled},
                 )
             ),
         ]
@@ -1079,7 +1084,10 @@ def test_lean_candidate_workspace_makes_terminal_decision_after_repeated_context
         initial_source="",
         check_candidate=lambda source, _declaration: {
             "source_hash": stable_hash(source),
-            "compiled": False,
+            "compiled": source == compiled,
+            "local_lean_stderr": (
+                "unknown identifier 'missing_name'" if source == failing else ""
+            ),
         },
         search_formal_environment=lambda query, k: {
             "query": query,
@@ -1089,15 +1097,23 @@ def test_lean_candidate_workspace_makes_terminal_decision_after_repeated_context
         allow_formal_gap=True,
     )
 
-    assert result.disposition == "FORMAL_GAP"
-    assert result.evidence["turns"] == 3
-    assert [tool.name for tool in backend.requests[-1].tools] == [
-        LEAN_SOURCE_SUBMISSION_TOOL,
-        LEAN_FORMAL_GAP_TOOL,
-    ]
-    assert _workspace_snapshot(backend.requests[-1])["budget"][
+    assert result.lean_source == compiled
+    assert result.evidence["turns"] == 4
+    assert result.evidence["source_updates"] == 2
+    assert result.evidence["local_lean_checks"] == 2
+    assert all(
+        [tool.name for tool in request.tools]
+        == [LEAN_SOURCE_SUBMISSION_TOOL, LEAN_FORMAL_GAP_TOOL]
+        for request in backend.requests[-2:]
+    )
+    recovery_snapshot = _workspace_snapshot(backend.requests[-1])
+    assert recovery_snapshot["budget"][
         "terminal_recovery_turn"
     ] is True
+    assert recovery_snapshot["current_lean_source"] == failing
+    assert recovery_snapshot["latest_check_observation"][
+        "local_lean_stderr"
+    ] == "unknown identifier 'missing_name'"
     assert backend.requests[-1].metadata[
         "client_tool_loop_terminal_decision_reason"
     ] == "repeated client-tool turns made no new progress"

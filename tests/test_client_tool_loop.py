@@ -479,6 +479,56 @@ def test_bounded_client_tool_loop_requests_terminal_decision_on_no_progress() ->
     ] == "repeated client-tool turns made no new progress"
 
 
+def test_terminal_decision_keeps_one_same_model_recovery_turn() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-check-1", "check", {})),
+            _response(ClientToolCall("call-check-2", "check", {})),
+            _response(ClientToolCall("call-submit-invalid", "submit", {})),
+            _response(ClientToolCall("call-submit-valid", "submit", {})),
+        ]
+    )
+    submissions = 0
+
+    def execute(call, _context):
+        nonlocal submissions
+        if call.name == "check":
+            return ClientToolExecutionResult(
+                content={"ok": True},
+                observation_key="same-check",
+            )
+        submissions += 1
+        if submissions == 1:
+            raise ClientToolInputError("compiler rejected the first source")
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            terminal=True,
+            terminal_payload={"submitted": True},
+            observation_key="submitted",
+        )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute,
+        max_turns=5,
+        max_tool_calls=4,
+        max_no_progress_turns=1,
+        max_terminal_recovery_turns=1,
+    )
+
+    assert result.terminal_payload == {"submitted": True}
+    assert result.turns == 4
+    assert submissions == 2
+    assert all(
+        [tool.name for tool in request.tools] == ["submit"]
+        for request in backend.requests[-2:]
+    )
+    assert "compiler rejected the first source" in str(
+        backend.requests[-1].messages[-1]["content"]
+    )
+
+
 def test_bounded_client_tool_loop_never_executes_unknown_tool() -> None:
     backend = ScriptedToolTurnBackend(
         [_response(ClientToolCall("call-unknown", "shell", {"cmd": "rm -rf /"}))]

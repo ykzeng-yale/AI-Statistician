@@ -606,7 +606,7 @@ def run_lean_candidate_revision_tool_loop(
             "proof_evidence_status": "WORKSPACE_STATE_NOT_PROOF_EVIDENCE",
         }
 
-    max_tool_calls = max_turns + max_terminal_recovery_turns
+    max_tool_calls = max_turns + max_terminal_recovery_turns + 1
     try:
         loop = run_bounded_client_tool_loop(
             backend=provider,

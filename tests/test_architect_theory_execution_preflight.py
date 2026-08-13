@@ -921,10 +921,12 @@ def test_preflight_client_tool_loop_failure_is_fail_closed() -> None:
     with pytest.raises(PacketValidationError) as exc_info:
         _tool_review(backend)
 
-    assert len(backend.requests) == 4
-    assert [tool.name for tool in backend.requests[-1].tools] == [
-        "submit_theory_preflight_review"
-    ]
+    assert len(backend.requests) == 5
+    assert all(
+        [tool.name for tool in request.tools]
+        == ["submit_theory_preflight_review"]
+        for request in backend.requests[-2:]
+    )
     assert backend.requests[-1].metadata[
         "client_tool_loop_terminal_decision_reason"
     ] == "repeated turns without a client tool call"
