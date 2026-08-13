@@ -1,9 +1,9 @@
 {
-  "schema_version": 39,
+  "schema_version": 40,
   "updated_at": "2026-08-13",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "e2a0a774",
+  "validated_code_head": "8ce0dc32",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -57,7 +57,8 @@
       "2d1eab34",
       "0d6ba519",
       "0adac22f",
-      "e2a0a774"
+      "e2a0a774",
+      "8ce0dc32"
     ],
     "changes": [
       "Theory workspace state is separated from retained transcript history, so tool turns do not recursively grow the mathematical artifact.",
@@ -82,12 +83,19 @@
       "AlgorithmEngineer cannot send a partial requested estimator set to independent review: every requested estimator artifact must pass its own model-owned execution workspace first.",
       "Python and R source tools describe their language-specific scientific dependency sets directly to the coding model; runtime does not normalize or repair a mixed-language answer.",
       "Final Critic prompts retain artifact IDs, status metadata, and content hashes while replacing complete theory, source, and simulation histories with references; the current observation remains explicit.",
+      "TheoryDeveloper now receives canonical output_contract and termination_guarantee fields, while independent preflight sees the complete bounded model-authored estimator record instead of a lossy field allowlist.",
+      "Outer-lane coverage now recognizes a completed workspace only under the current immutable parent artifacts; an Algorithm visit under an invalidated theory cannot cause Formalizer to overtake the revised theory's scientific rebuild.",
+      "Formalizer observation summaries aggregate every distinct workspace artifact rather than retaining only the final workspace per question and evidence type.",
       "No task answer, statistical threshold, Lean grammar rule, tactic rule, repair worker, or post-runtime scheduler was added."
     ],
     "verification": {
-      "ai_statistician_pytest": "619 passed in 94.51s",
-      "focused_runtime_and_workspace_tests": "135 passed in 16.17s",
+      "ai_statistician_pytest": "622 passed in 95.27s",
+      "focused_runtime_and_workspace_tests": "142 passed in 1.29s",
       "git_diff_check": "passed",
+      "python_compileall": "passed",
+      "v424_integrated_audit": "5/16, ready=false; both tasks BLOCKED under exact Haiku, three live Algorithm executions, one live Simulation execution, one model-authored Lean source change, independent formal-target review, one typed formal gap, and zero target-bound kernel closure",
+      "v424_formalizer_ledger_replay": "the immutable evidence ledger contains two distinct Formalizer workspaces, one source update, two local Lean checks, two compiling checkpoints, and seven formal-RAG calls; the archived v424 manifest retained only the last workspace, and current code corrects future aggregation without rewriting the historical artifact",
+      "v424_compact_critic_live_evidence": "Survival reached a live final Critic response without the v423 255,433-token overflow and failed closed as FORMAL_REQUIRED_BLOCKED; this validates transport capacity, not research acceptance",
       "v423_integrated_audit": "11/16, ready=false; survival MAX_ITERATIONS_REACHED and sequential FAILED, exact Haiku only, seven live code executions, two live simulation executions, two Formalizer workspaces, seven Lean source updates, seven local checks, zero compiled checkpoints, and zero final kernel closure",
       "v422_kernel_promotion_diagnosis": "survival produced seven repeated exact-source kernel promotion artifacts across two source hashes, but the runtime reopened semantic review after promotion and eventually exhausted review budget; final panel closure remained 0/2",
       "post_fix_critic_artifact_replay": "using the real v423 707 KB Algorithm manifest and 79 KB Theory packet, the final Critic prompt is 24,404 characters while preserving both artifact IDs and content hashes",
@@ -97,38 +105,37 @@
     "evidence_boundary": "Tests, re-audits, and direct component probes validate mechanisms only. They do not earn integrated theorem-closure credit."
   },
   "latest_authoritative_integrated_run": {
-    "id": "v423",
-    "path": "runs/main_worker_cross_family_development_20260813_v423_verified_promotion_consumer_dependency_exact_haiku",
-    "run_code_head": "0adac22f plus the first verified-promotion and dependency-contract worktree changes; all diagnosed shared fixes are published in validated code commit e2a0a774",
+    "id": "v424",
+    "path": "runs/main_worker_cross_family_development_20260813_v424_target_bound_closure_compact_critic_exact_haiku",
+    "run_code_head": "31ee4184; all v424-diagnosed shared lineage, transport, and evidence-summary fixes are published in validated code commit 8ce0dc32",
     "model": "claude-haiku-4-5-20251001 for every observed live LLM call",
-    "wall_clock_interval": "completed at 2026-08-13T21:39:21Z",
+    "wall_clock_interval": "completed at 2026-08-13T22:30:15Z",
     "status_counts": {
-      "FAILED": 1,
-      "MAX_ITERATIONS_REACHED": 1
+      "BLOCKED": 2
     },
-    "capability_scorecard": "11/16",
+    "capability_scorecard": "5/16",
     "capability_ready_for_full_ai_statistician": false,
-    "runtime_traces": 51,
-    "architect_traces": 14,
-    "runtime_tool_calls": 53,
-    "runtime_observations": 111,
-    "live_generated_code_executions": 7,
-    "live_generated_simulation_executions": 2,
+    "runtime_traces": 34,
+    "architect_traces": 11,
+    "runtime_tool_calls": 25,
+    "runtime_observations": 66,
+    "live_generated_code_executions": 3,
+    "live_generated_simulation_executions": 1,
     "formalizer_workspaces": 2,
-    "formalizer_source_updates": 7,
-    "formalizer_local_lean_checks": 7,
-    "formalizer_formal_rag_calls": 20,
-    "formalizer_compiled_checkpoints": 0,
+    "formalizer_source_updates": 1,
+    "formalizer_local_lean_checks": 2,
+    "formalizer_formal_rag_calls": 7,
+    "formalizer_compiled_checkpoints": 2,
     "kernel_verified_subclaims": 0,
-    "materialized_formal_gaps": 2,
+    "materialized_formal_gaps": 1,
     "exact_source_theorem_closure": "0/2",
     "diagnosis": {
-      "right_censored_survival_km": "Three genuine theory-code-metric cycles and one consumer-bound Algorithm revision were observed. A later consumer revision left one of three requested estimator artifacts failed while two reused artifacts passed; the old completion predicate allowed that partial set into review and consumed the 40-step outer budget. The current generic completion rule now blocks the incomplete Algorithm workspace before review.",
-      "sequential_anytime_bernoulli": "Theory preflight, all requested Algorithm artifacts, a four-turn Simulation source workspace, independent code review, task-bound formal RAG, and multiple Lean source revisions completed. Formalizer reported a typed non-proof gap. Final Critic then failed before evaluation because complete artifact histories created a 255,433-token prompt; current reference projection reduces a replay of those real artifacts to 24,404 characters.",
-      "formalizer_capacity": "v423 proves two exact-Haiku Formalizer workspaces used task-bound RAG, authored seven source updates, and ran seven local checks. Neither workspace compiled, both materialized formal gaps, and no target was promoted.",
-      "efficiency": "Fourteen of 51 outer traces were Architect. Most survival cost came from real theory-metric revisions, but partial Algorithm acceptance and final Critic payload copying were avoidable harness costs now corrected. Routine source errors remain inside the same coding session."
+      "right_censored_survival_km": "Initial theory preflight, all three requested Algorithm artifacts, independent code review, exploratory and confirmatory Simulation, one downstream TheoryDeveloper revision, task-bound formal RAG, a locally compiling Lean candidate, independent formal-target REVISE, a same-Formalizer typed gap, and a live compact final Critic all occurred. The Critic correctly blocked because no exact target was promoted. The outer graph nevertheless sent the revised theory to Formalizer before rebuilding its invalidated scientific descendants; current lineage-aware lane coverage fixes that generic ordering defect.",
+      "sequential_anytime_bernoulli": "Three distinct model-authored theory hashes and two bounded same-workspace revisions were reviewed. All three preflights retained the same unresolved findings and coding never began. The model attempted to declare bounded execution semantics in an extra estimator field, but the core output contract did not expose canonical output/termination fields and the preflight projection hid that extra source content. Current transport exposes canonical fields and preserves the complete bounded model-authored estimator semantics; the mathematical findings themselves remain unresolved until a fresh run.",
+      "formalizer_capacity": "The first Survival Formalizer workspace used five task-bound RAG calls, authored one exact Lean source, and obtained a local compiling checkpoint. Independent review rejected semantic promotion; the second same-source workspace used two more RAG calls, rechecked the unchanged compiling source, and reported an explicit non-proof formal gap. No Lean source was promoted.",
+      "efficiency": "Eleven of 34 traces were Architect. The final Critic completed without prompt overflow, but invalidated-parent lane accounting caused an avoidable Formalizer-first detour. The current fix uses current parent hashes rather than global handoff history."
     },
-    "boundary": "v423 contains integrated theory revision, executable typed metric evaluation, model-owned scientific source revision, formal RAG, model-authored Lean, local feedback, and independent code review. It contains no compiled Lean checkpoint, accepted formal target, exact identity promotion, source-theorem kernel closure, or final Critic acceptance. Current fixes have regression and artifact-replay evidence only."
+    "boundary": "v424 contains integrated theory revision, executable scientific evaluation, independent code review, task-bound formal RAG, an exact model-authored Lean source, local compiling feedback, independent formal-target rejection, a typed formal gap, and a live final Critic. It contains no accepted formal target, exact identity promotion, source-theorem kernel closure, or final Critic acceptance. The v424 ordering and transport fixes have regression and artifact-ledger replay evidence only."
   },
   "best_recent_integrated_formal_traversal": {
     "id": "v422",
@@ -169,18 +176,20 @@
       "kernel-promoted exact source being rematerialized and reopened for stochastic semantic review",
       "final Critic ignoring the exact source-theorem promotion field while accepting the legacy supporting-subclaim count",
       "partial requested estimator sets entering independent review because any passing artifact was treated as workspace completion",
-      "complete theory and scientific source histories being copied into the final Critic prompt"
+      "complete theory and scientific source histories being copied into the final Critic prompt",
+      "theory execution semantics requested by preflight being absent from the TheoryDeveloper core output contract or hidden by a lossy estimator projection",
+      "global lane-visit history allowing Formalizer to overtake scientific descendants invalidated by a revised theory parent",
+      "Formalizer manifest summaries discarding earlier workspaces when a later workspace of the same evidence type existed"
     ],
     "remaining_structural_problems": [
       "development exact source-theorem closure remains 0/2, so held-out tasks remain sealed",
       "v422 reached real survival kernel promotions but repeated a completed promotion through review; the current direct-to-Critic fix lacks a fresh integrated run",
-      "v423 produced seven Lean source updates but no locally compiled checkpoint, accepted target, or kernel promotion",
-      "survival consumed 40 outer steps across three theory-metric cycles and two consumer revisions; the last Algorithm task remained pending",
-      "the outer graph can visit Formalizer before rerunning scientific artifacts invalidated by a theory revision, wasting serial evaluation time even though evidence remains honest",
+      "v424 produced a locally compiling Survival Lean candidate, but independent semantic review rejected promotion and the same Formalizer reported a typed gap",
+      "v424 Sequential exhausted two theory revisions at source-grounded preflight; the transport visibility defect is fixed, but no fresh run has shown the model resolving the mathematical findings",
       "metric authoring remains a condition-heavy JSON ABI even though the source workspace now receives its complete executable projection",
       "TheoryDeveloper receives bounded retrieval context and Python/R scratch execution but still lacks an on-demand task-bound retrieval tool and a durable long-form theorem/lemma workspace",
       "TheoryDeveloper can still make low-authority revisions or narrate unsupported numbers under Haiku; the independent preflight correctly blocks these rather than runtime-authored repair",
-      "the latest v423 Formalizer did not compile either target; v422 promotion routing is stronger but ended without final acceptance",
+      "the latest v424 Formalizer compiled one target candidate but did not earn semantic acceptance or kernel promotion; v422 promotion routing is stronger but ended without final acceptance",
       "live R research, arbitrary paper ingest, and learned research/proof policies remain incomplete"
     ],
     "wrong_next_move": "Do not add a repair worker, packet-patch queue, theorem-specific bridge, Lean grammar fixer, forced tactic policy, or relax independent semantic review because a compiled candidate was rejected. The next live run should measure the simplified linear sessions and require the model to resolve review findings itself; subsequent changes must address a cross-task missing capability, not hand-author the Kaplan-Meier or sequential answer."
@@ -200,11 +209,11 @@
     "cli_lines": 6907,
     "top_level_python_modules": 138,
     "top_level_package_lines": 130420,
-    "latest_runtime_manifest_bytes": 71948
+    "latest_runtime_manifest_bytes": 59161
   },
   "next_gates": [
-    "Run the next fresh exact-Haiku development panel from the published current commit; require a verified promotion to route once to Critic with the unchanged materialization, and require Critic input to stay reference-driven.",
-    "Measure and then correct the generic dependency ordering that let sequential Formalizer run before scientific artifacts invalidated by a theory revision; do not encode task-family routes.",
+    "Run the next fresh exact-Haiku development panel from validated code commit 8ce0dc32; require a revised theory to rebuild Algorithm and Simulation descendants before Formalizer, and require the canonical output/termination contract to remain visible to preflight.",
+    "Require any verified promotion to route once to Critic with unchanged materialization, and require Critic input to stay reference-driven.",
     "Require theory revisions to change every cited authoritative artifact, keep failed scratch output diagnostic, and remain blocked when mathematical or empirical support is absent.",
     "Replace the condition-heavy metric author packet with a smaller orthogonal gate artifact or model-authored executable evaluator only after an ablation shows lower invalid-packet rate while preserving pre-execution freezing and independent review.",
     "Give TheoryDeveloper on-demand task-bound retrieval only by reusing the existing retrieval provider and direct workspace tool pattern, not by adding another router or theorem-specific source rule.",
