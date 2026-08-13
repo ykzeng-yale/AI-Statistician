@@ -2187,7 +2187,9 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
 
     indexed_source_path = tmp_path / "IndexedSource.lean"
     indexed_source_path.write_text(
-        "namespace Example.Namespace\n\nstructure Source where\n  value : Nat\n\nend Example.Namespace\n",
+        "import Mathlib\n\nnamespace Example.Namespace\n\n"
+        "open MeasureTheory\n\nstructure Source where\n  value : Nat\n\n"
+        "end Example.Namespace\n",
         encoding="utf-8",
     )
 
@@ -2195,7 +2197,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
         name = "Example.Namespace.Source"
         namespace = "Example.Namespace"
         path = str(indexed_source_path)
-        line = 3
+        line = 7
         signature = "structure Source where"
 
     class IndexedHit:
@@ -2241,7 +2243,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     assert indexed_agent.declaration_result["indexed_declaration_namespace"] == (
         "Example.Namespace"
     )
-    assert indexed_agent.declaration_result["indexed_declaration_line"] == 3
+    assert indexed_agent.declaration_result["indexed_declaration_line"] == 7
     assert indexed_agent.declaration_result["indexed_declaration_signature"] == (
         "structure Source where"
     )
@@ -2251,6 +2253,13 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     assert "structure Source where" in indexed_agent.declaration_result[
         "indexed_source_context"
     ]["content"]
+    module_prefix = indexed_agent.declaration_result[
+        "indexed_module_prefix_context"
+    ]
+    assert module_prefix["start_line"] == 1
+    assert "import Mathlib" in module_prefix["content"]
+    assert "namespace Example.Namespace" in module_prefix["content"]
+    assert "open MeasureTheory" in module_prefix["content"]
 
     resumed_source = "theorem target : True := by\n  exact True.intro\n"
     resume_feedback = {

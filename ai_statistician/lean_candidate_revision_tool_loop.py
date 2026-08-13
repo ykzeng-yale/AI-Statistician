@@ -1101,8 +1101,9 @@ def _lean_candidate_revision_tools(
                     "identifier selected from formal-environment search or referenced "
                     "by the current checked source. Choose the exact symbol and context "
                     "yourself. This read-only active-project observation can show "
-                    "structure fields and nearby declarations; it never edits or "
-                    "promotes source."
+                    "the bounded module prefix, declaration signature, structure "
+                    "fields, and nearby declarations needed to reproduce the source "
+                    "environment; it never edits or promotes source."
                 ),
                 input_schema={
                     "type": "object",

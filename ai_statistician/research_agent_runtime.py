@@ -17353,6 +17353,7 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             }
         result = deepcopy(dict(raw))
         indexed_source_context: dict[str, Any] = {}
+        indexed_module_prefix_context: dict[str, Any] = {}
         if active_declaration is not None:
             indexed_path = Path(active_declaration["path"])
             try:
@@ -17362,6 +17363,17 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             except OSError:
                 indexed_lines = []
             if indexed_lines:
+                prefix_end_line = min(len(indexed_lines), 64)
+                prefix_content = "\n".join(
+                    indexed_lines[:prefix_end_line]
+                )
+                indexed_module_prefix_context = {
+                    "file_path": str(indexed_path),
+                    "start_line": 1,
+                    "end_line": prefix_end_line,
+                    "content": prefix_content[:20_000],
+                    "content_truncated": len(prefix_content) > 20_000,
+                }
                 indexed_line = max(
                     1,
                     min(int(active_declaration["line"] or 1), len(indexed_lines)),
@@ -17396,6 +17408,9 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             result["provider_observation_ok"] = bool(result.get("ok", False))
             result["indexed_declaration_signature"] = indexed_signature
             result["indexed_source_context"] = indexed_source_context
+            result["indexed_module_prefix_context"] = (
+                indexed_module_prefix_context
+            )
             result["indexed_symbol_context_observed"] = indexed_context_observed
             if indexed_context_observed:
                 result["ok"] = True
