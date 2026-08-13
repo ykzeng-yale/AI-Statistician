@@ -1,9 +1,9 @@
 {
-  "schema_version": 38,
+  "schema_version": 39,
   "updated_at": "2026-08-13",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "0d6ba519",
+  "validated_code_head": "e2a0a774",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -55,7 +55,9 @@
       "d88661a0",
       "b4f948c7",
       "2d1eab34",
-      "0d6ba519"
+      "0d6ba519",
+      "0adac22f",
+      "e2a0a774"
     ],
     "changes": [
       "Theory workspace state is separated from retained transcript history, so tool turns do not recursively grow the mathematical artifact.",
@@ -75,63 +77,69 @@
       "Simulation source workspaces now receive the complete frozen metric output ABI, and outcome-blind interface failures echo that exact ABI back to the same source owner.",
       "Formalizer materialization preserves the exact model-authored Lean bytes instead of stripping trailing whitespace, so workspace, compiler, reviewer, and rejection hashes share one identity domain.",
       "A locally compiling target fails closed when the independent exact-target reviewer is unavailable; Critic cannot substitute for that gate.",
+      "A kernel-promoted exact Lean source now reuses its hash-bound materialization and routes directly to Critic without another materialization, semantic review, or model rewrite.",
+      "Final Critic rechecks the linked LeanKernelPromotionResult, target IDs, authority labels, and Formalizer counts before accepting exact source-theorem closure; kernel-verified supporting subclaims alone cannot satisfy the target theorem gate.",
+      "AlgorithmEngineer cannot send a partial requested estimator set to independent review: every requested estimator artifact must pass its own model-owned execution workspace first.",
+      "Python and R source tools describe their language-specific scientific dependency sets directly to the coding model; runtime does not normalize or repair a mixed-language answer.",
+      "Final Critic prompts retain artifact IDs, status metadata, and content hashes while replacing complete theory, source, and simulation histories with references; the current observation remains explicit.",
       "No task answer, statistical threshold, Lean grammar rule, tactic rule, repair worker, or post-runtime scheduler was added."
     ],
     "verification": {
-      "ai_statistician_pytest": "615 passed in 98.16s",
-      "focused_runtime_and_workspace_tests": "147 passed in 1.25s",
+      "ai_statistician_pytest": "619 passed in 94.51s",
+      "focused_runtime_and_workspace_tests": "135 passed in 16.17s",
       "git_diff_check": "passed",
-      "v421_integrated_audit": "11/16, ready=false; 2/2 BLOCKED, exact Haiku only, five live code executions, two live simulation executions, two locally compiled candidate rows, zero kernel closure",
-      "metric_abi_integrated_evidence": "both tasks evaluated eight frozen typed contracts without the v420 VALUE_TYPE_INVALID aggregate-versus-raw interface failure; survival failed seven real gates and sequential eventually passed all eight on a fresh cohort",
-      "prompt_cache_integrated_evidence": "the sequential Formalizer terminal turn read 61716 cached input tokens while retaining all six tools; its full workspace read 610762 cached tokens",
-      "exact_source_identity_regression": "workspace submitted hash, materialized file hash, and downstream candidate hash stay identical, including trailing newlines; a compiled candidate without an independent reviewer fails closed",
+      "v423_integrated_audit": "11/16, ready=false; survival MAX_ITERATIONS_REACHED and sequential FAILED, exact Haiku only, seven live code executions, two live simulation executions, two Formalizer workspaces, seven Lean source updates, seven local checks, zero compiled checkpoints, and zero final kernel closure",
+      "v422_kernel_promotion_diagnosis": "survival produced seven repeated exact-source kernel promotion artifacts across two source hashes, but the runtime reopened semantic review after promotion and eventually exhausted review budget; final panel closure remained 0/2",
+      "post_fix_critic_artifact_replay": "using the real v423 707 KB Algorithm manifest and 79 KB Theory packet, the final Critic prompt is 24,404 characters while preserving both artifact IDs and content hashes",
+      "post_fix_regression_boundary": "verified-promotion routing, target-bound Critic closure, complete Algorithm workspace acceptance, and compact Critic input have full-suite regression evidence; all seven v422 promoted manifests pass the new linked-promotion replay, but no fresh post-fix panel has yet earned integrated closure credit",
       "remote_coordination": "after fetch, origin/main had no commit absent from HEAD, no unmerged remote branch was present, and the GitHub connector reported zero open pull requests"
     },
     "evidence_boundary": "Tests, re-audits, and direct component probes validate mechanisms only. They do not earn integrated theorem-closure credit."
   },
   "latest_authoritative_integrated_run": {
-    "id": "v421",
-    "path": "runs/main_worker_cross_family_development_20260813_v421_metric_abi_stable_recovery_dedup_exact_haiku",
-    "run_code_head": "2d1eab34 plus the then-uncommitted mechanism changes now committed in 0d6ba519",
+    "id": "v423",
+    "path": "runs/main_worker_cross_family_development_20260813_v423_verified_promotion_consumer_dependency_exact_haiku",
+    "run_code_head": "0adac22f plus the first verified-promotion and dependency-contract worktree changes; all diagnosed shared fixes are published in validated code commit e2a0a774",
     "model": "claude-haiku-4-5-20251001 for every observed live LLM call",
-    "wall_clock_interval": "2026-08-13T19:19:33Z to 2026-08-13T20:01:16Z",
+    "wall_clock_interval": "completed at 2026-08-13T21:39:21Z",
     "status_counts": {
-      "BLOCKED": 2
+      "FAILED": 1,
+      "MAX_ITERATIONS_REACHED": 1
     },
     "capability_scorecard": "11/16",
     "capability_ready_for_full_ai_statistician": false,
-    "runtime_traces": 47,
-    "architect_traces": 12,
-    "runtime_tool_calls": 41,
-    "runtime_observations": 100,
-    "live_generated_code_executions": 5,
+    "runtime_traces": 51,
+    "architect_traces": 14,
+    "runtime_tool_calls": 53,
+    "runtime_observations": 111,
+    "live_generated_code_executions": 7,
     "live_generated_simulation_executions": 2,
     "formalizer_workspaces": 2,
-    "formalizer_source_updates": 6,
+    "formalizer_source_updates": 7,
     "formalizer_local_lean_checks": 7,
-    "formalizer_formal_rag_calls": 14,
-    "formalizer_compiled_checkpoints": 1,
+    "formalizer_formal_rag_calls": 20,
+    "formalizer_compiled_checkpoints": 0,
     "kernel_verified_subclaims": 0,
-    "materialized_formal_gaps": 1,
+    "materialized_formal_gaps": 2,
     "exact_source_theorem_closure": "0/2",
     "diagnosis": {
-      "right_censored_survival_km": "Theory and preflight were accepted; generated Algorithm and Simulation source executed and passed independent source review. The complete metric ABI eliminated v420's aggregate-versus-raw interface error, after which seven of eight frozen empirical gates failed on their actual values. TheoryDeveloper revised and preflight accepted the new theory. Formalizer authored a compiling target twice, but independent whole-target review rejected it and no source theorem was promoted. Artifact audit found that materialization had removed one trailing newline, making the second workspace hash differ while the reviewer saw the same stripped source; 0d6ba519 removes that cross-layer identity drift.",
-      "sequential_anytime_bernoulli": "An initial theory revision passed preflight; AlgorithmEngineer produced three changed executed candidates before independent acceptance. Confirmatory simulation feedback triggered a same-owner theory revision, then invalidated scientific lanes reran and a fresh cohort eventually passed all eight frozen gates. Formalizer made five source submissions from raw Lean feedback and used task-bound search, declaration inspection, and proof-state inspection, but reported an unresolved non-proof formal gap. Critic truthfully blocked final acceptance.",
-      "formalizer_capacity": "v421 proves that exact Haiku can retain stable tools and provider cache, use task-bound RAG, inspect declarations and proof state, author multiple Lean sources, compile a candidate, and consume independent semantic rejection. It still proves no source theorem: survival never passed semantic review and sequential ended in a model-reported gap.",
-      "efficiency": "Prompt caching now works in the integrated run, including the terminal decision turn. Remaining inefficiency is outer-graph ordering and review cost: 12 of 47 traces were Architect, and sequential visited Formalizer before rerunning scientific artifacts invalidated by its theory revision. This is a generic dependency-ordering debt, not a reason to add task-specific routing."
+      "right_censored_survival_km": "Three genuine theory-code-metric cycles and one consumer-bound Algorithm revision were observed. A later consumer revision left one of three requested estimator artifacts failed while two reused artifacts passed; the old completion predicate allowed that partial set into review and consumed the 40-step outer budget. The current generic completion rule now blocks the incomplete Algorithm workspace before review.",
+      "sequential_anytime_bernoulli": "Theory preflight, all requested Algorithm artifacts, a four-turn Simulation source workspace, independent code review, task-bound formal RAG, and multiple Lean source revisions completed. Formalizer reported a typed non-proof gap. Final Critic then failed before evaluation because complete artifact histories created a 255,433-token prompt; current reference projection reduces a replay of those real artifacts to 24,404 characters.",
+      "formalizer_capacity": "v423 proves two exact-Haiku Formalizer workspaces used task-bound RAG, authored seven source updates, and ran seven local checks. Neither workspace compiled, both materialized formal gaps, and no target was promoted.",
+      "efficiency": "Fourteen of 51 outer traces were Architect. Most survival cost came from real theory-metric revisions, but partial Algorithm acceptance and final Critic payload copying were avoidable harness costs now corrected. Routine source errors remain inside the same coding session."
     },
-    "boundary": "v421 contains integrated theory revision, executable typed metric evaluation, generated scientific source revision, formal RAG, model-authored Lean, local compilation, cache reads, raw feedback, and independent target rejection. It contains no accepted formal target, exact identity promotion, kernel proof, or final acceptance. The exact-source preservation fix in 0d6ba519 has full-suite regression evidence but not yet a post-fix fresh panel."
+    "boundary": "v423 contains integrated theory revision, executable typed metric evaluation, model-owned scientific source revision, formal RAG, model-authored Lean, local feedback, and independent code review. It contains no compiled Lean checkpoint, accepted formal target, exact identity promotion, source-theorem kernel closure, or final Critic acceptance. Current fixes have regression and artifact-replay evidence only."
   },
   "best_recent_integrated_formal_traversal": {
-    "id": "v421",
-    "path": "runs/main_worker_cross_family_development_20260813_v421_metric_abi_stable_recovery_dedup_exact_haiku",
-    "capability_scorecard": "11/16",
-    "formalizer_source_updates": 6,
-    "formalizer_local_lean_checks": 7,
+    "id": "v422",
+    "path": "runs/main_worker_cross_family_development_20260813_v422_exact_source_identity_ordering_exact_haiku",
+    "capability_scorecard": "6/16",
+    "formalizer_source_updates": 1,
+    "formalizer_local_lean_checks": 2,
     "formalizer_local_lean_compiled": 2,
     "kernel_verified_subclaims": 0,
     "exact_source_theorem_closure": "0/2",
-    "boundary": "v421 matches the strongest integrated score while adding real typed metric execution, stable integrated cache reads, six model source updates, and two compiled candidate rows. Independent semantic review rejected survival and sequential reported a gap, so none of this became source-theorem proof."
+    "boundary": "v422 survival produced seven repeated LeanKernelPromotionResult artifacts over two exact source hashes, each labeled source_theorem_kernel_verified=true. The same promoted source was then reopened for semantic review, repeated until review budget exhaustion, and the panel ended 0/2 with no final Critic acceptance. These are real kernel artifacts but not seven distinct proofs and not completed E2E closure."
   },
   "current_design_assessment": {
     "correct_to_keep": [
@@ -157,18 +165,22 @@
       "A-to-B-to-A source execution within Scientific or Lean sessions",
       "incomplete metric output ABI projection to the source-owning Simulation workspace",
       "Formalizer workspace and materialization using different source-byte hash domains",
-      "compiled exact targets continuing without an available independent target reviewer"
+      "compiled exact targets continuing without an available independent target reviewer",
+      "kernel-promoted exact source being rematerialized and reopened for stochastic semantic review",
+      "final Critic ignoring the exact source-theorem promotion field while accepting the legacy supporting-subclaim count",
+      "partial requested estimator sets entering independent review because any passing artifact was treated as workspace completion",
+      "complete theory and scientific source histories being copied into the final Critic prompt"
     ],
     "remaining_structural_problems": [
       "development exact source-theorem closure remains 0/2, so held-out tasks remain sealed",
-      "v421 produced two locally compiled survival candidate rows, but both failed independent source-target semantic review; sequential produced one model-reported formal gap and no accepted target",
-      "the v421 second survival reviewer saw the same materialized source because of a trailing-newline hash split; 0d6ba519 fixes the mechanism, but a fresh integrated run has not yet verified it",
-      "survival failed seven of eight real empirical gates; sequential required a theory revision, rerun, and fresh cohort before all eight gates passed",
+      "v422 reached real survival kernel promotions but repeated a completed promotion through review; the current direct-to-Critic fix lacks a fresh integrated run",
+      "v423 produced seven Lean source updates but no locally compiled checkpoint, accepted target, or kernel promotion",
+      "survival consumed 40 outer steps across three theory-metric cycles and two consumer revisions; the last Algorithm task remained pending",
       "the outer graph can visit Formalizer before rerunning scientific artifacts invalidated by a theory revision, wasting serial evaluation time even though evidence remains honest",
       "metric authoring remains a condition-heavy JSON ABI even though the source workspace now receives its complete executable projection",
       "TheoryDeveloper receives bounded retrieval context and Python/R scratch execution but still lacks an on-demand task-bound retrieval tool and a durable long-form theorem/lemma workspace",
       "TheoryDeveloper can still make low-authority revisions or narrate unsupported numbers under Haiku; the independent preflight correctly blocks these rather than runtime-authored repair",
-      "the latest Formalizer could compile a Lean candidate but did not encode the exact source theorem semantics or reach kernel promotion",
+      "the latest v423 Formalizer did not compile either target; v422 promotion routing is stronger but ended without final acceptance",
       "live R research, arbitrary paper ingest, and learned research/proof policies remain incomplete"
     ],
     "wrong_next_move": "Do not add a repair worker, packet-patch queue, theorem-specific bridge, Lean grammar fixer, forced tactic policy, or relax independent semantic review because a compiled candidate was rejected. The next live run should measure the simplified linear sessions and require the model to resolve review findings itself; subsequent changes must address a cross-task missing capability, not hand-author the Kaplan-Meier or sequential answer."
@@ -183,15 +195,15 @@
     "boundary": "The authoritative completion fact is development exact source-theorem closure 0/2; percentages are engineering estimates only."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 23901,
+    "research_agent_runtime_lines": 24000,
     "agent_runtime_lines": 1207,
     "cli_lines": 6907,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 130286,
-    "latest_runtime_manifest_bytes": 59202
+    "top_level_package_lines": 130420,
+    "latest_runtime_manifest_bytes": 71948
   },
   "next_gates": [
-    "Run the next fresh exact-Haiku development panel from 0d6ba519; require every Formalizer submitted-source hash to equal its materialized and reviewed source hash, and forbid a second review of the same rejected bytes.",
+    "Run the next fresh exact-Haiku development panel from the published current commit; require a verified promotion to route once to Critic with the unchanged materialization, and require Critic input to stay reference-driven.",
     "Measure and then correct the generic dependency ordering that let sequential Formalizer run before scientific artifacts invalidated by a theory revision; do not encode task-family routes.",
     "Require theory revisions to change every cited authoritative artifact, keep failed scratch output diagnostic, and remain blocked when mathematical or empirical support is absent.",
     "Replace the condition-heavy metric author packet with a smaller orthogonal gate artifact or model-authored executable evaluator only after an ablation shows lower invalid-packet rate while preserving pre-execution freezing and independent review.",
