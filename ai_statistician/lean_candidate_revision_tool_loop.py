@@ -206,8 +206,8 @@ def run_lean_candidate_revision_tool_loop(
         return check_result
 
     # A resumed source is rechecked in the active project before the first model
-    # turn, so the authoritative snapshot carries fresh diagnostics rather than a
-    # copied observation from an earlier runtime packet.
+    # turn, so the initial message carries fresh diagnostics rather than a copied
+    # observation from an earlier runtime packet.
     if parent_source.strip():
         check_current_source()
 

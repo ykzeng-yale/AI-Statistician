@@ -256,11 +256,12 @@ declaration-name submission, or a concrete task-bound formal-gap report. Each so
 is stored unchanged and checked immediately; raw Lean failure returns to that model.
 Runtime injects no import, theorem statement, tactic, or proof-body fragment.
 
-One global turn/call budget covers every action. A short rolling transcript retains
-recent retrieval and inspection results; one authoritative snapshot carries the
-complete current source, hash, declaration, latest raw Lean check, usage, and budget.
-A resumed source is rechecked in the active Lake project before the first model turn.
-Old checkpoint checks and search/state payloads are not permanent prompt fields.
+One global turn/call budget covers every action. The initial message carries the
+complete current source, hash, declaration, and a fresh raw Lean check. One bounded
+linear model-tool transcript then retains every model action and environment
+observation, which also leaves an append-only prefix for provider prompt caching.
+A resumed source is rechecked in the active Lake project before the first model turn;
+old checkpoint checks and search/state payloads are not copied into the new session.
 Declaration inspection resolves the model-selected active-project symbol through
 task-bound RAG and OpenProver's `lean-lsp-mcp`; the candidate file is only a local
 fallback. All such observations remain explicitly non-proof evidence.
@@ -271,9 +272,11 @@ formal gap. A revision gap preserves exact target provenance, clears proof-candi
 source fields, and remains non-proof. Independent review must distinguish a true
 missing foundation from a fixable API or modeling error.
 
-Every changed statement receives independent target-semantic review. A candidate
-can count as theorem evidence only when all of the following bind to the same
-artifact:
+Every changed statement receives independent target-semantic review. When a
+candidate is rejected, it cannot be handed back unchanged after temporary edits:
+the same Formalizer receives a hash-bound observation and must submit changed
+complete source or report a grounded formal gap. It can count as theorem evidence
+only when all of the following bind to the same artifact:
 
 - question, theorem target, declaration, project, path, and source hash;
 - independent semantic acceptance of the exact statement;

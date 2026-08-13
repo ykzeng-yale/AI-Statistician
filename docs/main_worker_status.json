@@ -1,13 +1,13 @@
 {
-  "schema_version": 36,
+  "schema_version": 37,
   "updated_at": "2026-08-13",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "ab6e9bed",
+  "validated_code_head": "b4f948c7",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep one thin outer research graph, return raw consumer failures to the exact source owner, preserve accepted evidence identities across deferred workspaces, and require exact cross-family kernel closure without task-specific fixes.",
+  "current_goal_focus": "Keep one thin outer research graph and durable model-owned Python, R, Theory, and Lean sessions; remove phase harness and prefix churn; preserve exact source/review lineage; and require cross-family kernel closure without task-specific fixes.",
   "operating_principle": "The model owns statistical, mathematical, Python, R, and Lean content. The harness owns execution, immutable identity, budgets, evaluation blindness, review separation, coarse evidence topology, and final authority; it does not author substantive fixes.",
   "model_policy": {
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
@@ -51,7 +51,9 @@
       "3959d52a",
       "63f4fab0",
       "dd5c36c4",
-      "ab6e9bed"
+      "ab6e9bed",
+      "d88661a0",
+      "b4f948c7"
     ],
     "changes": [
       "Theory workspace state is separated from retained transcript history, so tool turns do not recursively grow the mathematical artifact.",
@@ -63,64 +65,66 @@
       "Hash-bound confirmatory consumer failures return directly to the source-owning AlgorithmEngineer even after every required outer lane has been visited.",
       "An independently accepted Simulation manifest remains visible in deferred Formalizer context, so a later formal gap cannot reopen and rerun the completed simulation lane.",
       "Theory workspaces are explicitly told that failed scratch execution and unresolved errors have diagnostic, not empirical, authority.",
-      "Scientific, Lean, and source-grounded preflight client-tool loops now request the Anthropic prompt caching already used by Theory workspaces; unsupported providers retain the existing capability fallback.",
+      "Scientific, Lean, and source-grounded preflight client-tool loops request Anthropic prompt caching; a post-fix exact-Haiku live probe measured a full stable-prefix cache hit on the second Lean workspace turn.",
+      "The generic model-tool loop no longer supports rolling-history snapshots or caller-selected dynamic tool subsets. Scientific and Lean coding sessions keep one bounded linear transcript, while only the existing final-disposition recovery narrows to terminal tools.",
+      "A Formalizer semantic revision cannot hand the byte-identical independently rejected source back to another reviewer. The same model receives a hash-bound observation and must submit changed complete source or report a grounded formal gap.",
       "No task answer, statistical threshold, Lean grammar rule, tactic rule, repair worker, or post-runtime scheduler was added."
     ],
     "verification": {
-      "ai_statistician_pytest": "609 passed in 94.46s",
-      "focused_runtime_and_architect_tests": "92 passed",
-      "focused_client_tool_workspace_and_backend_tests": "124 passed",
+      "ai_statistician_pytest": "610 passed in 94.47s",
+      "focused_runtime_and_workspace_tests": "152 passed in 66.79s",
       "git_diff_check": "passed",
-      "v418_integrated_audit": "6/16, ready=false; 2/2 BLOCKED, one Formalizer workspace, zero kernel closure",
+      "v419_integrated_audit": "11/16, ready=false; 2/2 BLOCKED, two Formalizer workspaces, two locally compiled candidate rows, zero kernel closure",
       "accepted_simulation_transition_regression": "an accepted Simulation manifest survives the deferred Formalizer handoff and a formal gap transitions to Critic rather than reopening Simulation",
-      "prompt_cache_request_regression": "all observed Scientific, Lean, and source-grounded preflight test requests enable prompt caching",
+      "prompt_cache_live_probe": "exact claude-haiku-4-5-20251001 completed two Lean source turns; turn one wrote 32379 cache tokens and turn two read all 32379 while creating 268 new cache tokens",
+      "semantic_revision_noop_regression": "a compile-successful return to the independently rejected parent hash remains inside the same Formalizer session and cannot trigger another independent review",
       "remote_coordination": "after fetch, origin/main had no commit absent from HEAD, no unmerged remote branch was present, and the GitHub connector reported zero open pull requests"
     },
     "evidence_boundary": "Tests, re-audits, and direct component probes validate mechanisms only. They do not earn integrated theorem-closure credit."
   },
   "latest_authoritative_integrated_run": {
-    "id": "v418",
-    "path": "runs/main_worker_cross_family_development_20260813_v418_reviewed_source_backedge_exact_haiku",
-    "run_code_head": "63f4fab0",
+    "id": "v419",
+    "path": "runs/main_worker_cross_family_development_20260813_v419_accepted_lane_cache_exact_haiku",
+    "run_code_head": "d88661a0",
     "model": "claude-haiku-4-5-20251001 for every observed live LLM call",
-    "wall_clock_interval": "2026-08-13T17:08:54Z to 2026-08-13T17:33:54Z",
+    "wall_clock_interval": "2026-08-13T17:50:51Z to 2026-08-13T18:22:42Z",
     "status_counts": {
       "BLOCKED": 2
     },
-    "capability_scorecard": "6/16",
+    "capability_scorecard": "11/16",
     "capability_ready_for_full_ai_statistician": false,
-    "runtime_traces": 21,
-    "architect_traces": 7,
-    "runtime_tool_calls": 16,
-    "runtime_observations": 37,
+    "runtime_traces": 42,
+    "architect_traces": 10,
+    "runtime_tool_calls": 32,
+    "runtime_observations": 96,
     "live_generated_code_executions": 4,
     "live_generated_simulation_executions": 1,
-    "formalizer_workspaces": 1,
+    "formalizer_workspaces": 2,
     "formalizer_source_updates": 2,
-    "formalizer_local_lean_checks": 2,
-    "formalizer_formal_rag_calls": 7,
-    "formalizer_compiled_checkpoints": 0,
+    "formalizer_local_lean_checks": 3,
+    "formalizer_formal_rag_calls": 17,
+    "formalizer_compiled_checkpoints": 1,
     "kernel_verified_subclaims": 0,
     "materialized_formal_gaps": 1,
     "exact_source_theorem_closure": "0/2",
     "diagnosis": {
-      "right_censored_survival_km": "The task reached independently reviewed generated code and simulation and then a real Formalizer workspace. Exact Haiku performed seven formal-source searches, eleven declaration inspections, two complete Lean submissions, and two raw local Lean checks before reporting a typed target-modeling gap. The runtime then incorrectly reopened an already accepted Simulation lane because the accepted simulation manifest ID was absent from deferred architect context; dd5c36c4 fixes that identity propagation and a deterministic integration test proves the post-Formalizer transition now goes to Critic.",
-      "sequential_anytime_bernoulli": "Independent theory-to-execution preflight rejected the initial theory and two same-TheoryDeveloper revisions before any code execution. The first revision changed notes rather than authoritative artifacts. The second changed authoritative artifacts but promoted unsupported empirical numbers after failed scratch runs and still lacked justified discretization, mixing, integrability, and stopping-rule conditions. The gate correctly failed closed; dd5c36c4 strengthens the model instruction without relaxing review.",
-      "formalizer_capacity": "The Formalizer had task-relevant StatInference retrieval and raw Lean feedback, so v418 does not support adding theorem-specific retrieval or a repair worker. Its final type mismatch may reflect a genuine missing target representation or insufficient Haiku mathematical synthesis; it is not kernel proof evidence.",
-      "efficiency": "The 21-turn Formalizer loop resent about 8K to 21K input tokens per turn with prompt_caching_requested=false. ab6e9bed enables the existing provider-level prompt cache for Scientific, Lean, and source-grounded Preflight workspaces without changing decisions or evidence semantics."
+      "right_censored_survival_km": "The task completed accepted theory preflight, independently reviewed generated code and simulation, task-bound formal RAG, and two locally compiling Formalizer submissions. Independent target review correctly rejected both because the Lean source encoded distributional convergence rather than the source claim's convergence in probability and left positivity and risk-set semantics unverifiable. The second Formalizer session ended with the exact same source hash as the first rejected source after two temporary edits, so it consumed the only review revision without resolving a finding; b4f948c7 now keeps that no-op inside the same source-owner session.",
+      "sequential_anytime_bernoulli": "The initial theory passed preflight, generated code and simulation executed, confirmatory feedback returned to exact source owners, and a later TheoryDeveloper revision passed fresh preflight. The runtime correctly invalidated old code against the changed theory and reran the affected lanes. Formalization then reported a missing-module gap after selecting an unavailable import, and later scientific revisions remained unverified; Critic truthfully blocked final acceptance.",
+      "formalizer_capacity": "v419 proves that exact Haiku can use task-bound RAG, author Lean, compile candidate source, read independent semantic findings, and reopen the same Formalizer. It does not prove source-theorem closure: both compile-successful survival candidates were semantically rejected, sequential produced a non-proof formal gap, and no target reached kernel promotion.",
+      "efficiency": "Provider caching was requested in v419, but the per-turn authoritative snapshot rewrote the first user message. The two survival Formalizer sessions created 426289 and 152314 cache tokens with zero reads. b4f948c7 removes that snapshot and rolling transcript layer; a post-fix exact-Haiku two-turn probe read all 32379 cached prefix tokens on turn two."
     },
-    "boundary": "v418 contains integrated Formalizer, formal RAG, model-authored Lean, and raw compiler feedback, but no compiled checkpoint, target identity promotion, kernel proof, or final acceptance. Post-run fixes dd5c36c4 and ab6e9bed have deterministic and full-suite evidence only, not a post-fix live E2E result."
+    "boundary": "v419 contains integrated theory revision, generated scientific source revision, formal RAG, model-authored Lean, local compilation, raw feedback, and independent target rejection. It contains no accepted formal target, exact identity promotion, kernel proof, or final acceptance. b4f948c7 has full-suite and direct live transport evidence only, not a post-fix full-panel E2E result."
   },
   "best_recent_integrated_formal_traversal": {
-    "id": "v399",
-    "path": "runs/main_worker_cross_family_development_20260813_v399_early_formal_target_identity_exact_haiku",
-    "capability_scorecard": "9/16",
-    "formalizer_source_updates": 8,
-    "formalizer_local_lean_checks": 8,
-    "formalizer_local_lean_compiled": 0,
+    "id": "v419",
+    "path": "runs/main_worker_cross_family_development_20260813_v419_accepted_lane_cache_exact_haiku",
+    "capability_scorecard": "11/16",
+    "formalizer_source_updates": 2,
+    "formalizer_local_lean_checks": 3,
+    "formalizer_local_lean_compiled": 2,
     "kernel_verified_subclaims": 0,
     "exact_source_theorem_closure": "0/2",
-    "boundary": "v399 remains the widest recent Lean-edit traversal, while v418 is the latest integrated traversal. Neither run compiled the target or achieved proof closure."
+    "boundary": "v419 is the strongest integrated score and first recent traversal with locally compiled candidate rows; independent semantic review rejected them, so compilation did not become proof or source-theorem closure. v399 remains the widest Lean-edit traversal by raw source-update count."
   },
   "current_design_assessment": {
     "correct_to_keep": [
@@ -140,19 +144,22 @@
       "confirmatory consumer failures losing their exact source-owner backedge after outer-lane coverage",
       "accepted Simulation identity being absent from deferred Formalizer context and reopening the completed lane",
       "theory revision prompts allowing failed scratch output to be narrated as observed evidence",
-      "stable multi-turn Scientific, Lean, and Preflight prompt prefixes being resent without requesting provider caching"
+      "stable multi-turn Scientific, Lean, and Preflight prompt prefixes being resent without requesting provider caching",
+      "Lean workspace snapshots rewriting the first user message on every turn and defeating provider prefix-cache reads",
+      "dynamic standard-turn tool withdrawal after a local budget was spent",
+      "a same-Formalizer semantic revision reverting to the exact independently rejected source hash and consuming another reviewer invocation"
     ],
     "remaining_structural_problems": [
       "development exact source-theorem closure remains 0/2, so held-out tasks remain sealed",
-      "v418 reached FormalizationEvaluator for survival but produced no compiled checkpoint; sequential stopped truthfully at theory preflight before code or Lean",
+      "v419 produced two locally compiled survival candidates, but both failed independent source-target semantic review; sequential produced one model-reported formal gap and no accepted target",
       "metric authoring remains a condition-heavy JSON ABI with operator, aggregation, and gate-field combinations that Haiku can make internally inconsistent",
       "TheoryDeveloper receives bounded retrieval context and Python/R scratch execution but still lacks an on-demand task-bound retrieval tool and a durable long-form theorem/lemma workspace",
       "TheoryDeveloper can still make low-authority revisions or narrate unsupported numbers under Haiku; the independent preflight correctly blocks these rather than runtime-authored repair",
-      "the latest Formalizer had relevant retrieval and raw Lean feedback but could not construct a well-typed target representation or compile a checkpoint",
-      "prompt-cache requests are fully tested but have not yet been measured in a post-fix live run",
+      "the latest Formalizer could compile a Lean candidate but did not encode the exact source theorem semantics or reach kernel promotion",
+      "the post-fix prompt cache is proven by a direct exact-Haiku component probe but not yet by a fresh integrated cross-family panel",
       "live R research, arbitrary paper ingest, and learned research/proof policies remain incomplete"
     ],
-    "wrong_next_move": "Do not add a repair worker, packet-patch queue, theorem-specific bridge, Lean grammar fixer, forced tactic policy, or relax the independent preflight because Haiku failed. The next live run should measure the post-fix topology and cache behavior; subsequent changes must address a cross-task missing capability, not hand-author the Kaplan-Meier or sequential answer."
+    "wrong_next_move": "Do not add a repair worker, packet-patch queue, theorem-specific bridge, Lean grammar fixer, forced tactic policy, or relax independent semantic review because a compiled candidate was rejected. The next live run should measure the simplified linear sessions and require the model to resolve review findings itself; subsequent changes must address a cross-task missing capability, not hand-author the Kaplan-Meier or sequential answer."
   },
   "maturity_estimate": {
     "evidence_and_control_plane": "about 85%",
@@ -168,15 +175,15 @@
     "agent_runtime_lines": 1207,
     "cli_lines": 6907,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 130220,
-    "latest_runtime_manifest_bytes": 59021
+    "top_level_package_lines": 130169,
+    "latest_runtime_manifest_bytes": 59032
   },
   "next_gates": [
-    "Run the next fresh exact-Haiku development panel only after the current mechanism batch is pushed; require an accepted Simulation lineage to remain completed after Formalizer and inspect provider cache creation/read counters.",
+    "Run the next fresh exact-Haiku development panel only after b4f948c7 is pushed; require an accepted Simulation lineage to remain completed after Formalizer and inspect integrated provider cache creation/read counters.",
     "Require theory revisions to change every cited authoritative artifact, keep failed scratch output diagnostic, and remain blocked when mathematical or empirical support is absent.",
     "Replace the condition-heavy metric author packet with a smaller orthogonal gate artifact or model-authored executable evaluator only after an ablation shows lower invalid-packet rate while preserving pre-execution freezing and independent review.",
     "Give TheoryDeveloper on-demand task-bound retrieval only by reusing the existing retrieval provider and direct workspace tool pattern, not by adding another router or theorem-specific source rule.",
-    "Require both development families to produce task-bound formal RAG, a first Lean source, raw local Lean feedback, a same-Formalizer revision, a compiled checkpoint, and exact target-bound kernel closure.",
+    "Require both development families to produce task-bound formal RAG, a first Lean source, raw local Lean feedback, a same-Formalizer source-changing revision after any semantic rejection, an independently accepted target, and exact target-bound kernel closure.",
     "Keep Statlib and StatInference declaration conventions as the formal foundation, and add retrieval sources only through provider inventory rather than theorem-specific runtime rules.",
     "After development closure, run the sealed PCA and extremes held-out panel, then add a real R and fresh-paper task without adapting rules to held-out failures."
   ]
