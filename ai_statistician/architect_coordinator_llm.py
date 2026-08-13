@@ -632,7 +632,8 @@ def build_architect_feedback_route_prompt(
             "selected_worker_receives_complete_feedback": True,
             "exhausted_unchanged_producer_is_temporarily_unavailable": True,
             "semantic_review_source_owner_remains_model_routable_within_budget": True,
-            "confirmatory_outcome_conditioned_source_revision_is_forbidden": True,
+            "confirmatory_unchanged_source_retry_is_forbidden": True,
+            "outcome_informed_new_source_requires_fresh_cohort": True,
             "materially_new_parent_artifact_starts_a_new_candidate_lineage": True,
             "question_theory_revision_budget_survives_new_feedback_and_parents": (
                 True
@@ -708,16 +709,24 @@ def build_architect_feedback_route_prompt(
         "a completed stage "
         "unless the environment observations identify its current artifact as stale, "
         "incompatible, or insufficient for the concrete next objective. "
-        "Treat current_source_owner as immutable artifact identity, not a suggestion. "
-        "Do not relabel ownership from what the source computes or from words such as "
-        "algorithm, simulation, or proof in reviewer prose. If you conclude that a "
-        "complete rewrite of the currently reviewed source can close the observation, "
-        "route only to current_source_owner. An independent reviewer's source-versus-"
+        "Treat current_source_owner as the immutable identity of the artifact that "
+        "produced the observation, not as automatic causal attribution. Do not relabel "
+        "that artifact ownership from words such as algorithm, simulation, or proof in "
+        "reviewer prose. If you conclude that a complete rewrite of the currently "
+        "reviewed source can close the observation, route only to current_source_owner. "
+        "Route to an upstream dependency owner only when the observation and exact "
+        "dependency lineage support revising that dependency; a consumer_source_owner "
+        "field identifies an available dependency artifact and does not itself prove "
+        "that the dependency caused a statistical metric failure. An independent "
+        "reviewer's source-versus-"
         "parent assessment is evidence for this decision, not an irreversible runtime "
         "owner choice; you may disagree with it explicitly while staying within the "
         "listed availability and lineage budgets. If current_source_owner is unavailable "
-        "because its lineage budget is exhausted or confirmatory outcomes forbid a "
-        "result-conditioned rewrite, do not rename another producer as that source owner. "
+        "because its lineage budget is exhausted, do not rename another producer as "
+        "that source owner. A released confirmatory outcome may inform a materially new "
+        "candidate only when the runtime supplies a fresh evaluator-owned cohort; it "
+        "never authorizes rerunning the unchanged source hash or weakening the frozen "
+        "gate. "
         "CriticEvaluator findings are evidence-grounded hypotheses, not accepted "
         "defects. Before routing a source revision, verify that the cited defect and "
         "proposed correction are materially different; algebraically or logically "
@@ -832,14 +841,6 @@ def _architect_feedback_route_subsystems(
         )
         if exhausted_source:
             unavailable.add(exhausted_source)
-    if (
-        environment_feedback.get("feedback_type")
-        == "confirmatory_simulation_outcome"
-        and environment_feedback.get("unchanged_source_retry_authorized") is False
-    ):
-        unavailable.add(
-            str(environment_feedback.get("source_subsystem", "") or "")
-        )
     revisions_used, max_revisions = runtime_theory_revision_budget(
         architect_context
     )

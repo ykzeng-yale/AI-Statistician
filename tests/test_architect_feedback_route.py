@@ -541,12 +541,37 @@ def test_cross_artifact_review_keeps_true_source_owner_available_to_architect() 
 
     assert packet["selected_subsystem"] == "AlgorithmEngineer"
     assert len(backend.requests) == 1
-    assert "Treat current_source_owner as immutable artifact identity" in (
+    assert "Treat current_source_owner as the immutable identity" in (
         backend.requests[0].user_prompt
     )
     assert "do not rename another producer as that source owner" in (
         backend.requests[0].user_prompt
     )
+
+
+def test_confirmatory_outcome_allows_only_a_new_source_on_a_fresh_cohort() -> None:
+    feedback = {
+        "feedback_id": "confirmatory-outcome:generic",
+        "feedback_type": "confirmatory_simulation_outcome",
+        "source_subsystem": "SimulationEvaluator",
+        "failure_classification": "confirmatory_simulation_metric_gate_failed",
+        "unchanged_source_retry_authorized": False,
+    }
+    prompt = build_architect_feedback_route_prompt(
+        question=_question(),
+        architect_context={},
+        environment_feedback=feedback,
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+
+    assert "SimulationEvaluator" in payload["available_route_subsystems"]
+    assert payload["routing_contract"][
+        "confirmatory_unchanged_source_retry_is_forbidden"
+    ] is True
+    assert payload["routing_contract"][
+        "outcome_informed_new_source_requires_fresh_cohort"
+    ] is True
+    assert "does not itself prove" in prompt
 
 
 def test_rejected_algorithm_lineage_is_not_a_simulation_handoff() -> None:

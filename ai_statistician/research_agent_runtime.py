@@ -8435,6 +8435,10 @@ class SimulationEvaluatorRuntimeSubsystem:
             else ""
         )
         consumer_resume_code_drafts: list[dict[str, Any]] = []
+        confirmatory_source_revision_code_drafts: list[dict[str, Any]] = []
+        confirmatory_source_revision_observation: dict[str, Any] = {}
+        confirmatory_source_parent_hashes: dict[str, str] = {}
+        confirmatory_source_parent_manifest_id = ""
         observations: list[EnvironmentObservation] = [
             EnvironmentObservation(
                 observation_type="research_problem_authority",
@@ -8529,6 +8533,158 @@ class SimulationEvaluatorRuntimeSubsystem:
                             for row in consumer_resume_code_drafts
                         ],
                         "planning_model_call_used": False,
+                        "runtime_edited_source": False,
+                        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                    },
+                )
+            )
+        elif (
+            str(environment_feedback.get("feedback_type", "") or "")
+            == "confirmatory_simulation_outcome"
+            and str(environment_feedback.get("source_subsystem", "") or "")
+            == "SimulationEvaluator"
+            and environment_feedback.get("unchanged_source_retry_authorized")
+            is False
+        ):
+            confirmatory_source_parent_manifest_id = str(
+                environment_feedback.get("source_manifest_id", "") or ""
+            ).strip()
+            parent_manifest = blackboard.artifacts.get(
+                confirmatory_source_parent_manifest_id,
+                {},
+            )
+            revision_errors: list[str] = []
+            if (
+                not isinstance(parent_manifest, Mapping)
+                or parent_manifest.get("artifact_kind")
+                != "RuntimeSimulationManifest"
+                or stable_hash(dict(parent_manifest))
+                != str(
+                    environment_feedback.get("source_manifest_hash", "") or ""
+                )
+            ):
+                revision_errors.append(
+                    "confirmatory simulation source manifest is missing or stale"
+                )
+            proposal_id = ""
+            if not revision_errors:
+                (
+                    proposal_id,
+                    confirmatory_source_revision_code_drafts,
+                    replay_errors,
+                ) = scientific_consumer_replay_drafts(
+                    parent_manifest,
+                    question_id=question.id,
+                    theory_packet_id=packet_id,
+                )
+                revision_errors.extend(replay_errors)
+            prior_proposal = blackboard.artifacts.get(proposal_id, {})
+            if (
+                not revision_errors
+                and (
+                    not isinstance(prior_proposal, Mapping)
+                    or str(prior_proposal.get("packet_id", "") or "")
+                    != proposal_id
+                )
+            ):
+                revision_errors.append(
+                    "confirmatory simulation source proposal is missing or stale"
+                )
+            if revision_errors:
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "SimulationEvaluator rejected an incomplete post-outcome "
+                        "source lineage before any model or sandbox call."
+                    ),
+                    observations=tuple(observations)
+                    + (
+                        EnvironmentObservation(
+                            observation_type=(
+                                "confirmatory_simulation_source_revision_rejected"
+                            ),
+                            summary="; ".join(sorted(set(revision_errors)))[:500],
+                            payload={
+                                "source_manifest_id": (
+                                    confirmatory_source_parent_manifest_id
+                                ),
+                                "validation_errors": sorted(set(revision_errors)),
+                                "model_call_authorized": False,
+                                "execution_authorized": False,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        ),
+                    ),
+                    failure_classification=(
+                        "confirmatory_simulation_source_lineage_invalid"
+                    ),
+                )
+            proposal_packet = dict(prior_proposal)
+            confirmatory_source_parent_hashes = {
+                str(row.get("simulation_id", "") or ""): stable_hash(
+                    str(row.get("code", "") or "")
+                )
+                for row in confirmatory_source_revision_code_drafts
+            }
+            confirmatory_source_revision_observation = (
+                coding_agent_observations_only(
+                    {
+                        key: deepcopy(environment_feedback[key])
+                        for key in (
+                            "artifact_kind",
+                            "feedback_type",
+                            "feedback_id",
+                            "failure_classification",
+                            "question_id",
+                            "source_subsystem",
+                            "source_manifest_id",
+                            "source_manifest_hash",
+                            "theory_packet_id",
+                            "confirmatory_evaluation_cohort",
+                            "empirical_outcomes",
+                            "simulation_passed",
+                            "source_execution_valid",
+                            "unchanged_source_retry_authorized",
+                            "proof_evidence_status",
+                        )
+                        if key in environment_feedback
+                    }
+                )
+            )
+            theory_trace_contracts = _runtime_theory_trace_consumption_contracts(
+                proposal_packet
+            )
+            simulation_theory_trace_contract = (
+                theory_trace_contracts[0] if theory_trace_contracts else {}
+            )
+            simulation_theory_trace_alignment_contract = dict(
+                proposal_packet.get("theory_trace_alignment_contract", {})
+                if isinstance(
+                    proposal_packet.get("theory_trace_alignment_contract", {}),
+                    Mapping,
+                )
+                else {}
+            )
+            observations.append(
+                EnvironmentObservation(
+                    observation_type=(
+                        "confirmatory_simulation_source_revision_restored"
+                    ),
+                    summary=(
+                        "The exact prior simulation source and released outcome are "
+                        "bound to the same source-owner workspace; only a changed "
+                        "source may execute on the fresh blinded cohort."
+                    ),
+                    payload={
+                        "source_manifest_id": (
+                            confirmatory_source_parent_manifest_id
+                        ),
+                        "simulation_artifact_ids": sorted(
+                            confirmatory_source_parent_hashes
+                        ),
+                        "planning_model_call_used": False,
+                        "unchanged_source_execution_authorized": False,
+                        "fresh_cohort_seed_disclosed_to_model": False,
                         "runtime_edited_source": False,
                         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                     },
@@ -8699,6 +8855,8 @@ class SimulationEvaluatorRuntimeSubsystem:
         simulation_code_drafts = (
             consumer_resume_code_drafts
             if consumer_resume_manifest_id
+            else confirmatory_source_revision_code_drafts
+            if confirmatory_source_revision_code_drafts
             else _simulation_code_drafts(proposal_packet)
         )
         if (
@@ -8867,6 +9025,30 @@ class SimulationEvaluatorRuntimeSubsystem:
                 "seed": seed,
                 "timeout_s": self.timeout_s,
             }
+
+            parent_source_hash = confirmatory_source_parent_hashes.get(
+                simulation_id, ""
+            )
+
+            source_revision_observation = {}
+            if confirmatory_source_revision_observation:
+                source_revision_observation = {
+                    **deepcopy(confirmatory_source_revision_observation),
+                    "parent_source": {
+                        "manifest_id": confirmatory_source_parent_manifest_id,
+                        "simulation_id": simulation_id,
+                        "script_hash": parent_source_hash,
+                    },
+                    "fresh_evaluation_cohort": {
+                        key: deepcopy(confirmatory_evaluation_cohort[key])
+                        for key in (
+                            "cohort_id",
+                            "cohort_index",
+                            "candidate_model_seed_disclosure",
+                        )
+                        if key in confirmatory_evaluation_cohort
+                    },
+                }
             prototype, source_tool_calls = (
                 _run_source_owner_scientific_workspace(
                     proposal_agent=self.proposal_agent,
@@ -8875,6 +9057,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     code_draft=draft,
                     source_deferred=(
                         not consumer_resume_manifest_id
+                        and not confirmatory_source_revision_code_drafts
                         and _proposal_defers_scientific_source(proposal_packet)
                     ),
                     workspace_context={
@@ -8934,7 +9117,13 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "simulation_id": simulation_id,
                         "executor": "generated_simulation_sandbox",
                     },
+                    external_initial_observation=(
+                        source_revision_observation or None
+                    ),
                     confirmatory_result_blind=not exploratory_diagnostic,
+                    disallowed_unchanged_source_hashes=(
+                        (parent_source_hash,) if parent_source_hash else ()
+                    ),
                 )
             )
             generated_simulation_tool_calls.extend(source_tool_calls)
@@ -9938,6 +10127,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                             key: deepcopy(row[key])
                             for key in (
                                 "simulation_id",
+                                "prototype_artifact_id",
                                 "script_hash",
                                 "result_hash",
                                 "metric_contract_set_id",
@@ -9954,6 +10144,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "source_execution_valid": True,
                     "source_semantic_review_required_before_release": True,
                     "unchanged_source_retry_authorized": False,
+                    "consumer_source_owner_is_dependency_identity_only": True,
                     "runtime_edited_source": False,
                     "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
                     **source_continuation_fields,
@@ -19412,6 +19603,7 @@ def _annotate_generated_sandbox_prototype_provenance(
     parent_manifest_id = str(
         lineage_feedback.get("algorithm_sandbox_manifest_id", "")
         or lineage_feedback.get("simulation_manifest_id", "")
+        or lineage_feedback.get("source_manifest_id", "")
         or ""
     ).strip()
     parent_rows = lineage_feedback.get("prototypes", [])
@@ -19419,6 +19611,8 @@ def _annotate_generated_sandbox_prototype_provenance(
         parent_rows = lineage_feedback.get(
             "generated_simulation_prototypes", []
         )
+    if not isinstance(parent_rows, list) or not parent_rows:
+        parent_rows = lineage_feedback.get("empirical_outcomes", [])
     if not isinstance(parent_rows, list):
         parent_rows = []
     parent_artifact_ids = [
@@ -22042,6 +22236,7 @@ def _run_source_owner_scientific_workspace(
     failure_identity: Mapping[str, Any],
     external_initial_observation: Mapping[str, Any] | None = None,
     confirmatory_result_blind: bool = False,
+    disallowed_unchanged_source_hashes: Sequence[str] = (),
 ) -> tuple[dict[str, Any], list[ToolCallRecord]]:
     """Execute one initial or revision source loop without a second scheduler."""
 
@@ -22089,10 +22284,32 @@ def _run_source_owner_scientific_workspace(
             **dict(candidate),
             **bound_execution_fields,
         }
-        prototype, tool_call = execute_candidate(execution_candidate)
+        candidate_source = str(execution_candidate.get("code", "") or "")
+        candidate_source_hash = stable_hash(candidate_source)
+        if (
+            candidate_source
+            and candidate_source_hash in disallowed_unchanged_source_hashes
+        ):
+            prototype = {
+                **dict(failure_identity),
+                "prototype_status": "UNCHANGED_SOURCE_REJECTED",
+                "source_code": candidate_source,
+                "script_hash": candidate_source_hash,
+                "parent_script_hash": candidate_source_hash,
+                "execution_attempted": False,
+                "execution_smoke_passed": False,
+                "smoke_passed": False,
+                "runtime_errors": [
+                    "The candidate source hash matches a released parent source; "
+                    "an unchanged candidate cannot consume a fresh evaluation cohort."
+                ],
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+        else:
+            prototype, tool_call = execute_candidate(execution_candidate)
+            record_tool_calls(tool_call)
         last_checked_prototype.clear()
         last_checked_prototype.update(deepcopy(dict(prototype)))
-        record_tool_calls(tool_call)
         check = {
             "code_draft_hash": stable_hash(dict(candidate)),
             "accepted": source_candidate_accepted(prototype),

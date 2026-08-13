@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import json
+from copy import deepcopy
 from dataclasses import asdict, fields, replace
 from pathlib import Path
 
@@ -1635,7 +1636,10 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
         "confirmatory_candidate_seed_blinding_required": True,
     }
     source_checks: list[dict[str, object]] = []
+    source_initial_observations: list[dict[str, object]] = []
+    source_workspace_operations: list[str] = []
     proposal_calls: list[dict[str, object]] = []
+    sandbox_calls: list[dict[str, object]] = []
 
     class Provider:
         @staticmethod
@@ -1677,16 +1681,31 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
         @classmethod
         def iterate_code_with_tools(cls, **kwargs):
             cls.source_calls += 1
-            candidate = {
-                "language": "python",
-                "execution_profile": "stdlib",
-                "dependencies": [],
-                "entrypoint": "run_sandbox",
-                "code": (
-                    "def run_sandbox(seed, replicates):\n"
-                    "    return {'generic_metric': 0.2}\n"
-                ),
-            }
+            source_initial_observations.append(
+                dict(kwargs["initial_observation"])
+            )
+            source_workspace_operations.append(kwargs["workspace_operation"])
+            if kwargs["workspace_operation"] == "targeted_revision":
+                parent = dict(kwargs["code_draft"])
+                source_checks.append(
+                    dict(kwargs["check_candidate"](parent))
+                )
+                candidate = {
+                    **parent,
+                    "code": str(parent["code"])
+                    + "\n# model-authored post-outcome source revision\n",
+                }
+            else:
+                candidate = {
+                    "language": "python",
+                    "execution_profile": "stdlib",
+                    "dependencies": [],
+                    "entrypoint": "run_sandbox",
+                    "code": (
+                        "def run_sandbox(seed, replicates):\n"
+                        "    return {'generic_metric': 0.2}\n"
+                    ),
+                }
             check = dict(kwargs["check_candidate"](candidate))
             source_checks.append(check)
             return ScientificCodeWorkspaceResult(
@@ -1701,6 +1720,7 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
             )
 
     def run_generated_simulation_sandbox(**kwargs):
+        sandbox_calls.append(dict(kwargs))
         source = str(kwargs["code_draft"]["code"])
         metrics = {"generic_metric": 0.2}
         source_path = tmp_path / "confirmatory.py"
@@ -1859,7 +1879,7 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     assert feedback["confirmatory_evaluation_cohort"] == cohort
     assert feedback["unchanged_source_retry_authorized"] is False
     assert feedback["empirical_outcomes"][0]["metric_gate_errors"]
-    assert "SimulationEvaluator" not in (
+    assert "SimulationEvaluator" in (
         _architect_feedback_route_subsystems(
             architect_context=deferred_task.inputs["architect_context"],
             environment_feedback=feedback,
@@ -1869,6 +1889,67 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
         runtime_module.CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY
     ]
     assert resolve_runtime_artifact_references(cohort_ref, all_artifacts) == cohort
+
+    revision_context = deepcopy(context)
+    revision_context[
+        runtime_module.CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY
+    ] = cohort
+    new_cohort, _transition, cohort_errors = (
+        runtime_module.advance_confirmatory_evaluation_cohort(
+            revision_context,
+            confirmatory_outcome=feedback,
+            question_id=question.id,
+        )
+    )
+    assert cohort_errors == []
+    revision_context[
+        runtime_module.CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY
+    ] = new_cohort
+    revision_context["simulation_manifest_id"] = manifest["manifest_id"]
+    revision = subsystem.run(
+        AgentTask(
+            task_id="simulation:generic-confirmatory-revision",
+            owner_subsystem="SimulationEvaluator",
+            objective="Author a new source lineage from the released outcome.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "n_runs": 8,
+                "seed": new_cohort["seed"],
+                "empirical_evaluation_phase": "confirmatory",
+                "architect_context": revision_context,
+                "environment_feedback": feedback,
+            },
+        ),
+        BlackboardState(project_id=question.id, artifacts=all_artifacts),
+    )
+
+    assert revision.status == "REROUTE"
+    assert SimulationAgent.propose_calls == 1
+    assert SimulationAgent.source_calls == 2
+    assert source_workspace_operations == ["initial_authoring", "targeted_revision"]
+    assert source_checks[1]["accepted"] is False
+    assert source_checks[1]["prototype"]["execution_attempted"] is False
+    assert source_checks[2]["accepted"] is True
+    assert "0.2" in str(source_initial_observations[1])
+    assert len(sandbox_calls) == 2
+    assert sandbox_calls[-1]["seed"] == new_cohort["seed"]
+    revised_manifest = next(
+        artifact
+        for artifact in revision.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    )
+    revised_row = revised_manifest[
+        "generated_simulation_sandbox_prototypes"
+    ][0]
+    assert revised_row["script_hash"] != manifest[
+        "generated_simulation_sandbox_prototypes"
+    ][0]["script_hash"]
+    assert revised_row["source_revision_lineage"][
+        "parent_script_hashes"
+    ] == [manifest["generated_simulation_sandbox_prototypes"][0]["script_hash"]]
+    assert revised_manifest["confirmatory_evaluation_cohort"] == new_cohort
 
 
 def test_architect_algorithm_route_restores_source_and_frozen_simulation() -> None:
