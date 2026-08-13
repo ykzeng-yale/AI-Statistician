@@ -12794,6 +12794,13 @@ class FormalizerWorkspaceRuntimeSubsystem:
                                 )
                                 or ""
                             ),
+                            "candidate_source_hash": str(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "submitted_source_hash",
+                                    "",
+                                )
+                                or ""
+                            ),
                             "runtime_executed_tool_calls": int(
                                 lean_candidate_client_tool_loop_evidence.get(
                                     "runtime_executed_tool_calls",
@@ -12815,6 +12822,30 @@ class FormalizerWorkspaceRuntimeSubsystem:
                             "local_lean_checks": int(
                                 lean_candidate_client_tool_loop_evidence.get(
                                     "local_lean_checks", 0
+                                )
+                                or 0
+                            ),
+                            "n_formal_source_search_calls": int(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "formal_environment_searches", 0
+                                )
+                                or 0
+                            ),
+                            "n_proof_candidate_search_calls": int(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "proof_candidate_searches", 0
+                                )
+                                or 0
+                            ),
+                            "n_formal_rag_tool_calls": int(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "formal_environment_searches", 0
+                                )
+                                or 0
+                            )
+                            + int(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "proof_candidate_searches", 0
                                 )
                                 or 0
                             ),
@@ -12861,8 +12892,9 @@ class FormalizerWorkspaceRuntimeSubsystem:
                             "formalizer_lean_candidate_client_tool_loop"
                         ),
                         summary=(
-                            "model-owned Lean edit/search/check loop reported a "
-                            "concrete formal foundation gap"
+                            "model-owned Lean edit/search/check loop reported an "
+                            "unresolved formalization blocker; the model report is "
+                            "not independent evidence of a missing foundation primitive"
                             if formalizer_reported_gap
                             else "model-owned Lean edit/search/check loop submitted "
                             "a locally compiling candidate for independent review"
@@ -18836,10 +18868,13 @@ def run_research_agent_runtime(
     simulation_payloads = payloads("simulation")
     formalization_payloads = payloads("formalization_proof_feedback")
     formalizer_payloads = payloads("llm_formalizer_proof_engineer_proposal")
-    formalizer_failure_payloads = payloads("formalizer_packet_validation_failure")
     formalizer_client_tool_payloads = [
         payload
-        for payload in formalizer_failure_payloads
+        for evidence_type in (
+            "formalizer_lean_candidate_client_tool_loop",
+            "formalizer_packet_validation_failure",
+        )
+        for payload in payloads(evidence_type)
         if _bool_like(payload.get("model_owned_lean_code", False))
         and not _bool_like(payload.get("runtime_selected_lean_code", True))
         and bool(str(payload.get("candidate_source_hash", "") or ""))

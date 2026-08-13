@@ -2597,6 +2597,8 @@ def test_formalizer_subsystem_records_direct_workspace_gap_without_packet_failur
             "theorem exact_target : True := by sorry\n"
         ),
         "source_updates": 1,
+        "formal_environment_searches": 2,
+        "proof_candidate_searches": 1,
         "local_lean_checks": 1,
         "latest_check_compiled": True,
         "model_explicit_submit": True,
@@ -2672,6 +2674,17 @@ def test_formalizer_subsystem_records_direct_workspace_gap_without_packet_failur
     )
     assert workspace_artifact["model_owned_lean_code"] is True
     assert workspace_artifact["kernel_verified"] is False
+    loop_evidence = next(
+        row
+        for row in result.evidence_entries
+        if row.evidence_type == "formalizer_lean_candidate_client_tool_loop"
+    )
+    assert loop_evidence.payload["candidate_source_hash"] == workspace[
+        "submitted_source_hash"
+    ]
+    assert loop_evidence.payload["n_formal_source_search_calls"] == 2
+    assert loop_evidence.payload["n_proof_candidate_search_calls"] == 1
+    assert loop_evidence.payload["n_formal_rag_tool_calls"] == 3
 
 
 def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(

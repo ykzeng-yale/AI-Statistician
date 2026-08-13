@@ -38,6 +38,57 @@ def test_code_revision_ownership_cannot_pass_without_executed_sources() -> None:
     assert "simulation_executed=[]" in str(ownership["evidence"])
 
 
+def test_direct_formalizer_workspace_supplies_rag_source_and_revision_evidence() -> None:
+    question_id = "task-one"
+    evidence = [
+        {
+            "question_id": question_id,
+            "evidence_type": "retrieval_memory",
+            "payload": {"formal_source_hits": 2},
+        },
+        {
+            "question_id": question_id,
+            "evidence_type": "formalizer_lean_candidate_client_tool_loop",
+            "payload": {
+                "candidate_source_hash": "source-hash",
+                "source_changed": True,
+                "source_updates": 2,
+                "local_lean_checks": 2,
+                "n_formal_rag_tool_calls": 3,
+                "latest_check_compiled": False,
+                "provider": "anthropic",
+                "model": "claude-haiku-4-5-20251001",
+                "model_owned_lean_code": True,
+                "runtime_selected_lean_code": False,
+            },
+        },
+    ]
+    scorecard = _scorecard(
+        {
+            "config": {"evaluation_mode": "capability_eval"},
+            "llm_topology_policy_ok": True,
+            "llm_runtime_topology": {"llm_agents": []},
+        },
+        [{"question_id": question_id, "status": "BLOCKED"}],
+        [],
+        evidence,
+        {
+            "manifest_readable": True,
+            "canonical_runtime_endpoint": True,
+            "integrated_evidence_only": True,
+            "legacy_post_runtime_fallback_absent": True,
+            "runtime_streams_readable": True,
+        },
+    )
+
+    assert _row(scorecard, "task_bound_formal_rag_observed")["passed"] is True
+    assert _row(scorecard, "llm_generated_lean_source_observed")["passed"] is True
+    assert _row(
+        scorecard,
+        "same_formalizer_revised_from_raw_lean_feedback",
+    )["passed"] is True
+
+
 def _theory_evidence(*, with_workspace: bool) -> dict[str, object]:
     payload: dict[str, object] = {
         "theory_derivation_contract": {

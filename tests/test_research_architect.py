@@ -1043,7 +1043,10 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert core_response["problem_card"]["dgp"] not in initial_prompt
     assert "Authoritative theory workspace catalog" in initial_prompt
     assert "initial_authoring_context" in initial_prompt
-    assert "at most 3 writes" in initial_prompt
+    assert (
+        f"at most {developer.config.theory_workspace_max_submissions} writes"
+        in initial_prompt
+    )
     assert question.description in str(provider.tool_requests[1].messages)
     assert "desired_theorem_type" in str(
         provider.tool_requests[1].messages

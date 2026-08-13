@@ -15,6 +15,12 @@ RESEARCH_AGENT_RUNTIME_AUDIT_SCHEMA_VERSION = 2
 CANONICAL_RUNTIME_ENDPOINT = "typed_agent_runtime"
 CANONICAL_FORMAL_EVIDENCE_SOURCE = "integrated_agent_runtime_only"
 ALLOWED_LIVE_CLAUDE_TIERS = frozenset({"haiku", "sonnet"})
+FORMALIZER_CLIENT_TOOL_EVIDENCE_TYPES = frozenset(
+    {
+        "formalizer_lean_candidate_client_tool_loop",
+        "formalizer_packet_validation_failure",
+    }
+)
 
 
 def _int(value: object) -> int:
@@ -273,11 +279,7 @@ def _formalizer_revision_summary(
     loops = [
         _payload(row)
         for row in evidence_rows
-        if _evidence_type(row)
-        in {
-            "formalizer_lean_candidate_client_tool_loop",
-            "formalizer_packet_validation_failure",
-        }
+        if _evidence_type(row) in FORMALIZER_CLIENT_TOOL_EVIDENCE_TYPES
         and _bool(_payload(row).get("model_owned_lean_code", False))
         and not _bool(_payload(row).get("runtime_selected_lean_code", True))
         and bool(str(_payload(row).get("candidate_source_hash", "") or ""))
@@ -444,9 +446,8 @@ def _scorecard(
             )
             or any(
                 _int(_payload(row).get("n_formal_rag_tool_calls")) > 0
-                for row in evidence_for(
-                    question_id, "formalizer_packet_validation_failure"
-                )
+                for evidence_type in FORMALIZER_CLIENT_TOOL_EVIDENCE_TYPES
+                for row in evidence_for(question_id, evidence_type)
             )
         )
     }
@@ -480,9 +481,8 @@ def _scorecard(
                 and bool(
                     str(_payload(row).get("candidate_source_hash", "") or "")
                 )
-                for row in evidence_for(
-                    question_id, "formalizer_packet_validation_failure"
-                )
+                for evidence_type in FORMALIZER_CLIENT_TOOL_EVIDENCE_TYPES
+                for row in evidence_for(question_id, evidence_type)
             )
         )
     }

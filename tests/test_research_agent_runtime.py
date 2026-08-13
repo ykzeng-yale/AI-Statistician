@@ -407,11 +407,20 @@ def test_zero_materialized_gap_rows_do_not_claim_formal_closure() -> None:
     assert summary["formal_closure_verified_for_all_questions"] is False
 
 
-def test_formalizer_raw_feedback_revision_does_not_require_final_compile() -> None:
+@pytest.mark.parametrize(
+    "evidence_type",
+    [
+        "formalizer_lean_candidate_client_tool_loop",
+        "formalizer_packet_validation_failure",
+    ],
+)
+def test_formalizer_raw_feedback_revision_does_not_require_final_compile(
+    evidence_type: str,
+) -> None:
     observed, loops, revisions = _formalizer_revision_summary(
         [
             {
-                "evidence_type": "formalizer_packet_validation_failure",
+                "evidence_type": evidence_type,
                 "payload": {
                     "candidate_source_hash": "source-hash",
                     "source_changed": True,
