@@ -168,12 +168,12 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
 
     assert result.lean_source == repaired
     assert result.source_hash == stable_hash(repaired)
-    assert checked_sources == [repaired]
+    assert checked_sources == [initial, repaired]
     assert searches == [("True.intro declaration", 3)]
     assert result.evidence["runtime_selected_lean_code"] is False
     assert result.evidence["model_owned_lean_code"] is True
     assert result.evidence["runtime_executed_tool_calls"] == 2
-    assert result.evidence["local_lean_checks"] == 1
+    assert result.evidence["local_lean_checks"] == 2
     assert result.evidence["formal_environment_searches"] == 1
     assert result.evidence["model"] == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
     assert all(
@@ -185,6 +185,11 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
         "search_formal_environment",
     }
     assert all(request.disable_parallel_tool_use for request in backend.requests)
+    initial_snapshot = _workspace_snapshot(backend.requests[0])
+    assert initial_snapshot["current_lean_source"] == initial
+    assert initial_snapshot["latest_check_observation"][
+        "local_lean_stderr"
+    ] == "unknown module"
     assert result.evidence["handoff_mode"] == (
         "successful_model_source_submission"
     )
@@ -494,9 +499,14 @@ def test_prover_candidates_are_observations_and_only_model_replaces_source() -> 
     )
 
     assert proof_search_calls == [
-        (initial, "close target from current goal", 2, {})
+        (
+            initial,
+            "close target from current goal",
+            2,
+            {"source_hash": stable_hash(initial), "compiled": False},
+        )
     ]
-    assert checked_sources == [model_source]
+    assert checked_sources == [initial, model_source]
     assert result.lean_source == model_source
     assert result.evidence["proof_candidate_searches"] == 1
     assert result.evidence["runtime_selected_lean_code"] is False
@@ -847,19 +857,22 @@ def test_lean_candidate_workspace_keeps_stable_tools_and_current_snapshot() -> N
         {tool.name for tool in request.tools} == expected_tools
         for request in backend.requests
     )
-    assert len(backend.requests[-1].messages) == 9
+    assert len(backend.requests[-1].messages) == 5
     final_context = json.dumps(backend.requests[-1].messages, sort_keys=True)
     assert "declaration query 0" not in final_context
+    assert "declaration query 1" not in final_context
+    assert "declaration query 2" not in final_context
     assert all(
-        f"declaration query {index}" in final_context for index in range(1, 5)
+        f"declaration query {index}" in final_context for index in range(3, 5)
     )
     assert final_context.count("CURRENT_WORKSPACE_SNAPSHOT") == 2
     snapshot = _workspace_snapshot(backend.requests[-1])
     assert snapshot["budget"]["standard_turns_remaining_including_current"] == 2
-    assert snapshot["latest_formal_environment_search"]["query"] == (
-        "declaration query 4"
-    )
-    assert result.evidence["max_retained_tool_turns"] == 4
+    assert "latest_formal_environment_search" not in snapshot
+    assert "latest_proof_search" not in snapshot
+    assert "latest_state_inspection" not in snapshot
+    assert "latest_declaration_inspection" not in snapshot
+    assert result.evidence["max_retained_tool_turns"] == 2
     assert result.evidence["max_terminal_recovery_turns"] == 1
     assert result.evidence["transcript_policy"] == (
         "rolling_history_plus_authoritative_snapshot"
@@ -975,7 +988,7 @@ def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> No
 
     assert result.lean_source == sources[-1]
     assert result.evidence["source_updates"] == 4
-    assert result.evidence["local_lean_checks"] == 4
+    assert result.evidence["local_lean_checks"] == 5
     assert all(
         LEAN_SOURCE_SUBMISSION_TOOL in {tool.name for tool in request.tools}
         for request in backend.requests
@@ -1019,7 +1032,7 @@ def test_lean_candidate_tool_loop_hands_off_on_successful_requested_check() -> N
 
     assert result.lean_source == revised
     assert len(backend.requests) == 1
-    assert result.evidence["local_lean_checks"] == 1
+    assert result.evidence["local_lean_checks"] == 2
     assert result.evidence["handoff_mode"] == (
         "successful_model_source_submission"
     )
@@ -1123,7 +1136,7 @@ def test_lean_candidate_tool_loop_checks_final_submission_at_turn_budget() -> No
     )
 
     assert result.lean_source == repaired
-    assert checked_sources == [repaired]
+    assert checked_sources == [initial, repaired]
 
 
 def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() -> None:
@@ -1190,7 +1203,7 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
         raise AssertionError("uncompiled final source was not checkpointed")
 
 
-def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() -> None:
+def test_lean_candidate_prompt_leaves_current_workspace_state_to_snapshot() -> None:
     exact_error = (
         "type mismatch\n"
         + "x" * 4000
@@ -1301,7 +1314,7 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
     )
 
     payload = json.loads(prompt)
-    assert payload["current_lean_source"] == initial_source
+    assert "current_lean_source" not in payload
     assert payload["task_bound_theory_context"]["theorem_cards"][0][
         "conclusion"
     ] == "EXACT_PARENT_THEORY_CONCLUSION"
@@ -1350,6 +1363,9 @@ def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() 
     checkpoint = feedback["model_revision_checkpoint"]
     assert checkpoint["current_source_hash"] == stable_hash(initial_source)
     assert "current_source" not in checkpoint
+    assert "last_check" not in checkpoint
+    assert "latest_check_observation" not in checkpoint
+    assert "latest_state_inspection" not in checkpoint
     assert "EXACT_MIDDLE_LEAN_OBSERVATION" in prompt
     assert "formalizer_workspace_context" not in feedback
     assert "required_repair" not in prompt

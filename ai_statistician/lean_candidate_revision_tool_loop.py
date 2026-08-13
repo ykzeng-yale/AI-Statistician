@@ -158,7 +158,7 @@ def run_lean_candidate_revision_tool_loop(
     workspace_phase = "revision" if parent_source.strip() else "initial_authoring"
     # Lean authoring is one durable coding-agent session. Keep its tool surface
     # stable while carrying current authoritative state outside the rolling history.
-    max_retained_tool_turns = min(max_turns, 4)
+    max_retained_tool_turns = min(max_turns, 2)
     max_terminal_recovery_turns = 1
     state: dict[str, Any] = {
         "source": parent_source,
@@ -203,6 +203,12 @@ def run_lean_candidate_revision_tool_loop(
         state["last_check"] = check_result
         state["latest_check_observation"] = check_result
         return check_result
+
+    # A resumed source is rechecked in the active project before the first model
+    # turn, so the authoritative snapshot carries fresh diagnostics rather than a
+    # copied observation from an earlier runtime packet.
+    if parent_source.strip():
+        check_current_source()
 
     def current_workspace_observation() -> dict[str, Any]:
         return {
@@ -575,16 +581,6 @@ def run_lean_candidate_revision_tool_loop(
             "current_source_hash": state["source_hash"],
             "latest_check_observation": _lean_check_workspace_snapshot(
                 state["latest_check_observation"]
-            ),
-            "latest_formal_environment_search": deepcopy(
-                state["latest_formal_environment_search"]
-            ),
-            "latest_proof_search": deepcopy(state["latest_proof_search"]),
-            "latest_state_inspection": deepcopy(
-                state["latest_state_inspection"]
-            ),
-            "latest_declaration_inspection": deepcopy(
-                state["latest_declaration_inspection"]
             ),
             "usage": {
                 "source_updates": state["source_updates"],

@@ -291,8 +291,8 @@ class LLMFormalizerProofEngineerAgent:
                 "turns plus at most one final source-submission recovery turn. The "
                 "same tools remain available during standard turns. Every turn "
                 "includes an authoritative snapshot of the complete current source, "
-                "latest raw Lean observation, latest selected context observations, "
-                "and remaining budget alongside a short rolling transcript. Make an "
+                "latest raw Lean observation, and remaining budget. Recent search and "
+                "inspection results remain in a short rolling transcript. Make an "
                 "early compiler-grounded source attempt, retain useful declarations, "
                 "avoid cycling through synonymous searches, reserve time to revise "
                 "from compiler feedback, and finish by choosing either a "
@@ -829,11 +829,6 @@ def _build_lean_candidate_workspace_tool_prompt(
                 )
             ),
         },
-        **(
-            {"current_lean_source": initial_source}
-            if initial_source.strip()
-            else {}
-        ),
         "runtime_observations": runtime_observations,
         "model_owned_revision_contract": (
             formalizer_proof_construction_strategy_contract()
@@ -2063,9 +2058,6 @@ def _complete_lean_candidate_revision_feedback(
         "searches",
         "state_inspections",
         "checks",
-        "last_check",
-        "latest_check_observation",
-        "latest_state_inspection",
         "turns",
         "tool_calls",
         "transcript_fingerprint",
