@@ -823,6 +823,15 @@ def _architect_feedback_route_subsystems(
     budget = architect_context.get("candidate_lineage_budget", {})
     available = list(ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS)
     unavailable: set[str] = set()
+    failure = str(
+        environment_feedback.get("failure_classification", "") or ""
+    )
+    if failure.endswith("_lineage_budget_exhausted"):
+        exhausted_source = str(
+            environment_feedback.get("source_subsystem", "") or ""
+        )
+        if exhausted_source:
+            unavailable.add(exhausted_source)
     if (
         environment_feedback.get("feedback_type")
         == "confirmatory_simulation_outcome"
@@ -862,9 +871,6 @@ def _architect_feedback_route_subsystems(
             environment_feedback.get("active_observation_id", "")
             or environment_feedback.get("feedback_id", "")
             or ""
-        )
-        failure = str(
-            environment_feedback.get("failure_classification", "") or ""
         )
         budget_feedback_id = str(budget.get("feedback_id", "") or "")
         same_observation = bool(

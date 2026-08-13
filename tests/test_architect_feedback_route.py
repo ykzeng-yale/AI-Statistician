@@ -553,9 +553,15 @@ def test_rejected_algorithm_lineage_is_not_a_simulation_handoff() -> None:
     feedback = {
         "feedback_id": "feedback:algorithm-review-exhausted",
         "feedback_type": "generated_code_semantic_review_feedback",
+        "source_subsystem": "AlgorithmEngineer",
         "failure_classification": (
             "generated_code_semantic_review_lineage_budget_exhausted"
         ),
+        "semantic_review_lineage_budget": {
+            "source_subsystem": "AlgorithmEngineer",
+            "candidate_regeneration_available": False,
+            "lineage_budget_exhausted": True,
+        },
     }
     context = {
         "architect_runtime_plan": {
@@ -563,15 +569,6 @@ def test_rejected_algorithm_lineage_is_not_a_simulation_handoff() -> None:
                 "metric_protocol_execution_authorized": True,
                 "research_evaluation_requires_generated_algorithm_code": True,
             }
-        },
-        "candidate_lineage_budget": {
-            "artifact_kind": "RuntimeCandidateLineageBudget",
-            "feedback_id": feedback["feedback_id"],
-            "failure_classification": feedback["failure_classification"],
-            "source_subsystem": "AlgorithmEngineer",
-            "attempts_used": 2,
-            "max_attempts": 2,
-            "budget_exhausted": True,
         },
         "algorithm_sandbox_manifest_id": "algorithm:executed-not-accepted",
     }
