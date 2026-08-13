@@ -52,11 +52,12 @@ def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
     predicate_properties = schema["properties"]["predicate_authority"][
         "properties"
     ]
-    gate_properties = schema["properties"]["gate_fields"]["items"][
-        "properties"
-    ]
+    gate_schema = schema["properties"]["gate_fields"]
+    gate_properties = gate_schema["properties"]["threshold"]["properties"]
     assert "authority_kind" not in predicate_properties
     assert "authority_kind" not in gate_properties
+    assert gate_schema["type"] == "object"
+    assert gate_schema["additionalProperties"] is False
 
     materialized, errors = _materialize_metric_authoring_model_requirement(
         {
@@ -70,14 +71,13 @@ def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
                 "source_anchors": [anchor_id],
                 "rationale": "the theory identifies risk as the target quantity",
             },
-            "gate_fields": [
-                {
-                    "field": "threshold",
+            "gate_fields": {
+                "threshold": {
                     "value": 0.1,
                     "source_anchors": [anchor_id],
                     "rationale": "pre-execution decision threshold",
                 }
-            ],
+            },
         },
         requirement_index=0,
     )
@@ -90,6 +90,73 @@ def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
     assert materialized["gate_field_authorities"][0]["authority_kind"] == (
         FRESH_METRIC_AUTHORING_AUTHORITY_KIND
     )
+
+
+def test_fresh_metric_gate_object_has_unique_keys_and_runtime_order() -> None:
+    anchor_id = "theory#/guarantee"
+    materialized, errors = _materialize_metric_authoring_model_requirement(
+        {
+            "requirement_id": "generic-calibrated-risk",
+            "metric_semantics": "calibrated empirical risk",
+            "metric_value_kind": "numeric",
+            "measurement_protocol": "return one risk estimate",
+            "operator": "<=",
+            "aggregation": "identity",
+            "predicate_authority": {
+                "source_anchors": [anchor_id],
+                "rationale": "risk is the target quantity",
+            },
+            "gate_fields": {
+                "tolerance": {
+                    "value": 0.02,
+                    "source_anchors": [anchor_id],
+                    "rationale": "finite replicate uncertainty",
+                },
+                "threshold": {
+                    "value": 0.1,
+                    "source_anchors": [anchor_id],
+                    "rationale": "decision threshold",
+                },
+            },
+        },
+        requirement_index=0,
+    )
+
+    assert errors == []
+    assert [
+        row["field"] for row in materialized["gate_field_authorities"]
+    ] == ["threshold", "tolerance"]
+
+    _materialized, invalid_errors = (
+        _materialize_metric_authoring_model_requirement(
+            {
+                "requirement_id": "invalid-gate-key",
+                "metric_semantics": "one scalar",
+                "metric_value_kind": "numeric",
+                "measurement_protocol": "return one scalar",
+                "operator": "<=",
+                "aggregation": "identity",
+                "predicate_authority": {
+                    "source_anchors": [anchor_id],
+                    "rationale": "scalar target",
+                },
+                "gate_fields": {
+                    "threshold": {
+                        "value": 0.1,
+                        "source_anchors": [anchor_id],
+                        "rationale": "decision threshold",
+                    },
+                    "duplicate_threshold": {
+                        "value": 0.2,
+                        "source_anchors": [anchor_id],
+                        "rationale": "unsupported duplicate alias",
+                    },
+                },
+            },
+            requirement_index=0,
+        )
+    )
+    assert any("unsupported fields" in error for error in invalid_errors)
 
 
 class _Backend:

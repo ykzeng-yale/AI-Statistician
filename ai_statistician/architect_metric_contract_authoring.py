@@ -469,14 +469,6 @@ def _metric_authoring_model_requirement_schema(
         authority_anchor_ids=authority_anchor_ids,
         include_value=True,
     )
-    gate_authority["required"] = ["field", *gate_authority["required"]]
-    gate_authority["properties"] = {
-        "field": {
-            "type": "string",
-            "enum": list(GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS),
-        },
-        **gate_authority["properties"],
-    }
     return {
         "type": "object",
         "additionalProperties": False,
@@ -518,12 +510,15 @@ def _metric_authoring_model_requirement_schema(
             },
             "predicate_authority": predicate_authority,
             "gate_fields": {
-                "type": "array",
-                "maxItems": len(GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS),
-                "items": gate_authority,
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    field: deepcopy(gate_authority)
+                    for field in GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS
+                },
                 "description": (
-                    "Each active substantive model-authored number appears exactly "
-                    "once with its authority. Numeric rows include threshold, or "
+                    "Key each active substantive model-authored number exactly once "
+                    "by evaluator field name. Numeric rows include threshold, or "
                     "lower then upper for between, plus any active tolerance/quorum "
                     "field. Boolean rows omit threshold and tolerance; the runtime "
                     "materializes == 1 with zero tolerance. Boolean rows include only "
@@ -551,12 +546,9 @@ def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
             "source_anchors": ["exact acceptance_authority_catalog anchor_id"],
             "rationale": "why the cited context supports this predicate",
         },
-        "gate_fields": [
-            {
-                "field": (
-                    "threshold|lower|upper|tolerance|minimum_pass_count|"
-                    "minimum_pass_fraction; omit threshold/tolerance for boolean"
-                ),
+        "gate_fields": {
+            "<unique field key: threshold|lower|upper|tolerance|"
+            "minimum_pass_count|minimum_pass_fraction>": {
                 "value": "the substantive numeric value, stated exactly once",
                 "source_anchors": [
                     "field-specific exact acceptance_authority_catalog anchor_id; "
@@ -564,7 +556,7 @@ def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
                 ],
                 "rationale": "field-specific pre-execution justification",
             }
-        ],
+        },
     }
 
 
@@ -587,10 +579,20 @@ def _materialize_metric_authoring_model_requirement(
         for anchor in predicate_authority.get("source_anchors", []) or []
         if str(anchor).strip()
     ]
-    gate_rows = row.get("gate_fields", [])
-    if not isinstance(gate_rows, list):
-        gate_rows = []
-        errors.append(f"{prefix}.gate_fields must be an array")
+    gate_rows = row.get("gate_fields", {})
+    if not isinstance(gate_rows, Mapping):
+        gate_rows = {}
+        errors.append(f"{prefix}.gate_fields must be an object")
+    unknown_gate_fields = sorted(
+        str(field)
+        for field in gate_rows
+        if field not in GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS
+    )
+    if unknown_gate_fields:
+        errors.append(
+            f"{prefix}.gate_fields contains unsupported fields "
+            f"{unknown_gate_fields!r}"
+        )
 
     requirement: dict[str, Any] = {
         "requirement_id": str(row.get("requirement_id", "") or "").strip(),
@@ -624,22 +626,15 @@ def _materialize_metric_authoring_model_requirement(
 
     observed_fields: list[str] = []
     field_rationales: list[tuple[str, str]] = []
-    for gate_index, raw_gate in enumerate(gate_rows):
-        gate_prefix = f"{prefix}.gate_fields[{gate_index}]"
+    for field in GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS:
+        if field not in gate_rows:
+            continue
+        raw_gate = gate_rows[field]
+        gate_prefix = f"{prefix}.gate_fields.{field}"
         if not isinstance(raw_gate, Mapping):
             errors.append(f"{gate_prefix} must be an object")
             continue
         gate = dict(raw_gate)
-        field = str(gate.get("field", "") or "").strip()
-        if field not in GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS:
-            errors.append(
-                f"{gate_prefix}.field must be one of "
-                + ", ".join(GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS)
-            )
-            continue
-        if field in observed_fields:
-            errors.append(f"{prefix}.gate_fields contains duplicate field {field}")
-            continue
         observed_fields.append(field)
         numeric_value = gate.get("value")
         if (
@@ -701,9 +696,9 @@ def _materialize_metric_authoring_model_requirement(
         expected_fields.append("minimum_pass_count")
     elif requirement["aggregation"] == "at_least_fraction":
         expected_fields.append("minimum_pass_fraction")
-    if observed_fields != expected_fields:
+    if set(observed_fields) != set(expected_fields):
         errors.append(
-            f"{prefix}.gate_fields must occur exactly once in evaluator order: "
+            f"{prefix}.gate_fields must contain exactly the active evaluator fields: "
             f"expected={expected_fields!r} observed={observed_fields!r}"
         )
     if field_rationales:
@@ -1636,7 +1631,9 @@ def author_reviewed_architect_metric_requirements(
             (
                 "Author the complete measurement semantics, operator, aggregation, "
                 "active gate_fields, numeric values, source anchors, and rationales. "
-                "For numeric rows, gate_fields contain the active comparison and "
+                "gate_fields is an object keyed by each unique active evaluator "
+                "field, so do not repeat the field name inside its value. For numeric "
+                "rows, it contains the active comparison and "
                 "optional quorum numbers. For intrinsically boolean rows, use "
                 "operator == and omit threshold/tolerance gate_fields; AgentRuntime "
                 "materializes the canonical == 1 truth comparison with zero "
@@ -1996,19 +1993,14 @@ def author_reviewed_architect_metric_requirements(
                         "must be an object"
                     )
                     continue
-                if "gate_fields" in row or "predicate_authority" in row:
-                    materialized, row_errors = (
-                        _materialize_metric_authoring_model_requirement(
-                            row,
-                            requirement_index=requirement_index,
-                        )
+                materialized, row_errors = (
+                    _materialize_metric_authoring_model_requirement(
+                        row,
+                        requirement_index=requirement_index,
                     )
-                    materialized_rows.append(materialized)
-                    model_aci_errors.extend(row_errors)
-                else:
-                    materialized_rows.append(
-                        materialize_generated_metric_gate_field_authorities(row)
-                    )
+                )
+                materialized_rows.append(materialized)
+                model_aci_errors.extend(row_errors)
             (
                 payload["empirical_metric_requirements"],
                 omitted_nonrequired_rows,
@@ -2231,7 +2223,7 @@ def author_reviewed_architect_metric_requirements(
                     confirmatory_required_rows_only
                 ),
                 "model_requirement_transport": (
-                    "compact_gate_fields_runtime_provenance_v2"
+                    "keyed_gate_fields_runtime_provenance_v3"
                     if not frozen_rebinding
                     else "frozen_authority_rebinding"
                 ),
