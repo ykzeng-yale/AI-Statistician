@@ -73,6 +73,15 @@ def _response(*calls: ClientToolCall) -> ClientToolTurnResponse:
     )
 
 
+def _workspace_snapshot(request: ClientToolTurnRequest) -> dict:
+    content = request.messages[0]["content"]
+    assert isinstance(content, str)
+    encoded = content.split("<CURRENT_WORKSPACE_SNAPSHOT>\n", 1)[1].split(
+        "\n</CURRENT_WORKSPACE_SNAPSHOT>", 1
+    )[0]
+    return json.loads(encoded)
+
+
 def test_lean_axiom_audit_uses_lean_report_instead_of_source_grammar() -> None:
     checked, names = _lean_axioms_from_report(
         "'target' depends on axioms: [propext, Classical.choice]"
@@ -783,7 +792,7 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
     assert all(request.disable_parallel_tool_use for request in backend.requests)
 
 
-def test_lean_candidate_workspace_keeps_stable_tools_and_full_history() -> None:
+def test_lean_candidate_workspace_keeps_stable_tools_and_current_snapshot() -> None:
     authored = "theorem target : True := by\n  exact True.intro\n"
     backend = ScriptedLeanToolBackend(
         [
@@ -838,17 +847,89 @@ def test_lean_candidate_workspace_keeps_stable_tools_and_full_history() -> None:
         {tool.name for tool in request.tools} == expected_tools
         for request in backend.requests
     )
-    assert len(backend.requests[-1].messages) == 11
+    assert len(backend.requests[-1].messages) == 9
     final_context = json.dumps(backend.requests[-1].messages, sort_keys=True)
+    assert "declaration query 0" not in final_context
     assert all(
-        f"declaration query {index}" in final_context for index in range(5)
+        f"declaration query {index}" in final_context for index in range(1, 5)
     )
-    assert result.evidence["max_retained_tool_turns"] is None
-    assert result.evidence["transcript_policy"] == "full_linear_history"
+    assert final_context.count("CURRENT_WORKSPACE_SNAPSHOT") == 2
+    snapshot = _workspace_snapshot(backend.requests[-1])
+    assert snapshot["budget"]["standard_turns_remaining_including_current"] == 2
+    assert snapshot["latest_formal_environment_search"]["query"] == (
+        "declaration query 4"
+    )
+    assert result.evidence["max_retained_tool_turns"] == 4
+    assert result.evidence["max_terminal_recovery_turns"] == 1
+    assert result.evidence["transcript_policy"] == (
+        "rolling_history_plus_authoritative_snapshot"
+    )
     assert result.evidence["tool_surface_policy"] == "stable_for_workspace"
     assert result.evidence["formal_environment_searches"] == 5
     assert "max_consecutive_context_actions" not in result.evidence
     assert "context_actions_since_source_submission" not in result.evidence
+
+
+def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -> None:
+    initial = "theorem target : True := by\n  sorry\n"
+    failing = "theorem target : True := by\n  exact missing_name\n"
+    compiled = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "submit-failing",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": failing},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-compiled",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": compiled},
+                )
+            ),
+        ]
+    )
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Revise the complete source from raw Lean observations.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=1,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=initial,
+        check_candidate=lambda source, _declaration: {
+            "source_hash": stable_hash(source),
+            "compiled": source == compiled,
+            "local_lean_stderr": (
+                "unknown identifier 'missing_name'" if source == failing else ""
+            ),
+        },
+        search_formal_environment=lambda query, k: [],
+    )
+
+    assert result.lean_source == compiled
+    assert result.evidence["turns"] == 2
+    assert result.evidence["max_turns"] == 1
+    assert result.evidence["max_terminal_recovery_turns"] == 1
+    assert [tool.name for tool in backend.requests[1].tools] == [
+        LEAN_SOURCE_SUBMISSION_TOOL
+    ]
+    assert backend.requests[1].tool_choice == LEAN_SOURCE_SUBMISSION_TOOL
+    recovery_snapshot = _workspace_snapshot(backend.requests[1])
+    assert recovery_snapshot["current_lean_source"] == failing
+    assert recovery_snapshot["latest_check_observation"][
+        "local_lean_stderr"
+    ] == "unknown identifier 'missing_name'"
+    assert recovery_snapshot["budget"]["terminal_recovery_turn"] is True
 
 
 def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> None:
@@ -1056,7 +1137,14 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
                     LEAN_SOURCE_SUBMISSION_TOOL,
                     {"lean_source": latest},
                 )
-            )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-identical-recovery",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {"lean_source": latest},
+                )
+            ),
         ]
     )
 
@@ -1094,6 +1182,7 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
             stable_hash(latest)
         )
         assert checkpoint["parent_source_hash"] == stable_hash(initial)
+        assert checkpoint["max_terminal_recovery_turns"] == 1
         assert "final_runtime_check_performed" not in checkpoint
         assert checkpoint["model_owned_lean_code"] is True
         assert checkpoint["kernel_verified"] is False

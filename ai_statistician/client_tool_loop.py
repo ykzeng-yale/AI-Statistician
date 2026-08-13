@@ -99,6 +99,7 @@ ClientToolSelector = Callable[
     [int, tuple[ClientToolDefinition, ...]],
     tuple[ClientToolDefinition, ...],
 ]
+WorkspaceSnapshotBuilder = Callable[[int], Mapping[str, Any] | None]
 
 
 def run_bounded_client_tool_loop(
@@ -112,6 +113,7 @@ def run_bounded_client_tool_loop(
     max_terminal_recovery_turns: int = 0,
     select_tools: ClientToolSelector | None = None,
     max_retained_tool_turns: int | None = None,
+    build_workspace_snapshot: WorkspaceSnapshotBuilder | None = None,
 ) -> ClientToolLoopResult:
     """Run model -> client tool -> observation turns under caller-owned bounds."""
 
@@ -202,6 +204,15 @@ def run_bounded_client_tool_loop(
                 *messages[:initial_message_count],
                 *interaction_messages[-2 * max_retained_tool_turns :],
             ]
+        workspace_snapshot: Mapping[str, Any] | None = None
+        if build_workspace_snapshot is not None:
+            workspace_snapshot = build_workspace_snapshot(turn_index)
+            if workspace_snapshot is not None:
+                model_messages = _with_workspace_snapshot(
+                    model_messages,
+                    initial_message_count=initial_message_count,
+                    snapshot=workspace_snapshot,
+                )
         with agent_runtime_substage(
             "client_tool_model_turn",
             metadata={
@@ -217,6 +228,12 @@ def run_bounded_client_tool_loop(
                 "n_transcript_messages": len(messages),
                 "n_model_context_messages": len(model_messages),
                 "max_retained_tool_turns": max_retained_tool_turns,
+                "workspace_snapshot_supplied": workspace_snapshot is not None,
+                "workspace_snapshot_fingerprint": (
+                    stable_hash(workspace_snapshot)
+                    if workspace_snapshot is not None
+                    else ""
+                ),
             },
         ):
             response = generate_turn(
@@ -475,6 +492,44 @@ def run_bounded_client_tool_loop(
         turns=len(history),
         tool_calls=total_calls,
     )
+
+
+def _with_workspace_snapshot(
+    messages: list[Mapping[str, Any]],
+    *,
+    initial_message_count: int,
+    snapshot: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    """Inject one current-state view without retaining another history copy."""
+
+    if initial_message_count < 1 or len(messages) < initial_message_count:
+        raise ValueError("workspace snapshot requires an initial model message")
+    result = [deepcopy(dict(message)) for message in messages]
+    message = result[initial_message_count - 1]
+    if str(message.get("role", "") or "") != "user":
+        raise ValueError("workspace snapshot requires a final initial user message")
+    snapshot_text = (
+        "\n\n<CURRENT_WORKSPACE_SNAPSHOT>\n"
+        + json.dumps(
+            snapshot,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+            ensure_ascii=False,
+        )
+        + "\n</CURRENT_WORKSPACE_SNAPSHOT>"
+    )
+    content = message.get("content", "")
+    if isinstance(content, str):
+        message["content"] = content + snapshot_text
+    elif isinstance(content, (list, tuple)):
+        message["content"] = [
+            *[deepcopy(dict(block)) for block in content],
+            {"type": "text", "text": snapshot_text},
+        ]
+    else:
+        raise ValueError("workspace snapshot requires string or block-list content")
+    return result
 
 
 def _client_tool_result_text(value: Any, *, max_chars: int = 60000) -> str:

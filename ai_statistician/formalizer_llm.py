@@ -288,10 +288,14 @@ class LLMFormalizerProofEngineerAgent:
                 "environment observations establish a missing foundation primitive, "
                 "report that exact gap instead of inventing an API or weaker theorem. "
                 f"This workspace has at most {workspace_turn_budget} model-tool "
-                "turns. The same tools and complete linear tool history remain "
-                "available throughout the workspace. Retain and use declarations "
-                "already observed, avoid cycling through synonymous searches, and "
-                "finish by choosing either a "
+                "turns plus at most one final source-submission recovery turn. The "
+                "same tools remain available during standard turns. Every turn "
+                "includes an authoritative snapshot of the complete current source, "
+                "latest raw Lean observation, latest selected context observations, "
+                "and remaining budget alongside a short rolling transcript. Make an "
+                "early compiler-grounded source attempt, retain useful declarations, "
+                "avoid cycling through synonymous searches, reserve time to revise "
+                "from compiler feedback, and finish by choosing either a "
                 "complete submit_lean_source call or a concrete report_formal_gap call."
             ),
             user_prompt=_build_lean_candidate_workspace_tool_prompt(

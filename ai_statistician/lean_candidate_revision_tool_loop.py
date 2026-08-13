@@ -156,10 +156,10 @@ def run_lean_candidate_revision_tool_loop(
     parent_source = str(initial_source)
     parent_source_hash = stable_hash(parent_source)
     workspace_phase = "revision" if parent_source.strip() else "initial_authoring"
-    # Lean authoring is one durable coding-agent session. Keep its tool surface and
-    # linear transcript stable; the global turn/call budgets remain the only phase
-    # boundary.
-    max_retained_tool_turns: int | None = None
+    # Lean authoring is one durable coding-agent session. Keep its tool surface
+    # stable while carrying current authoritative state outside the rolling history.
+    max_retained_tool_turns = min(max_turns, 4)
+    max_terminal_recovery_turns = 1
     state: dict[str, Any] = {
         "source": parent_source,
         "source_hash": parent_source_hash,
@@ -173,6 +173,8 @@ def run_lean_candidate_revision_tool_loop(
         "checks": 0,
         "last_check": {},
         "latest_check_observation": {},
+        "latest_formal_environment_search": {},
+        "latest_proof_search": {},
         "latest_state_inspection": {},
         "latest_declaration_inspection": {},
     }
@@ -393,6 +395,7 @@ def run_lean_candidate_revision_tool_loop(
                 **current_workspace_observation(),
                 "proof_evidence_status": "FORMAL_SOURCE_SEARCH_NOT_PROOF_EVIDENCE",
             }
+            state["latest_formal_environment_search"] = deepcopy(content)
             return ClientToolExecutionResult(
                 content=content,
                 observation_key="search:"
@@ -439,6 +442,7 @@ def run_lean_candidate_revision_tool_loop(
                     "the runtime does not splice returned proof bodies."
                 ),
             }
+            state["latest_proof_search"] = deepcopy(content)
             return ClientToolExecutionResult(
                 content=content,
                 observation_key="proof-search:"
@@ -559,7 +563,54 @@ def run_lean_candidate_revision_tool_loop(
             "parent_source_hash": parent_source_hash,
         },
     )
-    max_tool_calls = max_turns
+
+    def build_workspace_snapshot(turn_index: int) -> dict[str, Any]:
+        return {
+            "artifact_kind": "LeanCandidateWorkspaceSnapshot",
+            "candidate_id": candidate_id,
+            "candidate_lean_declaration": state[
+                "candidate_lean_declaration"
+            ],
+            "current_lean_source": state["source"],
+            "current_source_hash": state["source_hash"],
+            "latest_check_observation": _lean_check_workspace_snapshot(
+                state["latest_check_observation"]
+            ),
+            "latest_formal_environment_search": deepcopy(
+                state["latest_formal_environment_search"]
+            ),
+            "latest_proof_search": deepcopy(state["latest_proof_search"]),
+            "latest_state_inspection": deepcopy(
+                state["latest_state_inspection"]
+            ),
+            "latest_declaration_inspection": deepcopy(
+                state["latest_declaration_inspection"]
+            ),
+            "usage": {
+                "source_updates": state["source_updates"],
+                "checks": state["checks"],
+                "searches": state["searches"],
+                "proof_searches": state["proof_searches"],
+                "state_inspections": state["state_inspections"],
+                "declaration_inspections": state[
+                    "declaration_inspections"
+                ],
+            },
+            "budget": {
+                "standard_turn_index": min(turn_index, max_turns),
+                "standard_turns_remaining_including_current": max(
+                    0,
+                    max_turns - turn_index,
+                ),
+                "terminal_recovery_turn": turn_index >= max_turns,
+                "terminal_recovery_turns_available": (
+                    max_terminal_recovery_turns
+                ),
+            },
+            "proof_evidence_status": "WORKSPACE_STATE_NOT_PROOF_EVIDENCE",
+        }
+
+    max_tool_calls = max_turns + max_terminal_recovery_turns
     try:
         loop = run_bounded_client_tool_loop(
             backend=provider,
@@ -568,7 +619,9 @@ def run_lean_candidate_revision_tool_loop(
             max_turns=max_turns,
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
+            max_terminal_recovery_turns=max_terminal_recovery_turns,
             max_retained_tool_turns=max_retained_tool_turns,
+            build_workspace_snapshot=build_workspace_snapshot,
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(
@@ -600,6 +653,12 @@ def run_lean_candidate_revision_tool_loop(
                 "latest_check_observation": deepcopy(
                     state["latest_check_observation"]
                 ),
+                "latest_formal_environment_search": deepcopy(
+                    state["latest_formal_environment_search"]
+                ),
+                "latest_proof_search": deepcopy(
+                    state["latest_proof_search"]
+                ),
                 "latest_state_inspection": deepcopy(
                     state["latest_state_inspection"]
                 ),
@@ -608,6 +667,7 @@ def run_lean_candidate_revision_tool_loop(
                 ),
                 "turns": exc.turns,
                 "tool_calls": exc.tool_calls,
+                "max_terminal_recovery_turns": max_terminal_recovery_turns,
                 "transcript_fingerprint": exc.transcript_fingerprint,
                 "provider": exc.provider,
                 "model": exc.model or model,
@@ -650,6 +710,7 @@ def run_lean_candidate_revision_tool_loop(
             max_turns=max_turns,
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
+            max_terminal_recovery_turns=max_terminal_recovery_turns,
             max_retained_tool_turns=max_retained_tool_turns,
             turns=loop.turns,
             tool_calls=loop.tool_calls,
@@ -697,6 +758,7 @@ def run_lean_candidate_revision_tool_loop(
         max_turns=max_turns,
         max_tool_calls=max_tool_calls,
         max_no_progress_turns=max_no_progress_turns,
+        max_terminal_recovery_turns=max_terminal_recovery_turns,
         max_retained_tool_turns=max_retained_tool_turns,
         turns=loop.turns,
         tool_calls=loop.tool_calls,
@@ -726,6 +788,7 @@ def _lean_candidate_revision_success_result(
     max_turns: int,
     max_tool_calls: int,
     max_no_progress_turns: int,
+    max_terminal_recovery_turns: int,
     max_retained_tool_turns: int | None,
     turns: int,
     tool_calls: int,
@@ -780,8 +843,9 @@ def _lean_candidate_revision_success_result(
         "max_turns": max_turns,
         "max_tool_calls": max_tool_calls,
         "max_no_progress_turns": max_no_progress_turns,
+        "max_terminal_recovery_turns": max_terminal_recovery_turns,
         "max_retained_tool_turns": max_retained_tool_turns,
-        "transcript_policy": "full_linear_history",
+        "transcript_policy": "rolling_history_plus_authoritative_snapshot",
         "tool_surface_policy": "stable_for_workspace",
         "submit_and_check_atomic": True,
         "tool_names": [tool.name for tool in tools],
@@ -840,6 +904,28 @@ def _lean_candidate_revision_success_result(
         check_result=deepcopy(dict(check_result)),
         evidence=evidence,
     )
+
+
+def _lean_check_workspace_snapshot(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    keys = (
+        "source_hash",
+        "candidate_lean_declaration",
+        "compiled",
+        "precheck_errors",
+        "blocking_precheck_errors",
+        "local_lean_attempted",
+        "local_lean_source_compiled",
+        "local_lean_exit_status",
+        "local_lean_stdout",
+        "local_lean_stderr",
+        "candidate_identity_lean_checked",
+        "candidate_identity_lean_verified",
+        "candidate_identity_lean_stdout",
+        "candidate_identity_lean_stderr",
+    )
+    return {key: deepcopy(value[key]) for key in keys if key in value}
 
 
 def _lean_state_executed_tools(value: Any) -> tuple[str, ...]:

@@ -152,6 +152,54 @@ def test_bounded_client_tool_loop_returns_terminal_runtime_payload() -> None:
     ] is False
 
 
+def test_bounded_client_tool_loop_injects_one_current_workspace_snapshot() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit-1", "edit", {"value": 1})),
+            _response(ClientToolCall("call-edit-2", "edit", {"value": 2})),
+            _response(ClientToolCall("call-submit", "submit", {})),
+        ]
+    )
+    state = {"value": 0}
+
+    def execute(call, _context):
+        if call.name == "edit":
+            state["value"] = int(call.input["value"])
+            return ClientToolExecutionResult(
+                content={"ok": True, "value": state["value"]},
+                state_changed=True,
+                observation_key=f"edited:{state['value']}",
+            )
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            terminal=True,
+            terminal_payload={"value": state["value"]},
+            observation_key="submitted",
+        )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute,
+        max_turns=3,
+        max_tool_calls=3,
+        max_no_progress_turns=2,
+        max_retained_tool_turns=1,
+        build_workspace_snapshot=lambda turn_index: {
+            "turn_index": turn_index,
+            "value": state["value"],
+        },
+    )
+
+    assert result.terminal_payload == {"value": 2}
+    assert len(backend.requests[-1].messages) == 3
+    current_prompt = str(backend.requests[-1].messages[0]["content"])
+    assert current_prompt.count("<CURRENT_WORKSPACE_SNAPSHOT>") == 1
+    assert '"turn_index":2' in current_prompt
+    assert '"value":2' in current_prompt
+    assert '"value":1' not in current_prompt
+
+
 def test_bounded_client_tool_loop_stops_repeated_no_tool_turns() -> None:
     response = _response(text="I will describe the change instead.")
     backend = ScriptedToolTurnBackend([response, response, response])
