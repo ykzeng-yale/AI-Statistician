@@ -395,6 +395,41 @@ them separate confirmatory claims. This is model-owned scientific judgment, not 
 hardcoded gate count. Both post-run changes have regression evidence only; 741 tests
 pass, and neither change supplies retrospective Student-t capability credit.
 
+The Gaussian Model-X L2 benchmark was then frozen before its first runtime model
+call. The model-visible snapshot contains the 2018 paper but not the author package;
+the evaluator-only bundle pins the hidden implementation and separately validates
+theory semantics, sampler behavior, and joint empirical moments. Before activation,
+the reference implementation passed 7/7 algorithm checks and three 12,000-row DGPs,
+four wrong implementations were rejected by both algorithm and empirical harnesses,
+and exact Haiku classified 10/10 sealed semantic calibration cases correctly. These
+remain evaluator calibration facts, not system capability.
+
+The one permitted fresh exact-Haiku draw remained `BLOCKED` and scored `0/1`.
+TheoryDeveloper searched the paper twice, read four exact source ranges, wrote one
+13,130-byte authoritative Markdown document plus compact handoffs, and explicitly
+checkpointed unfinished anchor work. The next same-owner task was rejected before a
+model call because initial workspace identity included the transient scheduling
+`task_id`; a legitimate continuation necessarily receives a new ID. No theory packet
+reached independent review, and no algorithm, simulation, hidden evaluator, or
+Formalizer ran. Formalization remained correctly absent by task intent.
+
+The frozen document is also a useful unaccepted mathematical hard negative. It
+contains an incorrect joint-covariance quadratic-form expansion, treats symmetric
+two-by-two block structure as sufficient for arbitrary coordinatewise swaps, and
+gives an incomplete conditional-covariance PSD argument. These defects must be found
+by model self-check and independent review, not by encoding Gaussian-knockoff algebra
+in the runtime. A correct transport mechanism would not make this document accepted
+theory.
+
+The shared continuation defect is fixed by excluding only transient `task_id` from
+the initial authoring binding while retaining the exact question, prompt mode,
+Architect proposal, objective, tool contract, and other frozen context. The existing
+TheoryDeveloper prompt now also asks the same model to recompute pivotal identities,
+test minimal and boundary cases, and correct or mark unresolved claims before a
+checkpoint. No retry, turn, submission, model tier, agent, scheduler, task formula, or
+content repair was added; 745 tests pass. The task is not rerun or rescored, and both
+changes have regression evidence only.
+
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same
 two broad tasks in hope of a better model draw. This is an evaluation-selection

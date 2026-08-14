@@ -194,12 +194,20 @@ def test_model_x_l2_hides_author_code_and_freezes_gold_before_first_draw() -> No
     assert candidate["level"] == "L2"
     assert candidate["status"] == "active_scored"
     assert candidate["activation_status"] == (
-        "full_task_gold_frozen_before_first_live_run"
+        "fresh_live_v1_blocked_by_theory_progress_context_binding"
     )
     evidence = candidate["activation_evidence"]
     assert evidence["author_implementation_hidden_from_l2_runtime"] is True
     assert evidence["gold_activated_before_first_runtime_model_call"] is True
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["fresh_live_runtime_status"] == "BLOCKED"
+    assert evidence["fresh_live_runtime_research_eval"] == "0/1 complete"
+    assert evidence["fresh_live_accepted_theory_packet"] is False
+    assert evidence["fresh_live_algorithm_executions"] == 0
+    assert evidence["fresh_live_simulation_executions"] == 0
+    assert evidence["fresh_live_formalizer_executions"] == 0
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert len(evidence["post_run_shared_continuation_fix_commit"]) == 40
     assert evidence["semantic_calibration_cases"] == 10
     assert evidence["semantic_calibration_cases_correct"] == 10
     assert evidence["algorithm_reference_checks"] == "7/7"
