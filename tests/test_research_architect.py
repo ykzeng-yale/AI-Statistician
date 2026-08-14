@@ -354,18 +354,30 @@ def _file_authority_theory_fixture(
     packet = json.loads(json.dumps(source))
     derivation = dict(packet["theory_derivation_packet"])
     document_path = "theory/workspace.md"
-    claim_rows: list[dict[str, str]] = []
+    claim_rows: list[dict[str, object]] = []
     markdown = ["# Theory Workspace", ""]
 
-    def add_claim(claim_id: str, kind: str, content: object) -> None:
+    def add_claim(
+        claim_id: str,
+        kind: str,
+        content: object,
+        *,
+        depends_on: object = (),
+    ) -> None:
         if not claim_id or any(row["id"] == claim_id for row in claim_rows):
             return
+        dependencies = (
+            [str(value) for value in depends_on]
+            if isinstance(depends_on, (list, tuple))
+            else []
+        )
         claim_rows.append(
             {
                 "id": claim_id,
                 "kind": kind,
                 "document_path": document_path,
                 "anchor": claim_id,
+                "depends_on": dependencies,
                 "status": "SUPPORTED",
             }
         )
@@ -374,13 +386,28 @@ def _file_authority_theory_fixture(
         )
 
     for row in derivation.get("derivation_steps", []) or []:
-        add_claim(str(row.get("id", "")), "lemma", row)
+        add_claim(
+            str(row.get("id", "")),
+            "lemma",
+            row,
+            depends_on=row.get("depends_on", []),
+        )
     for row in derivation.get("equation_chain", []) or []:
-        add_claim(str(row.get("step_id", "")), "equation", row)
+        add_claim(
+            str(row.get("step_id", "")),
+            "equation",
+            row,
+            depends_on=row.get("depends_on", []),
+        )
     for row in packet.get("theorem_cards", []) or []:
         add_claim(str(row.get("id", "")), "theorem", row)
     for row in packet.get("lemma_cards", []) or []:
-        add_claim(str(row.get("id", "")), "lemma", row)
+        add_claim(
+            str(row.get("id", "")),
+            "lemma",
+            row,
+            depends_on=row.get("depends_on", []),
+        )
     for row in packet.get("estimator_specs", []) or []:
         add_claim(str(row.get("id", "")), "definition", row)
 
@@ -728,6 +755,49 @@ def _serious_sample_response() -> dict[str, object]:
     derivation["equation_chain"] = equation_chain
     response["theory_derivation_packet"] = derivation
     return response
+
+
+def test_file_authority_claim_dependencies_are_closed_and_acyclic(
+    tmp_path: Path,
+) -> None:
+    packet, _ = _file_authority_theory_fixture(
+        _serious_sample_response(),
+        workspace_dir=tmp_path / "claim-graph",
+    )
+    packet.update(
+        {
+            "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            "kernel_verified": False,
+            "verified_theorem_count": 0,
+        }
+    )
+    for estimator in packet["estimator_specs"]:
+        estimator["estimator_interface_contract_id"] = (
+            estimator_interface_contract_id(
+                estimator["estimator_interface_contract"]
+            )
+        )
+    assert validate_theory_packet(packet) == []
+
+    unknown = json.loads(json.dumps(packet))
+    unknown_claims = unknown["theory_derivation_packet"]["claim_index"]
+    unknown_claims[0]["depends_on"] = ["missing-claim"]
+    assert any(
+        "unknown dependencies: missing-claim" in error
+        for error in validate_theory_packet(unknown)
+    )
+
+    cyclic = json.loads(json.dumps(packet))
+    cyclic_claims = cyclic["theory_derivation_packet"]["claim_index"]
+    first_id = cyclic_claims[0]["id"]
+    second_id = cyclic_claims[1]["id"]
+    cyclic_claims[0]["depends_on"] = [second_id]
+    cyclic_claims[1]["depends_on"] = [first_id]
+    assert any(
+        "claim_index dependency graph must be acyclic" in error
+        for error in validate_theory_packet(cyclic)
+    )
 
 
 def _metric_theory_revision_context(
@@ -1675,6 +1745,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
             "kind": "lemma",
             "document_path": "theory/workspace.md",
             "anchor": "bounded_outcome_moment_control",
+            "depends_on": ["identify_ate"],
             "status": "SUPPORTED",
         },
     ]

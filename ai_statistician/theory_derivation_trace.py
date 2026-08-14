@@ -31,6 +31,7 @@ CLAIM_INDEX_KEYS = (
     "kind",
     "document_path",
     "anchor",
+    "depends_on",
     "status",
 )
 SANITY_CHECK_INDEX_KEYS = (
@@ -151,6 +152,11 @@ def theory_trace_consumption_contract(
         ),
         "n_claim_index_rows_supplied": _safe_list_len(
             trace.get("claim_index", [])
+        ),
+        "n_claim_dependency_edges_supplied": sum(
+            _safe_list_len(row.get("depends_on", []))
+            for row in trace.get("claim_index", [])
+            if isinstance(row, Mapping)
         ),
         "n_sanity_check_index_rows_supplied": _safe_list_len(
             trace.get("sanity_check_index", [])

@@ -432,6 +432,16 @@ def build_architect_theory_execution_preflight_material(
             derivation.get("sanity_checks", []),
         ),
         (
+            "theory.claim_index",
+            "document_claim_dependency_index",
+            derivation.get("claim_index", []),
+        ),
+        (
+            "theory.sanity_check_index",
+            "document_sanity_check_index",
+            derivation.get("sanity_check_index", []),
+        ),
+        (
             "theory.rejected_alternatives",
             "rejected_alternatives",
             derivation.get("rejected_alternatives", []),

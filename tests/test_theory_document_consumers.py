@@ -20,6 +20,9 @@ from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.simulation_engineer_llm import (
     _compact_theory_packet_for_simulation,
 )
+from ai_statistician.theory_derivation_trace import (
+    theory_trace_consumption_contract,
+)
 from ai_statistician.theory_semantic_material import build_theory_semantic_material
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
@@ -29,7 +32,10 @@ from ai_statistician.theory_workspace import (
 
 
 def _document_theory_packet(tmp_path: Path) -> tuple[dict, str]:
-    content = "# C1\n\nFor every admitted law, $E[Z] = 0$.\n"
+    content = (
+        "# C0\n\nAssume the admitted law is integrable.\n\n"
+        "# C1\n\nFor every admitted law, $E[Z] = 0$.\n"
+    )
     documents = {"derivations/C1.md": content}
     target = tmp_path / "derivations" / "C1.md"
     target.parent.mkdir(parents=True)
@@ -48,10 +54,19 @@ def _document_theory_packet(tmp_path: Path) -> tuple[dict, str]:
                 "derivation_summary": "The exact derivation is in C1.md.",
                 "claim_index": [
                     {
+                        "id": "C0",
+                        "kind": "assumption",
+                        "document_path": "derivations/C1.md",
+                        "anchor": "C0",
+                        "depends_on": [],
+                        "status": "SUPPORTED",
+                    },
+                    {
                         "id": "C1",
                         "kind": "theorem",
                         "document_path": "derivations/C1.md",
                         "anchor": "C1",
+                        "depends_on": ["C0"],
                         "status": "SUPPORTED",
                     }
                 ],
@@ -122,6 +137,14 @@ def test_every_theory_consumer_reads_the_same_hash_bound_document(
     assert formalizer_payload["theory_packet_summary"][
         "authoritative_theory_documents"
     ] == expected_rows
+    formalizer_claim = next(
+        row
+        for row in formalizer_payload["theory_packet_summary"][
+            "theory_derivation_trace"
+        ]["claim_index"]
+        if row["id"] == "C1"
+    )
+    assert formalizer_claim["depends_on"] == ["C0"]
     revision_payload = json.loads(
         _build_lean_candidate_workspace_tool_prompt(
             question=OpenResearchQuestion(
@@ -170,5 +193,31 @@ def test_every_theory_consumer_reads_the_same_hash_bound_document(
         for row in preflight["anchor_catalog"]
         if row["artifact_role"] == "authoritative_theory_document"
     )
+    claim_graph_anchor = next(
+        row
+        for row in preflight["anchor_catalog"]
+        if row["artifact_role"] == "document_claim_dependency_index"
+    )
     assert document_anchor["content"] == content
     assert document_anchor["content_sha256"] == expected_rows[0]["sha256"]
+    claim_row = next(
+        row for row in claim_graph_anchor["content"] if row["id"] == "C1"
+    )
+    compact_claim_row = next(
+        row
+        for row in algorithm["theory_derivation_trace"]["claim_index"]
+        if row["id"] == "C1"
+    )
+    simulation_claim_row = next(
+        row
+        for row in simulation["theory_derivation_trace"]["claim_index"]
+        if row["id"] == "C1"
+    )
+    consumption = theory_trace_consumption_contract(
+        packet,
+        consumer_subsystem="AlgorithmEngineer",
+    )
+    assert claim_row["depends_on"] == ["C0"]
+    assert compact_claim_row["depends_on"] == ["C0"]
+    assert simulation_claim_row["depends_on"] == ["C0"]
+    assert consumption["n_claim_dependency_edges_supplied"] == 1

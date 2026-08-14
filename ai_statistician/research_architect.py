@@ -1792,6 +1792,7 @@ THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
             "kind": "definition|assumption|lemma|theorem|equation|counterexample",
             "document_path": "workspace-relative .md or .tex path",
             "anchor": "heading or LaTeX label",
+            "depends_on": ["direct predecessor claim_index ids"],
             "status": "OPEN|SUPPORTED|REJECTED|INCONCLUSIVE",
         }
     ],
@@ -2116,6 +2117,7 @@ def _file_theory_index_errors(
         errors.append("theory_derivation_packet.claim_index must be non-empty")
         claim_rows = []
     claim_ids: list[str] = []
+    claim_dependencies: dict[str, tuple[str, ...]] = {}
     for index, row in enumerate(claim_rows):
         if not isinstance(row, Mapping):
             errors.append(f"claim_index[{index}] must be an object")
@@ -2133,6 +2135,26 @@ def _file_theory_index_errors(
         claim_id = str(row.get("id", "") or "").strip()
         if claim_id:
             claim_ids.append(claim_id)
+        raw_dependencies = row.get("depends_on")
+        if not isinstance(raw_dependencies, list):
+            errors.append(f"claim_index[{index}].depends_on must be a list")
+            dependencies: list[str] = []
+        else:
+            dependencies = [
+                str(value).strip()
+                for value in raw_dependencies
+                if str(value).strip()
+            ]
+            if len(dependencies) != len(raw_dependencies):
+                errors.append(
+                    f"claim_index[{index}].depends_on entries must be non-empty text"
+                )
+            if len(dependencies) != len(set(dependencies)):
+                errors.append(
+                    f"claim_index[{index}].depends_on entries must be unique"
+                )
+        if claim_id:
+            claim_dependencies[claim_id] = tuple(dependencies)
         path = str(row.get("document_path", "") or "").strip()
         if path and path not in document_paths:
             errors.append(f"claim_index[{index}] references an unknown document")
@@ -2157,6 +2179,31 @@ def _file_theory_index_errors(
             errors.append(f"claim_index[{index}] has invalid status")
     if len(claim_ids) != len(set(claim_ids)):
         errors.append("claim_index ids must be unique")
+    claim_id_set = set(claim_ids)
+    for claim_id, dependencies in claim_dependencies.items():
+        if claim_id in dependencies:
+            errors.append(f"claim_index[{claim_id!r}] cannot depend on itself")
+        unknown_dependencies = sorted(set(dependencies) - claim_id_set)
+        if unknown_dependencies:
+            errors.append(
+                f"claim_index[{claim_id!r}] has unknown dependencies: "
+                + ", ".join(unknown_dependencies)
+            )
+    dependency_cycle = _claim_dependency_cycle(
+        {
+            claim_id: tuple(
+                dependency
+                for dependency in dependencies
+                if dependency in claim_id_set
+            )
+            for claim_id, dependencies in claim_dependencies.items()
+        }
+    )
+    if dependency_cycle:
+        errors.append(
+            "claim_index dependency graph must be acyclic: "
+            + " -> ".join(dependency_cycle)
+        )
 
     check_rows = derivation.get("sanity_check_index", [])
     if not isinstance(check_rows, list) or not check_rows:
@@ -2210,6 +2257,39 @@ def _file_theory_index_errors(
             if row_id and row_id not in indexed_ids:
                 errors.append(f"{field}[{index}].id is absent from claim_index")
     return errors
+
+
+def _claim_dependency_cycle(
+    dependencies: Mapping[str, Sequence[str]],
+) -> tuple[str, ...]:
+    """Return one deterministic cycle from a model-authored claim graph."""
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+    path: list[str] = []
+
+    def visit(claim_id: str) -> tuple[str, ...]:
+        if claim_id in visited:
+            return ()
+        if claim_id in visiting:
+            cycle_start = path.index(claim_id)
+            return tuple([*path[cycle_start:], claim_id])
+        visiting.add(claim_id)
+        path.append(claim_id)
+        for dependency in dependencies.get(claim_id, ()):
+            cycle = visit(str(dependency))
+            if cycle:
+                return cycle
+        path.pop()
+        visiting.remove(claim_id)
+        visited.add(claim_id)
+        return ()
+
+    for claim_id in sorted(dependencies):
+        cycle = visit(claim_id)
+        if cycle:
+            return cycle
+    return ()
 
 
 def _legacy_structured_derivation_errors(
@@ -3046,7 +3126,9 @@ def _initial_theory_workspace_prompt(
         "authority for definitions, assumptions, equation-by-equation derivations, "
         "counterexamples, and unresolved arguments. Use stable headings or LaTeX "
         "labels, then point the compact claim_index and sanity_check_index to those "
-        "anchors. You may edit a "
+        "anchors. Record only direct claim dependencies in claim_index.depends_on so "
+        "the resulting graph remains reviewable; keep the mathematical argument in "
+        "the documents rather than copying it into the index. You may edit a "
         "coherent subset and use the raw validator observation to complete or revise the "
         "workspace in the same model session. A successful partial write remains in "
         "the workspace even while the combined workspace is invalid, so edit only "
@@ -4398,7 +4480,11 @@ def _theory_semantic_reference_catalog(
         ("derivation_steps", "id", ("claim", "equation_or_argument")),
         ("equation_chain", "step_id", ("lhs", "relation", "rhs")),
         ("sanity_checks", "id", ("recomputation", "result")),
-        ("claim_index", "id", ("kind", "document_path", "anchor", "status")),
+        (
+            "claim_index",
+            "id",
+            ("kind", "document_path", "anchor", "depends_on", "status"),
+        ),
         (
             "sanity_check_index",
             "id",
