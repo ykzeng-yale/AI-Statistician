@@ -69,6 +69,7 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_COMMIT_TOOL,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
+    THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
     THEORY_WORKSPACE_GAP_TOOL,
     THEORY_WORKSPACE_HANDOFF_ROLE,
     THEORY_WORKSPACE_WRITE_TOOL,
@@ -1306,6 +1307,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert {tool.name for tool in first_request.tools} == {
         "read_theory_workspace",
         THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
         THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
     }
@@ -1618,6 +1620,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert {tool.name for tool in first_tool_request.tools} == {
         "read_theory_workspace",
         THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
         THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
     }

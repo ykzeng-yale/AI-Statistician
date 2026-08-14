@@ -34,6 +34,7 @@ from .structured_output_retry import PacketValidationError
 THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
 THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "model_owned_documents_and_handoff_v1"
 THEORY_WORKSPACE_WRITE_TOOL = "write_theory_workspace"
+THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL = "edit_theory_document"
 THEORY_WORKSPACE_COMMIT_TOOL = "commit_theory_checkpoint"
 THEORY_WORKSPACE_GAP_TOOL = "report_theory_gap"
 THEORY_SCRATCHPAD_TOOL = "run_theory_scratchpad"
@@ -574,6 +575,27 @@ def run_theory_artifact_workspace(
                 document_writes=document_write_records,
             )
 
+        if call.name == THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL:
+            if not require_document_authority:
+                raise ClientToolInputError(
+                    "localized theory document editing is unavailable"
+                )
+            if state["submissions"] >= max_submissions:
+                raise ClientToolInputError(
+                    "theory workspace submission budget is exhausted"
+                )
+            candidate_documents, edit_record = (
+                _edit_theory_workspace_document(
+                    state["documents"],
+                    tool_input,
+                )
+            )
+            return evaluate_model_write(
+                state["artifacts"],
+                candidate_documents,
+                document_writes=[edit_record],
+            )
+
         if call.name == THEORY_WORKSPACE_COMMIT_TOOL:
             if set(tool_input) != {"readiness_rationale"}:
                 raise ClientToolInputError(
@@ -868,6 +890,14 @@ def run_theory_artifact_workspace(
         "and returned to you, but it does not end the workspace or assert scientific "
         "readiness. "
     )
+    edit_guidance = (
+        "For a localized revision to an existing mathematical document, use "
+        "edit_theory_document with the current document SHA-256 and one exact, unique "
+        "model-selected text span. The runtime applies that replacement literally and "
+        "returns the resulting hash; it does not interpret or rewrite mathematics. "
+        if require_document_authority
+        else ""
+    )
     scratch_guidance = (
         "Use run_theory_scratchpad when a small Python or R calculation, numerical "
         "check, or counterexample would resolve a mathematical uncertainty. Submit "
@@ -924,6 +954,7 @@ def run_theory_artifact_workspace(
                     + source_guidance
                     + scratch_guidance
                     + write_guidance
+                    + edit_guidance
                     + "When the current workspace is scientifically ready for "
                     "independent review, call commit_theory_checkpoint and explain "
                     "your own readiness judgment. There is no required number of "
@@ -1432,6 +1463,39 @@ def _theory_workspace_tools(
             terminal=False,
         )
     )
+    if document_authority_enabled:
+        tools.append(
+            ClientToolDefinition(
+                name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+                description=(
+                    "Apply one exact model-authored replacement to an existing "
+                    "Markdown/LaTeX/BibTeX document. The edit is bound to the current "
+                    "document SHA-256 and the old text must occur exactly once. The "
+                    "runtime applies the bytes literally and never authors mathematics."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "path",
+                        "expected_sha256",
+                        "old_text",
+                        "new_text",
+                    ],
+                    "properties": {
+                        "path": {"type": "string", "minLength": 1},
+                        "expected_sha256": {
+                            "type": "string",
+                            "minLength": 64,
+                            "maxLength": 64,
+                        },
+                        "old_text": {"type": "string", "minLength": 1},
+                        "new_text": {"type": "string"},
+                    },
+                },
+                terminal=False,
+            )
+        )
     tools.append(
         ClientToolDefinition(
             name=THEORY_WORKSPACE_COMMIT_TOOL,
@@ -1598,6 +1662,76 @@ def _replace_theory_workspace_documents(
             }
         )
     return candidate, records
+
+
+def _edit_theory_workspace_document(
+    current_documents: Mapping[str, str],
+    raw_edit: Any,
+) -> tuple[dict[str, str], dict[str, Any]]:
+    """Apply one model-selected, hash-bound replacement without interpreting text."""
+
+    if not isinstance(raw_edit, Mapping):
+        raise ClientToolInputError("theory document edit must be an object")
+    edit = dict(raw_edit)
+    required = {"path", "expected_sha256", "old_text", "new_text"}
+    if set(edit) != required:
+        raise ClientToolInputError(
+            "edit_theory_document requires exactly path, expected_sha256, "
+            "old_text, and new_text"
+        )
+    path = _normalized_theory_document_path(edit["path"])
+    if path not in current_documents:
+        raise ClientToolInputError(
+            f"cannot edit unknown theory document {path!r}"
+        )
+    current = current_documents[path]
+    expected_sha256 = edit["expected_sha256"]
+    if not isinstance(expected_sha256, str):
+        raise ClientToolInputError(
+            "edit_theory_document expected_sha256 must be text"
+        )
+    current_sha256 = _text_sha256(current)
+    if expected_sha256 != current_sha256:
+        raise ClientToolInputError(
+            f"theory document {path!r} changed since it was read; expected "
+            f"{expected_sha256!r}, current {current_sha256!r}"
+        )
+    old_text = edit["old_text"]
+    new_text = edit["new_text"]
+    if not isinstance(old_text, str) or not old_text:
+        raise ClientToolInputError(
+            "edit_theory_document old_text must be nonempty text"
+        )
+    if not isinstance(new_text, str):
+        raise ClientToolInputError(
+            "edit_theory_document new_text must be text"
+        )
+    if old_text == new_text:
+        raise ClientToolInputError(
+            "edit_theory_document replacement must change the document"
+        )
+    occurrence_count = current.count(old_text)
+    if occurrence_count != 1:
+        raise ClientToolInputError(
+            f"edit_theory_document old_text must occur exactly once in {path!r}; "
+            f"found {occurrence_count}"
+        )
+    revised = current.replace(old_text, new_text, 1)
+    if not revised.strip():
+        raise ClientToolInputError(
+            "edit_theory_document cannot leave a document empty"
+        )
+    candidate = dict(current_documents)
+    candidate[path] = revised
+    return candidate, {
+        "operation": "exact_text_replacement",
+        "relative_path": path,
+        "parent_sha256": current_sha256,
+        "old_text_sha256": _text_sha256(old_text),
+        "new_text_sha256": _text_sha256(new_text),
+        "sha256": _text_sha256(revised),
+        "byte_size": len(revised.encode("utf-8")),
+    }
 
 
 def _normalized_theory_document_path(value: Any) -> str:

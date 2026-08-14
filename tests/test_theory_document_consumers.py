@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from ai_statistician.algorithm_engineer_llm import (
@@ -10,6 +11,10 @@ from ai_statistician.architect_theory_execution_preflight import (
 )
 from ai_statistician.generated_code_semantic_review_scope import (
     generated_code_semantic_review_theory_projection,
+)
+from ai_statistician.formalizer_llm import (
+    _build_lean_candidate_workspace_tool_prompt,
+    build_formalizer_prompt,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.simulation_engineer_llm import (
@@ -93,6 +98,59 @@ def test_every_theory_consumer_reads_the_same_hash_bound_document(
     assert expected_rows[0]["path"] == "derivations/C1.md"
     assert expected_rows[0]["content"] == content
     assert len(expected_rows[0]["sha256"]) == 64
+
+    formalizer_prompt = build_formalizer_prompt(
+        question=OpenResearchQuestion(
+            id="question:C1",
+            title="Check C1",
+            description="Formalize one file-backed theory claim.",
+        ),
+        theory_packet=packet,
+        simulation_manifest={},
+        algorithm_manifest={},
+        registered_problem={},
+        theorem_goals=[
+            {
+                "id": "C1",
+                "informal_statement": "For every admitted law, E[Z] = 0.",
+            }
+        ],
+    )
+    formalizer_payload = json.loads(
+        formalizer_prompt[formalizer_prompt.index("{") :]
+    )
+    assert formalizer_payload["theory_packet_summary"][
+        "authoritative_theory_documents"
+    ] == expected_rows
+    revision_payload = json.loads(
+        _build_lean_candidate_workspace_tool_prompt(
+            question=OpenResearchQuestion(
+                id="question:C1",
+                title="Check C1",
+                description="Revise one file-backed Lean candidate.",
+            ),
+            theory_packet=packet,
+            parent_packet={
+                "packet_id": "formalizer:C1",
+                "formal_targets": [
+                    {
+                        "id": "C1",
+                        "informal_source": (
+                            "For every admitted law, E[Z] = 0."
+                        ),
+                    }
+                ],
+            },
+            candidate_id="C1",
+            candidate_source_field="lean_source",
+            candidate_lean_declaration="C1",
+            initial_source="theorem C1 : True := by trivial\n",
+            environment_feedback={},
+        )
+    )
+    assert revision_payload["task_bound_theory_context"][
+        "authoritative_theory_documents"
+    ] == expected_rows
 
     semantic = build_theory_semantic_material(
         theory_packet=packet,

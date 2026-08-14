@@ -40,6 +40,7 @@ from .theory_derivation_trace import (
     theory_trace_alignment_contract,
     theory_trace_consumption_contract,
 )
+from .theory_workspace import load_theory_workspace_document_rows
 
 
 FORMALIZER_SCHEMA_VERSION = 1
@@ -926,6 +927,9 @@ def _build_lean_candidate_workspace_tool_prompt(
             "theory_derivation_trace": compact_theory_derivation_trace(
                 theory_packet
             ),
+            "authoritative_theory_documents": (
+                load_theory_workspace_document_rows(theory_packet)
+            ),
             "theory_trace_consumption_contract": (
                 theory_trace_consumption_contract(
                     theory_packet,
@@ -1378,6 +1382,9 @@ def build_formalizer_prompt(
             "theorem_cards": theorem_cards,
             "lemma_cards": lemma_cards,
             "theory_derivation_trace": theory_derivation_trace,
+            "authoritative_theory_documents": (
+                load_theory_workspace_document_rows(theory_packet)
+            ),
             "proof_plan": _compact_value(theory_packet.get("proof_plan", {}) if isinstance(theory_packet, Mapping) else {}),
             "formalization_requests": formalization_requests,
             "omitted_counts": {

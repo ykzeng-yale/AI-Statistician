@@ -27,6 +27,7 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_COMMIT_TOOL,
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
+    THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
     THEORY_WORKSPACE_GAP_TOOL,
     THEORY_WORKSPACE_HANDOFF_ROLE,
     THEORY_WORKSPACE_WRITE_TOOL,
@@ -987,6 +988,151 @@ def test_document_authority_persists_exact_math_and_small_handoff(
     )
     with pytest.raises(ValueError, match="document path mismatch"):
         load_theory_workspace_documents(tampered)
+
+
+def test_document_authority_supports_hash_bound_local_model_edit(tmp_path) -> None:
+    parent = "# Claim C1\n\nFor all n, $a_n = b_n$.\n"
+    revised = "# Claim C1\n\nFor every admitted n, $a_n = b_n$.\n"
+    parent_sha256 = hashlib.sha256(parent.encode("utf-8")).hexdigest()
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="read-current-document",
+                    name="read_theory_workspace",
+                    input={"document_paths": ["derivations/C1.md"]},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="edit-current-document",
+                    name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/C1.md",
+                        "expected_sha256": parent_sha256,
+                        "old_text": "For all n, $a_n = b_n$.",
+                        "new_text": "For every admitted n, $a_n = b_n$.",
+                    },
+                )
+            ),
+            _response(_commit_checkpoint()),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        workspace_dir=tmp_path / "theory",
+        require_document_authority=True,
+        initial_artifacts={
+            "problem_card": {"claim": "revised claim"},
+            "lemma_cards": [{"id": "C1"}],
+        },
+        initial_documents={"derivations/C1.md": parent},
+        build_candidate=lambda artifacts, changed, manifest, changed_documents: {
+            "artifacts": dict(artifacts),
+            "changed": list(changed),
+            "theory_workspace_manifest": dict(manifest),
+            "changed_documents": list(changed_documents),
+        },
+    )
+
+    assert load_theory_workspace_documents(result.core_packet) == {
+        "derivations/C1.md": revised
+    }
+    assert result.evidence["changed_artifact_names"] == []
+    assert result.evidence["changed_document_paths"] == ["derivations/C1.md"]
+    assert result.evidence["model_document_writes"] == [
+        {
+            "submission_index": 0,
+            "operation": "exact_text_replacement",
+            "relative_path": "derivations/C1.md",
+            "parent_sha256": parent_sha256,
+            "old_text_sha256": hashlib.sha256(
+                b"For all n, $a_n = b_n$."
+            ).hexdigest(),
+            "new_text_sha256": hashlib.sha256(
+                b"For every admitted n, $a_n = b_n$."
+            ).hexdigest(),
+            "sha256": hashlib.sha256(revised.encode("utf-8")).hexdigest(),
+            "byte_size": len(revised.encode("utf-8")),
+        }
+    ]
+    tool_names = [tool.name for tool in backend.requests[0].tools]
+    assert THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL in tool_names
+    prompt = str(backend.requests[0].messages[0]["content"])
+    assert "current document SHA-256" in prompt
+    assert "one exact, unique model-selected text span" in prompt
+
+
+def test_local_theory_document_edit_rejects_stale_or_ambiguous_source(
+    tmp_path,
+) -> None:
+    parent = "# Claims\n\nRepeated premise.\n\nRepeated premise.\n"
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="read-ambiguous-document",
+                    name="read_theory_workspace",
+                    input={"document_paths": ["workspace.md"]},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="stale-edit",
+                    name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+                    input={
+                        "path": "workspace.md",
+                        "expected_sha256": "0" * 64,
+                        "old_text": "Repeated premise.",
+                        "new_text": "Revised premise.",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="ambiguous-edit",
+                    name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+                    input={
+                        "path": "workspace.md",
+                        "expected_sha256": hashlib.sha256(
+                            parent.encode("utf-8")
+                        ).hexdigest(),
+                        "old_text": "Repeated premise.",
+                        "new_text": "Revised premise.",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="report-edit-gap",
+                    name=THEORY_WORKSPACE_GAP_TOOL,
+                    input={
+                        "summary": "The requested local edit is not uniquely anchored.",
+                        "blocking_claims": ["repeated-premise"],
+                        "evidence_refs": ["stale-edit", "ambiguous-edit"],
+                        "next_step": "Read and select a unique surrounding span.",
+                    },
+                )
+            ),
+        ]
+    )
+
+    with pytest.raises(TheoryWorkspaceGapError):
+        _run_workspace(
+            backend,
+            workspace_dir=tmp_path / "theory",
+            require_document_authority=True,
+            initial_documents={"workspace.md": parent},
+        )
+
+    stale = json.loads(backend.requests[2].messages[-1]["content"][0]["content"])
+    ambiguous = json.loads(
+        backend.requests[3].messages[-1]["content"][0]["content"]
+    )
+    assert "changed since it was read" in stale["detail"]
+    assert "must occur exactly once" in ambiguous["detail"]
+    assert "found 2" in ambiguous["detail"]
 
 
 def test_document_authority_rejects_handoff_only_checkpoint(tmp_path) -> None:
