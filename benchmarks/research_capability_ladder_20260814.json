@@ -570,13 +570,48 @@
       "id": "model_x_public_paper_to_code_reproduction",
       "level": "L2",
       "family": "conditional_independence",
-      "status": "proposed_pending_disjoint_gold_snapshot",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l2_model_x_gaussian_questions_20260814.json",
+      "source_snapshot_id": "model-x-gaussian-paper-2018-v1",
+      "source_snapshot_hash": "66be34dde48c18695539b3afb33b20e494637d8688c3df0ee6aa87ff1335258d",
+      "source_manifest_sha256": "1e94394d6ac4b4fc42de2452c8bedc7e6935d44e560803202561bd3611aac558",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l2-model-x-gaussian-20260814-v1",
+      "gold_manifest_sha256": "e6129c283fa4a5c68e9a25237140d1a3a4f6f74b24564cfa4d87534ea90d8a8b",
+      "gold_descriptor_hash": "308d8344c0b910010edc0adc81b2320edca1cb7bacddf4d635b1670f6383263b",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "full_task_gold_frozen_before_first_live_run",
+      "activation_evidence": {
+        "visible_questions_sha256": "b7211fac6bb0d40a18341e703f5c31c2072c71439e70630ba4dbc36d0879e57b",
+        "paper_arxiv_archive_sha256": "6faeb59d08a705e6ef7e082b6623b02c9fb45bf225d7ddfbe65d1fef5384e3e5",
+        "paper_tex_sha256": "828de13ffc9fe13a035d8185b5df08174b3a2b575046c36133559aa56db43cad",
+        "author_implementation_commit": "14490c6500bbf8fc5d417c65489f1d97e543f681",
+        "author_implementation_hidden_from_l2_runtime": true,
+        "hidden_theory_harness_sha256": "2b7002dccfc2e94bb14169509521354f99bbc5345717af9fb8c3bb0852bb6bc3",
+        "hidden_algorithm_harness_sha256": "c1bc0b5b56668c90eb5a8e3486edeaf20d61c96aa224b749e85cccdc0726eeff",
+        "hidden_empirical_harness_sha256": "30b8df06ae5cde37bf38bb5ef00e43ee629ca7341846658c9a00bd823aca557b",
+        "reference_estimator_sha256": "479a6ad837b0542c6f0264e8dbbcebcaad14a2f3a53fded950710262919e583e",
+        "algorithm_reference_checks": "7/7",
+        "algorithm_negative_variants_rejected": 4,
+        "empirical_reference_dgps_passed": 3,
+        "empirical_reference_rows_per_dgp": 12000,
+        "semantic_calibration_cases": 10,
+        "semantic_calibration_cases_correct": 10,
+        "semantic_reference_candidate_passed": true,
+        "semantic_calibration_judgment_hash": "f34f75e7b25eea97579af6d6a80b8aa0aebd46b7b6f8895280d96b07619d5089",
+        "hidden_gold_manifest_validated": true,
+        "gold_activated_before_first_runtime_model_call": true,
+        "fresh_live_runs": 0,
+        "full_task_passed": false
+      },
       "task_intent": {
         "source_replication": "not_applicable",
         "theory": "required",
         "scientific_code": "required",
         "empirical": "required",
-        "formal": "not_applicable"
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
       }
     }
   ],
@@ -591,14 +626,14 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 6,
-    "fully_gold_configured_tasks": 6,
+    "active_scored_tasks": 7,
+    "fully_gold_configured_tasks": 7,
     "fully_gold_passed_tasks": 0,
     "runtime_source_replication_components_ready": 1,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
     "latest_diagnostic": "The single Student-t L0 exact-Haiku draw completed the canonical non-formal research loop: runtime ACCEPTED, research_eval 1/1, one authoritative 5,308-byte Markdown derivation, independent preflight, one generated algorithm execution, one generated simulation execution, and terminal Critic acceptance. Hidden algorithm checks passed 7/7 and hidden empirical checks passed 6/6, but hidden theory semantic evaluation failed closed before a verdict, so the frozen full task remains 0/1. The run also showed that the independent referee lacked direct task-bound research-source tools and that one empirical target was expanded into five required gates; both were corrected as shared prompt/tool mechanisms after the run without resampling.",
-    "next_step": "Do not rerun HC0, KM, DoubleML L1, quantile-CLT L0, James-Stein L0, or Student-t for another model draw. Freeze a disjoint known-result or published replication benchmark before its first model call, with evaluator authority for source identity, claim-level theory semantics, code, and empirical behavior as required by task intent. Use the same canonical workspace to test task-bound source-grounded review and minimal confirmatory target granularity; preserve any failure and add no task formulas, repair workers, retries, or budget increases."
+    "next_step": "Do not rerun HC0, KM, DoubleML L1, quantile-CLT L0, James-Stein L0, or Student-t for another model draw. Run at most one fresh exact-Haiku draw of the now-frozen Model-X Gaussian L2 task with the paper-only source snapshot and evaluator-only author code. Preserve the first outcome, then correct only shared workspace, feedback, or evidence mechanisms; add no task formulas, repair workers, retries, or budget increases."
   }
 }

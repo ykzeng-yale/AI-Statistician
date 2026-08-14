@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "model_x_gaussian_knockoff_paper_to_code",
+      "title": "Gaussian Model-X knockoff sampler from a published paper",
+      "description": "Focused L2 paper-to-code evaluation based on Candes, Fan, Janson, and Lv, Panning for Gold: Model-X Knockoffs for High-dimensional Controlled Variable Selection, JRSSB 80(3), 2018. The model-visible source contains the paper; author implementation and gold outcomes are withheld from the runtime. Let the rows of X be iid N_p(mu, Sigma), where Sigma is positive definite. A diagonal matrix D=diag(s) is supplied and satisfies D positive semidefinite and 2 Sigma-D positive semidefinite; selecting or optimizing s is outside this task. In an authoritative Markdown/LaTeX theory workspace, derive the joint Gaussian law of (X, X_tilde), the conditional law of X_tilde given X for general nonzero mu, and invariance under swapping any subset of original/knockoff coordinates. Explain why generating X_tilde without Y gives the required conditional-independence construction, and state the singular conditional-covariance boundary honestly. Do not claim or prove the downstream knockoff-filter FDR theorem. The required algorithm artifact id is est_model_x_gaussian_knockoff. Its run_estimator(request) input has observations as an n-by-p numeric array, mean as a length-p numeric array, covariance as a p-by-p numeric array, diag_s as the p diagonal entries of D, and seed as an integer. It must return knockoffs as an n-by-p finite numeric array, use a local seeded random generator, and support positive-semidefinite conditional covariance including zero eigenvalues. Use exploratory calculations only for diagnosis, then run one separately frozen confirmatory joint-moment assessment of knockoff mean, covariance, original-knockoff cross-covariance, and swap invariance, with Monte Carlo uncertainty or a pre-outcome precision rule reported. This task contains one exchangeability theorem, one sampler ABI, and one joint empirical target. Exact source-code replication, novelty, Lean formalization, and the downstream FDR theorem are not applicable.",
+      "tags": [
+        "conditional independence",
+        "Gaussian knockoffs",
+        "exchangeability",
+        "paper to code",
+        "L2"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "Panning for Gold: Model-X Knockoffs for High-dimensional Controlled Variable Selection",
+        "authors": [
+          "Emmanuel Candes",
+          "Yingying Fan",
+          "Lucas Janson",
+          "Jinchi Lv"
+        ],
+        "venue": "Journal of the Royal Statistical Society: Series B",
+        "year": 2018,
+        "volume": 80,
+        "issue": 3,
+        "pages": "551-577",
+        "doi": "10.1111/rssb.12265",
+        "url": "https://doi.org/10.1111/rssb.12265"
+      }
+    }
+  ]
+}

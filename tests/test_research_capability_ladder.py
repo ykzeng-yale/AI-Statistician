@@ -181,3 +181,49 @@ def test_doubleml_l1_freezes_exact_replication_without_conflating_l2() -> None:
     assert len(candidate["source_snapshot_hash"]) == 64
     assert len(candidate["source_manifest_sha256"]) == 64
     assert len(candidate["gold_manifest_sha256"]) == 64
+
+
+def test_model_x_l2_hides_author_code_and_freezes_gold_before_first_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "model_x_public_paper_to_code_reproduction"
+    )
+
+    assert candidate["level"] == "L2"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "full_task_gold_frozen_before_first_live_run"
+    )
+    evidence = candidate["activation_evidence"]
+    assert evidence["author_implementation_hidden_from_l2_runtime"] is True
+    assert evidence["gold_activated_before_first_runtime_model_call"] is True
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["semantic_calibration_cases"] == 10
+    assert evidence["semantic_calibration_cases_correct"] == 10
+    assert evidence["algorithm_reference_checks"] == "7/7"
+    assert evidence["algorithm_negative_variants_rejected"] == 4
+    assert evidence["full_task_passed"] is False
+    assert candidate["task_intent"] == {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+    assert len(candidate["source_snapshot_hash"]) == 64
+    assert len(candidate["source_manifest_sha256"]) == 64
+    assert len(candidate["gold_manifest_sha256"]) == 64
+    visible_path = Path(candidate["visible_questions_path"])
+    assert visible_path.is_file()
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert "author implementation and gold outcomes are withheld" in question[
+        "description"
+    ]
+    assert "downstream knockoff-filter FDR theorem" in question["description"]
