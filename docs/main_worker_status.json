@@ -221,7 +221,7 @@
       "the research-capability ladder now has three active focused tasks but still lacks a passing paper replication or hidden rederivation task; repeated bundled S13 runs cannot substitute for this diagnostic ladder",
       "the active Lean foundation pins Statlib 6575d611 on Lean 4.30, while fetched Statlib origin/main 01d2a03 adds EVariable and DPI foundations on Lean 4.33. The active importable corpus and latest upstream discovery corpus must retain distinct snapshot identities until a deliberate compatibility migration succeeds",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
-      "research_agent_runtime.py remains large at 24116 lines and must shrink before adding another outer control feature"
+      "research_agent_runtime.py remains large at 24418 lines and must shrink before adding another outer control feature"
     ],
     "wrong_next_move": "Do not add a repair worker, packet patcher, theorem-specific bridge, Lean grammar fixer, forced tactic policy, hardcoded statistical answer, fixed universal simulation count, more outer budget, or another scheduler."
   },
