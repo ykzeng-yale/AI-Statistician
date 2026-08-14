@@ -293,13 +293,39 @@
       "id": "double_machine_learning_public_replication",
       "level": "L1",
       "family": "causal_semiparametric",
-      "status": "proposed_pending_source_snapshot",
+      "status": "proposed_pending_runtime_replication_lane",
+      "visible_questions_path": "benchmarks/research_l1_doubleml_replication_questions_20260814.json",
+      "source_authority": "operator_provisioned_hash_bound_model_visible_snapshot",
+      "source_snapshot_id": "doubleml-jmlr-2022-public-replication-v1",
+      "source_snapshot_hash": "bac6de93fe5c353605a17e03523317b992f61be5d894302302086ae360ba2a57",
+      "source_manifest_sha256": "1106476e77a6cc47b1984812d7b13960900c69d835b21ee93e3b0871617c6582",
+      "source_repository_commit": "fdc548fe9b2ec5d54e67f6f3748a6c9198230bc0",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l1-doubleml-jmlr-2022-v1",
+      "gold_manifest_sha256": "c73de03c1a86295a205a3585a033f7e5b35de8f5950dc2f04ec75a6e6125e932",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "source_and_hidden_replication_evaluator_frozen_runtime_lane_missing",
+      "activation_evidence": {
+        "visible_questions_sha256": "e8412c71ce9f56f594a228d7ac428f119eaf5e3460104006928c77b50b13194e",
+        "source_snapshot_documents": 10,
+        "source_entrypoint_sha256": "a9abd267de94779e45aa8a5a347fd3fb469470648ced10f55959e36cc593fd5d",
+        "environment_lock_sha256": "911460a11119a1a7eba7213c6ca0fd3a0fac683ca4308cbba82a1e109cc72bbd",
+        "independent_rerun_sha256": "d0d2706d8c88c78673320e8f7d398878a1b5f0fc449f15a0a08d4f30b588c6ca",
+        "hidden_source_replication_harness_sha256": "73d8f3081a021dc5af3eaf1f106b2493cec488ffaa0803d6e36d0cc9e01427ec",
+        "source_replication_calibration_cases": "6/6",
+        "negative_variants_rejected": 5,
+        "fresh_live_runs": 0,
+        "runtime_source_replication_lane_available": false,
+        "full_task_passed": false
+      },
       "task_intent": {
         "source_replication": "required",
-        "theory": "required",
-        "scientific_code": "required",
-        "empirical": "required",
-        "formal": "not_applicable"
+        "theory": "optional",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
       }
     },
     {
@@ -330,8 +356,9 @@
     "active_scored_tasks": 2,
     "fully_gold_configured_tasks": 2,
     "fully_gold_passed_tasks": 0,
+    "frozen_source_replication_components_pending_runtime": 1,
     "candidate_queue_is_capability_evidence": false,
     "latest_diagnostic": "Frozen exact-Haiku KM/Greenwood v2 remains a failed full task. Its accepted implementation passed all hidden algorithm and empirical checks, but theory contains substantive mathematical errors. A claim-anchored semantic judge classified only 4/5 hidden calibration cases correctly and false-accepted the bad candidate, so calibration failed closed. The corrected completion contract also rejects the historical terminal packet because a Critic manifest cannot bypass exact preflight or substitute for an explicit evidence-bound scientific disposition.",
-    "next_step": "Do not resample HC0 or KM for another draw and do not promote an ensemble or repeated uncalibrated Haiku judgments to theory authority. Improve source-grounded long-horizon theory development and referee reasoning, test the unchanged mechanism on an unrelated known result, and begin a pinned published replication with paper, code, data, environment, and outputs fixed before execution."
+    "next_step": "Do not resample HC0 or KM for another draw and do not promote an ensemble or repeated uncalibrated Haiku judgments to theory authority. The DoubleML L1 paper, code, environment, independent rerun, and hidden source-replication evaluator are frozen. Implement one generic immutable author-source execution lane and hidden source-replication dimension before any live L1 model call; keep later reimplementation and empirical validation in L2 rather than conflating them with exact replication."
   }
 }

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "double_machine_learning_public_replication",
+      "title": "Exact replication of the published DoubleML IRM example",
+      "description": "L1 exact published-replication task based on Bach, Chernozhukov, Kurz, and Spindler, JMLR 23(53):1-6, 2022, and the public DoubleML Python repository at tag 0.4.1, commit fdc548fe9b2ec5d54e67f6f3748a6c9198230bc0. Use the operator-supplied hash-bound research source snapshot. Before editing or reimplementing any scientific source, inspect the paper, published example, repository metadata, and environment lock, then rerun the exact immutable published_example.py under that frozen environment. Record the source snapshot and manifest identities, repository commit, entrypoint hash, environment-lock hash, Python and package versions, raw stdout hash, parsed coefficient, standard error, t statistic, p value, and confidence interval. Compare the rerun with the paper's displayed coefficient 0.5161 and standard error 0.0750, reporting numeric differences and any reproducibility caveat caused by the upstream release's unpinned dependencies. Do not count a rewritten script, copied expected number, source mutation, or a run under an unrecorded environment as exact replication. Briefly explain the IRM average-treatment-effect target and why nuisance learning/cross-fitting belongs to DoubleML, but no new theorem, model-authored estimator, confirmatory simulation, novelty claim, or Lean formalization is required at L1. Report unresolved environment or source-identity gaps honestly.",
+      "tags": [
+        "causal inference",
+        "double machine learning",
+        "interactive regression model",
+        "source replication",
+        "reproducibility",
+        "L1"
+      ],
+      "source": {
+        "paper_title": "DoubleML - An Object-Oriented Implementation of Double Machine Learning in Python",
+        "authors": [
+          "Philipp Bach",
+          "Victor Chernozhukov",
+          "Malte S. Kurz",
+          "Martin Spindler"
+        ],
+        "journal": "Journal of Machine Learning Research",
+        "year": 2022,
+        "volume": 23,
+        "issue": 53,
+        "pages": "1-6",
+        "paper_url": "https://www.jmlr.org/papers/v23/21-0862.html",
+        "arxiv_id": "2104.03220",
+        "repository": "https://github.com/DoubleML/doubleml-for-py",
+        "repository_tag": "0.4.1",
+        "repository_commit": "fdc548fe9b2ec5d54e67f6f3748a6c9198230bc0",
+        "research_source_snapshot_id": "doubleml-jmlr-2022-public-replication-v1",
+        "research_source_snapshot_hash": "bac6de93fe5c353605a17e03523317b992f61be5d894302302086ae360ba2a57",
+        "research_source_manifest_sha256": "1106476e77a6cc47b1984812d7b13960900c69d835b21ee93e3b0871617c6582"
+      }
+    }
+  ]
+}

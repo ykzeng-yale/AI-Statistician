@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -92,3 +93,36 @@ def test_ladder_live_evaluation_policy_is_exact_haiku() -> None:
     assert model_policy["sonnet_live_calls_allowed"] is False
     assert model_policy["opus_live_calls_allowed"] is False
     assert model_policy["automatic_tier_escalation_allowed"] is False
+
+
+def test_doubleml_l1_freezes_exact_replication_without_conflating_l2() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "double_machine_learning_public_replication"
+    )
+
+    assert candidate["level"] == "L1"
+    assert candidate["status"] == "proposed_pending_runtime_replication_lane"
+    assert candidate["activation_evidence"]["fresh_live_runs"] == 0
+    assert candidate["activation_evidence"][
+        "runtime_source_replication_lane_available"
+    ] is False
+    assert candidate["task_intent"] == {
+        "source_replication": "required",
+        "theory": "optional",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+    visible_path = Path(candidate["visible_questions_path"])
+    assert visible_path.is_file()
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        candidate["activation_evidence"]["visible_questions_sha256"]
+    )
+    assert len(candidate["source_snapshot_hash"]) == 64
+    assert len(candidate["source_manifest_sha256"]) == 64
+    assert len(candidate["gold_manifest_sha256"]) == 64
