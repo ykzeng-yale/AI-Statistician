@@ -1764,8 +1764,23 @@ def test_lean_candidate_prompt_leaves_current_workspace_state_to_snapshot() -> N
         initial_source=initial_source,
         environment_feedback={
             "feedback_type": "formal_target_semantic_review_feedback",
-            "overall_verdict": "ACCEPT",
+            "overall_verdict": "REVISE",
             "candidate_id": "target-candidate",
+            "semantic_review_execution_id": "semantic-execution:exact",
+            "semantic_review_packet_id": "semantic-packet:exact",
+            "semantic_review_packet_hash": "semantic-packet-hash",
+            "findings": [
+                {
+                    "severity": "high",
+                    "category": "mathematical_target_drift",
+                    "summary": "The theorem proves only a weaker claim.",
+                    "observed_behavior": (
+                        "The conclusion hides the target formula."
+                    ),
+                    "expected_behavior": "State and prove the exact target formula.",
+                    "evidence_refs": ["/exact_formal_target"],
+                }
+            ],
             "formalizer_workspace_context": {
                 "target_lean_declaration": "target",
                 "target_theorem_statement": "theorem target : True",
@@ -1846,6 +1861,23 @@ def test_lean_candidate_prompt_leaves_current_workspace_state_to_snapshot() -> N
         "expected_status": "NEEDS_KERNEL_CHECK",
     }
     feedback = payload["runtime_observations"]
+    assert feedback["overall_verdict"] == "REVISE"
+    assert feedback["semantic_review"] == {
+        "dimension_reviews": [],
+        "findings": [
+            {
+                "severity": "high",
+                "category": "mathematical_target_drift",
+                "summary": "The theorem proves only a weaker claim.",
+                "observed_behavior": "The conclusion hides the target formula.",
+                "expected_behavior": "State and prove the exact target formula.",
+                "evidence_refs": ["/exact_formal_target"],
+            }
+        ],
+        "semantic_review_execution_id": "semantic-execution:exact",
+        "semantic_review_packet_id": "semantic-packet:exact",
+        "semantic_review_packet_hash": "semantic-packet-hash",
+    }
     context = feedback["target_and_environment_observations"]
     assert context["target_theorem_statement"] == "theorem target : True"
     assert "proof_state_trace_rag" not in context

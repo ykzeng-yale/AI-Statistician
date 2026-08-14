@@ -936,6 +936,9 @@ def retrieve_problem_knowledge(
     Lean Finder/ReProver plug in as providers later.
     """
 
+    if k <= 0:
+        return []
+
     seeded_ids: list[str] = []
     primary = PRIMARY_KNOWLEDGE_BY_PROBLEM_CLASS.get(problem.problem_class)
     if primary:
@@ -945,7 +948,7 @@ def retrieve_problem_knowledge(
         " ".join([goal.title, goal.informal_statement, goal.proof_strategy, goal.status])
         for goal in theorem_goals
     )
-    scored = retrieve_research_knowledge(
+    domain_scored = retrieve_research_knowledge(
         " ".join(
             [
                 question.title,
@@ -956,20 +959,41 @@ def retrieve_problem_knowledge(
                 " ".join(problem.assumptions),
                 problem.asymptotic_regime,
                 goal_text,
-                "Lean Mathlib StatInference formal proof retrieval premise selection",
             ]
         ),
-        tags=question.tags + (problem.problem_class, "lean", "mathlib", "statinference", "retrieval"),
+        tags=question.tags + (problem.problem_class,),
         k=len(KNOWLEDGE_CARDS),
     )
-    # Guarantee the audit-critical formalization substrate appears even when
-    # domain-specific method cards score highly and the trace keeps only k cards.
-    seeded_ids.extend(FORMAL_INFRASTRUCTURE_KNOWLEDGE)
-    seeded_ids.extend(card.id for card in scored)
+    formal_ids = set(FORMAL_INFRASTRUCTURE_KNOWLEDGE)
+    domain_cards = [
+        card for card in domain_scored if card.id not in formal_ids
+    ]
+    question_tags = set(question.tags)
+    domain_cards = [
+        *[card for card in domain_cards if question_tags.intersection(card.tags)],
+        *[card for card in domain_cards if not question_tags.intersection(card.tags)],
+    ]
+    domain_candidates = [
+        card.id for card in domain_cards
+    ]
+    seeded_ids.extend(domain_candidates)
+
+    # Interleave statistical material with the formalization substrate. Architect
+    # may intentionally use a generic problem-class label, so either channel can
+    # otherwise consume the entire bounded retrieval window before the model sees
+    # the other one.
+    domain_ids = list(dict.fromkeys(seeded_ids))
+    formal_candidates = list(FORMAL_INFRASTRUCTURE_KNOWLEDGE)
+    candidate_ids: list[str] = []
+    for index in range(max(len(domain_ids), len(formal_candidates))):
+        if index < len(domain_ids):
+            candidate_ids.append(domain_ids[index])
+        if index < len(formal_candidates):
+            candidate_ids.append(formal_candidates[index])
 
     out: list[KnowledgeCard] = []
     seen: set[str] = set()
-    for card_id in seeded_ids:
+    for card_id in candidate_ids:
         if card_id in seen:
             continue
         try:
