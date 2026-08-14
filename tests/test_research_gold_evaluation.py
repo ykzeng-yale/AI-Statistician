@@ -956,6 +956,57 @@ def test_full_task_pass_requires_hidden_theory_code_and_empirical_checks(
     assert all(not path.exists() for path in sandbox_paths)
 
 
+def test_theory_only_full_task_counts_hidden_theory_evaluation(
+    tmp_path: Path,
+) -> None:
+    path = _full_task_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text())
+    task = manifest["active_tasks"][0]
+    task.pop("hidden_algorithm_evaluator", None)
+    task.pop("hidden_empirical_evaluator", None)
+    task["task_intent"] = {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = evaluate_research_gold_benchmark(
+        [
+            _runtime_result_with_accepted_theory(
+                document_workspace=tmp_path / "theory-workspace"
+            )
+        ],
+        research_evaluation_summary=_research_summary(),
+        benchmark_manifest_path=path,
+        out_dir=tmp_path / "out",
+        run_artifact_harness=_passing_artifact_harness,
+    )
+
+    assert result["n_tasks_evaluated"] == 1
+    assert result["n_tasks_passed"] == 1
+    evaluated = result["tasks"][0]
+    assert evaluated["hidden_theory_execution_attempted"] is True
+    assert evaluated["dimension_status"]["theory"]["status"] == "passed"
+    for dimension in (
+        "source_replication",
+        "scientific_code",
+        "empirical",
+        "formal",
+        "novelty",
+    ):
+        assert evaluated["dimension_status"][dimension] == {
+            "requirement": "not_applicable",
+            "status": "not_applicable",
+            "gold_validated": False,
+            "evidence_authority": "not_configured",
+        }
+
+
 def test_hidden_theory_evaluator_receives_hash_verified_documents(
     tmp_path: Path,
 ) -> None:

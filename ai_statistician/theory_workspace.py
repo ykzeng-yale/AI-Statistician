@@ -37,6 +37,7 @@ from .structured_output_retry import PacketValidationError
 THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
 THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "model_owned_documents_and_handoff_v1"
 THEORY_WORKSPACE_WRITE_TOOL = "write_theory_workspace"
+THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL = "write_theory_document"
 THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL = "edit_theory_document"
 THEORY_WORKSPACE_READ_DOCUMENT_TOOL = "read_theory_document"
 THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL = "search_theory_documents"
@@ -704,6 +705,27 @@ def run_theory_artifact_workspace(
                 + str(manifest.get("manifest_hash", "") or stable_hash(manifest)),
             )
 
+        if call.name == THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL:
+            if not require_document_authority:
+                raise ClientToolInputError(
+                    "write_theory_document is unavailable"
+                )
+            if state["submissions"] >= max_submissions:
+                raise ClientToolInputError(
+                    "theory workspace submission budget is exhausted"
+                )
+            candidate_documents, document_write_records = (
+                _replace_theory_workspace_documents(
+                    state["documents"],
+                    [tool_input],
+                )
+            )
+            return evaluate_model_write(
+                state["artifacts"],
+                candidate_documents,
+                document_writes=document_write_records,
+            )
+
         if call.name == THEORY_WORKSPACE_WRITE_TOOL:
             if state["submissions"] >= max_submissions:
                 raise ClientToolInputError(
@@ -1187,15 +1209,25 @@ def run_theory_artifact_workspace(
         for row in document_manifest(state["documents"]).get("documents", [])
     }
     write_guidance = (
-        "Use write_theory_workspace to author Markdown/LaTeX documents and the small "
-        "structured cross-agent handoff in one atomic call when practical. The text "
-        "documents are the authority for definitions, derivations, equations, "
-        "counterexamples, and unresolved reasoning; JSON artifacts are only an index, "
-        "typed estimator/simulation ABI, and optional formal handoff. Omitted files and "
-        "artifacts remain byte-identical. The runtime stores your exact text and values "
-        "without merging or inventing content. A structurally valid write is retained "
-        "and returned to you, but it does not end the workspace or assert scientific "
-        "readiness. "
+        (
+            "Use write_theory_document(path, content) to write one complete "
+            "Markdown/LaTeX document or BibTeX file, and use "
+            "write_theory_workspace only for the small structured cross-agent "
+            "index or executable ABI. The text documents are the authority for "
+            "definitions, derivations, equations, counterexamples, and unresolved "
+            "reasoning; JSON artifacts are not the mathematical content. "
+        )
+        if require_document_authority
+        else (
+            "Use write_theory_workspace to write complete model-owned structured "
+            "artifacts. Authoritative Markdown/LaTeX documents are unavailable in "
+            "this compatibility workspace. "
+        )
+    ) + (
+        "Omitted files and artifacts remain byte-identical. The runtime stores your "
+        "exact text and values without merging or inventing content. A structurally "
+        "valid write is retained and returned to you, but it does not end the "
+        "workspace or assert scientific readiness. "
     )
     document_inspection_guidance = (
         "For long or multi-file mathematics, use search_theory_documents to locate "
@@ -1971,24 +2003,54 @@ def _theory_workspace_tools(
                 input_schema=scratch_schema,
             )
         )
+    if document_authority_enabled:
+        tools.append(
+            ClientToolDefinition(
+                name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                description=(
+                    "Write one complete model-authored Markdown, LaTeX, or BibTeX "
+                    "document. The exact text becomes the authoritative mathematical "
+                    "workspace; runtime validates the path and bytes but never edits "
+                    "or interprets the mathematics."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["path", "content"],
+                    "properties": {
+                        "path": {"type": "string", "minLength": 1},
+                        "content": {"type": "string", "minLength": 1},
+                    },
+                },
+                strict=True,
+                terminal=False,
+            )
+        )
     tools.append(
         ClientToolDefinition(
             name=THEORY_WORKSPACE_WRITE_TOOL,
             description=(
-                "Atomically write model-authored Markdown/LaTeX mathematics and the "
-                "structured cross-agent handoff. Text documents hold substantive "
-                "reasoning; JSON values are only an index and executable ABI. Omitted "
-                "material is retained exactly, and runtime never merges or infers "
-                "content. A valid write remains available for further model-directed "
-                "work and does not itself commit the checkpoint."
+                (
+                    "Write one or more complete structured cross-agent handoff "
+                    "values. These JSON values are only a claim index or executable "
+                    "ABI; put all substantive mathematics in "
+                    "write_theory_document. "
+                )
+                if document_authority_enabled
+                else "Write one or more complete model-owned structured artifacts. "
+            )
+            + (
+                "Omitted values are retained exactly, and runtime never merges or "
+                "infers content."
             ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
+                "required": ["writes"],
                 "properties": {
                     "writes": {
                         "type": "array",
-                        **({} if document_authority_enabled else {"minItems": 1}),
+                        "minItems": 1,
                         "maxItems": len(writable_artifact_shapes),
                         "items": {
                             "type": "object",
@@ -2008,33 +2070,7 @@ def _theory_workspace_tools(
                             },
                         },
                     },
-                    **(
-                        {
-                            "document_writes": {
-                                "type": "array",
-                                "minItems": 1,
-                                "items": {
-                                    "type": "object",
-                                    "additionalProperties": False,
-                                    "required": ["path", "content"],
-                                    "properties": {
-                                        "path": {
-                                            "type": "string",
-                                            "minLength": 1,
-                                        },
-                                        "content": {
-                                            "type": "string",
-                                            "minLength": 1,
-                                        },
-                                    },
-                                },
-                            }
-                        }
-                        if document_authority_enabled
-                        else {}
-                    ),
                 },
-                **({} if document_authority_enabled else {"required": ["writes"]}),
             },
             terminal=False,
         )

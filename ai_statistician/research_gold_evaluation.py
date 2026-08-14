@@ -133,7 +133,18 @@ def evaluate_research_gold_benchmark(
         "gold_visibility": "evaluator_only_after_runtime_termination",
         "n_active_tasks": len(task_rows),
         "n_tasks_evaluated": sum(
-            row["hidden_harness_execution_attempted"] is True for row in task_rows
+            any(
+                row.get(field) is True
+                for field in (
+                    "hidden_harness_execution_attempted",
+                    "hidden_theory_execution_attempted",
+                    "hidden_theory_semantic_execution_attempted",
+                    "hidden_empirical_execution_attempted",
+                    "hidden_source_replication_execution_attempted",
+                    "hidden_source_report_semantic_execution_attempted",
+                )
+            )
+            for row in task_rows
         ),
         "n_tasks_passed": sum(row["task_passed"] is True for row in task_rows),
         "n_full_task_gold_configured": sum(
@@ -1045,27 +1056,31 @@ def _dimension_status(
                     or (dimension == "empirical" and hidden_empirical_passed)
                 )
             ),
-            "evidence_authority": {
-                "theory": (
-                    "evaluator_only_hidden_artifact_harness"
-                    if hidden_theory_passed
-                    else "runtime_independent_review"
-                ),
-                "scientific_code": "evaluator_only_hidden_harness",
-                "empirical": (
-                    "evaluator_only_hidden_empirical_harness"
-                    if hidden_empirical_passed
-                    else "runtime_confirmatory_protocol"
-                ),
-                "source_replication": (
-                    "evaluator_only_hidden_source_replication_harness"
-                ),
-                "unresolved_gaps": (
-                    "source_replication_checkpoint"
-                    if source_replication_gap_disclosure_present
-                    else "runtime_critic_disclosure"
-                ),
-            }.get(dimension, "not_configured"),
+            "evidence_authority": (
+                "not_configured"
+                if requirement == "not_applicable"
+                else {
+                    "theory": (
+                        "evaluator_only_hidden_artifact_harness"
+                        if hidden_theory_passed
+                        else "runtime_independent_review"
+                    ),
+                    "scientific_code": "evaluator_only_hidden_harness",
+                    "empirical": (
+                        "evaluator_only_hidden_empirical_harness"
+                        if hidden_empirical_passed
+                        else "runtime_confirmatory_protocol"
+                    ),
+                    "source_replication": (
+                        "evaluator_only_hidden_source_replication_harness"
+                    ),
+                    "unresolved_gaps": (
+                        "source_replication_checkpoint"
+                        if source_replication_gap_disclosure_present
+                        else "runtime_critic_disclosure"
+                    ),
+                }.get(dimension, "not_configured")
+            ),
         }
     overall_requirement = (
         "required"

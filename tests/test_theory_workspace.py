@@ -36,6 +36,7 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_HANDOFF_ROLE,
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+    THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
     THEORY_WORKSPACE_WRITE_TOOL,
     TheoryScratchpadConfig,
     TheoryWorkspaceGapError,
@@ -816,7 +817,7 @@ def test_targeted_revision_uses_atomic_model_owned_artifact_writes() -> None:
     ]
     prompt = str(backend.requests[0].messages[0]["content"])
     assert "Markdown/LaTeX documents" in prompt
-    assert "JSON artifacts are only an index" in prompt
+    assert "compatibility workspace" in prompt
     assert "without merging or inventing content" in prompt
     write_tool = next(
         tool
@@ -1195,22 +1196,24 @@ def test_document_authority_persists_exact_math_and_small_handoff(
         [
             _response(
                 ClientToolCall(
-                    call_id="write-document-and-index",
-                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    call_id="write-authoritative-document",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
                     input={
-                        **_artifact_writes(
-                            {
-                                "problem_card": {"claim": "revised claim"},
-                                "lemma_cards": [{"id": "C1"}],
-                            }
-                        ),
-                        "document_writes": [
-                            {
-                                "path": "derivations/C1.md",
-                                "content": markdown,
-                            }
-                        ],
+                        "path": "derivations/C1.md",
+                        "content": markdown,
                     },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-document-index",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "C1"}],
+                        }
+                    ),
                 )
             ),
             _response(_commit_checkpoint()),
@@ -1239,8 +1242,16 @@ def test_document_authority_persists_exact_math_and_small_handoff(
         for tool in backend.requests[0].tools
         if tool.name == THEORY_WORKSPACE_WRITE_TOOL
     )
+    document_tool = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL
+    )
     assert not {"oneOf", "allOf", "anyOf"}.intersection(write_schema)
-    assert "required" not in write_schema
+    assert write_schema["required"] == ["writes"]
+    assert "document_writes" not in write_schema["properties"]
+    assert document_tool.strict is True
+    assert document_tool.input_schema["required"] == ["path", "content"]
     assert theory_workspace_manifest_errors(result.core_packet, required=True) == []
     assert load_theory_workspace_documents(result.core_packet) == {
         "derivations/C1.md": markdown
