@@ -5692,7 +5692,8 @@ class TheoryDeveloperRuntimeSubsystem:
         theory_derivation_contract = dict(
             packet.get("theory_derivation_contract", {}) or {}
         )
-        raw_theory_workspace = packet.get("llm_client_tool_loop", {})
+        packet = dict(packet)
+        raw_theory_workspace = packet.pop("llm_client_tool_loop", {})
         source_replication_artifacts, source_replication_refs = (
             _source_replication_artifacts_from_theory_workspace(
                 raw_theory_workspace,
@@ -5848,6 +5849,28 @@ class TheoryDeveloperRuntimeSubsystem:
                     "simulation descendants."
                 ),
                 inputs=simulation_inputs,
+            )
+        theory_workspace_artifacts: dict[str, dict[str, Any]] = {}
+        if isinstance(raw_theory_workspace, Mapping) and raw_theory_workspace:
+            workspace_artifact = deepcopy(dict(raw_theory_workspace))
+            workspace_artifact_id = str(
+                workspace_artifact.get("artifact_id", "") or ""
+            ).strip()
+            if not workspace_artifact_id:
+                workspace_artifact_id = (
+                    "theory_workspace_evidence:"
+                    + stable_hash(workspace_artifact)[:20]
+                )
+                workspace_artifact["artifact_id"] = workspace_artifact_id
+            workspace_artifact["runtime_source_theory_packet_id"] = packet_id
+            workspace_artifact["runtime_source_theory_packet_hash"] = (
+                stable_hash(packet)
+            )
+            workspace_artifact["runtime_storage_role"] = (
+                "SEPARATE_WORKSPACE_EVIDENCE_NOT_THEORY_CONTENT"
+            )
+            theory_workspace_artifacts[workspace_artifact_id] = (
+                workspace_artifact
             )
         current_theory_material = build_theory_informed_metric_protocol_material(
             theory_packet=packet,
@@ -6101,6 +6124,7 @@ class TheoryDeveloperRuntimeSubsystem:
             ),
             produced_artifacts={
                 packet_id: packet,
+                **theory_workspace_artifacts,
                 **source_replication_artifacts,
                 **theory_material_artifacts,
                 **architect_route_artifacts,

@@ -10,6 +10,7 @@ from ai_statistician.critic_evaluator_llm import (
     build_critic_evaluator_prompt,
     validate_critic_evaluator_packet,
 )
+from ai_statistician.fingerprint import stable_hash
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.research_source_library import load_research_source_snapshot
 from ai_statistician.theory_workspace import theory_workspace_document_manifest
@@ -337,6 +338,37 @@ def test_canonical_evidence_view_hydrates_authoritative_theory_documents(
         "unresolved_cited_ref_count": 0,
         "source_text_persisted": False,
     }
+
+    detached_packet = deepcopy(packet)
+    detached_workspace = detached_packet.pop("llm_client_tool_loop")
+    detached_workspace.update(
+        {
+            "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+            "artifact_id": "theory-workspace-evidence:file-backed",
+            "runtime_source_theory_packet_id": detached_packet["packet_id"],
+            "runtime_source_theory_packet_hash": stable_hash(detached_packet),
+        }
+    )
+    detached_view = build_critic_canonical_evidence_view(
+        question_id="generic",
+        theory_packet=detached_packet,
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        artifacts={
+            detached_packet["packet_id"]: detached_packet,
+            detached_workspace["artifact_id"]: detached_workspace,
+        },
+        formal_verification_policy="optional",
+        research_sources=research_sources,
+    )
+    assert detached_view["theory"]["research_source_grounding"][
+        "cited_source_observations"
+    ] == cited_sources
+    assert detached_view["theory"]["research_source_grounding"][
+        "workspace_evidence"
+    ]["artifact_id"] == detached_workspace["artifact_id"]
+
     prompt = build_critic_evaluator_prompt(
         question=OpenResearchQuestion(
             id="generic",

@@ -90,8 +90,8 @@ def build_theory_semantic_material(
         "boundary": (
             "This is an immutable projection of the current substantive state of one "
             "TheoryDeveloper proposal. Provider transport, tool history, prior drafts, "
-            "and runtime telemetry remain in the source packet and are not semantic "
-            "review inputs. This contains no execution result, acceptance decision, "
-            "or kernel proof."
+            "and runtime telemetry are separate evidence artifacts and are not semantic "
+            "review inputs. This contains no execution result, acceptance decision, or "
+            "kernel proof."
         ),
     }

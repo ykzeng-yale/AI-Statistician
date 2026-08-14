@@ -624,6 +624,90 @@ def test_source_only_checkpoint_ends_runtime_without_fixed_pipeline_handoff() ->
     )
 
 
+def test_runtime_stores_theory_tool_history_as_separate_evidence() -> None:
+    question = OpenResearchQuestion(
+        id="detached-theory-evidence",
+        title="Detached theory evidence",
+        description="Keep mathematical content separate from tool history.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+    packet_id = "theory_derivation:detached"
+    workspace_id = "theory_workspace:detached"
+    packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": packet_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_derivation_contract": {},
+        "theory_derivation_packet": {},
+        "estimator_specs": [],
+        "theorem_cards": [],
+        "formalization_requests": [],
+        "llm_client_tool_loop": {
+            "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+            "artifact_id": workspace_id,
+            "workspace_id": workspace_id,
+            "workspace_operation": "initial_discovery",
+            "accepted": True,
+            "model_owned_theory": True,
+            "runtime_edited_theory": False,
+            "history": [{"large_transport_payload": "x" * 2000}],
+        },
+    }
+
+    class StaticTheoryDeveloper:
+        config = None
+        provider = None
+        research_source_execution = None
+
+        def derive(self, *_args, **_kwargs):
+            return packet
+
+    result = runtime_module.TheoryDeveloperRuntimeSubsystem(
+        theory_developer=StaticTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=10,
+        seed=17,
+    ).run(
+        AgentTask(
+            task_id="theory:detached-theory-evidence",
+            owner_subsystem="TheoryDeveloper",
+            objective="Author theory.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {
+                    "runtime_requested_evidence_contract": (
+                        runtime_module._runtime_requested_evidence_contract(
+                            formal_verification_policy="optional",
+                            evaluation_mode="research_eval",
+                            task_intent=question.task_intent,
+                        )
+                    )
+                },
+            },
+        ),
+        BlackboardState(project_id=question.id),
+    )
+
+    stored_packet = result.produced_artifacts[packet_id]
+    stored_workspace = result.produced_artifacts[workspace_id]
+    assert "llm_client_tool_loop" not in stored_packet
+    assert "large_transport_payload" not in str(stored_packet)
+    assert stored_workspace["history"][0]["large_transport_payload"] == (
+        "x" * 2000
+    )
+    assert stored_workspace["runtime_source_theory_packet_id"] == packet_id
+    assert stored_workspace["runtime_source_theory_packet_hash"] == (
+        runtime_module.stable_hash(stored_packet)
+    )
+    assert stored_workspace["runtime_storage_role"] == (
+        "SEPARATE_WORKSPACE_EVIDENCE_NOT_THEORY_CONTENT"
+    )
+
+
 def test_architect_source_escalation_requires_independent_semantic_conflict() -> None:
     question = OpenResearchQuestion(
         id="reject-routine-architect-routing",

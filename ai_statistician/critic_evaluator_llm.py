@@ -597,6 +597,33 @@ def _artifact_identity(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _critic_theory_workspace_evidence(
+    *,
+    theory_packet: Mapping[str, Any],
+    theory_packet_id: str,
+    artifacts: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Resolve transport evidence without embedding it in theory content."""
+
+    theory_packet_hash = stable_hash(dict(theory_packet))
+    candidates = [
+        dict(artifact)
+        for artifact in artifacts.values()
+        if isinstance(artifact, Mapping)
+        and artifact.get("artifact_kind") == "TheoryDeveloperWorkspaceEvidence"
+        and artifact.get("runtime_source_theory_packet_id") == theory_packet_id
+        and artifact.get("runtime_source_theory_packet_hash")
+        == theory_packet_hash
+    ]
+    if candidates:
+        return min(
+            candidates,
+            key=lambda row: str(row.get("artifact_id", "") or ""),
+        )
+    embedded = theory_packet.get("llm_client_tool_loop", {})
+    return dict(embedded) if isinstance(embedded, Mapping) else {}
+
+
 def build_critic_canonical_evidence_view(
     *,
     question_id: str,
@@ -646,9 +673,11 @@ def build_critic_canonical_evidence_view(
         )
     except (OSError, UnicodeError, ValueError) as exc:
         document_load_error = type(exc).__name__
-    theory_workspace_evidence = theory_packet.get("llm_client_tool_loop", {})
-    if not isinstance(theory_workspace_evidence, Mapping):
-        theory_workspace_evidence = {}
+    theory_workspace_evidence = _critic_theory_workspace_evidence(
+        theory_packet=theory_packet,
+        theory_packet_id=theory_packet_id,
+        artifacts=artifacts,
+    )
     source_search_refs = theory_workspace_evidence.get("source_search_refs", [])
     source_read_refs = theory_workspace_evidence.get("source_read_refs", [])
     cited_source_observations = _critic_cited_source_observations(
@@ -704,6 +733,9 @@ def build_critic_canonical_evidence_view(
         "authoritative_documents": authoritative_documents,
         "authoritative_document_load_error": document_load_error,
         "research_source_grounding": {
+            "workspace_evidence": _artifact_identity(
+                theory_workspace_evidence
+            ),
             "snapshot": source_snapshot,
             "search_refs": deepcopy(source_search_refs)
             if isinstance(source_search_refs, list)

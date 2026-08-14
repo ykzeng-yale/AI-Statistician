@@ -50,9 +50,10 @@ def build_theory_informed_metric_protocol_material(
         ),
         "boundary": (
             "This is a current-state semantic handoff from a TheoryDeveloper proposal "
-            "to pre-execution metric-protocol authoring. Transport history and prior "
-            "drafts remain in the source packet. It contains no generated code results, "
-            "simulation results, acceptance decision, or kernel proof."
+            "to pre-execution metric-protocol authoring. Transport history is stored "
+            "as separate workspace evidence rather than theory content. It contains no "
+            "generated code results, simulation results, acceptance decision, or "
+            "kernel proof."
         ),
     }
 
