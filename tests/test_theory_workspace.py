@@ -34,6 +34,8 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
     THEORY_WORKSPACE_GAP_TOOL,
     THEORY_WORKSPACE_HANDOFF_ROLE,
+    THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     THEORY_WORKSPACE_WRITE_TOOL,
     TheoryScratchpadConfig,
     TheoryWorkspaceGapError,
@@ -1325,6 +1327,121 @@ def test_document_authority_supports_hash_bound_local_model_edit(tmp_path) -> No
     prompt = str(backend.requests[0].messages[0]["content"])
     assert "current document SHA-256" in prompt
     assert "one exact, unique model-selected text span" in prompt
+
+
+def test_long_theory_document_supports_search_range_read_and_local_edit(
+    tmp_path,
+) -> None:
+    lines = ["# Long theory workspace", ""] + [
+        f"Background claim {index}: $a_{{{index}}}=b_{{{index}}}$."
+        for index in range(1, 4001)
+    ]
+    old_text = "For every n, the claimed limit follows without premise P."
+    new_text = "For every n satisfying premise P, the claimed limit follows."
+    lines[3000:3000] = ["## claim-C-long", old_text, "Depends on claim-C0."]
+    parent = "\n".join(lines) + "\n"
+    target_line = lines.index("## claim-C-long") + 1
+    assert len(parent) > 55_000
+    parent_sha256 = hashlib.sha256(parent.encode("utf-8")).hexdigest()
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="search-long-document",
+                    name=THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+                    input={
+                        "query": "claim-C-long",
+                        "document_paths": ["theory/workspace.md"],
+                        "max_results": 2,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="read-long-document-range",
+                    name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                    input={
+                        "path": "theory/workspace.md",
+                        "line_start": target_line,
+                        "line_end": target_line + 2,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="edit-long-document",
+                    name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+                    input={
+                        "path": "theory/workspace.md",
+                        "expected_sha256": parent_sha256,
+                        "old_text": old_text,
+                        "new_text": new_text,
+                    },
+                )
+            ),
+            _response(_commit_checkpoint()),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        workspace_dir=tmp_path / "theory",
+        require_document_authority=True,
+        initial_artifacts={
+            "problem_card": {"claim": "revised claim"},
+            "lemma_cards": [{"id": "claim-C-long"}],
+        },
+        initial_documents={"theory/workspace.md": parent},
+        build_candidate=lambda artifacts, changed, manifest, changed_documents: {
+            "artifacts": dict(artifacts),
+            "changed": list(changed),
+            "theory_workspace_manifest": dict(manifest),
+            "changed_documents": list(changed_documents),
+        },
+        max_turns=4,
+        max_reads=2,
+        max_submissions=1,
+    )
+
+    initial_prompt = str(backend.requests[0].messages[0]["content"])
+    assert old_text not in initial_prompt
+    assert THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL in initial_prompt
+    assert THEORY_WORKSPACE_READ_DOCUMENT_TOOL in initial_prompt
+    search_observation = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert search_observation["total_matches"] == 1
+    assert search_observation["hits"][0]["line_number"] == target_line
+    assert search_observation["document_hashes"] == {
+        "theory/workspace.md": parent_sha256
+    }
+    range_observation = json.loads(
+        backend.requests[2].messages[-1]["content"][0]["content"]
+    )
+    assert range_observation["content"] == "\n".join(
+        ["## claim-C-long", old_text, "Depends on claim-C0."]
+    )
+    assert range_observation["document_sha256"] == parent_sha256
+    assert [
+        row["tool"] for row in result.evidence["document_inspection_refs"]
+    ] == [
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    ]
+    assert old_text not in json.dumps(result.evidence)
+    assert new_text not in json.dumps(result.evidence)
+    documents = load_theory_workspace_documents(result.core_packet)
+    assert old_text not in documents["theory/workspace.md"]
+    assert new_text in documents["theory/workspace.md"]
+    schemas = {
+        tool.name: tool.input_schema for tool in backend.requests[0].tools
+    }
+    assert not {"oneOf", "allOf", "anyOf"}.intersection(
+        schemas[THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL]
+    )
+    assert not {"oneOf", "allOf", "anyOf"}.intersection(
+        schemas[THEORY_WORKSPACE_READ_DOCUMENT_TOOL]
+    )
 
 
 def test_local_theory_document_edit_rejects_stale_or_ambiguous_source(

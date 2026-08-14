@@ -38,6 +38,8 @@ THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
 THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "model_owned_documents_and_handoff_v1"
 THEORY_WORKSPACE_WRITE_TOOL = "write_theory_workspace"
 THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL = "edit_theory_document"
+THEORY_WORKSPACE_READ_DOCUMENT_TOOL = "read_theory_document"
+THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL = "search_theory_documents"
 THEORY_WORKSPACE_COMMIT_TOOL = "commit_theory_checkpoint"
 SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL = "commit_source_replication_checkpoint"
 THEORY_WORKSPACE_GAP_TOOL = "report_theory_gap"
@@ -46,6 +48,8 @@ THEORY_WORKSPACE_CONTENT_AUTHORITY = "model_authored_markdown_latex_documents"
 THEORY_WORKSPACE_HANDOFF_ROLE = "structured_cross_agent_index_and_abi"
 SOURCE_REPLICATION_CHECKPOINT_KIND = "SourceReplicationCheckpoint"
 THEORY_WORKSPACE_DOCUMENT_SUFFIXES = frozenset({".md", ".tex", ".bib"})
+MAX_THEORY_DOCUMENT_OBSERVATION_CHARS = 50_000
+MAX_THEORY_DOCUMENT_SEARCH_HITS = 20
 THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE = (
     "THEORY_SCRATCHPAD_EXECUTION_NOT_PROOF_EVIDENCE"
 )
@@ -211,6 +215,7 @@ def run_theory_artifact_workspace(
         "last_candidate": {},
         "model_artifact_writes": [],
         "model_document_writes": [],
+        "document_inspection_refs": [],
         "scratch_runs": 0,
         "scratch_execution_refs": [],
         "source_search_refs": [],
@@ -504,6 +509,195 @@ def run_theory_artifact_workspace(
                         ],
                     ]
                 ),
+            )
+
+        if call.name == THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
+            if state["reads"] >= max_reads:
+                raise ClientToolInputError(
+                    "theory workspace read budget is exhausted"
+                )
+            if set(tool_input) != {"path", "line_start", "line_end"}:
+                raise ClientToolInputError(
+                    "read_theory_document requires path, line_start, and line_end"
+                )
+            path = _normalized_theory_document_path(tool_input.get("path"))
+            if path not in state["documents"]:
+                raise ClientToolInputError(
+                    f"unknown theory workspace document: {path}"
+                )
+            line_start = tool_input.get("line_start")
+            line_end = tool_input.get("line_end")
+            if any(
+                isinstance(value, bool) or not isinstance(value, int)
+                for value in (line_start, line_end)
+            ):
+                raise ClientToolInputError(
+                    "theory document line_start and line_end must be integers"
+                )
+            lines = state["documents"][path].splitlines()
+            if line_start < 1 or line_end < line_start:
+                raise ClientToolInputError(
+                    "theory document line range must be positive and ordered"
+                )
+            if line_end > len(lines):
+                raise ClientToolInputError(
+                    f"theory document line_end exceeds document length {len(lines)}"
+                )
+            content = "\n".join(lines[line_start - 1 : line_end])
+            if len(content) > MAX_THEORY_DOCUMENT_OBSERVATION_CHARS:
+                raise ClientToolInputError(
+                    "theory document line range exceeds one model observation; "
+                    "read a smaller range"
+                )
+            document_sha256 = _text_sha256(state["documents"][path])
+            content_sha256 = _text_sha256(content)
+            inspection_ref = {
+                "tool": THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                "path": path,
+                "document_sha256": document_sha256,
+                "line_start": line_start,
+                "line_end": line_end,
+                "content_sha256": content_sha256,
+                "proof_evidence_status": (
+                    "THEORY_DOCUMENT_INSPECTION_NOT_PROOF_EVIDENCE"
+                ),
+            }
+            state["document_inspection_refs"].append(inspection_ref)
+            state["reads"] += 1
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    "path": path,
+                    "document_sha256": document_sha256,
+                    "document_line_count": len(lines),
+                    "line_start": line_start,
+                    "line_end": line_end,
+                    "content": content,
+                    "content_sha256": content_sha256,
+                    "reads": state["reads"],
+                    "remaining_reads": max_reads - state["reads"],
+                    "proof_evidence_status": (
+                        "THEORY_DOCUMENT_INSPECTION_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                observation_key="theory-document-read:"
+                + stable_hash(inspection_ref),
+            )
+
+        if call.name == THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL:
+            if state["reads"] >= max_reads:
+                raise ClientToolInputError(
+                    "theory workspace read budget is exhausted"
+                )
+            if set(tool_input) - {"query", "document_paths", "max_results"}:
+                raise ClientToolInputError(
+                    "search_theory_documents accepts query, document_paths, and "
+                    "optional max_results"
+                )
+            query = tool_input.get("query")
+            if not isinstance(query, str) or not query.strip():
+                raise ClientToolInputError(
+                    "theory document search query must be nonempty text"
+                )
+            requested_paths = tool_input.get("document_paths", [])
+            if not isinstance(requested_paths, Sequence) or isinstance(
+                requested_paths, (str, bytes)
+            ):
+                raise ClientToolInputError(
+                    "theory document search document_paths must be an array"
+                )
+            paths = [
+                _normalized_theory_document_path(path)
+                for path in requested_paths
+            ]
+            if len(paths) != len(set(paths)):
+                raise ClientToolInputError(
+                    "theory document search paths must be unique"
+                )
+            if not paths:
+                paths = sorted(state["documents"])
+            unknown_paths = sorted(set(paths) - set(state["documents"]))
+            if unknown_paths:
+                raise ClientToolInputError(
+                    "unknown theory workspace documents: "
+                    + ", ".join(unknown_paths)
+                )
+            max_results = tool_input.get(
+                "max_results", MAX_THEORY_DOCUMENT_SEARCH_HITS
+            )
+            if (
+                isinstance(max_results, bool)
+                or not isinstance(max_results, int)
+                or max_results < 1
+                or max_results > MAX_THEORY_DOCUMENT_SEARCH_HITS
+            ):
+                raise ClientToolInputError(
+                    "theory document search max_results must be between 1 and "
+                    f"{MAX_THEORY_DOCUMENT_SEARCH_HITS}"
+                )
+            normalized_query = query.strip().casefold()
+            hits: list[dict[str, Any]] = []
+            total_matches = 0
+            for path in paths:
+                for line_number, line in enumerate(
+                    state["documents"][path].splitlines(),
+                    start=1,
+                ):
+                    if normalized_query not in line.casefold():
+                        continue
+                    total_matches += 1
+                    if len(hits) < max_results:
+                        hits.append(
+                            {
+                                "path": path,
+                                "line_number": line_number,
+                                "line": line,
+                                "line_sha256": _text_sha256(line),
+                            }
+                        )
+            if len(_compact_json(hits)) > MAX_THEORY_DOCUMENT_OBSERVATION_CHARS:
+                raise ClientToolInputError(
+                    "theory document search exceeds one model observation; use a "
+                    "more specific query or fewer results"
+                )
+            document_hashes = {
+                path: _text_sha256(state["documents"][path]) for path in paths
+            }
+            inspection_ref = {
+                "tool": THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+                "query_hash": _text_sha256(query.strip()),
+                "document_hashes": document_hashes,
+                "max_results": max_results,
+                "total_matches": total_matches,
+                "hits": [
+                    {
+                        key: hit[key]
+                        for key in ("path", "line_number", "line_sha256")
+                    }
+                    for hit in hits
+                ],
+                "proof_evidence_status": (
+                    "THEORY_DOCUMENT_INSPECTION_NOT_PROOF_EVIDENCE"
+                ),
+            }
+            state["document_inspection_refs"].append(inspection_ref)
+            state["reads"] += 1
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    "query": query.strip(),
+                    "document_hashes": document_hashes,
+                    "hits": hits,
+                    "total_matches": total_matches,
+                    "results_truncated": total_matches > len(hits),
+                    "reads": state["reads"],
+                    "remaining_reads": max_reads - state["reads"],
+                    "proof_evidence_status": (
+                        "THEORY_DOCUMENT_INSPECTION_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                observation_key="theory-document-search:"
+                + stable_hash(inspection_ref),
             )
 
         if call.name == RESEARCH_SOURCE_SEARCH_TOOL:
@@ -1118,6 +1312,9 @@ def run_theory_artifact_workspace(
             "media_type": row["media_type"],
             "sha256": row["sha256"],
             "byte_size": row["byte_size"],
+            "line_count": len(
+                state["documents"][row["relative_path"]].splitlines()
+            ),
         }
         for row in document_manifest(state["documents"]).get("documents", [])
     }
@@ -1131,6 +1328,15 @@ def run_theory_artifact_workspace(
         "without merging or inventing content. A structurally valid write is retained "
         "and returned to you, but it does not end the workspace or assert scientific "
         "readiness. "
+    )
+    document_inspection_guidance = (
+        "For long or multi-file mathematics, use search_theory_documents to locate "
+        "a literal claim, heading, or LaTeX label and read_theory_document to inspect "
+        "the exact current line range before editing. Both observations name the "
+        "current document SHA-256. Whole-document reads remain available when the "
+        "selected material fits one observation. "
+        if require_document_authority
+        else ""
     )
     edit_guidance = (
         "For a localized revision to an existing mathematical document, use "
@@ -1239,6 +1445,7 @@ def run_theory_artifact_workspace(
                     + source_checkpoint_guidance
                     + scratch_guidance
                     + write_guidance
+                    + document_inspection_guidance
                     + edit_guidance
                     + "When the current workspace is scientifically ready for "
                     "independent review, call commit_theory_checkpoint and explain "
@@ -1309,6 +1516,9 @@ def run_theory_artifact_workspace(
             ),
             "model_document_writes": deepcopy(
                 state["model_document_writes"]
+            ),
+            "document_inspection_refs": deepcopy(
+                state["document_inspection_refs"]
             ),
             "scratch_runs": state["scratch_runs"],
             "scratch_execution_refs": deepcopy(
@@ -1443,6 +1653,9 @@ def run_theory_artifact_workspace(
             "submissions": state["submissions"],
             "source_replication_runs": state["source_replication_runs"],
             "source_replication_manifests": deepcopy(source_manifests),
+            "document_inspection_refs": deepcopy(
+                state["document_inspection_refs"]
+            ),
             "research_source_snapshot": (
                 research_sources.descriptor()
                 if research_sources is not None
@@ -1513,6 +1726,9 @@ def run_theory_artifact_workspace(
             ),
             "theory_workspace_manifest": document_manifest(
                 state["documents"]
+            ),
+            "document_inspection_refs": deepcopy(
+                state["document_inspection_refs"]
             ),
             "reads": state["reads"],
             "submissions": state["submissions"],
@@ -1632,6 +1848,9 @@ def run_theory_artifact_workspace(
         "model_document_writes": deepcopy(
             state["model_document_writes"]
         ),
+        "document_inspection_refs": deepcopy(
+            state["document_inspection_refs"]
+        ),
         "theory_content_authority": (
             THEORY_WORKSPACE_CONTENT_AUTHORITY
             if require_document_authority
@@ -1679,6 +1898,11 @@ def _theory_workspace_evidence_history(
     history: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
     persisted = [deepcopy(dict(row)) for row in history]
+    workspace_content_tools = {
+        "read_theory_workspace",
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+    }
     source_tools = {
         RESEARCH_SOURCE_SEARCH_TOOL,
         RESEARCH_SOURCE_READ_TOOL,
@@ -1691,11 +1915,17 @@ def _theory_workspace_evidence_history(
         for tool_call in tool_calls:
             if not isinstance(tool_call, dict):
                 continue
-            if str(tool_call.get("name", "") or "") in source_tools:
+            tool_name = str(tool_call.get("name", "") or "")
+            if tool_name in source_tools:
                 tool_call["result_excerpt"] = (
-                    "[research source text omitted from persisted evidence; raw execution "
-                    "also omitted from transcript; "
-                    "use snapshot/document/range or source-replication refs]"
+                    "[research source text omitted from persisted evidence; raw "
+                    "execution also omitted from transcript; use snapshot/document/"
+                    "range or source-replication refs]"
+                )
+            elif tool_name in workspace_content_tools:
+                tool_call["result_excerpt"] = (
+                    "[theory workspace content omitted from persisted evidence; use "
+                    "hash-bound artifact or document inspection refs]"
                 )
     return persisted
 
@@ -1741,6 +1971,56 @@ def _theory_workspace_tools(
         },
     )
     tools = [read_tool]
+    if document_authority_enabled:
+        tools.extend(
+            (
+                ClientToolDefinition(
+                    name=THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+                    description=(
+                        "Search the exact current Markdown/LaTeX/BibTeX workspace "
+                        "for a case-insensitive literal string. Returns line-addressed "
+                        "hits and current document hashes; it does not interpret "
+                        "mathematics."
+                    ),
+                    input_schema={
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["query"],
+                        "properties": {
+                            "query": {"type": "string", "minLength": 1},
+                            "document_paths": {
+                                "type": "array",
+                                "uniqueItems": True,
+                                "items": {"type": "string", "minLength": 1},
+                            },
+                            "max_results": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": MAX_THEORY_DOCUMENT_SEARCH_HITS,
+                            },
+                        },
+                    },
+                ),
+                ClientToolDefinition(
+                    name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                    description=(
+                        "Read an exact inclusive line range from one current "
+                        "Markdown/LaTeX/BibTeX theory document. Returns the full "
+                        "document hash and exact range hash for model-owned reasoning."
+                    ),
+                    input_schema={
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["path", "line_start", "line_end"],
+                        "properties": {
+                            "path": {"type": "string", "minLength": 1},
+                            "line_start": {"type": "integer", "minimum": 1},
+                            "line_end": {"type": "integer", "minimum": 1},
+                        },
+                    },
+                ),
+            )
+        )
     if research_sources_enabled:
         tools.extend(
             (
