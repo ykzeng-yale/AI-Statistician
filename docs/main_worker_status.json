@@ -1,9 +1,9 @@
 {
-  "schema_version": 66,
+  "schema_version": 67,
   "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "f66333c4b2d4e64eddccb8ec7126fb5bf763beae",
+  "validated_code_head": "f2b934b81ec38c402d0bd4bed10c9ba0c0a53fcd",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -53,7 +53,7 @@
     ]
   },
   "validated_change": {
-    "commit": "f66333c4b2d4e64eddccb8ec7126fb5bf763beae",
+    "commit": "f2b934b81ec38c402d0bd4bed10c9ba0c0a53fcd",
     "changes": [
       "The existing TheoryDeveloper workspace now exposes one no-input run_research_source action for an operator-fixed, hash-bound paper entrypoint and environment. The same model reads raw stdout and stderr; it cannot choose the command, edit source, inherit secrets, or use network access.",
       "Explicit task_intent can terminate a source-replication-only objective with one model-authored Markdown report and gap checkpoint without fabricating theory, generated code, simulation, novelty, or formal proof artifacts.",
@@ -70,12 +70,13 @@
       "Canonical AgentRuntime now removes provider/tool transcript history from the persisted Theory packet and stores it once as a separate evidence artifact bound to the exact packet ID and content hash. Critic source-grounding audit resolves that evidence without making mathematical identity depend on transport history; legacy direct packets remain readable.",
       "The existing document-authoritative claim index now records model-authored direct dependency edges between stable claim IDs. Runtime validates only graph closure and acyclicity, while AlgorithmEngineer, SimulationEvaluator, Formalizer, and independent theory preflight consume the same dependency graph alongside the same hash-bound Markdown/LaTeX documents.",
       "Every document-authoritative Theory revision now emits one compact content-addressed delta over claim IDs, statuses, direct dependencies, anchors, and document hashes. It copies no mathematical body. Independent preflight sees the immediate delta, while terminal Critic reconstructs the exact multi-revision chain and rejects a delta whose fingerprint or packet hashes do not match.",
-      "TheoryDeveloper revision bindings now persist one standard RuntimeArtifactRef to the exact parent Theory packet instead of recursively copying its semantic body. AgentRuntime resolves that reference only inside the selected TheoryDeveloper call, rejects missing or stale bytes before any model call, and removes the hydrated material before the next task or resumable continuation. The legacy prior-material context path and dual embedded/reference binding shapes were deleted."
+      "TheoryDeveloper revision bindings now persist one standard RuntimeArtifactRef to the exact parent Theory packet instead of recursively copying its semantic body. AgentRuntime resolves that reference only inside the selected TheoryDeveloper call, rejects missing or stale bytes before any model call, and removes the hydrated material before the next task or resumable continuation. The legacy prior-material context path and dual embedded/reference binding shapes were deleted.",
+      "The same TheoryDeveloper client-tool session can now search current Markdown/LaTeX/BibTeX documents by model-chosen literal text and read exact inclusive line ranges bound to the current document SHA-256. This removes the prior failure mode where a document larger than the whole-observation limit became unreadable. Search/read bodies remain visible to the active model but persisted workspace evidence stores only hash-bound inspection references."
     ],
-    "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, and execution boundaries. The model chooses every claim and dependency. DoubleML expected values and tolerances remain in an evaluator-only bundle outside the repository and model workspace. Runtime contains no DoubleML statistic, IRM equation, expected output, Lean grammar rule, tactic rule, or repair recipe.",
+    "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, and execution boundaries. The model chooses every claim, dependency, document query, path, line range, and edit. DoubleML expected values and tolerances remain in an evaluator-only bundle outside the repository and model workspace. Runtime contains no DoubleML statistic, IRM equation, expected output, Lean grammar rule, tactic rule, or repair recipe.",
     "verification": {
-      "full_pytest": "721 passed in 95.64s",
-      "affected_subsystem_pytest": "126 Theory lineage, TheoryDeveloper, AgentRuntime persistence/resume, and semantic-material tests passed in 1.06s",
+      "full_pytest": "722 passed in 95.73s",
+      "affected_subsystem_pytest": "141 Theory workspace, TheoryDeveloper, and AgentRuntime tests passed in 1.12s, including a Markdown document larger than the whole-document observation limit",
       "source_retrieval_ablation": "A representative query reconstructed from persisted L1 matched terms returned five distinct top-5 documents, including the exact DoubleMLIRM implementation. The failed live run did not persist its raw query text, so this is not an exact-query replay and provides no report-correctness credit.",
       "real_immutable_source_execution": "EXECUTED with return code 0, no errors, no source mutation, and frozen stdout SHA-256 ef1f1614e671a91b435e46e98126fb24c442faec198b19ab709788af32ab16d3",
       "hidden_source_harness_calibration": "6/6: gold accepted and five source, environment, execution, stdout, or sign variants rejected",
@@ -83,9 +84,9 @@
       "model_policy_audit": "production tiers remain Haiku or Sonnet with Opus rejected; tests and live evaluations remain pinned to claude-haiku-4-5-20251001",
       "fresh_live_research_draws": 1,
       "fresh_live_result": "DoubleML L1 v1 BLOCKED and hidden gold 0/1; no rerun was used to seek a favorable model draw",
-      "runtime_core_growth": "research_agent_runtime.py is 24774 lines, theory_workspace.py remains 2426 lines, research_architect.py fell to 4878 lines, and theory_revision_lineage.py is 778 lines. Parent hydration reuses the existing RuntimeArtifactRef resolver and blackboard, deletes the copied-material compatibility path, and adds no Python module, agent, scheduler, repair subsystem, retry, budget, model call, or task-specific content rule"
+      "runtime_core_growth": "research_agent_runtime.py remains 24774 lines, theory_workspace.py is 2706 lines, research_architect.py remains 4878 lines, and theory_revision_lineage.py remains 778 lines. Long-document inspection stays inside the existing direct TheoryDeveloper workspace and adds no Python module, agent, scheduler, repair subsystem, retry, outer iteration, budget, model call, or task-specific content rule"
     },
-    "evidence_boundary": "The task-intent, document-authority, transport-evidence detachment, document claim-DAG, claim-revision-delta, and parent-reference hydration changes have deterministic and full-regression evidence only; no fresh model run was used. These contracts prove consistent reference transport, resume behavior, and tamper detection, not mathematical correctness or improved model judgment. The earlier real source rerun remains component evidence but does not make the fresh model task pass: the checkpoint was rejected, hidden scoring did not run, and the Markdown report contains an incorrect IRM explanation."
+    "evidence_boundary": "The task-intent, document-authority, transport-evidence detachment, document claim-DAG, claim-revision-delta, parent-reference hydration, and long-document inspection changes have deterministic and full-regression evidence only; no fresh model run was used. These contracts prove workspace reachability, exact reference transport, resume behavior, and tamper detection, not mathematical correctness or improved model judgment. The earlier real source rerun remains component evidence but does not make the fresh model task pass: the checkpoint was rejected, hidden scoring did not run, and the Markdown report contains an incorrect IRM explanation."
   },
   "latest_component_evidence": {
     "id": "research_l1_doubleml_exact_replication_v1_haiku_20260814",
@@ -207,7 +208,8 @@
       "the complete TheoryDeveloper client-tool transcript being recursively embedded in the mathematical Theory packet and therefore changing theory identity with transport history",
       "document-authoritative claim anchors losing their model-authored dependency edges before AlgorithmEngineer, SimulationEvaluator, Formalizer, and independent theory preflight",
       "successive document-authoritative Theory packets exposing no exact claim, dependency, status, anchor, or document-hash delta to independent reviewers",
-      "TheoryDeveloper revision bindings and resumable task continuations recursively copying the complete parent semantic body instead of resolving one exact blackboard artifact at execution"
+      "TheoryDeveloper revision bindings and resumable task continuations recursively copying the complete parent semantic body instead of resolving one exact blackboard artifact at execution",
+      "an authoritative theory document becoming impossible for the source-owning model to inspect once its complete text exceeded the single-observation limit"
     ],
     "remaining_structural_problems": [
       "strict development exact source-theorem closure remains 0/2",
@@ -223,6 +225,7 @@
       "the file-backed TheoryDeveloper handoff no longer embeds client-tool history, but it still carries substantial structured theorem, estimator, simulation, proof-plan, and formalization ABI payloads; consumers have not yet moved to mostly content-addressed claim references",
       "TheoryDeveloper now has a closed acyclic within-packet claim graph and an exact reference-only multi-revision delta chain, but it still lacks claim-specific section hashes, a mature cross-session research-memory view, autonomous source acquisition, and independent search for uncited contrary sources",
       "the parent Theory body is now reference-only across revision persistence and resume, but revision bindings still copy routed reviewer feedback and several downstream handoffs still carry larger typed ABI payloads rather than selecting only required artifact references",
+      "hash-bound long-document search and line reads have deterministic tool-loop evidence only; they do not establish that Haiku will locate the right claim, derive a correct revision, or pass independent hidden theory evaluation on a fresh task",
       "the strengthened mathematical and scratchpad-boundary preflight prompt has regression evidence only; no new model draw is justified merely to test prompt luck",
       "the corrected terminal Critic and exact-citation interface has regression and frozen-replay evidence only; exact-Haiku previously false-accepted the bad KM theory, and no fresh unrelated source-grounded draw has tested whether exact citations improve judgment",
       "the post-v5 confirmatory terminal-routing simplification has deterministic regression evidence but no fresh live capability evidence; another HC0 draw is not justified solely to validate routing",
@@ -252,13 +255,13 @@
   },
   "current_structure": {
     "research_agent_runtime_lines": 24774,
-    "theory_workspace_lines": 2426,
+    "theory_workspace_lines": 2706,
     "research_architect_lines": 4878,
     "formalizer_llm_lines": 2387,
     "agent_runtime_lines": 1207,
     "cli_lines": 7067,
     "top_level_python_modules": 141,
-    "top_level_package_lines": 139788,
+    "top_level_package_lines": 140068,
     "latest_runtime_manifest_bytes": 58807
   },
   "next_gates": [
