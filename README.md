@@ -2,8 +2,9 @@
 
 AI Statistician is an in-progress autonomous statistical theory laboratory. Its
 target is to take a fresh research question or paper through rigorous theory,
-scientific Python/R implementation, simulation, Lean formalization, and exact
-kernel-checked theorem closure inside one evidence-preserving agent runtime.
+scientific Python/R implementation and simulation, plus Lean formalization and
+exact kernel-checked theorem closure when task intent requests it, inside one
+evidence-preserving agent runtime.
 
 This repository is not yet the finished system. The latest authoritative
 cross-family development panel remains at 0/2 exact source-theorem closures, and
@@ -20,8 +21,9 @@ is machine-readable in [main_worker_status.json](docs/main_worker_status.json).
 There is one outer typed graph:
 
 ```text
-Goal and plan
-  -> Theory workspace
+Goal, source policy, and plan
+  -> source search or exact replication when available
+  -> persistent Markdown/LaTeX Theory workspace
   -> Scientific coding and simulation workspace
   -> Independent semantic review
   -> Lean formalization workspace
@@ -105,6 +107,13 @@ offline corpus, retrieval, proof-search, training-export, and historical audit
 utilities. Those commands are support tools; their outputs do not establish
 end-to-end research capability.
 
+Published papers and pinned repository text can be exposed directly to the same
+TheoryDeveloper session with `--research-source-manifest`; see
+[Research Source Snapshots](docs/research_source_snapshots.md). The runtime checks
+visibility, path containment, and hashes, while the model chooses searches and
+interprets exact line-addressed source text. Hidden evaluation gold never belongs
+in that snapshot.
+
 The frozen development/held-out protocol is
 [`benchmarks/autonomous_cross_family_e2e_protocol_20260713.json`](benchmarks/autonomous_cross_family_e2e_protocol_20260713.json).
 Do not run or inspect held-out outcomes until the development gate passes.
@@ -148,15 +157,17 @@ statement from being counted as the requested theorem.
 
 The earlier architecture accumulated a 101k-line runtime plus large
 repair/bridge/planner module families. The current cleanup has reduced the
-central runtime to about 20k lines and the top-level package to fewer than 150
+central runtime to about 24k lines and the top-level package to fewer than 150
 modules. Structural regression tests prevent those control planes from silently
 returning.
 
 The largest remaining design debts are:
 
 - an oversized metric authoring/review/preflight implementation;
-- a TheoryDeveloper that still needs a persistent equation, lemma, assumption,
-  and counterexample workspace;
+- source acquisition and exact paper/code/data replication are not yet a complete
+  model-owned workspace;
+- the persistent Markdown/LaTeX TheoryDeveloper and source-grounded referee still
+  need unrelated live known-result evidence;
 - no post-simplification live two-family exact-theorem closure yet;
 - incomplete arbitrary-paper ingestion and learned research/proof policies.
 

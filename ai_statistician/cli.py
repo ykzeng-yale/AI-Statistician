@@ -105,6 +105,7 @@ from .research_next_iteration_audit import audit_next_iteration_queue
 from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
 from .research_policy_baseline import evaluate_research_policy_baseline
 from .research_report import build_research_markdown_report
+from .research_source_library import load_research_source_snapshot
 from .research_architect import (
     AnthropicArchitectLLMProvider,
     LLMTheoryDeveloperAgent,
@@ -3511,6 +3512,27 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
         static_response_file=args.static_response_file,
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    research_source_manifest = str(
+        getattr(args, "research_source_manifest", "") or ""
+    ).strip()
+    try:
+        research_sources = (
+            load_research_source_snapshot(Path(research_source_manifest))
+            if research_source_manifest
+            else None
+        )
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+        print("\nAI Statistician rejected research source snapshot")
+        print("=" * 72)
+        print(f"- {exc}")
+        return 2
+    if research_sources is not None and not callable(
+        getattr(provider, "generate_client_tool_turn", None)
+    ):
+        print("\nAI Statistician rejected research source snapshot")
+        print("=" * 72)
+        print("- research sources require a provider with native client-tool turns")
+        return 2
     context: dict[str, object] = {}
     if args.context_json:
         context = json.loads(Path(args.context_json).read_text(encoding="utf-8"))
@@ -3522,6 +3544,7 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
     ) or "sonnet"
     theory_developer = LLMTheoryDeveloperAgent(
         provider=provider,
+        research_sources=research_sources,
         config=ResearchArchitectConfig(
             model=model,
             model_tier=model_tier,
@@ -3696,6 +3719,27 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         static_response_file=args.static_response_file,
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    research_source_manifest = str(
+        getattr(args, "research_source_manifest", "") or ""
+    ).strip()
+    try:
+        research_sources = (
+            load_research_source_snapshot(Path(research_source_manifest))
+            if research_source_manifest
+            else None
+        )
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+        print("\nAI Statistician Agent Runtime rejected research source snapshot")
+        print("=" * 72)
+        print(f"- {exc}")
+        return 2
+    if research_sources is not None and not callable(
+        getattr(provider, "generate_client_tool_turn", None)
+    ):
+        print("\nAI Statistician Agent Runtime rejected research source snapshot")
+        print("=" * 72)
+        print("- research sources require a provider with native client-tool turns")
+        return 2
     context: dict[str, object] = {}
     if args.context_json:
         context = json.loads(Path(args.context_json).read_text(encoding="utf-8"))
@@ -3722,6 +3766,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     )
     theory_developer = LLMTheoryDeveloperAgent(
         provider=provider,
+        research_sources=research_sources,
         config=ResearchArchitectConfig(
             model=theory_model,
             model_tier=theory_model_tier,
@@ -6170,6 +6215,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="optional Architect context JSON with retrieval/proof/simulation feedback",
     )
     research_architect_theory.add_argument(
+        "--research-source-manifest",
+        default="",
+        help=(
+            "optional hash-bound manifest of model-visible UTF-8 papers, code, "
+            "and documentation exposed as direct TheoryDeveloper search/read tools"
+        ),
+    )
+    research_architect_theory.add_argument(
         "--llm-model",
         default="",
         help="model name for the TheoryDeveloper provider; Anthropic defaults to Claude Sonnet 4.6",
@@ -6258,6 +6311,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--context-json",
         default="",
         help="optional Architect context JSON with retrieval/proof/simulation feedback",
+    )
+    research_agent_runtime.add_argument(
+        "--research-source-manifest",
+        default="",
+        help=(
+            "optional hash-bound manifest of model-visible UTF-8 papers, code, "
+            "and documentation; evaluator-only gold must never be placed here"
+        ),
     )
     research_agent_runtime.add_argument(
         "--resume-runtime-manifest",

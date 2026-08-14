@@ -101,6 +101,28 @@ class SequentialGeneratorBackend:
         )
 
 
+def test_research_source_snapshot_is_an_explicit_theory_workspace_input() -> None:
+    parser = build_parser()
+
+    runtime_args = parser.parse_args(
+        [
+            "research-agent-runtime",
+            "--research-source-manifest",
+            "sources.json",
+        ]
+    )
+    theory_args = parser.parse_args(
+        [
+            "research-architect-theory",
+            "--research-source-manifest",
+            "sources.json",
+        ]
+    )
+
+    assert runtime_args.research_source_manifest == "sources.json"
+    assert theory_args.research_source_manifest == "sources.json"
+
+
 def test_theory_core_contract_exposes_finite_execution_semantics() -> None:
     estimator_contract = THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT[
         "estimator_specs"

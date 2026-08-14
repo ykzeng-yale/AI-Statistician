@@ -35,6 +35,7 @@ from .metric_protocol_stage import (
     METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
 )
 from .research_schema import OpenResearchQuestion
+from .research_source_library import ResearchSourceSnapshot
 from .semantic_review_feedback import model_observations_without_repair_recipes
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
@@ -165,9 +166,11 @@ class LLMTheoryDeveloperAgent:
         *,
         provider: GeneratorBackend | None = None,
         config: ResearchArchitectConfig = ResearchArchitectConfig(),
+        research_sources: ResearchSourceSnapshot | None = None,
     ) -> None:
         self.provider = provider or AnthropicArchitectLLMProvider()
         self.config = config
+        self.research_sources = research_sources
 
     def derive(
         self,
@@ -219,6 +222,21 @@ class LLMTheoryDeveloperAgent:
             question=question,
             theory_prompt_mode=theory_prompt_mode,
         )
+        if (
+            self.research_sources is not None
+            and recovered_core_packet is None
+            and not callable(
+                getattr(self.provider, "generate_client_tool_turn", None)
+            )
+        ):
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper research-source workspace",
+                attempts=0,
+                errors=[
+                    "configured research sources require native client-tool turns"
+                ],
+                history=[],
+            )
         if recovered_core_packet is not None:
             core_packet = recovered_core_packet
         elif theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION:
@@ -259,6 +277,7 @@ class LLMTheoryDeveloperAgent:
                     formalization_authoring_required
                 ),
                 theory_scratchpad=theory_scratchpad,
+                research_sources=self.research_sources,
                 theory_workspace_root=theory_workspace_root,
             )
         elif callable(
@@ -287,6 +306,7 @@ class LLMTheoryDeveloperAgent:
                     formalization_authoring_required
                 ),
                 theory_scratchpad=theory_scratchpad,
+                research_sources=self.research_sources,
                 theory_workspace_root=theory_workspace_root,
             )
         else:
@@ -3205,6 +3225,7 @@ def _generate_initial_theory_artifact_workspace(
     max_no_progress_turns: int,
     formalization_authoring_required: bool,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
+    research_sources: ResearchSourceSnapshot | None = None,
     theory_workspace_root: Path | None = None,
 ) -> dict[str, Any]:
     initial_artifacts = _empty_theory_core_workspace(file_authority=True)
@@ -3316,6 +3337,7 @@ def _generate_initial_theory_artifact_workspace(
         build_candidate=build_candidate,
         validate_candidate=validate_theory_core_packet,
         scratchpad=theory_scratchpad,
+        research_sources=research_sources,
         workspace_dir=workspace_dir,
         require_document_authority=True,
         request_metadata={
@@ -3394,6 +3416,7 @@ def _generate_theory_workspace_revision(
     max_no_progress_turns: int,
     formalization_authoring_required: bool,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
+    research_sources: ResearchSourceSnapshot | None = None,
     theory_workspace_root: Path | None = None,
 ) -> dict[str, Any]:
     raw_parent_payload = revision_inputs.get("base_core_payload", {})
@@ -3534,6 +3557,7 @@ def _generate_theory_workspace_revision(
             )
         ),
         scratchpad=theory_scratchpad,
+        research_sources=research_sources,
         workspace_dir=workspace_dir,
         require_document_authority=True,
         request_metadata={

@@ -189,6 +189,9 @@ def build_critic_evaluator_prompt(
         "scientific authority. Search the entire document set for contradictory assumptions, "
         "false displayed equations or limits, normalization errors, and unjustified evidence "
         "claims. A correct statement elsewhere does not cancel an explicit false statement. "
+        "Use theory.research_source_grounding to audit which exact source ranges the author "
+        "actually observed; a citation ref supports provenance but does not make either the "
+        "source claim or the derived claim correct. "
         "Reconstruct at least one decisive assumption, equation, or normalization rather than "
         "grading terminology. Treat theory scratch calculations as exploratory unless an exact "
         "separately frozen confirmatory execution binding is present. "
@@ -638,6 +641,11 @@ def build_critic_canonical_evidence_view(
         )
     except (OSError, UnicodeError, ValueError) as exc:
         document_load_error = type(exc).__name__
+    theory_workspace_evidence = theory_packet.get("llm_client_tool_loop", {})
+    if not isinstance(theory_workspace_evidence, Mapping):
+        theory_workspace_evidence = {}
+    source_search_refs = theory_workspace_evidence.get("source_search_refs", [])
+    source_read_refs = theory_workspace_evidence.get("source_read_refs", [])
     theory_view = {
         **_artifact_identity(theory_packet),
         "serious_theory_mode": theory_packet.get("serious_theory_mode") is True,
@@ -662,6 +670,30 @@ def build_critic_canonical_evidence_view(
         "authoritative_documents_loaded": bool(authoritative_documents),
         "authoritative_documents": authoritative_documents,
         "authoritative_document_load_error": document_load_error,
+        "research_source_grounding": {
+            "snapshot": deepcopy(
+                dict(
+                    theory_workspace_evidence.get(
+                        "research_source_snapshot", {}
+                    )
+                )
+            )
+            if isinstance(
+                theory_workspace_evidence.get("research_source_snapshot", {}),
+                Mapping,
+            )
+            else {},
+            "search_refs": deepcopy(source_search_refs)
+            if isinstance(source_search_refs, list)
+            else [],
+            "read_refs": deepcopy(source_read_refs)
+            if isinstance(source_read_refs, list)
+            else [],
+            "boundary": (
+                "These refs show which hash-bound source passages the author "
+                "observed. They do not establish source correctness or faithful use."
+            ),
+        },
         "independent_preflight": {
             "acceptance_present": bool(preflight_acceptance),
             "acceptance_id": str(

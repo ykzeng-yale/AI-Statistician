@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 
 import pytest
@@ -13,6 +14,11 @@ from ai_statistician.model_backend import (
     ClientToolTurnResponse,
 )
 from ai_statistician.scientific_sandbox import ScientificSandboxExecution
+from ai_statistician.research_source_library import (
+    RESEARCH_SOURCE_READ_TOOL,
+    RESEARCH_SOURCE_SEARCH_TOOL,
+    load_research_source_snapshot,
+)
 from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.theory_workspace import (
     THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
@@ -125,6 +131,123 @@ def _run_workspace(backend, **overrides):
     }
     kwargs.update(overrides)
     return run_theory_artifact_workspace(**kwargs)
+
+
+def _research_source_snapshot(tmp_path):
+    source_root = tmp_path / "public_sources"
+    source_root.mkdir()
+    source_text = (
+        "# Robust location\n"
+        "Assume a symmetric distribution with finite variance.\n"
+        "The estimating equation has zero expectation at the population center.\n"
+        "This identifies the target under the stated symmetry condition.\n"
+    )
+    (source_root / "location.md").write_text(source_text, encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "snapshot_id": "robust-location-sources",
+        "source_horizon": "2025-12-31",
+        "source_root": "public_sources",
+        "documents": [
+            {
+                "document_id": "robust-location-paper",
+                "title": "Robust location",
+                "source_kind": "paper",
+                "relative_path": "location.md",
+                "sha256": hashlib.sha256(
+                    source_text.encode("utf-8")
+                ).hexdigest(),
+                "model_visible": True,
+                "citation": "Example (2025)",
+            }
+        ],
+    }
+    manifest_path = tmp_path / "sources.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return load_research_source_snapshot(manifest_path), source_text
+
+
+def test_same_theory_model_searches_and_reads_hash_bound_sources_without_copying_them_to_evidence(
+    tmp_path,
+) -> None:
+    research_sources, source_text = _research_source_snapshot(tmp_path)
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="search-source",
+                    name=RESEARCH_SOURCE_SEARCH_TOOL,
+                    input={
+                        "query": "symmetric estimating equation population center",
+                        "top_k": 2,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="read-source",
+                    name=RESEARCH_SOURCE_READ_TOOL,
+                    input={
+                        "document_id": "robust-location-paper",
+                        "line_start": 2,
+                        "line_end": 4,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-source-grounded-theory",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "source-grounded-lemma"}],
+                        }
+                    ),
+                )
+            ),
+            _response(_commit_checkpoint()),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        research_sources=research_sources,
+    )
+
+    tool_names = [tool.name for tool in backend.requests[0].tools]
+    assert tool_names == [
+        "read_theory_workspace",
+        RESEARCH_SOURCE_SEARCH_TOOL,
+        RESEARCH_SOURCE_READ_TOOL,
+        THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_COMMIT_TOOL,
+        THEORY_WORKSPACE_GAP_TOOL,
+    ]
+    initial_prompt = str(backend.requests[0].messages[0]["content"])
+    assert research_sources.snapshot_hash in initial_prompt
+    assert "Cite document_id, document sha256, and exact line ranges" in initial_prompt
+    assert "estimating equation" in str(backend.requests[1].messages)
+    read_observation = json.loads(
+        backend.requests[2].messages[-1]["content"][0]["content"]
+    )
+    assert read_observation["content"] == "\n".join(
+        source_text.splitlines()[1:4]
+    )
+    assert read_observation["document_id"] == "robust-location-paper"
+    assert result.evidence["research_source_snapshot"]["snapshot_hash"] == (
+        research_sources.snapshot_hash
+    )
+    assert len(result.evidence["source_search_refs"]) == 1
+    assert len(result.evidence["source_read_refs"]) == 1
+    read_ref = result.evidence["source_read_refs"][0]
+    assert read_ref["document_id"] == "robust-location-paper"
+    assert read_ref["line_start"] == 2
+    assert read_ref["line_end"] == 4
+    assert "content" not in read_ref
+    persisted_evidence = json.dumps(result.evidence)
+    assert "The estimating equation has zero expectation" not in persisted_evidence
+    assert "research source text omitted" in persisted_evidence
 
 
 def test_same_model_revises_workspace_after_raw_validator_observation() -> None:

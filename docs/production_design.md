@@ -124,19 +124,25 @@ TheoryDeveloper maintains an artifact-backed research workspace, not a JSON answ
 It owns exact definitions, assumptions and use sites, equation/lemma dependencies,
 executable procedure semantics, counterexamples, gaps, and revision lineage.
 
-Compact packets are handoff indexes. Serious theory has no per-field caps and is
-bounded only by the model context, workspace safety, and no-progress policy. The
-validator checks typed handoff structure; formal artifacts depend on task intent.
+Compact packets are handoff indexes. Serious theory has no per-field caps; the
+validator checks only typed handoff structure, while formal artifacts depend on intent.
 
 Discovery and revision share exact parent and reviewer artifacts. Only model-authored
 edits apply, raw validation returns to the same model, and the editor contains no
 statistical rules, suggested values, or routing decisions. An explicit grounded gap
 blocks the lineage without treating model judgment as proof.
 
-Structural validity does not stop the session. `write_theory_artifacts` retains the
+Structural validity does not stop the session. `write_theory_workspace` retains the
 exact candidate; the model then continues useful work, reports a gap, or calls
 `commit_theory_checkpoint`. No fixed review ritual is required. A commit is only a
 proposal for independent review, never scientific acceptance or proof evidence.
+
+When prior work is permitted, one model-visible, hash-bound snapshot gives the same
+TheoryDeveloper session direct source search/read tools without a LiteratureAgent.
+The model cites document IDs, hashes, and line ranges in authoritative documents;
+runtime persists those refs, not copied source text. Sources are provenance, not proof
+or referee acceptance, and evaluator-only gold is excluded. PDF/OCR and repository
+acquisition remain upstream materialization into pinned UTF-8 text and code commits.
 
 ## Scientific coding workspace
 

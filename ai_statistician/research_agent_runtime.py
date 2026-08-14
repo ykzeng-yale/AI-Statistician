@@ -5188,6 +5188,9 @@ class TheoryDeveloperRuntimeSubsystem:
                     "submissions",
                     "scratchpad_enabled",
                     "scratch_runs",
+                    "research_source_snapshot",
+                    "source_search_refs",
+                    "source_read_refs",
                     "changed_artifact_names",
                     "provider",
                     "model",
@@ -18811,6 +18814,29 @@ def run_research_agent_runtime(
         "proof_evidence_status": "LEAN_PROVIDER_TOPOLOGY_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": LEAN_PROVIDER_BOUNDARY,
     }
+    configured_research_sources = getattr(
+        theory_developer, "research_sources", None
+    )
+    research_source_snapshot = (
+        configured_research_sources.descriptor()
+        if configured_research_sources is not None
+        else {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "ResearchSourceSnapshotDescriptor",
+            "configured": False,
+            "proof_evidence_status": "RESEARCH_SOURCES_NOT_CONFIGURED",
+        }
+    )
+    research_source_topology = {
+        **dict(research_source_snapshot),
+        "manifest_id": "runtime_research_source_snapshot:"
+        + stable_hash(research_source_snapshot)[:20],
+        "configured": configured_research_sources is not None,
+    }
+    runtime_architect_context = {
+        **dict(runtime_architect_context),
+        "research_source_snapshot": research_source_topology,
+    }
     llm_topology = _runtime_llm_topology(
         architect_coordinator=architect_coordinator,
         theory_developer=theory_developer,
@@ -18907,6 +18933,9 @@ def run_research_agent_runtime(
         blackboard.artifacts[llm_topology["manifest_id"]] = llm_topology
         blackboard.artifacts[lean_provider_topology["manifest_id"]] = (
             lean_provider_topology
+        )
+        blackboard.artifacts[research_source_topology["manifest_id"]] = (
+            research_source_topology
         )
         formalizer_workspace = FormalizerWorkspaceRuntimeSubsystem(
             proposal_agent=formalizer,
@@ -19262,6 +19291,13 @@ def run_research_agent_runtime(
     _write_jsonl(tool_calls_path, tool_call_rows)
     llm_topology_path = out_dir / "runtime_llm_topology.json"
     llm_topology_path.write_text(json.dumps(llm_topology, indent=2, default=str), encoding="utf-8")
+    research_source_topology_path = (
+        out_dir / "runtime_research_source_snapshot.json"
+    )
+    research_source_topology_path.write_text(
+        json.dumps(research_source_topology, indent=2, default=str),
+        encoding="utf-8",
+    )
     manifest_path = out_dir / "research_agent_runtime_manifest.json"
     n_architect_coordinator_traces = sum(
         1
@@ -19366,6 +19402,9 @@ def run_research_agent_runtime(
         "runtime_observations_jsonl": str(observations_path),
         "runtime_tool_calls_jsonl": str(tool_calls_path),
         "runtime_llm_topology_json": str(llm_topology_path),
+        "runtime_research_source_snapshot_json": str(
+            research_source_topology_path
+        ),
         "per_question_results": [str(row["artifact_path"]) for row in results],
         "runtime_artifact_store_indexes": list(artifact_store_index_paths),
     }
@@ -19505,6 +19544,7 @@ def run_research_agent_runtime(
         "llm_topology_policy_ok": llm_topology["policy_status"] == "OK",
         "llm_runtime_topology": llm_topology,
         "lean_provider_topology": lean_provider_topology,
+        "research_source_snapshot": research_source_topology,
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         "simulation_evidence_boundary": SIMULATION_NOT_PROOF_BOUNDARY,
         "manifest_boundary": (

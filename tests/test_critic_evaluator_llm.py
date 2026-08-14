@@ -226,6 +226,23 @@ def test_canonical_evidence_view_hydrates_authoritative_theory_documents(
             documents,
             workspace_dir=workspace,
         ),
+        "llm_client_tool_loop": {
+            "research_source_snapshot": {
+                "snapshot_id": "published-sources",
+                "snapshot_hash": "snapshot-hash",
+            },
+            "source_search_refs": [
+                {"query_hash": "query-hash", "hits": []}
+            ],
+            "source_read_refs": [
+                {
+                    "document_id": "paper-1",
+                    "document_sha256": "paper-hash",
+                    "line_start": 20,
+                    "line_end": 28,
+                }
+            ],
+        },
     }
 
     view = build_critic_canonical_evidence_view(
@@ -246,6 +263,13 @@ def test_canonical_evidence_view_hydrates_authoritative_theory_documents(
             "content": documents["derivations/main.md"],
         }
     ]
+    assert view["theory"]["research_source_grounding"]["snapshot"] == {
+        "snapshot_id": "published-sources",
+        "snapshot_hash": "snapshot-hash",
+    }
+    assert view["theory"]["research_source_grounding"]["read_refs"][0][
+        "document_id"
+    ] == "paper-1"
 
 
 def test_canonical_evidence_view_uses_task_intent_for_required_dimensions() -> None:
