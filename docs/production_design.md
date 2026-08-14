@@ -120,29 +120,23 @@ owner feedback.
 
 ## Theory workspace
 
-The TheoryDeveloper must maintain an artifact-backed research workspace rather
-than treating a small JSON packet as the theory itself. Its durable products are:
+TheoryDeveloper maintains an artifact-backed research workspace, not a JSON answer.
+It owns exact definitions, assumptions and use sites, equation/lemma dependencies,
+executable procedure semantics, counterexamples, gaps, and revision lineage.
 
-- exact definitions and notation;
-- an assumption ledger with necessity and use sites;
-- an equation derivation and lemma dependency graph;
-- estimand, estimator/test/procedure, and executable data-generating semantics;
-- counterexamples, failure regimes, and unresolved mathematical gaps;
-- revision links from simulation, semantic review, and formalization observations.
+Compact packets are handoff indexes. Serious theory has no per-field caps and is
+bounded only by the model context, workspace safety, and no-progress policy. The
+validator checks typed handoff structure; formal artifacts depend on task intent.
 
-Compact packets are handoff indexes, not the theory itself. Compact/recovery limits
-exist only to survive constrained transport; serious theory has no per-field caps
-and is bounded by the model token window, workspace safety, and no-progress policy.
-The validator requires typed derivations, assumptions, sanity checks, a primary
-procedure, and theorem targets; formalization artifacts are required only by the runtime-owned task
-contract. Supporting rows may be empty when unjustified. The model may explicitly
-report an unresolved theory gap after inspecting or testing workspace artifacts;
-this blocks the lineage without pretending that a model judgment is proof.
+Discovery and revision share exact parent and reviewer artifacts. Only model-authored
+edits apply, raw validation returns to the same model, and the editor contains no
+statistical rules, suggested values, or routing decisions. An explicit grounded gap
+blocks the lineage without treating model judgment as proof.
 
-Discovery and revision use the same workspace and exact parent/reviewer artifacts.
-Only model-authored edits are applied. Partial valid writes remain available, raw
-validation observations return to the model, and the editor has no statistical
-rules, suggested values, or routing role.
+Structural validity does not stop the session. `write_theory_artifacts` retains the
+exact candidate; the model then continues useful work, reports a gap, or calls
+`commit_theory_checkpoint`. No fixed review ritual is required. A commit is only a
+proposal for independent review, never scientific acceptance or proof evidence.
 
 ## Scientific coding workspace
 

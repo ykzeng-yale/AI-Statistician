@@ -84,6 +84,12 @@ sanity checks, and unresolved gaps. Independent review and empirical or formal
 observations can reopen the current theory lineage. A model-reported theory gap is
 an honest blocked result, never proof evidence.
 
+A schema-valid theory write does not automatically close the workspace. The author
+model explicitly commits a review checkpoint or continues within the existing
+bounded session; the harness imposes no fixed review ritual. Independent theory
+evaluation remains authoritative, so model self-commitment earns no correctness
+credit by itself.
+
 Algorithm and exploratory Simulation may begin as soon as the estimand, DGP,
 procedure ABI, and consumed claims are stable enough to execute. They need not wait
 for every theorem lemma. Exploratory outcomes may challenge theory but remain
