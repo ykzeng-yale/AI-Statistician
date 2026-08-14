@@ -62,15 +62,16 @@ PREFLIGHT_CLIENT_TOOL_NAMES = [
 def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     prompt = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
 
-    assert "authoritative theory documents" in prompt
-    assert "Reconstruct" in prompt
-    assert "at least one decisive algebraic or probabilistic step" in prompt
+    assert "authoritative Markdown or LaTeX" in prompt
+    assert "every active claim anchor" in prompt
+    assert "reconstruct decisive algebraic or probabilistic transitions" in prompt
     assert "boundary case" in prompt
-    assert "special case, or counterexample" in prompt
-    assert "retrieved copy" in prompt
-    assert "may be UNKNOWN rather than FAIL" in prompt
-    assert "scratchpad result is exploratory diagnostic evidence only" in prompt
-    assert "relabels it as confirmatory" in prompt
+    assert "special case" in prompt
+    assert "counterexample" in prompt
+    assert "final statement" in prompt
+    assert "may be UNCERTAIN" in prompt
+    assert "scratchpad" in prompt
+    assert "task-family checklist" in prompt
 
 
 def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
@@ -1182,39 +1183,33 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     prompt = build_architect_theory_execution_preflight_prompt(material)
     prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
     verdict_policy = prompt_payload["verdict_policy"]
-    assert "checkable derivation" in verdict_policy
-    assert "hypotheses to audit, not independent evidence" in verdict_policy
-    assert "substitute it into the current displayed formula" in verdict_policy
-    assert "actually necessary for the stated execution gate" in verdict_policy
-    assert "absence of an explicit rebuttal" in verdict_policy
-    assert "Retract a prior finding when its premise is false" in verdict_policy
-    assert "one to three concise sentences" in verdict_policy
-    assert "do not quote or restate" in verdict_policy
+    assert "checkable independent derivation" in verdict_policy
+    assert "exact inspected anchors" in verdict_policy
+    assert "prior reviewer prose is not independent support" in verdict_policy
+    assert "downstream proof obligations" in verdict_policy
     packet, backend = _review(accept=True)
 
-    assert len(prompt) < 30_000
+    assert len(prompt) < 24_000
     protocol = " ".join(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL)
     for phrase in (
-        "full declared support",
-        "recompute the procedure-defining identity",
-        "derive the order of the unscaled executable output",
-        "missing or extra sample-size factor",
-        "full rank alone does not establish",
-        "condition on the information available",
-        "fixed-candidate result does not automatically survive",
-        "source_interface_inventory",
-        "present-but-incomplete contract",
-        "declared output contract and termination guarantee",
-        "do not substitute a hypothetical branch",
-        "same DGP, probability law",
-        "finite executable observation",
-        "typed outcome",
-        "not observed within a resource bound",
-        "neither automatically destroys nor automatically preserves",
-        "preflight has no generated-code or simulation authority",
-        "leave that check to the existing AlgorithmEngineer or SimulationEngineer",
+        "structured handoff is only an index",
+        "every non-REJECTED claim-index entry",
+        "correct final statement does not cancel",
+        "discriminating special case",
+        "complete semantic chain",
+        "canned checklist",
+        "mathematical coherence from proof completeness",
+        "pre-review Python or R scratch results as exploratory only",
+        "one compact finding per actual blocker",
     ):
         assert phrase in protocol
+    assert len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL) == 7
+    for retired_corner_case in (
+        "missing or extra sample-size factor",
+        "fixed-candidate result does not automatically survive",
+        "not observed within a resource bound",
+    ):
+        assert retired_corner_case not in protocol
     assert packet["overall_verdict"] == "ACCEPT"
     assert "runtime_estimator_status_normalizations" not in packet
     assert packet["runtime_estimator_identity_bindings"][0][
@@ -1495,6 +1490,131 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
             THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         }
     )
+
+
+def test_preflight_requires_reads_covering_every_active_claim_anchor(
+    tmp_path: Path,
+) -> None:
+    relative_path = "derivations/claim_chain.md"
+    content = """# Claim chain
+
+## Definition
+Define the primitive object directly.
+
+## Main theorem
+Derive the conclusion from the primitive definition.
+
+## Rejected route
+This abandoned route is explicitly rejected.
+"""
+    target = tmp_path / relative_path
+    target.parent.mkdir(parents=True)
+    target.write_text(content, encoding="utf-8")
+
+    theory_material = _theory_material()
+    semantic = theory_material["theory_semantic_material"]
+    semantic["theory_workspace_manifest"] = theory_workspace_document_manifest(
+        {relative_path: content},
+        workspace_dir=tmp_path,
+    )
+    semantic["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
+    semantic["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
+    semantic["theory_derivation_packet"]["claim_index"] = [
+        {
+            "id": "definition_primitive",
+            "kind": "definition",
+            "document_path": relative_path,
+            "anchor": "## Definition",
+            "depends_on": [],
+            "status": "SUPPORTED",
+        },
+        {
+            "id": "theorem_main",
+            "kind": "theorem",
+            "document_path": relative_path,
+            "anchor": "## Main theorem",
+            "depends_on": ["definition_primitive"],
+            "status": "SUPPORTED",
+        },
+        {
+            "id": "rejected_route",
+            "kind": "equation",
+            "document_path": relative_path,
+            "anchor": "## Rejected route",
+            "depends_on": [],
+            "status": "REJECTED",
+        },
+    ]
+    theory_material["source_theory_packet_hash"] = stable_hash(semantic)
+
+    class ClaimCoverageBackend(_PreflightToolBackend):
+        def __init__(self) -> None:
+            super().__init__(accept=True, cite_sources=False)
+            self.coverage_rejection = {}
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "read-definition",
+                        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                        {
+                            "path": relative_path,
+                            "line_start": 2,
+                            "line_end": 4,
+                        },
+                    )
+                )
+            if turn == 2:
+                return _tool_response(
+                    ClientToolCall(
+                        "submit-with-partial-coverage",
+                        "submit_theory_preflight_review",
+                        self._submission(source_ref=""),
+                    )
+                )
+            if turn == 3:
+                self.coverage_rejection = json.loads(
+                    request.messages[-1]["content"][0]["content"]
+                )
+                return _tool_response(
+                    ClientToolCall(
+                        "read-main-theorem",
+                        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                        {
+                            "path": relative_path,
+                            "line_start": 5,
+                            "line_end": 7,
+                        },
+                    )
+                )
+            return _tool_response(
+                ClientToolCall(
+                    "submit-with-active-claim-coverage",
+                    "submit_theory_preflight_review",
+                    self._submission(source_ref=""),
+                )
+            )
+
+    backend = ClaimCoverageBackend()
+    packet = _tool_review(
+        backend,
+        theory_protocol_material=theory_material,
+    )
+
+    assert backend.coverage_rejection["error"] == "preflight_submission_rejected"
+    assert any(
+        "theorem_main" in error
+        for error in backend.coverage_rejection["validation_errors"]
+    )
+    assert all(
+        "rejected_route" not in error
+        for error in backend.coverage_rejection["validation_errors"]
+    )
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["theory_document_inspection_count"] == 2
 
 
 def test_preflight_full_regeneration_returns_raw_validation_feedback() -> None:

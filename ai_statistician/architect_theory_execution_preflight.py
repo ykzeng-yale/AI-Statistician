@@ -49,7 +49,7 @@ from .theory_workspace import (
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 16
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 20
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 21
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -82,158 +82,54 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_BOUNDARY = (
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
     (
-        "Review only the supplied pre-execution theory and research-contract "
-        "artifacts. Treat every derivation, theorem card, sanity check, and expected "
-        "behavior as an unverified claim. Do not invent task-family formulas, code, "
-        "thresholds, observed results, or proof claims."
+        "Treat every candidate definition, assumption, equation, theorem, sanity "
+        "check, and expected behavior as unverified. The Markdown or LaTeX documents "
+        "contain the mathematics; the structured handoff is only an index and "
+        "execution interface. Do not invent task-specific formulas, code, thresholds, "
+        "observed results, or proof claims."
     ),
     (
-        "Reconstruct the estimand, DGP, parameter regime, and central identities "
-        "from primitive definitions. Expand probabilities and expectations over "
-        "their full declared support and test at least one boundary, counterexample, "
-        "or incompatible regime when a universal or finite claim is made."
+        "Inspect the exact document range for every non-REJECTED claim-index entry. "
+        "For each central conclusion, follow its declared dependencies back to "
+        "definitions and assumptions, then independently reconstruct at least one "
+        "decisive transition. A correct final statement does not cancel a false, "
+        "circular, or unsupported intermediate step."
     ),
     (
-        "For every estimator, recompute the procedure-defining identity that carries "
-        "its claimed invariant or guarantee, including normalization and sample-size "
-        "scale for every executable output. Do not validate an identity by restating "
-        "a theorem card, sanity check, named theorem, or the estimator's own formula."
+        "Try a discriminating special case, boundary case, counterexample, or "
+        "independent reduction for the central identity. When the candidate invokes "
+        "an external theorem, inspect its actual hypotheses and conclusion through "
+        "the available source tool instead of accepting its name as verification."
     ),
     (
-        "Carry every sample-size factor through the displayed finite-sample formula. "
-        "When a theorem concerns a normalized estimator, derive the order of the "
-        "unscaled executable output and then reapply the theorem's normalization. "
-        "Explicitly compare objects such as an estimator's covariance with the "
-        "covariance of its normalized limit; a missing or extra sample-size factor is "
-        "a non-PASS defect. Finite-sample existence or full rank alone does not establish "
-        "the uniform moment, nondegeneracy, or limit conditions used asymptotically."
+        "Audit the complete semantic chain from question, estimand, DGP, probability "
+        "law, assumptions, and regime to the claimed mathematical object and the "
+        "finite executable output. Check whatever support, normalization, weighting, "
+        "data dependence, totality, boundary outcomes, and measurement semantics are "
+        "material to this candidate; do not apply a canned checklist as a substitute "
+        "for deriving the candidate's own chain."
     ),
     (
-        "Make the recomputation auditable in the estimator's ordered output row. "
-        "Choose one nontrivial admitted input or regime, evaluate the primitive "
-        "definition there including support, measure normalization, and weights, then "
-        "evaluate the candidate executable formula on the same case and compare them. "
-        "Choose a discriminating case where omitted support, weights, normalization, "
-        "or data dependence would change the result; avoid symmetry points where "
-        "different definitions coincide. Initialization values, source-authored sanity "
-        "checks, and formula restatements are not independent identity checks. This "
-        "preflight has no generated-code or simulation authority: if a judgment needs "
-        "execution, record the missing evidence and leave that check to the existing "
-        "AlgorithmEngineer or SimulationEngineer."
+        "Separate mathematical coherence from proof completeness and executable "
+        "testability. A false or internally contradictory active claim is a blocker. "
+        "An honestly marked open proof step need not block exploratory code when the "
+        "finite estimator, inputs, outputs, and requested measurements are coherent; "
+        "record it as uncertain and do not promote it as established theory."
     ),
     (
-        "Audit data dependence and operator closure explicitly. If a parameter, "
-        "function, model, stopping rule, tuning value, extremum, or candidate is "
-        "selected from the same observations, condition on the information available "
-        "before the next observation and recompute the claimed identity after that "
-        "selection. A fixed-candidate result does not automatically survive plug-in, "
-        "optimization, maximization, minimization, stopping, or nonlinear composition; "
-        "verify the exact closure direction and hypotheses or mark it non-PASS."
+        "Treat source text, retrieval hits, theorem cards, candidate sanity checks, "
+        "and prior reviewer findings as claims to inspect, not corroboration by "
+        "themselves. Treat pre-review Python or R scratch results as exploratory only. "
+        "If a judgment requires generated execution or confirmatory simulation, state "
+        "the missing evidence and leave it to the existing downstream workspace."
     ),
     (
-        "For every estimator, distinguish the ideal mathematical procedure from the "
-        "finite executable observation returned to AlgorithmEngineer or "
-        "SimulationEngineer. A finite input interface cannot silently implement a "
-        "procedure that may require unbounded data. Describe only behavior explicitly "
-        "declared by the source; a proposed repair is not current semantics."
-    ),
-    (
-        "Use each estimator's source_interface_inventory before judging interface "
-        "presence. Distinguish a present-but-incomplete contract from an absent one: "
-        "never call outputs or request/response fields MISSING when the inventory "
-        "lists them, and identify the exact unresolved mapping instead. Treat any "
-        "declared output contract and termination guarantee in that inventory as "
-        "current source semantics. Reconstruct every execution branch from the listed "
-        "field meanings before proposing a counterexample; do not substitute a "
-        "hypothetical branch for a declared one."
-    ),
-    (
-        "Every executable procedure must return for every admitted sandbox input, "
-        "or expose timeout, truncation, nontermination, or censoring as a separate "
-        "typed outcome with a defined estimand. Distinguish not observed within a "
-        "resource bound from never occurs. If the source supplies neither totality nor "
-        "a typed bounded outcome, mark the mapping non-PASS instead of inventing one."
-    ),
-    (
-        "A finite truncation, approximation, or censoring rule neither automatically "
-        "destroys nor automatically preserves an ideal guarantee. Derive the needed "
-        "event inclusion, error decomposition, or changed estimand before deciding."
-    ),
-    (
-        "When executable code returns the exact finite-sample estimator named by an "
-        "asymptotic theorem, transport to that output is an identity once the same "
-        "DGP, estimator, regime, hypotheses, and typed boundary outcomes are explicit. "
-        "Do not demand a new nonasymptotic error bound merely to authorize empirical "
-        "evaluation of an asymptotic approximation."
-    ),
-    (
-        "This stage gates metric authoring and finite execution, not mathematical or "
-        "formal proof closure. A missing full proof, proof-assistant derivation, or "
-        "robustness result is a downstream TheoryDeveloper, Critic, or Formalizer "
-        "obligation rather than a pre-execution blocker when the declared finite "
-        "estimator, DGP, estimand, measurement, and boundary outcomes are already "
-        "coherent. Do not emit such downstream obligations as findings here."
-    ),
-    (
-        "Treat an explicit assumption as the admitted scope. A documented failure "
-        "outside that scope is not a robustness blocker unless the requested DGP or "
-        "metric enters the excluded regime, or the claimed output silently extends "
-        "the guarantee beyond the assumption."
-    ),
-    (
-        "Check that every requested empirical performance measure is identifiable "
-        "from the executable outputs under every requested DGP and regime. Reject "
-        "undefined expectations, impossible return contracts, and measurements that "
-        "silently replace the stated theoretical object."
-    ),
-    (
-        "When the source invokes a named theorem, audit its exact hypotheses and "
-        "conclusion. Do not replace a missing hypothesis with a nearby moment or "
-        "regularity condition, and do not treat naming the theorem as verification."
-    ),
-    (
-        "Bind every theorem hypothesis to the same DGP, probability law, filtration, "
-        "or measure under which its conclusion is used. A condition established under "
-        "one regime cannot discharge an assumption needed under another regime."
-    ),
-    (
-        "Inspect source critic findings, semantic risks, self-critique, and rejected "
-        "alternatives. A risk remains a blocker only when it invalidates the central "
-        "procedure inside the admitted DGP or leaves an executable branch or requested "
-        "measurement undefined. A proposed future repair is not a current resolution."
-    ),
-    (
-        "Use only exact evidence anchor IDs from the supplied catalog. Evidence refs "
-        "identify the claims you inspected; they do not turn TheoryDeveloper prose "
-        "into evidence or proof."
-    ),
-    (
-        "Mark uncertainty FAIL or UNCERTAIN and emit a concrete upstream-theory "
-        "finding. AgentRuntime derives ACCEPT only when every required dimension and "
-        "estimator check is PASS and no finding remains."
-    ),
-    (
-        "Report only blockers to metric authoring or finite execution. Use one compact "
-        "finding per distinct blocker. State the observed behavior and the behavior "
-        "required by the supplied research contract, without prescribing an edit, "
-        "repair strategy, or owner; omit optional feature requests and unrelated "
-        "method improvements."
-    ),
-    (
-        "Review dimensions, estimators, and active prior findings in the exact ordered "
-        "slots supplied by ordered_review_slots. AgentRuntime owns and binds their "
-        "identities; do not copy identity strings into output rows. Mark a prior "
-        "finding RESOLVED_BY_CURRENT_THEORY only when current source anchors show the "
-        "required source change. Mark it RETRACTED_BY_CURRENT_EVIDENCE when current "
-        "anchors instead show that the prior claim is contradicted, outside the admitted "
-        "DGP or requested measurements, or only a downstream implementation/proof "
-        "obligation rather than a pre-execution blocker. Otherwise mark it UNRESOLVED. "
-        "Prior obligations supply identity and required behavior only, never observations "
-        "about the current packet. Reinspect current anchors before deciding. AgentRuntime "
-        "carries an unresolved prior finding forward unchanged. If a findings row concerns "
-        "the same invariant or required remedy, "
-        "select its ordered prior_finding_index; use -1 only for a genuinely new defect. "
-        "AgentRuntime binds the selected identity without semantic matching."
+        "Use exact anchor IDs and the ordered review slots supplied by the runtime. "
+        "Mark uncertainty FAIL or UNCERTAIN, report one compact finding per actual "
+        "blocker, and describe the observed and required behavior without prescribing "
+        "a repair. Resolve or retract a prior finding only from current inspected "
+        "evidence; otherwise leave it unresolved. AgentRuntime derives the verdict and "
+        "binds identities without choosing scientific semantics."
     ),
 )
 
@@ -987,26 +883,15 @@ def build_architect_theory_execution_preflight_prompt(
             "complete dimension, estimator, and finding rows. A blocking finding, "
             "including an UNRESOLVED prior finding, requires at least one FAIL or "
             "UNCERTAIN dimension or estimator row. If every execution review row "
-            "is PASS, return no new findings and mark every prior finding "
-            "RESOLVED_BY_CURRENT_THEORY when the source changed, or "
-            "RETRACTED_BY_CURRENT_EVIDENCE when current anchors show the prior was "
-            "not a pre-execution blocker. Re-derive every blocking mathematical "
-            "premise from the current anchors: claims about divergence, normalization, "
-            "integrability, or an invalid identity need a checkable derivation in the "
-            "review row or an exact source handle from search_preflight_sources. "
-            "Source self-critique, source critic_findings, and prior reviewer findings "
-            "are hypotheses to audit, not independent evidence for themselves. Do not "
-            "justify a finding by quoting one of those hypotheses. For an asserted "
-            "counterexample, substitute it into the current displayed formula and "
-            "simplify the resulting finite expression before deciding its status. "
-            "Distinguish an assumption the source chose to list from an assumption "
-            "that is actually necessary for the stated execution gate. "
-            "Retract a prior finding when its premise is false; absence of an explicit "
-            "rebuttal in the revised theory is not evidence that the finding remains "
-            "true. Keep every rationale to the decisive calculation or observation in "
-            "one to three concise sentences; do not quote or restate the packet, prior "
-            "finding prose, or the same justification across output sections. Do not "
-            "carry downstream proof obligations as execution blockers."
+            "is PASS, return no new findings. Resolve a prior finding only when current "
+            "inspected anchors establish the required change; retract it only when the "
+            "current derivation or independent source evidence defeats its premise. "
+            "Otherwise keep it unresolved. Every blocker needs a checkable independent "
+            "derivation, reduction, or counterexample grounded in exact inspected "
+            "anchors; quoting candidate self-critique or prior reviewer prose is not "
+            "independent support. Keep each rationale to the decisive calculation or "
+            "observation and do not carry downstream proof obligations as execution "
+            "blockers."
         ),
     }
     return "Review the following typed packet. Return JSON only.\n\n" + json.dumps(
@@ -1048,6 +933,82 @@ def _preflight_authoritative_theory_documents(
             "byte_size": len(content.encode("utf-8")),
         }
     return documents
+
+
+def _preflight_active_claim_anchor_rows(
+    material: Mapping[str, Any],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for catalog_row in material.get("anchor_catalog", []) or []:
+        if not isinstance(catalog_row, Mapping) or str(
+            catalog_row.get("anchor_id", "") or ""
+        ) != "theory.claim_index":
+            continue
+        claims = catalog_row.get("content", [])
+        for claim in claims if isinstance(claims, list | tuple) else []:
+            if not isinstance(claim, Mapping):
+                continue
+            if str(claim.get("status", "") or "").strip() == "REJECTED":
+                continue
+            normalized = {
+                "id": str(claim.get("id", "") or "").strip(),
+                "document_path": str(
+                    claim.get("document_path", "") or ""
+                ).strip(),
+                "anchor": str(claim.get("anchor", "") or "").strip(),
+            }
+            if all(normalized.values()):
+                rows.append(normalized)
+    return rows
+
+
+def _preflight_missing_claim_document_reads(
+    *,
+    material: Mapping[str, Any],
+    inspection_refs: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    documents = _preflight_authoritative_theory_documents(material)
+    reads_by_path: dict[str, list[tuple[int, int]]] = {}
+    for ref in inspection_refs:
+        if str(ref.get("tool", "") or "") != THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
+            continue
+        path = str(ref.get("path", "") or "")
+        line_start = ref.get("line_start")
+        line_end = ref.get("line_end")
+        if (
+            path not in documents
+            or isinstance(line_start, bool)
+            or not isinstance(line_start, int)
+            or isinstance(line_end, bool)
+            or not isinstance(line_end, int)
+        ):
+            continue
+        reads_by_path.setdefault(path, []).append((line_start, line_end))
+
+    missing: list[str] = []
+    for claim in _preflight_active_claim_anchor_rows(material):
+        document = documents.get(claim["document_path"])
+        if document is None:
+            missing.append(claim["id"])
+            continue
+        anchor_lines = [
+            line_number
+            for line_number, line in enumerate(
+                document["content"].splitlines(),
+                start=1,
+            )
+            if claim["anchor"] in line
+        ]
+        covered = any(
+            line_start <= anchor_line <= line_end
+            for line_start, line_end in reads_by_path.get(
+                claim["document_path"], []
+            )
+            for anchor_line in anchor_lines
+        )
+        if not covered:
+            missing.append(claim["id"])
+    return missing
 
 
 def _search_preflight_theory_documents(
@@ -1736,6 +1697,16 @@ def _preflight_theory_document_inspection_errors(
                     )
         else:
             errors.append(f"theory document inspection {index} tool is invalid")
+    if expected_required:
+        missing_claim_ids = _preflight_missing_claim_document_reads(
+            material=material,
+            inspection_refs=refs,
+        )
+        if missing_claim_ids:
+            errors.append(
+                "authoritative theory claim anchors were not read: "
+                + ", ".join(missing_claim_ids[:16])
+            )
     return errors
 
 
@@ -2597,29 +2568,25 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT = """\
 You are the independent ArchitectMetricSemanticReviewer inside an AI Statistician
 AgentRuntime. Before metric authoring or generated execution, audit whether a proposed
 statistical theory is mathematically coherent and can be represented by a finite,
-typed experiment. Independently check the candidate's central definitions, equations,
-normalizations, assumptions, and limit claims; do not treat the candidate's theorem
-cards, the research question, or a retrieved copy of either as corroboration. Reconstruct
-at least one decisive algebraic or probabilistic step and try a boundary case, limiting
-special case, or counterexample before marking primitive mathematical consistency PASS.
-Read the authoritative theory documents themselves, not only their structured handoff.
+typed experiment. Read every active claim anchor in the authoritative Markdown or LaTeX
+documents and follow its declared dependencies; the structured packet is only an index.
+Independently reconstruct decisive algebraic or probabilistic transitions and try a
+discriminating special case, boundary case, or counterexample. Do not treat a correct
+final statement, theorem card, research question, source restatement, or passing sanity
+check as validation of the intermediate derivation.
 
 This is a rigorous mathematical checkpoint, not theorem peer review or formal proof
-closure. A false or internally contradictory mathematical claim is a blocker even when the executable
-estimator can still run. An honestly identified proof gap, heuristic step, or unresolved
-open claim may be UNKNOWN rather than FAIL and must not be promoted to a proved result.
-Be adversarial about executable semantics, DGP alignment, normalization, and
-measurement, but do not block exploratory execution solely because a theorem proof is
-incomplete or an explicitly excluded regime is not robust. Do not write implementation
-or calculation code, and do not claim observed research results. A check that requires
-generated code or simulation belongs to the existing AlgorithmEngineer or
-SimulationEngineer after this source-grounded preflight. Do not invent task-family rules
-or claim proof evidence.
+closure. A false, circular, or internally contradictory active claim is a blocker even
+when code could run. An honestly identified open proof step may be UNCERTAIN and must not
+be promoted to established theory, but need not block exploratory execution when the
+finite estimator and measurement contract are coherent. Audit the candidate's own DGP,
+law, assumptions, normalization, data dependence, executable mapping, boundary outcomes,
+and measurements without importing a task-family checklist or formula.
 
-Audit evidence labels inside the theory documents as well as equations. A pre-review
-Python or R scratchpad result is exploratory diagnostic evidence only. Reject any claim
-that relabels it as confirmatory, uses it to choose a favorable gate, or treats it as
-proof of a theorem; leave real confirmatory execution to the frozen downstream lane.
+Source text and retrieval are context, not proof. A pre-review Python or R scratchpad
+result is exploratory only; confirmatory evidence belongs to the frozen downstream lane.
+If a judgment requires generated execution, state the missing evidence rather than
+inventing a result. Report findings, not repairs, and never claim proof evidence.
 """
 
 
@@ -2718,33 +2685,17 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     tool_prompt = (
         prompt.split("\n\n", 1)[-1]
         + "\n\nThe prompt contains a hash-bound catalog, not duplicated full theory "
-        "documents. Use search_theory_documents as needed to locate central claims, "
-        "then read_theory_document to inspect exact surrounding derivations. When "
-        "authoritative documents are present, at least one exact document read is "
-        "required before submission. Choose the claims, queries, and line ranges "
-        "yourself. Use search_preflight_sources "
-        "when additional task-bound or formal-library context would materially "
-        "improve the review. Before retaining a blocker that depends on an external "
-        "named theorem, general mathematical fact, or a prior finding premise not "
-        "derived in the current candidate, query retrieval_memory or all at least "
-        "once; repeated theory-only searches merely reread the candidate. Cite any "
-        "returned source_ref handles you rely on; runtime "
-        "binds them to exact source identities. You own each statistical judgment and "
-        "each search query. Runtime retrieval ranking, source identity checks, and "
-        "packet validation do not choose semantics. If several independent source "
-        "queries are useful, you may issue them together in one tool turn. "
-        "No generated-code or simulation results exist at this stage. Do not report "
-        "sample sizes, Monte Carlo metrics, empirical ratios, coverage, or execution "
-        "outcomes as observed facts. If a decision needs such evidence, mark the exact "
-        "source-level question UNCERTAIN so ArchitectCoordinator can route it to the "
-        "existing coding or simulation agent. "
-        "Before accepting primitive mathematical consistency, independently derive or "
-        "reduce a central claimed equality or limit and record the exact theory anchors "
-        "used. Test a generic special case or counterexample where possible. Candidate "
-        "summaries and duplicate retrieval hits are context, not independent validation. "
-        "Keep the two citation namespaces distinct: evidence_refs uses only exact "
-        "theory anchor IDs allowed by the submit schema, while source_evidence_refs "
-        "uses only S...H... handles returned by search_preflight_sources. "
+        "documents. Read exact ranges that cover every non-REJECTED entry in "
+        "theory.claim_index; one range may cover several nearby anchors, and independent "
+        "reads may be issued together. Coverage proves inspection only, so you must still "
+        "follow dependencies, reconstruct decisive transitions, and challenge them. "
+        "Choose all searches and ranges yourself. Use search_preflight_sources when an "
+        "external theorem or fact materially affects the judgment, and cite only handles "
+        "the tool returned. Runtime binds identities but never chooses semantics. "
+        "No generated-code or simulation results exist at this stage; mark a question "
+        "UNCERTAIN when it genuinely requires that downstream evidence. Keep citation "
+        "namespaces distinct: evidence_refs accepts theory anchor IDs, while "
+        "source_evidence_refs accepts only S...H... source handles. "
         "Call submit_theory_preflight_review with the full typed review; do not "
         "answer in prose."
     )
