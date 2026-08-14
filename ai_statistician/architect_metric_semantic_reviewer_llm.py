@@ -33,7 +33,7 @@ from .structured_output_retry import (
 
 
 ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 20
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 16
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 17
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -82,6 +82,10 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "Judge the portfolio once for cross-requirement consistency, redundancy, "
         "multiplicity, dependence, and non-vacuity. Repeated scenarios should normally "
         "be represented by one vector-valued measurement and explicit aggregation. "
+        "Reject unnecessary required rows that turn one declared empirical claim into "
+        "extra acceptance obligations; optional robustness or stress checks belong in "
+        "exploratory evidence unless upstream declares them as distinct confirmatory "
+        "claims. "
         "Check that each statistic is mathematically well-defined at its stated "
         "dimension and that the joint portfolio has a defensible probability of "
         "accepting a valid pipeline. A confirmatory outcome gate evaluates the whole "
@@ -1547,10 +1551,12 @@ class LLMArchitectMetricSemanticReviewerAgent:
             ArchitectMetricSemanticReviewerConfig()
         ),
         source_retriever: Any = None,
+        research_sources: Any = None,
     ) -> None:
         self.provider = provider
         self.config = config
         self.source_retriever = source_retriever
+        self.research_sources = research_sources
 
     def review_theory_execution_preflight(
         self,
@@ -1573,6 +1579,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             max_validation_retries=0,
             prior_finding_ledger=prior_finding_ledger,
             source_retriever=self.source_retriever,
+            research_sources=self.research_sources,
         )
 
     def review(

@@ -3184,14 +3184,19 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     ) == "claude-haiku-4-5-20251001"
     runtime_default_model = default_generator_model(runtime_args.provider, model_tier="sonnet")
     preflight_source_retriever = object()
+    preflight_research_sources = object()
     architect = _build_architect_coordinator_agent_from_args(
         runtime_args,
         default_model=runtime_default_model,
         formal_source_retriever=preflight_source_retriever,
+        research_sources=preflight_research_sources,
     )
     assert architect.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert architect.metric_semantic_reviewer.source_retriever is (
         preflight_source_retriever
+    )
+    assert architect.metric_semantic_reviewer.research_sources is (
+        preflight_research_sources
     )
     algorithm_engineer = _build_algorithm_engineer_agent_from_args(
         runtime_args,

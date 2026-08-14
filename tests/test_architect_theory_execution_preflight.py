@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -41,6 +42,12 @@ from ai_statistician.model_backend import (
     GeneratorResponse,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.research_source_library import (
+    RESEARCH_SOURCE_READ_TOOL,
+    RESEARCH_SOURCE_SEARCH_TOOL,
+    ResearchSourceDocument,
+    ResearchSourceSnapshot,
+)
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_HANDOFF_ROLE,
@@ -639,6 +646,7 @@ def _tool_review(
     backend,
     *,
     source_retriever=None,
+    research_sources=None,
     prior_finding_ledger=(),
     theory_protocol_material=None,
 ):
@@ -661,6 +669,7 @@ def _tool_review(
         provider_name="anthropic",
         max_validation_retries=0,
         source_retriever=source_retriever,
+        research_sources=research_sources,
         prior_finding_ledger=prior_finding_ledger,
     )
 
@@ -673,7 +682,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_document_inspection_and_optional_source_query_v9"
+        "client_tool_document_inspection_and_task_bound_source_query_v10"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
@@ -800,6 +809,129 @@ def test_preflight_client_tool_loop_can_query_configured_formal_retriever() -> N
     assert packet["findings"][0]["source_evidence_refs"] == [
         hit["source_hit_id"]
     ]
+
+
+def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
+    tmp_path: Path,
+) -> None:
+    source_text = (
+        "# Exact finite-sample result\n"
+        "\n"
+        "Under independent Gaussian sampling, the pivotal ratio has a Student "
+        "distribution with n minus one degrees of freedom.\n"
+        "Inverting its two-sided quantiles gives the stated confidence interval.\n"
+    )
+    source_path = tmp_path / "student.md"
+    source_path.write_text(source_text, encoding="utf-8")
+    manifest_path = tmp_path / "sources.json"
+    manifest_path.write_text("{}", encoding="utf-8")
+    source_sha256 = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
+    snapshot = ResearchSourceSnapshot(
+        snapshot_id="student-source",
+        source_horizon="1908-12-31",
+        snapshot_hash=stable_hash(["student-source", source_sha256]),
+        manifest_sha256=hashlib.sha256(b"{}").hexdigest(),
+        documents=(
+            ResearchSourceDocument(
+                document_id="student-paper",
+                title="Exact finite-sample result",
+                source_kind="paper",
+                relative_path="student.md",
+                sha256=source_sha256,
+                citation="Student (1908)",
+                lines=tuple(source_text.splitlines()),
+            ),
+        ),
+        manifest_path=manifest_path,
+        source_root=tmp_path,
+    )
+
+    class ResearchSourceBackend(_PreflightToolBackend):
+        def __init__(self) -> None:
+            super().__init__(accept=False)
+            self.read_hit_id = ""
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "search-research-source",
+                        RESEARCH_SOURCE_SEARCH_TOOL,
+                        {
+                            "query": "pivotal ratio degrees freedom",
+                            "top_k": 2,
+                        },
+                    )
+                )
+            result = json.loads(
+                request.messages[-1]["content"][0]["content"]
+            )
+            if turn == 2:
+                hit = result["hits"][0]
+                return _tool_response(
+                    ClientToolCall(
+                        "read-research-source",
+                        RESEARCH_SOURCE_READ_TOOL,
+                        {
+                            "document_id": hit["document_id"],
+                            "line_start": hit["line_start"],
+                            "line_end": hit["line_end"],
+                        },
+                    )
+                )
+            self.read_hit_id = result["source_hit_id"]
+            return _tool_response(
+                ClientToolCall(
+                    "submit-source-grounded-review",
+                    "submit_theory_preflight_review",
+                    self._submission(source_ref=result["source_ref"]),
+                )
+            )
+
+    backend = ResearchSourceBackend()
+    packet = _tool_review(backend, research_sources=snapshot)
+
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+        RESEARCH_SOURCE_SEARCH_TOOL,
+        RESEARCH_SOURCE_READ_TOOL,
+        "search_preflight_sources",
+        "submit_theory_preflight_review",
+    ]
+    assert packet["preflight_source_search_count"] == 1
+    assert [
+        row["source_scope"]
+        for row in packet["preflight_source_observations"]
+    ] == ["research_sources", "research_source_read"]
+    assert [
+        row["hits"][0]["source_kind"]
+        for row in packet["preflight_source_observations"]
+    ] == [
+        "research_source_search_passage",
+        "research_source_exact_passage",
+    ]
+    assert packet["findings"][0]["source_evidence_refs"] == [
+        backend.read_hit_id
+    ]
+    assert all(
+        "excerpt" not in hit and "content" in hit
+        for observation in packet["preflight_source_observations"]
+        for hit in observation["hits"]
+    )
+    assert (
+        "Inverting its two-sided quantiles gives the stated confidence interval."
+        not in json.dumps(packet)
+    )
+    assert all(
+        "research-source text omitted" in call["result_excerpt"]
+        for turn in packet["client_tool_loop_history"]
+        for call in turn["tool_calls"]
+        if call["name"]
+        in {RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL}
+    )
 
 
 def test_preflight_all_scope_preserves_context_and_formal_channels() -> None:
@@ -2617,6 +2749,8 @@ def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> No
     assert "quantitative uncertainty or sampling-error calculation" in prompt
     assert "'stringent but attainable' are not evidence" in prompt
     assert "does not alone justify a tight finite-run threshold" in prompt
+    assert "Preserve the requested scientific claim granularity" in prompt
+    assert "remain exploratory" in prompt
 
 
 def test_metric_review_exhaustion_blocks_in_source_workspace() -> None:

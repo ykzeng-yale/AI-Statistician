@@ -497,6 +497,8 @@ def test_prompt_projects_semantic_inputs_without_long_derivation_replay() -> Non
     assert "independently quantify or bound finite-run uncertainty" in prompt
     assert "unsupported assertion that a threshold is attainable" in prompt
     assert "does not by itself localize a defect" in prompt
+    assert "one declared empirical claim" in prompt
+    assert "distinct confirmatory claims" in prompt
     assert "Runtime performs no implicit target subtraction" in prompt
     assert "semantic_positive_control" in prompt
     assert "implicit_transformations_applied" in prompt

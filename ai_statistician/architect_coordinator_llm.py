@@ -227,6 +227,7 @@ class LLMArchitectCoordinatorAgent:
             LLMArchitectMetricSemanticReviewerAgent | None
         ) = None,
         preflight_source_retriever: Any = None,
+        preflight_research_sources: Any = None,
     ) -> None:
         self.provider = provider
         self.config = config
@@ -246,6 +247,7 @@ class LLMArchitectCoordinatorAgent:
                         provider_name=config.provider_name,
                     ),
                     source_retriever=preflight_source_retriever,
+                    research_sources=preflight_research_sources,
                 )
             )
 

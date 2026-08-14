@@ -38,18 +38,25 @@ from .metric_protocol_finding_ledger import (
     update_metric_protocol_finding_ledger,
 )
 from .research_schema import OpenResearchQuestion
+from .research_source_library import (
+    RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
+    RESEARCH_SOURCE_READ_TOOL,
+    RESEARCH_SOURCE_SEARCH_TOOL,
+    ResearchSourceSnapshot,
+)
 from .theory_workspace import (
     MAX_THEORY_DOCUMENT_SEARCH_HITS,
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     load_theory_workspace_document_rows,
     read_theory_document_lines,
+    research_source_client_tools,
     search_theory_document_lines,
     theory_document_client_tools,
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 16
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 21
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 22
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -67,7 +74,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_document_inspection_and_optional_source_query_v9"
+    "client_tool_document_inspection_and_task_bound_source_query_v10"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
@@ -1457,6 +1464,179 @@ def _search_preflight_sources(
     }
 
 
+def _research_source_preflight_observation(
+    *,
+    research_sources: ResearchSourceSnapshot,
+    operation: str,
+    tool_input: Mapping[str, Any],
+    source_index: int,
+    exclude_hit_ids: set[str] | None = None,
+    prior_source_refs: Mapping[str, str] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if operation == RESEARCH_SOURCE_SEARCH_TOOL:
+        query = tool_input.get("query")
+        top_k = tool_input.get("top_k", 5)
+        if not isinstance(query, str):
+            raise ClientToolInputError("research source query must be text")
+        if isinstance(top_k, bool) or not isinstance(top_k, int):
+            raise ClientToolInputError(
+                "research source top_k must be an integer"
+            )
+        try:
+            visible = research_sources.search(query, top_k=top_k)
+        except ValueError as exc:
+            raise ClientToolInputError(str(exc)) from exc
+        source_scope = "research_sources"
+        retrieval_fusion = "hash_bound_research_source_search_v1"
+        raw_hits = list(visible.get("hits", []) or [])
+        operation_query = str(visible.get("query", query) or query)
+    elif operation == RESEARCH_SOURCE_READ_TOOL:
+        document_id = tool_input.get("document_id")
+        line_start = tool_input.get("line_start")
+        line_end = tool_input.get("line_end")
+        if not isinstance(document_id, str):
+            raise ClientToolInputError(
+                "research source document_id must be text"
+            )
+        if any(
+            isinstance(value, bool) or not isinstance(value, int)
+            for value in (line_start, line_end)
+        ):
+            raise ClientToolInputError(
+                "research source line_start and line_end must be integers"
+            )
+        try:
+            visible = research_sources.read(
+                document_id,
+                line_start=line_start,
+                line_end=line_end,
+            )
+        except ValueError as exc:
+            raise ClientToolInputError(str(exc)) from exc
+        source_scope = "research_source_read"
+        retrieval_fusion = "hash_bound_research_source_exact_read_v1"
+        raw_hits = [visible]
+        operation_query = f"{document_id}:{line_start}-{line_end}"
+    else:
+        raise ClientToolInputError("unsupported research source operation")
+
+    excluded = set(exclude_hit_ids or set())
+    source_refs = dict(prior_source_refs or {})
+    compact_hits: list[dict[str, Any]] = []
+    visible_hits: list[dict[str, Any]] = []
+    duplicate_source_refs_reused: list[str] = []
+    for raw_hit in raw_hits:
+        if not isinstance(raw_hit, Mapping):
+            continue
+        excerpt = str(
+            raw_hit.get("excerpt", "")
+            or raw_hit.get("content", "")
+            or ""
+        )
+        document_id = str(raw_hit.get("document_id", "") or "").strip()
+        line_start = int(raw_hit.get("line_start", 0) or 0)
+        line_end = int(raw_hit.get("line_end", 0) or 0)
+        document_sha256 = str(raw_hit.get("sha256", "") or "").strip()
+        source_identity = ":".join(
+            (
+                research_sources.snapshot_hash,
+                document_id,
+                document_sha256,
+                str(line_start),
+                str(line_end),
+                hashlib.sha256(excerpt.encode("utf-8")).hexdigest(),
+            )
+        )
+        row = _preflight_source_row(
+            source_kind=(
+                "research_source_exact_passage"
+                if operation == RESEARCH_SOURCE_READ_TOOL
+                else "research_source_search_passage"
+            ),
+            source_identity=source_identity,
+            title=str(raw_hit.get("title", "") or document_id),
+            location=f"{document_id}:{line_start}-{line_end}",
+            content={
+                "document_id": document_id,
+                "document_sha256": document_sha256,
+                "line_start": line_start,
+                "line_end": line_end,
+                "content_sha256": hashlib.sha256(
+                    excerpt.encode("utf-8")
+                ).hexdigest(),
+                "citation_ref": str(raw_hit.get("citation_ref", "") or ""),
+                "matched_terms": list(raw_hit.get("matched_terms", []) or []),
+            },
+            provenance={
+                "snapshot_id": research_sources.snapshot_id,
+                "snapshot_hash": research_sources.snapshot_hash,
+                "source_horizon": research_sources.source_horizon,
+                "citation": str(raw_hit.get("citation", "") or ""),
+                "url": str(raw_hit.get("url", "") or ""),
+                "publication_date": str(
+                    raw_hit.get("publication_date", "") or ""
+                ),
+                "git_commit": str(raw_hit.get("git_commit", "") or ""),
+            },
+            content_max_depth=4,
+            content_list_limit=12,
+            content_text_limit=500,
+        )
+        hit_id = str(row["source_hit_id"])
+        if hit_id in excluded:
+            prior_ref = str(source_refs.get(hit_id, "") or "").strip()
+            if prior_ref and prior_ref not in duplicate_source_refs_reused:
+                duplicate_source_refs_reused.append(prior_ref)
+            continue
+        source_ref = f"S{source_index}H{len(compact_hits) + 1}"
+        compact_hit = {
+            **row,
+            "source_ref": source_ref,
+            "retrieval_channel": "research_sources",
+            "retrieval_rank_within_channel": len(compact_hits) + 1,
+            "retrieval_score": float(raw_hit.get("score", 0.0) or 0.0),
+        }
+        compact_hits.append(compact_hit)
+        visible_hits.append(
+            {
+                **dict(raw_hit),
+                "source_hit_id": hit_id,
+                "source_ref": source_ref,
+                "proof_evidence_status": RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
+            }
+        )
+
+    observation_core = {
+        "query": operation_query,
+        "source_scope": source_scope,
+        "hits": compact_hits,
+        "duplicate_source_refs_reused": duplicate_source_refs_reused,
+        "provider_errors": [],
+        "retrieval_fusion": retrieval_fusion,
+    }
+    persisted = {
+        "observation_id": (
+            "preflight_source_observation:"
+            + stable_hash(observation_core)[:20]
+        ),
+        **observation_core,
+        "boundary": (
+            "This is a hash-bound model-visible research-source observation. "
+            "The reviewing model owns the semantic judgment; source text is not "
+            "mathematical proof or automatic support."
+        ),
+    }
+    visible_result = {
+        **dict(visible),
+        "hits": visible_hits,
+        "duplicate_source_refs_reused": duplicate_source_refs_reused,
+        "proof_evidence_status": RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
+    }
+    if operation == RESEARCH_SOURCE_READ_TOOL:
+        visible_result.update(visible_hits[0] if visible_hits else {})
+    return persisted, visible_result
+
+
 def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
     if packet.get("source_grounding_required") is not True:
         return []
@@ -2601,13 +2781,22 @@ def _preflight_evidence_history(
         for tool_call in tool_calls:
             if not isinstance(tool_call, dict):
                 continue
-            if str(tool_call.get("name", "") or "") in {
+            tool_name = str(tool_call.get("name", "") or "")
+            if tool_name in {
                 THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
                 THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
             }:
                 tool_call["result_excerpt"] = (
                     "[authoritative theory text omitted from persisted review "
                     "history; use hash-bound document inspection refs]"
+                )
+            elif tool_name in {
+                RESEARCH_SOURCE_SEARCH_TOOL,
+                RESEARCH_SOURCE_READ_TOOL,
+            }:
+                tool_call["result_excerpt"] = (
+                    "[research-source text omitted from persisted review history; "
+                    "use hash-bound preflight source observations]"
                 )
     return persisted
 
@@ -2618,6 +2807,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     question: OpenResearchQuestion,
     material: Mapping[str, Any],
     source_retriever: Any,
+    research_sources: ResearchSourceSnapshot | None,
     request_model: str,
     model_tier: str,
     provider_name: str,
@@ -2631,18 +2821,23 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     authoritative_documents = _preflight_authoritative_theory_documents(material)
     tools = (
         *theory_document_client_tools(),
+        *(
+            research_source_client_tools()
+            if research_sources is not None
+            else ()
+        ),
         ClientToolDefinition(
             name="search_preflight_sources",
             description=(
                 "Search compact structured theory anchors, task-bound retrieval "
                 "memory, and configured formal libraries. Write the query yourself. "
-                "Use the dedicated document tools for authoritative theory text. Cite "
-                "the short returned source_ref handles in blocking findings; the "
-                "runtime resolves them to immutable source_hit_id values. Use theory "
-                "to inspect candidate semantics. Use retrieval_memory or all before "
-                "blocking on an external named theorem, general mathematical fact, "
-                "or prior finding whose premise is not derived in the candidate; a "
-                "theory-only search cannot independently corroborate that premise."
+                "Use the dedicated document tools for authoritative theory text, and "
+                "use search_research_sources/read_research_source for exact papers, "
+                "code, or documentation when those tools are available. Cite short "
+                "returned source_ref handles in blocking findings; the runtime resolves "
+                "them to immutable source_hit_id values. Use the formal-library scope "
+                "for Lean declarations, not as a substitute for task-bound statistical "
+                "source material."
             ),
             input_schema={
                 "type": "object",
@@ -2671,7 +2866,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             name="submit_theory_preflight_review",
             description=(
                 "Submit the complete preflight review. Use source_evidence_refs only "
-                "when citing handles returned by an optional source search."
+                "when citing handles returned by an optional source tool."
             ),
             input_schema=submit_schema,
             terminal=True,
@@ -2689,9 +2884,11 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "theory.claim_index; one range may cover several nearby anchors, and independent "
         "reads may be issued together. Coverage proves inspection only, so you must still "
         "follow dependencies, reconstruct decisive transitions, and challenge them. "
-        "Choose all searches and ranges yourself. Use search_preflight_sources when an "
-        "external theorem or fact materially affects the judgment, and cite only handles "
-        "the tool returned. Runtime binds identities but never chooses semantics. "
+        "Choose all searches and ranges yourself. When available, use "
+        "search_research_sources and read_research_source for task-bound papers, code, "
+        "and documentation; use search_preflight_sources for compact runtime context or "
+        "formal declarations. Cite only handles returned by those tools. Runtime binds "
+        "identities but never chooses semantics. "
         "No generated-code or simulation results exist at this stage; mark a question "
         "UNCERTAIN when it genuinely requires that downstream evidence. Keep citation "
         "namespaces distinct: evidence_refs accepts theory anchor IDs, while "
@@ -2701,6 +2898,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     )
     state: dict[str, Any] = {
         "searches": 0,
+        "source_operations": 0,
         "observations": [],
         "observation_ids": set(),
         "source_ref_by_hit_id": {},
@@ -2710,7 +2908,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     def source_grounding_payload(**loop_metadata: Any) -> dict[str, Any]:
         observations = deepcopy(list(state["observations"]))
         return {
-            "source_grounding_required": bool(state["searches"]),
+            "source_grounding_required": bool(observations),
             "source_grounding_transport": (
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT
             ),
@@ -2807,6 +3005,70 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 + stable_hash(inspection_ref),
             )
 
+        if call.name in {
+            RESEARCH_SOURCE_SEARCH_TOOL,
+            RESEARCH_SOURCE_READ_TOOL,
+        }:
+            if research_sources is None:
+                raise ClientToolInputError(
+                    "research source snapshot is unavailable"
+                )
+            if call.name == RESEARCH_SOURCE_SEARCH_TOOL:
+                if state["searches"] >= (
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+                ):
+                    raise ClientToolInputError(
+                        "preflight source-search budget exhausted"
+                    )
+                if set(tool_input) - {"query", "top_k"}:
+                    raise ClientToolInputError(
+                        "search_research_sources accepts query and optional top_k"
+                    )
+            elif set(tool_input) != {
+                "document_id",
+                "line_start",
+                "line_end",
+            }:
+                raise ClientToolInputError(
+                    "read_research_source requires document_id, line_start, and "
+                    "line_end"
+                )
+            observation, visible_result = _research_source_preflight_observation(
+                research_sources=research_sources,
+                operation=call.name,
+                tool_input=tool_input,
+                source_index=int(state["source_operations"]) + 1,
+                exclude_hit_ids=set(state["source_ref_by_hit_id"]),
+                prior_source_refs=state["source_ref_by_hit_id"],
+            )
+            state["source_operations"] += 1
+            if call.name == RESEARCH_SOURCE_SEARCH_TOOL:
+                state["searches"] += 1
+            for hit in observation.get("hits", []) or []:
+                if not isinstance(hit, Mapping):
+                    continue
+                hit_id = str(hit.get("source_hit_id", "") or "").strip()
+                source_ref = str(hit.get("source_ref", "") or "").strip()
+                if hit_id and source_ref:
+                    state["source_ref_by_hit_id"][hit_id] = source_ref
+            observation_id = str(observation["observation_id"])
+            if observation_id not in state["observation_ids"]:
+                state["observation_ids"].add(observation_id)
+                state["observations"].append(observation)
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    **visible_result,
+                    "observation_id": observation_id,
+                    "remaining_searches": (
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+                        - state["searches"]
+                    ),
+                },
+                state_changed=True,
+                observation_key=observation_id,
+            )
+
         if call.name == "search_preflight_sources":
             if state["searches"] >= (
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
@@ -2841,11 +3103,12 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 query=query,
                 source_scope=source_scope,
                 k=k,
-                search_index=int(state["searches"]) + 1,
+                search_index=int(state["source_operations"]) + 1,
                 exclude_hit_ids=set(state["source_ref_by_hit_id"]),
                 prior_source_refs=state["source_ref_by_hit_id"],
             )
             state["searches"] += 1
+            state["source_operations"] += 1
             for hit in observation.get("hits", []) or []:
                 if not isinstance(hit, Mapping):
                     continue
@@ -2957,7 +3220,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                     "submitted": True,
                     "overall_verdict": packet.get("overall_verdict", ""),
                     "packet_fingerprint": stable_hash(packet),
-                    "source_grounding_verified": bool(state["searches"]),
+                    "source_grounding_verified": bool(state["observations"]),
                     "proof_evidence_status": (
                         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE
                     ),
@@ -3108,6 +3371,7 @@ def review_architect_theory_execution_preflight(
     max_validation_retries: int,
     prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
     source_retriever: Any = None,
+    research_sources: ResearchSourceSnapshot | None = None,
 ) -> dict[str, Any]:
     material = build_architect_theory_execution_preflight_material(
         question=question,
@@ -3138,6 +3402,7 @@ def review_architect_theory_execution_preflight(
             question=question,
             material=material,
             source_retriever=source_retriever,
+            research_sources=research_sources,
             request_model=request_model,
             model_tier=model_tier,
             provider_name=provider_name,

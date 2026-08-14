@@ -1636,7 +1636,12 @@ def author_reviewed_architect_metric_requirements(
                 "Each row must govern one independently comparable returned quantity. "
                 "Represent repeated DGP, sample-size, or stress scenarios as one "
                 "returned vector with an explicit aggregation instead of creating one "
-                "required row per scenario. The row budget is an execution/review "
+                "required row per scenario. Preserve the requested scientific claim "
+                "granularity: extra stress settings, nominal levels, nuisance values, "
+                "or boundary diagnostics remain exploratory unless the question or "
+                "accepted theory declares them as distinct confirmatory claims. Do not "
+                "promote them into additional required gates merely to make the "
+                "portfolio look comprehensive. The row budget is an execution/review "
                 "budget, not a statistical threshold."
             ),
             (

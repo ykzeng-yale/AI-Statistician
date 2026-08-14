@@ -1273,6 +1273,7 @@ def _build_architect_coordinator_agent_from_args(
     *,
     default_model: str,
     formal_source_retriever: Any = None,
+    research_sources: Any = None,
 ):
     provider_choice = getattr(args, "architect_coordinator_provider", "none")
     if provider_choice == "none":
@@ -1298,6 +1299,7 @@ def _build_architect_coordinator_agent_from_args(
     return LLMArchitectCoordinatorAgent(
         provider=provider,
         preflight_source_retriever=formal_source_retriever,
+        preflight_research_sources=research_sources,
         config=ArchitectCoordinatorConfig(
             model=model,
             model_tier=model_tier,
@@ -3834,6 +3836,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         args,
         default_model=model,
         formal_source_retriever=formal_source_retriever,
+        research_sources=research_sources,
     )
     algorithm_engineer = _build_algorithm_engineer_agent_from_args(args, default_model=model)
     simulation_engineer = _build_simulation_engineer_agent_from_args(args, default_model=model)

@@ -2127,6 +2127,49 @@ def theory_document_client_tools() -> tuple[ClientToolDefinition, ...]:
     )
 
 
+def research_source_client_tools() -> tuple[ClientToolDefinition, ...]:
+    return (
+        ClientToolDefinition(
+            name=RESEARCH_SOURCE_SEARCH_TOOL,
+            description=(
+                "Search exact UTF-8 paper, code, and documentation text in "
+                "the configured hash-bound model-visible source snapshot. "
+                "Returns line-addressed excerpts to this same model session."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["query"],
+                "properties": {
+                    "query": {"type": "string", "minLength": 1},
+                    "top_k": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": MAX_SOURCE_SEARCH_HITS,
+                    },
+                },
+            },
+        ),
+        ClientToolDefinition(
+            name=RESEARCH_SOURCE_READ_TOOL,
+            description=(
+                "Read an exact inclusive line range from one document in "
+                "the configured hash-bound research source snapshot."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["document_id", "line_start", "line_end"],
+                "properties": {
+                    "document_id": {"type": "string", "minLength": 1},
+                    "line_start": {"type": "integer", "minimum": 1},
+                    "line_end": {"type": "integer", "minimum": 1},
+                },
+            },
+        ),
+    )
+
+
 def _theory_workspace_tools(
     artifact_names: Sequence[str],
     writable_artifact_shapes: Mapping[str, str],
@@ -2171,48 +2214,7 @@ def _theory_workspace_tools(
     if document_authority_enabled:
         tools.extend(theory_document_client_tools())
     if research_sources_enabled:
-        tools.extend(
-            (
-                ClientToolDefinition(
-                    name=RESEARCH_SOURCE_SEARCH_TOOL,
-                    description=(
-                        "Search exact UTF-8 paper, code, and documentation text in "
-                        "the configured hash-bound model-visible source snapshot. "
-                        "Returns line-addressed excerpts to this same theory session."
-                    ),
-                    input_schema={
-                        "type": "object",
-                        "additionalProperties": False,
-                        "required": ["query"],
-                        "properties": {
-                            "query": {"type": "string", "minLength": 1},
-                            "top_k": {
-                                "type": "integer",
-                                "minimum": 1,
-                                "maximum": MAX_SOURCE_SEARCH_HITS,
-                            },
-                        },
-                    },
-                ),
-                ClientToolDefinition(
-                    name=RESEARCH_SOURCE_READ_TOOL,
-                    description=(
-                        "Read an exact inclusive line range from one document in "
-                        "the configured hash-bound research source snapshot."
-                    ),
-                    input_schema={
-                        "type": "object",
-                        "additionalProperties": False,
-                        "required": ["document_id", "line_start", "line_end"],
-                        "properties": {
-                            "document_id": {"type": "string", "minLength": 1},
-                            "line_start": {"type": "integer", "minimum": 1},
-                            "line_end": {"type": "integer", "minimum": 1},
-                        },
-                    },
-                ),
-            )
-        )
+        tools.extend(research_source_client_tools())
     if research_source_execution_enabled:
         tools.append(
             ClientToolDefinition(
