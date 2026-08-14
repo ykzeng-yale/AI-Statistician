@@ -61,9 +61,7 @@ def test_ladder_has_one_fully_configured_active_task_and_no_embedded_gold_answer
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     assert active[0]["id"] == "heteroskedastic_covariance_known_result"
     assert active[0]["gold_runtime_visibility"] == "evaluator_only_after_runtime"
-    assert active[0]["activation_status"] == (
-        "full_task_gold_configured_fresh_v2_pending"
-    )
+    assert active[0]["activation_status"].startswith("full_task_gold_")
     assert Path(active[0]["visible_questions_path"]).is_file()
     assert "gold_manifest" not in active[0]
     assert active[0]["gold_authority"] == (

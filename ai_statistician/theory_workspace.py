@@ -23,8 +23,9 @@ from .structured_output_retry import PacketValidationError
 
 
 THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
-THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "direct_artifact_replacement_v3"
+THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "direct_artifact_replacement_v4"
 THEORY_WORKSPACE_WRITE_TOOL = "write_theory_artifacts"
+THEORY_WORKSPACE_COMMIT_TOOL = "commit_theory_checkpoint"
 THEORY_WORKSPACE_GAP_TOOL = "report_theory_gap"
 THEORY_SCRATCHPAD_TOOL = "run_theory_scratchpad"
 THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE = (
@@ -242,38 +243,24 @@ def run_theory_artifact_workspace(
             return ClientToolExecutionResult(
                 content=content,
                 state_changed=state_changed,
-                terminal=remaining_submissions == 0,
-                terminal_payload=(
-                    {
-                        "core_packet": candidate,
-                        "core_packet_hash": candidate_hash,
-                        "workspace_hash": stable_hash(candidate_artifacts),
-                        "changed_artifact_names": list(changed),
-                        "workspace_valid": False,
-                        "validation_errors": list(errors),
-                    }
-                    if remaining_submissions == 0
-                    else None
-                ),
+                terminal=False,
                 observation_key="theory-workspace-validation:"
                 + stable_hash([candidate_hash, errors]),
             )
         return ClientToolExecutionResult(
             content={
                 **common_content,
+                "write_accepted": True,
+                "workspace_valid": True,
+                "validation_errors": [],
+                "checkpoint_committed": False,
                 "proof_evidence_status": (
                     "THEORY_WORKSPACE_SUBMISSION_NOT_PROOF_EVIDENCE"
                 ),
             },
             state_changed=state_changed,
-            terminal=True,
-            terminal_payload={
-                "core_packet": candidate,
-                "core_packet_hash": candidate_hash,
-                "workspace_hash": stable_hash(candidate_artifacts),
-                "changed_artifact_names": list(changed),
-            },
-            observation_key="theory-workspace-accepted:" + candidate_hash,
+            terminal=False,
+            observation_key="theory-workspace-valid:" + candidate_hash,
         )
 
     def execute_tool(call, context):
@@ -344,6 +331,72 @@ def run_theory_artifact_workspace(
             return evaluate_model_write(
                 candidate_artifacts,
                 artifact_writes=write_records,
+            )
+
+        if call.name == THEORY_WORKSPACE_COMMIT_TOOL:
+            if set(tool_input) != {"readiness_rationale"}:
+                raise ClientToolInputError(
+                    "commit_theory_checkpoint requires exactly readiness_rationale"
+                )
+            readiness_rationale = tool_input.get("readiness_rationale")
+            if (
+                not isinstance(readiness_rationale, str)
+                or not readiness_rationale.strip()
+            ):
+                raise ClientToolInputError(
+                    "theory checkpoint readiness_rationale must be nonempty"
+                )
+            changed = changed_artifact_names(state["artifacts"])
+            if not changed or not state["submissions"]:
+                raise ClientToolInputError(
+                    "commit_theory_checkpoint requires a prior model-authored "
+                    "workspace revision"
+                )
+            raw_candidate = build_candidate(state["artifacts"], changed)
+            if not isinstance(raw_candidate, Mapping):
+                raise ClientToolInputError(
+                    "theory workspace candidate builder returned a non-object"
+                )
+            candidate = deepcopy(dict(raw_candidate))
+            errors = [
+                str(error)
+                for error in validate_candidate(candidate)
+                if str(error).strip()
+            ]
+            state["last_candidate"] = candidate
+            state["last_validation_errors"] = errors
+            if errors:
+                raise ClientToolInputError(
+                    "theory checkpoint is not structurally valid: "
+                    + "; ".join(errors[:6])
+                )
+            rationale = readiness_rationale.strip()
+            candidate_hash = stable_hash(candidate)
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    "disposition": "THEORY_CHECKPOINT_COMMITTED",
+                    "workspace_valid": True,
+                    "checkpoint_committed": True,
+                    "candidate_hash": candidate_hash,
+                    "changed_artifact_names": list(changed),
+                    "runtime_edited_theory": False,
+                    "proof_evidence_status": (
+                        "THEORY_WORKSPACE_CHECKPOINT_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                state_changed=True,
+                terminal=True,
+                terminal_payload={
+                    "disposition": "THEORY_CHECKPOINT_COMMITTED",
+                    "core_packet": candidate,
+                    "core_packet_hash": candidate_hash,
+                    "workspace_hash": stable_hash(state["artifacts"]),
+                    "changed_artifact_names": list(changed),
+                    "readiness_rationale": rationale,
+                },
+                observation_key="theory-workspace-committed:"
+                + stable_hash([candidate_hash, rationale]),
             )
 
         if call.name == THEORY_SCRATCHPAD_TOOL:
@@ -534,7 +587,9 @@ def run_theory_artifact_workspace(
         "byte-identical. You may replace every mutually dependent artifact in one "
         "atomic call; accepted writes remain in the workspace. "
         "Use each artifact_name at most once per call. The runtime stores those exact "
-        "values without merging, patching, or inventing content. "
+        "values without merging, patching, or inventing content. A structurally "
+        "valid write is retained and returned to you, but it does not end the "
+        "workspace or assert scientific readiness. "
     )
     scratch_guidance = (
         "Use run_theory_scratchpad when a small Python or R calculation, numerical "
@@ -560,6 +615,12 @@ def run_theory_artifact_workspace(
                     + "\n\nRead the artifacts needed for mathematical judgment. "
                     + scratch_guidance
                     + write_guidance
+                    + "When the current workspace is scientifically ready for "
+                    "independent review, call commit_theory_checkpoint and explain "
+                    "your own readiness judgment. There is no required number of "
+                    "reads, rewrites, scratch runs, or counterexample attempts: choose "
+                    "only actions that improve the mathematics. Structural validation "
+                    "checks the handoff contract, not whether the theory is correct. "
                     + "If a mathematical contradiction, missing premise, or unresolved "
                     "question prevents a coherent submission, use report_theory_gap "
                     "after inspecting the relevant artifacts. State the blocker and "
@@ -800,6 +861,11 @@ def run_theory_artifact_workspace(
         "provider_usage": dict(loop.provider_usage),
         "history": [deepcopy(dict(row)) for row in loop.history],
         "transcript_fingerprint": loop.transcript_fingerprint,
+        "disposition": "THEORY_CHECKPOINT_COMMITTED",
+        "checkpoint_committed": True,
+        "checkpoint_readiness_rationale": str(
+            terminal.get("readiness_rationale", "") or ""
+        ),
         "model_owned_theory": True,
         "runtime_edited_theory": False,
         "accepted": True,
@@ -865,7 +931,8 @@ def _theory_workspace_tools(
                 "complete model-authored JSON values. Omitted artifacts are retained "
                 "exactly. Supply one unique "
                 "artifact_name and complete value per row. The runtime does not "
-                "merge or infer content."
+                "merge or infer content. A valid write remains available for further "
+                "model-directed work and does not itself commit the checkpoint."
             ),
             input_schema={
                 "type": "object",
@@ -893,6 +960,28 @@ def _theory_workspace_tools(
                                 },
                             },
                         },
+                    }
+                },
+            },
+            terminal=False,
+        )
+    )
+    tools.append(
+        ClientToolDefinition(
+            name=THEORY_WORKSPACE_COMMIT_TOOL,
+            description=(
+                "Commit the current structurally valid, model-authored workspace as "
+                "ready for independent scientific review. This records your stopping "
+                "decision; it does not make the theory correct and is not proof evidence."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["readiness_rationale"],
+                "properties": {
+                    "readiness_rationale": {
+                        "type": "string",
+                        "minLength": 1,
                     }
                 },
             },

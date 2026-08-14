@@ -65,6 +65,7 @@ from ai_statistician.theory_revision_lineage import (
     build_theory_developer_revision_binding,
 )
 from ai_statistician.theory_workspace import (
+    THEORY_WORKSPACE_COMMIT_TOOL,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
     THEORY_WORKSPACE_GAP_TOOL,
     THEORY_WORKSPACE_WRITE_TOOL,
@@ -175,6 +176,18 @@ def _theory_artifact_writes(
             for name, value in artifacts.items()
         ]
     }
+
+
+def _theory_checkpoint_response(
+    rationale: str = "The current theory is ready for independent review.",
+) -> ClientToolTurnResponse:
+    return _theory_tool_response(
+        ClientToolCall(
+            call_id="commit-theory-checkpoint",
+            name=THEORY_WORKSPACE_COMMIT_TOOL,
+            input={"readiness_rationale": rationale},
+        )
+    )
 
 
 class ProviderWithoutIdentity:
@@ -1129,6 +1142,10 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
                     ),
                 )
             ),
+            _theory_checkpoint_response(
+                "The complete theory packet and corrected theorem reference are "
+                "ready for independent review."
+            ),
         ],
         generator_responses=[
             {
@@ -1151,7 +1168,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     packet = developer.derive(question)
 
     assert validate_theory_packet(packet) == []
-    assert len(provider.tool_requests) == 7
+    assert len(provider.tool_requests) == 8
     assert len(provider.generator_requests) == 1
     first_request = provider.tool_requests[0]
     assert first_request.metadata["theory_developer_phase"] == (
@@ -1163,6 +1180,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert {tool.name for tool in first_request.tools} == {
         "read_theory_workspace",
         THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
     }
     initial_prompt = str(first_request.messages[0]["content"])
@@ -1411,6 +1429,7 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
                     ),
                 )
             ),
+            _theory_checkpoint_response(),
         ],
         generator_responses=[],
     )
@@ -1432,7 +1451,7 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     assert packet["lemma_cards"][-1]["id"] == (
         "bounded_outcome_moment_control"
     )
-    assert len(provider.tool_requests) == 2
+    assert len(provider.tool_requests) == 3
     assert provider.generator_requests == []
     first_tool_request = provider.tool_requests[0]
     assert first_tool_request.metadata["theory_developer_phase"] == (
@@ -1444,6 +1463,7 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     assert {tool.name for tool in first_tool_request.tools} == {
         "read_theory_workspace",
         THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
     }
     first_prompt = str(first_tool_request.messages[0]["content"])
@@ -1635,7 +1655,8 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged() -> 
                         {"problem_card": revised_problem_card}
                     ),
                 )
-            )
+            ),
+            _theory_checkpoint_response(),
         ],
         generator_responses=[],
     )
@@ -1654,7 +1675,7 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged() -> 
     packet = developer.derive(question, architect_context=context)
 
     assert validate_theory_packet(packet) == []
-    assert len(provider.tool_requests) == 1
+    assert len(provider.tool_requests) == 2
     assert provider.generator_requests == []
     assert packet["estimator_specs"][0][
         "estimator_interface_contract"
@@ -1763,7 +1784,8 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
                         }
                     ),
                 )
-            )
+            ),
+            _theory_checkpoint_response(),
         ],
         generator_responses=[invalid_interface, still_invalid_interface],
     )

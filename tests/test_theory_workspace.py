@@ -18,6 +18,7 @@ from ai_statistician.theory_workspace import (
     THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
     THEORY_SCRATCHPAD_TOOL,
     THEORY_WORKSPACE_CHECKPOINT_KIND,
+    THEORY_WORKSPACE_COMMIT_TOOL,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
     THEORY_WORKSPACE_GAP_TOOL,
     THEORY_WORKSPACE_WRITE_TOOL,
@@ -70,6 +71,17 @@ def _artifact_writes(artifacts: dict[str, object]) -> dict[str, object]:
             for name, value in artifacts.items()
         ]
     }
+
+
+def _commit_checkpoint(
+    call_id: str = "commit-theory-checkpoint",
+    rationale: str = "The current theory is ready for independent review.",
+) -> ClientToolCall:
+    return ClientToolCall(
+        call_id=call_id,
+        name=THEORY_WORKSPACE_COMMIT_TOOL,
+        input={"readiness_rationale": rationale},
+    )
 
 
 def _run_workspace(backend, **overrides):
@@ -139,6 +151,14 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
                     ),
                 )
             ),
+            _response(
+                _commit_checkpoint(
+                    rationale=(
+                        "The revised claim and its dependency lemma are now coherent; "
+                        "submit them to independent review."
+                    )
+                )
+            ),
         ]
     )
 
@@ -160,6 +180,10 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
     assert result.evidence["workspace_operation"] == "test_authoring"
     assert result.evidence["model_owned_theory"] is True
     assert result.evidence["runtime_edited_theory"] is False
+    assert result.evidence["checkpoint_committed"] is True
+    assert "dependency lemma" in result.evidence[
+        "checkpoint_readiness_rationale"
+    ]
     assert all(request.enable_prompt_caching for request in backend.requests)
     initial_prompt = str(backend.requests[0].messages[0]["content"])
     assert "parent-private-claim" not in initial_prompt
@@ -201,6 +225,55 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
     assert write_tool.strict is False
 
 
+def test_structurally_valid_write_does_not_end_model_owned_theory_work() -> None:
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="write-first-valid-candidate",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "initial-lemma"}],
+                        }
+                    ),
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="refine-valid-candidate",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {"lemma_cards": [{"id": "dependency-audited-lemma"}]}
+                    ),
+                )
+            ),
+            _response(
+                _commit_checkpoint(
+                    rationale=(
+                        "The dependency audit changed the lemma and the revised "
+                        "candidate is ready for independent review."
+                    )
+                )
+            ),
+        ]
+    )
+
+    result = _run_workspace(backend)
+
+    first_valid_observation = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert first_valid_observation["workspace_valid"] is True
+    assert first_valid_observation["checkpoint_committed"] is False
+    assert result.core_packet["artifacts"]["lemma_cards"] == [
+        {"id": "dependency-audited-lemma"}
+    ]
+    assert result.evidence["submissions"] == 2
+    assert result.evidence["checkpoint_committed"] is True
+
+
 def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     rejected_call = ClientToolCall(
         call_id="edit-rejected",
@@ -214,7 +287,7 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     with pytest.raises(PacketValidationError) as exc_info:
         _run_workspace(
             backend,
-            max_turns=4,
+            max_turns=1,
             max_reads=1,
             max_submissions=1,
             max_no_progress_turns=1,
@@ -283,6 +356,7 @@ def test_model_can_stop_with_an_explicit_unresolved_theory_gap() -> None:
     assert [tool.name for tool in backend.requests[0].tools] == [
         "read_theory_workspace",
         THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
     ]
 
@@ -311,6 +385,7 @@ def test_targeted_revision_uses_atomic_model_owned_artifact_writes() -> None:
                     ),
                 )
             ),
+            _response(_commit_checkpoint()),
         ]
     )
 
@@ -340,6 +415,7 @@ def test_targeted_revision_uses_atomic_model_owned_artifact_writes() -> None:
     assert tool_names == [
         "read_theory_workspace",
         THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
     ]
     prompt = str(backend.requests[0].messages[0]["content"])
@@ -424,6 +500,7 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
                     ),
                 )
             ),
+            _response(_commit_checkpoint()),
         ]
     )
 
@@ -465,6 +542,7 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
         "read_theory_workspace",
         THEORY_SCRATCHPAD_TOOL,
         THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
     ]
     first_prompt = str(backend.requests[0].messages[0]["content"])
@@ -501,6 +579,7 @@ def test_targeted_revision_retains_valid_edits_across_raw_validator_feedback() -
                     ),
                 )
             ),
+            _response(_commit_checkpoint()),
         ]
     )
 
@@ -553,6 +632,7 @@ def test_targeted_revision_rejects_noop_edit_then_returns_observation() -> None:
                     ),
                 )
             ),
+            _response(_commit_checkpoint()),
         ]
     )
 
@@ -594,6 +674,7 @@ def test_targeted_revision_rejects_invalid_artifact_shape_atomically() -> None:
                     ),
                 )
             ),
+            _response(_commit_checkpoint()),
         ]
     )
 
@@ -644,6 +725,7 @@ def test_targeted_revision_rejects_duplicate_artifact_names_atomically() -> None
                     ),
                 )
             ),
+            _response(_commit_checkpoint()),
         ]
     )
 
