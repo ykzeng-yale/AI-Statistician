@@ -1577,6 +1577,23 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert packet["lemma_cards"] == []
     assert packet["critic_findings"] == []
     assert packet["next_actions"] == []
+    derivation = packet["theory_derivation_packet"]
+    assert "claim_index" in derivation
+    assert "sanity_check_index" in derivation
+    assert {
+        "derivation_steps",
+        "equation_chain",
+        "assumption_ledger",
+        "sanity_checks",
+    }.isdisjoint(derivation)
+    derivation_contract = packet["theory_derivation_contract"]
+    assert derivation_contract["n_claim_index_rows"] == len(
+        derivation["claim_index"]
+    )
+    assert derivation_contract["n_sanity_check_index_rows"] == len(
+        derivation["sanity_check_index"]
+    )
+    assert "n_derivation_steps" not in derivation_contract
     assert packet["theory_generation_phases"][0]["phase"] == (
         "initial_artifact_workspace"
     )

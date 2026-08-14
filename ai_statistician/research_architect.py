@@ -2625,10 +2625,18 @@ def _normalize_theory_packet(
         formalization_authoring_required=formalization_authoring_required,
     )
     derivation_packet = body.get("theory_derivation_packet")
+    document_index_handoff = bool(
+        isinstance(derivation_packet, Mapping)
+        and "claim_index" in derivation_packet
+    )
     if isinstance(derivation_packet, Mapping):
-        body["theory_derivation_packet"] = _canonicalize_theory_derivation_packet(
-            derivation_packet,
-            formalization_requests=body.get("formalization_requests", []),
+        body["theory_derivation_packet"] = (
+            deepcopy(dict(derivation_packet))
+            if document_index_handoff
+            else _canonicalize_theory_derivation_packet(
+                derivation_packet,
+                formalization_requests=body.get("formalization_requests", []),
+            )
         )
     normalize_theory_estimator_interface_contracts(body)
     body["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
@@ -2640,14 +2648,32 @@ def _normalize_theory_packet(
         if isinstance(body.get("theory_derivation_packet", {}), Mapping)
         else {}
     )
+    derivation_counts = (
+        {
+            "n_claim_index_rows": _safe_len(derivation.get("claim_index", [])),
+            "n_sanity_check_index_rows": _safe_len(
+                derivation.get("sanity_check_index", [])
+            ),
+        }
+        if document_index_handoff
+        else {
+            "n_derivation_steps": _safe_len(
+                derivation.get("derivation_steps", [])
+            ),
+            "n_equation_chain_steps": _safe_len(
+                derivation.get("equation_chain", [])
+            ),
+            "n_assumption_ledger_rows": _safe_len(
+                derivation.get("assumption_ledger", [])
+            ),
+            "n_sanity_checks": _safe_len(derivation.get("sanity_checks", [])),
+        }
+    )
     body["theory_derivation_contract"] = {
         "row_count_policy": "model_selected_nonempty_required_structures",
         "quality_authority": "independent_theory_preflight_and_critic",
         "theory_prompt_mode": theory_prompt_mode,
-        "n_derivation_steps": _safe_len(derivation.get("derivation_steps", [])),
-        "n_equation_chain_steps": _safe_len(derivation.get("equation_chain", [])),
-        "n_assumption_ledger_rows": _safe_len(derivation.get("assumption_ledger", [])),
-        "n_sanity_checks": _safe_len(derivation.get("sanity_checks", [])),
+        **derivation_counts,
         "has_formalization_handoff": bool(
             isinstance(derivation.get("formalization_handoff", {}), Mapping)
             and derivation.get("formalization_handoff")
@@ -2657,8 +2683,11 @@ def _normalize_theory_packet(
         ),
         "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
         "boundary": (
-            "Theory derivation traces are structured LLM reasoning proposals for "
-            "simulation/formalization handoff, not proof evidence."
+            "The mathematical documents are authoritative and this structured "
+            "claim index is only a cross-agent handoff, not proof evidence."
+            if document_index_handoff
+            else "Theory derivation traces are structured LLM reasoning proposals "
+            "for simulation/formalization handoff, not proof evidence."
         ),
     }
     packet_id = stable_hash(
