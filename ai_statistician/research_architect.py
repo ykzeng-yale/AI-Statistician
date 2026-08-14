@@ -1134,6 +1134,32 @@ def _compact_architect_context_for_prompt(context: Mapping[str, Any]) -> dict[st
     return compact
 
 
+def _initial_theory_authoring_binding_id(
+    *,
+    question_id: str,
+    theory_prompt_mode: str,
+    read_only_artifacts: Mapping[str, Any],
+) -> str:
+    binding_artifacts = deepcopy(dict(read_only_artifacts))
+    initial_context = binding_artifacts.get("initial_authoring_context", {})
+    if isinstance(initial_context, Mapping):
+        initial_context = deepcopy(dict(initial_context))
+        prompt_context = initial_context.get("architect_context", {})
+        if isinstance(prompt_context, Mapping):
+            prompt_context = deepcopy(dict(prompt_context))
+            runtime_task = prompt_context.get("runtime_task", {})
+            if isinstance(runtime_task, Mapping):
+                runtime_task = deepcopy(dict(runtime_task))
+                # A continuation is a new scheduling message for the same workspace.
+                runtime_task.pop("task_id", None)
+                prompt_context["runtime_task"] = runtime_task
+            initial_context["architect_context"] = prompt_context
+        binding_artifacts["initial_authoring_context"] = initial_context
+    return "initial_theory_authoring:" + stable_hash(
+        [question_id, theory_prompt_mode, binding_artifacts]
+    )[:20]
+
+
 def _compact_architect_runtime_plan_for_prompt(plan: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "problem_analysis": _compact_prompt_mapping(
@@ -1682,8 +1708,12 @@ Your job is research-level statistical theory development, not template
 classification. Given an open research question, derive the mathematical setup,
 estimand, procedure, theorem candidates, lemma DAG, proof plan, simulation
 predictions, and formalization obligations. Use equation-level reasoning and
-self-critique. Preserve uncertainty and semantic risks. Do not claim formal proof
-or Lean kernel verification.
+self-critique. Before offering a checkpoint, reread the central argument as a
+skeptical referee: independently recompute pivotal identities, test the smallest
+nontrivial and boundary cases, and verify that each implication uses only stated
+assumptions. Correct defects you find or mark the claim unresolved; do not let a
+plausible narrative substitute for a derivation. Preserve uncertainty and semantic
+risks. Do not claim formal proof or Lean kernel verification.
 """
 
 
@@ -3690,11 +3720,10 @@ def _generate_initial_theory_artifact_workspace(
         allow_source_replication_checkpoint=allow_source_checkpoint,
     )
     if progress_checkpoint:
-        expected_authoring_binding_id = (
-            "initial_theory_authoring:"
-            + stable_hash(
-                [question.id, theory_prompt_mode, read_only_artifacts]
-            )[:20]
+        expected_authoring_binding_id = _initial_theory_authoring_binding_id(
+            question_id=question.id,
+            theory_prompt_mode=theory_prompt_mode,
+            read_only_artifacts=read_only_artifacts,
         )
         authoring_binding_id = str(
             progress_checkpoint.get("authoring_binding_id", "") or ""
@@ -3715,9 +3744,11 @@ def _generate_initial_theory_artifact_workspace(
             progress_checkpoint.get("workspace_id", "") or ""
         )
     else:
-        authoring_binding_id = "initial_theory_authoring:" + stable_hash(
-            [question.id, theory_prompt_mode, read_only_artifacts]
-        )[:20]
+        authoring_binding_id = _initial_theory_authoring_binding_id(
+            question_id=question.id,
+            theory_prompt_mode=theory_prompt_mode,
+            read_only_artifacts=read_only_artifacts,
+        )
         workspace_id = "theory_workspace:" + stable_hash(
             [authoring_binding_id, initial_artifacts]
         )[:20]

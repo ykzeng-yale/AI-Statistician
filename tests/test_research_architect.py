@@ -1628,6 +1628,15 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
     }
     document_path, document_content = next(iter(theory_documents.items()))
     workspace_root = tmp_path / "theory-workspaces"
+    runtime_task = {
+        "task_id": "theory:continued_document_theory:initial",
+        "owner_subsystem": "TheoryDeveloper",
+        "objective": "Develop the theory artifact.",
+        "allowed_tools": ["theory_workspace"],
+        "expected_artifacts": ["theory_derivation_packet"],
+        "acceptance_gate": "independent review",
+        "stop_condition": "accepted checkpoint or honest gap",
+    }
     first_provider = ScriptedTheoryToolBackend(
         tool_responses=[
             _theory_tool_response(
@@ -1676,6 +1685,7 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
     with pytest.raises(TheoryWorkspaceProgressError) as exc_info:
         first_developer.derive(
             question,
+            architect_context={"runtime_task": runtime_task},
             theory_workspace_root=workspace_root,
         )
 
@@ -1702,6 +1712,10 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
             architect_context={
                 THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY: checkpoint,
                 "architect_coordinator_proposal_id": "changed-plan",
+                "runtime_task": {
+                    **runtime_task,
+                    "task_id": "theory-progress:continued_document_theory:1",
+                },
             },
             theory_workspace_root=workspace_root,
         )
@@ -1764,6 +1778,10 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
         question,
         architect_context={
             THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY: checkpoint,
+            "runtime_task": {
+                **runtime_task,
+                "task_id": "theory-progress:continued_document_theory:1",
+            },
         },
         theory_workspace_root=workspace_root,
     )
@@ -1786,6 +1804,17 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
     assert document_content.splitlines()[0] in str(
         second_provider.tool_requests[2].messages
     )
+
+
+def test_theory_developer_prompt_requires_model_owned_referee_self_check() -> None:
+    prompt = " ".join(
+        research_architect_module.THEORY_DEVELOPER_SYSTEM_PROMPT.split()
+    )
+
+    assert "skeptical referee" in prompt
+    assert "independently recompute pivotal identities" in prompt
+    assert "test the smallest nontrivial and boundary cases" in prompt
+    assert "mark the claim unresolved" in prompt
 
 
 def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> None:
