@@ -1,9 +1,9 @@
 {
-  "schema_version": 56,
+  "schema_version": 57,
   "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "fa89cc23bcf3c329e1fba6b79fd818e3162ce1d3",
+  "validated_code_head": "b2b884037248a479d5c27461a7ad129d87fafcbb",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -53,26 +53,25 @@
     ]
   },
   "validated_change": {
-    "commit": "fa89cc23bcf3c329e1fba6b79fd818e3162ce1d3",
+    "commit": "b2b884037248a479d5c27461a7ad129d87fafcbb",
     "changes": [
-      "TheoryDeveloper can now search and read exact line-addressed papers, pinned code, and documentation from one immutable model-visible source snapshot inside its existing long-horizon client-tool session.",
-      "The snapshot loader fails closed before model work on path escape, missing or empty files, non-UTF-8 content, duplicate identities, omitted model visibility, or SHA-256 mismatch. Hidden evaluator gold remains outside every model-visible snapshot.",
-      "The model chooses retrieval queries and source interpretation. No LiteratureAgent, source router, semantic repair rule, task-family policy, extra retry, or separate source-call budget was added.",
-      "Authoritative mathematics remains model-authored Markdown or LaTeX. Compact JSON remains only the claim/index/ABI handoff; source observations are available to the model but runtime evidence persists snapshot, query, document, hash, and line-range refs instead of copied text.",
-      "The canonical runtime and standalone theory CLI accept the same source manifest. Runtime exposes a compact source-topology artifact, and the terminal Critic receives exact author-observation refs alongside the authoritative theory documents.",
-      "This change supplies mechanism evidence only. It does not implement web/PDF acquisition, execute a pinned paper replication, let the independent referee directly reread cited source text, or create a new successful research draw."
+      "Each exact TheoryDeveloper source read now returns a content-addressed citation_ref binding the snapshot, document, line range, and content hash. The model cites that ref in authoritative Markdown or LaTeX when a claim relies on the passage.",
+      "Before the existing terminal Critic call, runtime resolves only citation_ref values actually present in the authoritative theory documents against the same model-visible snapshot. The Critic receives the exact hash-verified cited text and can compare it with the author's claim.",
+      "Uncited source reads are not copied into Critic context. Missing snapshots, stale ranges, and document or content identity mismatches remain unresolved with empty content rather than silently supplying a different passage.",
+      "Exact cited text is transient model context. Runtime manifests persist only snapshot hash and author-read, cited, resolved, and unresolved counts; they explicitly record source_text_persisted=false.",
+      "The change reuses the existing Critic invocation and source snapshot. It adds no reviewer agent, tool loop, model call, retry, routing branch, source-call budget, or task-specific content rule."
     ],
-    "anti_hardcoding_audit": "The source surface recognizes no statistical family, theorem, expected answer, metric threshold, Lean grammar, or tactic. It adds two generic same-model tools over hash-bound UTF-8 text and no agent, scheduler, repair taxonomy, fallback, or budget increase. Deterministic code owns only visibility, path, hash, line-range, and evidence-boundary checks.",
+    "anti_hardcoding_audit": "citation_ref is a generic provenance binding over bytes and line ranges. Resolution recognizes no statistical family, theorem, formula, expected answer, metric threshold, Lean grammar, or tactic. The model still decides what sources mean; deterministic code only proves that author and referee saw the same permitted bytes.",
     "verification": {
-      "full_pytest": "690 passed in 95.79s",
-      "affected_subsystem_pytest": "134 source snapshot, theory workspace, Architect CLI, runtime, and Critic tests passed in 1.07s",
+      "full_pytest": "690 passed in 95.36s",
+      "affected_subsystem_pytest": "90 source snapshot, theory workspace, Critic, runtime, and structural tests passed in 1.05s",
       "python_py_compile": "passed for every changed Python module",
       "git_diff_check": "passed",
       "model_policy_audit": "production tiers remain Haiku or Sonnet with Opus rejected; tests and live evaluations remain pinned to claude-haiku-4-5-20251001",
       "fresh_live_research_draws": 0,
-      "runtime_core_growth": "research_agent_runtime.py increased from 24063 to 24103 lines for compact snapshot topology and refs; source loading/search lives outside AgentRuntime"
+      "runtime_core_growth": "research_agent_runtime.py increased from 24103 to 24116 lines; exact citation resolution remains in the Critic/source modules"
     },
-    "evidence_boundary": "Tests validate source visibility, same-session model access, exact provenance, evidence compaction, and unchanged no-source behavior. They do not show that Haiku finds the right paper, derives correct mathematics, reproduces published outputs, or passes an unrelated gold task. Latest live capability evidence and strict closure remain unchanged."
+    "evidence_boundary": "Tests prove exact cited-range resolution, identity-mismatch fail-closed behavior, omission of uncited text, transient prompt availability, compact manifest counts, and unchanged no-source behavior. They do not prove that Haiku cites the right premise, interprets it correctly, finds uncited contradictions, reproduces a paper, or passes an unrelated gold task."
   },
   "latest_component_evidence": {
     "id": "research_l0_km_greenwood_v2_document_theory_exact_haiku_20260814",
@@ -177,7 +176,8 @@
       "the terminal Critic lacking an explicit scientific disposition that runtime can reject or mark inconclusive",
       "one fixed all-lane Critic acceptance rule overriding task-intent required, optional, and not-applicable dimensions",
       "complete authoritative theory documents being recursively persisted inside the Critic runtime manifest",
-      "TheoryDeveloper receiving only compressed source summaries instead of direct same-session access to exact permitted papers and pinned code"
+      "TheoryDeveloper receiving only compressed source summaries instead of direct same-session access to exact permitted papers and pinned code",
+      "the terminal Critic seeing source hashes without the exact author-cited source ranges needed to audit citation fidelity"
     ],
     "remaining_structural_problems": [
       "strict development exact source-theorem closure remains 0/2",
@@ -186,9 +186,9 @@
       "fresh KM v2 produced a correct hidden-tested estimator but its theory contains substantive errors that runtime author, preflight, and terminal acceptance all failed to reject",
       "the calibrated single-Haiku semantic theory judge false-accepted the frozen bad KM candidate and passed only 4/5 hidden calibration cases; it is correctly fail-closed and cannot serve as theory authority",
       "the file-backed TheoryDeveloper handoff still duplicates substantial theorem, estimator, simulation, and tool-history payload in JSON; documents are authoritative, but consumers have not yet moved to mostly content-addressed references",
-      "TheoryDeveloper has durable same-run documents and direct curated-source search/read, but still lacks a mature cross-session definition/equation/claim DAG, localized document edits, autonomous source acquisition, and a referee that directly rereads cited ranges",
+      "TheoryDeveloper has durable same-run documents, direct curated-source search/read, and cited-range referee context, but still lacks a mature cross-session definition/equation/claim DAG, localized document edits, autonomous source acquisition, and independent search for uncited contrary sources",
       "the strengthened mathematical and scratchpad-boundary preflight prompt has regression evidence only; no new model draw is justified merely to test prompt luck",
-      "the corrected terminal Critic interface has regression and frozen-replay evidence only, and exact-Haiku replay still false-accepted the bad KM theory despite receiving authoritative documents",
+      "the corrected terminal Critic and exact-citation interface has regression and frozen-replay evidence only; exact-Haiku previously false-accepted the bad KM theory, and no fresh unrelated source-grounded draw has tested whether exact citations improve judgment",
       "the post-v5 confirmatory terminal-routing simplification has deterministic regression evidence but no fresh live capability evidence; another HC0 draw is not justified solely to validate routing",
       "the current model-visible source snapshot supports exact local paper/code reading, but it is not a complete live web/GitHub acquisition or paper-code-data replication workspace",
       "ordinary source errors stay local and confirmatory outcome rewriting is removed, but generic global lineage and stagnation semantics remain incomplete",
@@ -198,7 +198,7 @@
       "the research-capability ladder now has two unrelated focused tasks but still lacks any fully scored paper replication or hidden rederivation task; repeated bundled S13 runs cannot substitute for this diagnostic ladder",
       "the active Lean foundation pins Statlib 6575d611 on Lean 4.30, while fetched Statlib origin/main 01d2a03 adds EVariable and DPI foundations on Lean 4.33. The active importable corpus and latest upstream discovery corpus must retain distinct snapshot identities until a deliberate compatibility migration succeeds",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
-      "research_agent_runtime.py remains large at 24103 lines and must shrink before adding another outer control feature"
+      "research_agent_runtime.py remains large at 24116 lines and must shrink before adding another outer control feature"
     ],
     "wrong_next_move": "Do not add a repair worker, packet patcher, theorem-specific bridge, Lean grammar fixer, forced tactic policy, hardcoded statistical answer, fixed universal simulation count, more outer budget, or another scheduler."
   },
@@ -215,11 +215,11 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24103,
+    "research_agent_runtime_lines": 24116,
     "agent_runtime_lines": 1207,
     "cli_lines": 6999,
     "top_level_python_modules": 141,
-    "top_level_package_lines": 136206,
+    "top_level_package_lines": 136375,
     "latest_runtime_manifest_bytes": 58426
   },
   "next_gates": [
@@ -234,7 +234,7 @@
     "Run a product research_eval known-result panel where formalization is optional or advisory by task intent and report the full evidence vector without Lean blocking accepted empirical dimensions.",
     "Do not spend another live strict S13 run merely to resample the same broad tasks. Run it under unchanged budgets only after a relevant shared mechanism change has component or replay evidence and require exact target-bound kernel closure on both development families before opening held-out PCA/extremes.",
     "Keep the active Statlib pin as the only importable authority while indexing newer upstream Statlib snapshots under a separate non-importable discovery identity; migrate the project pin only after whole-project compile and declaration-compatibility checks.",
-    "Extend TheoryDeveloper with durable cross-session definition/assumption/equation/claim references and localized file operations, and let the independent referee directly reread cited snapshot ranges; do not restore derivation JSON as mathematical authority.",
+    "Extend TheoryDeveloper with durable cross-session definition/assumption/equation/claim references and localized file operations; later add independent source discovery for novelty or contradiction without turning it into a literature-router hierarchy.",
     "Improve Formalizer through direct proof-state retrieval and source iteration, but keep it parallel or downstream for non-formal product tasks and mandatory only when frozen task intent requires proof.",
     "Delete or extract existing central runtime responsibilities before adding any new outer control feature."
   ]
