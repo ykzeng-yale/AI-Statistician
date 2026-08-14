@@ -334,6 +334,10 @@
         "fresh_live_report_semantic_diagnosis": "The Markdown report mislabeled the partially linear regression equations and residual score as the interactive regression model; the model read the paper PLR section but not the exact DoubleMLIRM definition in the supplied source snapshot.",
         "post_run_generic_harness_fix_commit": "793bc513",
         "post_run_generic_harness_fix": "source-only turn capacity now reaches the already-authorized tool-call capacity so the same model can correct a rejected terminal call; no tool-call or retry budget was increased",
+        "post_run_source_grounding_fix_commit": "99d2dd34",
+        "post_run_source_grounding_fix": "generic source search now returns the best non-overlapping result from distinct documents before filling remaining slots, and the existing TheoryDeveloper prompt requests the most specific primary definition or implementation for model-specific claims",
+        "post_run_source_grounding_ablation": "a representative query reconstructed from persisted matched terms returned five distinct top-5 documents and exposed the exact DoubleMLIRM implementation; the raw live query was not persisted, so this is not exact-query replay or live report-correctness evidence",
+        "post_run_source_grounding_full_pytest": "708 passed in 95.62s",
         "runtime_source_replication_lane_available": true,
         "source_only_checkpoint_runtime_regression_passed": true,
         "full_task_passed": false
@@ -381,6 +385,6 @@
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
     "latest_diagnostic": "Fresh exact-Haiku DoubleML L1 v1 reran the immutable published entrypoint successfully with the frozen stdout hash and produced a durable Markdown report, but the model submitted an invalid unresolved_gaps value at the terminal checkpoint and the workspace exhausted its turn bound while one authorized tool call remained. Runtime correctly failed closed, did not promote the source manifest, and hidden gold reported 0/1. Independent inspection also found that the report confused PLR equations with the IRM definition, which the current source-identity evaluator is not designed to score.",
-    "next_step": "Do not rerun HC0, KM, or DoubleML L1 merely for another model draw. Preserve the failed v1 score. The generic same-model terminal-recovery budget invariant is fixed and regression-tested without increasing tool-call or retry budgets. Before the next unrelated source task, require the report evaluator design to distinguish exact replication identity from mathematical interpretation, and improve source-grounded TheoryDeveloper behavior so it follows exact model-class definitions instead of extrapolating from a nearby paper section."
+    "next_step": "Do not rerun HC0, KM, or DoubleML L1 merely for another model draw. Preserve the failed v1 score. The generic same-model terminal-recovery invariant and document-diverse source selection are regression-tested without increasing tool-call or retry budgets. On the next unrelated frozen source task, keep exact replication identity separate from report-interpretation authority and test whether the same model actually reads and correctly uses the newly exposed primary definition; do not add a task-specific literature router after observing the outcome."
   }
 }
