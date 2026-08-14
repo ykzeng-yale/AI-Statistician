@@ -1,9 +1,9 @@
 {
-  "schema_version": 71,
+  "schema_version": 72,
   "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "207bc09fbc9d30354af002eab3d40456dfe104cf",
+  "validated_code_head": "e1e59f3124e40dd2fd51e9d9f90bfc0533b39b2b",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -53,8 +53,11 @@
     ]
   },
   "validated_change": {
-    "commit": "207bc09fbc9d30354af002eab3d40456dfe104cf",
+    "commit": "e1e59f3124e40dd2fd51e9d9f90bfc0533b39b2b",
     "changes": [
+      "The document-authoritative TheoryDeveloper can now choose checkpoint_theory_progress after writing substantive Markdown/LaTeX, preserve the exact file manifest and compact handoff state, and continue under the same TheoryDeveloper owner without Architect routing or content repair.",
+      "AgentRuntime stores partial theory state once as a content-addressed blackboard artifact and passes only a RuntimeArtifactRef to the continuation task. Partial progress remains accepted=false, kernel_verified=false, and supplies no theory, empirical, formal, or proof credit.",
+      "Initial continuation is rebound to the exact original question, prompt mode, and compact Architect context; targeted revision continuation remains bound to the exact reviewer lineage. Missing, changed, or hash-mismatched files and stale context fail before a model call.",
       "The existing TheoryDeveloper workspace now exposes one no-input run_research_source action for an operator-fixed, hash-bound paper entrypoint and environment. The same model reads raw stdout and stderr; it cannot choose the command, edit source, inherit secrets, or use network access.",
       "Explicit task_intent can terminate a source-replication-only objective with one model-authored Markdown report and gap checkpoint without fabricating theory, generated code, simulation, novelty, or formal proof artifacts.",
       "Evaluator-only source replication gold runs after AgentRuntime termination. It validates immutable source, environment, stdout, and hidden numeric identity without entering model context or generating runtime feedback.",
@@ -81,10 +84,10 @@
       "TheoryDeveloper initial and revision prompts now describe the actual direct-document, hash-bound edit, and structured-handoff tools instead of instructing the model to use the removed combined batch shape. The executor no longer accepts document_writes through write_theory_workspace, and deterministic replay proves the same model receives a direct-tool correction rather than a runtime content patch.",
       "Canonical scripted theory sessions now write one complete mathematical document and one mutually consistent structured handoff instead of splitting the handoff into arbitrary two-artifact batches. This reduced the representative initial session from eight to six tool turns and from five to three accepted writes without increasing any budget."
     ],
-    "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, and execution boundaries. The model chooses every claim, dependency, document query, path, line range, and edit. DoubleML expected values and tolerances remain in an evaluator-only bundle outside the repository and model workspace. Runtime contains no DoubleML statistic, IRM equation, expected output, Lean grammar rule, tactic rule, or repair recipe.",
+    "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, and execution boundaries. The model chooses every claim, dependency, document query, path, line range, edit, progress summary, and next step. DoubleML expected values and tolerances remain in an evaluator-only bundle outside the repository and model workspace. Runtime contains no DoubleML statistic, IRM equation, expected output, Lean grammar rule, tactic rule, or repair recipe.",
     "verification": {
-      "full_pytest": "734 passed in 95.96s",
-      "affected_subsystem_pytest": "122 TheoryDeveloper workspace, Architect, model-backend, and client-tool-loop tests passed in 3.27s",
+      "full_pytest": "737 passed in 95.76s",
+      "affected_subsystem_pytest": "159 TheoryDeveloper workspace, Architect, AgentRuntime, and research-runtime tests passed in 1.15s",
       "source_retrieval_ablation": "A representative query reconstructed from persisted L1 matched terms returned five distinct top-5 documents, including the exact DoubleMLIRM implementation. The failed live run did not persist its raw query text, so this is not an exact-query replay and provides no report-correctness credit.",
       "real_immutable_source_execution": "EXECUTED with return code 0, no errors, no source mutation, and frozen stdout SHA-256 ef1f1614e671a91b435e46e98126fb24c442faec198b19ab709788af32ab16d3",
       "hidden_source_harness_calibration": "6/6: gold accepted and five source, environment, execution, stdout, or sign variants rejected",
@@ -92,9 +95,9 @@
       "model_policy_audit": "production tiers remain Haiku or Sonnet with Opus rejected; tests and live evaluations remain pinned to claude-haiku-4-5-20251001",
       "fresh_live_research_draws": 1,
       "fresh_live_result": "Quantile-CLT L0 v1 BLOCKED and hidden gold 0/1; no accepted theory artifact reached hidden evaluation, and no rerun was used to seek a favorable model draw",
-      "runtime_core_growth": "research_agent_runtime.py remains 24774 lines, theory_workspace.py is 2741 lines, and research_architect.py is 4914 lines. Removing the combined document batch path shrank the workspace implementation; the changes add no Python module, runtime agent, scheduler, repair subsystem, retry, outer iteration, model call, or task-specific content rule"
+      "runtime_core_growth": "research_agent_runtime.py is 24973 lines, theory_workspace.py is 3105 lines, and research_architect.py is 5158 lines. The partial-progress mechanism reuses the existing workspace and AgentRuntime rather than adding a Python module, runtime agent, scheduler, repair subsystem, retry, outer-iteration allowance, model call, or task-specific content rule. Its size is recorded as debt to simplify after live use rather than a reason to add another abstraction."
     },
-    "evidence_boundary": "The task-intent identity and direct-document authoring changes have deterministic and full-regression evidence only. The fresh quantile run used the prior overloaded batch tool and exposed the interface defect; it did not execute commits 50166ff3 or 207bc09f, produce an accepted theory artifact, or reach hidden mathematical evaluation. Therefore the run remains 0/1 and supplies no theory-correctness credit. Prompt-tool alignment, fallback deletion, document authority, transport detachment, claim-DAG, revision-delta, parent-reference hydration, document inspection, and report-semantic changes prove interface and evidence behavior rather than improved model judgment."
+    "evidence_boundary": "The task-intent identity, direct-document authoring, and document-backed progress-continuation changes have deterministic and full-regression evidence only. The fresh quantile run used the prior overloaded batch tool and exposed the interface defect; it did not execute commits 50166ff3, 207bc09f, or e1e59f31, produce an accepted theory artifact, or reach hidden mathematical evaluation. Therefore the run remains 0/1 and supplies no theory-correctness credit. Prompt-tool alignment, fallback deletion, document authority, progress persistence, transport detachment, claim-DAG, revision-delta, parent-reference hydration, document inspection, and report-semantic changes prove interface and evidence behavior rather than improved model judgment."
   },
   "latest_component_evidence": {
     "id": "research_l0_quantile_clt_v1_document_theory_exact_haiku_20260814",
@@ -192,6 +195,7 @@
       "an internally contradictory Architect BLOCK packet suppressing the required terminal Critic gap report",
       "hidden empirical gold evidence being collapsed into a generic failed status when the separate runtime protocol did not accept",
       "a structurally valid TheoryDeveloper write automatically terminating the nominal long-horizon workspace before the model could choose further derivation, counterchecking, or an explicit review checkpoint",
+      "substantive Markdown/LaTeX progress being lost or forced into premature acceptance when one TheoryDeveloper session ended before a long derivation or reviewer-driven revision was complete",
       "JSON arrays being the canonical authority for long mathematical derivations instead of model-authored Markdown or LaTeX files",
       "downstream theory consumers receiving structured summaries without the exact authoritative document bytes and hashes",
       "TheoryDeveloper prompts allowing scratchpad observations to be mislabeled as confirmatory evidence before independent review and protocol freezing",
@@ -235,7 +239,7 @@
       "fresh KM v2 produced a correct hidden-tested estimator but its theory contains substantive errors that runtime author, preflight, and terminal acceptance all failed to reject",
       "the calibrated single-Haiku semantic theory judge false-accepted the frozen bad KM candidate and passed only 4/5 hidden calibration cases; it is correctly fail-closed and cannot serve as theory authority",
       "the file-backed TheoryDeveloper handoff no longer embeds client-tool history or empty legacy derivation arrays, but it still carries substantial structured theorem, estimator, simulation, proof-plan, and formalization ABI payloads; consumers have not yet moved to mostly content-addressed claim references",
-      "TheoryDeveloper now has a closed acyclic within-packet claim graph and an exact reference-only multi-revision delta chain, but it still lacks claim-specific section hashes, a mature cross-session research-memory view, autonomous source acquisition, and independent search for uncited contrary sources",
+      "TheoryDeveloper now has a closed acyclic within-packet claim graph, an exact reference-only multi-revision delta chain, and same-task resumable document checkpoints, but it still lacks claim-specific section hashes, a mature cross-task research-memory view, autonomous source acquisition, and independent search for uncited contrary sources",
       "the parent Theory body is now reference-only across revision persistence and resume, but revision bindings still copy routed reviewer feedback and several downstream handoffs still carry larger typed ABI payloads rather than selecting only required artifact references",
       "hash-bound author and independent-reviewer document search and line reads have deterministic tool-loop evidence only; they do not establish that Haiku will locate the right claim, derive or judge it correctly, or pass independent hidden theory evaluation on a fresh task",
       "the independent preflight still ends in one compact structured verdict after model-owned document and source inspection; its mathematical protocol and scratchpad boundary have regression evidence only, and no new model draw is justified merely to test prompt luck",
@@ -266,9 +270,9 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24774,
-    "theory_workspace_lines": 2741,
-    "research_architect_lines": 4914,
+    "research_agent_runtime_lines": 24973,
+    "theory_workspace_lines": 3105,
+    "research_architect_lines": 5158,
     "formalizer_llm_lines": 2387,
     "agent_runtime_lines": 1207,
     "cli_lines": 7067,
@@ -293,7 +297,7 @@
     "Run a product research_eval known-result panel where formalization is optional or advisory by task intent and report the full evidence vector without Lean blocking accepted empirical dimensions.",
     "Do not spend another live strict S13 run merely to resample the same broad tasks. Run it under unchanged budgets only after a relevant shared mechanism change has component or replay evidence and require exact target-bound kernel closure on both development families before opening held-out PCA/extremes.",
     "Keep the active Statlib pin as the only importable authority while indexing newer upstream Statlib snapshots under a separate non-importable discovery identity; migrate the project pin only after whole-project compile and declaration-compatibility checks.",
-    "Extend TheoryDeveloper with durable cross-session definition/assumption/equation/claim references; later add independent source discovery for novelty or contradiction without turning it into a literature-router hierarchy.",
+    "Use the existing same-task resumable document checkpoint on a future unrelated frozen task before extending memory further. Later add durable cross-task definition/assumption/equation/claim references and independent source discovery for novelty or contradiction without turning either into a memory service or literature-router hierarchy.",
     "Improve Formalizer through direct proof-state retrieval and source iteration, but keep it parallel or downstream for non-formal product tasks and mandatory only when frozen task intent requires proof.",
     "Delete or extract existing central runtime responsibilities before adding any new outer control feature."
   ]

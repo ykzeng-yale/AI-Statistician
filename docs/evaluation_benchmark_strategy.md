@@ -303,6 +303,13 @@ step is source-grounded long-horizon theory development and referee reasoning on
 unrelated known result, followed by a pinned published replication. It is not another
 KM/HC0 draw, a larger budget, an ensemble vote, or more task-specific guardrails.
 
+The same TheoryDeveloper can now checkpoint substantive Markdown/LaTeX progress and
+resume the exact hash-bound workspace under the same owner, including a reviewer-bound
+revision. This removes premature acceptance or lost partial mathematics as a harness
+constraint, but currently has deterministic replay evidence only. It does not make a
+partial checkpoint accepted theory, cross-task research memory, or evidence that the
+model can complete a long derivation correctly.
+
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same
 two broad tasks in hope of a better model draw. This is an evaluation-selection

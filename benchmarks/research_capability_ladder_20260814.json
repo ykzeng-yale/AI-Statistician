@@ -327,9 +327,11 @@
         "capability_interpretation": "The run establishes correct theory-only routing and fail-closed evidence behavior, but it does not judge mathematical competence because no model-authored document or theory packet reached independent evaluation.",
         "post_run_generic_harness_fix_commit": "50166ff391e70c5efddd16784a7cc62bb66e26e8",
         "post_run_generic_harness_fix": "Canonical TheoryDeveloper authoring now gives the same model one strict path-plus-content document tool and keeps structured JSON as a small claim index or executable ABI. No content repair, task rule, retry, tool-call budget, model tier, agent, or scheduler was added.",
-        "post_run_direct_authoring_alignment_commit": "207bc09fbc9d30354af002eab3d40456dfe104cf",
-        "post_run_direct_authoring_alignment": "Initial and revision prompts now name the direct document, hash-bound edit, and structured-handoff tools exactly. The obsolete combined document_writes executor path and its scripted-test usage were deleted instead of retained as a fallback.",
-        "post_run_full_pytest": "734 passed in 95.96s",
+      "post_run_direct_authoring_alignment_commit": "207bc09fbc9d30354af002eab3d40456dfe104cf",
+      "post_run_direct_authoring_alignment": "Initial and revision prompts now name the direct document, hash-bound edit, and structured-handoff tools exactly. The obsolete combined document_writes executor path and its scripted-test usage were deleted instead of retained as a fallback.",
+      "post_run_long_horizon_progress_commit": "e1e59f3124e40dd2fd51e9d9f90bfc0533b39b2b",
+      "post_run_long_horizon_progress": "A model can now checkpoint substantive Markdown/LaTeX progress and continue the exact hash-bound workspace under the same TheoryDeveloper owner. Initial and reviewer-driven revision replays pass; partial state is not accepted evidence and no retry, budget increase, repair worker, Architect route, or task-specific rule was added.",
+      "post_run_full_pytest": "737 passed in 95.76s",
         "model_draw_resampling_blocked": true,
         "full_task_passed": false
       },
@@ -439,6 +441,6 @@
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
     "latest_diagnostic": "Fresh exact-Haiku quantile-CLT L0 v1 routed only to TheoryDeveloper and kept code, simulation, and formalization absent as required. It scored 0/1 because the old combined document-plus-handoff tool repeatedly received a malformed document_writes shape and no theory artifact reached hidden evaluation. This is an authoring-interface diagnosis, not evidence that the candidate mathematics passed or failed.",
-    "next_step": "Do not rerun HC0, KM, DoubleML L1, or quantile-CLT L0 merely for another model draw. Preserve every frozen failure. The generic direct Markdown/LaTeX document-authoring interface has deterministic and full-regression evidence only; evaluate it on a future unrelated pre-frozen task, without adding a task-specific prompt, content patch, retry, or budget increase after observing outcomes."
+    "next_step": "Do not rerun HC0, KM, DoubleML L1, or quantile-CLT L0 merely for another model draw. Preserve every frozen failure. The generic direct Markdown/LaTeX authoring and same-owner progress-continuation interfaces have deterministic and full-regression evidence only; evaluate them on a future unrelated pre-frozen task, without adding a task-specific prompt, content patch, retry, or budget increase after observing outcomes."
   }
 }
