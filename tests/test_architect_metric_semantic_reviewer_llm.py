@@ -140,6 +140,17 @@ def _payload(
             {
                 "requirement_id": str(requirement["requirement_id"]),
                 "status": status,
+                "semantic_positive_control": {
+                    "raw_metric_values": [0.0],
+                    "rationale": (
+                        "The cited scientific target treats zero as a valid "
+                        "positive-control diagnostic."
+                    ),
+                    "evidence_refs": [
+                        f"requirement:{requirement['requirement_id']}",
+                        str(requirement["source_anchors"][0]),
+                    ],
+                },
                 "rationale": (
                     "The frozen scalar measurement, normalization, operator, "
                     "and cited threshold agree."
@@ -295,6 +306,40 @@ def test_compact_reviewer_derives_revise_from_model_judgments() -> None:
     )
 
 
+def test_runtime_positive_control_rejects_an_implicit_target_shift() -> None:
+    requirement = _requirement(
+        metric_semantics=(
+            "absolute realized fraction whose scientific target is 0.30"
+        ),
+        measurement_protocol="return the absolute realized fraction",
+        operator="between",
+        threshold=None,
+        lower=-0.05,
+        upper=0.05,
+        tolerance=0.01,
+        aggregation="mean",
+    )
+    material = _material(requirements=[requirement])
+    payload = _payload([requirement])
+    payload["requirement_reviews"][0]["semantic_positive_control"] = {
+        "raw_metric_values": [0.30],
+        "rationale": "The cited scientific target is an absolute fraction of 0.30.",
+        "evidence_refs": ["requirement:generic_gate", "theory:generic_gate"],
+    }
+
+    packet, _, _ = _review(payload, material=material)
+
+    review = packet["requirement_reviews"][0]
+    control = review["semantic_positive_control"]["runtime_evaluation"]
+    assert review["status"] == "PASS"
+    assert review["semantic_control_status"] == "CONTRADICTION"
+    assert control["raw_metric_values"] == [0.30]
+    assert control["runtime_passed"] is False
+    assert control["runtime_matches_scientific_expectation"] is False
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["validation_errors"] == []
+
+
 def test_compact_reviewer_rejects_missing_requirement_coverage() -> None:
     requirements = [_requirement("gate_one"), _requirement("gate_two")]
     material = _material(requirements=requirements)
@@ -438,6 +483,7 @@ def test_prompt_projects_semantic_inputs_without_long_derivation_replay() -> Non
         ),
         review_material=material,
     )
+    payload = json.loads(prompt.split("\n\n", 1)[1])
 
     assert "retain this summary" in prompt
     assert "retain this assumption" in prompt
@@ -448,6 +494,13 @@ def test_prompt_projects_semantic_inputs_without_long_derivation_replay() -> Non
     assert "metric_claim_check_contract" not in prompt
     assert "literally substitute the declared returned raw metric" in prompt
     assert "Runtime performs no implicit target subtraction" in prompt
+    assert "semantic_positive_control" in prompt
+    assert "implicit_transformations_applied" in prompt
+    comparison = payload["review_material"]["runtime_evaluator_certificate"][
+        "certificates"
+    ][0]["comparison_stage"]
+    assert comparison["operator"] == "<="
+    assert comparison["threshold"] == 0.1
     assert len(prompt) < 30_000
 
 
@@ -468,6 +521,12 @@ def test_dynamic_schema_is_small_and_provider_transformable() -> None:
     assert len(json.dumps(schema, separators=(",", ":"))) < 8_000
     assert schema["properties"]["requirement_reviews"]["minItems"] == 8
     assert schema["properties"]["requirement_reviews"]["maxItems"] == 8
+    requirement_properties = schema["properties"]["requirement_reviews"][
+        "items"
+    ]["properties"]
+    assert requirement_properties["semantic_positive_control"]["properties"][
+        "raw_metric_values"
+    ]["items"] == {"type": "number"}
     assert schema["properties"]["prior_finding_reviews"]["minItems"] == 1
     assert "claim_checks" not in schema["properties"]
     assert "response_identity_checks" not in schema["properties"]

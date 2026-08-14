@@ -2457,6 +2457,68 @@ def _evaluate_generated_metric_contract(
     }
 
 
+def evaluate_generated_metric_semantic_control(
+    requirement: Mapping[str, Any],
+    *,
+    raw_metric_values: Sequence[Any],
+) -> dict[str, Any]:
+    """Execute a model-authored semantic control through the real metric evaluator."""
+
+    values = deepcopy(list(raw_metric_values))
+    requirement_id = str(requirement.get("requirement_id", "") or "").strip()
+    control_identity = {
+        "requirement_id": requirement_id,
+        "requirement_fingerprint": stable_hash(dict(requirement)),
+        "raw_metric_values": values,
+    }
+    contract = {
+        **deepcopy(dict(requirement)),
+        "contract_id": "metric_semantic_control:" + stable_hash(control_identity)[:20],
+        "artifact_id": "metric_semantic_control",
+        "metric_path": ["raw_metric_values", "*"],
+    }
+    evaluation = _evaluate_generated_metric_contract(
+        {"raw_metric_values": values},
+        contract=contract,
+    )
+    body = {
+        "artifact_kind": "GeneratedMetricSemanticControlEvaluation",
+        "requirement_id": requirement_id,
+        "requirement_fingerprint": control_identity["requirement_fingerprint"],
+        "raw_metric_values": values,
+        "expected_pass": True,
+        "runtime_passed": evaluation["passed"] is True,
+        "runtime_matches_scientific_expectation": bool(
+            evaluation["measurement_interface_valid"] is True
+            and evaluation["passed"] is True
+        ),
+        "measurement_interface_valid": bool(
+            evaluation["measurement_interface_valid"] is True
+        ),
+        "aggregate_value": evaluation.get("aggregate_value"),
+        "n_resolved_values": int(evaluation.get("n_resolved_values", 0) or 0),
+        "n_comparisons": int(evaluation.get("n_comparisons", 0) or 0),
+        "n_comparisons_passed": int(
+            evaluation.get("n_comparisons_passed", 0) or 0
+        ),
+        "errors": list(evaluation.get("errors", []) or []),
+        "proof_evidence_status": GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
+        "boundary": (
+            "The independent model selects a theory-consistent positive-control "
+            "value before execution. Runtime applies the exact frozen evaluator and "
+            "reports only its mechanical result; this is protocol validation, not "
+            "empirical acceptance or theorem proof evidence."
+        ),
+    }
+    return {
+        **body,
+        "control_evaluation_id": (
+            "generated_metric_semantic_control_evaluation:"
+            + stable_hash(body)[:20]
+        ),
+    }
+
+
 def _generated_metric_contract_authority_errors(
     contracts: Any,
     *,

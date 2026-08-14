@@ -10,7 +10,10 @@ from .architect_theory_execution_preflight import (
     review_architect_theory_execution_preflight,
 )
 from .fingerprint import stable_hash
-from .generated_metric_contract import generated_metric_evaluator_certificate
+from .generated_metric_contract import (
+    evaluate_generated_metric_semantic_control,
+    generated_metric_evaluator_certificate,
+)
 from .metric_protocol_finding_ledger import (
     METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT,
     METRIC_PROTOCOL_FINDING_UNRESOLVED,
@@ -29,8 +32,8 @@ from .structured_output_retry import (
 )
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 18
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 14
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 19
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 15
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -64,7 +67,11 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "implicit target subtraction, centering, absolute value, or normalization. "
         "Reject a row when its bounds are offsets around a target but its measurement "
         "returns the untransformed level, or when any other declared transformation "
-        "and gate use different numeric coordinates."
+        "and gate use different numeric coordinates. For each requirement, author one "
+        "semantic_positive_control containing raw metric values that the cited "
+        "scientific semantics expect to pass. Do not choose values merely because they "
+        "fit the numeric gate. Runtime will execute that control through the exact "
+        "frozen evaluator after your response."
     ),
     (
         "Judge the portfolio once for cross-requirement consistency, redundancy, "
@@ -267,12 +274,16 @@ def _compact_evaluator_certificate(value: Any) -> dict[str, Any]:
                 "aggregation",
                 "required",
                 "schema_valid",
+                "comparison_stage",
+                "aggregation_stage",
             )
             if row.get(key) not in (None, "", [], {})
         }
         for row in value.get("certificates", []) or []
         if isinstance(row, Mapping)
     ]
+    for row in rows:
+        row["implicit_transformations_applied"] = []
     return {
         "certificate_set_id": value.get("certificate_set_id", ""),
         "requirement_set_id": value.get("requirement_set_id", ""),
@@ -451,7 +462,36 @@ def _review_row_schema(*, include_requirement_id: bool) -> dict[str, Any]:
     }
     if include_requirement_id:
         required.insert(0, "requirement_id")
+        required.append("semantic_positive_control")
         properties["requirement_id"] = {"type": "string", "minLength": 1}
+        properties["semantic_positive_control"] = {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["raw_metric_values", "rationale", "evidence_refs"],
+            "properties": {
+                "raw_metric_values": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {"type": "number"},
+                },
+                "rationale": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": _MAX_REVIEW_TEXT_CHARS,
+                },
+                "evidence_refs": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "uniqueItems": True,
+                    "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300,
+                    },
+                },
+            },
+        }
     return {
         "type": "object",
         "additionalProperties": False,
@@ -605,6 +645,33 @@ def architect_metric_semantic_review_json_schema(
     return schema
 
 
+def _normalize_semantic_positive_control(
+    value: Any,
+    *,
+    requirement_id: str,
+) -> dict[str, Any]:
+    row = dict(value) if isinstance(value, Mapping) else {}
+    evidence_refs = list(
+        dict.fromkeys(
+            [
+                f"requirement:{requirement_id}",
+                *[
+                    str(ref).strip()
+                    for ref in row.get("evidence_refs", []) or []
+                    if str(ref).strip()
+                ],
+            ]
+        )
+    )
+    return {
+        "raw_metric_values": deepcopy(
+            list(row.get("raw_metric_values", []) or [])
+        ),
+        "rationale": str(row.get("rationale", "") or "").strip(),
+        "evidence_refs": evidence_refs,
+    }
+
+
 def _normalize_review_rows(value: Any) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for row in value or []:
@@ -640,8 +707,44 @@ def _normalize_review_rows(value: Any) -> list[dict[str, Any]]:
                 ).strip(),
                 "evidence_refs": evidence_refs,
                 "runtime_bound_requirement_ref": bool(requirement_id),
+                "semantic_positive_control": (
+                    _normalize_semantic_positive_control(
+                        row.get("semantic_positive_control", {}),
+                        requirement_id=requirement_id,
+                    )
+                ),
             }
         )
+    return rows
+
+
+def _execute_review_semantic_controls(
+    requirement_reviews: Sequence[Mapping[str, Any]],
+    *,
+    review_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    requirements_by_id = {
+        str(row.get("requirement_id", "") or "").strip(): row
+        for row in _requirements(review_material)
+    }
+    rows: list[dict[str, Any]] = []
+    for raw_row in requirement_reviews:
+        row = deepcopy(dict(raw_row))
+        requirement_id = str(row.get("requirement_id", "") or "").strip()
+        control = dict(row.get("semantic_positive_control", {}) or {})
+        requirement = requirements_by_id.get(requirement_id, {})
+        evaluation = evaluate_generated_metric_semantic_control(
+            requirement,
+            raw_metric_values=list(control.get("raw_metric_values", []) or []),
+        )
+        control["runtime_evaluation"] = evaluation
+        row["semantic_positive_control"] = control
+        row["semantic_control_status"] = (
+            "PASS"
+            if evaluation.get("runtime_matches_scientific_expectation") is True
+            else "CONTRADICTION"
+        )
+        rows.append(row)
     return rows
 
 
@@ -754,6 +857,8 @@ def _derived_verdict(
         if requirement_reviews
         and all(
             str(row.get("status", "") or "").upper() == "PASS"
+            and str(row.get("semantic_control_status", "") or "").upper()
+            == "PASS"
             for row in requirement_reviews
         )
         and str(portfolio_review.get("status", "") or "").upper() == "PASS"
@@ -782,8 +887,9 @@ def _normalize_architect_metric_semantic_review_packet(
     provider_name: str,
     raw_response: str,
 ) -> dict[str, Any]:
-    requirement_reviews = _normalize_review_rows(
-        payload.get("requirement_reviews", [])
+    requirement_reviews = _execute_review_semantic_controls(
+        _normalize_review_rows(payload.get("requirement_reviews", [])),
+        review_material=review_material,
     )
     portfolio_review = _normalize_portfolio_review(
         payload.get("portfolio_review", {})
@@ -965,6 +1071,7 @@ def validate_architect_metric_semantic_review_packet(
         rows = []
     observed_ids: list[str] = []
     nonpassing = False
+    runtime_semantic_control_contradiction = False
     for index, raw_row in enumerate(rows):
         if not isinstance(raw_row, Mapping):
             errors.append(f"requirement_reviews[{index}] must be an object")
@@ -980,6 +1087,56 @@ def validate_architect_metric_semantic_review_packet(
             )
         if status != "PASS":
             nonpassing = True
+        control = raw_row.get("semantic_positive_control", {})
+        if not isinstance(control, Mapping):
+            errors.append(
+                f"requirement review {requirement_id or index} missing "
+                "semantic_positive_control"
+            )
+            control = {}
+        control_values = control.get("raw_metric_values", [])
+        if not isinstance(control_values, list) or not control_values:
+            errors.append(
+                f"requirement review {requirement_id or index} positive control "
+                "must contain raw metric values"
+            )
+        if not str(control.get("rationale", "") or "").strip():
+            errors.append(
+                f"requirement review {requirement_id or index} positive control "
+                "missing rationale"
+            )
+        control_refs = [
+            str(value).strip()
+            for value in control.get("evidence_refs", []) or []
+            if str(value).strip()
+        ]
+        if requirement_id and not any(
+            _requirement_ref_matches(requirement_id, ref)
+            for ref in control_refs
+        ):
+            errors.append(
+                f"requirement review {requirement_id} positive control must cite "
+                "its frozen row"
+            )
+        control_evaluation = control.get("runtime_evaluation", {})
+        if not isinstance(control_evaluation, Mapping) or not str(
+            control_evaluation.get("control_evaluation_id", "") or ""
+        ):
+            errors.append(
+                f"requirement review {requirement_id or index} missing runtime "
+                "semantic-control evaluation"
+            )
+        semantic_control_status = str(
+            raw_row.get("semantic_control_status", "") or ""
+        ).upper()
+        if semantic_control_status not in {"PASS", "CONTRADICTION"}:
+            errors.append(
+                f"requirement review {requirement_id or index} has invalid "
+                "semantic_control_status"
+            )
+        if semantic_control_status == "CONTRADICTION":
+            nonpassing = True
+            runtime_semantic_control_contradiction = True
         if not str(raw_row.get("rationale", "") or "").strip():
             errors.append(
                 f"requirement review {requirement_id or index} missing rationale"
@@ -1120,7 +1277,11 @@ def validate_architect_metric_semantic_review_packet(
             errors.append(
                 f"findings[{index}] new finding missing new_finding_rationale"
             )
-    if nonpassing and blocking_findings == 0:
+    if (
+        nonpassing
+        and blocking_findings == 0
+        and not runtime_semantic_control_contradiction
+    ):
         errors.append(
             "a non-passing requirement or portfolio judgment requires one "
             "medium, high, or critical finding"

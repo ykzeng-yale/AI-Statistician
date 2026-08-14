@@ -11,6 +11,7 @@ from ai_statistician.generated_metric_contract import (
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
     GENERATED_METRIC_VALUE_KINDS,
     bind_generated_metric_contract_authority,
+    evaluate_generated_metric_semantic_control,
     evaluate_generated_metric_contracts,
     generated_metric_authority_context,
     generated_metric_contract_binding_json_schema,
@@ -1062,6 +1063,33 @@ def test_metric_evaluator_certificate_records_actual_dispatch_order() -> None:
     assert certificate_set["all_rows_schema_valid"] is True
     assert certificate_set["requirement_schema_errors"] == []
     assert certificate_set["proof_evidence_status"] == (
+        GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+    )
+
+
+def test_model_authored_semantic_control_uses_the_real_metric_evaluator() -> None:
+    offset_gate_for_raw_level = _requirement(
+        metric_semantics="absolute realized fraction with target 0.30",
+        measurement_protocol="return the absolute realized fraction",
+        operator="between",
+        threshold=None,
+        lower=-0.05,
+        upper=0.05,
+        tolerance=0.01,
+        aggregation="mean",
+    )
+
+    evaluation = evaluate_generated_metric_semantic_control(
+        offset_gate_for_raw_level,
+        raw_metric_values=[0.30],
+    )
+
+    assert evaluation["expected_pass"] is True
+    assert evaluation["runtime_passed"] is False
+    assert evaluation["runtime_matches_scientific_expectation"] is False
+    assert evaluation["aggregate_value"] == pytest.approx(0.30)
+    assert evaluation["errors"]
+    assert evaluation["proof_evidence_status"] == (
         GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
     )
 

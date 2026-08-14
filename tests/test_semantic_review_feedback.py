@@ -153,6 +153,39 @@ def test_recursive_projection_preserves_rejected_candidate_exactly() -> None:
     }
 
 
+def test_metric_author_receives_executable_semantic_control_observation() -> None:
+    projected = model_observations_without_repair_recipes(
+        {
+            "requirement_reviews": [
+                {
+                    "requirement_id": "metric:realized_fraction",
+                    "semantic_positive_control": {
+                        "raw_metric_values": [0.3],
+                        "rationale": "The scientific target is an absolute fraction.",
+                        "runtime_evaluation": {
+                            "runtime_passed": False,
+                            "aggregate_value": 0.3,
+                            "errors": ["0.3 did not satisfy the frozen gate"],
+                        },
+                    },
+                    "semantic_control_status": "CONTRADICTION",
+                    "repair_instructions": ["Shift the gate by 0.3."],
+                }
+            ]
+        }
+    )
+
+    review = projected["requirement_reviews"][0]
+    assert review["semantic_positive_control"]["raw_metric_values"] == [0.3]
+    assert review["semantic_positive_control"]["runtime_evaluation"] == {
+        "runtime_passed": False,
+        "aggregate_value": 0.3,
+        "errors": ["0.3 did not satisfy the frozen gate"],
+    }
+    assert review["semantic_control_status"] == "CONTRADICTION"
+    assert "repair_instructions" not in review
+
+
 def test_recursive_projection_drops_runtime_repair_memory_and_recommendations() -> None:
     projected = model_observations_without_repair_recipes(
         {
