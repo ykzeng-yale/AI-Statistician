@@ -349,24 +349,51 @@ inspection-provenance and harness-simplification evidence only. It does not repa
 rescore James-Stein, make line coverage equivalent to correct judgment, or establish
 improved live theory capability until a future unrelated frozen task exercises it.
 
-That future task is now frozen before its first runtime model call. The Student-t
-normal-mean L0 benchmark contains one distribution theorem, one interval algorithm,
-and one MCSE-aware coverage target. Its model-visible authority is a hash-bound 1908
-source snapshot with an explicitly identified modern-notation transcription; deep
-formalization, novelty, and source-code replication are not required. The evaluator
-bundle remains outside the repository and all model/RAG workspaces. Its reference
+The Student-t normal-mean L0 benchmark was frozen before its first runtime model call.
+It contains one distribution theorem, one interval algorithm, and one MCSE-aware
+coverage target. Its model-visible authority is a hash-bound 1908 source snapshot with
+an explicitly identified modern-notation transcription; deep formalization, novelty,
+and source-code replication are not required. The evaluator bundle remains outside the
+repository and all model/RAG workspaces. Before activation, the reference
 implementation passed six direct and metamorphic checks and three predeclared normal
 coverage DGPs with 3,000 replicates each, while three deliberately wrong estimator
-families were rejected.
+families were rejected. The isolated exact-Haiku semantic authority classified all ten
+unlabeled calibration cases correctly and passed its reference candidate. These are
+evaluator calibration facts, not research capability.
 
-The evaluator-only exact-Haiku semantic authority classified all ten unlabeled
-preactivation cases correctly and passed its reference candidate in an isolated
-second call. Crucially, its failures include a document with the correct final
-Student interval but false active chi-square and independence steps. This calibration
-is not research capability evidence. It only establishes that the next single fresh
-draw can test the direct Markdown/LaTeX TheoryDeveloper, same-owner continuation, and
-claim-grounded referee without learning its scoring rule from the candidate output.
-After that draw the task will not be resampled merely to obtain a better model answer.
+The one permitted fresh exact-Haiku draw completed the canonical non-formal research
+loop. Runtime returned `ACCEPTED`; `research_eval` was 1/1 complete and mode-conformant;
+the seven enabled LLM roles all used `claude-haiku-4-5-20251001`. TheoryDeveloper used
+the persistent file workspace to write a 5,308-byte Markdown derivation, explicitly
+committed its checkpoint, and was accepted by the independent preflight. One generated
+algorithm and one generated simulation then executed and passed their runtime semantic
+reviews, and the terminal Critic accepted. Formalization was correctly not applicable.
+
+Hidden post-runtime evidence remains split by dimension. The exact accepted estimator
+passed 7/7 algorithm checks, the empirical result passed 6/6 checks over 9,000 hidden
+estimator calls, and the theory artifact passed 5/5 identity checks. However, the
+hidden claim-level theory semantic call failed closed with an unclassified `ValueError`
+before any verdict. Therefore theory is not gold-validated and the full task remains
+`0/1`; runtime acceptance, coherent-looking Markdown, and component passes cannot fill
+that missing authority. The task will not be rerun or rescored to seek a favorable
+model or evaluator draw.
+
+The run exposed two shared product-design defects. TheoryDeveloper itself read the
+permitted 1908 snapshot, but the independent referee had only compact runtime context
+and formal-library retrieval, so its three optional source searches were irrelevant
+Lean-library searches. The same hash-bound `search_research_sources` and
+`read_research_source` tools are now passed into the existing referee loop. The model
+chooses queries and exact ranges; source text is visible only in that active turn and
+the packet persists compact snapshot, document, line, and content hashes. This adds no
+agent, retry, tool-turn allowance, task-specific source router, or proof claim.
+
+The Architect also expanded one declared empirical target into five required gates and
+4,880 runtime estimator calls. The author and independent reviewer prompts now preserve
+upstream scientific-claim granularity: undeclared stress settings, nominal levels,
+nuisance values, and boundary diagnostics remain exploratory unless upstream makes
+them separate confirmatory claims. This is model-owned scientific judgment, not a
+hardcoded gate count. Both post-run changes have regression evidence only; 741 tests
+pass, and neither change supplies retrospective Student-t capability credit.
 
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same
