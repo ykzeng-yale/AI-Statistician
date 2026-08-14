@@ -310,16 +310,34 @@ constraint, but currently has deterministic replay evidence only. It does not ma
 partial checkpoint accepted theory, cross-task research memory, or evidence that the
 model can complete a long derivation correctly.
 
-An unrelated James-Stein normal-mean L0 task is now frozen before its first runtime
+An unrelated James-Stein normal-mean L0 task was frozen before its first runtime
 model call. Its model-visible authority is a hash-bound 1961 paper extraction plus a
 page-bound transcription of the scan's damaged formulas. Evaluator-only gold combines
 the generic Markdown/LaTeX identity harness, a 7/7 exact-Haiku semantic calibration,
 closed-form and metamorphic estimator checks, and a predeclared paired-risk simulation
 with MCSE reporting. The reference estimator passes all five algorithm checks and all
 three empirical DGPs; three deliberately wrong estimator families are rejected. These
-are evaluator calibration facts, not model capability. The single fresh run will test
-the new document workspace and continuation mechanism without changing runtime prompts,
-agents, retries, iteration budgets, or task-specific rules.
+remain evaluator calibration facts, not model capability.
+
+The single fresh exact-Haiku run scored `0/1`. TheoryDeveloper used the direct
+Markdown workspace, searched and read the source snapshot, and made five model-owned
+submissions, but it exhausted those submissions with one estimator-to-claim-index link
+still missing. It then reported a structural issue as a mathematical gap instead of
+checkpointing the 25,240-byte document for same-owner continuation. No independently
+accepted theory packet, generated estimator, simulation, or formal artifact resulted.
+Formalization was correctly absent by task intent.
+
+The unaccepted document also exposed a more serious scientific-review problem. It
+states the correct final James-Stein risk conclusion, but retains false intermediate
+noncentral-chi-square equations, circular abandoned routes, and an asserted cross-term
+simplification as if they formed a coherent proof. In an evaluator-only diagnostic,
+the frozen semantic judge retained its 7/7 calibration yet marked this document
+`PASS`. That false acceptance receives no score and shows that final-claim matching is
+not a sufficient theory referee. The next unrelated benchmark should evaluate a
+generic claim-linked referee that reads the decisive equation ranges, checks each
+dependency and countercheck, and distinguishes endorsed derivation from rejected
+exploration. It should not trigger a James-Stein rerun, task-specific formulas, more
+budget, or a new repair layer.
 
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same
