@@ -2908,16 +2908,25 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     assert indexed_agent.declaration_result[
         "indexed_symbol_context_observed"
     ] is True
-    assert "structure Source where" in indexed_agent.declaration_result[
-        "indexed_source_context"
-    ]["content"]
-    module_prefix = indexed_agent.declaration_result[
-        "indexed_module_prefix_context"
+    api_context = indexed_agent.declaration_result[
+        "active_project_api_context"
     ]
+    assert api_context["importable_module"] == "IndexedSource"
+    assert api_context["qualified_declaration"] == "Example.Namespace.Source"
+    assert api_context["namespace_path"] == "Example.Namespace"
+    assert api_context["exact_signature"] == "structure Source where"
+    assert "structure Source where" in api_context[
+        "declaration_source_context"
+    ]["content"]
+    module_prefix = api_context["source_module_prefix_reference"]
     assert module_prefix["start_line"] == 1
     assert "import Mathlib" in module_prefix["content"]
     assert "namespace Example.Namespace" in module_prefix["content"]
     assert "open MeasureTheory" in module_prefix["content"]
+    assert "indexed_source_context" not in indexed_agent.declaration_result
+    assert "indexed_module_prefix_context" not in (
+        indexed_agent.declaration_result
+    )
 
     resumed_source = "theorem target : True := by\n  exact True.intro\n"
     resume_feedback = {

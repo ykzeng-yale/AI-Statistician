@@ -17703,6 +17703,7 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                 path if path.is_absolute() else project_root / path
             ).resolve()
             if resolved.is_file() and project_root in resolved.parents:
+                module_path = resolved.relative_to(project_root).with_suffix("")
                 namespace = str(
                     getattr(declaration, "namespace", "") or ""
                 ).strip()
@@ -17718,6 +17719,7 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                     "qualified_symbol": indexed_name,
                     "source_symbol": source_symbol,
                     "namespace": namespace,
+                    "importable_module": ".".join(module_path.parts),
                     "line": int(getattr(declaration, "line", 0) or 0),
                     "signature": str(
                         getattr(declaration, "signature", "") or ""
@@ -17822,6 +17824,7 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
         result = deepcopy(dict(raw))
         indexed_source_context: dict[str, Any] = {}
         indexed_module_prefix_context: dict[str, Any] = {}
+        active_project_api_context: dict[str, Any] = {}
         if active_declaration is not None:
             indexed_path = Path(active_declaration["path"])
             try:
@@ -17873,12 +17876,31 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                     in str(indexed_source_context.get("content", "") or "")
                 )
             )
+            active_project_api_context = {
+                "context_contract": (
+                    "Treat importable_module, qualified_declaration, namespace_path, "
+                    "source_module_prefix_reference, and declaration_source_context "
+                    "as one active-project API observation. Import importable_module "
+                    "when reusing the declaration; do not substitute the source "
+                    "module's internal dependency imports or copy unrelated "
+                    "declarations from its prefix."
+                ),
+                "importable_module": str(
+                    active_declaration.get("importable_module", "") or ""
+                ),
+                "qualified_declaration": str(
+                    active_declaration.get("qualified_symbol", "") or ""
+                ),
+                "namespace_path": str(
+                    active_declaration.get("namespace", "") or ""
+                ),
+                "exact_signature": indexed_signature,
+                "source_module_prefix_reference": indexed_module_prefix_context,
+                "declaration_source_context": indexed_source_context,
+            }
             result["provider_observation_ok"] = bool(result.get("ok", False))
+            result["active_project_api_context"] = active_project_api_context
             result["indexed_declaration_signature"] = indexed_signature
-            result["indexed_source_context"] = indexed_source_context
-            result["indexed_module_prefix_context"] = (
-                indexed_module_prefix_context
-            )
             result["indexed_symbol_context_observed"] = indexed_context_observed
             if indexed_context_observed:
                 result["ok"] = True

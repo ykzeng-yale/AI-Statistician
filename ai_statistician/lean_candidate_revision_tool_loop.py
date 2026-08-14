@@ -1193,10 +1193,12 @@ def _lean_candidate_revision_tools(
                     "Ask Lean LSP/MCP for the exact source context of a declaration "
                     "identifier selected from formal-environment search or referenced "
                     "by the current checked source. Choose the exact symbol and context "
-                    "yourself. This read-only active-project observation can show "
-                    "the bounded module prefix, declaration signature, structure "
-                    "fields, and nearby declarations needed to reproduce the source "
-                    "environment; it never edits or promotes source."
+                    "yourself. For an indexed active-project declaration, the result "
+                    "binds its importable module identity, qualified name, namespace, "
+                    "exact signature, bounded module prefix, and nearby source into one "
+                    "active_project_api_context. This read-only observation can be used "
+                    "as an atomic executable API example; it never edits or promotes "
+                    "source."
                 ),
                 input_schema={
                     "type": "object",
