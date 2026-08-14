@@ -50,6 +50,10 @@ from ai_statistician.simulation_engineer_llm import (
     build_simulation_engineer_prompt,
 )
 from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.theory_revision_lineage import (
+    THEORY_CLAIM_REVISION_DELTA_KIND,
+)
+from ai_statistician.theory_workspace import THEORY_WORKSPACE_CONTENT_AUTHORITY
 
 
 def test_formalization_has_one_model_owned_runtime_role() -> None:
@@ -706,6 +710,139 @@ def test_runtime_stores_theory_tool_history_as_separate_evidence() -> None:
     assert stored_workspace["runtime_storage_role"] == (
         "SEPARATE_WORKSPACE_EVIDENCE_NOT_THEORY_CONTENT"
     )
+
+
+def test_runtime_records_claim_revision_delta_against_exact_packet_bytes() -> None:
+    question = OpenResearchQuestion(
+        id="claim-revision-runtime",
+        title="Claim revision runtime",
+        description="Expose a document-authoritative theory revision by reference.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+
+    def packet(packet_id: str, *, status: str, depends_on: list[str]) -> dict:
+        return {
+            "artifact_kind": "TheoryDerivationPacket",
+            "packet_id": packet_id,
+            "question": runtime_module._question_to_payload(question),
+            "theory_content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
+            "theory_derivation_contract": {},
+            "theory_derivation_packet": {
+                "claim_index": [
+                    {
+                        "id": "C0",
+                        "kind": "assumption",
+                        "document_path": "theory.md",
+                        "anchor": "C0",
+                        "depends_on": [],
+                        "status": "SUPPORTED",
+                    },
+                    {
+                        "id": "C1",
+                        "kind": "theorem",
+                        "document_path": "theory.md",
+                        "anchor": "C1",
+                        "depends_on": depends_on,
+                        "status": status,
+                    },
+                ]
+            },
+            "estimator_specs": [],
+            "theorem_cards": [],
+            "formalization_requests": [],
+            "theory_workspace_manifest": {
+                "document_set_hash": "d" * 64,
+                "documents": [
+                    {
+                        "document_id": "theory-document",
+                        "relative_path": "theory.md",
+                        "sha256": "e" * 64,
+                        "byte_size": 100,
+                    }
+                ],
+            },
+        }
+
+    parent_packet = packet(
+        "theory_derivation:claim-parent",
+        status="OPEN",
+        depends_on=["C0"],
+    )
+    revised_packet = packet(
+        "theory_derivation:claim-revised",
+        status="SUPPORTED",
+        depends_on=[],
+    )
+
+    class StaticTheoryDeveloper:
+        config = None
+        provider = None
+        research_source_execution = None
+
+        def derive(self, *_args, **_kwargs):
+            return revised_packet
+
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={parent_packet["packet_id"]: parent_packet},
+    )
+    result = runtime_module.TheoryDeveloperRuntimeSubsystem(
+        theory_developer=StaticTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=10,
+        seed=17,
+    ).run(
+        AgentTask(
+            task_id="theory:claim-revision-runtime",
+            owner_subsystem="TheoryDeveloper",
+            objective="Revise the theory.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {
+                    "previous_theory_packet_id": parent_packet["packet_id"],
+                    "theory_packet_id": parent_packet["packet_id"],
+                    "runtime_requested_evidence_contract": (
+                        runtime_module._runtime_requested_evidence_contract(
+                            formal_verification_policy="optional",
+                            evaluation_mode="research_eval",
+                            task_intent=question.task_intent,
+                        )
+                    ),
+                },
+            },
+        ),
+        blackboard,
+    )
+
+    stored_packet = result.produced_artifacts[revised_packet["packet_id"]]
+    deltas = [
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == THEORY_CLAIM_REVISION_DELTA_KIND
+    ]
+    assert len(deltas) == 1
+    delta = deltas[0]
+    assert delta["parent_theory_packet_hash"] == runtime_module.stable_hash(
+        parent_packet
+    )
+    assert delta["revised_theory_packet_hash"] == runtime_module.stable_hash(
+        stored_packet
+    )
+    assert delta["changed_claim_refs"][0]["claim_id"] == "C1"
+    materials = [
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeTheoryInformedMetricProtocolMaterial"
+    ]
+    assert len(materials) == 1
+    assert materials[0]["theory_claim_revision_delta"] == delta
+    assert "theorem statement" not in str(delta).lower()
 
 
 def test_architect_source_escalation_requires_independent_semantic_conflict() -> None:

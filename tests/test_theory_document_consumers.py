@@ -16,6 +16,9 @@ from ai_statistician.formalizer_llm import (
     _build_lean_candidate_workspace_tool_prompt,
     build_formalizer_prompt,
 )
+from ai_statistician.metric_protocol_stage import (
+    build_theory_informed_metric_protocol_material,
+)
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.simulation_engineer_llm import (
     _compact_theory_packet_for_simulation,
@@ -23,7 +26,9 @@ from ai_statistician.simulation_engineer_llm import (
 from ai_statistician.theory_derivation_trace import (
     theory_trace_consumption_contract,
 )
-from ai_statistician.theory_semantic_material import build_theory_semantic_material
+from ai_statistician.theory_revision_lineage import (
+    build_theory_claim_revision_delta,
+)
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_HANDOFF_ROLE,
@@ -175,9 +180,22 @@ def test_every_theory_consumer_reads_the_same_hash_bound_document(
         "authoritative_theory_documents"
     ] == expected_rows
 
-    semantic = build_theory_semantic_material(
+    parent_packet = json.loads(json.dumps(packet))
+    parent_packet["packet_id"] = "theory:C1:parent"
+    parent_claim = next(
+        row
+        for row in parent_packet["theory_derivation_packet"]["claim_index"]
+        if row["id"] == "C1"
+    )
+    parent_claim["status"] = "OPEN"
+    claim_revision_delta = build_theory_claim_revision_delta(
+        parent_theory_packet=parent_packet,
+        revised_theory_packet=packet,
+    )
+    semantic = build_theory_informed_metric_protocol_material(
         theory_packet=packet,
         theory_packet_id=packet["packet_id"],
+        theory_claim_revision_delta=claim_revision_delta,
     )
     preflight = build_architect_theory_execution_preflight_material(
         question=OpenResearchQuestion(
@@ -197,6 +215,11 @@ def test_every_theory_consumer_reads_the_same_hash_bound_document(
         row
         for row in preflight["anchor_catalog"]
         if row["artifact_role"] == "document_claim_dependency_index"
+    )
+    revision_delta_anchor = next(
+        row
+        for row in preflight["anchor_catalog"]
+        if row["artifact_role"] == "claim_revision_delta"
     )
     assert document_anchor["content"] == content
     assert document_anchor["content_sha256"] == expected_rows[0]["sha256"]
@@ -221,3 +244,6 @@ def test_every_theory_consumer_reads_the_same_hash_bound_document(
     assert compact_claim_row["depends_on"] == ["C0"]
     assert simulation_claim_row["depends_on"] == ["C0"]
     assert consumption["n_claim_dependency_edges_supplied"] == 1
+    assert revision_delta_anchor["content"]["changed_claim_refs"][0][
+        "claim_id"
+    ] == "C1"

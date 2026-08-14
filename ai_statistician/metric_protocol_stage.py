@@ -35,10 +35,11 @@ def build_theory_informed_metric_protocol_material(
     theory_packet: Mapping[str, Any],
     theory_packet_id: str,
     retrieval_context: Mapping[str, Any] | None = None,
+    theory_claim_revision_delta: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Preserve theory semantics for protocol authoring without execution data."""
 
-    return {
+    material = {
         "artifact_kind": "RuntimeTheoryInformedMetricProtocolMaterial",
         **theory_semantic_material_payload(
             theory_packet=theory_packet,
@@ -56,6 +57,13 @@ def build_theory_informed_metric_protocol_material(
             "kernel proof."
         ),
     }
+    if isinstance(theory_claim_revision_delta, Mapping) and (
+        theory_claim_revision_delta
+    ):
+        material["theory_claim_revision_delta"] = deepcopy(
+            dict(theory_claim_revision_delta)
+        )
+    return material
 
 
 def theory_informed_metric_protocol_material(

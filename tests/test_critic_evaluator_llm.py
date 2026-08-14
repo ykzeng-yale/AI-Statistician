@@ -13,7 +13,13 @@ from ai_statistician.critic_evaluator_llm import (
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.research_source_library import load_research_source_snapshot
-from ai_statistician.theory_workspace import theory_workspace_document_manifest
+from ai_statistician.theory_revision_lineage import (
+    build_theory_claim_revision_delta,
+)
+from ai_statistician.theory_workspace import (
+    THEORY_WORKSPACE_CONTENT_AUTHORITY,
+    theory_workspace_document_manifest,
+)
 
 
 def _critic_packet() -> dict[str, object]:
@@ -434,6 +440,88 @@ def test_canonical_evidence_view_hydrates_authoritative_theory_documents(
         "cited_source_observations"
     ]["cited_ref_count"] == 0
     assert "Assume finite variance" not in str(uncited_view)
+
+
+def test_canonical_evidence_view_resolves_exact_claim_revision_chain() -> None:
+    def packet(packet_id: str, status: str) -> dict:
+        return {
+            "artifact_kind": "TheoryDerivationPacket",
+            "packet_id": packet_id,
+            "question": {"id": "claim-revision-chain"},
+            "theory_content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
+            "theory_derivation_packet": {
+                "claim_index": [
+                    {
+                        "id": "C1",
+                        "kind": "theorem",
+                        "status": status,
+                        "document_path": "theory.md",
+                        "anchor": "C1",
+                        "depends_on": [],
+                    }
+                ]
+            },
+        }
+
+    parent = packet("theory:revision:0", "OPEN")
+    middle = packet("theory:revision:1", "INCONCLUSIVE")
+    current = packet("theory:revision:2", "SUPPORTED")
+    first_delta = build_theory_claim_revision_delta(
+        parent_theory_packet=parent,
+        revised_theory_packet=middle,
+    )
+    second_delta = build_theory_claim_revision_delta(
+        parent_theory_packet=middle,
+        revised_theory_packet=current,
+    )
+    artifacts = {
+        parent["packet_id"]: parent,
+        middle["packet_id"]: middle,
+        current["packet_id"]: current,
+        first_delta["delta_id"]: first_delta,
+        second_delta["delta_id"]: second_delta,
+    }
+
+    view = build_critic_canonical_evidence_view(
+        question_id="claim-revision-chain",
+        theory_packet=current,
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        artifacts=artifacts,
+        formal_verification_policy="optional",
+    )
+
+    history = view["theory"]["claim_revision_history"]
+    assert [row["delta_id"] for row in history] == [
+        first_delta["delta_id"],
+        second_delta["delta_id"],
+    ]
+    assert history[0]["changed_claim_refs"][0]["changes"]["status"] == {
+        "parent": "OPEN",
+        "revised": "INCONCLUSIVE",
+    }
+    assert history[1]["changed_claim_refs"][0]["changes"]["status"] == {
+        "parent": "INCONCLUSIVE",
+        "revised": "SUPPORTED",
+    }
+
+    tampered_delta = deepcopy(second_delta)
+    tampered_delta["counts"]["changed_claims"] = 99
+    tampered_artifacts = {
+        **artifacts,
+        second_delta["delta_id"]: tampered_delta,
+    }
+    tampered_view = build_critic_canonical_evidence_view(
+        question_id="claim-revision-chain",
+        theory_packet=current,
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        artifacts=tampered_artifacts,
+        formal_verification_policy="optional",
+    )
+    assert tampered_view["theory"]["claim_revision_history"] == []
 
 
 def test_canonical_evidence_view_uses_task_intent_for_required_dimensions() -> None:

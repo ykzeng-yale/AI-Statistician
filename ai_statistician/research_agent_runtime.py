@@ -249,6 +249,7 @@ from .theory_workspace import (
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
     build_architect_routed_theory_revision_binding,
+    build_theory_claim_revision_delta,
     build_theory_developer_revision_binding,
     consume_architect_routed_theory_revision,
     theory_developer_revision_binding_errors,
@@ -5850,6 +5851,24 @@ class TheoryDeveloperRuntimeSubsystem:
                 ),
                 inputs=simulation_inputs,
             )
+        theory_claim_revision_delta: dict[str, Any] = {}
+        theory_revision_artifacts: dict[str, dict[str, Any]] = {}
+        if theory_revision:
+            raw_parent_packet = blackboard.artifacts.get(
+                prior_theory_packet_id, {}
+            )
+            if isinstance(raw_parent_packet, Mapping) and raw_parent_packet:
+                theory_claim_revision_delta = build_theory_claim_revision_delta(
+                    parent_theory_packet=raw_parent_packet,
+                    revised_theory_packet=packet,
+                )
+                delta_id = str(
+                    theory_claim_revision_delta.get("delta_id", "") or ""
+                ).strip()
+                if delta_id:
+                    theory_revision_artifacts[delta_id] = (
+                        theory_claim_revision_delta
+                    )
         theory_workspace_artifacts: dict[str, dict[str, Any]] = {}
         if isinstance(raw_theory_workspace, Mapping) and raw_theory_workspace:
             workspace_artifact = deepcopy(dict(raw_theory_workspace))
@@ -5880,6 +5899,7 @@ class TheoryDeveloperRuntimeSubsystem:
                 if isinstance(context.get("retrieval_context", {}), Mapping)
                 else {}
             ),
+            theory_claim_revision_delta=theory_claim_revision_delta,
         )
         context = _architect_context_with_bound_metric_protocol_theory_material(
             architect_context=context,
@@ -6124,6 +6144,7 @@ class TheoryDeveloperRuntimeSubsystem:
             ),
             produced_artifacts={
                 packet_id: packet,
+                **theory_revision_artifacts,
                 **theory_workspace_artifacts,
                 **source_replication_artifacts,
                 **theory_material_artifacts,

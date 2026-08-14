@@ -458,6 +458,18 @@ def build_architect_theory_execution_preflight_material(
             upstream_research_contract,
         ),
     )
+    claim_revision_delta = theory_protocol_material.get(
+        "theory_claim_revision_delta", {}
+    )
+    if isinstance(claim_revision_delta, Mapping) and claim_revision_delta:
+        sections = (
+            *sections,
+            (
+                "theory.claim_revision_delta",
+                "claim_revision_delta",
+                claim_revision_delta,
+            ),
+        )
     anchor_catalog = [
         {
             "anchor_id": anchor_id,

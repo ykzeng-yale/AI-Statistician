@@ -9,6 +9,7 @@ from .theory_semantic_material import (
     THEORY_SEMANTIC_MATERIAL_PROOF_STATUSES,
     build_theory_semantic_material,
 )
+from .theory_workspace import THEORY_WORKSPACE_CONTENT_AUTHORITY
 
 
 THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY = (
@@ -23,6 +24,229 @@ THEORY_DEVELOPER_REVISION_BINDING_NOT_PROOF_EVIDENCE = (
 RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY = (
     "runtime_theory_revision_budget"
 )
+THEORY_CLAIM_REVISION_DELTA_KIND = "RuntimeTheoryClaimRevisionDelta"
+THEORY_CLAIM_REVISION_DELTA_NOT_PROOF_EVIDENCE = (
+    "THEORY_CLAIM_REVISION_DELTA_NOT_PROOF_EVIDENCE"
+)
+
+
+def build_theory_claim_revision_delta(
+    *,
+    parent_theory_packet: Mapping[str, Any],
+    revised_theory_packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Compare model-authored claim/document references without copying mathematics."""
+
+    if not (
+        parent_theory_packet.get("theory_content_authority")
+        == THEORY_WORKSPACE_CONTENT_AUTHORITY
+        and revised_theory_packet.get("theory_content_authority")
+        == THEORY_WORKSPACE_CONTENT_AUTHORITY
+    ):
+        return {}
+    parent_packet_id = str(
+        parent_theory_packet.get("packet_id", "") or ""
+    ).strip()
+    revised_packet_id = str(
+        revised_theory_packet.get("packet_id", "") or ""
+    ).strip()
+    if not parent_packet_id or not revised_packet_id:
+        return {}
+    parent_question_id = _theory_packet_question_id(parent_theory_packet)
+    revised_question_id = _theory_packet_question_id(revised_theory_packet)
+    if (
+        parent_question_id
+        and revised_question_id
+        and parent_question_id != revised_question_id
+    ):
+        raise ValueError("theory claim revision packets belong to different questions")
+
+    parent_documents = _theory_document_reference_index(parent_theory_packet)
+    revised_documents = _theory_document_reference_index(revised_theory_packet)
+    parent_claims = _theory_claim_reference_index(
+        parent_theory_packet,
+        document_refs=parent_documents,
+    )
+    revised_claims = _theory_claim_reference_index(
+        revised_theory_packet,
+        document_refs=revised_documents,
+    )
+    if not parent_claims or not revised_claims:
+        return {}
+
+    parent_ids = set(parent_claims)
+    revised_ids = set(revised_claims)
+    added_claim_refs = [
+        revised_claims[claim_id] for claim_id in sorted(revised_ids - parent_ids)
+    ]
+    removed_claim_refs = [
+        parent_claims[claim_id] for claim_id in sorted(parent_ids - revised_ids)
+    ]
+    changed_claim_refs: list[dict[str, Any]] = []
+    for claim_id in sorted(parent_ids.intersection(revised_ids)):
+        parent_ref = parent_claims[claim_id]
+        revised_ref = revised_claims[claim_id]
+        changes = {
+            field: {
+                "parent": deepcopy(parent_ref.get(field)),
+                "revised": deepcopy(revised_ref.get(field)),
+            }
+            for field in (
+                "kind",
+                "status",
+                "document_path",
+                "anchor",
+                "depends_on",
+            )
+            if parent_ref.get(field) != revised_ref.get(field)
+        }
+        if changes:
+            changed_claim_refs.append(
+                {"claim_id": claim_id, "changes": changes}
+            )
+
+    changed_document_refs: list[dict[str, Any]] = []
+    for path in sorted(set(parent_documents).union(revised_documents)):
+        parent_ref = parent_documents.get(path, {})
+        revised_ref = revised_documents.get(path, {})
+        if parent_ref == revised_ref:
+            continue
+        change = (
+            "ADDED"
+            if not parent_ref
+            else "REMOVED"
+            if not revised_ref
+            else "MODIFIED"
+        )
+        changed_document_refs.append(
+            {
+                "document_path": path,
+                "change": change,
+                "parent": deepcopy(parent_ref),
+                "revised": deepcopy(revised_ref),
+            }
+        )
+
+    parent_manifest = _mapping(
+        parent_theory_packet.get("theory_workspace_manifest")
+    )
+    revised_manifest = _mapping(
+        revised_theory_packet.get("theory_workspace_manifest")
+    )
+    body = {
+        "schema_version": 1,
+        "artifact_kind": THEORY_CLAIM_REVISION_DELTA_KIND,
+        "question_id": revised_question_id or parent_question_id,
+        "parent_theory_packet_id": parent_packet_id,
+        "parent_theory_packet_hash": stable_hash(dict(parent_theory_packet)),
+        "revised_theory_packet_id": revised_packet_id,
+        "revised_theory_packet_hash": stable_hash(dict(revised_theory_packet)),
+        "parent_document_set_hash": str(
+            parent_manifest.get("document_set_hash", "") or ""
+        ),
+        "revised_document_set_hash": str(
+            revised_manifest.get("document_set_hash", "") or ""
+        ),
+        "parent_claim_graph_hash": stable_hash(
+            [parent_claims[claim_id] for claim_id in sorted(parent_claims)]
+        ),
+        "revised_claim_graph_hash": stable_hash(
+            [revised_claims[claim_id] for claim_id in sorted(revised_claims)]
+        ),
+        "added_claim_refs": added_claim_refs,
+        "removed_claim_refs": removed_claim_refs,
+        "changed_claim_refs": changed_claim_refs,
+        "changed_document_refs": changed_document_refs,
+        "counts": {
+            "parent_claims": len(parent_claims),
+            "revised_claims": len(revised_claims),
+            "unchanged_claims": (
+                len(parent_ids.intersection(revised_ids))
+                - len(changed_claim_refs)
+            ),
+            "added_claims": len(added_claim_refs),
+            "removed_claims": len(removed_claim_refs),
+            "changed_claims": len(changed_claim_refs),
+            "changed_documents": len(changed_document_refs),
+        },
+        "proof_evidence_status": (
+            THEORY_CLAIM_REVISION_DELTA_NOT_PROOF_EVIDENCE
+        ),
+        "boundary": (
+            "This delta records model-authored claim IDs, direct dependencies, "
+            "statuses, document anchors, and document hashes across one exact theory "
+            "revision. It contains no mathematical body, execution result, semantic "
+            "acceptance, or proof evidence."
+        ),
+    }
+    body["delta_id"] = "theory_claim_revision_delta:" + stable_hash(body)[:20]
+    return body
+
+
+def _theory_packet_question_id(packet: Mapping[str, Any]) -> str:
+    question = packet.get("question", {})
+    return (
+        str(question.get("id", "") or "").strip()
+        if isinstance(question, Mapping)
+        else ""
+    )
+
+
+def _theory_document_reference_index(
+    packet: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    manifest = _mapping(packet.get("theory_workspace_manifest"))
+    rows = manifest.get("documents", [])
+    document_rows = rows if isinstance(rows, list) else []
+    return {
+        str(row.get("relative_path", "") or "").strip(): {
+            "document_id": str(row.get("document_id", "") or ""),
+            "sha256": str(row.get("sha256", "") or ""),
+            "byte_size": int(row.get("byte_size", 0) or 0),
+        }
+        for row in document_rows
+        if isinstance(row, Mapping)
+        and str(row.get("relative_path", "") or "").strip()
+    }
+
+
+def _theory_claim_reference_index(
+    packet: Mapping[str, Any],
+    *,
+    document_refs: Mapping[str, Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    derivation = _mapping(packet.get("theory_derivation_packet"))
+    rows = derivation.get("claim_index", [])
+    claim_rows = rows if isinstance(rows, list) else []
+    claims: dict[str, dict[str, Any]] = {}
+    for row in claim_rows:
+        if not isinstance(row, Mapping):
+            continue
+        claim_id = str(row.get("id", "") or "").strip()
+        if not claim_id:
+            continue
+        document_path = str(row.get("document_path", "") or "").strip()
+        document_ref = document_refs.get(document_path, {})
+        raw_dependencies = row.get("depends_on", [])
+        dependencies = (
+            raw_dependencies if isinstance(raw_dependencies, list) else []
+        )
+        claims[claim_id] = {
+            "claim_id": claim_id,
+            "kind": str(row.get("kind", "") or ""),
+            "status": str(row.get("status", "") or ""),
+            "document_path": document_path,
+            "document_sha256": str(document_ref.get("sha256", "") or ""),
+            "anchor": str(row.get("anchor", "") or ""),
+            "depends_on": sorted(
+                {
+                    str(value).strip()
+                    for value in dependencies
+                    if str(value).strip()
+                }
+            ),
+        }
+    return claims
 
 
 def runtime_theory_revision_budget(

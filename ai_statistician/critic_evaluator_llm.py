@@ -11,6 +11,7 @@ from .structured_output_retry import extract_json_object, generate_validated_jso
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
 from .research_source_library import ResearchSourceSnapshot
+from .theory_revision_lineage import THEORY_CLAIM_REVISION_DELTA_KIND
 from .theory_workspace import load_theory_workspace_document_rows
 
 
@@ -624,6 +625,59 @@ def _critic_theory_workspace_evidence(
     return dict(embedded) if isinstance(embedded, Mapping) else {}
 
 
+def _critic_theory_claim_revision_history(
+    *,
+    theory_packet: Mapping[str, Any],
+    artifacts: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Resolve the exact compact claim-delta chain for the current theory."""
+
+    current_packet_id = str(theory_packet.get("packet_id", "") or "").strip()
+    current_packet_hash = stable_hash(dict(theory_packet))
+    history: list[dict[str, Any]] = []
+    seen_packet_ids: set[str] = set()
+    while current_packet_id and current_packet_id not in seen_packet_ids:
+        seen_packet_ids.add(current_packet_id)
+        candidates: list[dict[str, Any]] = []
+        for artifact in artifacts.values():
+            if not isinstance(artifact, Mapping):
+                continue
+            delta = dict(artifact)
+            if not (
+                delta.get("artifact_kind") == THEORY_CLAIM_REVISION_DELTA_KIND
+                and delta.get("revised_theory_packet_id") == current_packet_id
+                and delta.get("revised_theory_packet_hash")
+                == current_packet_hash
+            ):
+                continue
+            delta_id = str(delta.get("delta_id", "") or "").strip()
+            unsigned = {
+                key: deepcopy(value)
+                for key, value in delta.items()
+                if key != "delta_id"
+            }
+            expected_delta_id = (
+                "theory_claim_revision_delta:" + stable_hash(unsigned)[:20]
+            )
+            if delta_id == expected_delta_id:
+                candidates.append(delta)
+        if not candidates:
+            break
+        current_delta = min(
+            candidates,
+            key=lambda row: str(row.get("delta_id", "") or ""),
+        )
+        history.append(current_delta)
+        current_packet_id = str(
+            current_delta.get("parent_theory_packet_id", "") or ""
+        ).strip()
+        current_packet_hash = str(
+            current_delta.get("parent_theory_packet_hash", "") or ""
+        ).strip()
+    history.reverse()
+    return history
+
+
 def build_critic_canonical_evidence_view(
     *,
     question_id: str,
@@ -676,6 +730,10 @@ def build_critic_canonical_evidence_view(
     theory_workspace_evidence = _critic_theory_workspace_evidence(
         theory_packet=theory_packet,
         theory_packet_id=theory_packet_id,
+        artifacts=artifacts,
+    )
+    theory_claim_revision_history = _critic_theory_claim_revision_history(
+        theory_packet=theory_packet,
         artifacts=artifacts,
     )
     source_search_refs = theory_workspace_evidence.get("source_search_refs", [])
@@ -751,6 +809,7 @@ def build_critic_canonical_evidence_view(
                 "documents and is transient Critic context, not proof or acceptance."
             ),
         },
+        "claim_revision_history": theory_claim_revision_history,
         "independent_preflight": {
             "acceptance_present": bool(preflight_acceptance),
             "acceptance_id": str(

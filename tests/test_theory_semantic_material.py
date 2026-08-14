@@ -10,9 +10,12 @@ from ai_statistician.theory_semantic_material import (
     build_theory_semantic_material,
 )
 from ai_statistician.theory_revision_lineage import (
+    THEORY_CLAIM_REVISION_DELTA_KIND,
+    build_theory_claim_revision_delta,
     build_theory_developer_revision_binding,
     theory_developer_revision_binding_errors,
 )
+from ai_statistician.theory_workspace import THEORY_WORKSPACE_CONTENT_AUTHORITY
 
 
 def _theory_packet() -> dict:
@@ -37,6 +40,141 @@ def _theory_packet() -> dict:
         "runtime_architect_control": {"status": "PRESENT"},
         "validation_errors": [],
     }
+
+
+def _document_theory_packet(
+    *,
+    packet_id: str,
+    claims: list[dict],
+    notes_sha256: str,
+) -> dict:
+    return {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": packet_id,
+        "question": {"id": "question:claim-revision"},
+        "theory_content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
+        "theory_derivation_packet": {"claim_index": claims},
+        "theory_workspace_manifest": {
+            "document_set_hash": stable_hash(
+                [("theory.md", "a" * 64), ("notes.md", notes_sha256)]
+            ),
+            "documents": [
+                {
+                    "document_id": "theory-document",
+                    "relative_path": "theory.md",
+                    "sha256": "a" * 64,
+                    "byte_size": 100,
+                },
+                {
+                    "document_id": "notes-document",
+                    "relative_path": "notes.md",
+                    "sha256": notes_sha256,
+                    "byte_size": 40,
+                },
+            ],
+        },
+    }
+
+
+def test_claim_revision_delta_contains_only_hash_bound_reference_changes() -> None:
+    parent = _document_theory_packet(
+        packet_id="theory:parent",
+        notes_sha256="b" * 64,
+        claims=[
+            {
+                "id": "C0",
+                "kind": "assumption",
+                "status": "SUPPORTED",
+                "document_path": "theory.md",
+                "anchor": "C0",
+                "depends_on": [],
+            },
+            {
+                "id": "C1",
+                "kind": "theorem",
+                "status": "OPEN",
+                "document_path": "theory.md",
+                "anchor": "C1",
+                "depends_on": ["C0"],
+            },
+            {
+                "id": "OLD",
+                "kind": "lemma",
+                "status": "INCONCLUSIVE",
+                "document_path": "theory.md",
+                "anchor": "OLD",
+                "depends_on": ["C0"],
+            },
+        ],
+    )
+    revised = _document_theory_packet(
+        packet_id="theory:revised",
+        notes_sha256="c" * 64,
+        claims=[
+            {
+                "id": "C0",
+                "kind": "assumption",
+                "status": "SUPPORTED",
+                "document_path": "theory.md",
+                "anchor": "C0",
+                "depends_on": [],
+            },
+            {
+                "id": "C1",
+                "kind": "theorem",
+                "status": "SUPPORTED",
+                "document_path": "theory.md",
+                "anchor": "C1",
+                "depends_on": [],
+            },
+            {
+                "id": "C2",
+                "kind": "lemma",
+                "status": "OPEN",
+                "document_path": "theory.md",
+                "anchor": "C2",
+                "depends_on": ["C1"],
+            },
+        ],
+    )
+
+    delta = build_theory_claim_revision_delta(
+        parent_theory_packet=parent,
+        revised_theory_packet=revised,
+    )
+
+    assert delta["artifact_kind"] == THEORY_CLAIM_REVISION_DELTA_KIND
+    assert delta["parent_theory_packet_hash"] == stable_hash(parent)
+    assert delta["revised_theory_packet_hash"] == stable_hash(revised)
+    assert [row["claim_id"] for row in delta["added_claim_refs"]] == ["C2"]
+    assert [row["claim_id"] for row in delta["removed_claim_refs"]] == ["OLD"]
+    assert [row["claim_id"] for row in delta["changed_claim_refs"]] == ["C1"]
+    assert set(delta["changed_claim_refs"][0]["changes"]) == {
+        "status",
+        "depends_on",
+    }
+    assert delta["changed_document_refs"][0]["document_path"] == "notes.md"
+    assert delta["counts"] == {
+        "parent_claims": 3,
+        "revised_claims": 3,
+        "unchanged_claims": 1,
+        "added_claims": 1,
+        "removed_claims": 1,
+        "changed_claims": 1,
+        "changed_documents": 1,
+    }
+    assert "mathematical body" in delta["boundary"]
+    assert "statement" not in str(delta)
+
+    material = build_theory_informed_metric_protocol_material(
+        theory_packet=revised,
+        theory_packet_id=revised["packet_id"],
+        theory_claim_revision_delta=delta,
+    )
+    delta["counts"]["changed_claims"] = 99
+    assert material["theory_claim_revision_delta"]["counts"][
+        "changed_claims"
+    ] == 1
 
 
 def test_theory_semantic_material_is_consumer_neutral_and_nonproof() -> None:
