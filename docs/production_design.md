@@ -139,10 +139,10 @@ proposal for independent review, never scientific acceptance or proof evidence.
 
 When prior work is permitted, one model-visible, hash-bound snapshot gives the same
 TheoryDeveloper session direct source search/read tools without a LiteratureAgent.
-The model cites document IDs, hashes, and line ranges in authoritative documents;
-runtime persists those refs, not copied source text. Sources are provenance, not proof
-or referee acceptance, and evaluator-only gold is excluded. PDF/OCR and repository
-acquisition remain upstream materialization into pinned UTF-8 text and code commits.
+The model cites returned `citation_ref` values in authoritative documents. Runtime
+persists refs and resolves exact cited ranges transiently for the independent Critic;
+uncited text is not copied. Sources are provenance, not proof or referee acceptance,
+and evaluator gold is excluded. PDF/OCR and repository acquisition remain upstream.
 
 ## Scientific coding workspace
 

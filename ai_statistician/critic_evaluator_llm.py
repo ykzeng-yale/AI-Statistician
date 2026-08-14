@@ -10,6 +10,7 @@ from .fingerprint import stable_hash
 from .structured_output_retry import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
+from .research_source_library import ResearchSourceSnapshot
 from .theory_workspace import load_theory_workspace_document_rows
 
 
@@ -190,8 +191,11 @@ def build_critic_evaluator_prompt(
         "false displayed equations or limits, normalization errors, and unjustified evidence "
         "claims. A correct statement elsewhere does not cancel an explicit false statement. "
         "Use theory.research_source_grounding to audit which exact source ranges the author "
-        "actually observed; a citation ref supports provenance but does not make either the "
-        "source claim or the derived claim correct. "
+        "actually observed. For citation_ref values present in the authoritative documents, "
+        "cited_source_observations contains the exact hash-verified source text when resolution "
+        "succeeded. Compare the author's claim with that text; neither the citation nor the "
+        "source itself makes the derived claim correct. An unresolved cited ref is missing "
+        "source-verification evidence, not permission to infer its content. "
         "Reconstruct at least one decisive assumption, equation, or normalization rather than "
         "grading terminology. Treat theory scratch calculations as exploratory unless an exact "
         "separately frozen confirmatory execution binding is present. "
@@ -603,6 +607,7 @@ def build_critic_canonical_evidence_view(
     artifacts: Mapping[str, Any],
     formal_verification_policy: str,
     evidence_contract: Mapping[str, Any] | None = None,
+    research_sources: ResearchSourceSnapshot | None = None,
 ) -> dict[str, Any]:
     """Project only current, source-bound evidence for terminal model judgment."""
 
@@ -646,6 +651,34 @@ def build_critic_canonical_evidence_view(
         theory_workspace_evidence = {}
     source_search_refs = theory_workspace_evidence.get("source_search_refs", [])
     source_read_refs = theory_workspace_evidence.get("source_read_refs", [])
+    cited_source_observations = _critic_cited_source_observations(
+        authoritative_documents=authoritative_documents,
+        source_read_refs=(
+            source_read_refs if isinstance(source_read_refs, list) else []
+        ),
+        research_sources=research_sources,
+    )
+    raw_source_snapshot = theory_workspace_evidence.get(
+        "research_source_snapshot", {}
+    )
+    source_snapshot = (
+        deepcopy(dict(raw_source_snapshot))
+        if isinstance(raw_source_snapshot, Mapping)
+        else {}
+    )
+    source_audit = {
+        "snapshot_hash": str(source_snapshot.get("snapshot_hash", "") or ""),
+        **{
+            key: int(cited_source_observations.get(key, 0) or 0)
+            for key in (
+                "author_read_ref_count",
+                "cited_ref_count",
+                "resolved_exact_source_count",
+                "unresolved_cited_ref_count",
+            )
+        },
+        "source_text_persisted": False,
+    }
     theory_view = {
         **_artifact_identity(theory_packet),
         "serious_theory_mode": theory_packet.get("serious_theory_mode") is True,
@@ -671,27 +704,19 @@ def build_critic_canonical_evidence_view(
         "authoritative_documents": authoritative_documents,
         "authoritative_document_load_error": document_load_error,
         "research_source_grounding": {
-            "snapshot": deepcopy(
-                dict(
-                    theory_workspace_evidence.get(
-                        "research_source_snapshot", {}
-                    )
-                )
-            )
-            if isinstance(
-                theory_workspace_evidence.get("research_source_snapshot", {}),
-                Mapping,
-            )
-            else {},
+            "snapshot": source_snapshot,
             "search_refs": deepcopy(source_search_refs)
             if isinstance(source_search_refs, list)
             else [],
             "read_refs": deepcopy(source_read_refs)
             if isinstance(source_read_refs, list)
             else [],
+            "cited_source_observations": cited_source_observations,
+            "runtime_audit": source_audit,
             "boundary": (
-                "These refs show which hash-bound source passages the author "
-                "observed. They do not establish source correctness or faithful use."
+                "Read refs show what the author observed. Exact text is resolved "
+                "only for citation_ref values present in authoritative theory "
+                "documents and is transient Critic context, not proof or acceptance."
             ),
         },
         "independent_preflight": {
@@ -857,6 +882,123 @@ def build_critic_canonical_evidence_view(
     }
     body["view_hash"] = stable_hash(body)
     return body
+
+
+def _critic_cited_source_observations(
+    *,
+    authoritative_documents: list[Mapping[str, Any]],
+    source_read_refs: list[Any],
+    research_sources: ResearchSourceSnapshot | None,
+) -> dict[str, Any]:
+    document_text = "\n".join(
+        str(row.get("content", "") or "")
+        for row in authoritative_documents
+        if isinstance(row, Mapping)
+    )
+    observations: list[dict[str, Any]] = []
+    seen_refs: set[str] = set()
+    cited_ref_count = 0
+    for raw_ref in source_read_refs:
+        if not isinstance(raw_ref, Mapping):
+            continue
+        citation_ref = str(raw_ref.get("citation_ref", "") or "").strip()
+        if (
+            not citation_ref
+            or citation_ref in seen_refs
+            or citation_ref not in document_text
+        ):
+            continue
+        seen_refs.add(citation_ref)
+        cited_ref_count += 1
+        binding = {
+            "citation_ref": citation_ref,
+            "snapshot_id": str(raw_ref.get("snapshot_id", "") or ""),
+            "snapshot_hash": str(raw_ref.get("snapshot_hash", "") or ""),
+            "document_id": str(raw_ref.get("document_id", "") or ""),
+            "document_sha256": str(
+                raw_ref.get("document_sha256", "") or ""
+            ),
+            "line_start": raw_ref.get("line_start"),
+            "line_end": raw_ref.get("line_end"),
+            "content_sha256": str(raw_ref.get("content_sha256", "") or ""),
+        }
+        if research_sources is None:
+            observations.append(
+                {
+                    **binding,
+                    "status": "SNAPSHOT_UNAVAILABLE",
+                    "content": "",
+                }
+            )
+            continue
+        if binding["snapshot_hash"] != research_sources.snapshot_hash:
+            observations.append(
+                {
+                    **binding,
+                    "status": "SNAPSHOT_IDENTITY_MISMATCH",
+                    "content": "",
+                }
+            )
+            continue
+        try:
+            exact_read = research_sources.read(
+                binding["document_id"],
+                line_start=binding["line_start"],
+                line_end=binding["line_end"],
+            )
+        except (TypeError, ValueError) as exc:
+            observations.append(
+                {
+                    **binding,
+                    "status": "SOURCE_RANGE_UNRESOLVED",
+                    "error_type": type(exc).__name__,
+                    "content": "",
+                }
+            )
+            continue
+        mismatch_fields = [
+            field
+            for field, observed in (
+                ("citation_ref", exact_read.get("citation_ref")),
+                ("document_sha256", exact_read.get("sha256")),
+                ("content_sha256", exact_read.get("content_sha256")),
+            )
+            if str(observed or "") != str(binding[field] or "")
+        ]
+        if mismatch_fields:
+            observations.append(
+                {
+                    **binding,
+                    "status": "SOURCE_RANGE_IDENTITY_MISMATCH",
+                    "mismatch_fields": mismatch_fields,
+                    "content": "",
+                }
+            )
+            continue
+        observations.append(
+            {
+                **binding,
+                "status": "RESOLVED_EXACT_SOURCE",
+                "content": exact_read["content"],
+                "proof_evidence_status": exact_read["proof_evidence_status"],
+            }
+        )
+    return {
+        "author_read_ref_count": sum(
+            1 for row in source_read_refs if isinstance(row, Mapping)
+        ),
+        "cited_ref_count": cited_ref_count,
+        "resolved_exact_source_count": sum(
+            row.get("status") == "RESOLVED_EXACT_SOURCE"
+            for row in observations
+        ),
+        "unresolved_cited_ref_count": sum(
+            row.get("status") != "RESOLVED_EXACT_SOURCE"
+            for row in observations
+        ),
+        "observations": observations,
+        "transient_model_context": True,
+    }
 
 
 def _critic_semantic_review_summary(

@@ -216,6 +216,17 @@ class ResearchSourceSnapshot:
                 "research source line range exceeds one model observation; read a "
                 "smaller range"
             )
+        content_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        citation_ref = "research-source-ref:" + stable_hash(
+            {
+                "snapshot_hash": self.snapshot_hash,
+                "document_id": document.document_id,
+                "document_sha256": document.sha256,
+                "line_start": line_start,
+                "line_end": line_end,
+                "content_sha256": content_sha256,
+            }
+        )
         return {
             "ok": True,
             "snapshot_id": self.snapshot_id,
@@ -224,7 +235,8 @@ class ResearchSourceSnapshot:
             "line_start": line_start,
             "line_end": line_end,
             "content": content,
-            "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            "content_sha256": content_sha256,
+            "citation_ref": citation_ref,
             "proof_evidence_status": RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
             "boundary": (
                 "This is an exact line-addressed observation from a hash-bound source. "

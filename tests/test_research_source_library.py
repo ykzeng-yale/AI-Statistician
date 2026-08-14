@@ -65,6 +65,10 @@ def test_hash_bound_source_snapshot_supports_exact_search_and_read(tmp_path) -> 
     ).hexdigest()
     assert read["line_start"] == 3
     assert read["line_end"] == 5
+    assert read["citation_ref"].startswith("research-source-ref:")
+    assert read["citation_ref"] == snapshot.read(
+        "published-result", line_start=3, line_end=5
+    )["citation_ref"]
     descriptor = snapshot.descriptor()
     assert descriptor["document_count"] == 1
     assert descriptor["source_horizon"] == "2025-12-31"

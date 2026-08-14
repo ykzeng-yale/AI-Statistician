@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
+import json
 
 from ai_statistician.critic_evaluator_llm import (
     CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE,
@@ -9,6 +11,7 @@ from ai_statistician.critic_evaluator_llm import (
     validate_critic_evaluator_packet,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.research_source_library import load_research_source_snapshot
 from ai_statistician.theory_workspace import theory_workspace_document_manifest
 
 
@@ -211,8 +214,48 @@ def test_canonical_evidence_view_excludes_legacy_simulation_flags() -> None:
 def test_canonical_evidence_view_hydrates_authoritative_theory_documents(
     tmp_path,
 ) -> None:
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    source_text = (
+        "# Published premise\n"
+        "Assume finite variance.\n"
+        "Then the normalized estimator has the stated limiting variance.\n"
+    )
+    source_path = source_root / "paper.md"
+    source_path.write_text(source_text, encoding="utf-8")
+    source_manifest_path = tmp_path / "source-manifest.json"
+    source_manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "snapshot_id": "published-sources",
+                "source_horizon": "2025-12-31",
+                "source_root": "sources",
+                "documents": [
+                    {
+                        "document_id": "paper-1",
+                        "title": "Published premise",
+                        "source_kind": "paper",
+                        "relative_path": "paper.md",
+                        "sha256": hashlib.sha256(
+                            source_text.encode("utf-8")
+                        ).hexdigest(),
+                        "model_visible": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    research_sources = load_research_source_snapshot(source_manifest_path)
+    exact_source = research_sources.read(
+        "paper-1", line_start=2, line_end=3
+    )
     documents = {
-        "derivations/main.md": "# Claim\n\nA model-authored derivation.\n"
+        "derivations/main.md": (
+            "# Claim\n\nA model-authored derivation grounded in "
+            f"`{exact_source['citation_ref']}`.\n"
+        )
     }
     workspace = tmp_path / "theory"
     target = workspace / "derivations/main.md"
@@ -229,17 +272,21 @@ def test_canonical_evidence_view_hydrates_authoritative_theory_documents(
         "llm_client_tool_loop": {
             "research_source_snapshot": {
                 "snapshot_id": "published-sources",
-                "snapshot_hash": "snapshot-hash",
+                "snapshot_hash": research_sources.snapshot_hash,
             },
             "source_search_refs": [
                 {"query_hash": "query-hash", "hits": []}
             ],
             "source_read_refs": [
                 {
+                    "snapshot_id": research_sources.snapshot_id,
+                    "snapshot_hash": research_sources.snapshot_hash,
                     "document_id": "paper-1",
-                    "document_sha256": "paper-hash",
-                    "line_start": 20,
-                    "line_end": 28,
+                    "document_sha256": exact_source["sha256"],
+                    "line_start": 2,
+                    "line_end": 3,
+                    "content_sha256": exact_source["content_sha256"],
+                    "citation_ref": exact_source["citation_ref"],
                 }
             ],
         },
@@ -253,6 +300,7 @@ def test_canonical_evidence_view_hydrates_authoritative_theory_documents(
         formalization_manifest={},
         artifacts={"theory:file-backed": packet},
         formal_verification_policy="optional",
+        research_sources=research_sources,
     )
 
     assert view["theory"]["authoritative_documents_loaded"] is True
@@ -265,11 +313,95 @@ def test_canonical_evidence_view_hydrates_authoritative_theory_documents(
     ]
     assert view["theory"]["research_source_grounding"]["snapshot"] == {
         "snapshot_id": "published-sources",
-        "snapshot_hash": "snapshot-hash",
+        "snapshot_hash": research_sources.snapshot_hash,
     }
     assert view["theory"]["research_source_grounding"]["read_refs"][0][
         "document_id"
     ] == "paper-1"
+    cited_sources = view["theory"]["research_source_grounding"][
+        "cited_source_observations"
+    ]
+    assert cited_sources["cited_ref_count"] == 1
+    assert cited_sources["resolved_exact_source_count"] == 1
+    assert cited_sources["observations"][0]["status"] == (
+        "RESOLVED_EXACT_SOURCE"
+    )
+    assert cited_sources["observations"][0]["content"] == "\n".join(
+        source_text.splitlines()[1:3]
+    )
+    assert view["theory"]["research_source_grounding"]["runtime_audit"] == {
+        "snapshot_hash": research_sources.snapshot_hash,
+        "author_read_ref_count": 1,
+        "cited_ref_count": 1,
+        "resolved_exact_source_count": 1,
+        "unresolved_cited_ref_count": 0,
+        "source_text_persisted": False,
+    }
+    prompt = build_critic_evaluator_prompt(
+        question=OpenResearchQuestion(
+            id="generic",
+            title="Generic source audit",
+            description="Audit one cited mathematical premise.",
+        ),
+        retrieval_manifest={},
+        theory_packet=packet,
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        canonical_evidence_view=view,
+    )
+    assert "Assume finite variance" in prompt
+    assert exact_source["citation_ref"] in prompt
+
+    tampered_packet = deepcopy(packet)
+    tampered_packet["llm_client_tool_loop"]["source_read_refs"][0][
+        "content_sha256"
+    ] = "0" * 64
+    tampered_view = build_critic_canonical_evidence_view(
+        question_id="generic",
+        theory_packet=tampered_packet,
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        artifacts={"theory:file-backed": tampered_packet},
+        formal_verification_policy="optional",
+        research_sources=research_sources,
+    )
+    tampered_sources = tampered_view["theory"]["research_source_grounding"][
+        "cited_source_observations"
+    ]
+    assert tampered_sources["resolved_exact_source_count"] == 0
+    assert tampered_sources["unresolved_cited_ref_count"] == 1
+    assert tampered_sources["observations"][0]["status"] == (
+        "SOURCE_RANGE_IDENTITY_MISMATCH"
+    )
+    assert tampered_sources["observations"][0]["content"] == ""
+
+    uncited_documents = {
+        "derivations/main.md": "# Claim\n\nNo source citation is asserted here.\n"
+    }
+    target.write_text(uncited_documents["derivations/main.md"], encoding="utf-8")
+    uncited_packet = deepcopy(packet)
+    uncited_packet["theory_workspace_manifest"] = (
+        theory_workspace_document_manifest(
+            uncited_documents,
+            workspace_dir=workspace,
+        )
+    )
+    uncited_view = build_critic_canonical_evidence_view(
+        question_id="generic",
+        theory_packet=uncited_packet,
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        artifacts={"theory:file-backed": uncited_packet},
+        formal_verification_policy="optional",
+        research_sources=research_sources,
+    )
+    assert uncited_view["theory"]["research_source_grounding"][
+        "cited_source_observations"
+    ]["cited_ref_count"] == 0
+    assert "Assume finite variance" not in str(uncited_view)
 
 
 def test_canonical_evidence_view_uses_task_intent_for_required_dimensions() -> None:

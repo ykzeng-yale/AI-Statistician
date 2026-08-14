@@ -226,7 +226,7 @@ def test_same_theory_model_searches_and_reads_hash_bound_sources_without_copying
     ]
     initial_prompt = str(backend.requests[0].messages[0]["content"])
     assert research_sources.snapshot_hash in initial_prompt
-    assert "Cite document_id, document sha256, and exact line ranges" in initial_prompt
+    assert "Cite the exact citation_ref" in initial_prompt
     assert "estimating equation" in str(backend.requests[1].messages)
     read_observation = json.loads(
         backend.requests[2].messages[-1]["content"][0]["content"]
@@ -244,6 +244,7 @@ def test_same_theory_model_searches_and_reads_hash_bound_sources_without_copying
     assert read_ref["document_id"] == "robust-location-paper"
     assert read_ref["line_start"] == 2
     assert read_ref["line_end"] == 4
+    assert read_ref["citation_ref"].startswith("research-source-ref:")
     assert "content" not in read_ref
     persisted_evidence = json.dumps(result.evidence)
     assert "The estimating equation has zero expectation" not in persisted_evidence

@@ -528,6 +528,7 @@ def run_theory_artifact_workspace(
                 "line_start": observation["line_start"],
                 "line_end": observation["line_end"],
                 "content_sha256": observation["content_sha256"],
+                "citation_ref": observation["citation_ref"],
                 "proof_evidence_status": RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
             }
             state["source_read_refs"].append(source_ref)
@@ -883,10 +884,11 @@ def run_theory_artifact_workspace(
         "A hash-bound model-visible research source snapshot is available. Use "
         "search_research_sources and read_research_source directly in this same "
         "session when a definition, assumption, theorem, algorithm, or claimed "
-        "precedent depends on prior work. Cite document_id, document sha256, and "
-        "exact line ranges in the Markdown/LaTeX workspace. Decide what to search "
-        "and how to use it yourself; retrieved text is source evidence, not proof "
-        "or independent review. "
+        "precedent depends on prior work. Decide what to search and how to use it "
+        "yourself. Cite the exact citation_ref returned by a "
+        "source read in the authoritative Markdown/LaTeX whenever a claim relies "
+        "on that passage. Retrieved text is source evidence, not proof or "
+        "independent review. "
         if research_sources is not None
         else ""
     )

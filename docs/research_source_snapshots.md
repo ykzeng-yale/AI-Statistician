@@ -57,7 +57,10 @@ The source root and every document path are resolved before the model runs. Path
 escape, missing files, hash mismatch, binary/non-UTF-8 content, duplicate identity,
 or absent `model_visible=true` fails closed. Search and read observations return to
 the same TheoryDeveloper model. Persisted theory evidence stores only the snapshot,
-query, document, hash, and line-range refs; it does not recursively copy source text.
+query, document, hash, line-range, and `citation_ref` values; it does not recursively
+copy source text. When an authoritative theory document contains a `citation_ref`,
+the independent Critic receives that exact hash-verified range transiently for source
+comparison. Uncited reads are not copied into Critic context or runtime manifests.
 
 This is a visibility and provenance boundary, not a correctness oracle. The model
 must interpret sources, independent review must audit the resulting mathematics,

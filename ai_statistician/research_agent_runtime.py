@@ -261,6 +261,7 @@ from .research_schema import (
     ResearchProblemSpec,
     TheoremGoal,
 )
+from .research_source_library import ResearchSourceSnapshot
 from .runtime_research_problem_adapter import (
     derive_runtime_research_problem,
 )
@@ -17916,9 +17917,11 @@ class CriticEvaluatorRuntimeSubsystem:
         *,
         proposal_agent: LLMCriticEvaluatorAgent | None = None,
         runtime_config: ResearchAgentRuntimeConfig = ResearchAgentRuntimeConfig(),
+        research_sources: ResearchSourceSnapshot | None = None,
     ) -> None:
         self.proposal_agent = proposal_agent
         self.runtime_config = runtime_config
+        self.research_sources = research_sources
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -18087,6 +18090,12 @@ class CriticEvaluatorRuntimeSubsystem:
             artifacts=blackboard.artifacts,
             formal_verification_policy=formal_verification_policy,
             evidence_contract=critic_evidence_contract,
+            research_sources=self.research_sources,
+        )
+        critic_source_audit = dict(
+            canonical_evidence_view["theory"]["research_source_grounding"][
+                "runtime_audit"
+            ]
         )
         proposal_packet: dict[str, Any] | None = None
         proposal_evidence: EvidenceLedgerEntry | None = None
@@ -18281,6 +18290,7 @@ class CriticEvaluatorRuntimeSubsystem:
             "canonical_evidence_view_hash": str(
                 canonical_evidence_view.get("view_hash", "") or ""
             ),
+            "research_source_audit": critic_source_audit,
             "research_disposition": dict(research_disposition),
             "coordination_assessment": dict(coordination_assessment),
             "critic_revision_round": critic_round,
@@ -18353,6 +18363,7 @@ class CriticEvaluatorRuntimeSubsystem:
                 **manifest["counts"],
                 "architect_acceptance_gate": critic_control.get("acceptance_gate", ""),
                 "evidence_contract_decision": evidence_contract_decision,
+                "research_source_audit": critic_source_audit,
             },
         )
         observations.append(
@@ -18389,6 +18400,7 @@ class CriticEvaluatorRuntimeSubsystem:
                     "final_acceptance_status": evidence_contract_decision[
                         "final_acceptance_status"
                     ],
+                    "research_source_audit": critic_source_audit,
                 },
             )
         )
@@ -18998,6 +19010,7 @@ def run_research_agent_runtime(
             "CriticEvaluator": CriticEvaluatorRuntimeSubsystem(
                 proposal_agent=critic_evaluator,
                 runtime_config=config,
+                research_sources=configured_research_sources,
             ),
         }
         if generated_code_semantic_reviewer is not None:

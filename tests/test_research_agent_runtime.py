@@ -448,6 +448,20 @@ def test_final_critic_does_not_restart_exhausted_formalizer_for_missing_proof() 
     assert result.status == "BLOCKED"
     assert result.next_task is None
     assert result.failure_classification == "formal_required_unverified"
+    critic_manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeCriticEvaluatorManifest"
+    )
+    assert critic_manifest["research_source_audit"] == {
+        "snapshot_hash": "",
+        "author_read_ref_count": 0,
+        "cited_ref_count": 0,
+        "resolved_exact_source_count": 0,
+        "unresolved_cited_ref_count": 0,
+        "source_text_persisted": False,
+    }
 
 
 def test_summary_flags_and_subclaims_do_not_satisfy_exact_theorem_gate() -> None:
