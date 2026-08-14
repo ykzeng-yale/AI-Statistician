@@ -963,13 +963,19 @@ def _dimension_status(
             "requirement": requirement,
             "status": status,
             "gold_validated": bool(
-                (dimension == "theory" and hidden_theory_passed)
-                or (
-                    dimension == "source_replication"
-                    and hidden_source_replication_passed
+                requirement != "not_applicable"
+                and (
+                    (dimension == "theory" and hidden_theory_passed)
+                    or (
+                        dimension == "source_replication"
+                        and hidden_source_replication_passed
+                    )
+                    or (
+                        dimension == "scientific_code"
+                        and hidden_algorithm_passed
+                    )
+                    or (dimension == "empirical" and hidden_empirical_passed)
                 )
-                or (dimension == "scientific_code" and hidden_algorithm_passed)
-                or (dimension == "empirical" and hidden_empirical_passed)
             ),
             "evidence_authority": {
                 "theory": (

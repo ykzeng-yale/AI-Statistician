@@ -434,14 +434,31 @@ def test_source_only_intent_commits_markdown_report_without_theory_packet(
             ),
             _response(
                 ClientToolCall(
-                    call_id="commit-source-report",
+                    call_id="commit-source-report-invalid-gap-shape",
                     name=SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL,
                     input={
                         "report_document_path": report_path,
                         "readiness_rationale": (
                             "The exact source run and its interpretation are recorded."
                         ),
-                        "unresolved_gaps": [],
+                        "unresolved_gaps": [
+                            {"gap": "transitive dependency identity is incomplete"}
+                        ],
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="commit-source-report-corrected",
+                    name=SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL,
+                    input={
+                        "report_document_path": report_path,
+                        "readiness_rationale": (
+                            "The exact source run and its interpretation are recorded."
+                        ),
+                        "unresolved_gaps": [
+                            "Transitive dependency identity is incomplete."
+                        ],
                     },
                 )
             ),
@@ -464,7 +481,9 @@ def test_source_only_intent_commits_markdown_report_without_theory_packet(
         task_intent=task_intent,
         workspace_dir=tmp_path / "source-only-workspace",
         require_document_authority=True,
-        max_submissions=1,
+        max_turns=3,
+        max_reads=1,
+        max_submissions=2,
     )
 
     assert result.core_packet["artifact_kind"] == (
@@ -472,6 +491,15 @@ def test_source_only_intent_commits_markdown_report_without_theory_packet(
     )
     assert result.core_packet["task_intent"] == task_intent
     assert result.core_packet["report_document"]["relative_path"] == report_path
+    assert result.core_packet["unresolved_gaps"] == [
+        "Transitive dependency identity is incomplete."
+    ]
+    assert len(backend.requests) == 4
+    invalid_observation = json.loads(
+        backend.requests[-1].messages[-1]["content"][0]["content"]
+    )
+    assert invalid_observation["error"] == "client_tool_input_rejected"
+    assert "array of nonempty text" in invalid_observation["detail"]
     assert result.evidence["changed_artifact_names"] == []
     assert result.evidence["changed_document_paths"] == [report_path]
     assert result.evidence["model_owned_theory"] is False

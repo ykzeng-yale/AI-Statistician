@@ -602,6 +602,8 @@ def test_source_replication_component_is_scored_post_runtime_without_algorithm(
         "gold_validated": False,
         "evidence_authority": "source_replication_checkpoint",
     }
+    assert task["dimension_status"]["scientific_code"]["gold_validated"] is False
+    assert task["dimension_status"]["empirical"]["gold_validated"] is False
     assert task["dimension_status"]["overall_runtime_research_loop"] == {
         "requirement": "not_applicable",
         "status": "not_applicable",

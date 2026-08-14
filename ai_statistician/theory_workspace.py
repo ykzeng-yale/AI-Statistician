@@ -1182,7 +1182,8 @@ def run_theory_artifact_workspace(
         "commit_source_replication_checkpoint. You may instead continue into a full "
         "theory checkpoint if your own judgment finds that useful, but do not invent "
         "estimator, simulation, formalization, or novelty work merely to satisfy empty "
-        "handoff fields. "
+        "handoff fields. Pass unresolved_gaps as [] or as an array of nonempty plain "
+        "strings; do not use objects or placeholder empty strings. "
         if allow_source_replication_checkpoint
         else ""
     )
@@ -1327,19 +1328,25 @@ def run_theory_artifact_workspace(
             "kernel_verified": False,
         }
 
+    max_tool_calls = max(
+        max_turns,
+        max_reads
+        + max_submissions
+        + (scratchpad.max_runs if scratchpad is not None else 0)
+        + (1 if research_source_execution is not None else 0),
+    )
+    effective_max_turns = (
+        max(max_turns, max_tool_calls)
+        if allow_source_replication_checkpoint
+        else max_turns
+    )
     try:
         loop = run_bounded_client_tool_loop(
             backend=provider,
             request=request,
             execute_tool=execute_tool,
-            max_turns=max_turns,
-            max_tool_calls=max(
-                max_turns,
-                max_reads
-                + max_submissions
-                + (scratchpad.max_runs if scratchpad is not None else 0)
-                + (1 if research_source_execution is not None else 0),
-            ),
+            max_turns=effective_max_turns,
+            max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
         )
     except ClientToolLoopError as exc:
@@ -1937,6 +1944,11 @@ def _theory_workspace_tools(
                         },
                         "unresolved_gaps": {
                             "type": "array",
+                            "description": (
+                                "Use [] when no gap remains; otherwise use only "
+                                "nonempty plain strings, never objects or empty "
+                                "placeholders."
+                            ),
                             "items": {"type": "string", "minLength": 1},
                         },
                     },
