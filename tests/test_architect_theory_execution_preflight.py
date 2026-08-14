@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
@@ -40,9 +41,22 @@ from ai_statistician.model_backend import (
     GeneratorResponse,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.theory_workspace import (
+    THEORY_WORKSPACE_CONTENT_AUTHORITY,
+    THEORY_WORKSPACE_HANDOFF_ROLE,
+    THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+    theory_workspace_document_manifest,
+)
 
 
 TEST_HAIKU_MODEL = "claude-haiku-4-5-20251001"
+PREFLIGHT_CLIENT_TOOL_NAMES = [
+    THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+    THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    "search_preflight_sources",
+    "submit_theory_preflight_review",
+]
 
 
 def test_preflight_prompt_requires_independent_mathematical_check() -> None:
@@ -658,7 +672,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_optional_source_query_v8"
+        "client_tool_document_inspection_and_optional_source_query_v9"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
@@ -675,12 +689,11 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
         }
     ]
     assert backend.requests[0].model == TEST_HAIKU_MODEL
-    assert [tool.name for tool in backend.requests[0].tools] == [
-        "search_preflight_sources",
-        "submit_theory_preflight_review",
-    ]
+    assert [tool.name for tool in backend.requests[0].tools] == (
+        PREFLIGHT_CLIENT_TOOL_NAMES
+    )
     assert backend.requests[0].tools[0].strict is False
-    assert backend.requests[0].tools[1].strict is True
+    assert backend.requests[0].tools[-1].strict is True
     assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert backend.requests[0].disable_parallel_tool_use is False
     assert all(request.enable_prompt_caching for request in backend.requests)
@@ -701,6 +714,8 @@ def test_preflight_keeps_search_tool_visible_after_its_budget_is_spent() -> None
     assert packet["preflight_source_search_count"] == 3
     assert len(backend.requests) == 2
     expected_tools = {
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         "search_preflight_sources",
         "submit_theory_preflight_review",
     }
@@ -1076,14 +1091,12 @@ def test_preflight_recovers_from_rejected_final_submission() -> None:
     packet = _tool_review(backend)
 
     assert len(backend.requests) == 5
-    assert [tool.name for tool in backend.requests[3].tools] == [
-        "search_preflight_sources",
-        "submit_theory_preflight_review",
-    ]
-    assert [tool.name for tool in backend.requests[4].tools] == [
-        "search_preflight_sources",
-        "submit_theory_preflight_review",
-    ]
+    assert [tool.name for tool in backend.requests[3].tools] == (
+        PREFLIGHT_CLIENT_TOOL_NAMES
+    )
+    assert [tool.name for tool in backend.requests[4].tools] == (
+        PREFLIGHT_CLIENT_TOOL_NAMES
+    )
     assert backend.requests[4].metadata[
         "client_tool_loop_max_terminal_recovery_turns"
     ] == 1
@@ -1138,8 +1151,7 @@ def test_preflight_client_tool_loop_failure_is_fail_closed() -> None:
 
     assert len(backend.requests) == 5
     assert all(
-        [tool.name for tool in request.tools]
-        == ["search_preflight_sources", "submit_theory_preflight_review"]
+        [tool.name for tool in request.tools] == PREFLIGHT_CLIENT_TOOL_NAMES
         for request in backend.requests[-2:]
     )
     assert backend.requests[-1].metadata[
@@ -1346,6 +1358,142 @@ def test_preflight_source_search_exposes_late_theory_entries() -> None:
     assert observation["hits"][0]["location"] == "theory.derivation_steps/11"
     assert observation["hits"][0]["content"]["equation_or_argument"] == (
         "late_entry_visibility_marker"
+    )
+
+
+def test_preflight_reviewer_reads_late_hash_bound_theory_document(
+    tmp_path: Path,
+) -> None:
+    marker = "late_document_claim_marker: E[T_n] / n converges to theta."
+    lines = ["# Long theory workspace", ""]
+    lines.extend(
+        f"Background derivation line {index}: retain the declared assumptions."
+        for index in range(1400)
+    )
+    lines.extend(["", "## Central claim", marker, "Use dominated convergence here."])
+    content = "\n".join(lines) + "\n"
+    relative_path = "derivations/central_claim.md"
+    target = tmp_path / relative_path
+    target.parent.mkdir(parents=True)
+    target.write_text(content, encoding="utf-8")
+
+    theory_material = _theory_material()
+    semantic = theory_material["theory_semantic_material"]
+    semantic["theory_workspace_manifest"] = theory_workspace_document_manifest(
+        {relative_path: content},
+        workspace_dir=tmp_path,
+    )
+    semantic["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
+    semantic["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
+    theory_material["source_theory_packet_hash"] = stable_hash(semantic)
+
+    class DocumentInspectionBackend(_PreflightToolBackend):
+        def __init__(self) -> None:
+            super().__init__(accept=True, cite_sources=False)
+            self.marker_line = 0
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "submit-before-document-read",
+                        "submit_theory_preflight_review",
+                        self._submission(source_ref=""),
+                    )
+                )
+            if turn == 2:
+                return _tool_response(
+                    ClientToolCall(
+                        "search-authoritative-document",
+                        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+                        {"query": "late_document_claim_marker"},
+                    )
+                )
+            if turn == 3:
+                search_result = json.loads(
+                    request.messages[-1]["content"][0]["content"]
+                )
+                self.marker_line = search_result["hits"][0]["line_number"]
+                return _tool_response(
+                    ClientToolCall(
+                        "read-authoritative-document",
+                        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                        {
+                            "path": relative_path,
+                            "line_start": self.marker_line - 1,
+                            "line_end": self.marker_line + 1,
+                        },
+                    )
+                )
+            return _tool_response(
+                ClientToolCall(
+                    "submit-after-document-read",
+                    "submit_theory_preflight_review",
+                    self._submission(source_ref=""),
+                )
+            )
+
+    backend = DocumentInspectionBackend()
+    packet = _tool_review(
+        backend,
+        theory_protocol_material=theory_material,
+    )
+
+    initial_prompt = str(backend.requests[0].messages[0]["content"])
+    assert marker not in initial_prompt
+    prompt_payload = json.loads(
+        initial_prompt.split("\n\nThe prompt contains", 1)[0]
+    )
+    document_catalog = prompt_payload["source_material"][
+        "authoritative_theory_documents"
+    ]
+    assert document_catalog == [
+        {
+            "anchor_id": f"theory.document:{relative_path}",
+            "path": relative_path,
+            "sha256": document_catalog[0]["sha256"],
+            "line_count": len(content.splitlines()),
+            "byte_size": len(content.encode("utf-8")),
+        }
+    ]
+    assert all(
+        row["artifact_role"] != "authoritative_theory_document"
+        for row in prompt_payload["source_material"]["current_theory_anchors"]
+    )
+    first_rejection = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert first_rejection["error"] == (
+        "authoritative_theory_document_read_required"
+    )
+    search_observation = json.loads(
+        backend.requests[2].messages[-1]["content"][0]["content"]
+    )
+    assert search_observation["hits"][0]["line"] == marker
+    read_observation = json.loads(
+        backend.requests[3].messages[-1]["content"][0]["content"]
+    )
+    assert marker in read_observation["content"]
+    assert packet["theory_document_inspection_required"] is True
+    assert packet["theory_document_inspection_count"] == 2
+    assert [
+        row["tool"] for row in packet["theory_document_inspection_refs"]
+    ] == [
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    ]
+    assert marker not in json.dumps(packet)
+    assert all(
+        "authoritative theory text omitted" in call["result_excerpt"]
+        for turn in packet["client_tool_loop_history"]
+        for call in turn["tool_calls"]
+        if call["name"]
+        in {
+            THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+            THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+        }
     )
 
 

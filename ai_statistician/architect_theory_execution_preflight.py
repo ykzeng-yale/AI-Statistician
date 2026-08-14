@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from copy import deepcopy
@@ -37,9 +38,17 @@ from .metric_protocol_finding_ledger import (
     update_metric_protocol_finding_ledger,
 )
 from .research_schema import OpenResearchQuestion
-from .theory_workspace import load_theory_workspace_document_rows
+from .theory_workspace import (
+    MAX_THEORY_DOCUMENT_SEARCH_HITS,
+    THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+    load_theory_workspace_document_rows,
+    read_theory_document_lines,
+    search_theory_document_lines,
+    theory_document_client_tools,
+)
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 15
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 16
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 20
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
@@ -58,7 +67,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_optional_source_query_v8"
+    "client_tool_document_inspection_and_optional_source_query_v9"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
@@ -485,6 +494,8 @@ def build_architect_theory_execution_preflight_material(
                 "artifact_role": "authoritative_theory_document",
                 "content": document["content"],
                 "content_sha256": document["sha256"],
+                "content_line_count": len(document["content"].splitlines()),
+                "content_byte_size": len(document["content"].encode("utf-8")),
             }
         )
     anchor_catalog_id = "architect_theory_execution_preflight_catalog:" + stable_hash(
@@ -812,6 +823,8 @@ def architect_theory_execution_preflight_json_schema(
 
 def build_architect_theory_execution_preflight_prompt(
     material: Mapping[str, Any],
+    *,
+    include_authoritative_document_content: bool = True,
 ) -> str:
     anchor_catalog = [
         dict(row)
@@ -850,6 +863,21 @@ def build_architect_theory_execution_preflight_prompt(
         list_limit=16,
         text_limit=800,
     )
+    authoritative_documents = [
+        {
+            "anchor_id": str(anchor.get("anchor_id", "") or ""),
+            "path": str(anchor.get("anchor_id", "") or "").removeprefix(
+                "theory.document:"
+            ),
+            "sha256": str(anchor.get("content_sha256", "") or ""),
+            "line_count": int(anchor.get("content_line_count", 0) or 0),
+            "byte_size": int(anchor.get("content_byte_size", 0) or 0),
+        }
+        for anchor in anchor_catalog
+        if str(anchor.get("artifact_role", "") or "")
+        == "authoritative_theory_document"
+    ]
+    source_material["authoritative_theory_documents"] = authoritative_documents
     source_material["current_theory_anchors"] = [
         {
             "anchor_id": str(anchor.get("anchor_id", "") or ""),
@@ -859,6 +887,11 @@ def build_architect_theory_execution_preflight_prompt(
         for anchor in anchor_catalog
         if str(anchor.get("anchor_id", "") or "")
         not in {"question", "architect.upstream_research_contract"}
+        and (
+            include_authoritative_document_content
+            or str(anchor.get("artifact_role", "") or "")
+            != "authoritative_theory_document"
+        )
     ]
     retrieval_context = material.get("retrieval_context", {})
     retrieval_context = (
@@ -981,6 +1014,88 @@ def build_architect_theory_execution_preflight_prompt(
         separators=(",", ":"),
         default=str,
     )
+
+
+def _preflight_text_sha256(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _preflight_authoritative_theory_documents(
+    material: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    documents: dict[str, dict[str, Any]] = {}
+    for anchor in material.get("anchor_catalog", []) or []:
+        if not isinstance(anchor, Mapping) or str(
+            anchor.get("artifact_role", "") or ""
+        ) != "authoritative_theory_document":
+            continue
+        anchor_id = str(anchor.get("anchor_id", "") or "").strip()
+        if not anchor_id.startswith("theory.document:"):
+            continue
+        path = anchor_id.removeprefix("theory.document:")
+        content = anchor.get("content")
+        if not path or not isinstance(content, str):
+            continue
+        content_sha256 = _preflight_text_sha256(content)
+        if content_sha256 != str(anchor.get("content_sha256", "") or ""):
+            raise ValueError(f"authoritative theory document hash mismatch: {path}")
+        documents[path] = {
+            "anchor_id": anchor_id,
+            "path": path,
+            "content": content,
+            "sha256": content_sha256,
+            "line_count": len(content.splitlines()),
+            "byte_size": len(content.encode("utf-8")),
+        }
+    return documents
+
+
+def _search_preflight_theory_documents(
+    *,
+    material: Mapping[str, Any],
+    query: Any,
+    document_paths: Any,
+    max_results: Any,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    documents = {
+        path: row["content"]
+        for path, row in _preflight_authoritative_theory_documents(material).items()
+    }
+    observation, inspection_ref = search_theory_document_lines(
+        documents,
+        query=query,
+        document_paths=document_paths,
+        max_results=max_results,
+    )
+    inspection_ref["source_theory_packet_hash"] = str(
+        material.get("source_theory_packet_hash", "") or ""
+    )
+    return observation, inspection_ref
+
+
+def _read_preflight_theory_document(
+    *,
+    material: Mapping[str, Any],
+    path: Any,
+    line_start: Any,
+    line_end: Any,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    documents = {
+        document_path: row["content"]
+        for document_path, row in _preflight_authoritative_theory_documents(
+            material
+        ).items()
+    }
+    observation, inspection_ref = read_theory_document_lines(
+        documents,
+        path=path,
+        line_start=line_start,
+        line_end=line_end,
+    )
+    inspection_ref["source_theory_packet_hash"] = str(
+        material.get("source_theory_packet_hash", "") or ""
+    )
+    return observation, inspection_ref
 
 
 def _architect_theory_execution_preflight_submit_schema(
@@ -1123,6 +1238,10 @@ def _preflight_source_catalog(material: Mapping[str, Any]) -> list[dict[str, Any
             continue
         anchor_id = str(anchor.get("anchor_id", "") or "").strip()
         if not anchor_id:
+            continue
+        if str(anchor.get("artifact_role", "") or "") == (
+            "authoritative_theory_document"
+        ):
             continue
         content = anchor.get("content")
         is_collection = isinstance(content, (list, tuple))
@@ -1502,6 +1621,124 @@ def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
     return errors
 
 
+def _preflight_theory_document_inspection_errors(
+    packet: Mapping[str, Any],
+    *,
+    material: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    refs = [
+        dict(row)
+        for row in packet.get("theory_document_inspection_refs", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if int(packet.get("theory_document_inspection_count", -1) or 0) != len(refs):
+        errors.append("theory document inspection count mismatch")
+    expected_fingerprint = stable_hash(refs) if refs else ""
+    if str(
+        packet.get("theory_document_inspection_fingerprint", "") or ""
+    ) != expected_fingerprint:
+        errors.append("theory document inspection fingerprint mismatch")
+
+    client_tool_transport = packet.get("source_grounding_transport") == (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT
+    )
+    documents = _preflight_authoritative_theory_documents(material)
+    expected_required = bool(documents) and client_tool_transport
+    if bool(packet.get("theory_document_inspection_required")) != expected_required:
+        errors.append("theory document inspection requirement mismatch")
+    if expected_required and not any(
+        ref.get("tool") == THEORY_WORKSPACE_READ_DOCUMENT_TOOL for ref in refs
+    ):
+        errors.append("authoritative theory document read evidence is required")
+
+    source_theory_packet_hash = str(
+        material.get("source_theory_packet_hash", "") or ""
+    )
+    for index, ref in enumerate(refs):
+        if str(ref.get("source_theory_packet_hash", "") or "") != (
+            source_theory_packet_hash
+        ):
+            errors.append(
+                f"theory document inspection {index} source packet hash mismatch"
+            )
+        tool = str(ref.get("tool", "") or "")
+        if tool == THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
+            path = str(ref.get("path", "") or "")
+            document = documents.get(path)
+            if document is None:
+                errors.append(
+                    f"theory document inspection {index} has unknown path"
+                )
+                continue
+            if ref.get("document_sha256") != document["sha256"]:
+                errors.append(
+                    f"theory document inspection {index} document hash mismatch"
+                )
+            line_start = ref.get("line_start")
+            line_end = ref.get("line_end")
+            if any(
+                isinstance(value, bool) or not isinstance(value, int)
+                for value in (line_start, line_end)
+            ):
+                errors.append(
+                    f"theory document inspection {index} line range is invalid"
+                )
+                continue
+            lines = document["content"].splitlines()
+            if line_start < 1 or line_end < line_start or line_end > len(lines):
+                errors.append(
+                    f"theory document inspection {index} line range is out of bounds"
+                )
+                continue
+            content = "\n".join(lines[line_start - 1 : line_end])
+            if ref.get("content_sha256") != _preflight_text_sha256(content):
+                errors.append(
+                    f"theory document inspection {index} range hash mismatch"
+                )
+        elif tool == THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL:
+            document_hashes = ref.get("document_hashes", {})
+            if not isinstance(document_hashes, Mapping) or not document_hashes:
+                errors.append(
+                    f"theory document inspection {index} search hashes are missing"
+                )
+                continue
+            for path, document_hash in document_hashes.items():
+                document = documents.get(str(path))
+                if document is None or document_hash != document["sha256"]:
+                    errors.append(
+                        f"theory document inspection {index} search hash mismatch"
+                    )
+            for hit in ref.get("hits", []) or []:
+                if not isinstance(hit, Mapping):
+                    errors.append(
+                        f"theory document inspection {index} search hit is invalid"
+                    )
+                    continue
+                path = str(hit.get("path", "") or "")
+                document = documents.get(path)
+                line_number = hit.get("line_number")
+                if (
+                    document is None
+                    or isinstance(line_number, bool)
+                    or not isinstance(line_number, int)
+                    or line_number < 1
+                    or line_number > document["line_count"]
+                ):
+                    errors.append(
+                        f"theory document inspection {index} search hit is out of bounds"
+                    )
+                    continue
+                line = document["content"].splitlines()[line_number - 1]
+                if hit.get("line_sha256") != _preflight_text_sha256(line):
+                    errors.append(
+                        f"theory document inspection {index} search hit hash mismatch"
+                    )
+        else:
+            errors.append(f"theory document inspection {index} tool is invalid")
+    return errors
+
+
 def _canonical_preflight_source_refs(
     values: Any,
     *,
@@ -1646,6 +1883,10 @@ def _normalize_packet(
                 ),
                 "preflight_source_observations": [],
                 "preflight_source_observations_fingerprint": "",
+                "theory_document_inspection_required": False,
+                "theory_document_inspection_refs": [],
+                "theory_document_inspection_fingerprint": "",
+                "theory_document_inspection_count": 0,
                 "runtime_selected_review_semantics": False,
             }
         )
@@ -2343,6 +2584,12 @@ def validate_architect_theory_execution_preflight_packet(
             "theory execution preflight finding ledger fingerprint mismatch"
         )
     errors.extend(_preflight_source_grounding_errors(packet))
+    errors.extend(
+        _preflight_theory_document_inspection_errors(
+            packet,
+            material=material,
+        )
+    )
     return sorted(set(errors))
 
 
@@ -2376,6 +2623,28 @@ proof of a theorem; leave real confirmatory execution to the frozen downstream l
 """
 
 
+def _preflight_evidence_history(
+    history: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    persisted = [deepcopy(dict(row)) for row in history]
+    for turn in persisted:
+        tool_calls = turn.get("tool_calls", [])
+        if not isinstance(tool_calls, list):
+            continue
+        for tool_call in tool_calls:
+            if not isinstance(tool_call, dict):
+                continue
+            if str(tool_call.get("name", "") or "") in {
+                THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+                THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+            }:
+                tool_call["result_excerpt"] = (
+                    "[authoritative theory text omitted from persisted review "
+                    "history; use hash-bound document inspection refs]"
+                )
+    return persisted
+
+
 def _review_architect_theory_execution_preflight_with_source_tools(
     *,
     provider: GeneratorBackend,
@@ -2392,12 +2661,15 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     submit_schema = _architect_theory_execution_preflight_submit_schema(
         material
     )
+    authoritative_documents = _preflight_authoritative_theory_documents(material)
     tools = (
+        *theory_document_client_tools(),
         ClientToolDefinition(
             name="search_preflight_sources",
             description=(
-                "Search the current theory anchors, task-bound retrieval memory, "
-                "and configured formal libraries. Write the query yourself. Cite "
+                "Search compact structured theory anchors, task-bound retrieval "
+                "memory, and configured formal libraries. Write the query yourself. "
+                "Use the dedicated document tools for authoritative theory text. Cite "
                 "the short returned source_ref handles in blocking findings; the "
                 "runtime resolves them to immutable source_hit_id values. Use theory "
                 "to inspect candidate semantics. Use retrieval_memory or all before "
@@ -2439,10 +2711,18 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             strict=True,
         ),
     )
-    prompt = build_architect_theory_execution_preflight_prompt(material)
+    prompt = build_architect_theory_execution_preflight_prompt(
+        material,
+        include_authoritative_document_content=False,
+    )
     tool_prompt = (
         prompt.split("\n\n", 1)[-1]
-        + "\n\nInspect the exact theory anchors first. Use search_preflight_sources "
+        + "\n\nThe prompt contains a hash-bound catalog, not duplicated full theory "
+        "documents. Use search_theory_documents as needed to locate central claims, "
+        "then read_theory_document to inspect exact surrounding derivations. When "
+        "authoritative documents are present, at least one exact document read is "
+        "required before submission. Choose the claims, queries, and line ranges "
+        "yourself. Use search_preflight_sources "
         "when additional task-bound or formal-library context would materially "
         "improve the review. Before retaining a blocker that depends on an external "
         "named theorem, general mathematical fact, or a prior finding premise not "
@@ -2473,6 +2753,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "observations": [],
         "observation_ids": set(),
         "source_ref_by_hit_id": {},
+        "document_inspection_refs": [],
     }
 
     def source_grounding_payload(**loop_metadata: Any) -> dict[str, Any]:
@@ -2489,6 +2770,20 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             "preflight_source_search_count": int(state["searches"]),
             "preflight_source_search_budget": (
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+            ),
+            "theory_document_inspection_required": bool(
+                authoritative_documents
+            ),
+            "theory_document_inspection_refs": deepcopy(
+                list(state["document_inspection_refs"])
+            ),
+            "theory_document_inspection_fingerprint": stable_hash(
+                list(state["document_inspection_refs"])
+            )
+            if state["document_inspection_refs"]
+            else "",
+            "theory_document_inspection_count": len(
+                state["document_inspection_refs"]
             ),
             "runtime_selected_review_semantics": False,
             **loop_metadata,
@@ -2522,6 +2817,45 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         _context: ClientToolExecutionContext,
     ) -> ClientToolExecutionResult:
         tool_input = dict(call.input)
+        if call.name == THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL:
+            if set(tool_input) - {"query", "document_paths", "max_results"}:
+                raise ClientToolInputError(
+                    "search_theory_documents accepts query, document_paths, and "
+                    "optional max_results"
+                )
+            observation, inspection_ref = _search_preflight_theory_documents(
+                material=material,
+                query=tool_input.get("query"),
+                document_paths=tool_input.get("document_paths", []),
+                max_results=tool_input.get(
+                    "max_results", MAX_THEORY_DOCUMENT_SEARCH_HITS
+                ),
+            )
+            state["document_inspection_refs"].append(inspection_ref)
+            return ClientToolExecutionResult(
+                content=observation,
+                observation_key="preflight-theory-document-search:"
+                + stable_hash(inspection_ref),
+            )
+
+        if call.name == THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
+            if set(tool_input) != {"path", "line_start", "line_end"}:
+                raise ClientToolInputError(
+                    "read_theory_document requires path, line_start, and line_end"
+                )
+            observation, inspection_ref = _read_preflight_theory_document(
+                material=material,
+                path=tool_input.get("path"),
+                line_start=tool_input.get("line_start"),
+                line_end=tool_input.get("line_end"),
+            )
+            state["document_inspection_refs"].append(inspection_ref)
+            return ClientToolExecutionResult(
+                content=observation,
+                observation_key="preflight-theory-document-read:"
+                + stable_hash(inspection_ref),
+            )
+
         if call.name == "search_preflight_sources":
             if state["searches"] >= (
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
@@ -2586,6 +2920,32 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             )
 
         if call.name == "submit_theory_preflight_review":
+            if authoritative_documents and not any(
+                ref.get("tool") == THEORY_WORKSPACE_READ_DOCUMENT_TOOL
+                for ref in state["document_inspection_refs"]
+                if isinstance(ref, Mapping)
+            ):
+                rejection = {
+                    "ok": False,
+                    "error": "authoritative_theory_document_read_required",
+                    "available_documents": [
+                        {
+                            "path": row["path"],
+                            "sha256": row["sha256"],
+                            "line_count": row["line_count"],
+                        }
+                        for row in authoritative_documents.values()
+                    ],
+                    "regeneration_instruction": (
+                        "Read at least one exact range containing a central definition "
+                        "or derivation, then independently submit the complete review."
+                    ),
+                }
+                return ClientToolExecutionResult(
+                    content=rejection,
+                    is_error=True,
+                    observation_key="authoritative-theory-document-read-required",
+                )
             source_grounding = source_grounding_payload()
             packet = normalize_submission(
                 tool_input,
@@ -2714,7 +3074,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             ),
             attempts=exc.turns,
             errors=[exc.reason],
-            history=[deepcopy(dict(row)) for row in exc.history],
+            history=_preflight_evidence_history(exc.history),
             recovery_checkpoint={
                 "artifact_kind": (
                     "ArchitectTheoryExecutionPreflightSourceToolCheckpoint"
@@ -2745,7 +3105,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             ),
             attempts=loop.turns,
             errors=["terminal submission did not contain a review payload"],
-            history=[deepcopy(dict(row)) for row in loop.history],
+            history=_preflight_evidence_history(loop.history),
         )
     packet = normalize_submission(
         review_payload,
@@ -2762,9 +3122,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             client_tool_loop_response_metadata=dict(
                 loop.final_response_metadata
             ),
-            client_tool_loop_history=[
-                deepcopy(dict(row)) for row in loop.history
-            ],
+            client_tool_loop_history=_preflight_evidence_history(loop.history),
         ),
         response_model=loop.model,
         response_provider=loop.provider,
@@ -2780,7 +3138,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             ),
             attempts=loop.turns,
             errors=errors,
-            history=[deepcopy(dict(row)) for row in loop.history],
+            history=_preflight_evidence_history(loop.history),
         )
     return packet
 
