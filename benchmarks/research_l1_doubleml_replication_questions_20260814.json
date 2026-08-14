@@ -14,6 +14,15 @@
         "reproducibility",
         "L1"
       ],
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "optional",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
       "source": {
         "paper_title": "DoubleML - An Object-Oriented Implementation of Double Machine Learning in Python",
         "authors": [

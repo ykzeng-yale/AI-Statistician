@@ -29,6 +29,15 @@ QUESTION_ID = "heteroskedastic_covariance_known_result"
 VISIBLE_QUESTION = json.loads(
     Path("benchmarks/research_l0_questions_20260814.json").read_text()
 )["questions"][0]
+SOURCE_REPLICATION_TASK_INTENT = {
+    "source_replication": "required",
+    "theory": "not_applicable",
+    "scientific_code": "not_applicable",
+    "empirical": "not_applicable",
+    "formal": "not_applicable",
+    "novelty": "not_applicable",
+    "unresolved_gaps": "required",
+}
 
 
 def test_gold_authority_is_not_part_of_agent_runtime_config() -> None:
@@ -362,6 +371,148 @@ def _add_semantic_theory_evaluator(path: Path, tmp_path: Path) -> Path:
     return path
 
 
+def _source_replication_component_manifest(tmp_path: Path) -> Path:
+    manifest = json.loads(GOLD_MANIFEST.read_text())
+    task = manifest["active_tasks"][0]
+    task["scoring_scope"] = "component"
+    task.pop("hidden_algorithm_evaluator", None)
+    task["task_intent"] = dict(SOURCE_REPLICATION_TASK_INTENT)
+    harness = Path("tests/fixtures/research_gold/mock_theory_harness.py")
+    task["hidden_source_replication_evaluator"] = {
+        "harness_path": str(harness),
+        "harness_sha256": _fixture_sha256(harness),
+        "language": "python",
+        "dependencies": [],
+        "seed": 0,
+        "replicates": 1,
+        "timeout_seconds": 10,
+        "acceptance_checks": [
+            {
+                "check_id": "private_source_identity",
+                "path": ["source_gold_ok"],
+                "operator": "eq",
+                "expected": True,
+            }
+        ],
+    }
+    path = tmp_path / "source-replication-component-gold.json"
+    path.write_text(json.dumps(manifest))
+    return path
+
+
+def _runtime_result_with_source_replication(
+    *,
+    workspace_dir: Path,
+    valid_hash: bool = True,
+    include_checkpoint: bool = True,
+) -> dict:
+    result = _runtime_result(include_handoff=False)
+    body = {
+        "schema_version": 1,
+        "artifact_kind": "SourceReplicationManifest",
+        "artifact_id": "source_replication:test",
+        "question_id": QUESTION_ID,
+        "benchmark_id": "published-source-test",
+        "execution_status": "EXECUTED",
+        "execution_attempted": True,
+        "returncode": 0,
+        "errors": [],
+        "raw_stdout": "published output\n",
+        "raw_stderr": "",
+        "stdout_sha256": hashlib.sha256(b"published output\n").hexdigest(),
+        "source_mutated": False,
+        "runtime_edited_source": False,
+        "command_owned_by_model": False,
+        "runtime_generated": True,
+        "model_authored": False,
+        "proof_evidence_status": "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE",
+    }
+    manifest = {
+        **body,
+        "manifest_hash": stable_hash(body) if valid_hash else "invalid",
+    }
+    artifacts = result["blackboard"]["artifacts"]
+    artifacts[manifest["artifact_id"]] = manifest
+    if not include_checkpoint:
+        return result
+
+    report_path = "replication/report.md"
+    report_content = (
+        "# Published-source replication\n\n"
+        "The immutable author source executed successfully.\n"
+    )
+    report_file = workspace_dir / report_path
+    report_file.parent.mkdir(parents=True, exist_ok=True)
+    report_file.write_text(report_content, encoding="utf-8")
+    document_manifest = theory_workspace_document_manifest(
+        {report_path: report_content},
+        workspace_dir=workspace_dir,
+    )
+    report_document = dict(document_manifest["documents"][0])
+    source_ref = {
+        "artifact_id": manifest["artifact_id"],
+        "manifest_hash": manifest["manifest_hash"],
+        "execution_status": manifest["execution_status"],
+        "stdout_sha256": manifest["stdout_sha256"],
+    }
+    checkpoint_body = {
+        "schema_version": 1,
+        "artifact_kind": "SourceReplicationCheckpoint",
+        "question_id": QUESTION_ID,
+        "workspace_id": "theory-workspace:test",
+        "task_intent": dict(SOURCE_REPLICATION_TASK_INTENT),
+        "source_replication_manifest_ref": source_ref,
+        "report_document": report_document,
+        "unresolved_gaps": [],
+        "readiness_rationale": "The exact published source run was inspected.",
+        "runtime_edited_source": False,
+        "runtime_edited_report": False,
+        "model_authored_report": True,
+        "proof_evidence_status": (
+            "SOURCE_REPLICATION_CHECKPOINT_NOT_PROOF_EVIDENCE"
+        ),
+        "kernel_verified": False,
+    }
+    checkpoint_id = "source_replication_checkpoint:" + stable_hash(
+        checkpoint_body
+    )[:20]
+    checkpoint = {**checkpoint_body, "checkpoint_id": checkpoint_id}
+    workspace_evidence_id = "source_replication_workspace:test"
+    workspace_evidence = {
+        "schema_version": 1,
+        "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+        "artifact_id": workspace_evidence_id,
+        "workspace_id": "theory-workspace:test",
+        "question_id": QUESTION_ID,
+        "submitted_core_packet_hash": stable_hash(checkpoint),
+        "changed_document_paths": [report_path],
+        "theory_workspace_manifest": document_manifest,
+        "source_replication_refs": [source_ref],
+        "disposition": "SOURCE_REPLICATION_CHECKPOINT_COMMITTED",
+        "checkpoint_committed": True,
+        "model_owned_theory": False,
+        "model_owned_source_report": True,
+        "runtime_edited_theory": False,
+        "runtime_edited_source": False,
+        "accepted": True,
+        "proof_evidence_status": (
+            "SOURCE_REPLICATION_WORKSPACE_NOT_PROOF_EVIDENCE"
+        ),
+        "kernel_verified": False,
+    }
+    artifacts[workspace_evidence_id] = workspace_evidence
+    artifacts[checkpoint_id] = {
+        **checkpoint,
+        "workspace_evidence_id": workspace_evidence_id,
+        "workspace_evidence_hash": stable_hash(workspace_evidence),
+        "runtime_completion_status": (
+            "SOURCE_EXECUTION_RECORDED_REQUIRES_HIDDEN_EVALUATION"
+        ),
+        "boundary": "source replication is not proof evidence",
+    }
+    return result
+
+
 def test_gold_evaluator_scores_only_accepted_exact_source(tmp_path: Path) -> None:
     result = evaluate_research_gold_benchmark(
         [_runtime_result()],
@@ -405,6 +556,121 @@ def test_gold_evaluator_scores_only_accepted_exact_source(tmp_path: Path) -> Non
     assert "direct_reference_accuracy" not in serialized
     assert '"operator"' not in serialized
     assert '"observed"' not in serialized
+
+
+def test_source_replication_component_is_scored_post_runtime_without_algorithm(
+    tmp_path: Path,
+) -> None:
+    manifest = _source_replication_component_manifest(tmp_path)
+
+    def source_runner(**kwargs) -> dict:
+        candidate = kwargs["candidate_artifact"]
+        assert candidate["artifact_kind"] == "SourceReplicationManifest"
+        assert candidate["raw_stdout"] == "published output\n"
+        assert candidate["command_owned_by_model"] is False
+        return {
+            "execution_attempted": True,
+            "returncode": 0,
+            "errors": [],
+            "result_parse_error": "",
+            "result_hash": "hidden-source-result",
+            "metrics": {"source_gold_ok": True},
+        }
+
+    result = evaluate_research_gold_benchmark(
+        [
+            _runtime_result_with_source_replication(
+                workspace_dir=tmp_path / "workspace"
+            )
+        ],
+        research_evaluation_summary={"rows": []},
+        benchmark_manifest_path=manifest,
+        out_dir=tmp_path / "out",
+        run_artifact_harness=source_runner,
+    )
+
+    task = result["tasks"][0]
+    assert task["source_replication_manifest_id"] == "source_replication:test"
+    assert task["hidden_source_replication_checks_passed"] is True
+    assert task["dimension_status"]["source_replication"]["status"] == "passed"
+    assert task["dimension_status"]["source_replication"]["gold_validated"] is True
+    assert task["source_replication_checkpoint_valid"] is True
+    assert task["unresolved_gap_disclosure_present"] is True
+    assert task["dimension_status"]["unresolved_gaps"] == {
+        "requirement": "required",
+        "status": "passed",
+        "gold_validated": False,
+        "evidence_authority": "source_replication_checkpoint",
+    }
+    assert task["dimension_status"]["overall_runtime_research_loop"] == {
+        "requirement": "not_applicable",
+        "status": "not_applicable",
+        "gold_validated": False,
+        "evidence_authority": "runtime_completion_contract",
+    }
+    assert task["task_passed"] is True
+    assert task["failure_reasons"] == []
+
+
+def test_source_replication_gold_rejects_unbound_runtime_manifest(
+    tmp_path: Path,
+) -> None:
+    result = evaluate_research_gold_benchmark(
+        [
+            _runtime_result_with_source_replication(
+                workspace_dir=tmp_path / "workspace",
+                valid_hash=False,
+            )
+        ],
+        research_evaluation_summary={"rows": []},
+        benchmark_manifest_path=_source_replication_component_manifest(tmp_path),
+        out_dir=tmp_path / "out",
+        run_artifact_harness=lambda **kwargs: pytest.fail(
+            "hidden evaluator must not run on invalid runtime lineage"
+        ),
+    )
+
+    task = result["tasks"][0]
+    assert task["hidden_source_replication_execution_attempted"] is False
+    assert task["task_passed"] is False
+    assert "source replication manifest lineage is invalid" in task[
+        "failure_reasons"
+    ]
+
+
+def test_source_replication_requires_model_authored_gap_checkpoint(
+    tmp_path: Path,
+) -> None:
+    result = evaluate_research_gold_benchmark(
+        [
+            _runtime_result_with_source_replication(
+                workspace_dir=tmp_path / "workspace",
+                include_checkpoint=False,
+            )
+        ],
+        research_evaluation_summary={"rows": []},
+        benchmark_manifest_path=_source_replication_component_manifest(tmp_path),
+        out_dir=tmp_path / "out",
+        run_artifact_harness=lambda **kwargs: {
+            "execution_attempted": True,
+            "returncode": 0,
+            "errors": [],
+            "result_parse_error": "",
+            "result_hash": "hidden-source-result",
+            "metrics": {"source_gold_ok": True},
+        },
+    )
+
+    task = result["tasks"][0]
+    assert task["hidden_source_replication_checks_passed"] is True
+    assert task["source_replication_checkpoint_valid"] is False
+    assert task["unresolved_gap_disclosure_present"] is False
+    assert task["dimension_status"]["unresolved_gaps"]["status"] == "failed"
+    assert task["task_passed"] is False
+    assert (
+        "required evidence dimension did not pass: unresolved_gaps"
+        in task["failure_reasons"]
+    )
 
 
 def test_full_task_gold_requires_every_substantive_hidden_authority(

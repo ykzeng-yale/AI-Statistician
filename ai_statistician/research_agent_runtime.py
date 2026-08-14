@@ -237,9 +237,11 @@ from .research_architect import (
     LLMTheoryDeveloperAgent,
     THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND,
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+    source_replication_checkpoint_allowed,
     theory_developer_source_environment_feedback,
 )
 from .theory_workspace import (
+    SOURCE_REPLICATION_CHECKPOINT_KIND,
     THEORY_WORKSPACE_CHECKPOINT_KIND,
     TheoryScratchpadConfig,
     TheoryWorkspaceGapError,
@@ -4864,6 +4866,274 @@ def _theory_developer_revision_binding_blocked_result(
     )
 
 
+def _source_replication_artifacts_from_theory_workspace(
+    workspace_evidence: Any,
+    *,
+    question_id: str,
+) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
+    artifacts: dict[str, dict[str, Any]] = {}
+    refs: list[dict[str, Any]] = []
+    if not isinstance(workspace_evidence, Mapping):
+        return artifacts, refs
+    for raw_manifest in workspace_evidence.get(
+        "source_replication_manifests", []
+    ) or []:
+        if not isinstance(raw_manifest, Mapping):
+            continue
+        manifest = deepcopy(dict(raw_manifest))
+        declared_hash = str(manifest.pop("manifest_hash", "") or "")
+        artifact_id = str(manifest.get("artifact_id", "") or "")
+        if not (
+            artifact_id
+            and manifest.get("artifact_kind") == "SourceReplicationManifest"
+            and manifest.get("question_id") == question_id
+            and manifest.get("runtime_generated") is True
+            and manifest.get("model_authored") is False
+            and stable_hash(manifest) == declared_hash
+        ):
+            continue
+        manifest["manifest_hash"] = declared_hash
+        artifacts[artifact_id] = manifest
+        refs.append(
+            {
+                "artifact_id": artifact_id,
+                "manifest_hash": declared_hash,
+                "execution_status": str(
+                    manifest.get("execution_status", "") or ""
+                ),
+                "source_snapshot_hash": str(
+                    manifest.get("source_snapshot_hash", "") or ""
+                ),
+                "stdout_sha256": str(manifest.get("stdout_sha256", "") or ""),
+                "proof_evidence_status": str(
+                    manifest.get("proof_evidence_status", "") or ""
+                ),
+            }
+        )
+    return artifacts, refs
+
+
+def _source_replication_checkpoint_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    packet: Mapping[str, Any],
+    checkpoint_allowed: bool,
+) -> AgentStepResult:
+    """Terminate an explicitly source-only task without claiming theory completion."""
+
+    checkpoint = deepcopy(dict(packet))
+    raw_workspace_evidence = checkpoint.pop("llm_client_tool_loop", {})
+    workspace_evidence = (
+        deepcopy(dict(raw_workspace_evidence))
+        if isinstance(raw_workspace_evidence, Mapping)
+        else {}
+    )
+    source_artifacts, source_refs = (
+        _source_replication_artifacts_from_theory_workspace(
+            workspace_evidence,
+            question_id=question.id,
+        )
+    )
+    report = checkpoint.get("report_document", {})
+    report = dict(report) if isinstance(report, Mapping) else {}
+    report_path = str(report.get("relative_path", "") or "")
+    document_manifest = workspace_evidence.get("theory_workspace_manifest", {})
+    manifest_documents = (
+        document_manifest.get("documents", [])
+        if isinstance(document_manifest, Mapping)
+        else []
+    )
+    checkpoint_body = {
+        key: deepcopy(value)
+        for key, value in checkpoint.items()
+        if key != "checkpoint_id"
+    }
+    expected_checkpoint_id = "source_replication_checkpoint:" + stable_hash(
+        checkpoint_body
+    )[:20]
+    source_ref = checkpoint.get("source_replication_manifest_ref", {})
+    expected_source_ref = source_refs[0] if len(source_refs) == 1 else {}
+    workspace_valid = bool(
+        workspace_evidence.get("artifact_kind")
+        == "TheoryDeveloperWorkspaceEvidence"
+        and workspace_evidence.get("question_id") == question.id
+        and workspace_evidence.get("disposition")
+        == "SOURCE_REPLICATION_CHECKPOINT_COMMITTED"
+        and workspace_evidence.get("checkpoint_committed") is True
+        and workspace_evidence.get("model_owned_source_report") is True
+        and workspace_evidence.get("model_owned_theory") is False
+        and workspace_evidence.get("runtime_edited_source") is False
+        and workspace_evidence.get("runtime_edited_theory") is False
+        and workspace_evidence.get("kernel_verified") is False
+        and workspace_evidence.get("submitted_core_packet_hash")
+        == stable_hash(checkpoint)
+    )
+    report_valid = bool(
+        report_path
+        and report in (manifest_documents or [])
+        and report_path
+        in (workspace_evidence.get("changed_document_paths", []) or [])
+    )
+    source_valid = bool(
+        len(source_artifacts) == 1
+        and len(source_refs) == 1
+        and isinstance(source_ref, Mapping)
+        and all(
+            source_ref.get(key) == expected_source_ref.get(key)
+            for key in (
+                "artifact_id",
+                "manifest_hash",
+                "execution_status",
+                "stdout_sha256",
+            )
+        )
+    )
+    checkpoint_valid = bool(
+        checkpoint_allowed
+        and checkpoint.get("artifact_kind") == SOURCE_REPLICATION_CHECKPOINT_KIND
+        and checkpoint.get("checkpoint_id") == expected_checkpoint_id
+        and checkpoint.get("question_id") == question.id
+        and checkpoint.get("task_intent") == question.task_intent
+        and workspace_valid
+        and report_valid
+        and source_valid
+    )
+
+    workspace_evidence.pop("source_replication_manifests", None)
+    workspace_evidence["source_replication_refs"] = source_refs
+    workspace_evidence_id = str(
+        workspace_evidence.get("artifact_id", "") or ""
+    ).strip()
+    checkpoint_valid = bool(checkpoint_valid and workspace_evidence_id)
+    workspace_evidence_hash = stable_hash(workspace_evidence)
+    boundary = (
+        "The model inspected one hash-bound immutable author-source execution and "
+        "authored a Markdown report. This is source-replication evidence only. It is "
+        "not a TheoryDeveloper derivation, generated implementation, confirmatory "
+        "simulation, novelty result, Lean proof, or kernel evidence; hidden evaluator "
+        "authority remains outside the runtime."
+    )
+    if not checkpoint_valid:
+        rejection_id = "source_replication_checkpoint_rejected:" + stable_hash(
+            [task.task_id, question.id, stable_hash(packet)]
+        )[:20]
+        rejection = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeSourceReplicationCheckpointRejection",
+            "rejection_id": rejection_id,
+            "question_id": question.id,
+            "validation_error": (
+                "source replication checkpoint identity or lineage mismatch"
+            ),
+            "runtime_edited_source": False,
+            "runtime_edited_report": False,
+            "kernel_verified": False,
+            "proof_evidence_status": (
+                "SOURCE_REPLICATION_CHECKPOINT_REJECTED_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": boundary,
+        }
+        evidence = EvidenceLedgerEntry(
+            evidence_id="evidence:" + stable_hash([task.task_id, rejection_id])[:20],
+            task_id=task.task_id,
+            artifact_id=rejection_id,
+            evidence_type="source_replication_checkpoint_rejection",
+            status="SOURCE_REPLICATION_CHECKPOINT_REJECTED",
+            boundary=boundary,
+            payload={"kernel_verified": False},
+        )
+        return AgentStepResult(
+            status="BLOCKED",
+            rationale=(
+                "The source-replication checkpoint failed identity or task-intent "
+                "validation; runtime did not route into unrelated research lanes."
+            ),
+            produced_artifacts={rejection_id: rejection},
+            observations=(
+                EnvironmentObservation(
+                    observation_type="source_replication_checkpoint_rejected",
+                    summary=str(rejection["validation_error"]),
+                    payload={"rejection_id": rejection_id},
+                ),
+            ),
+            evidence_entries=(evidence,),
+            failure_classification="source_replication_checkpoint_invalid",
+        )
+
+    checkpoint_id = str(checkpoint["checkpoint_id"])
+    checkpoint["workspace_evidence_id"] = workspace_evidence_id
+    checkpoint["workspace_evidence_hash"] = workspace_evidence_hash
+    execution_status = str(expected_source_ref.get("execution_status", "") or "")
+    source_completed = execution_status == "EXECUTED"
+    checkpoint["runtime_completion_status"] = (
+        "SOURCE_EXECUTION_RECORDED_REQUIRES_HIDDEN_EVALUATION"
+        if source_completed
+        else "SOURCE_EXECUTION_FAILED_WITH_MODEL_REPORTED_GAPS"
+    )
+    checkpoint["boundary"] = boundary
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, checkpoint_id])[:20],
+        task_id=task.task_id,
+        artifact_id=checkpoint_id,
+        evidence_type="source_replication_checkpoint",
+        status=(
+            "SOURCE_EXECUTION_RECORDED_REQUIRES_HIDDEN_EVALUATION"
+            if source_completed
+            else "SOURCE_EXECUTION_FAILED_RECORDED"
+        ),
+        boundary=boundary,
+        payload={
+            "source_replication_ref": expected_source_ref,
+            "report_document": deepcopy(report),
+            "workspace_evidence_id": workspace_evidence_id,
+            "workspace_evidence_hash": workspace_evidence_hash,
+            "unresolved_gaps": list(checkpoint.get("unresolved_gaps", []) or []),
+            "kernel_verified": False,
+            "proof_evidence_status": checkpoint.get("proof_evidence_status", ""),
+        },
+    )
+    return AgentStepResult(
+        status="ACCEPTED" if source_completed else "BLOCKED",
+        rationale=(
+            "The source-only task recorded one immutable source execution and one "
+            "model-authored report, then stopped without scheduling theory, generated "
+            "code, simulation, or formalization. Hidden evaluation remains separate."
+            if source_completed
+            else "The immutable source execution failed; the model recorded its gaps "
+            "and runtime stopped without scheduling unrelated research lanes."
+        ),
+        produced_artifacts={
+            checkpoint_id: checkpoint,
+            workspace_evidence_id: workspace_evidence,
+            **source_artifacts,
+        },
+        observations=(
+            EnvironmentObservation(
+                observation_type="source_replication_checkpoint",
+                summary=(
+                    "immutable source execution recorded for hidden evaluation"
+                    if source_completed
+                    else "immutable source execution failed with explicit gaps"
+                ),
+                payload={
+                    "checkpoint_id": checkpoint_id,
+                    "source_replication_ref": expected_source_ref,
+                    "report_document": deepcopy(report),
+                    "unresolved_gaps": list(
+                        checkpoint.get("unresolved_gaps", []) or []
+                    ),
+                    "kernel_verified": False,
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        failure_classification=(
+            "" if source_completed else "source_replication_execution_failed"
+        ),
+    )
+
+
 class TheoryDeveloperRuntimeSubsystem:
     name = "TheoryDeveloper"
 
@@ -5098,6 +5368,20 @@ class TheoryDeveloperRuntimeSubsystem:
                 question=question,
                 exc=exc,
             )
+        if packet.get("artifact_kind") == SOURCE_REPLICATION_CHECKPOINT_KIND:
+            return _source_replication_checkpoint_result(
+                task=task,
+                question=question,
+                packet=packet,
+                checkpoint_allowed=source_replication_checkpoint_allowed(
+                    question,
+                    getattr(
+                        self.theory_developer,
+                        "research_source_execution",
+                        None,
+                    ),
+                ),
+            )
         active_revision_binding = context.get(
             THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY, {}
         )
@@ -5171,6 +5455,12 @@ class TheoryDeveloperRuntimeSubsystem:
             packet.get("theory_derivation_contract", {}) or {}
         )
         raw_theory_workspace = packet.get("llm_client_tool_loop", {})
+        source_replication_artifacts, source_replication_refs = (
+            _source_replication_artifacts_from_theory_workspace(
+                raw_theory_workspace,
+                question_id=question.id,
+            )
+        )
         theory_workspace_evidence = (
             {
                 field: deepcopy(raw_theory_workspace.get(field))
@@ -5192,6 +5482,7 @@ class TheoryDeveloperRuntimeSubsystem:
                     "research_source_snapshot",
                     "source_search_refs",
                     "source_read_refs",
+                    "source_replication_runs",
                     "changed_artifact_names",
                     "provider",
                     "model",
@@ -5212,6 +5503,9 @@ class TheoryDeveloperRuntimeSubsystem:
             "theory_derivation_contract": theory_derivation_contract,
         }
         if theory_workspace_evidence:
+            theory_workspace_evidence["source_replication_refs"] = (
+                source_replication_refs
+            )
             theory_evidence_payload["llm_client_tool_loop"] = (
                 theory_workspace_evidence
             )
@@ -5569,6 +5863,7 @@ class TheoryDeveloperRuntimeSubsystem:
             ),
             produced_artifacts={
                 packet_id: packet,
+                **source_replication_artifacts,
                 **theory_material_artifacts,
                 **architect_route_artifacts,
             },
@@ -23963,12 +24258,15 @@ def _metrics_are_finite(metrics: Mapping[str, Any]) -> bool:
 
 
 def _question_to_payload(question: OpenResearchQuestion) -> dict[str, Any]:
-    return {
+    payload = {
         "id": question.id,
         "title": question.title,
         "description": question.description,
         "tags": list(question.tags),
     }
+    if question.task_intent:
+        payload["task_intent"] = dict(question.task_intent)
+    return payload
 
 
 def _question_primary_task_family(question: OpenResearchQuestion) -> str:
@@ -23993,6 +24291,10 @@ def _question_from_payload(payload: Mapping[str, Any]) -> OpenResearchQuestion:
         title=str(payload.get("title", payload["id"])),
         description=str(payload["description"]),
         tags=tuple(str(row) for row in payload.get("tags", ()) or ()),
+        task_intent={
+            str(key): str(value)
+            for key, value in dict(payload.get("task_intent", {}) or {}).items()
+        },
     )
 
 

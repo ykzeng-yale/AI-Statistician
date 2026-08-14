@@ -10,6 +10,7 @@ class OpenResearchQuestion:
     title: str
     description: str
     tags: tuple[str, ...] = ()
+    task_intent: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

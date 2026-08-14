@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import sys
+from pathlib import Path
 
 import pytest
 
 from ai_statistician.research_source_library import (
     RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
+    SOURCE_REPLICATION_NOT_PROOF_EVIDENCE,
+    _source_execution_sandbox_profile,
+    execute_research_source,
+    load_research_source_execution_spec,
     load_research_source_snapshot,
 )
 
@@ -119,3 +126,211 @@ def test_source_snapshot_rejects_nonvisible_or_escaping_documents(tmp_path) -> N
     )
     with pytest.raises(ValueError, match="stay inside source_root"):
         load_research_source_snapshot(manifest_path)
+
+
+def _source_execution_fixture(tmp_path):
+    source_root = tmp_path / "public_sources"
+    source_root.mkdir(parents=True)
+    entrypoint_text = "print('coef std err t P>|t| 2.5 % 97.5 %')\n"
+    environment_text = "python=3.test\nDemo=1.2.3\n"
+    entrypoint_path = source_root / "published_example.py"
+    environment_path = source_root / "environment-lock.txt"
+    entrypoint_path.write_text(entrypoint_text, encoding="utf-8")
+    environment_path.write_text(environment_text, encoding="utf-8")
+    source_manifest = {
+        "schema_version": 1,
+        "snapshot_id": "published-source-v1",
+        "source_horizon": "2025-12-31",
+        "source_root": "public_sources",
+        "documents": [
+            {
+                "document_id": "published-example",
+                "title": "Published example",
+                "source_kind": "published_example_code",
+                "relative_path": "published_example.py",
+                "sha256": hashlib.sha256(entrypoint_text.encode()).hexdigest(),
+                "model_visible": True,
+                "git_commit": "abc123",
+            },
+            {
+                "document_id": "environment-lock",
+                "title": "Environment lock",
+                "source_kind": "replication_provenance",
+                "relative_path": "environment-lock.txt",
+                "sha256": hashlib.sha256(environment_text.encode()).hexdigest(),
+                "model_visible": True,
+            },
+        ],
+    }
+    source_manifest_path = tmp_path / "sources.json"
+    source_manifest_path.write_text(json.dumps(source_manifest), encoding="utf-8")
+    snapshot = load_research_source_snapshot(source_manifest_path)
+
+    environment_root = tmp_path / "environment"
+    (environment_root / "bin").mkdir(parents=True)
+    executable_path = environment_root / "bin" / "python"
+    executable_path.symlink_to(sys.executable)
+    os.chmod(executable_path, 0o755)
+    executable_sha256 = hashlib.sha256(
+        executable_path.resolve().read_bytes()
+    ).hexdigest()
+    execution_payload = {
+        "schema_version": 1,
+        "artifact_kind": "ResearchSourceExecutionSpec",
+        "execution_id": "published-source-execution-v1",
+        "benchmark_id": "published-source-benchmark-v1",
+        "source_snapshot_id": snapshot.snapshot_id,
+        "source_snapshot_hash": snapshot.snapshot_hash,
+        "source_manifest_sha256": snapshot.manifest_sha256,
+        "source_commit": "abc123",
+        "entrypoint_document_id": "published-example",
+        "environment_lock_document_id": "environment-lock",
+        "environment_root": str(environment_root),
+        "python_executable_relative_path": "bin/python",
+        "python_executable_sha256": executable_sha256,
+        "runtime_read_roots": [str(Path(sys.executable).resolve().parent)],
+        "working_directory_relative": ".",
+        "arguments": [],
+        "package_distributions": {"Demo": "demo"},
+        "timeout_seconds": 30,
+        "max_output_bytes": 8192,
+    }
+    execution_manifest_path = tmp_path / "source-execution.json"
+    execution_manifest_path.write_text(
+        json.dumps(execution_payload), encoding="utf-8"
+    )
+    execution = load_research_source_execution_spec(
+        execution_manifest_path,
+        research_sources=snapshot,
+    )
+    return snapshot, execution, entrypoint_path, execution_manifest_path
+
+
+def test_immutable_source_execution_uses_only_operator_bound_command(tmp_path) -> None:
+    snapshot, execution, _, _ = _source_execution_fixture(tmp_path)
+    calls = []
+
+    def fake_executor(**kwargs):
+        calls.append(kwargs)
+        command = kwargs["command"]
+        if str(command[1]).endswith("environment_probe.py"):
+            stdout = json.dumps(
+                {
+                    "python_version": "3.test",
+                    "package_versions": {"Demo": "1.2.3"},
+                }
+            )
+        else:
+            stdout = "coef std err t P>|t| 2.5 % 97.5 %\n0 0.5 0.1 5 0.0 0.3 0.7\n"
+        return {
+            "execution_attempted": True,
+            "returncode": 0,
+            "stdout": stdout,
+            "stderr": "",
+            "errors": [],
+        }
+
+    manifest = execute_research_source(
+        execution=execution,
+        research_sources=snapshot,
+        output_dir=tmp_path / "replication-output",
+        question_id="published-source-task",
+        process_executor=fake_executor,
+    )
+
+    assert len(calls) == 2
+    assert calls[1]["command"] == (
+        str(execution.python_executable),
+        str(snapshot.document_path("published-example")),
+    )
+    assert calls[1]["source_paths"] == tuple(
+        snapshot.document_path(document.document_id)
+        for document in snapshot.documents
+    )
+    assert "source_root" not in calls[1]
+    assert calls[1]["runtime_executables"] == execution.runtime_executables
+    assert manifest["artifact_kind"] == "SourceReplicationManifest"
+    assert manifest["question_id"] == "published-source-task"
+    assert manifest["execution_status"] == "EXECUTED"
+    assert manifest["package_versions"] == {"Demo": "1.2.3"}
+    assert manifest["source_mutated"] is False
+    assert manifest["runtime_edited_source"] is False
+    assert manifest["command_owned_by_model"] is False
+    assert manifest["network_access"] is False
+    assert manifest["raw_stdout"].startswith("coef std err")
+    assert manifest["stdout_sha256"] == hashlib.sha256(
+        manifest["raw_stdout"].encode()
+    ).hexdigest()
+    assert manifest["proof_evidence_status"] == (
+        SOURCE_REPLICATION_NOT_PROOF_EVIDENCE
+    )
+    persisted = json.loads(Path(manifest["manifest_path"]).read_text())
+    assert persisted == manifest
+
+
+def test_source_execution_fails_closed_when_snapshot_changes(tmp_path) -> None:
+    snapshot, execution, entrypoint_path, _ = _source_execution_fixture(tmp_path)
+    entrypoint_path.write_text("print('mutated')\n", encoding="utf-8")
+    calls = []
+
+    manifest = execute_research_source(
+        execution=execution,
+        research_sources=snapshot,
+        output_dir=tmp_path / "replication-output",
+        question_id="published-source-task",
+        process_executor=lambda **kwargs: calls.append(kwargs),
+    )
+
+    assert calls == []
+    assert manifest["execution_attempted"] is False
+    assert manifest["source_mutated"] is True
+    assert manifest["execution_status"] == "FAILED"
+    assert any("changed after snapshot load" in error for error in manifest["errors"])
+
+
+def test_source_execution_manifest_rejects_model_command_fields(tmp_path) -> None:
+    snapshot, _, _, execution_manifest_path = _source_execution_fixture(tmp_path)
+    payload = json.loads(execution_manifest_path.read_text())
+    payload["command"] = ["sh", "-c", "anything"]
+    execution_manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unknown fields: command"):
+        load_research_source_execution_spec(
+            execution_manifest_path,
+            research_sources=snapshot,
+        )
+
+
+def test_source_sandbox_reads_only_inventory_and_executes_only_allowlist(
+    tmp_path,
+) -> None:
+    environment_root = tmp_path / "environment"
+    runtime_root = tmp_path / "runtime"
+    source_root = tmp_path / "sources"
+    output_dir = tmp_path / "output"
+    for path in (environment_root, runtime_root, source_root, output_dir):
+        path.mkdir()
+    requested_python = environment_root / "python"
+    requested_python.write_text("python", encoding="utf-8")
+    runtime_executable = runtime_root / "python-app"
+    runtime_executable.write_text("runtime", encoding="utf-8")
+    listed_source = source_root / "listed.py"
+    listed_source.write_text("print('listed')\n", encoding="utf-8")
+
+    profile = _source_execution_sandbox_profile(
+        requested_executable=requested_python,
+        executable=requested_python,
+        environment_root=environment_root,
+        runtime_read_roots=(runtime_root,),
+        runtime_executables=((runtime_executable, "a" * 64),),
+        source_paths=(listed_source,),
+        output_dir=output_dir,
+    )
+    process_clause = profile.split("(allow process-exec ", 1)[1].split(
+        ") (deny file-read", 1
+    )[0]
+
+    assert f'(literal "{listed_source.resolve()}")' in profile
+    assert f'(subpath "{source_root.resolve()}")' not in profile
+    assert f'(literal "{runtime_executable.resolve()}")' in process_clause
+    assert "(subpath " not in process_clause

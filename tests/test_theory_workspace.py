@@ -16,11 +16,15 @@ from ai_statistician.model_backend import (
 from ai_statistician.scientific_sandbox import ScientificSandboxExecution
 from ai_statistician.research_source_library import (
     RESEARCH_SOURCE_READ_TOOL,
+    RESEARCH_SOURCE_RUN_TOOL,
     RESEARCH_SOURCE_SEARCH_TOOL,
+    ResearchSourceExecutionSpec,
     load_research_source_snapshot,
 )
 from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.theory_workspace import (
+    SOURCE_REPLICATION_CHECKPOINT_KIND,
+    SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL,
     THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
     THEORY_SCRATCHPAD_TOOL,
     THEORY_WORKSPACE_CHECKPOINT_KIND,
@@ -250,6 +254,232 @@ def test_same_theory_model_searches_and_reads_hash_bound_sources_without_copying
     persisted_evidence = json.dumps(result.evidence)
     assert "The estimating equation has zero expectation" not in persisted_evidence
     assert "research source text omitted" in persisted_evidence
+
+
+def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    research_sources, _ = _research_source_snapshot(tmp_path)
+    source_execution = ResearchSourceExecutionSpec(
+        execution_id="execution-v1",
+        benchmark_id="benchmark-v1",
+        manifest_sha256="a" * 64,
+        source_snapshot_id=research_sources.snapshot_id,
+        source_snapshot_hash=research_sources.snapshot_hash,
+        source_manifest_sha256=research_sources.manifest_sha256,
+        source_commit="commit-v1",
+        entrypoint_document_id="robust-location-paper",
+        environment_lock_document_id="robust-location-paper",
+        environment_root=tmp_path,
+        python_executable=tmp_path / "python",
+        python_executable_sha256="b" * 64,
+        runtime_read_roots=(),
+        working_directory_relative=".",
+        arguments=(),
+        package_distributions=(("Demo", "demo"),),
+        timeout_seconds=30,
+        max_output_bytes=8192,
+    )
+    manifest_body = {
+        "schema_version": 1,
+        "artifact_kind": "SourceReplicationManifest",
+        "artifact_id": "source_replication:fixture",
+        "question_id": "q1",
+        "execution_status": "EXECUTED",
+        "raw_stdout": "coef=0.5\n",
+        "raw_stderr": "",
+        "stdout_sha256": hashlib.sha256(b"coef=0.5\n").hexdigest(),
+        "source_mutated": False,
+        "runtime_edited_source": False,
+        "runtime_generated": True,
+        "model_authored": False,
+        "proof_evidence_status": "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE",
+    }
+    manifest = {**manifest_body, "manifest_hash": stable_hash(manifest_body)}
+    calls = []
+
+    def fake_execute_research_source(**kwargs):
+        calls.append(kwargs)
+        return manifest
+
+    monkeypatch.setattr(
+        "ai_statistician.theory_workspace.execute_research_source",
+        fake_execute_research_source,
+    )
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="run-published-source",
+                    name=RESEARCH_SOURCE_RUN_TOOL,
+                    input={},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-replication-grounded-theory",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "replication-grounded-lemma"}],
+                        }
+                    ),
+                )
+            ),
+            _response(_commit_checkpoint()),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        research_sources=research_sources,
+        research_source_execution=source_execution,
+        workspace_dir=tmp_path / "theory-workspace",
+    )
+
+    assert len(calls) == 1
+    assert calls[0]["execution"] is source_execution
+    assert calls[0]["research_sources"] is research_sources
+    first_tools = [tool.name for tool in backend.requests[0].tools]
+    assert first_tools[:4] == [
+        "read_theory_workspace",
+        RESEARCH_SOURCE_SEARCH_TOOL,
+        RESEARCH_SOURCE_READ_TOOL,
+        RESEARCH_SOURCE_RUN_TOOL,
+    ]
+    assert "coef=0.5" in str(backend.requests[1].messages)
+    assert result.evidence["source_replication_runs"] == 1
+    assert result.evidence["source_replication_manifests"] == [manifest]
+    assert "coef=0.5" not in json.dumps(result.evidence["history"])
+    assert "source-replication refs" in json.dumps(result.evidence["history"])
+
+
+def test_source_only_intent_commits_markdown_report_without_theory_packet(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    research_sources, _ = _research_source_snapshot(tmp_path)
+    source_execution = ResearchSourceExecutionSpec(
+        execution_id="execution-source-only",
+        benchmark_id="benchmark-source-only",
+        manifest_sha256="a" * 64,
+        source_snapshot_id=research_sources.snapshot_id,
+        source_snapshot_hash=research_sources.snapshot_hash,
+        source_manifest_sha256=research_sources.manifest_sha256,
+        source_commit="commit-source-only",
+        entrypoint_document_id="robust-location-paper",
+        environment_lock_document_id="robust-location-paper",
+        environment_root=tmp_path,
+        python_executable=tmp_path / "python",
+        python_executable_sha256="b" * 64,
+        runtime_read_roots=(),
+        working_directory_relative=".",
+        arguments=(),
+        package_distributions=(("Demo", "demo"),),
+        timeout_seconds=30,
+        max_output_bytes=8192,
+    )
+    manifest_body = {
+        "schema_version": 1,
+        "artifact_kind": "SourceReplicationManifest",
+        "artifact_id": "source_replication:q1",
+        "question_id": "q1",
+        "execution_status": "EXECUTED",
+        "raw_stdout": "coef=0.5\n",
+        "raw_stderr": "",
+        "stdout_sha256": hashlib.sha256(b"coef=0.5\n").hexdigest(),
+        "source_snapshot_hash": research_sources.snapshot_hash,
+        "source_mutated": False,
+        "runtime_edited_source": False,
+        "runtime_generated": True,
+        "model_authored": False,
+        "proof_evidence_status": (
+            "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    manifest = {**manifest_body, "manifest_hash": stable_hash(manifest_body)}
+    monkeypatch.setattr(
+        "ai_statistician.theory_workspace.execute_research_source",
+        lambda **_: manifest,
+    )
+    report_path = "replication/report.md"
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="run-source-only",
+                    name=RESEARCH_SOURCE_RUN_TOOL,
+                    input={},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-source-report",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input={
+                        "writes": [],
+                        "document_writes": [
+                            {
+                                "path": report_path,
+                                "content": (
+                                    "# Replication report\n\nThe immutable run returned "
+                                    "`coef=0.5`; hidden evaluation remains external.\n"
+                                ),
+                            }
+                        ],
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="commit-source-report",
+                    name=SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL,
+                    input={
+                        "report_document_path": report_path,
+                        "readiness_rationale": (
+                            "The exact source run and its interpretation are recorded."
+                        ),
+                        "unresolved_gaps": [],
+                    },
+                )
+            ),
+        ]
+    )
+    task_intent = {
+        "source_replication": "required",
+        "theory": "optional",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+
+    result = _run_workspace(
+        backend,
+        research_sources=research_sources,
+        research_source_execution=source_execution,
+        allow_source_replication_checkpoint=True,
+        task_intent=task_intent,
+        workspace_dir=tmp_path / "source-only-workspace",
+        require_document_authority=True,
+        max_submissions=1,
+    )
+
+    assert result.core_packet["artifact_kind"] == (
+        SOURCE_REPLICATION_CHECKPOINT_KIND
+    )
+    assert result.core_packet["task_intent"] == task_intent
+    assert result.core_packet["report_document"]["relative_path"] == report_path
+    assert result.evidence["changed_artifact_names"] == []
+    assert result.evidence["changed_document_paths"] == [report_path]
+    assert result.evidence["model_owned_theory"] is False
+    assert result.evidence["model_owned_source_report"] is True
+    assert result.evidence["source_replication_manifests"] == [manifest]
+    assert SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL in {
+        tool.name for tool in backend.requests[0].tools
+    }
 
 
 def test_same_model_revises_workspace_after_raw_validator_observation() -> None:

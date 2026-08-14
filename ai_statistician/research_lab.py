@@ -1106,12 +1106,28 @@ def load_open_research_questions(path: Path) -> list[OpenResearchQuestion]:
     rows = payload["questions"] if isinstance(payload, dict) and "questions" in payload else payload
     questions: list[OpenResearchQuestion] = []
     for row in rows:
+        raw_task_intent = row.get("task_intent", {})
+        if not isinstance(raw_task_intent, dict):
+            raise ValueError("research question task_intent must be an object")
+        task_intent = {
+            str(dimension): str(requirement)
+            for dimension, requirement in raw_task_intent.items()
+        }
+        if any(
+            requirement not in {"required", "optional", "not_applicable"}
+            for requirement in task_intent.values()
+        ):
+            raise ValueError(
+                "research question task_intent requirements must be required, "
+                "optional, or not_applicable"
+            )
         questions.append(
             OpenResearchQuestion(
                 id=str(row["id"]),
                 title=str(row.get("title", row["id"])),
                 description=str(row["description"]),
                 tags=tuple(str(tag) for tag in row.get("tags", ())),
+                task_intent=task_intent,
             )
         )
     return questions

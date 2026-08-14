@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import ai_statistician.cli as cli_module
+import ai_statistician.research_architect as research_architect_module
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.cli import (
     _apply_research_agent_runtime_evaluation_model_policy,
@@ -55,6 +56,7 @@ from ai_statistician.research_architect import (
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
     build_theory_developer_revision_inputs,
     build_theory_developer_prompt,
+    source_replication_checkpoint_allowed,
     validate_theory_core_packet,
     validate_theory_packet,
 )
@@ -66,6 +68,7 @@ from ai_statistician.theory_revision_lineage import (
     build_theory_developer_revision_binding,
 )
 from ai_statistician.theory_workspace import (
+    SOURCE_REPLICATION_CHECKPOINT_KIND,
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_COMMIT_TOOL,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
@@ -73,6 +76,7 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_GAP_TOOL,
     THEORY_WORKSPACE_HANDOFF_ROLE,
     THEORY_WORKSPACE_WRITE_TOOL,
+    TheoryWorkspaceResult,
     theory_workspace_document_manifest,
 )
 
@@ -132,6 +136,105 @@ def test_theory_core_contract_exposes_finite_execution_semantics() -> None:
     assert "output_contract" in estimator_contract
     assert "termination_guarantee" in estimator_contract
     assert "estimator_interface_contract" not in estimator_contract
+
+
+def test_source_replication_checkpoint_requires_explicit_source_only_intent() -> None:
+    source_only = OpenResearchQuestion(
+        id="source-only",
+        title="Source only",
+        description="Replicate one immutable published source.",
+        task_intent={
+            "source_replication": "required",
+            "theory": "optional",
+            "unresolved_gaps": "required",
+        },
+    )
+    theory_required = OpenResearchQuestion(
+        id="source-and-theory",
+        title="Source and theory",
+        description="Replicate and derive a theorem.",
+        task_intent={
+            "source_replication": "required",
+            "theory": "required",
+            "unresolved_gaps": "required",
+        },
+    )
+
+    execution = object()
+    assert source_replication_checkpoint_allowed(source_only, execution) is True
+    assert source_replication_checkpoint_allowed(source_only, None) is False
+    assert source_replication_checkpoint_allowed(theory_required, execution) is False
+
+
+def test_source_only_workspace_bypasses_full_theory_packet_contract(
+    monkeypatch,
+) -> None:
+    question = OpenResearchQuestion(
+        id="source-only-direct-checkpoint",
+        title="Source-only direct checkpoint",
+        description="Run and report one immutable published source.",
+        task_intent={
+            "source_replication": "required",
+            "theory": "optional",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+            "unresolved_gaps": "required",
+        },
+    )
+    checkpoint = {
+        "schema_version": 1,
+        "artifact_kind": SOURCE_REPLICATION_CHECKPOINT_KIND,
+        "checkpoint_id": "source_replication_checkpoint:test",
+        "question_id": question.id,
+        "task_intent": dict(question.task_intent),
+        "report_document": {
+            "relative_path": "replication/report.md",
+            "sha256": "a" * 64,
+        },
+    }
+    captured: dict[str, object] = {}
+
+    def fake_workspace(**kwargs):
+        captured.update(kwargs)
+        return TheoryWorkspaceResult(
+            core_packet=checkpoint,
+            evidence={
+                "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+                "artifact_id": "source_replication_workspace:test",
+            },
+        )
+
+    monkeypatch.setattr(
+        research_architect_module,
+        "run_theory_artifact_workspace",
+        fake_workspace,
+    )
+    provider = ScriptedTheoryToolBackend(
+        tool_responses=[],
+        generator_responses=[],
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+        ),
+        research_sources=object(),  # type: ignore[arg-type]
+        research_source_execution=object(),  # type: ignore[arg-type]
+    )
+
+    packet = developer.derive(question)
+
+    assert packet["artifact_kind"] == SOURCE_REPLICATION_CHECKPOINT_KIND
+    assert packet["llm_client_tool_loop"]["artifact_id"] == (
+        "source_replication_workspace:test"
+    )
+    assert captured["allow_source_replication_checkpoint"] is True
+    assert captured["task_intent"] == question.task_intent
+    assert "do not fabricate theory" in str(captured["user_prompt"])
+    assert provider.generator_requests == []
 
 
 class ScriptedTheoryToolBackend:

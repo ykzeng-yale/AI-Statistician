@@ -105,7 +105,10 @@ from .research_next_iteration_audit import audit_next_iteration_queue
 from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
 from .research_policy_baseline import evaluate_research_policy_baseline
 from .research_report import build_research_markdown_report
-from .research_source_library import load_research_source_snapshot
+from .research_source_library import (
+    load_research_source_execution_spec,
+    load_research_source_snapshot,
+)
 from .research_architect import (
     AnthropicArchitectLLMProvider,
     LLMTheoryDeveloperAgent,
@@ -3521,6 +3524,22 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
             if research_source_manifest
             else None
         )
+        research_source_execution_manifest = str(
+            getattr(args, "research_source_execution_manifest", "") or ""
+        ).strip()
+        if research_source_execution_manifest and research_sources is None:
+            raise ValueError(
+                "--research-source-execution-manifest requires "
+                "--research-source-manifest"
+            )
+        research_source_execution = (
+            load_research_source_execution_spec(
+                Path(research_source_execution_manifest),
+                research_sources=research_sources,
+            )
+            if research_source_execution_manifest and research_sources is not None
+            else None
+        )
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
         print("\nAI Statistician rejected research source snapshot")
         print("=" * 72)
@@ -3545,6 +3564,7 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
     theory_developer = LLMTheoryDeveloperAgent(
         provider=provider,
         research_sources=research_sources,
+        research_source_execution=research_source_execution,
         config=ResearchArchitectConfig(
             model=model,
             model_tier=model_tier,
@@ -3728,6 +3748,22 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             if research_source_manifest
             else None
         )
+        research_source_execution_manifest = str(
+            getattr(args, "research_source_execution_manifest", "") or ""
+        ).strip()
+        if research_source_execution_manifest and research_sources is None:
+            raise ValueError(
+                "--research-source-execution-manifest requires "
+                "--research-source-manifest"
+            )
+        research_source_execution = (
+            load_research_source_execution_spec(
+                Path(research_source_execution_manifest),
+                research_sources=research_sources,
+            )
+            if research_source_execution_manifest and research_sources is not None
+            else None
+        )
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
         print("\nAI Statistician Agent Runtime rejected research source snapshot")
         print("=" * 72)
@@ -3767,6 +3803,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     theory_developer = LLMTheoryDeveloperAgent(
         provider=provider,
         research_sources=research_sources,
+        research_source_execution=research_source_execution,
         config=ResearchArchitectConfig(
             model=theory_model,
             model_tier=theory_model_tier,
@@ -6223,6 +6260,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_architect_theory.add_argument(
+        "--research-source-execution-manifest",
+        default="",
+        help=(
+            "optional operator-bound immutable Python entrypoint and environment; "
+            "requires --research-source-manifest and exposes only a no-input run tool"
+        ),
+    )
+    research_architect_theory.add_argument(
         "--llm-model",
         default="",
         help="model name for the TheoryDeveloper provider; Anthropic defaults to Claude Sonnet 4.6",
@@ -6318,6 +6363,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "optional hash-bound manifest of model-visible UTF-8 papers, code, "
             "and documentation; evaluator-only gold must never be placed here"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--research-source-execution-manifest",
+        default="",
+        help=(
+            "optional operator-bound immutable Python entrypoint and environment; "
+            "requires --research-source-manifest and never exposes a model-owned command"
         ),
     )
     research_agent_runtime.add_argument(

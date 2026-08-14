@@ -35,7 +35,10 @@ from .metric_protocol_stage import (
     METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
 )
 from .research_schema import OpenResearchQuestion
-from .research_source_library import ResearchSourceSnapshot
+from .research_source_library import (
+    ResearchSourceExecutionSpec,
+    ResearchSourceSnapshot,
+)
 from .semantic_review_feedback import model_observations_without_repair_recipes
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
@@ -43,6 +46,7 @@ from .theory_revision_lineage import (
     theory_developer_revision_binding_errors,
 )
 from .theory_workspace import (
+    SOURCE_REPLICATION_CHECKPOINT_KIND,
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
     THEORY_WORKSPACE_HANDOFF_ROLE,
@@ -73,6 +77,31 @@ THEORY_FORMAL_SOURCE_PROMPT_POLICY = (
     "comparison. Only the primary hit may carry one bounded declaration doc or "
     "citation; broad module prose and proof bodies are omitted."
 )
+
+SOURCE_REPLICATION_CHECKPOINT_REQUIRED_DIMENSIONS = frozenset(
+    {"source_replication", "unresolved_gaps"}
+)
+
+
+def source_replication_checkpoint_allowed(
+    question: OpenResearchQuestion,
+    research_source_execution: ResearchSourceExecutionSpec | None,
+) -> bool:
+    """Allow a direct checkpoint only for an explicitly source-only objective."""
+
+    if research_source_execution is None:
+        return False
+    required_dimensions = {
+        str(dimension)
+        for dimension, requirement in question.task_intent.items()
+        if str(requirement) == "required"
+    }
+    return bool(
+        "source_replication" in required_dimensions
+        and required_dimensions.issubset(
+            SOURCE_REPLICATION_CHECKPOINT_REQUIRED_DIMENSIONS
+        )
+    )
 
 
 class ArchitectLLMProvider(GeneratorBackend, Protocol):
@@ -167,10 +196,16 @@ class LLMTheoryDeveloperAgent:
         provider: GeneratorBackend | None = None,
         config: ResearchArchitectConfig = ResearchArchitectConfig(),
         research_sources: ResearchSourceSnapshot | None = None,
+        research_source_execution: ResearchSourceExecutionSpec | None = None,
     ) -> None:
         self.provider = provider or AnthropicArchitectLLMProvider()
         self.config = config
         self.research_sources = research_sources
+        self.research_source_execution = research_source_execution
+        if research_source_execution is not None and research_sources is None:
+            raise ValueError(
+                "research source execution requires a research source snapshot"
+            )
 
     def derive(
         self,
@@ -278,6 +313,7 @@ class LLMTheoryDeveloperAgent:
                 ),
                 theory_scratchpad=theory_scratchpad,
                 research_sources=self.research_sources,
+                research_source_execution=self.research_source_execution,
                 theory_workspace_root=theory_workspace_root,
             )
         elif callable(
@@ -307,6 +343,7 @@ class LLMTheoryDeveloperAgent:
                 ),
                 theory_scratchpad=theory_scratchpad,
                 research_sources=self.research_sources,
+                research_source_execution=self.research_source_execution,
                 theory_workspace_root=theory_workspace_root,
             )
         else:
@@ -376,6 +413,11 @@ class LLMTheoryDeveloperAgent:
                 validation_label="LLM TheoryDeveloper core packet",
                 max_validation_retries=effective_max_validation_retries,
             )
+        if (
+            core_packet.get("artifact_kind")
+            == SOURCE_REPLICATION_CHECKPOINT_KIND
+        ):
+            return core_packet
         # Test doubles may return a sentinel without running the supplied builder.
         if not core_packet.get("estimator_specs"):
             return core_packet
@@ -2784,6 +2826,7 @@ def _initial_theory_workspace_read_only_artifacts(
     theory_prompt_mode: str,
     max_submissions: int,
     formalization_authoring_required: bool,
+    allow_source_replication_checkpoint: bool = False,
 ) -> dict[str, Any]:
     serious = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
     required_output_contract = deepcopy(THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT)
@@ -2794,6 +2837,22 @@ def _initial_theory_workspace_read_only_artifacts(
         )
         if isinstance(derivation_contract, dict):
             derivation_contract["formalization_handoff"] = {}
+    output_contract: dict[str, Any]
+    if allow_source_replication_checkpoint:
+        output_contract = {
+            "source_replication_checkpoint": {
+                "required": [
+                    "one immutable source execution",
+                    "one model-authored Markdown report",
+                    "explicit unresolved gaps",
+                ],
+                "evidence_role": "source replication only",
+                "not_evidence_for": ["theory", "simulation", "formal proof"],
+            },
+            "optional_full_theory_checkpoint": required_output_contract,
+        }
+    else:
+        output_contract = required_output_contract
     return {
         "initial_authoring_context": {
             "research_question": {
@@ -2801,11 +2860,12 @@ def _initial_theory_workspace_read_only_artifacts(
                 "title": question.title,
                 "description": question.description,
                 "tags": list(question.tags),
+                "task_intent": dict(question.task_intent),
             },
             "architect_context": _compact_architect_context_for_prompt(
                 architect_context
             ),
-            "required_output_contract": required_output_contract,
+            "required_output_contract": output_contract,
             "authoring_policy": {
                 "theory_prompt_mode": theory_prompt_mode,
                 "serious_theory_mode": serious,
@@ -2819,6 +2879,9 @@ def _initial_theory_workspace_read_only_artifacts(
                 "row_counts_are_not_quality_metrics": True,
                 "formalization_authoring_required": bool(
                     formalization_authoring_required
+                ),
+                "source_replication_checkpoint_allowed": bool(
+                    allow_source_replication_checkpoint
                 ),
                 "substantive_author": "TheoryDeveloper model",
                 "mathematical_content_authority": (
@@ -2842,7 +2905,23 @@ def _initial_theory_workspace_prompt(
     theory_prompt_mode: str,
     max_submissions: int,
     formalization_authoring_required: bool,
+    allow_source_replication_checkpoint: bool = False,
 ) -> str:
+    if allow_source_replication_checkpoint:
+        return (
+            "Complete the explicitly source-replication-only objective for question "
+            f"{question.id!r} in the persistent research workspace. First read the "
+            "single initial_authoring_context artifact and inspect the supplied sources. "
+            "Run the immutable published source exactly once, inspect its raw stdout and "
+            "stderr, and use your own statistical judgment to write a durable Markdown "
+            "report covering source and environment identity, reproduced outputs, "
+            "comparison, interpretation, and caveats. Record unresolved gaps honestly, "
+            "then commit a source-replication checkpoint. You may continue into a full "
+            "theory checkpoint when useful, but do not fabricate theory, estimator, "
+            "simulation, formalization, or novelty fields. Runtime applies your exact "
+            "document bytes and validates identity and lineage; it does not interpret "
+            "the scientific result or promote it to proof evidence."
+        )
     return (
         "Author the initial TheoryDeveloper research workspace for the supplied "
         f"question {question.id!r} in mode {theory_prompt_mode!r}. First read the "
@@ -3226,8 +3305,13 @@ def _generate_initial_theory_artifact_workspace(
     formalization_authoring_required: bool,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
     research_sources: ResearchSourceSnapshot | None = None,
+    research_source_execution: ResearchSourceExecutionSpec | None = None,
     theory_workspace_root: Path | None = None,
 ) -> dict[str, Any]:
+    allow_source_checkpoint = source_replication_checkpoint_allowed(
+        question,
+        research_source_execution,
+    )
     initial_artifacts = _empty_theory_core_workspace(file_authority=True)
     read_only_artifacts = _initial_theory_workspace_read_only_artifacts(
         question=question,
@@ -3235,6 +3319,7 @@ def _generate_initial_theory_artifact_workspace(
         theory_prompt_mode=theory_prompt_mode,
         max_submissions=max_submissions,
         formalization_authoring_required=formalization_authoring_required,
+        allow_source_replication_checkpoint=allow_source_checkpoint,
     )
     authoring_binding_id = "initial_theory_authoring:" + stable_hash(
         [question.id, theory_prompt_mode, read_only_artifacts]
@@ -3318,6 +3403,7 @@ def _generate_initial_theory_artifact_workspace(
             formalization_authoring_required=(
                 formalization_authoring_required
             ),
+            allow_source_replication_checkpoint=allow_source_checkpoint,
         ),
         model=request_model,
         model_tier=model_tier,
@@ -3338,6 +3424,9 @@ def _generate_initial_theory_artifact_workspace(
         validate_candidate=validate_theory_core_packet,
         scratchpad=theory_scratchpad,
         research_sources=research_sources,
+        research_source_execution=research_source_execution,
+        allow_source_replication_checkpoint=allow_source_checkpoint,
+        task_intent=question.task_intent,
         workspace_dir=workspace_dir,
         require_document_authority=True,
         request_metadata={
@@ -3360,6 +3449,8 @@ def _generate_initial_theory_artifact_workspace(
     packet = deepcopy(dict(result.core_packet))
     workspace_evidence = deepcopy(dict(result.evidence))
     packet["llm_client_tool_loop"] = workspace_evidence
+    if packet.get("artifact_kind") == SOURCE_REPLICATION_CHECKPOINT_KIND:
+        return packet
     errors = validate_theory_core_packet(packet)
     changed = set(workspace_evidence.get("changed_artifact_names", []) or [])
     required_authored_artifacts = {
@@ -3417,6 +3508,7 @@ def _generate_theory_workspace_revision(
     formalization_authoring_required: bool,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
     research_sources: ResearchSourceSnapshot | None = None,
+    research_source_execution: ResearchSourceExecutionSpec | None = None,
     theory_workspace_root: Path | None = None,
 ) -> dict[str, Any]:
     raw_parent_payload = revision_inputs.get("base_core_payload", {})
@@ -3558,6 +3650,7 @@ def _generate_theory_workspace_revision(
         ),
         scratchpad=theory_scratchpad,
         research_sources=research_sources,
+        research_source_execution=research_source_execution,
         workspace_dir=workspace_dir,
         require_document_authority=True,
         request_metadata={

@@ -104,11 +104,20 @@ def test_doubleml_l1_freezes_exact_replication_without_conflating_l2() -> None:
     )
 
     assert candidate["level"] == "L1"
-    assert candidate["status"] == "proposed_pending_runtime_replication_lane"
+    assert candidate["status"] == (
+        "runtime_component_ready_pending_fresh_live_run"
+    )
     assert candidate["activation_evidence"]["fresh_live_runs"] == 0
     assert candidate["activation_evidence"][
         "runtime_source_replication_lane_available"
-    ] is False
+    ] is True
+    assert candidate["activation_evidence"][
+        "source_only_checkpoint_runtime_regression_passed"
+    ] is True
+    assert candidate["activation_evidence"]["mechanism_exact_source_runs"] == 1
+    assert candidate["activation_evidence"][
+        "mechanism_stdout_hash_matched_frozen_rerun"
+    ] is True
     assert candidate["task_intent"] == {
         "source_replication": "required",
         "theory": "optional",

@@ -141,12 +141,15 @@ def _compact_formalizer_grounding_observations(
 
 
 def _question_to_payload(question: OpenResearchQuestion) -> dict[str, Any]:
-    return {
+    payload = {
         "id": question.id,
         "title": question.title,
         "description": question.description,
         "tags": list(question.tags),
     }
+    if question.task_intent:
+        payload["task_intent"] = dict(question.task_intent)
+    return payload
 
 
 def _question_from_payload(payload: Mapping[str, Any]) -> OpenResearchQuestion:
@@ -155,6 +158,10 @@ def _question_from_payload(payload: Mapping[str, Any]) -> OpenResearchQuestion:
         title=str(payload.get("title", payload["id"])),
         description=str(payload["description"]),
         tags=tuple(str(row) for row in payload.get("tags", ()) or ()),
+        task_intent={
+            str(key): str(value)
+            for key, value in dict(payload.get("task_intent", {}) or {}).items()
+        },
     )
 
 

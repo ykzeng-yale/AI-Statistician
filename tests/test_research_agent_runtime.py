@@ -350,6 +350,192 @@ def test_model_reported_theory_gap_blocks_without_validation_or_repair_route() -
     )
 
 
+def test_runtime_promotes_only_hash_bound_source_replication_evidence() -> None:
+    body = {
+        "artifact_kind": "SourceReplicationManifest",
+        "artifact_id": "source_replication:q1",
+        "question_id": "q1",
+        "execution_status": "EXECUTED",
+        "source_snapshot_hash": "a" * 64,
+        "stdout_sha256": "b" * 64,
+        "raw_stdout": "author output\n",
+        "runtime_generated": True,
+        "model_authored": False,
+        "proof_evidence_status": (
+            "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    manifest = {**body, "manifest_hash": runtime_module.stable_hash(body)}
+
+    artifacts, refs = (
+        runtime_module._source_replication_artifacts_from_theory_workspace(
+            {"source_replication_manifests": [manifest]},
+            question_id="q1",
+        )
+    )
+
+    assert artifacts == {"source_replication:q1": manifest}
+    assert refs == [
+        {
+            "artifact_id": "source_replication:q1",
+            "manifest_hash": manifest["manifest_hash"],
+            "execution_status": "EXECUTED",
+            "source_snapshot_hash": "a" * 64,
+            "stdout_sha256": "b" * 64,
+            "proof_evidence_status": (
+                "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    ]
+    tampered = {**manifest, "raw_stdout": "changed\n"}
+    assert runtime_module._source_replication_artifacts_from_theory_workspace(
+        {"source_replication_manifests": [tampered]},
+        question_id="q1",
+    ) == ({}, [])
+
+
+def _source_replication_checkpoint_packet(
+    question: OpenResearchQuestion,
+) -> dict[str, object]:
+    source_body = {
+        "artifact_kind": "SourceReplicationManifest",
+        "artifact_id": f"source_replication:{question.id}",
+        "question_id": question.id,
+        "execution_status": "EXECUTED",
+        "source_snapshot_hash": "a" * 64,
+        "stdout_sha256": "b" * 64,
+        "raw_stdout": "published output\n",
+        "runtime_generated": True,
+        "model_authored": False,
+        "proof_evidence_status": (
+            "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    source = {**source_body, "manifest_hash": runtime_module.stable_hash(source_body)}
+    report = {
+        "relative_path": "replication/report.md",
+        "sha256": "c" * 64,
+        "n_bytes": 128,
+    }
+    checkpoint_body = {
+        "schema_version": 1,
+        "artifact_kind": "SourceReplicationCheckpoint",
+        "question_id": question.id,
+        "workspace_id": f"source-workspace:{question.id}",
+        "task_intent": dict(question.task_intent),
+        "source_replication_manifest_ref": {
+            "artifact_id": source["artifact_id"],
+            "manifest_hash": source["manifest_hash"],
+            "execution_status": "EXECUTED",
+            "stdout_sha256": "b" * 64,
+        },
+        "report_document": report,
+        "unresolved_gaps": [],
+        "readiness_rationale": "The immutable source run is recorded.",
+        "runtime_edited_source": False,
+        "runtime_edited_report": False,
+        "model_authored_report": True,
+        "proof_evidence_status": (
+            "SOURCE_REPLICATION_CHECKPOINT_NOT_PROOF_EVIDENCE"
+        ),
+        "kernel_verified": False,
+    }
+    checkpoint = {
+        **checkpoint_body,
+        "checkpoint_id": "source_replication_checkpoint:"
+        + runtime_module.stable_hash(checkpoint_body)[:20],
+    }
+    workspace = {
+        "schema_version": 1,
+        "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+        "artifact_id": f"source_replication_workspace:{question.id}",
+        "workspace_id": checkpoint["workspace_id"],
+        "question_id": question.id,
+        "disposition": "SOURCE_REPLICATION_CHECKPOINT_COMMITTED",
+        "checkpoint_committed": True,
+        "model_owned_source_report": True,
+        "model_owned_theory": False,
+        "runtime_edited_source": False,
+        "runtime_edited_theory": False,
+        "kernel_verified": False,
+        "submitted_core_packet_hash": runtime_module.stable_hash(checkpoint),
+        "changed_document_paths": [report["relative_path"]],
+        "theory_workspace_manifest": {"documents": [report]},
+        "source_replication_runs": 1,
+        "source_replication_manifests": [source],
+    }
+    return {**checkpoint, "llm_client_tool_loop": workspace}
+
+
+def test_source_only_checkpoint_ends_runtime_without_fixed_pipeline_handoff() -> None:
+    question = OpenResearchQuestion(
+        id="source-only-runtime",
+        title="Source-only runtime",
+        description="Run and report one immutable published source.",
+        task_intent={
+            "source_replication": "required",
+            "theory": "optional",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+            "unresolved_gaps": "required",
+        },
+    )
+    packet = _source_replication_checkpoint_packet(question)
+
+    class SourceOnlyTheoryDeveloper:
+        config = None
+        provider = None
+        research_source_execution = object()
+
+        def derive(self, *_args, **_kwargs):
+            return packet
+
+    subsystem = runtime_module.TheoryDeveloperRuntimeSubsystem(
+        theory_developer=SourceOnlyTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=10,
+        seed=17,
+    )
+    task = AgentTask(
+        task_id="theory:source-only-runtime",
+        owner_subsystem="TheoryDeveloper",
+        objective="Complete the source-only task.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {},
+        },
+    )
+
+    result = subsystem.run(
+        task,
+        BlackboardState(project_id="source-only-runtime"),
+    )
+
+    assert result.status == "ACCEPTED"
+    assert result.next_task is None
+    assert result.failure_classification == ""
+    assert any(
+        artifact.get("artifact_kind") == "SourceReplicationCheckpoint"
+        for artifact in result.produced_artifacts.values()
+    )
+    assert any(
+        artifact.get("artifact_kind") == "SourceReplicationManifest"
+        for artifact in result.produced_artifacts.values()
+    )
+    assert all(
+        artifact.get("artifact_kind")
+        not in {
+            "TheoryDerivationPacket",
+            "SimulationManifest",
+            "FormalizationManifest",
+        }
+        for artifact in result.produced_artifacts.values()
+    )
+    assert result.evidence_entries[0].status == (
+        "SOURCE_EXECUTION_RECORDED_REQUIRES_HIDDEN_EVALUATION"
+    )
+
+
 def test_architect_source_escalation_requires_independent_semantic_conflict() -> None:
     question = OpenResearchQuestion(
         id="reject-routine-architect-routing",

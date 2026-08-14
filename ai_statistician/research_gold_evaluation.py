@@ -180,6 +180,18 @@ def _evaluate_gold_task(
     empirical_evaluator = (
         empirical_evaluator if isinstance(empirical_evaluator, Mapping) else {}
     )
+    algorithm_evaluator = task.get("hidden_algorithm_evaluator", {})
+    algorithm_evaluator = (
+        algorithm_evaluator if isinstance(algorithm_evaluator, Mapping) else {}
+    )
+    source_replication_evaluator = task.get(
+        "hidden_source_replication_evaluator", {}
+    )
+    source_replication_evaluator = (
+        source_replication_evaluator
+        if isinstance(source_replication_evaluator, Mapping)
+        else {}
+    )
     base = {
         "task_id": task_id,
         "level": str(task["level"]),
@@ -195,11 +207,13 @@ def _evaluate_gold_task(
         "accepted_algorithm_handoff_id": "",
         "accepted_algorithm_handoff_hash": "",
         "required_estimator_id": str(
-            task["hidden_algorithm_evaluator"]["required_estimator_id"]
+            algorithm_evaluator.get("required_estimator_id", "") or ""
         ),
         "evaluated_source_hash": "",
         "hidden_evaluator_source_hash": str(
-            task["hidden_algorithm_evaluator"]["harness_sha256"]
+            algorithm_evaluator.get("harness_sha256", "")
+            or source_replication_evaluator.get("harness_sha256", "")
+            or ""
         ),
         "hidden_harness_execution_attempted": False,
         "hidden_harness_execution_passed": False,
@@ -243,6 +257,20 @@ def _evaluate_gold_task(
         "hidden_empirical_execution_passed": False,
         "hidden_empirical_checks_passed": False,
         "hidden_empirical_check_results": [],
+        "source_replication_manifest_id": "",
+        "source_replication_manifest_hash": "",
+        "hidden_source_replication_evaluation_configured": bool(
+            source_replication_evaluator
+        ),
+        "hidden_source_replication_evaluator_source_hash": str(
+            source_replication_evaluator.get("harness_sha256", "") or ""
+        ),
+        "hidden_source_replication_execution_attempted": False,
+        "hidden_source_replication_execution_passed": False,
+        "hidden_source_replication_checks_passed": False,
+        "hidden_source_replication_check_results": [],
+        "source_replication_checkpoint_valid": False,
+        "unresolved_gap_disclosure_present": False,
         "dimension_status": {},
         "task_passed": False,
         "failure_reasons": [],
@@ -286,6 +314,89 @@ def _evaluate_gold_task(
         return base
 
     artifacts = _runtime_artifacts(runtime_result)
+    hidden_source_replication_passed = False
+    source_replication_gap_disclosure_present = False
+    if source_replication_evaluator:
+        source_manifest_id, source_manifest, source_errors = (
+            _latest_source_replication_manifest(artifacts, question_id=task_id)
+        )
+        if source_errors:
+            base["failure_reasons"].extend(source_errors)
+        else:
+            base["source_replication_manifest_id"] = source_manifest_id
+            base["source_replication_manifest_hash"] = str(
+                source_manifest.get("manifest_hash", "") or ""
+            )
+            source_replication_gap_disclosure_present = (
+                _source_replication_checkpoint_gap_disclosure_present(
+                    artifacts,
+                    question_id=task_id,
+                    source_manifest=source_manifest,
+                    task_intent=task.get("task_intent", {}),
+                )
+            )
+            base["source_replication_checkpoint_valid"] = (
+                source_replication_gap_disclosure_present
+            )
+            base["unresolved_gap_disclosure_present"] = (
+                source_replication_gap_disclosure_present
+            )
+            source_harness_path = _project_path(
+                str(source_replication_evaluator["harness_path"]),
+                project_root=project_root,
+            )
+            source_execution = dict(
+                run_artifact_harness(
+                    sandbox_dir=sandbox_root / task_id / "source-replication",
+                    artifact_id=f"gold-source-replication-{task_id}",
+                    harness_code=source_harness_path.read_text(encoding="utf-8"),
+                    harness_dependencies=tuple(
+                        str(value)
+                        for value in source_replication_evaluator.get(
+                            "dependencies", []
+                        )
+                        or []
+                    ),
+                    candidate_artifact=source_manifest,
+                    seed=int(source_replication_evaluator.get("seed", 0) or 0),
+                    replicates=int(
+                        source_replication_evaluator.get("replicates", 1) or 1
+                    ),
+                    timeout_s=int(
+                        source_replication_evaluator.get("timeout_seconds", 60) or 60
+                    ),
+                )
+            )
+            source_summary = _hidden_execution_summary(
+                source_execution,
+                evaluator=source_replication_evaluator,
+            )
+            hidden_source_replication_passed = source_summary["passed"]
+            base.update(
+                {
+                    "hidden_harness_execution_attempted": source_summary[
+                        "execution_attempted"
+                    ],
+                    "hidden_harness_execution_passed": source_summary[
+                        "execution_passed"
+                    ],
+                    "hidden_checks_passed": source_summary["checks_passed"],
+                    "hidden_check_results": source_summary["check_results"],
+                    "hidden_source_replication_execution_attempted": source_summary[
+                        "execution_attempted"
+                    ],
+                    "hidden_source_replication_execution_passed": source_summary[
+                        "execution_passed"
+                    ],
+                    "hidden_source_replication_checks_passed": source_summary[
+                        "checks_passed"
+                    ],
+                    "hidden_source_replication_check_results": source_summary[
+                        "check_results"
+                    ],
+                }
+            )
+            base["failure_reasons"].extend(source_summary["errors"])
     hidden_theory_passed = False
     if theory_evaluator or theory_semantic_evaluator:
         theory_id, theory_packet, theory_errors = _latest_accepted_theory_packet(
@@ -477,6 +588,53 @@ def _evaluate_gold_task(
             )
             base["hidden_theory_combined_passed"] = hidden_theory_passed
 
+    if not algorithm_evaluator:
+        dimensions = _dimension_status(
+            task,
+            runtime_requirements=runtime_requirements,
+            runtime_research_eval_complete=(
+                research_summary_row.get("research_eval_complete") is True
+            ),
+            hidden_theory_passed=hidden_theory_passed,
+            hidden_algorithm_passed=True,
+            hidden_empirical_passed=not empirical_evaluator,
+            runtime_result_observed=True,
+            hidden_source_replication_passed=hidden_source_replication_passed,
+            source_replication_gap_disclosure_present=(
+                source_replication_gap_disclosure_present
+            ),
+        )
+        required_dimensions_passed = all(
+            row["status"] == "passed"
+            for row in dimensions.values()
+            if row["requirement"] == "required"
+        )
+        base["dimension_status"] = dimensions
+        if source_replication_evaluator and not hidden_source_replication_passed:
+            base["failure_reasons"].append(
+                "hidden source-replication acceptance checks did not all pass"
+            )
+        dimension_failures = [
+            dimension
+            for dimension, row in dimensions.items()
+            if row["requirement"] == "required" and row["status"] != "passed"
+        ]
+        base["failure_reasons"].extend(
+            f"required evidence dimension did not pass: {dimension}"
+            for dimension in dimension_failures
+        )
+        base["failure_reasons"] = list(dict.fromkeys(base["failure_reasons"]))
+        full_task = base["scoring_scope"] == "full_task"
+        base["task_passed"] = bool(
+            required_dimensions_passed
+            and (not source_replication_evaluator or hidden_source_replication_passed)
+            and (
+                not full_task
+                or research_summary_row.get("research_eval_complete") is True
+            )
+        )
+        return base
+
     accepted_id, accepted_handoff, errors = _latest_accepted_algorithm_handoff(
         runtime_result,
         artifacts,
@@ -493,12 +651,15 @@ def _evaluate_gold_task(
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
             runtime_result_observed=True,
+            source_replication_gap_disclosure_present=(
+                source_replication_gap_disclosure_present
+            ),
         )
         return base
     base["accepted_algorithm_handoff_id"] = accepted_id
     base["accepted_algorithm_handoff_hash"] = stable_hash(accepted_handoff)
 
-    evaluator = task["hidden_algorithm_evaluator"]
+    evaluator = algorithm_evaluator
     estimator_id = str(evaluator["required_estimator_id"])
     source_rows = [
         row
@@ -521,6 +682,9 @@ def _evaluate_gold_task(
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
             runtime_result_observed=True,
+            source_replication_gap_disclosure_present=(
+                source_replication_gap_disclosure_present
+            ),
         )
         return base
     source = source_rows[0]
@@ -540,6 +704,9 @@ def _evaluate_gold_task(
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
             runtime_result_observed=True,
+            source_replication_gap_disclosure_present=(
+                source_replication_gap_disclosure_present
+            ),
         )
         return base
     base["evaluated_source_hash"] = source_hash
@@ -665,6 +832,10 @@ def _evaluate_gold_task(
         hidden_algorithm_passed=hidden_algorithm_passed,
         hidden_empirical_passed=hidden_empirical_passed,
         runtime_result_observed=True,
+        hidden_source_replication_passed=hidden_source_replication_passed,
+        source_replication_gap_disclosure_present=(
+            source_replication_gap_disclosure_present
+        ),
     )
     required_dimensions_passed = all(
         row["status"] == "passed"
@@ -711,11 +882,13 @@ def _dimension_status(
     hidden_algorithm_passed: bool,
     hidden_empirical_passed: bool,
     runtime_result_observed: bool,
+    hidden_source_replication_passed: bool = False,
+    source_replication_gap_disclosure_present: bool = False,
 ) -> dict[str, dict[str, Any]]:
     intent = task.get("task_intent", {})
     intent = intent if isinstance(intent, Mapping) else {}
     observed = {
-        "source_replication": False,
+        "source_replication": hidden_source_replication_passed,
         "theory": bool(
             runtime_requirements.get("serious_theory_completed") is True
             and runtime_requirements.get(
@@ -743,11 +916,14 @@ def _dimension_status(
         "formal": False,
         "novelty": False,
         "unresolved_gaps": bool(
-            runtime_result_observed
-            and runtime_requirements.get(
-                "critic_unresolved_gap_disclosure_present"
+            source_replication_gap_disclosure_present
+            or (
+                runtime_result_observed
+                and runtime_requirements.get(
+                    "critic_unresolved_gap_disclosure_present"
+                )
+                is True
             )
-            is True
         ),
     }
     rows: dict[str, dict[str, Any]] = {}
@@ -788,6 +964,10 @@ def _dimension_status(
             "status": status,
             "gold_validated": bool(
                 (dimension == "theory" and hidden_theory_passed)
+                or (
+                    dimension == "source_replication"
+                    and hidden_source_replication_passed
+                )
                 or (dimension == "scientific_code" and hidden_algorithm_passed)
                 or (dimension == "empirical" and hidden_empirical_passed)
             ),
@@ -803,12 +983,29 @@ def _dimension_status(
                     if hidden_empirical_passed
                     else "runtime_confirmatory_protocol"
                 ),
-                "unresolved_gaps": "runtime_critic_disclosure",
+                "source_replication": (
+                    "evaluator_only_hidden_source_replication_harness"
+                ),
+                "unresolved_gaps": (
+                    "source_replication_checkpoint"
+                    if source_replication_gap_disclosure_present
+                    else "runtime_critic_disclosure"
+                ),
             }.get(dimension, "not_configured"),
         }
+    overall_requirement = (
+        "required"
+        if str(task.get("scoring_scope", "component") or "component")
+        == "full_task"
+        else "not_applicable"
+    )
     rows["overall_runtime_research_loop"] = {
-        "requirement": "required",
-        "status": "passed" if runtime_research_eval_complete else "failed",
+        "requirement": overall_requirement,
+        "status": (
+            "not_applicable"
+            if overall_requirement == "not_applicable"
+            else ("passed" if runtime_research_eval_complete else "failed")
+        ),
         "gold_validated": False,
         "evidence_authority": "runtime_completion_contract",
     }
@@ -951,9 +1148,14 @@ def _full_task_gold_configured(task: Mapping[str, Any]) -> bool:
         and task.get("hidden_empirical_evaluator")
     ):
         return False
+    if str(intent.get("source_replication", "not_applicable")) == "required" and not (
+        isinstance(task.get("hidden_source_replication_evaluator"), Mapping)
+        and task.get("hidden_source_replication_evaluator")
+    ):
+        return False
     return not any(
         str(intent.get(dimension, "not_applicable")) == "required"
-        for dimension in ("source_replication", "formal", "novelty")
+        for dimension in ("formal", "novelty")
     )
 
 
@@ -1114,6 +1316,126 @@ def _latest_accepted_theory_packet(
             return "", {}, ["accepted theory preflight lineage is invalid"]
         return theory_id, theory, []
     return "", {}, ["no independently accepted serious theory packet was observed"]
+
+
+def _latest_source_replication_manifest(
+    artifacts: Mapping[str, Any],
+    *,
+    question_id: str,
+) -> tuple[str, Mapping[str, Any], list[str]]:
+    for artifact_id, artifact in reversed(list(artifacts.items())):
+        if not (
+            isinstance(artifact, Mapping)
+            and artifact.get("artifact_kind") == "SourceReplicationManifest"
+            and artifact.get("question_id") == question_id
+        ):
+            continue
+        manifest = dict(artifact)
+        declared_hash = str(manifest.pop("manifest_hash", "") or "")
+        if not (
+            str(artifact.get("artifact_id", "") or "") == str(artifact_id)
+            and artifact.get("runtime_generated") is True
+            and artifact.get("model_authored") is False
+            and artifact.get("command_owned_by_model") is False
+            and artifact.get("runtime_edited_source") is False
+            and stable_hash(manifest) == declared_hash
+        ):
+            return "", {}, ["source replication manifest lineage is invalid"]
+        return str(artifact_id), artifact, []
+    return "", {}, ["no runtime-generated source replication manifest was observed"]
+
+
+def _source_replication_checkpoint_gap_disclosure_present(
+    artifacts: Mapping[str, Any],
+    *,
+    question_id: str,
+    source_manifest: Mapping[str, Any],
+    task_intent: Any,
+) -> bool:
+    """Verify one model-authored report/gap checkpoint bound to the source run."""
+
+    source_artifact_id = str(source_manifest.get("artifact_id", "") or "")
+    source_manifest_hash = str(source_manifest.get("manifest_hash", "") or "")
+    for artifact_id, artifact in reversed(list(artifacts.items())):
+        if not (
+            isinstance(artifact, Mapping)
+            and artifact.get("artifact_kind") == "SourceReplicationCheckpoint"
+            and artifact.get("question_id") == question_id
+            and artifact.get("checkpoint_id") == artifact_id
+        ):
+            continue
+        checkpoint = deepcopy(dict(artifact))
+        workspace_evidence_id = str(
+            checkpoint.pop("workspace_evidence_id", "") or ""
+        )
+        workspace_evidence_hash = str(
+            checkpoint.pop("workspace_evidence_hash", "") or ""
+        )
+        for runtime_field in (
+            "runtime_completion_status",
+            "boundary",
+        ):
+            checkpoint.pop(runtime_field, None)
+        submitted_checkpoint_hash = stable_hash(checkpoint)
+        checkpoint_body = deepcopy(checkpoint)
+        checkpoint_id = str(checkpoint_body.pop("checkpoint_id", "") or "")
+        source_ref = checkpoint_body.get("source_replication_manifest_ref", {})
+        unresolved_gaps = checkpoint_body.get("unresolved_gaps")
+        report = checkpoint_body.get("report_document", {})
+        workspace_evidence = artifacts.get(workspace_evidence_id, {})
+        if not (
+            checkpoint_id
+            == "source_replication_checkpoint:"
+            + stable_hash(checkpoint_body)[:20]
+            and checkpoint_body.get("task_intent")
+            == (dict(task_intent) if isinstance(task_intent, Mapping) else {})
+            and isinstance(source_ref, Mapping)
+            and source_ref.get("artifact_id") == source_artifact_id
+            and source_ref.get("manifest_hash") == source_manifest_hash
+            and source_ref.get("execution_status")
+            == source_manifest.get("execution_status")
+            and source_ref.get("stdout_sha256")
+            == source_manifest.get("stdout_sha256")
+            and isinstance(unresolved_gaps, list)
+            and all(
+                isinstance(value, str) and value.strip()
+                for value in unresolved_gaps
+            )
+            and isinstance(report, Mapping)
+            and str(report.get("relative_path", "") or "")
+            and checkpoint_body.get("model_authored_report") is True
+            and checkpoint_body.get("runtime_edited_report") is False
+            and checkpoint_body.get("runtime_edited_source") is False
+            and isinstance(workspace_evidence, Mapping)
+            and stable_hash(workspace_evidence) == workspace_evidence_hash
+            and workspace_evidence.get("artifact_kind")
+            == "TheoryDeveloperWorkspaceEvidence"
+            and workspace_evidence.get("artifact_id") == workspace_evidence_id
+            and workspace_evidence.get("question_id") == question_id
+            and workspace_evidence.get("disposition")
+            == "SOURCE_REPLICATION_CHECKPOINT_COMMITTED"
+            and workspace_evidence.get("checkpoint_committed") is True
+            and workspace_evidence.get("submitted_core_packet_hash")
+            == submitted_checkpoint_hash
+            and workspace_evidence.get("model_owned_source_report") is True
+            and workspace_evidence.get("model_owned_theory") is False
+            and workspace_evidence.get("runtime_edited_source") is False
+            and workspace_evidence.get("runtime_edited_theory") is False
+            and report.get("relative_path")
+            in (workspace_evidence.get("changed_document_paths", []) or [])
+        ):
+            return False
+        try:
+            document_rows = load_theory_workspace_document_rows(workspace_evidence)
+        except (OSError, UnicodeError, ValueError):
+            return False
+        return any(
+            row.get("path") == report.get("relative_path")
+            and row.get("sha256") == report.get("sha256")
+            and str(row.get("content", "") or "").strip()
+            for row in document_rows
+        )
+    return False
 
 
 def _latest_accepted_algorithm_handoff(
@@ -1361,12 +1683,19 @@ def _validate_benchmark_manifest(
         ):
             errors.append(f"active task {index} task_intent has an invalid requirement")
         algorithm_evaluator = task.get("hidden_algorithm_evaluator", {})
-        if not isinstance(algorithm_evaluator, Mapping) or not algorithm_evaluator:
+        algorithm_required = str(
+            intent.get("scientific_code", "not_applicable")
+            if isinstance(intent, Mapping)
+            else "not_applicable"
+        ) == "required"
+        if algorithm_evaluator is None:
+            algorithm_evaluator = {}
+        if not isinstance(algorithm_evaluator, Mapping):
             errors.append(
                 f"active task {index} hidden_algorithm_evaluator must be an object"
             )
             algorithm_evaluator = {}
-        else:
+        elif algorithm_evaluator:
             errors.extend(
                 _hidden_evaluator_validation_errors(
                     algorithm_evaluator,
@@ -1376,9 +1705,44 @@ def _validate_benchmark_manifest(
                     require_estimator=True,
                 )
             )
+        elif algorithm_required:
+            errors.append(
+                f"active task {index} hidden_algorithm_evaluator must be an object"
+            )
         algorithm_estimator_id = str(
             algorithm_evaluator.get("required_estimator_id", "") or ""
         )
+        source_replication_evaluator = task.get(
+            "hidden_source_replication_evaluator"
+        )
+        source_replication_required = str(
+            intent.get("source_replication", "not_applicable")
+            if isinstance(intent, Mapping)
+            else "not_applicable"
+        ) == "required"
+        if source_replication_evaluator is not None:
+            if not (
+                isinstance(source_replication_evaluator, Mapping)
+                and source_replication_evaluator
+            ):
+                errors.append(
+                    f"active task {index} hidden_source_replication_evaluator "
+                    "must be a nonempty object"
+                )
+            else:
+                errors.extend(
+                    _hidden_evaluator_validation_errors(
+                        source_replication_evaluator,
+                        task_index=index,
+                        label="source replication",
+                        project_root=project_root,
+                        require_estimator=False,
+                    )
+                )
+        elif source_replication_required:
+            errors.append(
+                f"active task {index} hidden_source_replication_evaluator is missing"
+            )
         for field, label, require_estimator in (
             ("hidden_theory_evaluator", "theory", False),
             ("hidden_empirical_evaluator", "empirical", True),
