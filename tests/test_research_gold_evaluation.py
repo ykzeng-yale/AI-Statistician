@@ -1135,6 +1135,97 @@ def test_gold_evaluator_rejects_tampered_visible_question_hash(
         )
 
 
+def test_gold_manifest_hash_binds_explicit_model_visible_task_intent(
+    tmp_path: Path,
+) -> None:
+    task_intent = {
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+    }
+    visible_question = {**VISIBLE_QUESTION, "task_intent": task_intent}
+    visible_path = tmp_path / "visible-questions.json"
+    visible_path.write_text(
+        json.dumps({"questions": [visible_question]}),
+        encoding="utf-8",
+    )
+    manifest = json.loads(GOLD_MANIFEST.read_text())
+    manifest["model_visible_questions_path"] = str(visible_path)
+    manifest["model_visible_questions_sha256"] = _fixture_sha256(visible_path)
+    task = manifest["active_tasks"][0]
+    task["task_intent"] = dict(task_intent)
+    task["visible_question_hash"] = stable_hash(
+        {
+            key: visible_question[key]
+            for key in ("id", "title", "description", "tags", "task_intent")
+        }
+    )
+    path = tmp_path / "task-intent-bound-gold.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    descriptor = validate_research_gold_benchmark_manifest(path)
+    assert descriptor["active_task_ids"] == [QUESTION_ID]
+
+    manifest["active_tasks"][0]["task_intent"]["formal"] = "optional"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(
+        ValueError,
+        match="task_intent does not match the model-visible question",
+    ):
+        validate_research_gold_benchmark_manifest(path)
+
+
+def test_gold_evaluator_rejects_runtime_task_intent_drift(
+    tmp_path: Path,
+) -> None:
+    task_intent = {
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+    }
+    visible_question = {**VISIBLE_QUESTION, "task_intent": task_intent}
+    visible_path = tmp_path / "visible-questions.json"
+    visible_path.write_text(
+        json.dumps({"questions": [visible_question]}),
+        encoding="utf-8",
+    )
+    manifest = json.loads(GOLD_MANIFEST.read_text())
+    manifest["model_visible_questions_path"] = str(visible_path)
+    manifest["model_visible_questions_sha256"] = _fixture_sha256(visible_path)
+    manifest["active_tasks"][0]["task_intent"] = dict(task_intent)
+    manifest["active_tasks"][0]["visible_question_hash"] = stable_hash(
+        {
+            key: visible_question[key]
+            for key in ("id", "title", "description", "tags", "task_intent")
+        }
+    )
+    manifest_path = tmp_path / "task-intent-bound-gold.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    runtime_result = _runtime_result()
+    runtime_result["blackboard"]["artifacts"][
+        f"runtime_question_metadata:{QUESTION_ID}"
+    ]["question"] = {
+        **visible_question,
+        "task_intent": {**task_intent, "formal": "optional"},
+    }
+
+    result = evaluate_research_gold_benchmark(
+        [runtime_result],
+        research_evaluation_summary=_research_summary(),
+        benchmark_manifest_path=manifest_path,
+        out_dir=tmp_path / "out",
+        run_harness=_passing_harness,
+    )
+
+    task = result["tasks"][0]
+    assert task["task_passed"] is False
+    assert task["failure_reasons"] == [
+        "runtime-visible question hash does not match the frozen gold task"
+    ]
+
+
 def test_gold_evaluator_does_not_rescore_a_run_from_an_older_question(
     tmp_path: Path,
 ) -> None:

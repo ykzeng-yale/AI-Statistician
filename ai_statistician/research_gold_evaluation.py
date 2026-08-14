@@ -30,6 +30,18 @@ GoldArtifactHarnessRunner = Callable[..., Mapping[str, Any]]
 GoldTheorySemanticJudgeRunner = Callable[..., Mapping[str, Any]]
 
 
+def _visible_question_hash_payload(
+    question: Mapping[str, Any],
+) -> dict[str, Any]:
+    payload = {
+        key: question.get(key)
+        for key in ("id", "title", "description", "tags")
+    }
+    if "task_intent" in question:
+        payload["task_intent"] = question.get("task_intent")
+    return payload
+
+
 def validate_research_gold_benchmark_manifest(path: Path) -> dict[str, Any]:
     """Validate evaluator authority without exposing its payload to agents."""
 
@@ -318,10 +330,7 @@ def _evaluate_gold_task(
 
     runtime_question = _runtime_result_question(runtime_result)
     runtime_visible_question_hash = stable_hash(
-        {
-            key: runtime_question.get(key)
-            for key in ("id", "title", "description", "tags")
-        }
+        _visible_question_hash_payload(runtime_question)
     )
     base["runtime_visible_question_hash"] = runtime_visible_question_hash
     if runtime_visible_question_hash != str(task["visible_question_hash"]):
@@ -1783,10 +1792,7 @@ def _validate_benchmark_manifest(
                 f"active task {index} scoring_scope must be component or full_task"
             )
         visible_question = visible_questions.get(task_id, {})
-        visible_runtime_payload = {
-            key: visible_question.get(key)
-            for key in ("id", "title", "description", "tags")
-        }
+        visible_runtime_payload = _visible_question_hash_payload(visible_question)
         if not visible_question:
             errors.append(f"active task {index} has no model-visible question")
         elif stable_hash(visible_runtime_payload) != str(
@@ -1801,6 +1807,18 @@ def _validate_benchmark_manifest(
             for value in intent.values()
         ):
             errors.append(f"active task {index} task_intent has an invalid requirement")
+        visible_intent = visible_question.get("task_intent")
+        if visible_intent is not None and not isinstance(visible_intent, Mapping):
+            errors.append(
+                f"active task {index} model-visible task_intent must be an object"
+            )
+        elif isinstance(visible_intent, Mapping) and dict(visible_intent) != dict(
+            intent if isinstance(intent, Mapping) else {}
+        ):
+            errors.append(
+                f"active task {index} task_intent does not match the "
+                "model-visible question"
+            )
         algorithm_evaluator = task.get("hidden_algorithm_evaluator", {})
         algorithm_required = str(
             intent.get("scientific_code", "not_applicable")

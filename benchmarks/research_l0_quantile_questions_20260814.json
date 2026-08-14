@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "sample_quantile_clt_known_result",
+      "title": "Sample quantile central limit theorem and Laplace median",
+      "description": "Focused known-result theory evaluation based on R. R. Bahadur, A Note on Quantiles in Large Samples, Annals of Mathematical Statistics 37(3), 1966, pages 577-580, DOI 10.1214/aoms/1177699450. Let X_1,...,X_n be i.i.d. with distribution function F, let p be in (0,1), define q_p = inf{x : F(x) >= p}, and define the empirical quantile q_hat_{p,n} = inf{x : F_n(x) >= p}. State regularity conditions that make q_p locally unique and F locally differentiable with a density f continuous and strictly positive at q_p. In an authoritative Markdown/LaTeX theory workspace, derive rather than merely quote the local inversion or Bahadur representation and the limit sqrt(n)(q_hat_{p,n}-q_p) -> N(0, p(1-p)/f(q_p)^2). Make the sign and root-n normalization auditable by connecting the empirical-CDF fluctuation at q_p to the quantile fluctuation, and identify any empirical-process remainder that is used but not proved. Then specialize to the median p=1/2 for a Laplace(0,1) distribution with density f(x)=(1/2)exp(-|x|): derive the root-n asymptotic variance and distinguish it from the order-1/n variance of the unscaled sample median. Discuss what can fail for a nonunique quantile, an atom, or zero density at q_p, and state any remaining proof or scope gaps honestly. This L0 task evaluates mathematical derivation and independent review only. Source replication, Python/R implementation, simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "quantile asymptotics",
+        "sample median",
+        "Bahadur representation",
+        "known result",
+        "theory only",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "A Note on Quantiles in Large Samples",
+        "author": "R. R. Bahadur",
+        "journal": "Annals of Mathematical Statistics",
+        "year": 1966,
+        "volume": 37,
+        "issue": 3,
+        "pages": "577-580",
+        "doi": "10.1214/aoms/1177699450",
+        "url": "https://doi.org/10.1214/aoms/1177699450"
+      }
+    }
+  ]
+}
