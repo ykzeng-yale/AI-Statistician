@@ -1,9 +1,9 @@
 {
-  "schema_version": 44,
-  "updated_at": "2026-08-13",
+  "schema_version": 45,
+  "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "6b91c788",
+  "validated_code_head": "66a4f359",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -64,7 +64,8 @@
       "7302696b",
       "af663b3f",
       "b134c037",
-      "6b91c788"
+      "6b91c788",
+      "66a4f359"
     ],
     "changes": [
       "Theory workspace state is separated from retained transcript history, so tool turns do not recursively grow the mathematical artifact.",
@@ -102,11 +103,12 @@
       "The metric-authoring ABI now states that all and any have no quorum fields, while only at_least_count and at_least_fraction may carry their matching quorum parameter; v430 authored and independently accepted both task portfolios without a structured-output retry.",
       "Theory preflight source search now round-robins theory, retrieval-memory, and formal-library pools. The v430 Sequential preflight used all three channels on each of three model-selected searches and accepted the initial theory without a runtime-authored premise.",
       "Formalizer cannot promote a current model-authored source that still fails statement-level Lean elaboration into a foundation gap. The rejected gap call returns to the same model for full-source revision; no Lean grammar rule or source patch is applied.",
+      "Lean now reports whether the exact source failed elaboration, the requested declaration elaborated with an untrusted proof, or the declaration passed its axiom audit. The same Formalizer receives that state across tool turns and checkpoints; temporary admitted bodies and Lean #check/#print commands are diagnostic source only and remain ineligible for semantic review or promotion.",
       "No task answer, statistical threshold, Lean grammar rule, tactic rule, repair worker, or post-runtime scheduler was added."
     ],
     "verification": {
-      "ai_statistician_pytest": "629 passed in 94.16s",
-      "focused_formalizer_runtime_tests": "104 passed in 0.92s; the Lean candidate workspace file passed 37/37",
+      "ai_statistician_pytest": "631 passed in 94.64s",
+      "focused_formalizer_runtime_tests": "110 passed in 0.95s; the Lean candidate workspace and kernel-promotion files passed 43/43 before the final full-suite run",
       "git_diff_check": "passed",
       "python_compileall": "passed",
       "v430_integrated_audit": "9/16, ready=false, audit integrity all_ok=true; exact Haiku only, Survival MAX_ITERATIONS_REACHED and Sequential FORMAL_REQUIRED_BLOCKED, 54 runtime traces, 13 Architect traces, 72 tool calls, 115 observations, five generated-code executions, two generated-simulation executions, one passed Simulation, one Formalizer workspace, and exact theorem closure 0/2",
@@ -114,7 +116,8 @@
       "v430_preflight_and_metric_evidence": "Both initial theories passed source-grounded preflight. Both metric-authoring packets and independent semantic reviews passed with structured_output_retry_attempts=0 and semantic_review_revision_count=0. Sequential preflight searches interleaved theory, retrieval_memory, and formal_library hits under the fixed three-search budget.",
       "v430_sequential_scientific_evidence": "The initial accepted estimator failed under its real Simulation consumer. Exact provenance routed the raw observation directly to AlgorithmEngineer; revised estimator source passed independent review; the exact prior Simulation source was restored and rerun against the new accepted dependency before the same SimulationEvaluator iterated to a passing source. This confirms continuation integrity, not theorem proof.",
       "v430_false_formal_gap": "Sequential Formalizer used 22 Haiku tool turns, eight formal-environment searches, ten model-authored source updates, ten local Lean checks, one declaration inspection, and one Lean-state inspection. No source elaborated. The final claim that an E-process foundation primitive was missing was unsupported because the latest error was still a model-authored declaration type mismatch. Commit 6b91c788 rejects that promotion in regression; v430 itself remains an invalid formal-gap classification and has zero kernel evidence.",
-      "v430_efficiency_diagnosis": "Survival spent all 40 outer iterations and stopped with a content-addressed pending Architect continuation after three theory lineages; required semantic-review and handoff nodes count against the same outer budget as model research decisions. Sequential completed the scientific path in 12 outer steps but required eight Simulation source submissions after exact consumer replay and then 22 Formalizer tool turns. Do not increase budgets; reduce cold starts and distinguish mechanical evidence transitions from research progress.",
+      "post_v430_lean_development_state_replay": "A real local-Lean replay of the final v430 Sequential source reports SOURCE_NOT_ELABORATED. A historical source whose declaration elaborates but depends on sorryAx reports DECLARATION_ELABORATED_PROOF_UNTRUSTED, candidate_identity_lean_verified=false, and remains non-proof. This validates commit 66a4f359's feedback classification only; it does not improve v430 closure.",
+      "v430_efficiency_diagnosis": "Survival spent all 40 outer iterations and stopped with a content-addressed pending Architect continuation after three theory lineages. Trace review shows that the apparent acceptance transitions contain independent model reviews and all 13 generated-code semantic-review nodes are real Haiku invocations bound to distinct source-parent lineages; treating them as free mechanical steps would silently enlarge the model-call budget. Sequential completed the scientific path in 12 outer steps but required repeated source execution and 22 Formalizer tool turns. Do not increase budgets or exempt reviews; reduce source churn and cold starts only through measured workspace ablations.",
       "v428_integrated_audit": "5/16, ready=false; exact Haiku only, both development tasks BLOCKED, 31 runtime traces, 11 Architect traces, 22 tool calls, 53 observations, two live generated-code executions, one live generated-simulation execution, zero Formalizer workspaces, and exact theorem closure 0/2",
       "v428_survival_diagnosis": "The initial theory, Algorithm, independent code review, metric protocol, generated Simulation, and independent simulation-source review all executed. The first frozen portfolio failed Greenwood calibration at 0.0589 against <0.05. Architect routed the observed outcome to TheoryDeveloper, but the revised lineage authored a different requirement set that explicitly relaxed Greenwood to <0.10 using the observed diagnostic. The second lineage failed six metrics and the final TheoryDeveloper workspace exhausted its own tool loop. This exposed a post-result gate-freezing bug; it did not create statistical acceptance.",
       "v428_sequential_diagnosis": "Initial and two revised TheoryDeveloper artifacts all received exact source-grounded preflight findings. The model added normalization and numerical integration details but continued to claim only approximate martingale preservation without a rigorous discretization guarantee, so fresh review closed none of the three findings and the global theory budget correctly failed closed before coding or simulation.",
@@ -142,7 +145,7 @@
   "latest_authoritative_integrated_run": {
     "id": "v430",
     "path": "runs/main_worker_cross_family_development_20260813_v430_balanced_preflight_rag_metric_aci_exact_haiku",
-    "run_code_head": "b134c037; the v430-diagnosed formal-gap grounding fix is in validated code commit 6b91c788",
+    "run_code_head": "b134c037; the v430-diagnosed gap-grounding and Lean development-state fixes are in validated commits 6b91c788 and 66a4f359",
     "model": "claude-haiku-4-5-20251001 for every observed live LLM call",
     "wall_clock_interval": "2026-08-14T02:35:27Z through 2026-08-14T03:24:46Z",
     "status_counts": {
@@ -168,10 +171,10 @@
     "diagnosis": {
       "right_censored_survival_km": "The initial theory, preflight, Algorithm, metric protocol, Simulation source, independent reviews, confirmatory outcomes, and model-routed revisions all ran with frozen gates. The task used 40 outer iterations across three theory lineages and ended with a content-addressed pending Architect continuation before Formalizer. This is incomplete work, not a subsystem crash or theorem evidence.",
       "sequential_anytime_bernoulli": "The initial theory passed balanced source-grounded preflight. Algorithm and Simulation both iterated from raw consumer observations and the final Simulation passed independent review. Formalizer then searched the active StatInference/Mathlib environment and submitted ten changed Lean sources, but none elaborated; the final model-reported foundation gap was therefore not grounded.",
-      "formalizer_capacity": "v430 provides the strongest recent honest traversal of the model-owned Lean workspace: live task-bound retrieval, declaration inspection, local Lean, LSP/MCP state feedback, and ten full-source revisions. It provides no compiled target, independent target-semantic acceptance, kernel promotion, or theorem closure. Commit 6b91c788 prevents this class of unelaborated source from being mislabeled as a foundation gap, but that correction has regression evidence only.",
-      "efficiency": "The 49-minute panel shows two distinct costs: Survival outer evidence transitions exhausted the 40-step global budget, while Sequential scientific and Lean workspaces performed many source executions inside only 14 outer steps. The next optimization should preserve persistent source context and account for mechanical evidence nodes separately; budget inflation would hide rather than solve the issue."
+      "formalizer_capacity": "v430 provides the strongest recent honest traversal of the model-owned Lean workspace: live task-bound retrieval, declaration inspection, local Lean, LSP/MCP state feedback, and ten full-source revisions. It provides no compiled target, independent target-semantic acceptance, kernel promotion, or theorem closure. Commit 6b91c788 prevents this class of unelaborated source from being mislabeled as a foundation gap; commit 66a4f359 makes Lean's declaration-elaboration versus untrusted-proof state explicit to the same model. Both corrections have regression and local replay evidence only.",
+      "efficiency": "The 49-minute panel shows two distinct costs: Survival exhausted the 40-step hard outer budget after real cross-workspace model decisions and independent reviews, while Sequential scientific and Lean workspaces performed many source executions inside only 14 outer steps. Independent reviews are not mechanical no-cost transitions. The next optimization must reduce redundant source attempts or cold starts under the unchanged budget, demonstrated by an ablation rather than a new scheduler or free-step class."
     },
-    "boundary": "v430 is the latest immutable integrated run. It validates balanced preflight retrieval, unambiguous metric authoring, exact scientific consumer replay, and same-model Python/Lean iteration. It does not validate its final structural-gap claim and proves no theorem. Commit 6b91c788 has regression evidence only; exact development closure remains 0/2."
+    "boundary": "v430 is the latest immutable integrated run. It validates balanced preflight retrieval, unambiguous metric authoring, exact scientific consumer replay, and same-model Python/Lean iteration. It does not validate its final structural-gap claim and proves no theorem. Commits 6b91c788 and 66a4f359 have regression/local-replay evidence only; exact development closure remains 0/2."
   },
   "best_recent_integrated_formal_traversal": {
     "id": "v430",
@@ -183,7 +186,7 @@
     "formalizer_formal_rag_calls": 8,
     "kernel_verified_subclaims": 0,
     "exact_source_theorem_closure": "0/2",
-    "boundary": "v430 is the strongest recent end-to-end traversal by audited capability coverage, but its final gap report promoted an ordinary model-authored elaboration error into an unsupported foundation claim. The traversal demonstrates the coding-agent feedback surface; it does not prove or even compile the requested theorem."
+    "boundary": "v430 is the strongest recent end-to-end traversal by audited capability coverage, but its final gap report promoted an ordinary model-authored elaboration error into an unsupported foundation claim. Current code now distinguishes source elaboration, declaration elaboration with an untrusted proof, and axiom-clean proof completion using Lean's own results; v430 itself still did not compile or prove the requested theorem."
   },
   "current_design_assessment": {
     "correct_to_keep": [
@@ -224,12 +227,13 @@
       "post-result TheoryDeveloper revisions silently replacing an already observed confirmatory requirement set instead of rebinding its exact frozen gate semantics",
       "ambiguous all/any metric aggregation instructions causing the model to attach quorum fields that only count/fraction aggregations can consume",
       "source-grounded preflight ranking allowing one source channel to monopolize all bounded hits instead of exposing theory, retrieval-memory, and formal-library evidence together",
-      "Formalizer accepting a model-authored source elaboration error as evidence that the active Lean foundation lacks a required primitive"
+      "Formalizer accepting a model-authored source elaboration error as evidence that the active Lean foundation lacks a required primitive",
+      "Formalizer receiving only a binary final-proof check instead of Lean's distinct declaration-elaboration and axiom-audit development states"
     ],
     "remaining_structural_problems": [
       "development exact source-theorem closure remains 0/2, so held-out tasks remain sealed",
-      "v430 Survival reached real confirmatory feedback but mandatory typed handoffs and independent-review nodes consumed the same 40-step budget as model research decisions; the run ended with valid pending work before Formalizer",
-      "v430 Sequential reached Formalizer and revised ten complete Lean sources, but none elaborated. Commit 6b91c788 prevents the unsupported gap promotion only in regression; a fresh integrated Formalizer run is still required",
+      "v430 Survival reached real confirmatory feedback and exhausted the unchanged 40-step hard budget with valid pending work before Formalizer. The independent-review nodes are real Haiku invocations, not mechanical steps that can safely be made free; source churn and workspace cold starts still require ablation",
+      "v430 Sequential reached Formalizer and revised ten complete Lean sources, but none elaborated. Commits 6b91c788 and 66a4f359 now keep that state in the same coding-agent loop and prevent unsupported gap promotion, but a fresh integrated Formalizer run is still required",
       "Formalizer spent eight broad searches before its first source submission despite already receiving task-bound retrieval context; compile-first behavior and retrieval relevance need a prompt/tool ablation, not a theorem-specific search rule",
       "scientific candidate populations and post-dependency consumer revision still cold-start multiple full source executions; the exact continuation is correct, but its latency is high",
       "metric authoring remains a condition-heavy JSON ABI even though the source workspace now receives its complete executable projection",
@@ -250,17 +254,17 @@
     "boundary": "The authoritative completion fact is development exact source-theorem closure 0/2; percentages are engineering estimates only."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24034,
+    "research_agent_runtime_lines": 24087,
     "agent_runtime_lines": 1207,
     "cli_lines": 6907,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 130733,
+    "top_level_package_lines": 130840,
     "latest_runtime_manifest_bytes": 68781
   },
   "next_gates": [
-    "Run the next fresh exact-Haiku development panel from validated code commit 6b91c788 without increasing any outer or workspace budget; require an unelaborated Lean source to return to the same Formalizer rather than become a structural gap.",
-    "Separate mechanical evidence transitions from model research-progress accounting, or compile adjacent review/execution transitions inside one durable outer workspace, while preserving independent invocations and immutable artifacts. Do not simply raise max_iterations.",
-    "Ablate Formalizer context and tool wording so the model attempts an early task-bound Lean source before exhausting retrieval turns; keep search model-selected and avoid any Lean grammar or theorem-specific query rule.",
+    "Run the next fresh exact-Haiku development panel from validated code commit 66a4f359 without increasing any outer or workspace budget; require an unelaborated Lean source to return to the same Formalizer and an elaborated but untrusted proof to continue proof construction rather than become a structural gap.",
+    "Do not exempt independent reviewers from the outer budget: they are real model calls. Compare the current graph against a durable-workspace variant only if the variant preserves independent invocation, immutable artifacts, and the same absolute model/tool budgets while reducing actual repeated source attempts or cold starts.",
+    "Ablate Formalizer context and tool wording so the model uses an early task-bound source or Lean-owned #check/#print diagnostic before exhausting retrieval turns; keep search and diagnostic source model-selected and avoid any Lean grammar or theorem-specific query rule.",
     "Require the opaque Survival certificate to remain rejected unless the source workspace actually derives the requested conclusion from grounded assumptions and declarations.",
     "Retain the verified exact scientific consumer replay path, but measure and reduce fresh candidate/session cold starts after a dependency-bound observation; do not add a runtime alias or source patch.",
     "Measure first Formalizer step, outer hops, Architect calls, scientific source attempts, distinct consumer lineages, semantic-review revisions, statement-level elaboration, and unchanged target identity.",
