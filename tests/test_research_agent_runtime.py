@@ -845,6 +845,146 @@ def test_runtime_records_claim_revision_delta_against_exact_packet_bytes() -> No
     assert "theorem statement" not in str(delta).lower()
 
 
+def test_resumed_theory_revision_hydrates_compact_parent_reference_once() -> None:
+    question = OpenResearchQuestion(
+        id="compact-parent-resume",
+        title="Compact parent resume",
+        description="Resolve the exact parent only inside TheoryDeveloper execution.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+    sentinel = "LARGE_PARENT_SENTINEL:" + "parent-mathematics-" * 200
+    parent_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory_derivation:compact-parent",
+        "question": runtime_module._question_to_payload(question),
+        "problem_card": {"research_setup": sentinel},
+        "theory_derivation_contract": {},
+        "theory_derivation_packet": {"workspace_summary": sentinel},
+        "estimator_specs": [],
+        "theorem_cards": [],
+        "formalization_requests": [],
+    }
+    revised_packet = deepcopy(parent_packet)
+    revised_packet["packet_id"] = "theory_derivation:compact-revised"
+    revised_packet["problem_card"] = {"research_setup": "Revised setup."}
+    revised_packet["theory_derivation_packet"] = {
+        "workspace_summary": "A fresh model-authored revision."
+    }
+    feedback = {
+        "artifact_kind": "RuntimeMetricProtocolPreExecutionReviewObservation",
+        "feedback_id": "metric-protocol-theory-feedback:compact-parent",
+        "question_id": question.id,
+        "source_theory_packet_id": parent_packet["packet_id"],
+        "source_theory_packet_hash": runtime_module.stable_hash(parent_packet),
+        "source_metric_protocol_rejection_manifest_id": (
+            "metric-rejection:compact-parent"
+        ),
+        "execution_authorized": False,
+        "upstream_theory_revision_count": 1,
+        "max_upstream_theory_revisions": 1,
+        "findings": [
+            {
+                "finding_id": "metric-finding:compact-parent",
+                "summary": "One assumption requires a model-authored revision.",
+            }
+        ],
+    }
+    task = AgentTask(
+        task_id="theory:compact-parent-resume",
+        owner_subsystem="TheoryDeveloper",
+        objective="Revise the exact parent theory from independent feedback.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {
+                "previous_theory_packet_id": parent_packet["packet_id"],
+                "theory_packet_id": parent_packet["packet_id"],
+                "environment_feedback": feedback,
+                "runtime_requested_evidence_contract": (
+                    runtime_module._runtime_requested_evidence_contract(
+                        formal_verification_policy="optional",
+                        evaluation_mode="research_eval",
+                        task_intent=question.task_intent,
+                    )
+                ),
+            },
+        },
+    )
+    _, continuation, continuation_artifacts = (
+        runtime_module.materialize_agent_task_continuation(task)
+    )
+    assert sentinel not in json.dumps(
+        {"continuation": continuation, "artifacts": continuation_artifacts}
+    )
+    resumed_task = restore_agent_task_continuation(
+        continuation,
+        continuation_artifacts,
+    )
+
+    captured_context: dict[str, object] = {}
+    model_calls: list[str] = []
+
+    class CapturingTheoryDeveloper:
+        config = None
+        provider = None
+        research_source_execution = None
+
+        def derive(self, _question, **kwargs):
+            model_calls.append("derive")
+            captured_context.update(
+                deepcopy(dict(kwargs.get("architect_context", {})))
+            )
+            return deepcopy(revised_packet)
+
+    result = runtime_module.TheoryDeveloperRuntimeSubsystem(
+        theory_developer=CapturingTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=10,
+        seed=17,
+    ).run(
+        resumed_task,
+        BlackboardState(
+            project_id=question.id,
+            artifacts={parent_packet["packet_id"]: parent_packet},
+        ),
+    )
+
+    binding_key = runtime_module.THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
+    resolved_key = (
+        runtime_module.THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY
+    )
+    binding = captured_context[binding_key]
+    assert isinstance(binding, dict)
+    assert "theory_material" not in binding
+    assert binding["parent_theory_packet_ref"] == runtime_artifact_reference(
+        parent_packet["packet_id"],
+        parent_packet,
+    )
+    assert sentinel not in json.dumps(binding)
+    assert sentinel in json.dumps(captured_context[resolved_key])
+
+    assert result.next_task is not None
+    downstream_context = result.next_task.inputs["architect_context"]
+    assert binding_key not in downstream_context
+    assert resolved_key not in downstream_context
+    assert "metric_protocol_prior_theory_material" not in downstream_context
+    assert sentinel not in json.dumps(asdict(result), default=str)
+
+    blocked = runtime_module.TheoryDeveloperRuntimeSubsystem(
+        theory_developer=CapturingTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=10,
+        seed=17,
+    ).run(
+        resumed_task,
+        BlackboardState(project_id=question.id),
+    )
+    assert blocked.status == "BLOCKED"
+    assert len(model_calls) == 1
+
+
 def test_architect_source_escalation_requires_independent_semantic_conflict() -> None:
     question = OpenResearchQuestion(
         id="reject-routine-architect-routing",

@@ -248,10 +248,12 @@ from .theory_workspace import (
 )
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
+    THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY,
     build_architect_routed_theory_revision_binding,
     build_theory_claim_revision_delta,
     build_theory_developer_revision_binding,
     consume_architect_routed_theory_revision,
+    resolve_theory_developer_revision_parent_material,
     theory_developer_revision_binding_errors,
 )
 from .research_knowledge import retrieve_problem_knowledge
@@ -5437,21 +5439,11 @@ class TheoryDeveloperRuntimeSubsystem:
                     feedback=metric_protocol_revision_feedback,
                     validation_errors=feedback_errors,
                 )
-            prior_theory_material = build_theory_informed_metric_protocol_material(
-                theory_packet=parent_theory_packet,
-                theory_packet_id=parent_theory_packet_id,
-                retrieval_context=(
-                    context.get("retrieval_context", {})
-                    if isinstance(context.get("retrieval_context", {}), Mapping)
-                    else {}
-                ),
-            )
-            context["metric_protocol_prior_theory_material"] = prior_theory_material
             revision_binding = build_theory_developer_revision_binding(
                 revision_source="metric_protocol_preexecution_review",
                 question_id=question.id,
                 source_feedback=metric_protocol_revision_feedback,
-                theory_material=prior_theory_material,
+                parent_theory_packet=parent_theory_packet,
                 feedback_id=str(
                     metric_protocol_revision_feedback.get("feedback_id", "") or ""
                 ),
@@ -5526,6 +5518,30 @@ class TheoryDeveloperRuntimeSubsystem:
             context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY] = (
                 revision_binding
             )
+        active_runtime_revision_binding = context.get(
+            THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
+            {},
+        )
+        if (
+            isinstance(active_runtime_revision_binding, Mapping)
+            and active_runtime_revision_binding
+        ):
+            try:
+                resolved_parent_material = (
+                    resolve_theory_developer_revision_parent_material(
+                        revision_binding=active_runtime_revision_binding,
+                        artifacts=blackboard.artifacts,
+                    )
+                )
+            except ValueError as exc:
+                return _theory_developer_revision_binding_blocked_result(
+                    task=task,
+                    question=question,
+                    validation_errors=[str(exc)],
+                )
+            context[
+                THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY
+            ] = resolved_parent_material
         theory_config = getattr(self.theory_developer, "config", None)
         theory_provider = getattr(self.theory_developer, "provider", None)
         theory_provider_name = str(
@@ -5663,6 +5679,10 @@ class TheoryDeveloperRuntimeSubsystem:
             )
             packet["runtime_revision_artifact"] = True
         context.pop(THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY, None)
+        context.pop(
+            THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY,
+            None,
+        )
         context.pop("theory_developer_source_environment_feedback", None)
         theory_control = _architect_control_payload(context, "TheoryDeveloper")
         packet["runtime_architect_control"] = theory_control
@@ -5935,24 +5955,6 @@ class TheoryDeveloperRuntimeSubsystem:
         context["architect_metric_protocol_theory_material"] = (
             current_theory_material
         )
-        prior_theory_material = context.get(
-            "metric_protocol_prior_theory_material", {}
-        )
-        if (
-            isinstance(prior_theory_material, Mapping)
-            and prior_theory_material.get("artifact_kind")
-            == "RuntimeTheoryInformedMetricProtocolMaterial"
-        ):
-            prior_theory_material_id = (
-                "theory_metric_protocol_material:"
-                + stable_hash(dict(prior_theory_material))[:20]
-            )
-            theory_material_artifacts[prior_theory_material_id] = dict(
-                prior_theory_material
-            )
-            context["metric_protocol_prior_theory_material"] = (
-                prior_theory_material
-            )
         simulation_inputs = dict(simulation_task.inputs)
         simulation_inputs["architect_context"] = context
         simulation_task = replace(simulation_task, inputs=simulation_inputs)

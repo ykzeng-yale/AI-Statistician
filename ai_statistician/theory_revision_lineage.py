@@ -3,10 +3,13 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Mapping
 
+from .agent_runtime import (
+    RuntimeArtifactReferenceError,
+    resolve_runtime_artifact_references,
+    runtime_artifact_reference,
+)
 from .fingerprint import stable_hash
 from .theory_semantic_material import (
-    THEORY_SEMANTIC_MATERIAL_KINDS,
-    THEORY_SEMANTIC_MATERIAL_PROOF_STATUSES,
     build_theory_semantic_material,
 )
 from .theory_workspace import THEORY_WORKSPACE_CONTENT_AUTHORITY
@@ -23,6 +26,9 @@ THEORY_DEVELOPER_REVISION_BINDING_NOT_PROOF_EVIDENCE = (
 )
 RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY = (
     "runtime_theory_revision_budget"
+)
+THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY = (
+    "runtime_resolved_theory_revision_parent_material"
 )
 THEORY_CLAIM_REVISION_DELTA_KIND = "RuntimeTheoryClaimRevisionDelta"
 THEORY_CLAIM_REVISION_DELTA_NOT_PROOF_EVIDENCE = (
@@ -292,7 +298,7 @@ def build_theory_developer_revision_binding(
     revision_source: str,
     question_id: str,
     source_feedback: Mapping[str, Any],
-    theory_material: Mapping[str, Any],
+    parent_theory_packet: Mapping[str, Any],
     feedback_id: str,
     upstream_theory_revision_count: int,
     max_upstream_theory_revisions: int,
@@ -303,18 +309,16 @@ def build_theory_developer_revision_binding(
     """Create one immutable parent/feedback binding for a theory revision."""
 
     feedback = deepcopy(dict(source_feedback))
-    material = deepcopy(dict(theory_material))
+    parent_packet = dict(parent_theory_packet)
+    parent_packet_id = str(parent_packet.get("packet_id", "") or "").strip()
+    parent_ref = runtime_artifact_reference(parent_packet_id, parent_packet)
     body = {
         "schema_version": 1,
         "artifact_kind": THEORY_DEVELOPER_REVISION_BINDING_KIND,
         "revision_source": str(revision_source or "").strip(),
         "question_id": str(question_id or "").strip(),
-        "source_theory_packet_id": str(
-            material.get("source_theory_packet_id", "") or ""
-        ).strip(),
-        "source_theory_packet_hash": str(
-            material.get("source_theory_packet_hash", "") or ""
-        ).strip(),
+        "source_theory_packet_id": parent_packet_id,
+        "source_theory_packet_hash": parent_ref["content_hash"],
         "feedback_id": str(feedback_id or "").strip(),
         "source_feedback_fingerprint": stable_hash(feedback),
         "source_review_packet_id": str(source_review_packet_id or "").strip(),
@@ -331,21 +335,76 @@ def build_theory_developer_revision_binding(
         "execution_results_observed": bool(execution_results_observed),
         "execution_authorized": False,
         "source_feedback": feedback,
-        "theory_material": material,
+        "parent_theory_packet_ref": parent_ref,
         "proof_evidence_status": (
             THEORY_DEVELOPER_REVISION_BINDING_NOT_PROOF_EVIDENCE
         ),
         "boundary": (
             "This binding authorizes one LLM theory revision against the exact "
-            "named parent and routed diagnostic feedback. The parent semantic "
-            "material is immutable, execution outcomes are not theory claims, and "
-            "the binding is neither statistical acceptance nor proof evidence."
+            "named parent and routed diagnostic feedback. Canonical runtime resolves "
+            "the parent packet reference only at TheoryDeveloper execution; execution "
+            "outcomes are not theory claims, and the binding is neither statistical "
+            "acceptance nor proof evidence."
         ),
     }
     body["binding_id"] = (
         "theory_developer_revision_binding:" + stable_hash(body)[:20]
     )
     return body
+
+
+def resolve_theory_developer_revision_parent_material(
+    *,
+    revision_binding: Mapping[str, Any],
+    artifacts: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Hydrate one exact parent packet reference into transient semantic material."""
+
+    parent_ref = revision_binding.get("parent_theory_packet_ref", {})
+    if not isinstance(parent_ref, Mapping) or not parent_ref:
+        raise ValueError("theory revision binding has no parent packet reference")
+    expected_packet_id = str(
+        revision_binding.get("source_theory_packet_id", "") or ""
+    ).strip()
+    expected_packet_hash = str(
+        revision_binding.get("source_theory_packet_hash", "") or ""
+    ).strip()
+    if (
+        str(parent_ref.get("artifact_id", "") or "").strip()
+        != expected_packet_id
+        or str(parent_ref.get("content_hash", "") or "").strip()
+        != expected_packet_hash
+    ):
+        raise ValueError("theory revision parent reference identity mismatch")
+    try:
+        resolved_packet = resolve_runtime_artifact_references(
+            parent_ref,
+            artifacts,
+        )
+    except RuntimeArtifactReferenceError as exc:
+        raise ValueError(str(exc)) from exc
+    if not isinstance(resolved_packet, Mapping) or not resolved_packet:
+        raise ValueError("theory revision parent packet could not be resolved")
+    packet = dict(resolved_packet)
+    packet_id = str(packet.get("packet_id", "") or "").strip()
+    if packet_id != expected_packet_id:
+        raise ValueError("theory revision parent packet identity mismatch")
+    packet_question_id = _theory_packet_question_id(packet)
+    binding_question_id = str(
+        revision_binding.get("question_id", "") or ""
+    ).strip()
+    if (
+        packet_question_id
+        and binding_question_id
+        and packet_question_id != binding_question_id
+    ):
+        raise ValueError("theory revision parent belongs to another question")
+    material = build_theory_semantic_material(
+        theory_packet=packet,
+        theory_packet_id=packet_id,
+    )
+    material["source_theory_packet_hash"] = expected_packet_hash
+    return material
 
 
 def build_architect_routed_theory_revision_binding(
@@ -425,15 +484,11 @@ def build_architect_routed_theory_revision_binding(
     parent_packet = _mapping(artifacts.get(parent_packet_id))
     if not parent_packet:
         errors.append("model-routed parent theory packet is absent from blackboard")
-        theory_material: dict[str, Any] = {}
-    else:
-        theory_material = build_theory_semantic_material(
-            theory_packet=parent_packet,
-            theory_packet_id=parent_packet_id,
-        )
-    parent_packet_hash = str(
-        theory_material.get("source_theory_packet_hash", "") or ""
-    ).strip()
+        return {}, errors
+    if str(parent_packet.get("packet_id", "") or "").strip() != parent_packet_id:
+        errors.append("model-routed parent theory packet identity is inconsistent")
+        return {}, errors
+    parent_packet_hash = stable_hash(parent_packet)
     feedback_parent_id = str(
         feedback.get("source_theory_packet_id", "") or ""
     ).strip()
@@ -473,7 +528,7 @@ def build_architect_routed_theory_revision_binding(
         revision_source="architect_routed_environment_observations",
         question_id=question_id,
         source_feedback=feedback,
-        theory_material=theory_material,
+        parent_theory_packet=parent_packet,
         feedback_id=str(feedback.get("feedback_id", "") or ""),
         upstream_theory_revision_count=revisions_used + 1,
         max_upstream_theory_revisions=max_revisions,
@@ -647,6 +702,25 @@ def theory_developer_revision_binding_errors(
     if not feedback_id:
         errors.append("theory revision binding has no feedback id")
 
+    parent_ref = row.get("parent_theory_packet_ref", {})
+    if not isinstance(parent_ref, Mapping) or not parent_ref:
+        errors.append("theory revision binding has no parent packet reference")
+        parent_ref = {}
+    if parent_ref.get("artifact_kind") != "RuntimeArtifactRef":
+        errors.append("theory revision parent reference has the wrong kind")
+    if parent_ref.get("reference_scope") != "runtime_blackboard":
+        errors.append("theory revision parent reference has the wrong scope")
+    if str(parent_ref.get("artifact_id", "") or "").strip() != source_packet_id:
+        errors.append("theory revision parent reference id does not match")
+    if str(parent_ref.get("content_hash", "") or "").strip() != source_packet_hash:
+        errors.append("theory revision parent reference hash does not match")
+    if str(parent_ref.get("payload_kind", "") or "").strip() != (
+        "TheoryDerivationPacket"
+    ):
+        errors.append("theory revision parent reference payload kind is invalid")
+    if parent_ref.get("evidence_status") != "REFERENCE_ONLY_NOT_EVIDENCE":
+        errors.append("theory revision parent reference crossed the evidence boundary")
+
     source_feedback = row.get("source_feedback", {})
     if not isinstance(source_feedback, Mapping) or not source_feedback:
         errors.append("theory revision binding has no routed source feedback")
@@ -685,48 +759,6 @@ def theory_developer_revision_binding_errors(
         or expected_feedback_fingerprint != stable_hash(dict(source_feedback))
     ):
         errors.append("theory revision binding feedback fingerprint does not match")
-
-    material = row.get("theory_material", {})
-    if not isinstance(material, Mapping) or not material:
-        errors.append("theory revision binding has no immutable theory material")
-        material = {}
-    if material.get("artifact_kind") not in THEORY_SEMANTIC_MATERIAL_KINDS:
-        errors.append("theory revision binding has invalid theory material")
-    if (
-        material.get("proof_evidence_status")
-        not in THEORY_SEMANTIC_MATERIAL_PROOF_STATUSES
-    ):
-        errors.append("theory revision parent crossed the proof boundary")
-    if material.get("execution_results_available") is not False:
-        errors.append("theory revision parent material contains execution results")
-    if str(material.get("source_theory_packet_id", "") or "").strip() != (
-        source_packet_id
-    ):
-        errors.append("theory revision parent packet id does not match its material")
-    if str(material.get("source_theory_packet_hash", "") or "").strip() != (
-        source_packet_hash
-    ):
-        errors.append("theory revision parent packet hash does not match its material")
-
-    semantic_material = material.get("theory_semantic_material", {})
-    if not isinstance(semantic_material, Mapping) or not semantic_material:
-        errors.append("theory revision parent has no current semantic material")
-        semantic_material = {}
-    semantic_packet_id = str(
-        semantic_material.get("packet_id", "") or ""
-    ).strip()
-    if semantic_packet_id and semantic_packet_id != source_packet_id:
-        errors.append("theory revision semantic packet id does not match its parent")
-    semantic_question = semantic_material.get("question", {})
-    semantic_question_id = (
-        str(semantic_question.get("id", "") or "").strip()
-        if isinstance(semantic_question, Mapping)
-        else ""
-    )
-    if semantic_question_id and semantic_question_id != str(
-        question_id or ""
-    ).strip():
-        errors.append("theory revision parent belongs to another question")
 
     binding_id = str(row.get("binding_id", "") or "").strip()
     unsigned = {

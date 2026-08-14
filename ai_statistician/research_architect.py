@@ -42,7 +42,7 @@ from .research_source_library import (
 from .semantic_review_feedback import model_observations_without_repair_recipes
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
-    build_theory_developer_revision_binding,
+    THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY,
     theory_developer_revision_binding_errors,
 )
 from .theory_workspace import (
@@ -1005,36 +1005,6 @@ def _compact_architect_context_for_prompt(context: Mapping[str, Any]) -> dict[st
         compact["theory_developer_source_environment_feedback"] = (
             _compact_environment_feedback_for_prompt(source_environment_feedback)
         )
-
-    prior_theory_material = context.get(
-        "metric_protocol_prior_theory_material", {}
-    )
-    if (
-        isinstance(prior_theory_material, Mapping)
-        and prior_theory_material.get("artifact_kind")
-        == "RuntimeTheoryInformedMetricProtocolMaterial"
-        and prior_theory_material.get("execution_results_available") is False
-        and isinstance(
-            prior_theory_material.get("theory_semantic_material"), Mapping
-        )
-    ):
-        compact["metric_protocol_prior_theory_material"] = {
-            "artifact_kind": prior_theory_material.get("artifact_kind", ""),
-            "source_theory_packet_id": prior_theory_material.get(
-                "source_theory_packet_id", ""
-            ),
-            "source_theory_packet_hash": prior_theory_material.get(
-                "source_theory_packet_hash", ""
-            ),
-            "theory_semantic_material": dict(
-                prior_theory_material.get("theory_semantic_material", {})
-            ),
-            "execution_results_available": False,
-            "proof_evidence_status": prior_theory_material.get(
-                "proof_evidence_status", ""
-            ),
-            "boundary": prior_theory_material.get("boundary", ""),
-        }
 
     return compact
 
@@ -2726,45 +2696,22 @@ def _theory_developer_revision_binding_from_context(
     *,
     question: OpenResearchQuestion,
 ) -> dict[str, Any]:
-    """Normalize legacy and current feedback into one parent-bound contract."""
+    """Require the runtime-authored parent/feedback revision contract."""
 
     raw_binding = architect_context.get(
         THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY, {}
     )
-    if isinstance(raw_binding, Mapping) and raw_binding:
-        binding = deepcopy(dict(raw_binding))
-    else:
-        feedback = theory_developer_source_environment_feedback(architect_context)
-        material = architect_context.get("metric_protocol_prior_theory_material", {})
-        if not (
-            isinstance(feedback, Mapping)
-            and feedback.get("artifact_kind")
-            == METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND
-        ):
-            raise PacketValidationError(
-                validation_label="TheoryDeveloper targeted revision inputs",
-                attempts=0,
-                errors=[
-                    "revision feedback must be a parent-bound TheoryDeveloper "
-                    "revision binding or pre-execution review observation"
-                ],
-                history=[],
-            )
-        material = material if isinstance(material, Mapping) else {}
-        binding = build_theory_developer_revision_binding(
-            revision_source="metric_protocol_preexecution_review",
-            question_id=question.id,
-            source_feedback=feedback,
-            theory_material=material,
-            feedback_id=str(feedback.get("feedback_id", "") or ""),
-            upstream_theory_revision_count=int(
-                feedback.get("upstream_theory_revision_count", 0) or 0
-            ),
-            max_upstream_theory_revisions=int(
-                feedback.get("max_upstream_theory_revisions", 0) or 0
-            ),
-            execution_results_observed=False,
+    if not isinstance(raw_binding, Mapping) or not raw_binding:
+        raise PacketValidationError(
+            validation_label="TheoryDeveloper targeted revision inputs",
+            attempts=0,
+            errors=[
+                "revision feedback requires a runtime parent-bound "
+                "TheoryDeveloper revision binding"
+            ],
+            history=[],
         )
+    binding = deepcopy(dict(raw_binding))
 
     errors = theory_developer_revision_binding_errors(
         binding,
@@ -2793,7 +2740,10 @@ def build_theory_developer_revision_inputs(
     )
     feedback = binding.get("source_feedback", {})
     feedback = dict(feedback) if isinstance(feedback, Mapping) else {}
-    material = binding.get("theory_material", {})
+    material = architect_context.get(
+        THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY,
+        {},
+    )
     material = dict(material) if isinstance(material, Mapping) else {}
     errors: list[str] = []
 
@@ -2803,6 +2753,14 @@ def build_theory_developer_revision_inputs(
     material_packet_hash = str(
         material.get("source_theory_packet_hash", "") or ""
     ).strip()
+    if material_packet_id != str(
+        binding.get("source_theory_packet_id", "") or ""
+    ).strip():
+        errors.append("resolved parent material packet id does not match binding")
+    if material_packet_hash != str(
+        binding.get("source_theory_packet_hash", "") or ""
+    ).strip():
+        errors.append("resolved parent material packet hash does not match binding")
 
     semantic_material = material.get("theory_semantic_material", {})
     if not isinstance(semantic_material, Mapping) or not semantic_material:

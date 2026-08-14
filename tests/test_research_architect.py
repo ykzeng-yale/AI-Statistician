@@ -66,6 +66,7 @@ from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.theory_proposal import GeneratorTheoryProposer
 from ai_statistician.theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
+    THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY,
     build_theory_developer_revision_binding,
 )
 from ai_statistician.theory_workspace import (
@@ -806,8 +807,20 @@ def _metric_theory_revision_context(
     parent: dict[str, object],
 ) -> dict[str, object]:
     source_packet_id = "theory_derivation:targeted-revision-parent"
+    parent_artifact = {
+        **json.loads(json.dumps(parent)),
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": source_packet_id,
+        "question": {
+            "id": question.id,
+            "title": question.title,
+            "description": question.description,
+            "tags": list(question.tags),
+            "task_intent": dict(question.task_intent),
+        },
+    }
     material = build_theory_informed_metric_protocol_material(
-        theory_packet=parent,
+        theory_packet=parent_artifact,
         theory_packet_id=source_packet_id,
     )
     feedback = {
@@ -837,9 +850,20 @@ def _metric_theory_revision_context(
         ],
         "acceptance_gate": "Fresh theory must pass independent metric review.",
     }
+    binding = build_theory_developer_revision_binding(
+        revision_source="metric_protocol_preexecution_review",
+        question_id=question.id,
+        source_feedback=feedback,
+        parent_theory_packet=parent_artifact,
+        feedback_id=feedback["feedback_id"],
+        upstream_theory_revision_count=1,
+        max_upstream_theory_revisions=2,
+        execution_results_observed=False,
+    )
     return {
         "environment_feedback": feedback,
-        "metric_protocol_prior_theory_material": material,
+        THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY: binding,
+        THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY: material,
     }
 
 
@@ -1881,22 +1905,26 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
         _serious_sample_response(),
         workspace_dir=tmp_path / "current-parent",
     )
-    stale_parent, _ = _file_authority_theory_fixture(
-        _serious_sample_response(),
-        workspace_dir=tmp_path / "stale-parent",
-    )
-    stale_parent["problem_card"] = {
-        **stale_parent["problem_card"],
-        "estimand": "a stale target that must not be revised",
-    }
     question = OpenResearchQuestion(
         id="generic_postexecution_revision",
         title="Generic post-execution theory revision",
         description="Revise the reviewed parent without copying execution outcomes.",
     )
     parent_id = "theory_derivation:current-reviewed-parent"
+    parent_artifact = {
+        **json.loads(json.dumps(parent)),
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": parent_id,
+        "question": {
+            "id": question.id,
+            "title": question.title,
+            "description": question.description,
+            "tags": list(question.tags),
+            "task_intent": dict(question.task_intent),
+        },
+    }
     material = build_theory_informed_metric_protocol_material(
-        theory_packet=parent,
+        theory_packet=parent_artifact,
         theory_packet_id=parent_id,
     )
     feedback = {
@@ -1920,7 +1948,7 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
         revision_source="generated_code_semantic_review_postexecution",
         question_id=question.id,
         source_feedback=feedback,
-        theory_material=material,
+        parent_theory_packet=parent_artifact,
         feedback_id=feedback["feedback_id"],
         upstream_theory_revision_count=2,
         max_upstream_theory_revisions=2,
@@ -1930,13 +1958,8 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
     )
     context = {
         THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY: binding,
+        THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY: material,
         "environment_feedback": feedback,
-        "metric_protocol_prior_theory_material": (
-            build_theory_informed_metric_protocol_material(
-                theory_packet=stale_parent,
-                theory_packet_id="theory_derivation:stale-preflight-parent",
-            )
-        ),
     }
 
     feedback["findings"][0]["summary"] = "mutated after binding"
@@ -1978,7 +2001,6 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
     prompt = build_theory_developer_prompt(question, architect_context=context)
     assert "model_owned_document_workspace" in prompt
     assert "generated_code_semantic_review_postexecution" in prompt
-    assert "theory_derivation:stale-preflight-parent" not in prompt
     prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
     assert prompt_payload["revision_mode"] == (
         "model_owned_document_workspace"
@@ -2300,9 +2322,13 @@ def test_theory_revision_rejects_lineage_mismatch_before_provider_call() -> None
         question=question,
         parent=parent,
     )
-    feedback = dict(context["environment_feedback"])
-    feedback["source_theory_packet_hash"] = "wrong-parent-hash"
-    context["environment_feedback"] = feedback
+    resolved_parent = dict(
+        context[THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY]
+    )
+    resolved_parent["source_theory_packet_hash"] = "wrong-parent-hash"
+    context[THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY] = (
+        resolved_parent
+    )
     provider = SequentialGeneratorBackend([])
     developer = LLMTheoryDeveloperAgent(
         provider=provider,
@@ -2315,7 +2341,10 @@ def test_theory_revision_rejects_lineage_mismatch_before_provider_call() -> None
         ),
     )
 
-    with pytest.raises(PacketValidationError, match="packet hashes must match"):
+    with pytest.raises(
+        PacketValidationError,
+        match="resolved parent material packet hash does not match binding",
+    ):
         developer.derive(question, architect_context=context)
 
     assert provider.requests == []

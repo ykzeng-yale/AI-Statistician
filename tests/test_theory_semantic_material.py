@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.metric_protocol_stage import (
     build_theory_informed_metric_protocol_material,
@@ -13,6 +15,7 @@ from ai_statistician.theory_revision_lineage import (
     THEORY_CLAIM_REVISION_DELTA_KIND,
     build_theory_claim_revision_delta,
     build_theory_developer_revision_binding,
+    resolve_theory_developer_revision_parent_material,
     theory_developer_revision_binding_errors,
 )
 from ai_statistician.theory_workspace import THEORY_WORKSPACE_CONTENT_AUTHORITY
@@ -237,7 +240,7 @@ def test_metric_protocol_wrapper_keeps_legacy_consumer_identity() -> None:
     )
 
 
-def test_theory_revision_binding_accepts_generic_material_only_as_nonproof() -> None:
+def test_theory_revision_binding_uses_exact_nonproof_parent_reference() -> None:
     packet = _theory_packet()
     material = build_theory_semantic_material(
         theory_packet=packet,
@@ -252,7 +255,7 @@ def test_theory_revision_binding_accepts_generic_material_only_as_nonproof() -> 
         revision_source="independent_semantic_review",
         question_id="question:consumer-neutral",
         source_feedback=feedback,
-        theory_material=material,
+        parent_theory_packet=packet,
         feedback_id=feedback["feedback_id"],
         upstream_theory_revision_count=1,
         max_upstream_theory_revisions=1,
@@ -263,9 +266,29 @@ def test_theory_revision_binding_accepts_generic_material_only_as_nonproof() -> 
         binding,
         question_id="question:consumer-neutral",
     ) == []
+    assert binding["parent_theory_packet_ref"] == {
+        "artifact_kind": "RuntimeArtifactRef",
+        "reference_scope": "runtime_blackboard",
+        "artifact_id": packet["packet_id"],
+        "content_hash": stable_hash(packet),
+        "payload_kind": "TheoryDerivationPacket",
+        "evidence_status": "REFERENCE_ONLY_NOT_EVIDENCE",
+    }
+    assert "theory_material" not in binding
+    assert resolve_theory_developer_revision_parent_material(
+        revision_binding=binding,
+        artifacts={packet["packet_id"]: packet},
+    ) == material
 
-    binding["theory_material"]["proof_evidence_status"] = "KERNEL_VERIFIED"
-    assert "theory revision parent crossed the proof boundary" in (
+    tampered_packet = {**packet, "problem_card": {"estimand": "changed"}}
+    with pytest.raises(ValueError, match="unavailable or stale"):
+        resolve_theory_developer_revision_parent_material(
+            revision_binding=binding,
+            artifacts={packet["packet_id"]: tampered_packet},
+        )
+
+    binding["parent_theory_packet_ref"]["evidence_status"] = "KERNEL_VERIFIED"
+    assert "theory revision parent reference crossed the evidence boundary" in (
         theory_developer_revision_binding_errors(
             binding,
             question_id="question:consumer-neutral",
