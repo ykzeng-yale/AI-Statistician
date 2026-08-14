@@ -58,6 +58,10 @@ def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
     assert "authority_kind" not in gate_properties
     assert gate_schema["type"] == "object"
     assert gate_schema["additionalProperties"] is False
+    assert "all already means every comparison passes" in schema["properties"][
+        "aggregation"
+    ]["description"]
+    assert "all and any never take a quorum field" in gate_schema["description"]
 
     materialized, errors = _materialize_metric_authoring_model_requirement(
         {
@@ -157,6 +161,49 @@ def test_fresh_metric_gate_object_has_unique_keys_and_runtime_order() -> None:
         )
     )
     assert any("unsupported fields" in error for error in invalid_errors)
+
+
+def test_fresh_boolean_all_rejects_redundant_quorum_field_without_repair() -> None:
+    anchor_id = "theory#/guarantee"
+    base = {
+        "requirement_id": "generic-identity-check",
+        "metric_semantics": "whether a declared identity holds on every replicate",
+        "metric_value_kind": "boolean",
+        "measurement_protocol": "return one boolean identity result per replicate",
+        "operator": "==",
+        "aggregation": "all",
+        "predicate_authority": {
+            "source_anchors": [anchor_id],
+            "rationale": "the theory declares an exact identity",
+        },
+    }
+    invalid, errors = _materialize_metric_authoring_model_requirement(
+        {
+            **base,
+            "gate_fields": {
+                "minimum_pass_fraction": {
+                    "value": 1.0,
+                    "source_anchors": [anchor_id],
+                    "rationale": "redundantly restates all",
+                }
+            },
+        },
+        requirement_index=0,
+    )
+
+    assert invalid["minimum_pass_fraction"] == 1.0
+    assert any(
+        "expected=[] observed=['minimum_pass_fraction']" in error
+        for error in errors
+    )
+
+    valid, valid_errors = _materialize_metric_authoring_model_requirement(
+        {**base, "gate_fields": {}},
+        requirement_index=0,
+    )
+    assert valid_errors == []
+    assert valid["minimum_pass_fraction"] is None
+    assert valid["gate_field_authorities"] == []
 
 
 class _Backend:
@@ -558,11 +605,21 @@ def _review(*, accept: bool):
     return packet, backend
 
 
-def _tool_review(backend, *, source_retriever=None, prior_finding_ledger=()):
+def _tool_review(
+    backend,
+    *,
+    source_retriever=None,
+    prior_finding_ledger=(),
+    theory_protocol_material=None,
+):
     return review_architect_theory_execution_preflight(
         provider=backend,
         question=_question(),
-        theory_protocol_material=_theory_material(),
+        theory_protocol_material=(
+            theory_protocol_material
+            if theory_protocol_material is not None
+            else _theory_material()
+        ),
         upstream_research_contract={
             "formal_targets": [],
             "simulation_targets": ["evaluate the declared risk"],
@@ -735,15 +792,39 @@ def test_preflight_all_scope_preserves_context_and_formal_channels() -> None:
         accept=False,
         source_scope="all",
     )
+    theory_material = _theory_material()
+    theory_material["retrieval_context"] = {
+        "knowledge_cards": [
+            {
+                "id": "finite_input_reference",
+                "title": "Finite input and censored outcomes",
+                "summary": (
+                    "A finite input censored outcome remains typed and observable."
+                ),
+            }
+        ]
+    }
 
-    packet = _tool_review(backend, source_retriever=FormalRetriever())
+    packet = _tool_review(
+        backend,
+        source_retriever=FormalRetriever(),
+        theory_protocol_material=theory_material,
+    )
 
     hits = packet["preflight_source_observations"][0]["hits"]
     assert {hit["retrieval_channel"] for hit in hits} == {
-        "theory_and_retrieval_context",
+        "theory",
+        "retrieval_memory",
         "formal_library",
     }
-    assert hits[0]["retrieval_channel"] == "theory_and_retrieval_context"
+    assert [hit["retrieval_channel"] for hit in hits[:3]] == [
+        "theory",
+        "retrieval_memory",
+        "formal_library",
+    ]
+    assert packet["preflight_source_observations"][0]["retrieval_fusion"] == (
+        "round_robin_theory_retrieval_formal_v3_cross_turn_deduplicated"
+    )
     assert [hit["source_ref"] for hit in hits] == [
         f"S1H{index + 1}" for index in range(len(hits))
     ]

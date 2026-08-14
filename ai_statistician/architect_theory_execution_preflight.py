@@ -1195,7 +1195,8 @@ def _search_preflight_sources(
             "formal_library_declaration",
         },
     }[source_scope]
-    contextual_ranked: list[tuple[float, dict[str, Any]]] = []
+    theory_ranked: list[tuple[float, dict[str, Any]]] = []
+    retrieval_ranked: list[tuple[float, dict[str, Any]]] = []
     formal_ranked: list[tuple[float, dict[str, Any]]] = []
     for row in _preflight_source_catalog(material):
         if row["source_kind"] not in allowed_kinds:
@@ -1206,11 +1207,12 @@ def _search_preflight_sources(
         if not overlap:
             continue
         phrase_bonus = 2.0 if query.lower() in row_text.lower() else 0.0
-        ranked = (
-            formal_ranked
-            if row["source_kind"] == "formal_library_declaration"
-            else contextual_ranked
-        )
+        if row["source_kind"] == "formal_library_declaration":
+            ranked = formal_ranked
+        elif row["source_kind"] == "theory_anchor":
+            ranked = theory_ranked
+        else:
+            ranked = retrieval_ranked
         ranked.append((float(len(overlap)) + phrase_bonus, row))
 
     provider_errors: list[dict[str, str]] = []
@@ -1262,9 +1264,13 @@ def _search_preflight_sources(
             )
         return deduplicated
 
-    contextual = deduplicate_ranked(
-        contextual_ranked,
-        channel="theory_and_retrieval_context",
+    theory = deduplicate_ranked(
+        theory_ranked,
+        channel="theory",
+    )
+    retrieval = deduplicate_ranked(
+        retrieval_ranked,
+        channel="retrieval_memory",
     )
     formal = deduplicate_ranked(
         formal_ranked,
@@ -1273,14 +1279,16 @@ def _search_preflight_sources(
     if source_scope == "formal_library":
         fused = formal
     elif source_scope == "theory":
-        fused = contextual
+        fused = theory
+    elif source_scope == "retrieval_memory":
+        fused = retrieval
     else:
         fused = []
-        for rank in range(max(len(contextual), len(formal))):
-            if rank < len(contextual):
-                fused.append(contextual[rank])
-            if rank < len(formal):
-                fused.append(formal[rank])
+        channels = (theory, retrieval, formal)
+        for rank in range(max((len(rows) for rows in channels), default=0)):
+            for rows in channels:
+                if rank < len(rows):
+                    fused.append(rows[rank])
     excluded = set(exclude_hit_ids or set())
     source_refs = dict(prior_source_refs or {})
     duplicate_source_refs_reused = list(
@@ -1310,9 +1318,9 @@ def _search_preflight_sources(
         "duplicate_source_refs_reused": duplicate_source_refs_reused,
         "provider_errors": provider_errors,
         "retrieval_fusion": (
-            "round_robin_context_then_formal_v2_cross_turn_deduplicated"
-            if source_scope in {"retrieval_memory", "all"}
-            else "single_channel_rank_v1"
+            "round_robin_theory_retrieval_formal_v3_cross_turn_deduplicated"
+            if source_scope == "all"
+            else f"single_channel_{source_scope}_rank_v2"
         ),
     }
     return {
@@ -2335,7 +2343,11 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 "Search the current theory anchors, task-bound retrieval memory, "
                 "and configured formal libraries. Write the query yourself. Cite "
                 "the short returned source_ref handles in blocking findings; the "
-                "runtime resolves them to immutable source_hit_id values."
+                "runtime resolves them to immutable source_hit_id values. Use theory "
+                "to inspect candidate semantics. Use retrieval_memory or all before "
+                "blocking on an external named theorem, general mathematical fact, "
+                "or prior finding whose premise is not derived in the candidate; a "
+                "theory-only search cannot independently corroborate that premise."
             ),
             input_schema={
                 "type": "object",
@@ -2375,8 +2387,12 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     tool_prompt = (
         prompt.split("\n\n", 1)[-1]
         + "\n\nInspect the exact theory anchors first. Use search_preflight_sources "
-        "only when additional task-bound or formal-library context would materially "
-        "improve the review. Cite any returned source_ref handles you rely on; runtime "
+        "when additional task-bound or formal-library context would materially "
+        "improve the review. Before retaining a blocker that depends on an external "
+        "named theorem, general mathematical fact, or a prior finding premise not "
+        "derived in the current candidate, query retrieval_memory or all at least "
+        "once; repeated theory-only searches merely reread the candidate. Cite any "
+        "returned source_ref handles you rely on; runtime "
         "binds them to exact source identities. You own each statistical judgment and "
         "each search query. Runtime retrieval ranking, source identity checks, and "
         "packet validation do not choose semantics. If several independent source "

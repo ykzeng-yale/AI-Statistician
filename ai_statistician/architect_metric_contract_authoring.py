@@ -507,6 +507,13 @@ def _metric_authoring_model_requirement_schema(
             "aggregation": {
                 "type": "string",
                 "enum": list(GENERATED_METRIC_CONTRACT_AGGREGATIONS),
+                "description": (
+                    "identity/mean/min/max/all/any have no quorum gate field. "
+                    "at_least_count requires only minimum_pass_count; "
+                    "at_least_fraction requires only minimum_pass_fraction. "
+                    "In particular, all already means every comparison passes, "
+                    "so never add minimum_pass_count or minimum_pass_fraction to all."
+                ),
             },
             "predicate_authority": predicate_authority,
             "gate_fields": {
@@ -521,8 +528,9 @@ def _metric_authoring_model_requirement_schema(
                     "by evaluator field name. Numeric rows include threshold, or "
                     "lower then upper for between, plus any active tolerance/quorum "
                     "field. Boolean rows omit threshold and tolerance; the runtime "
-                    "materializes == 1 with zero tolerance. Boolean rows include only "
-                    "a quorum field when their aggregation requires one."
+                    "materializes == 1 with zero tolerance. all and any never take a "
+                    "quorum field; only at_least_count takes minimum_pass_count and "
+                    "only at_least_fraction takes minimum_pass_fraction."
                 ),
             },
         },
@@ -540,7 +548,10 @@ def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
         "measurement_protocol": "exact pre-execution measurement procedure",
         "operator": "<=|<|>=|>|==|between",
         "aggregation": (
-            "identity|mean|min|max|all|any|at_least_count|at_least_fraction"
+            "identity|mean|min|max|all|any|at_least_count|at_least_fraction; "
+            "all/any have no quorum field, at_least_count alone uses "
+            "minimum_pass_count, and at_least_fraction alone uses "
+            "minimum_pass_fraction"
         ),
         "predicate_authority": {
             "source_anchors": ["exact acceptance_authority_catalog anchor_id"],
@@ -1637,7 +1648,11 @@ def author_reviewed_architect_metric_requirements(
                 "optional quorum numbers. For intrinsically boolean rows, use "
                 "operator == and omit threshold/tolerance gate_fields; AgentRuntime "
                 "materializes the canonical == 1 truth comparison with zero "
-                "tolerance. AgentRuntime only expands those choices into the "
+                "tolerance. aggregation=all or any has no quorum gate field; all "
+                "already requires every elementwise comparison to pass. Only "
+                "at_least_count may emit minimum_pass_count and only "
+                "at_least_fraction may emit minimum_pass_fraction. AgentRuntime only "
+                "expands those choices into the "
                 "evaluator ABI; it does not select their statistical semantics."
             ),
             (
