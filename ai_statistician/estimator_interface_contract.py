@@ -163,6 +163,8 @@ def theory_semantic_reference_ids(theory_packet: Mapping[str, Any]) -> set[str]:
         ("derivation_steps", "id"),
         ("equation_chain", "step_id"),
         ("sanity_checks", "id"),
+        ("claim_index", "id"),
+        ("sanity_check_index", "id"),
     ):
         for row in derivation.get(collection, []) or []:
             if not isinstance(row, Mapping):

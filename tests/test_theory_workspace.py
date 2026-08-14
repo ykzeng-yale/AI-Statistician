@@ -19,14 +19,18 @@ from ai_statistician.theory_workspace import (
     THEORY_SCRATCHPAD_TOOL,
     THEORY_WORKSPACE_CHECKPOINT_KIND,
     THEORY_WORKSPACE_COMMIT_TOOL,
+    THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
     THEORY_WORKSPACE_GAP_TOOL,
+    THEORY_WORKSPACE_HANDOFF_ROLE,
     THEORY_WORKSPACE_WRITE_TOOL,
     TheoryScratchpadConfig,
     TheoryWorkspaceGapError,
     _replace_theory_workspace_artifacts,
     _theory_workspace_tools,
+    load_theory_workspace_documents,
     run_theory_artifact_workspace,
+    theory_workspace_manifest_errors,
 )
 
 
@@ -105,9 +109,11 @@ def _run_workspace(backend, **overrides):
             "problem_card": {"claim": "parent-private-claim"},
             "lemma_cards": [],
         },
-        "build_candidate": lambda artifacts, changed: {
+        "build_candidate": lambda artifacts, changed, manifest, changed_documents: {
             "artifacts": dict(artifacts),
             "changed": list(changed),
+            "manifest": dict(manifest),
+            "changed_documents": list(changed_documents),
         },
         "validate_candidate": lambda packet: (
             []
@@ -419,14 +425,15 @@ def test_targeted_revision_uses_atomic_model_owned_artifact_writes() -> None:
         THEORY_WORKSPACE_GAP_TOOL,
     ]
     prompt = str(backend.requests[0].messages[0]["content"])
-    assert "complete model-authored JSON values" in prompt
-    assert "without merging, patching, or inventing content" in prompt
+    assert "Markdown/LaTeX documents" in prompt
+    assert "JSON artifacts are only an index" in prompt
+    assert "without merging or inventing content" in prompt
     write_tool = next(
         tool
         for tool in backend.requests[0].tools
         if tool.name == THEORY_WORKSPACE_WRITE_TOOL
     )
-    assert "does not merge or infer content" in write_tool.description
+    assert "runtime never merges or infers content" in write_tool.description
 
 
 def test_same_theory_model_runs_exact_scratch_source_then_revises(
@@ -788,3 +795,122 @@ def test_theory_workspace_accepts_one_coherent_complete_write_batch() -> None:
         "lemma_cards",
         "theorem_cards",
     ]
+
+
+def test_document_authority_persists_exact_math_and_small_handoff(
+    tmp_path,
+) -> None:
+    markdown = "# Claim C1\n\nFor all n, $a_n = b_n$.\n"
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="write-document-and-index",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input={
+                        **_artifact_writes(
+                            {
+                                "problem_card": {"claim": "revised claim"},
+                                "lemma_cards": [{"id": "C1"}],
+                            }
+                        ),
+                        "document_writes": [
+                            {
+                                "path": "derivations/C1.md",
+                                "content": markdown,
+                            }
+                        ],
+                    },
+                )
+            ),
+            _response(_commit_checkpoint()),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        workspace_dir=tmp_path / "theory",
+        require_document_authority=True,
+        build_candidate=lambda artifacts, changed, manifest, changed_documents: {
+            "artifacts": dict(artifacts),
+            "changed": list(changed),
+            "theory_workspace_manifest": dict(manifest),
+            "theory_content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
+            "structured_handoff_role": THEORY_WORKSPACE_HANDOFF_ROLE,
+            "changed_documents": list(changed_documents),
+        },
+    )
+
+    assert (tmp_path / "theory" / "derivations" / "C1.md").read_text() == markdown
+    assert result.evidence["changed_document_paths"] == ["derivations/C1.md"]
+    assert result.evidence["n_model_document_writes"] == 1
+    write_schema = next(
+        tool.input_schema
+        for tool in backend.requests[0].tools
+        if tool.name == THEORY_WORKSPACE_WRITE_TOOL
+    )
+    assert not {"oneOf", "allOf", "anyOf"}.intersection(write_schema)
+    assert "required" not in write_schema
+    assert theory_workspace_manifest_errors(result.core_packet, required=True) == []
+    assert load_theory_workspace_documents(result.core_packet) == {
+        "derivations/C1.md": markdown
+    }
+    outside = tmp_path / "outside.md"
+    outside.write_text(markdown, encoding="utf-8")
+    tampered = json.loads(json.dumps(result.core_packet))
+    tampered["theory_workspace_manifest"]["documents"][0]["path"] = str(
+        outside
+    )
+    with pytest.raises(ValueError, match="document path mismatch"):
+        load_theory_workspace_documents(tampered)
+
+
+def test_document_authority_rejects_handoff_only_checkpoint(tmp_path) -> None:
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="write-index-only",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "lemma-1"}],
+                        }
+                    ),
+                )
+            ),
+            _response(_commit_checkpoint()),
+            _response(
+                ClientToolCall(
+                    call_id="report-document-gap",
+                    name=THEORY_WORKSPACE_GAP_TOOL,
+                    input={
+                        "summary": "The authoritative document was not revised.",
+                        "blocking_claims": ["lemma-1"],
+                        "evidence_refs": ["commit observation"],
+                        "next_step": "Revise the mathematical document.",
+                    },
+                )
+            ),
+        ]
+    )
+
+    with pytest.raises(TheoryWorkspaceGapError):
+        _run_workspace(
+            backend,
+            workspace_dir=tmp_path / "theory",
+            require_document_authority=True,
+            initial_documents={"workspace.md": "# Parent\n\nParent mathematics.\n"},
+            build_candidate=lambda artifacts, changed, manifest, changed_documents: {
+                "artifacts": dict(artifacts),
+                "changed": list(changed),
+                "theory_workspace_manifest": dict(manifest),
+                "theory_content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
+                "structured_handoff_role": THEORY_WORKSPACE_HANDOFF_ROLE,
+                "changed_documents": list(changed_documents),
+            },
+        )
+
+    rejected = json.loads(backend.requests[2].messages[-1]["content"][0]["content"])
+    assert "requires a changed authoritative" in rejected["detail"]

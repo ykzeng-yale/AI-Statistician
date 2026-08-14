@@ -17,6 +17,7 @@ from ai_statistician.architect_metric_contract_authoring import (
 from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT,
     _architect_theory_execution_preflight_submit_schema,
     _search_preflight_sources,
     architect_theory_execution_preflight_json_schema,
@@ -42,6 +43,20 @@ from ai_statistician.research_schema import OpenResearchQuestion
 
 
 TEST_HAIKU_MODEL = "claude-haiku-4-5-20251001"
+
+
+def test_preflight_prompt_requires_independent_mathematical_check() -> None:
+    prompt = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
+
+    assert "authoritative theory documents" in prompt
+    assert "Reconstruct" in prompt
+    assert "at least one decisive algebraic or probabilistic step" in prompt
+    assert "boundary case" in prompt
+    assert "special case, or counterexample" in prompt
+    assert "retrieved copy" in prompt
+    assert "may be UNKNOWN rather than FAIL" in prompt
+    assert "scratchpad result is exploratory diagnostic evidence only" in prompt
+    assert "relabels it as confirmatory" in prompt
 
 
 def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:

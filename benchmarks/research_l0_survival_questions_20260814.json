@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "kaplan_meier_greenwood_known_result",
+      "title": "Kaplan-Meier survival and Greenwood pointwise variance",
+      "description": "Focused known-result evaluation based on Kaplan and Meier, Journal of the American Statistical Association 53(282), 1958, pages 457-481, DOI 10.1080/01621459.1958.10501452. For i.i.d. right-censored observations Y_i = min(T_i, C_i) and delta_i = 1{T_i <= C_i}, state independent noninformative censoring, fixed-time support/at-risk positivity, and regularity conditions sufficient for pointwise consistency and asymptotic normality. At each distinct event time t_j, define n_j as the number at risk just before t_j and d_j as the number of observed events at t_j; censoring changes later risk sets but never counts as an event. Derive the right-continuous product-limit estimator S_hat(t) = product over t_j <= t of (1 - d_j/n_j) and Greenwood variance V_hat(t) = S_hat(t)^2 sum over t_j <= t of d_j/[n_j(n_j-d_j)]. Distinguish normalization: V_hat(t) estimates the pointwise variance of S_hat(t) and is order n^(-1), while n V_hat(t) estimates the asymptotic variance of sqrt(n)(S_hat(t)-S(t)); do not call Greenwood variance an exact finite-sample or generally unbiased variance. The required algorithm artifact id is est_kaplan_meier_greenwood. Its run_estimator(request) input has durations as a length-n nonnegative numeric array, event_observed as a length-n 0/1 array, and query_times as a numeric array. It must return survival, greenwood_variance, and standard_errors as arrays aligned to query_times. Events exactly at a query time are included. Evaluation queries stay before risk-set exhaustion, so every included event has n_j > d_j. Run an exploratory check, then a separately frozen confirmatory independent-censoring simulation assessing pointwise bias, confidence-interval coverage, and standard-error calibration with finite-run Monte Carlo uncertainty reported. This L0 task exposes the known result and ABI; it tests faithful derivation, implementation, empirical validation, and honest gaps rather than novelty. Lean formalization is not applicable.",
+      "tags": [
+        "survival analysis",
+        "right censoring",
+        "Kaplan-Meier",
+        "Greenwood variance",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "title": "Nonparametric Estimation from Incomplete Observations",
+        "authors": ["Edward L. Kaplan", "Paul Meier"],
+        "journal": "Journal of the American Statistical Association",
+        "year": 1958,
+        "volume": 53,
+        "issue": 282,
+        "pages": "457-481",
+        "doi": "10.1080/01621459.1958.10501452",
+        "url": "https://www.tandfonline.com/doi/abs/10.1080/01621459.1958.10501452"
+      }
+    }
+  ]
+}

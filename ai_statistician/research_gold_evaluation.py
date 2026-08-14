@@ -5,6 +5,7 @@ import json
 import math
 import tempfile
 import zlib
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -14,6 +15,7 @@ from .scientific_sandbox import (
     ScientificEstimatorBinding,
     execute_scientific_sandbox,
 )
+from .theory_workspace import load_theory_workspace_document_rows
 
 
 GOLD_EVALUATION_BOUNDARY = (
@@ -188,6 +190,8 @@ def _evaluate_gold_task(
         "hidden_check_results": [],
         "accepted_theory_packet_id": "",
         "accepted_theory_packet_hash": "",
+        "accepted_theory_document_count": 0,
+        "accepted_theory_document_set_hash": "",
         "hidden_theory_evaluation_configured": bool(theory_evaluator),
         "hidden_theory_evaluator_source_hash": str(
             theory_evaluator.get("harness_sha256", "") or ""
@@ -257,50 +261,73 @@ def _evaluate_gold_task(
         else:
             base["accepted_theory_packet_id"] = theory_id
             base["accepted_theory_packet_hash"] = stable_hash(theory_packet)
+            try:
+                theory_candidate = _hidden_theory_candidate_artifact(
+                    theory_packet
+                )
+            except (OSError, UnicodeError, ValueError) as exc:
+                base["failure_reasons"].append(str(exc))
+                theory_candidate = None
+            authoritative_documents = (
+                theory_candidate.get("authoritative_theory_documents", [])
+                if isinstance(theory_candidate, Mapping)
+                else []
+            )
+            base["accepted_theory_document_count"] = len(
+                authoritative_documents
+            )
+            base["accepted_theory_document_set_hash"] = stable_hash(
+                [
+                    (row.get("path", ""), row.get("sha256", ""))
+                    for row in authoritative_documents
+                    if isinstance(row, Mapping)
+                ]
+            )
             theory_harness_path = _project_path(
                 str(theory_evaluator["harness_path"]),
                 project_root=project_root,
             )
-            theory_execution = dict(
-                run_artifact_harness(
-                    sandbox_dir=sandbox_root / task_id / "theory",
-                    artifact_id=f"gold-theory-{task_id}",
-                    harness_code=theory_harness_path.read_text(encoding="utf-8"),
-                    harness_dependencies=tuple(
-                        str(value)
-                        for value in theory_evaluator.get("dependencies", []) or []
-                    ),
-                    candidate_artifact=theory_packet,
-                    seed=int(theory_evaluator.get("seed", 0) or 0),
-                    replicates=int(theory_evaluator.get("replicates", 1) or 1),
-                    timeout_s=int(
-                        theory_evaluator.get("timeout_seconds", 60) or 60
-                    ),
+            if theory_candidate is not None:
+                theory_execution = dict(
+                    run_artifact_harness(
+                        sandbox_dir=sandbox_root / task_id / "theory",
+                        artifact_id=f"gold-theory-{task_id}",
+                        harness_code=theory_harness_path.read_text(encoding="utf-8"),
+                        harness_dependencies=tuple(
+                            str(value)
+                            for value in theory_evaluator.get("dependencies", []) or []
+                        ),
+                        candidate_artifact=theory_candidate,
+                        seed=int(theory_evaluator.get("seed", 0) or 0),
+                        replicates=int(theory_evaluator.get("replicates", 1) or 1),
+                        timeout_s=int(
+                            theory_evaluator.get("timeout_seconds", 60) or 60
+                        ),
+                    )
                 )
-            )
-            theory_summary = _hidden_execution_summary(
-                theory_execution,
-                evaluator=theory_evaluator,
-            )
-            hidden_theory_passed = theory_summary["passed"]
-            base.update(
-                {
-                    "hidden_theory_execution_attempted": theory_summary[
-                        "execution_attempted"
-                    ],
-                    "hidden_theory_execution_passed": theory_summary[
-                        "execution_passed"
-                    ],
-                    "hidden_theory_result_hash": theory_summary["result_hash"],
-                    "hidden_theory_checks_passed": theory_summary[
-                        "checks_passed"
-                    ],
-                    "hidden_theory_check_results": theory_summary[
-                        "check_results"
-                    ],
-                }
-            )
-            base["failure_reasons"].extend(theory_summary["errors"])
+                theory_summary = _hidden_execution_summary(
+                    theory_execution,
+                    evaluator=theory_evaluator,
+                )
+                hidden_theory_passed = theory_summary["passed"]
+                base.update(
+                    {
+                        "hidden_theory_execution_attempted": theory_summary[
+                            "execution_attempted"
+                        ],
+                        "hidden_theory_execution_passed": theory_summary[
+                            "execution_passed"
+                        ],
+                        "hidden_theory_result_hash": theory_summary["result_hash"],
+                        "hidden_theory_checks_passed": theory_summary[
+                            "checks_passed"
+                        ],
+                        "hidden_theory_check_results": theory_summary[
+                            "check_results"
+                        ],
+                    }
+                )
+                base["failure_reasons"].extend(theory_summary["errors"])
 
     accepted_id, accepted_handoff, errors = _latest_accepted_algorithm_handoff(
         runtime_result,
@@ -638,6 +665,26 @@ def _dimension_status(
         "evidence_authority": "runtime_completion_contract",
     }
     return rows
+
+
+def _hidden_theory_candidate_artifact(
+    theory_packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Hydrate accepted theory documents only inside evaluator authority."""
+
+    candidate = deepcopy(dict(theory_packet))
+    rows = load_theory_workspace_document_rows(theory_packet)
+    candidate["authoritative_theory_documents"] = rows
+    candidate["evaluator_document_hydration"] = {
+        "document_count": len(rows),
+        "document_set_hash": stable_hash(
+            [(row["path"], row["sha256"]) for row in rows]
+        ),
+        "runtime_feedback_generated": False,
+        "visibility": "evaluator_only_after_runtime_termination",
+        "boundary": GOLD_EVALUATION_BOUNDARY,
+    }
+    return candidate
 
 
 def _full_task_gold_configured(task: Mapping[str, Any]) -> bool:

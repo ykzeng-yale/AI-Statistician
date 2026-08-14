@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
+from .theory_workspace import load_theory_workspace_document_rows
 
 
 def _generated_code_semantic_review_theory_core_projection(
@@ -20,6 +21,9 @@ def _generated_code_semantic_review_theory_core_projection(
         "packet_id",
         "question",
         "problem_card",
+        "theory_workspace_manifest",
+        "theory_content_authority",
+        "structured_handoff_role",
         "theory_derivation_contract",
         "theory_derivation_packet",
         "derivation_steps",
@@ -43,6 +47,9 @@ def _generated_code_semantic_review_theory_core_projection(
         for field in semantic_fields
         if field in theory_packet
     }
+    projected["authoritative_theory_documents"] = (
+        load_theory_workspace_document_rows(theory_packet)
+    )
     projected["theory_review_projection"] = {
         "canonical_theory_packet_id": str(
             theory_packet.get("packet_id", "") or ""
@@ -155,7 +162,11 @@ def generated_code_semantic_review_theory_projection(
             supported_formalization_targets,
         )
     ):
-        return dict(theory_packet)
+        unscoped = dict(theory_packet)
+        unscoped["authoritative_theory_documents"] = (
+            load_theory_workspace_document_rows(theory_packet)
+        )
+        return unscoped
 
     derivation_steps = _rows_selected_by_field(
         raw_trace.get("derivation_steps", []),
@@ -186,6 +197,18 @@ def generated_code_semantic_review_theory_projection(
             )
         )
     ]
+    claim_index = _rows_selected_by_field(
+        raw_trace.get("claim_index", []),
+        field="id",
+        allowed=supported_derivation_steps,
+    )
+    sanity_check_index = [
+        deepcopy(row)
+        for row in raw_trace.get("sanity_check_index", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("claim_ref", "") or "")
+        in supported_derivation_steps
+    ]
     formalization_handoff = _formalization_handoff_projection(
         raw_trace.get("formalization_handoff", {}),
         supported_targets=supported_formalization_targets,
@@ -197,6 +220,8 @@ def generated_code_semantic_review_theory_projection(
             "equation_chain": equation_chain,
             "assumption_ledger": assumption_ledger,
             "sanity_checks": sanity_checks,
+            "claim_index": claim_index,
+            "sanity_check_index": sanity_check_index,
             "formalization_handoff": formalization_handoff,
         }.items()
         if value not in (None, "", [], {})
@@ -207,6 +232,9 @@ def generated_code_semantic_review_theory_projection(
         "packet_id",
         "question",
         "problem_card",
+        "theory_workspace_manifest",
+        "theory_content_authority",
+        "structured_handoff_role",
         "theory_derivation_contract",
         "theory_prompt_mode",
         "serious_theory_mode",
@@ -220,6 +248,9 @@ def generated_code_semantic_review_theory_projection(
         if field in theory_packet
     }
     projected["theory_derivation_packet"] = projected_trace
+    projected["authoritative_theory_documents"] = (
+        load_theory_workspace_document_rows(theory_packet)
+    )
 
     implementation_target_ids = {
         str(row.get("estimator_id", "") or "")

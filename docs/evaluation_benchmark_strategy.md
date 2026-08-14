@@ -84,6 +84,14 @@ sanity checks, and unresolved gaps. Independent review and empirical or formal
 observations can reopen the current theory lineage. A model-reported theory gap is
 an honest blocked result, never proof evidence.
 
+The mathematical authority is now model-authored Markdown, LaTeX, and BibTeX in a
+content-addressed workspace. The structured handoff carries claim/document anchors,
+theorem summaries, and typed cross-agent ABIs, but it is no longer the authority for
+the derivation. It is still a transitional payload and should be reduced further as
+consumers move to references. Reviewers, coding agents, simulation agents, and hidden
+evaluators consume the same hash-verified document bytes; schema validity cannot stand
+in for mathematical validity.
+
 A schema-valid theory write does not automatically close the workspace. The author
 model explicitly commits a review checkpoint or continues within the existing
 bounded session; the harness imposes no fixed review ritual. Independent theory
@@ -222,8 +230,8 @@ e-process guarantee. Neither task reached Formalizer, so the atomic Lean
 declaration-context improvement still has component evidence only. The held-out
 strict-formal panel remains sealed.
 
-The ladder now has one active L0 task, White HC0, with private full-task gold and
-one fresh corrected-v2 exact-Haiku run. v5 ended `BLOCKED`: its accepted estimator
+The ladder now has two full-task-gold L0 tasks. White HC0 has one fresh
+corrected-v2 exact-Haiku run. v5 ended `BLOCKED`: its accepted estimator
 passed all 7 hidden reference/metamorphic checks and all 6 hidden empirical checks
 across two DGPs and 2,000 estimator calls, but its theory passed only 7 of 11 hidden
 checks. It omitted required design/variance-limit, triangular-array/moment, and
@@ -231,6 +239,25 @@ aggregate-meat arguments and retained an invalid unscaled nonzero covariance lim
 The frozen runtime simulation also failed one of six metric gates, so hidden
 empirical support is reported separately and does not turn the runtime protocol or
 the full task into a pass.
+
+The second task, Kaplan-Meier/Greenwood, now has one fresh exact-Haiku v2 run. An
+earlier v1 attempt failed at the Anthropic tool-schema boundary before TheoryDeveloper
+received a model turn and is not a capability draw. In v2, TheoryDeveloper authored
+two authoritative Markdown documents totaling 17,928 bytes, the runtime completed
+its research loop, and the exact accepted estimator passed all 10 hidden algorithm
+checks and all 6 hidden empirical checks across two DGPs and 2,000 calls. Formalization
+was correctly not applicable.
+
+The full KM task is nevertheless not validated. The runtime theory preflight accepted
+an incoherent censoring-independence statement and a displayed asymptotic-variance
+integral with an extra survival factor. The first private theory scorer returned
+10/13, but its three failures were notation or wording false negatives: equivalent
+LaTeX Greenwood, risk-set, and scaling statements were rejected while the substantive
+errors were missed. That scorer therefore failed calibration and its raw count is not
+a semantic capability score. TheoryDeveloper also labeled its own pre-review
+scratchpad outcomes as confirmatory and selected acceptance thresholds before the
+independent frozen simulation lane. The frozen v2 artifact remains a negative
+calibration case; it will not be resampled or rewritten to fit the task.
 
 The corrected v2 statement distinguishes `V_HC0 = O(n^-1)` from
 `n V_HC0 -> Q^-1 Omega Q^-1` and requires design and moment regularity beyond
@@ -252,10 +279,15 @@ post-outcome source backedge and requires terminal gap reporting without changin
 models, thresholds, retries, or budgets. It has deterministic regression evidence;
 there is no post-fix live rerun.
 
-The next product-evaluation step is a second unrelated focused known result with
-complete private theory, code, empirical, and gap-report authorities. After that,
-the ladder should add a pinned published replication. Repeated HC0 draws would not
-distinguish a mechanism improvement from sampling another model response.
+The next product-evaluation step is to calibrate a claim-anchored, notation-invariant
+theory authority on the frozen reference, negative variants, and KM v2 artifact.
+Deterministic evaluation should continue to own hashes, executable invariants, and
+MCSE checks; substantive prose mathematics needs independent semantic adjudication
+with exact document anchors and explicit derivation or counterexample evidence. The
+existing preflight prompt now requires such an independent check without adding an
+agent, retry, task rule, or larger budget. After calibration, the ladder should move
+to an unrelated known result and a pinned published replication. Repeated HC0 or KM
+draws would not distinguish a mechanism improvement from sampling another response.
 
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same

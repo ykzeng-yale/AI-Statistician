@@ -42,9 +42,13 @@ from .theory_revision_lineage import (
     theory_developer_revision_binding_errors,
 )
 from .theory_workspace import (
+    THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
+    THEORY_WORKSPACE_HANDOFF_ROLE,
     TheoryScratchpadConfig,
+    load_theory_workspace_documents,
     run_theory_artifact_workspace,
+    theory_workspace_manifest_errors,
 )
 
 
@@ -171,6 +175,7 @@ class LLMTheoryDeveloperAgent:
         *,
         architect_context: Mapping[str, Any] | None = None,
         theory_scratchpad: TheoryScratchpadConfig | None = None,
+        theory_workspace_root: Path | None = None,
     ) -> dict[str, Any]:
         context = dict(architect_context or {})
         theory_prompt_mode = _theory_developer_prompt_mode(context)
@@ -254,6 +259,7 @@ class LLMTheoryDeveloperAgent:
                     formalization_authoring_required
                 ),
                 theory_scratchpad=theory_scratchpad,
+                theory_workspace_root=theory_workspace_root,
             )
         elif callable(
             getattr(self.provider, "generate_client_tool_turn", None)
@@ -281,6 +287,7 @@ class LLMTheoryDeveloperAgent:
                     formalization_authoring_required
                 ),
                 theory_scratchpad=theory_scratchpad,
+                theory_workspace_root=theory_workspace_root,
             )
         else:
             user_prompt = build_theory_developer_prompt(
@@ -1629,6 +1636,45 @@ del THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT["estimator_specs"][0][
     "estimator_interface_contract"
 ]
 
+THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT = deepcopy(
+    THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+)
+THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
+    "derivation_summary": (
+        "short cross-agent summary; full mathematics lives in referenced documents"
+    ),
+    "claim_index": [
+        {
+            "id": "stable claim or equation id",
+            "kind": "definition|assumption|lemma|theorem|equation|counterexample",
+            "document_path": "workspace-relative .md or .tex path",
+            "anchor": "heading or LaTeX label",
+            "status": "OPEN|SUPPORTED|REJECTED|INCONCLUSIVE",
+        }
+    ],
+    "sanity_check_index": [
+        {
+            "id": "stable check id",
+            "claim_ref": "claim_index id",
+            "document_path": "workspace-relative .md or .tex path",
+            "anchor": "heading or LaTeX label",
+            "status": "PASS|FAIL|INCONCLUSIVE",
+        }
+    ],
+    "formalization_handoff": deepcopy(
+        THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT["theory_derivation_packet"][
+            "formalization_handoff"
+        ]
+    ),
+    "self_critique": ["short unresolved-risk summary with document anchors"],
+    "rejected_alternatives": [
+        {
+            "name": "short id",
+            "reason": "short summary with document anchor",
+        }
+    ],
+}
+
 
 def _json_schema_from_output_contract(value: Any) -> dict[str, Any]:
     if isinstance(value, Mapping):
@@ -1903,6 +1949,211 @@ def _output_contract_shape_errors(
     return []
 
 
+def _file_theory_index_errors(
+    derivation: Mapping[str, Any],
+    packet: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    manifest = packet.get("theory_workspace_manifest", {})
+    document_paths = {
+        str(row.get("relative_path", "") or "")
+        for row in (
+            manifest.get("documents", [])
+            if isinstance(manifest, Mapping)
+            else []
+        )
+        if isinstance(row, Mapping)
+    }
+    try:
+        documents = load_theory_workspace_documents(packet)
+    except (OSError, UnicodeError, ValueError):
+        documents = {}
+    claim_rows = derivation.get("claim_index", [])
+    if not isinstance(claim_rows, list) or not claim_rows:
+        errors.append("theory_derivation_packet.claim_index must be non-empty")
+        claim_rows = []
+    claim_ids: list[str] = []
+    for index, row in enumerate(claim_rows):
+        if not isinstance(row, Mapping):
+            errors.append(f"claim_index[{index}] must be an object")
+            continue
+        missing = [
+            field
+            for field in ("id", "kind", "document_path", "anchor", "status")
+            if not str(row.get(field, "") or "").strip()
+        ]
+        if missing:
+            errors.append(
+                f"claim_index[{index}] missing required fields: "
+                + ", ".join(missing)
+            )
+        claim_id = str(row.get("id", "") or "").strip()
+        if claim_id:
+            claim_ids.append(claim_id)
+        path = str(row.get("document_path", "") or "").strip()
+        if path and path not in document_paths:
+            errors.append(f"claim_index[{index}] references an unknown document")
+        anchor = str(row.get("anchor", "") or "").strip()
+        if path in documents and anchor and anchor not in documents[path]:
+            errors.append(f"claim_index[{index}] anchor is absent from its document")
+        if str(row.get("kind", "") or "") not in {
+            "definition",
+            "assumption",
+            "lemma",
+            "theorem",
+            "equation",
+            "counterexample",
+        }:
+            errors.append(f"claim_index[{index}] has invalid kind")
+        if str(row.get("status", "") or "") not in {
+            "OPEN",
+            "SUPPORTED",
+            "REJECTED",
+            "INCONCLUSIVE",
+        }:
+            errors.append(f"claim_index[{index}] has invalid status")
+    if len(claim_ids) != len(set(claim_ids)):
+        errors.append("claim_index ids must be unique")
+
+    check_rows = derivation.get("sanity_check_index", [])
+    if not isinstance(check_rows, list) or not check_rows:
+        errors.append("theory_derivation_packet.sanity_check_index must be non-empty")
+        check_rows = []
+    check_ids: list[str] = []
+    for index, row in enumerate(check_rows):
+        if not isinstance(row, Mapping):
+            errors.append(f"sanity_check_index[{index}] must be an object")
+            continue
+        missing = [
+            field
+            for field in ("id", "claim_ref", "document_path", "anchor", "status")
+            if not str(row.get(field, "") or "").strip()
+        ]
+        if missing:
+            errors.append(
+                f"sanity_check_index[{index}] missing required fields: "
+                + ", ".join(missing)
+            )
+        check_id = str(row.get("id", "") or "").strip()
+        if check_id:
+            check_ids.append(check_id)
+        claim_ref = str(row.get("claim_ref", "") or "").strip()
+        if claim_ref and claim_ref not in set(claim_ids):
+            errors.append(f"sanity_check_index[{index}] has unknown claim_ref")
+        path = str(row.get("document_path", "") or "").strip()
+        if path and path not in document_paths:
+            errors.append(
+                f"sanity_check_index[{index}] references an unknown document"
+            )
+        anchor = str(row.get("anchor", "") or "").strip()
+        if path in documents and anchor and anchor not in documents[path]:
+            errors.append(
+                f"sanity_check_index[{index}] anchor is absent from its document"
+            )
+        if str(row.get("status", "") or "") not in {
+            "PASS",
+            "FAIL",
+            "INCONCLUSIVE",
+        }:
+            errors.append(f"sanity_check_index[{index}] has invalid status")
+    if len(check_ids) != len(set(check_ids)):
+        errors.append("sanity_check_index ids must be unique")
+    indexed_ids = set(claim_ids)
+    for field in ("estimator_specs", "theorem_cards", "lemma_cards"):
+        for index, row in enumerate(packet.get(field, []) or []):
+            if not isinstance(row, Mapping):
+                continue
+            row_id = str(row.get("id", "") or "").strip()
+            if row_id and row_id not in indexed_ids:
+                errors.append(f"{field}[{index}].id is absent from claim_index")
+    return errors
+
+
+def _legacy_structured_derivation_errors(
+    derivation: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    derivation_steps = derivation.get("derivation_steps", [])
+    if not isinstance(derivation_steps, list) or not derivation_steps:
+        errors.append(
+            "theory_derivation_packet.derivation_steps must be a non-empty list"
+        )
+    else:
+        for idx, row in enumerate(derivation_steps, start=1):
+            if not isinstance(row, Mapping):
+                errors.append(
+                    "theory_derivation_packet.derivation_steps entries must be objects"
+                )
+                continue
+            if not str(row.get("id", "")).strip():
+                errors.append(f"derivation step {idx} missing id")
+            if not str(row.get("claim", "")).strip():
+                errors.append(f"derivation step {idx} missing claim")
+            if not str(row.get("equation_or_argument", "")).strip():
+                errors.append(f"derivation step {idx} missing equation_or_argument")
+    equation_chain = derivation.get("equation_chain", [])
+    if not isinstance(equation_chain, list) or not equation_chain:
+        errors.append(
+            "theory_derivation_packet.equation_chain must be a non-empty list"
+        )
+    else:
+        for idx, row in enumerate(equation_chain, start=1):
+            if not isinstance(row, Mapping):
+                errors.append(
+                    "theory_derivation_packet.equation_chain entries must be objects"
+                )
+                continue
+            if not str(row.get("lhs", "")).strip() or not str(
+                row.get("rhs", "")
+            ).strip():
+                errors.append(f"equation_chain row {idx} must include lhs and rhs")
+            if not str(row.get("justification", "")).strip():
+                errors.append(f"equation_chain row {idx} missing justification")
+    assumption_ledger = derivation.get("assumption_ledger", [])
+    if not isinstance(assumption_ledger, list) or not assumption_ledger:
+        errors.append("theory_derivation_packet.assumption_ledger must be non-empty")
+    else:
+        for idx, row in enumerate(assumption_ledger, start=1):
+            if not isinstance(row, Mapping):
+                errors.append(
+                    "theory_derivation_packet.assumption_ledger entries must be objects"
+                )
+                continue
+            if not str(row.get("assumption", "")).strip():
+                errors.append(f"assumption_ledger row {idx} missing assumption")
+            if not row.get("used_in"):
+                errors.append(f"assumption_ledger row {idx} missing used_in")
+    sanity_checks = derivation.get("sanity_checks", [])
+    if not isinstance(sanity_checks, list) or not sanity_checks:
+        errors.append(
+            "theory_derivation_packet.sanity_checks must be a non-empty list"
+        )
+    if isinstance(sanity_checks, list):
+        for idx, row in enumerate(sanity_checks):
+            if not isinstance(row, Mapping):
+                errors.append(
+                    f"theory_derivation_packet.sanity_checks[{idx}] must be an object"
+                )
+                continue
+            missing_fields = [
+                field
+                for field in (
+                    "id",
+                    "claim_ref",
+                    "check_type",
+                    "recomputation",
+                    "result",
+                )
+                if not str(row.get(field, "") or "").strip()
+            ]
+            if missing_fields:
+                errors.append(
+                    f"theory_derivation_packet.sanity_checks[{idx}] missing "
+                    "required fields: " + ", ".join(missing_fields)
+                )
+    return errors
+
+
 def _validate_theory_packet(
     packet: Mapping[str, Any],
     *,
@@ -1911,11 +2162,25 @@ def _validate_theory_packet(
     formalization_authoring_required = (
         packet.get("runtime_formalization_authoring_required") is not False
     )
+    document_authority = (
+        packet.get("theory_content_authority")
+        == THEORY_WORKSPACE_CONTENT_AUTHORITY
+    )
     errors: list[str] = _output_contract_shape_errors(
         packet,
         THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
         path="",
     )
+    errors.extend(
+        theory_workspace_manifest_errors(
+            packet,
+            required=document_authority,
+        )
+    )
+    if document_authority and packet.get("structured_handoff_role") != (
+        THEORY_WORKSPACE_HANDOFF_ROLE
+    ):
+        errors.append("theory workspace structured handoff role mismatch")
     required_nonempty_fields = [
         "problem_card",
         "theory_derivation_packet",
@@ -1949,76 +2214,15 @@ def _validate_theory_packet(
     if not isinstance(derivation, Mapping):
         errors.append("theory_derivation_packet must be an object")
     else:
-        derivation_steps = derivation.get("derivation_steps", [])
-        if not isinstance(derivation_steps, list) or not derivation_steps:
-            errors.append(
-                "theory_derivation_packet.derivation_steps must be a non-empty list"
+        if document_authority:
+            errors.extend(
+                _file_theory_index_errors(
+                    derivation,
+                    packet,
+                )
             )
         else:
-            for idx, row in enumerate(derivation_steps, start=1):
-                if not isinstance(row, Mapping):
-                    errors.append("theory_derivation_packet.derivation_steps entries must be objects")
-                    continue
-                if not str(row.get("id", "")).strip():
-                    errors.append(f"derivation step {idx} missing id")
-                if not str(row.get("claim", "")).strip():
-                    errors.append(f"derivation step {idx} missing claim")
-                if not str(row.get("equation_or_argument", "")).strip():
-                    errors.append(f"derivation step {idx} missing equation_or_argument")
-        equation_chain = derivation.get("equation_chain", [])
-        if not isinstance(equation_chain, list) or not equation_chain:
-            errors.append(
-                "theory_derivation_packet.equation_chain must be a non-empty list"
-            )
-        else:
-            for idx, row in enumerate(equation_chain, start=1):
-                if not isinstance(row, Mapping):
-                    errors.append("theory_derivation_packet.equation_chain entries must be objects")
-                    continue
-                if not str(row.get("lhs", "")).strip() or not str(row.get("rhs", "")).strip():
-                    errors.append(f"equation_chain row {idx} must include lhs and rhs")
-                if not str(row.get("justification", "")).strip():
-                    errors.append(f"equation_chain row {idx} missing justification")
-        assumption_ledger = derivation.get("assumption_ledger", [])
-        if not isinstance(assumption_ledger, list) or not assumption_ledger:
-            errors.append("theory_derivation_packet.assumption_ledger must be non-empty")
-        else:
-            for idx, row in enumerate(assumption_ledger, start=1):
-                if not isinstance(row, Mapping):
-                    errors.append("theory_derivation_packet.assumption_ledger entries must be objects")
-                    continue
-                if not str(row.get("assumption", "")).strip():
-                    errors.append(f"assumption_ledger row {idx} missing assumption")
-                if not row.get("used_in"):
-                    errors.append(f"assumption_ledger row {idx} missing used_in")
-        sanity_checks = derivation.get("sanity_checks", [])
-        if not isinstance(sanity_checks, list) or not sanity_checks:
-            errors.append(
-                "theory_derivation_packet.sanity_checks must be a non-empty list"
-            )
-        if isinstance(sanity_checks, list):
-            for idx, row in enumerate(sanity_checks):
-                if not isinstance(row, Mapping):
-                    errors.append(
-                        f"theory_derivation_packet.sanity_checks[{idx}] must be an object"
-                    )
-                    continue
-                missing_fields = [
-                    field
-                    for field in (
-                        "id",
-                        "claim_ref",
-                        "check_type",
-                        "recomputation",
-                        "result",
-                    )
-                    if not str(row.get(field, "") or "").strip()
-                ]
-                if missing_fields:
-                    errors.append(
-                        f"theory_derivation_packet.sanity_checks[{idx}] missing "
-                        "required fields: " + ", ".join(missing_fields)
-                    )
+            errors.extend(_legacy_structured_derivation_errors(derivation))
         formalization_handoff = derivation.get("formalization_handoff", {})
         if formalization_authoring_required and (
             not isinstance(formalization_handoff, Mapping)
@@ -2381,9 +2585,16 @@ def build_theory_developer_revision_inputs(
         )
     base_core_payload = {
         field: deepcopy(semantic_material[field])
-        for field in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+        for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
         if field in semantic_material
     }
+    for field in (
+        "theory_workspace_manifest",
+        "theory_content_authority",
+        "structured_handoff_role",
+    ):
+        if field in semantic_material:
+            base_core_payload[field] = deepcopy(semantic_material[field])
     parent_estimator_interface_bindings: list[dict[str, Any]] = []
     raw_specs = base_core_payload.get("estimator_specs", [])
     if isinstance(raw_specs, list):
@@ -2522,11 +2733,19 @@ def _theory_workspace_read_only_observations(
     return observations
 
 
-def _empty_theory_core_workspace() -> dict[str, Any]:
-    """Return shape-only writable artifacts without seeded research content."""
+def _empty_theory_core_workspace(
+    *,
+    file_authority: bool = False,
+) -> dict[str, Any]:
+    """Return shape-only handoff artifacts without seeded research content."""
 
     workspace: dict[str, Any] = {}
-    for name, contract in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT.items():
+    contract_source = (
+        THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
+        if file_authority
+        else THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+    )
+    for name, contract in contract_source.items():
         if isinstance(contract, Mapping):
             workspace[name] = {}
         elif isinstance(contract, list):
@@ -2547,7 +2766,7 @@ def _initial_theory_workspace_read_only_artifacts(
     formalization_authoring_required: bool,
 ) -> dict[str, Any]:
     serious = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
-    required_output_contract = deepcopy(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT)
+    required_output_contract = deepcopy(THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT)
     if not formalization_authoring_required:
         required_output_contract["formalization_requests"] = []
         derivation_contract = required_output_contract.get(
@@ -2571,10 +2790,9 @@ def _initial_theory_workspace_read_only_artifacts(
                 "theory_prompt_mode": theory_prompt_mode,
                 "serious_theory_mode": serious,
                 "required_nonempty_structures": [
-                    "derivation_steps",
-                    "equation_chain",
-                    "assumption_ledger",
-                    "sanity_checks",
+                    "model-authored Markdown/LaTeX mathematical documents",
+                    "claim_index",
+                    "sanity_check_index",
                 ],
                 "maximum_submissions": max(1, int(max_submissions)),
                 "row_count_policy": "model_selected",
@@ -2583,6 +2801,10 @@ def _initial_theory_workspace_read_only_artifacts(
                     formalization_authoring_required
                 ),
                 "substantive_author": "TheoryDeveloper model",
+                "mathematical_content_authority": (
+                    THEORY_WORKSPACE_CONTENT_AUTHORITY
+                ),
+                "structured_handoff_role": THEORY_WORKSPACE_HANDOFF_ROLE,
                 "runtime_role": (
                     "apply exact model-authored edits, validate structure and "
                     "lineage, and return raw observations without choosing "
@@ -2605,18 +2827,29 @@ def _initial_theory_workspace_prompt(
         "Author the initial TheoryDeveloper research workspace for the supplied "
         f"question {question.id!r} in mode {theory_prompt_mode!r}. First read the "
         "single initial_authoring_context artifact. Then use your own statistical "
-        "judgment to edit the empty, shape-typed theory artifacts. You may edit a "
+        "judgment to write durable Markdown/LaTeX mathematics and the empty, "
+        "shape-typed cross-agent handoff. The documents, not JSON rows, are the "
+        "authority for definitions, assumptions, equation-by-equation derivations, "
+        "counterexamples, and unresolved arguments. Use stable headings or LaTeX "
+        "labels, then point the compact claim_index and sanity_check_index to those "
+        "anchors. You may edit a "
         "coherent subset and use the raw validator observation to complete or revise the "
         "workspace in the same model session. A successful partial write remains in "
         "the workspace even while the combined workspace is invalid, so edit only "
         "the still-empty or intentionally revised artifacts on the next call. You "
         f"have at most {max(1, int(max_submissions))} "
-        "writes. You may replace every mutually dependent artifact in one atomic "
-        "call; accepted writes are retained. Derive "
+        "writes. You may write documents and replace every mutually dependent handoff "
+        "artifact in one atomic call; accepted writes are retained. Derive "
         "definitions and claims rather "
         "than treating retrieval as an answer key. Keep assumptions, equations, "
         "estimators, theorem cards, simulation semantics, and formal targets mutually "
-        "consistent. Treat IDs as exact references. "
+        "consistent. Treat IDs and document anchors as exact references. Do not copy a "
+        "long derivation back into JSON; structured fields are only a compact index, "
+        "ABI, and handoff. Any Python or R scratchpad result is an exploratory "
+        "diagnostic tied to its exact observation, never a confirmatory result, frozen "
+        "acceptance gate, theorem validation, or license to choose a favorable "
+        "threshold. Confirmatory evidence belongs to the later independently reviewed "
+        "and pre-outcome-frozen simulation lane. "
         + (
             "The formalization handoff and every formalization request must name an "
             "existing theorem-card ID. "
@@ -2653,7 +2886,7 @@ def _theory_workspace_revision_prompt(
             "description": question.description,
             "tags": list(question.tags),
         },
-        "revision_mode": "model_owned_theory_artifact_workspace",
+        "revision_mode": "model_owned_document_workspace",
         "immutable_lineage": {
             "revision_binding_id": revision_inputs.get("revision_binding_id", ""),
             "revision_source": revision_inputs.get("revision_source", ""),
@@ -2684,7 +2917,7 @@ def _theory_workspace_revision_prompt(
             ),
             "n_findings": len(reviewer_observations.get("findings", []) or []),
         },
-        "workspace_artifacts": list(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT),
+        "workspace_artifacts": list(THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT),
         "instructions": [
             (
                 "First read reviewer_observations by itself. Do not request every "
@@ -2697,17 +2930,16 @@ def _theory_workspace_revision_prompt(
                 "possible defects and are not an answer key or repair recipe."
             ),
             (
-                "Use write_theory_artifacts for complete artifact values whose "
-                "semantics you choose to change. Unsubmitted artifacts remain "
-                "byte-identical."
+                "Use write_theory_workspace for the exact Markdown/LaTeX files and "
+                "compact handoff values whose semantics you choose to change. "
+                "Unsubmitted material remains byte-identical."
             ),
             (
-                "Propagate each chosen revision through all dependent equations, "
-                "assumptions, estimators, theorem cards, simulation predictions, and "
-                "formalization requests that need to change. A self-critique or "
-                "sanity-check note, critic finding, or next action does not override "
-                "a contradictory authoritative artifact; rewrite every affected "
-                "authoritative artifact before submitting."
+                "Propagate each chosen revision through the authoritative documents and "
+                "all dependent estimator/theorem indices, simulation predictions, and "
+                "formalization requests that need to change. A self-critique, status "
+                "label, critic finding, or next action does not override contradictory "
+                "mathematics; rewrite every affected document before submitting."
             ),
             (
                 "Recompute every affected sanity check and preserve PASS, FAIL, or "
@@ -2718,6 +2950,12 @@ def _theory_workspace_revision_prompt(
                 "A scratch execution with a failed status or nonempty errors is "
                 "diagnostic only. Do not promote guessed or model-computed numbers "
                 "from it into observed results or empirical evidence."
+            ),
+            (
+                "A successful Python or R scratch observation is also exploratory. It "
+                "may falsify or motivate theory, but it cannot be relabeled "
+                "confirmatory, choose an acceptance threshold after outcomes, or "
+                "validate a theorem."
             ),
             (
                 "Keep unresolved concerns explicit. Do not claim execution, observed "
@@ -2739,7 +2977,7 @@ def _theory_workspace_revision_prompt(
             ),
         }
     return (
-        "Revise the persistent TheoryDeveloper artifact workspace with client tools.\n\n"
+        "Revise the persistent TheoryDeveloper document workspace with client tools.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )
 
@@ -2753,6 +2991,7 @@ def _attach_theory_workspace_revision_transport(
     model_tier: str,
     workspace_id: str,
     changed_artifact_names: Sequence[str],
+    changed_document_paths: Sequence[str],
 ) -> dict[str, Any]:
     result = deepcopy(dict(packet))
     revised_core = {
@@ -2764,7 +3003,7 @@ def _attach_theory_workspace_revision_transport(
     feedback = dict(feedback) if isinstance(feedback, Mapping) else {}
     result["theory_revision_transport"] = {
         "artifact_kind": "TheoryDeveloperWorkspaceRevisionTransport",
-        "revision_mode": "model_owned_artifact_workspace",
+        "revision_mode": "model_owned_document_workspace",
         "workspace_id": workspace_id,
         "revision_binding_id": revision_inputs.get("revision_binding_id", ""),
         "revision_source": revision_inputs.get("revision_source", ""),
@@ -2805,8 +3044,13 @@ def _attach_theory_workspace_revision_transport(
         "changed_artifact_names": sorted(
             {str(name) for name in changed_artifact_names if str(name)}
         ),
+        "changed_document_paths": sorted(
+            {str(path) for path in changed_document_paths if str(path)}
+        ),
         "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
         "model_owned_artifact_edits": True,
+        "model_owned_document_edits": bool(changed_document_paths),
+        "theory_content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
         "runtime_edited_theory": False,
         "semantic_revision_owner": "TheoryDeveloper",
         "validation_owner": "AgentRuntime",
@@ -2827,7 +3071,7 @@ def _theory_revision_transport_lineage_errors(
 ) -> list[str]:
     expected = {
         "artifact_kind": "TheoryDeveloperWorkspaceRevisionTransport",
-        "revision_mode": "model_owned_artifact_workspace",
+        "revision_mode": "model_owned_document_workspace",
         "revision_binding_id": revision_inputs.get("revision_binding_id", ""),
         "source_theory_packet_id": revision_inputs.get(
             "source_theory_packet_id", ""
@@ -2844,6 +3088,7 @@ def _theory_revision_transport_lineage_errors(
         ),
         "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
         "model_owned_artifact_edits": True,
+        "theory_content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
         "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
         "kernel_verified": False,
     }
@@ -2874,15 +3119,27 @@ def _validate_theory_workspace_revision_packet(
     if transport.get("workspace_id") != workspace_id:
         errors.append("theory workspace revision transport workspace_id mismatch")
     changed = transport.get("changed_artifact_names", [])
-    if not isinstance(changed, list) or not changed:
-        errors.append("theory workspace revision must change at least one artifact")
-    elif set(changed) - set(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT):
+    changed_documents = transport.get("changed_document_paths", [])
+    if not isinstance(changed, list):
+        errors.append("theory workspace changed artifact names must be an array")
+        changed = []
+    if not isinstance(changed_documents, list):
+        errors.append("theory workspace changed document paths must be an array")
+        changed_documents = []
+    if not changed and not changed_documents:
+        errors.append("theory workspace revision must change theory material")
+    if set(changed) - set(THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT):
         errors.append("theory workspace revision names an unknown artifact")
     if transport.get("model_owned_artifact_edits") is not True:
         errors.append("theory workspace revision is not model-owned")
     if require_workspace_edit_evidence:
         write_count = transport.get("model_artifact_write_count", 0)
-        if not isinstance(write_count, int) or write_count < 1:
+        document_write_count = transport.get("model_document_write_count", 0)
+        if (
+            not isinstance(write_count, int)
+            or not isinstance(document_write_count, int)
+            or write_count + document_write_count < 1
+        ):
             errors.append("theory workspace revision has no model-authored writes")
         workspace_evidence = packet.get("llm_client_tool_loop", {})
         if not isinstance(workspace_evidence, Mapping):
@@ -2898,6 +3155,18 @@ def _validate_theory_workspace_revision_packet(
                 writes
             ):
                 errors.append("theory workspace artifact write hash mismatch")
+            document_writes = workspace_evidence.get(
+                "model_document_writes", []
+            )
+            if not isinstance(document_writes, list):
+                errors.append("theory workspace document write evidence is not an array")
+                document_writes = []
+            if document_write_count != len(document_writes):
+                errors.append("theory workspace document write count mismatch")
+            if transport.get("model_document_writes_hash") != stable_hash(
+                document_writes
+            ):
+                errors.append("theory workspace document write hash mismatch")
             if workspace_evidence.get("write_transport") != (
                 THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT
             ):
@@ -2936,8 +3205,9 @@ def _generate_initial_theory_artifact_workspace(
     max_no_progress_turns: int,
     formalization_authoring_required: bool,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
+    theory_workspace_root: Path | None = None,
 ) -> dict[str, Any]:
-    initial_artifacts = _empty_theory_core_workspace()
+    initial_artifacts = _empty_theory_core_workspace(file_authority=True)
     read_only_artifacts = _initial_theory_workspace_read_only_artifacts(
         question=question,
         architect_context=architect_context,
@@ -2951,10 +3221,17 @@ def _generate_initial_theory_artifact_workspace(
     workspace_id = "theory_workspace:" + stable_hash(
         [authoring_binding_id, initial_artifacts]
     )[:20]
+    workspace_dir = (
+        theory_workspace_root / workspace_id.replace(":", "-")
+        if theory_workspace_root is not None
+        else None
+    )
 
     def build_candidate(
         artifacts: Mapping[str, Any],
         changed_artifact_names: tuple[str, ...],
+        document_manifest: Mapping[str, Any],
+        changed_document_paths: tuple[str, ...],
     ) -> dict[str, Any]:
         raw_response = json.dumps(
             {
@@ -2969,7 +3246,7 @@ def _generate_initial_theory_artifact_workspace(
             default=str,
             ensure_ascii=False,
         )
-        return _normalize_theory_packet(
+        packet = _normalize_theory_packet(
             artifacts,
             question=question,
             model=request_model,
@@ -2981,6 +3258,30 @@ def _generate_initial_theory_artifact_workspace(
                 formalization_authoring_required
             ),
         )
+        packet["theory_workspace_manifest"] = deepcopy(
+            dict(document_manifest)
+        )
+        packet["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
+        packet["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
+        packet["theory_derivation_contract"] = {
+            **dict(packet.get("theory_derivation_contract", {}) or {}),
+            "content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
+            "structured_handoff_role": THEORY_WORKSPACE_HANDOFF_ROLE,
+            "n_documents": len(document_manifest.get("documents", []) or []),
+            "n_claim_index_rows": _safe_len(
+                packet.get("theory_derivation_packet", {}).get(
+                    "claim_index", []
+                )
+            ),
+            "n_sanity_check_index_rows": _safe_len(
+                packet.get("theory_derivation_packet", {}).get(
+                    "sanity_check_index", []
+                )
+            ),
+            "changed_document_paths": list(changed_document_paths),
+        }
+        _refresh_theory_packet_id(packet, question=question)
+        return packet
 
     result = run_theory_artifact_workspace(
         provider=provider,
@@ -3010,10 +3311,13 @@ def _generate_initial_theory_artifact_workspace(
         authoring_binding_id=authoring_binding_id,
         workspace_operation="initial_discovery",
         initial_artifacts=initial_artifacts,
+        initial_documents={},
         read_only_artifacts=read_only_artifacts,
         build_candidate=build_candidate,
         validate_candidate=validate_theory_core_packet,
         scratchpad=theory_scratchpad,
+        workspace_dir=workspace_dir,
+        require_document_authority=True,
         request_metadata={
             "subsystem": "TheoryDeveloper",
             "agent": "LLMTheoryDeveloperAgent",
@@ -3028,7 +3332,7 @@ def _generate_initial_theory_artifact_workspace(
                 theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
             ),
             "resolved_model": request_model,
-            "authoring_mode": "model_owned_artifact_workspace",
+            "authoring_mode": "model_owned_document_workspace",
         },
     )
     packet = deepcopy(dict(result.core_packet))
@@ -3090,15 +3394,21 @@ def _generate_theory_workspace_revision(
     max_no_progress_turns: int,
     formalization_authoring_required: bool,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
+    theory_workspace_root: Path | None = None,
 ) -> dict[str, Any]:
-    initial_artifacts = revision_inputs.get("base_core_payload", {})
-    if not isinstance(initial_artifacts, Mapping):
+    raw_parent_payload = revision_inputs.get("base_core_payload", {})
+    if not isinstance(raw_parent_payload, Mapping):
         raise PacketValidationError(
             validation_label="LLM TheoryDeveloper artifact workspace",
             attempts=0,
             errors=["parent theory workspace is not an object"],
             history=[],
         )
+    initial_artifacts = {
+        field: deepcopy(raw_parent_payload[field])
+        for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
+        if field in raw_parent_payload
+    }
     workspace_id = "theory_workspace:" + stable_hash(
         [
             question.id,
@@ -3106,10 +3416,26 @@ def _generate_theory_workspace_revision(
             revision_inputs.get("base_core_payload_fingerprint", ""),
         ]
     )[:20]
+    try:
+        initial_documents = load_theory_workspace_documents(raw_parent_payload)
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise PacketValidationError(
+            validation_label="LLM TheoryDeveloper document workspace",
+            attempts=0,
+            errors=[str(exc)],
+            history=[],
+        ) from exc
+    workspace_dir = (
+        theory_workspace_root / workspace_id.replace(":", "-")
+        if theory_workspace_root is not None
+        else None
+    )
 
     def build_candidate(
         artifacts: Mapping[str, Any],
         changed_artifact_names: tuple[str, ...],
+        document_manifest: Mapping[str, Any],
+        changed_document_paths: tuple[str, ...],
     ) -> dict[str, Any]:
         raw_response = json.dumps(
             {
@@ -3135,6 +3461,29 @@ def _generate_theory_workspace_revision(
                 formalization_authoring_required
             ),
         )
+        packet["theory_workspace_manifest"] = deepcopy(
+            dict(document_manifest)
+        )
+        packet["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
+        packet["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
+        packet["theory_derivation_contract"] = {
+            **dict(packet.get("theory_derivation_contract", {}) or {}),
+            "content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
+            "structured_handoff_role": THEORY_WORKSPACE_HANDOFF_ROLE,
+            "n_documents": len(document_manifest.get("documents", []) or []),
+            "n_claim_index_rows": _safe_len(
+                packet.get("theory_derivation_packet", {}).get(
+                    "claim_index", []
+                )
+            ),
+            "n_sanity_check_index_rows": _safe_len(
+                packet.get("theory_derivation_packet", {}).get(
+                    "sanity_check_index", []
+                )
+            ),
+            "changed_document_paths": list(changed_document_paths),
+        }
+        _refresh_theory_packet_id(packet, question=question)
         return _attach_theory_workspace_revision_transport(
             packet,
             revision_inputs=revision_inputs,
@@ -3143,6 +3492,7 @@ def _generate_theory_workspace_revision(
             model_tier=model_tier,
             workspace_id=workspace_id,
             changed_artifact_names=changed_artifact_names,
+            changed_document_paths=changed_document_paths,
         )
 
     result = run_theory_artifact_workspace(
@@ -3171,6 +3521,7 @@ def _generate_theory_workspace_revision(
         ),
         workspace_operation="targeted_revision",
         initial_artifacts=initial_artifacts,
+        initial_documents=initial_documents,
         read_only_artifacts=_theory_workspace_read_only_observations(
             revision_inputs
         ),
@@ -3183,6 +3534,8 @@ def _generate_theory_workspace_revision(
             )
         ),
         scratchpad=theory_scratchpad,
+        workspace_dir=workspace_dir,
+        require_document_authority=True,
         request_metadata={
             "subsystem": "TheoryDeveloper",
             "agent": "LLMTheoryDeveloperAgent",
@@ -3200,7 +3553,7 @@ def _generate_theory_workspace_revision(
             ),
             "revision_binding_id": revision_inputs.get("revision_binding_id", ""),
             "revision_source": revision_inputs.get("revision_source", ""),
-            "revision_generation_mode": "model_owned_artifact_workspace",
+            "revision_generation_mode": "model_owned_document_workspace",
             "parent_core_payload_fingerprint": revision_inputs.get(
                 "base_core_payload_fingerprint", ""
             ),
@@ -3219,6 +3572,12 @@ def _generate_theory_workspace_revision(
     )
     transport["model_artifact_writes_hash"] = stable_hash(
         workspace_evidence.get("model_artifact_writes", [])
+    )
+    transport["model_document_write_count"] = int(
+        workspace_evidence.get("n_model_document_writes", 0) or 0
+    )
+    transport["model_document_writes_hash"] = stable_hash(
+        workspace_evidence.get("model_document_writes", [])
     )
     packet["theory_revision_transport"] = transport
     errors = _validate_theory_workspace_revision_packet(
@@ -3805,6 +4164,12 @@ def _theory_semantic_reference_catalog(
         ("derivation_steps", "id", ("claim", "equation_or_argument")),
         ("equation_chain", "step_id", ("lhs", "relation", "rhs")),
         ("sanity_checks", "id", ("recomputation", "result")),
+        ("claim_index", "id", ("kind", "document_path", "anchor", "status")),
+        (
+            "sanity_check_index",
+            "id",
+            ("claim_ref", "document_path", "anchor", "status"),
+        ),
     ):
         for raw_row in derivation.get(collection, []) or []:
             if not isinstance(raw_row, Mapping):
@@ -3978,6 +4343,9 @@ def _refresh_theory_packet_id(
         "kernel_verified",
         "verified_theorem_count",
         "theory_derivation_contract",
+        "theory_workspace_manifest",
+        "theory_content_authority",
+        "structured_handoff_role",
     ]
     body = {
         field: deepcopy(packet[field])
@@ -4101,6 +4469,8 @@ def _canonicalize_assumption_row(
 
 def _formalization_handoff_from_requests(requests: Any) -> dict[str, Any]:
     request_rows = [row for row in (requests or []) if isinstance(row, Mapping)]
+    if not request_rows:
+        return {}
     first = request_rows[0] if request_rows else {}
     target = _first_nonempty(first, "target_theorem_card", "id", "target", "name")
     lean_target = _first_nonempty(

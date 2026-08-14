@@ -15,6 +15,11 @@ from ai_statistician.research_agent_runtime import (
     ResearchAgentRuntimeConfig,
     run_research_agent_runtime,
 )
+from ai_statistician.theory_workspace import (
+    THEORY_WORKSPACE_CONTENT_AUTHORITY,
+    THEORY_WORKSPACE_HANDOFF_ROLE,
+    theory_workspace_document_manifest,
+)
 
 
 GOLD_MANIFEST = Path(
@@ -128,7 +133,10 @@ def _runtime_result(*, include_handoff: bool = True) -> dict:
     }
 
 
-def _runtime_result_with_accepted_theory() -> dict:
+def _runtime_result_with_accepted_theory(
+    *,
+    document_workspace: Path | None = None,
+) -> dict:
     result = _runtime_result()
     artifacts = result["blackboard"]["artifacts"]
     theory_id = "theory_derivation:test"
@@ -140,6 +148,20 @@ def _runtime_result_with_accepted_theory() -> dict:
         "serious_theory_mode": True,
         "theory_derivation_packet": {"mock_claim": "candidate-owned content"},
     }
+    if document_workspace is not None:
+        documents = {
+            "derivations/C1.md": "# C1\n\nThe candidate-owned derivation.\n"
+        }
+        for relative_path, content in documents.items():
+            target = document_workspace / relative_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+        theory["theory_workspace_manifest"] = theory_workspace_document_manifest(
+            documents,
+            workspace_dir=document_workspace,
+        )
+        theory["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
+        theory["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
     preflight = {
         "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
         "source_theory_packet_id": theory_id,
@@ -378,6 +400,46 @@ def test_full_task_pass_requires_hidden_theory_code_and_empirical_checks(
     assert "private_empirical_check" not in serialized
     assert sandbox_paths
     assert all(not path.exists() for path in sandbox_paths)
+
+
+def test_hidden_theory_evaluator_receives_hash_verified_documents(
+    tmp_path: Path,
+) -> None:
+    manifest = _full_task_gold_manifest(tmp_path)
+
+    def artifact_runner(**kwargs) -> dict:
+        candidate = kwargs["candidate_artifact"]
+        assert candidate["authoritative_theory_documents"] == [
+            {
+                "path": "derivations/C1.md",
+                "sha256": hashlib.sha256(
+                    b"# C1\n\nThe candidate-owned derivation.\n"
+                ).hexdigest(),
+                "content": "# C1\n\nThe candidate-owned derivation.\n",
+            }
+        ]
+        assert candidate["evaluator_document_hydration"][
+            "runtime_feedback_generated"
+        ] is False
+        return _passing_artifact_harness(**kwargs)
+
+    result = evaluate_research_gold_benchmark(
+        [
+            _runtime_result_with_accepted_theory(
+                document_workspace=tmp_path / "theory-workspace"
+            )
+        ],
+        research_evaluation_summary=_research_summary(),
+        benchmark_manifest_path=manifest,
+        out_dir=tmp_path / "out",
+        run_harness=_passing_harness,
+        run_artifact_harness=artifact_runner,
+    )
+
+    task = result["tasks"][0]
+    assert task["accepted_theory_document_count"] == 1
+    assert task["accepted_theory_document_set_hash"]
+    assert task["hidden_theory_checks_passed"] is True
 
 
 def test_gold_evaluator_preserves_passed_upstream_dimensions_when_runtime_blocks(

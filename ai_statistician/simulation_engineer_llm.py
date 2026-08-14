@@ -43,6 +43,7 @@ from .theory_derivation_trace import (
     theory_trace_alignment_contract,
     theory_trace_consumption_contract,
 )
+from .theory_workspace import load_theory_workspace_document_rows
 
 
 SIMULATION_ENGINEER_SCHEMA_VERSION = 1
@@ -657,6 +658,9 @@ def _compact_theory_packet_for_simulation(theory_packet: Mapping[str, Any]) -> d
             theory_packet,
             max_rows=3,
             text_limit=240,
+        ),
+        "authoritative_theory_documents": (
+            load_theory_workspace_document_rows(theory_packet)
         ),
     }
 

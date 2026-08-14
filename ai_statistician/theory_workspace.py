@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import tempfile
 from copy import deepcopy
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence
 
 from .client_tool_loop import (
@@ -23,16 +25,24 @@ from .structured_output_retry import PacketValidationError
 
 
 THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
-THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "direct_artifact_replacement_v4"
-THEORY_WORKSPACE_WRITE_TOOL = "write_theory_artifacts"
+THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "model_owned_documents_and_handoff_v1"
+THEORY_WORKSPACE_WRITE_TOOL = "write_theory_workspace"
 THEORY_WORKSPACE_COMMIT_TOOL = "commit_theory_checkpoint"
 THEORY_WORKSPACE_GAP_TOOL = "report_theory_gap"
 THEORY_SCRATCHPAD_TOOL = "run_theory_scratchpad"
+THEORY_WORKSPACE_CONTENT_AUTHORITY = "model_authored_markdown_latex_documents"
+THEORY_WORKSPACE_HANDOFF_ROLE = "structured_cross_agent_index_and_abi"
+THEORY_WORKSPACE_DOCUMENT_SUFFIXES = frozenset({".md", ".tex", ".bib"})
 THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE = (
     "THEORY_SCRATCHPAD_EXECUTION_NOT_PROOF_EVIDENCE"
 )
 TheoryWorkspaceCandidateBuilder = Callable[
-    [Mapping[str, Any], tuple[str, ...]],
+    [
+        Mapping[str, Any],
+        tuple[str, ...],
+        Mapping[str, Any],
+        tuple[str, ...],
+    ],
     Mapping[str, Any],
 ]
 TheoryWorkspaceCandidateValidator = Callable[[Mapping[str, Any]], Sequence[str]]
@@ -87,13 +97,16 @@ def run_theory_artifact_workspace(
     authoring_binding_id: str,
     workspace_operation: str,
     initial_artifacts: Mapping[str, Any],
+    initial_documents: Mapping[str, str] | None = None,
     read_only_artifacts: Mapping[str, Any] | None = None,
     build_candidate: TheoryWorkspaceCandidateBuilder,
     validate_candidate: TheoryWorkspaceCandidateValidator,
     request_metadata: Mapping[str, Any] | None = None,
     scratchpad: TheoryScratchpadConfig | None = None,
+    workspace_dir: Path | None = None,
+    require_document_authority: bool = False,
 ) -> TheoryWorkspaceResult:
-    """Let one model author authoritative theory artifacts in place."""
+    """Let one model author text mathematics and a structured handoff in place."""
 
     if not all(
         str(value).strip()
@@ -131,6 +144,16 @@ def run_theory_artifact_workspace(
     }
     if not parent:
         raise ValueError("theory workspace requires initial artifacts")
+    parent_documents = _normalized_theory_documents(initial_documents or {})
+    if require_document_authority and workspace_dir is None:
+        workspace_dir = Path(tempfile.mkdtemp(prefix="ai-stat-theory-"))
+    resolved_workspace_dir = workspace_dir.resolve() if workspace_dir else None
+    if resolved_workspace_dir is not None:
+        resolved_workspace_dir.mkdir(parents=True, exist_ok=True)
+        _persist_theory_documents(
+            parent_documents,
+            workspace_dir=resolved_workspace_dir,
+        )
     read_only = {
         str(name): deepcopy(value)
         for name, value in (read_only_artifacts or {}).items()
@@ -142,7 +165,9 @@ def run_theory_artifact_workspace(
             "theory workspace read-only names overlap writable artifacts: "
             + ", ".join(overlapping_names)
         )
-    parent_hash = stable_hash(parent)
+    parent_hash = stable_hash(
+        {"artifacts": parent, "documents": parent_documents}
+    )
     artifact_names = tuple(sorted({*parent, *read_only}))
     writable_artifact_names = tuple(sorted(parent))
     parent_shapes = {
@@ -150,11 +175,13 @@ def run_theory_artifact_workspace(
     }
     state: dict[str, Any] = {
         "artifacts": deepcopy(parent),
+        "documents": deepcopy(parent_documents),
         "reads": 0,
         "submissions": 0,
         "last_validation_errors": [],
         "last_candidate": {},
         "model_artifact_writes": [],
+        "model_document_writes": [],
         "scratch_runs": 0,
         "scratch_execution_refs": [],
     }
@@ -162,6 +189,7 @@ def run_theory_artifact_workspace(
         artifact_names,
         parent_shapes,
         scratchpad_enabled=scratchpad is not None,
+        document_authority_enabled=require_document_authority,
     )
 
     def changed_artifact_names(artifacts: Mapping[str, Any]) -> tuple[str, ...]:
@@ -171,6 +199,21 @@ def run_theory_artifact_workspace(
             if stable_hash(artifacts[name]) != stable_hash(parent[name])
         )
 
+    def changed_document_paths(documents: Mapping[str, str]) -> tuple[str, ...]:
+        return tuple(
+            sorted(
+                path
+                for path in set(parent_documents).union(documents)
+                if documents.get(path) != parent_documents.get(path)
+            )
+        )
+
+    def document_manifest(documents: Mapping[str, str]) -> dict[str, Any]:
+        return theory_workspace_document_manifest(
+            documents,
+            workspace_dir=resolved_workspace_dir,
+        )
+
     def readable_artifact(name: str) -> Any:
         if name in read_only:
             return read_only[name]
@@ -178,14 +221,30 @@ def run_theory_artifact_workspace(
 
     def evaluate_model_write(
         candidate_artifacts: Mapping[str, Any],
+        candidate_documents: Mapping[str, str],
         *,
         artifact_writes: Sequence[Mapping[str, Any]] = (),
+        document_writes: Sequence[Mapping[str, Any]] = (),
     ) -> ClientToolExecutionResult:
         state["submissions"] += 1
-        state_changed = stable_hash(candidate_artifacts) != stable_hash(
-            state["artifacts"]
+        state_changed = stable_hash(
+            {
+                "artifacts": candidate_artifacts,
+                "documents": candidate_documents,
+            }
+        ) != stable_hash(
+            {
+                "artifacts": state["artifacts"],
+                "documents": state["documents"],
+            }
         )
         state["artifacts"] = deepcopy(dict(candidate_artifacts))
+        state["documents"] = deepcopy(dict(candidate_documents))
+        if resolved_workspace_dir is not None:
+            _persist_theory_documents(
+                candidate_documents,
+                workspace_dir=resolved_workspace_dir,
+            )
         if state_changed and artifact_writes:
             state["model_artifact_writes"].extend(
                 [
@@ -196,14 +255,30 @@ def run_theory_artifact_workspace(
                     for row in artifact_writes
                 ]
             )
+        if state_changed and document_writes:
+            state["model_document_writes"].extend(
+                [
+                    {
+                        "submission_index": state["submissions"] - 1,
+                        **deepcopy(dict(row)),
+                    }
+                    for row in document_writes
+                ]
+            )
         changed = changed_artifact_names(candidate_artifacts)
-        if not changed:
+        changed_documents = changed_document_paths(candidate_documents)
+        if not changed and not changed_documents:
             errors = [
                 "the submitted theory workspace is unchanged from its parent"
             ]
             candidate: dict[str, Any] = {}
         else:
-            raw_candidate = build_candidate(candidate_artifacts, changed)
+            raw_candidate = build_candidate(
+                candidate_artifacts,
+                changed,
+                document_manifest(candidate_documents),
+                changed_documents,
+            )
             if not isinstance(raw_candidate, Mapping):
                 raise ClientToolInputError(
                     "theory workspace candidate builder returned a non-object"
@@ -223,10 +298,12 @@ def run_theory_artifact_workspace(
             "state_changed": state_changed,
             "candidate_hash": candidate_hash,
             "changed_artifact_names": list(changed),
+            "changed_document_paths": list(changed_documents),
             "submissions": state["submissions"],
             "remaining_submissions": remaining_submissions,
             "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
             "model_artifact_writes_applied": len(artifact_writes),
+            "model_document_writes_applied": len(document_writes),
             "runtime_edited_theory": False,
         }
         if errors:
@@ -269,14 +346,25 @@ def run_theory_artifact_workspace(
         if call.name == "read_theory_workspace":
             if state["reads"] >= max_reads:
                 raise ClientToolInputError("theory workspace read budget is exhausted")
-            requested = tool_input.get("artifact_names", [])
-            if (
-                not isinstance(requested, Sequence)
-                or isinstance(requested, (str, bytes))
-                or not requested
-            ):
+            if set(tool_input) - {"artifact_names", "document_paths"}:
                 raise ClientToolInputError(
-                    "read_theory_workspace requires a nonempty artifact_names array"
+                    "read_theory_workspace accepts artifact_names and document_paths"
+                )
+            requested = tool_input.get("artifact_names", [])
+            requested_documents = tool_input.get("document_paths", [])
+            for values, label in (
+                (requested, "artifact_names"),
+                (requested_documents, "document_paths"),
+            ):
+                if not isinstance(values, Sequence) or isinstance(
+                    values, (str, bytes)
+                ):
+                    raise ClientToolInputError(
+                        f"read_theory_workspace {label} must be an array"
+                    )
+            if not requested and not requested_documents:
+                raise ClientToolInputError(
+                    "read_theory_workspace requires at least one artifact or document"
                 )
             names = [str(name) for name in requested]
             if len(names) != len(set(names)):
@@ -289,9 +377,30 @@ def run_theory_artifact_workspace(
             selected = {
                 name: deepcopy(readable_artifact(name)) for name in names
             }
-            if len(_compact_json(selected)) > 55_000:
+            document_paths = [
+                _normalized_theory_document_path(path)
+                for path in requested_documents
+            ]
+            if len(document_paths) != len(set(document_paths)):
                 raise ClientToolInputError(
-                    "selected theory artifacts exceed one observation; read fewer artifacts"
+                    "theory workspace document paths must be unique"
+                )
+            unknown_documents = sorted(
+                set(document_paths) - set(state["documents"])
+            )
+            if unknown_documents:
+                raise ClientToolInputError(
+                    "unknown theory workspace documents: "
+                    + ", ".join(unknown_documents)
+                )
+            selected_documents = {
+                path: state["documents"][path] for path in document_paths
+            }
+            if len(_compact_json(selected)) + sum(
+                len(value) for value in selected_documents.values()
+            ) > 55_000:
+                raise ClientToolInputError(
+                    "selected theory material exceeds one observation; read less material"
                 )
             state["reads"] += 1
             return ClientToolExecutionResult(
@@ -300,6 +409,11 @@ def run_theory_artifact_workspace(
                     "artifacts": selected,
                     "artifact_hashes": {
                         name: stable_hash(selected[name]) for name in names
+                    },
+                    "documents": selected_documents,
+                    "document_sha256": {
+                        path: _text_sha256(selected_documents[path])
+                        for path in document_paths
                     },
                     "reads": state["reads"],
                     "remaining_reads": max_reads - state["reads"],
@@ -312,6 +426,10 @@ def run_theory_artifact_workspace(
                     [
                         workspace_id,
                         [(name, stable_hash(selected[name])) for name in names],
+                        [
+                            (path, _text_sha256(selected_documents[path]))
+                            for path in document_paths
+                        ],
                     ]
                 ),
             )
@@ -321,16 +439,36 @@ def run_theory_artifact_workspace(
                 raise ClientToolInputError(
                     "theory workspace submission budget is exhausted"
                 )
+            if set(tool_input) - {"writes", "document_writes"}:
+                raise ClientToolInputError(
+                    "write_theory_workspace accepts writes and document_writes"
+                )
+            raw_artifact_writes = tool_input.get("writes", [])
+            raw_document_writes = tool_input.get("document_writes", [])
+            if not raw_artifact_writes and not raw_document_writes:
+                raise ClientToolInputError(
+                    "write_theory_workspace requires at least one artifact or document write"
+                )
             candidate_artifacts, write_records = (
                 _replace_theory_workspace_artifacts(
                     state["artifacts"],
-                    tool_input.get("writes"),
+                    raw_artifact_writes,
                     writable_artifact_shapes=parent_shapes,
+                    allow_empty=True,
+                )
+            )
+            candidate_documents, document_write_records = (
+                _replace_theory_workspace_documents(
+                    state["documents"],
+                    raw_document_writes,
+                    allow_empty=True,
                 )
             )
             return evaluate_model_write(
                 candidate_artifacts,
+                candidate_documents,
                 artifact_writes=write_records,
+                document_writes=document_write_records,
             )
 
         if call.name == THEORY_WORKSPACE_COMMIT_TOOL:
@@ -347,12 +485,27 @@ def run_theory_artifact_workspace(
                     "theory checkpoint readiness_rationale must be nonempty"
                 )
             changed = changed_artifact_names(state["artifacts"])
-            if not changed or not state["submissions"]:
+            changed_documents = changed_document_paths(state["documents"])
+            if (not changed and not changed_documents) or not state["submissions"]:
                 raise ClientToolInputError(
                     "commit_theory_checkpoint requires a prior model-authored "
                     "workspace revision"
                 )
-            raw_candidate = build_candidate(state["artifacts"], changed)
+            if require_document_authority and not state["documents"]:
+                raise ClientToolInputError(
+                    "commit_theory_checkpoint requires model-authored Markdown or LaTeX"
+                )
+            if require_document_authority and not changed_documents:
+                raise ClientToolInputError(
+                    "commit_theory_checkpoint requires a changed authoritative "
+                    "Markdown or LaTeX document"
+                )
+            raw_candidate = build_candidate(
+                state["artifacts"],
+                changed,
+                document_manifest(state["documents"]),
+                changed_documents,
+            )
             if not isinstance(raw_candidate, Mapping):
                 raise ClientToolInputError(
                     "theory workspace candidate builder returned a non-object"
@@ -380,6 +533,7 @@ def run_theory_artifact_workspace(
                     "checkpoint_committed": True,
                     "candidate_hash": candidate_hash,
                     "changed_artifact_names": list(changed),
+                    "changed_document_paths": list(changed_documents),
                     "runtime_edited_theory": False,
                     "proof_evidence_status": (
                         "THEORY_WORKSPACE_CHECKPOINT_NOT_PROOF_EVIDENCE"
@@ -391,8 +545,17 @@ def run_theory_artifact_workspace(
                     "disposition": "THEORY_CHECKPOINT_COMMITTED",
                     "core_packet": candidate,
                     "core_packet_hash": candidate_hash,
-                    "workspace_hash": stable_hash(state["artifacts"]),
+                    "workspace_hash": stable_hash(
+                        {
+                            "artifacts": state["artifacts"],
+                            "documents": state["documents"],
+                        }
+                    ),
                     "changed_artifact_names": list(changed),
+                    "changed_document_paths": list(changed_documents),
+                    "theory_workspace_manifest": document_manifest(
+                        state["documents"]
+                    ),
                     "readiness_rationale": rationale,
                 },
                 observation_key="theory-workspace-committed:"
@@ -581,15 +744,24 @@ def run_theory_artifact_workspace(
         }
         for name in artifact_names
     }
+    document_catalog = {
+        row["relative_path"]: {
+            "media_type": row["media_type"],
+            "sha256": row["sha256"],
+            "byte_size": row["byte_size"],
+        }
+        for row in document_manifest(state["documents"]).get("documents", [])
+    }
     write_guidance = (
-        "Use write_theory_artifacts to replace one or more writable artifacts "
-        "with your complete model-authored JSON values. Omitted artifacts remain "
-        "byte-identical. You may replace every mutually dependent artifact in one "
-        "atomic call; accepted writes remain in the workspace. "
-        "Use each artifact_name at most once per call. The runtime stores those exact "
-        "values without merging, patching, or inventing content. A structurally "
-        "valid write is retained and returned to you, but it does not end the "
-        "workspace or assert scientific readiness. "
+        "Use write_theory_workspace to author Markdown/LaTeX documents and the small "
+        "structured cross-agent handoff in one atomic call when practical. The text "
+        "documents are the authority for definitions, derivations, equations, "
+        "counterexamples, and unresolved reasoning; JSON artifacts are only an index, "
+        "typed estimator/simulation ABI, and optional formal handoff. Omitted files and "
+        "artifacts remain byte-identical. The runtime stores your exact text and values "
+        "without merging or inventing content. A structurally valid write is retained "
+        "and returned to you, but it does not end the workspace or assert scientific "
+        "readiness. "
     )
     scratch_guidance = (
         "Use run_theory_scratchpad when a small Python or R calculation, numerical "
@@ -611,7 +783,17 @@ def run_theory_artifact_workspace(
                 "content": (
                     user_prompt
                     + "\n\nAuthoritative theory workspace catalog:\n"
-                    + _compact_json(catalog)
+                    + _compact_json(
+                        {
+                            "structured_handoff_artifacts": catalog,
+                            "mathematical_documents": document_catalog,
+                            "content_authority": (
+                                THEORY_WORKSPACE_CONTENT_AUTHORITY
+                                if require_document_authority
+                                else "legacy_structured_artifacts"
+                            ),
+                        }
+                    )
                     + "\n\nRead the artifacts needed for mathematical judgment. "
                     + scratch_guidance
                     + write_guidance
@@ -656,6 +838,7 @@ def run_theory_artifact_workspace(
 
     def recovery_checkpoint() -> dict[str, Any]:
         current_artifacts = deepcopy(dict(state["artifacts"]))
+        current_documents = deepcopy(dict(state["documents"]))
         return {
             "schema_version": 1,
             "artifact_kind": THEORY_WORKSPACE_CHECKPOINT_KIND,
@@ -665,8 +848,14 @@ def run_theory_artifact_workspace(
             "workspace_operation": workspace_operation,
             "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
             "parent_workspace_hash": parent_hash,
-            "current_workspace_hash": stable_hash(current_artifacts),
+            "current_workspace_hash": stable_hash(
+                {
+                    "artifacts": current_artifacts,
+                    "documents": current_documents,
+                }
+            ),
             "current_artifacts": current_artifacts,
+            "theory_workspace_manifest": document_manifest(current_documents),
             "changed_artifact_names": list(
                 changed_artifact_names(current_artifacts)
             ),
@@ -674,6 +863,9 @@ def run_theory_artifact_workspace(
             "submissions": state["submissions"],
             "model_artifact_writes": deepcopy(
                 state["model_artifact_writes"]
+            ),
+            "model_document_writes": deepcopy(
+                state["model_document_writes"]
             ),
             "scratch_runs": state["scratch_runs"],
             "scratch_execution_refs": deepcopy(
@@ -748,9 +940,20 @@ def run_theory_artifact_workspace(
             "transport": "native_client_tools",
             "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
             "parent_workspace_hash": parent_hash,
-            "current_workspace_hash": stable_hash(state["artifacts"]),
+            "current_workspace_hash": stable_hash(
+                {
+                    "artifacts": state["artifacts"],
+                    "documents": state["documents"],
+                }
+            ),
             "changed_artifact_names": list(
                 changed_artifact_names(state["artifacts"])
+            ),
+            "changed_document_paths": list(
+                changed_document_paths(state["documents"])
+            ),
+            "theory_workspace_manifest": document_manifest(
+                state["documents"]
             ),
             "reads": state["reads"],
             "submissions": state["submissions"],
@@ -843,12 +1046,28 @@ def run_theory_artifact_workspace(
         "changed_artifact_names": list(
             terminal.get("changed_artifact_names", []) or []
         ),
+        "changed_document_paths": list(
+            terminal.get("changed_document_paths", []) or []
+        ),
+        "theory_workspace_manifest": deepcopy(
+            dict(terminal.get("theory_workspace_manifest", {}) or {})
+        ),
         "reads": state["reads"],
         "submissions": state["submissions"],
         "n_model_artifact_writes": len(state["model_artifact_writes"]),
         "model_artifact_writes": deepcopy(
             state["model_artifact_writes"]
         ),
+        "n_model_document_writes": len(state["model_document_writes"]),
+        "model_document_writes": deepcopy(
+            state["model_document_writes"]
+        ),
+        "theory_content_authority": (
+            THEORY_WORKSPACE_CONTENT_AUTHORITY
+            if require_document_authority
+            else "legacy_structured_artifacts"
+        ),
+        "structured_handoff_role": THEORY_WORKSPACE_HANDOFF_ROLE,
         "scratchpad_enabled": scratchpad is not None,
         "scratch_runs": state["scratch_runs"],
         "scratch_execution_refs": deepcopy(state["scratch_execution_refs"]),
@@ -880,6 +1099,7 @@ def _theory_workspace_tools(
     writable_artifact_shapes: Mapping[str, str],
     *,
     scratchpad_enabled: bool = False,
+    document_authority_enabled: bool = False,
 ) -> tuple[ClientToolDefinition, ...]:
     name_schema = {"type": "string", "enum": list(artifact_names)}
     read_tool = ClientToolDefinition(
@@ -891,14 +1111,23 @@ def _theory_workspace_tools(
         input_schema={
             "type": "object",
             "additionalProperties": False,
-            "required": ["artifact_names"],
             "properties": {
                 "artifact_names": {
                     "type": "array",
-                    "minItems": 1,
                     "uniqueItems": True,
                     "items": name_schema,
-                }
+                },
+                **(
+                    {
+                        "document_paths": {
+                            "type": "array",
+                            "uniqueItems": True,
+                            "items": {"type": "string", "minLength": 1},
+                        }
+                    }
+                    if document_authority_enabled
+                    else {}
+                ),
             },
         },
     )
@@ -927,21 +1156,20 @@ def _theory_workspace_tools(
         ClientToolDefinition(
             name=THEORY_WORKSPACE_WRITE_TOOL,
             description=(
-                "Atomically replace one or more writable theory artifacts with "
-                "complete model-authored JSON values. Omitted artifacts are retained "
-                "exactly. Supply one unique "
-                "artifact_name and complete value per row. The runtime does not "
-                "merge or infer content. A valid write remains available for further "
-                "model-directed work and does not itself commit the checkpoint."
+                "Atomically write model-authored Markdown/LaTeX mathematics and the "
+                "structured cross-agent handoff. Text documents hold substantive "
+                "reasoning; JSON values are only an index and executable ABI. Omitted "
+                "material is retained exactly, and runtime never merges or infers "
+                "content. A valid write remains available for further model-directed "
+                "work and does not itself commit the checkpoint."
             ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["writes"],
                 "properties": {
                     "writes": {
                         "type": "array",
-                        "minItems": 1,
+                        **({} if document_authority_enabled else {"minItems": 1}),
                         "maxItems": len(writable_artifact_shapes),
                         "items": {
                             "type": "object",
@@ -960,8 +1188,34 @@ def _theory_workspace_tools(
                                 },
                             },
                         },
-                    }
+                    },
+                    **(
+                        {
+                            "document_writes": {
+                                "type": "array",
+                                "minItems": 1,
+                                "items": {
+                                    "type": "object",
+                                    "additionalProperties": False,
+                                    "required": ["path", "content"],
+                                    "properties": {
+                                        "path": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                        },
+                                        "content": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                        },
+                                    },
+                                },
+                            }
+                        }
+                        if document_authority_enabled
+                        else {}
+                    ),
                 },
+                **({} if document_authority_enabled else {"required": ["writes"]}),
             },
             terminal=False,
         )
@@ -1026,16 +1280,17 @@ def _replace_theory_workspace_artifacts(
     raw_writes: Any,
     *,
     writable_artifact_shapes: Mapping[str, str],
+    allow_empty: bool = False,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Replace complete model-authored artifacts atomically."""
 
     if (
         not isinstance(raw_writes, Sequence)
         or isinstance(raw_writes, (str, bytes))
-        or not raw_writes
+        or (not raw_writes and not allow_empty)
     ):
         raise ClientToolInputError(
-            "write_theory_artifacts requires a nonempty writes array"
+            "write_theory_workspace requires writes to be an array"
         )
     candidate = deepcopy(dict(current_artifacts))
     records: list[dict[str, Any]] = []
@@ -1071,7 +1326,7 @@ def _replace_theory_workspace_artifacts(
         actual_shape = _artifact_shape(value)
         if actual_shape != expected_shape:
             raise ClientToolInputError(
-                f"write_theory_artifacts requires {artifact_name} to remain "
+                f"write_theory_workspace requires {artifact_name} to remain "
                 f"{expected_shape}, received {actual_shape}"
             )
         candidate[artifact_name] = deepcopy(value)
@@ -1082,6 +1337,264 @@ def _replace_theory_workspace_artifacts(
             }
         )
     return candidate, records
+
+
+def _replace_theory_workspace_documents(
+    current_documents: Mapping[str, str],
+    raw_writes: Any,
+    *,
+    allow_empty: bool = False,
+) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    if (
+        not isinstance(raw_writes, Sequence)
+        or isinstance(raw_writes, (str, bytes))
+        or (not raw_writes and not allow_empty)
+    ):
+        raise ClientToolInputError(
+            "write_theory_workspace requires document_writes to be an array"
+        )
+    candidate = dict(current_documents)
+    records: list[dict[str, Any]] = []
+    observed_paths: set[str] = set()
+    for index, raw_write in enumerate(raw_writes):
+        if not isinstance(raw_write, Mapping):
+            raise ClientToolInputError(
+                f"theory document write {index} must be an object"
+            )
+        write = dict(raw_write)
+        if set(write) != {"path", "content"}:
+            raise ClientToolInputError(
+                f"theory document write {index} requires exactly path and content"
+            )
+        path = _normalized_theory_document_path(write["path"])
+        if path in observed_paths:
+            raise ClientToolInputError(
+                f"theory document write {index} repeats {path!r}"
+            )
+        observed_paths.add(path)
+        content = write["content"]
+        if not isinstance(content, str) or not content.strip():
+            raise ClientToolInputError(
+                f"theory document write {index} content must be nonempty text"
+            )
+        candidate[path] = content
+        records.append(
+            {
+                "relative_path": path,
+                "sha256": _text_sha256(content),
+                "byte_size": len(content.encode("utf-8")),
+            }
+        )
+    return candidate, records
+
+
+def _normalized_theory_document_path(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ClientToolInputError("theory document path must be nonempty text")
+    path = PurePosixPath(value.strip())
+    if path.is_absolute() or ".." in path.parts or "." in path.parts:
+        raise ClientToolInputError(
+            "theory document path must be workspace-relative without traversal"
+        )
+    if path.suffix.lower() not in THEORY_WORKSPACE_DOCUMENT_SUFFIXES:
+        raise ClientToolInputError(
+            "theory documents must use .md, .tex, or .bib"
+        )
+    return path.as_posix()
+
+
+def _normalized_theory_documents(
+    documents: Mapping[str, str],
+) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    for raw_path, content in documents.items():
+        path = _normalized_theory_document_path(raw_path)
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError(f"theory document {path!r} must contain text")
+        normalized[path] = content
+    return normalized
+
+
+def _text_sha256(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _theory_document_media_type(path: str) -> str:
+    suffix = PurePosixPath(path).suffix.lower()
+    return {
+        ".md": "text/markdown",
+        ".tex": "text/x-tex",
+        ".bib": "application/x-bibtex",
+    }[suffix]
+
+
+def _persist_theory_documents(
+    documents: Mapping[str, str],
+    *,
+    workspace_dir: Path,
+) -> None:
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+    for relative_path, content in documents.items():
+        target = workspace_dir / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_name(target.name + ".tmp")
+        temporary.write_text(content, encoding="utf-8")
+        temporary.replace(target)
+
+
+def theory_workspace_document_manifest(
+    documents: Mapping[str, str],
+    *,
+    workspace_dir: Path | None,
+) -> dict[str, Any]:
+    rows = [
+        {
+            "document_id": "theory_document:"
+            + stable_hash([relative_path, _text_sha256(content)])[:20],
+            "relative_path": relative_path,
+            "path": (
+                str((workspace_dir / relative_path).resolve())
+                if workspace_dir is not None
+                else ""
+            ),
+            "media_type": _theory_document_media_type(relative_path),
+            "sha256": _text_sha256(content),
+            "byte_size": len(content.encode("utf-8")),
+        }
+        for relative_path, content in sorted(documents.items())
+    ]
+    return {
+        "schema_version": 1,
+        "artifact_kind": "TheoryWorkspaceDocumentManifest",
+        "content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
+        "structured_handoff_role": THEORY_WORKSPACE_HANDOFF_ROLE,
+        "workspace_root": str(workspace_dir.resolve()) if workspace_dir else "",
+        "documents": rows,
+        "document_set_hash": stable_hash(
+            [(row["relative_path"], row["sha256"]) for row in rows]
+        ),
+        "runtime_edited_theory": False,
+        "proof_evidence_status": "THEORY_DOCUMENTS_NOT_PROOF_EVIDENCE",
+    }
+
+
+def load_theory_workspace_documents(
+    packet: Mapping[str, Any],
+) -> dict[str, str]:
+    manifest = packet.get("theory_workspace_manifest", {})
+    if not isinstance(manifest, Mapping):
+        return {}
+    rows = manifest.get("documents", []) or []
+    workspace_root_value = str(manifest.get("workspace_root", "") or "")
+    if rows and not workspace_root_value:
+        raise ValueError("theory workspace root is missing")
+    workspace_root = (
+        Path(workspace_root_value).resolve() if workspace_root_value else None
+    )
+    documents: dict[str, str] = {}
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise ValueError("theory workspace document reference must be an object")
+        relative_path = _normalized_theory_document_path(
+            row.get("relative_path", "")
+        )
+        path = Path(str(row.get("path", "") or "")).resolve()
+        expected_path = (
+            (workspace_root / relative_path).resolve()
+            if workspace_root is not None
+            else None
+        )
+        if expected_path is None or path != expected_path:
+            raise ValueError(
+                f"theory workspace document path mismatch: {relative_path}"
+            )
+        if not path.is_file():
+            raise ValueError(f"theory workspace document is missing: {relative_path}")
+        content = path.read_text(encoding="utf-8")
+        content_sha256 = _text_sha256(content)
+        if content_sha256 != str(row.get("sha256", "") or ""):
+            raise ValueError(
+                f"theory workspace document hash mismatch: {relative_path}"
+            )
+        if int(row.get("byte_size", -1) or -1) != len(content.encode("utf-8")):
+            raise ValueError(
+                f"theory workspace document byte-size mismatch: {relative_path}"
+            )
+        if row.get("media_type") != _theory_document_media_type(relative_path):
+            raise ValueError(
+                f"theory workspace document media-type mismatch: {relative_path}"
+            )
+        expected_document_id = "theory_document:" + stable_hash(
+            [relative_path, content_sha256]
+        )[:20]
+        if row.get("document_id") != expected_document_id:
+            raise ValueError(
+                f"theory workspace document id mismatch: {relative_path}"
+            )
+        documents[relative_path] = content
+    return documents
+
+
+def load_theory_workspace_document_rows(
+    packet: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "path": path,
+            "sha256": _text_sha256(content),
+            "content": content,
+        }
+        for path, content in sorted(
+            load_theory_workspace_documents(packet).items()
+        )
+    ]
+
+
+def theory_workspace_manifest_errors(
+    packet: Mapping[str, Any],
+    *,
+    required: bool,
+) -> list[str]:
+    manifest = packet.get("theory_workspace_manifest", {})
+    if not isinstance(manifest, Mapping) or not manifest:
+        return ["theory workspace document manifest is required"] if required else []
+    errors: list[str] = []
+    if manifest.get("artifact_kind") != "TheoryWorkspaceDocumentManifest":
+        errors.append("theory workspace document manifest kind mismatch")
+    if manifest.get("content_authority") != THEORY_WORKSPACE_CONTENT_AUTHORITY:
+        errors.append("theory workspace content authority mismatch")
+    if manifest.get("structured_handoff_role") != THEORY_WORKSPACE_HANDOFF_ROLE:
+        errors.append("theory workspace structured handoff role mismatch")
+    rows = manifest.get("documents", [])
+    if not isinstance(rows, list) or not rows:
+        errors.append("theory workspace requires at least one Markdown/LaTeX document")
+        rows = []
+    expected_pairs: list[tuple[str, str]] = []
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            errors.append(f"theory workspace document {index} must be an object")
+            continue
+        try:
+            relative_path = _normalized_theory_document_path(
+                row.get("relative_path", "")
+            )
+        except ClientToolInputError as exc:
+            errors.append(str(exc))
+            continue
+        sha256 = str(row.get("sha256", "") or "")
+        if len(sha256) != 64:
+            errors.append(f"theory document {relative_path} has invalid sha256")
+        expected_pairs.append((relative_path, sha256))
+    if manifest.get("document_set_hash") != stable_hash(expected_pairs):
+        errors.append("theory workspace document-set hash mismatch")
+    try:
+        loaded = load_theory_workspace_documents(packet)
+    except (OSError, UnicodeError, ValueError) as exc:
+        errors.append(str(exc))
+    else:
+        if len(loaded) != len(rows):
+            errors.append("theory workspace document identity is not unique")
+    return errors
 
 
 def _artifact_shape(value: Any) -> str:

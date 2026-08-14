@@ -37,6 +37,7 @@ from .metric_protocol_finding_ledger import (
     update_metric_protocol_finding_ledger,
 )
 from .research_schema import OpenResearchQuestion
+from .theory_workspace import load_theory_workspace_document_rows
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 15
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 20
@@ -455,6 +456,15 @@ def build_architect_theory_execution_preflight_material(
         }
         for anchor_id, artifact_role, content in sections
     ]
+    for document in load_theory_workspace_document_rows(semantic):
+        anchor_catalog.append(
+            {
+                "anchor_id": f"theory.document:{document['path']}",
+                "artifact_role": "authoritative_theory_document",
+                "content": document["content"],
+                "content_sha256": document["sha256"],
+            }
+        )
     anchor_catalog_id = "architect_theory_execution_preflight_catalog:" + stable_hash(
         anchor_catalog
     )[:20]
@@ -2318,14 +2328,29 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT = """\
 You are the independent ArchitectMetricSemanticReviewer inside an AI Statistician
 AgentRuntime. Before metric authoring or generated execution, audit whether a proposed
 statistical theory is mathematically coherent and can be represented by a finite,
-typed experiment. This is an execution-admissibility gate, not theorem peer review or
-formal proof closure. Be adversarial about executable semantics, DGP alignment,
-normalization, and measurement, but do not block execution solely because a theorem
-proof is incomplete or an explicitly excluded regime is not robust. Do not write
-implementation or calculation code, and do not claim observed research results. A check
-that requires generated code or simulation belongs to the existing AlgorithmEngineer or
+typed experiment. Independently check the candidate's central definitions, equations,
+normalizations, assumptions, and limit claims; do not treat the candidate's theorem
+cards, the research question, or a retrieved copy of either as corroboration. Reconstruct
+at least one decisive algebraic or probabilistic step and try a boundary case, limiting
+special case, or counterexample before marking primitive mathematical consistency PASS.
+Read the authoritative theory documents themselves, not only their structured handoff.
+
+This is a rigorous mathematical checkpoint, not theorem peer review or formal proof
+closure. A false or internally contradictory mathematical claim is a blocker even when the executable
+estimator can still run. An honestly identified proof gap, heuristic step, or unresolved
+open claim may be UNKNOWN rather than FAIL and must not be promoted to a proved result.
+Be adversarial about executable semantics, DGP alignment, normalization, and
+measurement, but do not block exploratory execution solely because a theorem proof is
+incomplete or an explicitly excluded regime is not robust. Do not write implementation
+or calculation code, and do not claim observed research results. A check that requires
+generated code or simulation belongs to the existing AlgorithmEngineer or
 SimulationEngineer after this source-grounded preflight. Do not invent task-family rules
 or claim proof evidence.
+
+Audit evidence labels inside the theory documents as well as equations. A pre-review
+Python or R scratchpad result is exploratory diagnostic evidence only. Reject any claim
+that relabels it as confirmatory, uses it to choose a favorable gate, or treats it as
+proof of a theorem; leave real confirmatory execution to the frozen downstream lane.
 """
 
 
@@ -2411,6 +2436,10 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "outcomes as observed facts. If a decision needs such evidence, mark the exact "
         "source-level question UNCERTAIN so ArchitectCoordinator can route it to the "
         "existing coding or simulation agent. "
+        "Before accepting primitive mathematical consistency, independently derive or "
+        "reduce a central claimed equality or limit and record the exact theory anchors "
+        "used. Test a generic special case or counterexample where possible. Candidate "
+        "summaries and duplicate retrieval hits are context, not independent validation. "
         "Keep the two citation namespaces distinct: evidence_refs uses only exact "
         "theory anchor IDs allowed by the submit schema, while source_evidence_refs "
         "uses only S...H... handles returned by search_preflight_sources. "

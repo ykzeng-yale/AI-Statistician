@@ -5061,6 +5061,11 @@ class TheoryDeveloperRuntimeSubsystem:
                 packet = self.theory_developer.derive(
                     question,
                     architect_context=context,
+                    theory_workspace_root=(
+                        self.scratch_sandbox_root.parent / "theory_workspaces"
+                        if self.scratch_sandbox_root is not None
+                        else None
+                    ),
                     theory_scratchpad=(
                         TheoryScratchpadConfig(
                             sandbox_dir=(

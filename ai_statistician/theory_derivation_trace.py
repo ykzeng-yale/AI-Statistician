@@ -26,6 +26,20 @@ ASSUMPTION_LEDGER_KEYS = (
     "used_in",
     "risk_if_dropped",
 )
+CLAIM_INDEX_KEYS = (
+    "id",
+    "kind",
+    "document_path",
+    "anchor",
+    "status",
+)
+SANITY_CHECK_INDEX_KEYS = (
+    "id",
+    "claim_ref",
+    "document_path",
+    "anchor",
+    "status",
+)
 
 THEORY_TRACE_CONSUMPTION_BOUNDARY = (
     "Theory trace consumption records proposal-context provenance only. It "
@@ -80,6 +94,18 @@ def compact_theory_derivation_trace(
             limit=max_rows,
             text_limit=text_limit,
         ),
+        "claim_index": _compact_rows(
+            raw_derivation.get("claim_index", []),
+            keys=CLAIM_INDEX_KEYS,
+            limit=max_rows,
+            text_limit=text_limit,
+        ),
+        "sanity_check_index": _compact_rows(
+            raw_derivation.get("sanity_check_index", []),
+            keys=SANITY_CHECK_INDEX_KEYS,
+            limit=max_rows,
+            text_limit=text_limit,
+        ),
         "formalization_handoff": _compact_value(
             raw_derivation.get("formalization_handoff", {}),
             text_limit=text_limit,
@@ -122,6 +148,26 @@ def theory_trace_consumption_contract(
         "n_equation_chain_steps_supplied": _safe_list_len(trace.get("equation_chain", [])),
         "n_assumption_ledger_rows_supplied": _safe_list_len(
             trace.get("assumption_ledger", [])
+        ),
+        "n_claim_index_rows_supplied": _safe_list_len(
+            trace.get("claim_index", [])
+        ),
+        "n_sanity_check_index_rows_supplied": _safe_list_len(
+            trace.get("sanity_check_index", [])
+        ),
+        "n_authoritative_theory_documents_supplied": _safe_list_len(
+            (
+                theory_packet.get("theory_workspace_manifest", {}).get(
+                    "documents", []
+                )
+                if isinstance(
+                    theory_packet.get("theory_workspace_manifest", {}),
+                    Mapping,
+                )
+                else []
+            )
+            if isinstance(theory_packet, Mapping)
+            else []
         ),
         "has_formalization_handoff": bool(trace.get("formalization_handoff")),
         "boundary": THEORY_TRACE_CONSUMPTION_BOUNDARY,
@@ -176,9 +222,16 @@ def theory_trace_anchor_summary(
         )
     return {
         "derivation_step_ids": _unique_strings(
-            row.get("id", "")
-            for row in trace.get("derivation_steps", [])
-            if isinstance(row, Mapping)
+            [
+                row.get("id", "")
+                for row in trace.get("derivation_steps", [])
+                if isinstance(row, Mapping)
+            ]
+            + [
+                row.get("id", "")
+                for row in trace.get("claim_index", [])
+                if isinstance(row, Mapping)
+            ]
         ),
         "equation_step_ids": _unique_strings(
             row.get("step_id", "")
@@ -186,9 +239,18 @@ def theory_trace_anchor_summary(
             if isinstance(row, Mapping)
         ),
         "assumption_names": _unique_strings(
-            row.get("assumption", "")
-            for row in trace.get("assumption_ledger", [])
-            if isinstance(row, Mapping)
+            [
+                row.get("assumption", "")
+                for row in trace.get("assumption_ledger", [])
+                if isinstance(row, Mapping)
+            ]
+            + [
+                row.get("id", "")
+                for row in trace.get("claim_index", [])
+                if isinstance(row, Mapping)
+                and str(row.get("kind", "") or "").strip().lower()
+                == "assumption"
+            ]
         ),
         "formalization_targets": _unique_strings(formalization_targets),
     }

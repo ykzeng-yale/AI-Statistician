@@ -44,6 +44,9 @@ _THEORY_PACKET_SEMANTIC_FIELDS = (
     "simulation_ademp_spec",
     "critic_findings",
     "next_actions",
+    "theory_workspace_manifest",
+    "theory_content_authority",
+    "structured_handoff_role",
     "proof_evidence_boundary",
 )
 

@@ -51,6 +51,7 @@ from ai_statistician.research_architect import (
     ResearchArchitectConfig,
     StaticArchitectLLMProvider,
     THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
+    THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT,
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
     build_theory_developer_revision_inputs,
     build_theory_developer_prompt,
@@ -65,10 +66,13 @@ from ai_statistician.theory_revision_lineage import (
     build_theory_developer_revision_binding,
 )
 from ai_statistician.theory_workspace import (
+    THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_COMMIT_TOOL,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
     THEORY_WORKSPACE_GAP_TOOL,
+    THEORY_WORKSPACE_HANDOFF_ROLE,
     THEORY_WORKSPACE_WRITE_TOOL,
+    theory_workspace_document_manifest,
 )
 
 
@@ -169,13 +173,106 @@ def _theory_tool_response(*calls: ClientToolCall) -> ClientToolTurnResponse:
 
 def _theory_artifact_writes(
     artifacts: dict[str, object],
+    *,
+    documents: dict[str, str] | None = None,
 ) -> dict[str, object]:
-    return {
+    result: dict[str, object] = {
         "writes": [
             {"artifact_name": name, "value": value}
             for name, value in artifacts.items()
         ]
     }
+    if documents:
+        result["document_writes"] = [
+            {"path": path, "content": content}
+            for path, content in documents.items()
+        ]
+    return result
+
+
+def _file_authority_theory_fixture(
+    source: dict[str, object],
+    *,
+    workspace_dir: Path | None = None,
+) -> tuple[dict[str, object], dict[str, str]]:
+    packet = json.loads(json.dumps(source))
+    derivation = dict(packet["theory_derivation_packet"])
+    document_path = "theory/workspace.md"
+    claim_rows: list[dict[str, str]] = []
+    markdown = ["# Theory Workspace", ""]
+
+    def add_claim(claim_id: str, kind: str, content: object) -> None:
+        if not claim_id or any(row["id"] == claim_id for row in claim_rows):
+            return
+        claim_rows.append(
+            {
+                "id": claim_id,
+                "kind": kind,
+                "document_path": document_path,
+                "anchor": claim_id,
+                "status": "SUPPORTED",
+            }
+        )
+        markdown.extend(
+            [f"## {claim_id}", "", json.dumps(content, ensure_ascii=False), ""]
+        )
+
+    for row in derivation.get("derivation_steps", []) or []:
+        add_claim(str(row.get("id", "")), "lemma", row)
+    for row in derivation.get("equation_chain", []) or []:
+        add_claim(str(row.get("step_id", "")), "equation", row)
+    for row in packet.get("theorem_cards", []) or []:
+        add_claim(str(row.get("id", "")), "theorem", row)
+    for row in packet.get("lemma_cards", []) or []:
+        add_claim(str(row.get("id", "")), "lemma", row)
+    for row in packet.get("estimator_specs", []) or []:
+        add_claim(str(row.get("id", "")), "definition", row)
+
+    claim_ids = {row["id"] for row in claim_rows}
+    sanity_rows: list[dict[str, str]] = []
+    for row in derivation.get("sanity_checks", []) or []:
+        claim_ref = str(row.get("claim_ref", ""))
+        if claim_ref not in claim_ids:
+            add_claim(claim_ref, "equation", {"referenced_by": row.get("id", "")})
+            claim_ids.add(claim_ref)
+        status = str(row.get("result", "")).split(":", 1)[0].strip().upper()
+        if status not in {"PASS", "FAIL", "INCONCLUSIVE"}:
+            status = "INCONCLUSIVE"
+        check_id = str(row.get("id", ""))
+        markdown.extend(
+            [f"## {check_id}", "", json.dumps(row, ensure_ascii=False), ""]
+        )
+        sanity_rows.append(
+            {
+                "id": check_id,
+                "claim_ref": claim_ref,
+                "document_path": document_path,
+                "anchor": check_id,
+                "status": status,
+            }
+        )
+
+    packet["theory_derivation_packet"] = {
+        "derivation_summary": derivation.get("derivation_summary", ""),
+        "claim_index": claim_rows,
+        "sanity_check_index": sanity_rows,
+        "formalization_handoff": derivation.get("formalization_handoff", {}),
+        "self_critique": derivation.get("self_critique", []),
+        "rejected_alternatives": derivation.get("rejected_alternatives", []),
+    }
+    documents = {document_path: "\n".join(markdown)}
+    if workspace_dir is not None:
+        for relative_path, content in documents.items():
+            target = workspace_dir / relative_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+        packet["theory_workspace_manifest"] = theory_workspace_document_manifest(
+            documents,
+            workspace_dir=workspace_dir,
+        )
+        packet["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
+        packet["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
+    return packet, documents
 
 
 def _theory_checkpoint_response(
@@ -1074,7 +1171,9 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         title="Initial theory workspace",
         description="Author initial theory through direct model-owned artifacts.",
     )
-    core_response = _sample_response()
+    core_response, theory_documents = _file_authority_theory_fixture(
+        _sample_response()
+    )
     core_estimators = [dict(row) for row in core_response["estimator_specs"]]
     expected_contract = core_estimators[0].pop(
         "estimator_interface_contract"
@@ -1085,7 +1184,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         core_response[field] = []
     core_artifacts = {
         field: core_response[field]
-        for field in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+        for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
         if field not in optional_artifacts
     }
     invalid_core_artifacts = json.loads(json.dumps(core_artifacts))
@@ -1119,7 +1218,12 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
                     ClientToolCall(
                         call_id=f"edit-initial-theory-{index}",
                         name=THEORY_WORKSPACE_WRITE_TOOL,
-                        input=_theory_artifact_writes(batch),
+                        input=_theory_artifact_writes(
+                            batch,
+                            documents=(
+                                theory_documents if index == 0 else None
+                            ),
+                        ),
                     )
                 )
                 for index, batch in enumerate(initial_artifact_batches)
@@ -1175,7 +1279,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         "initial_artifact_workspace"
     )
     assert first_request.metadata["authoring_mode"] == (
-        "model_owned_artifact_workspace"
+        "model_owned_document_workspace"
     )
     assert {tool.name for tool in first_request.tools} == {
         "read_theory_workspace",
@@ -1187,6 +1291,8 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert core_response["problem_card"]["dgp"] not in initial_prompt
     assert "Authoritative theory workspace catalog" in initial_prompt
     assert "initial_authoring_context" in initial_prompt
+    assert "scratchpad result is an exploratory diagnostic" in initial_prompt
+    assert "pre-outcome-frozen simulation lane" in initial_prompt
     assert (
         f"at most {developer.config.theory_workspace_max_submissions} writes"
         in initial_prompt
@@ -1211,6 +1317,8 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT
     )
     assert evidence["n_model_artifact_writes"] == len(core_artifacts) + 1
+    assert evidence["n_model_document_writes"] == 1
+    assert evidence["changed_document_paths"] == ["theory/workspace.md"]
     assert evidence["model_owned_theory"] is True
     assert evidence["runtime_edited_theory"] is False
     assert evidence["reads"] == 2
@@ -1384,8 +1492,11 @@ def test_serious_theory_revision_requires_native_client_tool_backend() -> None:
     assert provider.requests == []
 
 
-def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
-    parent = _serious_sample_response()
+def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> None:
+    parent, parent_documents = _file_authority_theory_fixture(
+        _serious_sample_response(),
+        workspace_dir=tmp_path / "parent-theory",
+    )
     question = OpenResearchQuestion(
         id="theory_artifact_workspace",
         title="Theory artifact workspace",
@@ -1406,6 +1517,18 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
             "formalization_difficulty": "medium",
         }
     )
+    revised_derivation = dict(revised_core["theory_derivation_packet"])
+    revised_derivation["claim_index"] = [
+        *revised_derivation["claim_index"],
+        {
+            "id": "bounded_outcome_moment_control",
+            "kind": "lemma",
+            "document_path": "theory/workspace.md",
+            "anchor": "bounded_outcome_moment_control",
+            "status": "SUPPORTED",
+        },
+    ]
+    revised_core["theory_derivation_packet"] = revised_derivation
     provider = ScriptedTheoryToolBackend(
         tool_responses=[
             _theory_tool_response(
@@ -1425,7 +1548,17 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
                     call_id="edit-lemmas",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
                     input=_theory_artifact_writes(
-                        {"lemma_cards": revised_core["lemma_cards"]}
+                        {
+                            "lemma_cards": revised_core["lemma_cards"],
+                            "theory_derivation_packet": revised_derivation,
+                        },
+                        documents={
+                            "theory/workspace.md": (
+                                parent_documents["theory/workspace.md"]
+                                + "\n## bounded_outcome_moment_control\n\n"
+                                + "Bounded outcomes imply the required finite moment.\n"
+                            )
+                        },
                     ),
                 )
             ),
@@ -1458,7 +1591,7 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
         "artifact_workspace_revision"
     )
     assert first_tool_request.metadata["revision_generation_mode"] == (
-        "model_owned_artifact_workspace"
+        "model_owned_document_workspace"
     )
     assert {tool.name for tool in first_tool_request.tools} == {
         "read_theory_workspace",
@@ -1482,8 +1615,12 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     assert transport["artifact_kind"] == (
         "TheoryDeveloperWorkspaceRevisionTransport"
     )
-    assert transport["revision_mode"] == "model_owned_artifact_workspace"
-    assert transport["changed_artifact_names"] == ["lemma_cards"]
+    assert transport["revision_mode"] == "model_owned_document_workspace"
+    assert transport["changed_artifact_names"] == [
+        "lemma_cards",
+        "theory_derivation_packet",
+    ]
+    assert transport["changed_document_paths"] == ["theory/workspace.md"]
     assert transport["model_owned_artifact_edits"] is True
     assert transport["write_transport"] == (
         THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT
@@ -1499,6 +1636,7 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     assert workspace_evidence["runtime_edited_theory"] is False
     assert workspace_evidence["reads"] == 1
     assert workspace_evidence["submissions"] == 1
+    assert workspace_evidence["n_model_document_writes"] == 1
     assert packet["theory_generation_phases"][0]["phase"] == (
         "artifact_workspace_revision"
     )
@@ -1514,9 +1652,17 @@ def test_default_theory_workspace_budget_allows_observation_recovery() -> None:
     )
 
 
-def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> None:
-    parent = _serious_sample_response()
-    stale_parent = _serious_sample_response()
+def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
+    tmp_path: Path,
+) -> None:
+    parent, _ = _file_authority_theory_fixture(
+        _serious_sample_response(),
+        workspace_dir=tmp_path / "current-parent",
+    )
+    stale_parent, _ = _file_authority_theory_fixture(
+        _serious_sample_response(),
+        workspace_dir=tmp_path / "stale-parent",
+    )
     stale_parent["problem_card"] = {
         **stale_parent["problem_card"],
         "estimand": "a stale target that must not be revised",
@@ -1608,19 +1754,19 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> N
         }
     ]
     prompt = build_theory_developer_prompt(question, architect_context=context)
-    assert "model_owned_theory_artifact_workspace" in prompt
+    assert "model_owned_document_workspace" in prompt
     assert "generated_code_semantic_review_postexecution" in prompt
     assert "theory_derivation:stale-preflight-parent" not in prompt
     prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
     assert prompt_payload["revision_mode"] == (
-        "model_owned_theory_artifact_workspace"
+        "model_owned_document_workspace"
     )
     assert "parent_core_packet" not in prompt_payload
     assert "reviewer_feedback" not in prompt_payload
     assert prompt_payload["reviewer_observations"]["workspace_artifact"] == (
         "reviewer_observations"
     )
-    assert "write_theory_artifacts" in " ".join(
+    assert "write_theory_workspace" in " ".join(
         prompt_payload["instructions"]
     )
 
@@ -1635,8 +1781,13 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> N
         )
 
 
-def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged() -> None:
-    parent = _serious_sample_response()
+def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged(
+    tmp_path: Path,
+) -> None:
+    parent, parent_documents = _file_authority_theory_fixture(
+        _serious_sample_response(),
+        workspace_dir=tmp_path / "parent-theory",
+    )
     question = OpenResearchQuestion(
         id="targeted_revision_interface_reuse",
         title="Targeted revision interface reuse",
@@ -1652,7 +1803,14 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged() -> 
                     call_id="edit-revised-problem-card-for-abi-reuse",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
                     input=_theory_artifact_writes(
-                        {"problem_card": revised_problem_card}
+                        {"problem_card": revised_problem_card},
+                        documents={
+                            "theory/workspace.md": (
+                                parent_documents["theory/workspace.md"]
+                                + "\n## bounded_outcomes\n\n"
+                                + "Assume outcomes are bounded.\n"
+                            )
+                        },
                     ),
                 )
             ),
@@ -1734,8 +1892,13 @@ def test_theory_core_validator_enforces_declared_nested_item_shapes() -> None:
     assert "simulation_ademp_spec.dgps[0] must be a string" in errors
 
 
-def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
-    parent = _serious_sample_response()
+def test_theory_revision_resumes_interface_stage_from_validated_core(
+    tmp_path: Path,
+) -> None:
+    parent, parent_documents = _file_authority_theory_fixture(
+        _serious_sample_response(),
+        workspace_dir=tmp_path / "parent-theory",
+    )
     question = OpenResearchQuestion(
         id="targeted_revision_interface_resume",
         title="Targeted revision interface resume",
@@ -1781,7 +1944,14 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
                         {
                             "problem_card": revised_core["problem_card"],
                             "estimator_specs": revised_core["estimator_specs"],
-                        }
+                        },
+                        documents={
+                            "theory/workspace.md": (
+                                parent_documents["theory/workspace.md"]
+                                + "\n## bounded_outcomes\n\n"
+                                + "Assume outcomes are bounded.\n"
+                            )
+                        },
                     ),
                 )
             ),
