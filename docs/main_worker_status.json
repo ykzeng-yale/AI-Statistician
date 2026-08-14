@@ -1,9 +1,9 @@
 {
-  "schema_version": 46,
+  "schema_version": 47,
   "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "eac064df084699f702a0ff7d41e4504ccae97545",
+  "validated_code_head": "86553646eb314ef928bd6f24cdc7d1613dc8b6e9",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -53,7 +53,7 @@
     ]
   },
   "validated_change": {
-    "commit": "eac064df084699f702a0ff7d41e4504ccae97545",
+    "commit": "86553646eb314ef928bd6f24cdc7d1613dc8b6e9",
     "changes": [
       "TheoryDeveloper has a direct model-owned report_theory_gap tool. It requires a prior observation, terminates as BLOCKED, stores workspace evidence once by reference, and never becomes proof evidence.",
       "A runtime-owned formal_target_authoring_required contract now controls TheoryDeveloper formalization artifacts. Optional and advisory research tasks need not invent Lean handoffs; capability_eval and required formal tasks still fail closed, and an Architect plan cannot lower that gate.",
@@ -62,17 +62,20 @@
       "Metric author and independent reviewer prompts now align declared returned values and numeric gates explicitly. Runtime still applies the frozen model-authored contract without statistical transformations.",
       "Theory revision budget state survives Architect replanning and remains scoped to one fresh question runtime.",
       "Product research evaluation and strict S13 formal-capability evaluation are separate authorities. Optional formal gaps cannot erase accepted non-formal evidence, while S13 still requires exact source-theorem kernel closure.",
-      "A data-only L0-L6 benchmark ladder stages focused known results, exact replication, paper-to-code reproduction, hidden rederivation, historical rediscovery, near-frontier extension, and open-problem evidence audits. Candidate gold remains inactive and outside runtime/RAG."
+      "A data-only L0-L6 benchmark ladder stages focused known results, exact replication, paper-to-code reproduction, hidden rederivation, historical rediscovery, near-frontier extension, and open-problem evidence audits. Candidate gold remains inactive and outside runtime/RAG.",
+      "Serious TheoryDeveloper work no longer encodes mathematical quality as at most eight derivation rows, eight equation rows, two theorem cards, four lemma cards, or 420 characters per field. The existing token, isolation, and no-progress boundaries remain unchanged; compact and truncation-recovery packets remain bounded.",
+      "One TheoryDeveloper tool call may atomically replace every mutually dependent writable artifact. This removes harness-created extra turns while preserving exact model-authored values, shape validation, immutable parent identity, and duplicate-name rejection.",
+      "Optional and advisory product research now default to simulation_first. Explicit tasks may still select proof_first or dual_track, and required strict-formal evaluation remains dual_track."
     ],
     "anti_hardcoding_audit": "No task-family condition, statistical answer, Lean grammar/tactic rule, repair worker, or fallback scheduler was added to executable code.",
     "verification": {
-      "full_pytest": "644 passed in 95.38s",
-      "affected_subsystem_pytest": "255 passed in 70.29s",
+      "full_pytest": "645 passed in 114.06s",
+      "affected_subsystem_pytest": "116 passed in 1.28s; path and evaluation policy 41 passed in 77.23s; design and model policy 38 passed in 3.23s",
       "python_compileall": "passed",
       "json_validation": "passed",
       "git_diff_check": "passed",
       "production_design_line_budget": "passed",
-      "remote_before_commit": "origin/main and working branch were both 0 ahead and 0 behind; no unmerged remote branch was found",
+      "remote_before_commit": "origin/main and working branch were both 0 ahead and 0 behind after fetch; no unmerged remote branch was found",
       "open_pull_requests_before_commit": 0
     },
     "evidence_boundary": "Tests and replay validate mechanisms only. They do not earn live research, empirical, novelty, or theorem-closure credit."
@@ -123,17 +126,21 @@
       "unchanged correct source being counted as revised or skipped after a dependency change",
       "theory revision budgets resetting across Architect replans",
       "raw metric levels being paired with offset-scale gates",
-      "one universal exact-Lean product completion definition"
+      "one universal exact-Lean product completion definition",
+      "serious theory depth being capped by fixed derivation, equation, theorem, lemma, and string counts",
+      "TheoryDeveloper needing multiple tool turns solely because one atomic write could contain at most two mutually dependent artifacts",
+      "optional product research defaulting to dual-track formalization instead of simulation-first"
     ],
     "remaining_structural_problems": [
       "strict development exact source-theorem closure remains 0/2",
       "the current source scout is bounded local retrieval, not a complete live web/GitHub paper-code-data replication workspace",
-      "TheoryDeveloper is artifact-backed but still uses a bounded structured core rather than a mature unbounded theorem/claim DAG editor",
+      "TheoryDeveloper now permits model-selected serious-theory depth within the token window, but still lacks a mature persistent cross-session theorem/claim DAG editor and live on-demand paper/code search",
+      "v433 repeatedly routed confirmatory simulation failures through source review and Architect; candidate evolution needs explicit global lineage/stagnation semantics so it cannot become repair-until-pass",
       "scientific execution has Pyodide/WebR foundations but live R, broad package support, and precision-driven confirmatory replication need integrated evidence",
       "Formalizer has real RAG, local Lean, source revision, and semantic review but still lacks reliable exact statistical theorem closure",
       "formal retrieval needs stronger proof-state relevance and active-project declaration compatibility without theorem-specific rules",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
-      "research_agent_runtime.py remains large at 24230 lines and must shrink before adding another control feature"
+      "research_agent_runtime.py remains large at 24228 lines and must shrink before adding another control feature"
     ],
     "wrong_next_move": "Do not add a repair worker, packet patcher, theorem-specific bridge, Lean grammar fixer, forced tactic policy, hardcoded statistical answer, fixed universal simulation count, more outer budget, or another scheduler."
   },
@@ -149,11 +156,11 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24230,
+    "research_agent_runtime_lines": 24228,
     "agent_runtime_lines": 1207,
     "cli_lines": 6907,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 131453,
+    "top_level_package_lines": 131484,
     "latest_runtime_manifest_bytes": 59048
   },
   "next_gates": [
