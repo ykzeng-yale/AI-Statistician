@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "student_t_normal_mean_interval_known_result",
+      "title": "Exact Student t interval for a normal mean with unknown variance",
+      "description": "Focused known-result evaluation based on Student (William Sealy Gosset), The Probable Error of a Mean, Biometrika 6(1), 1908, pages 1-25. Let X_1,...,X_n be iid N(mu,sigma^2), with n at least 2 and unknown sigma>0. In an authoritative Markdown/LaTeX theory workspace, derive from an orthogonal normal decomposition that Z=sqrt(n)(Xbar-mu)/sigma is standard normal, V=(n-1)S^2/sigma^2 is chi-square with n-1 degrees of freedom, and Z is independent of V when S^2 uses divisor n-1. Then derive T=(Xbar-mu)/(S/sqrt(n)) ~ t_{n-1} and the exact two-sided 1-alpha confidence interval Xbar +/- t_{n-1,1-alpha/2} S/sqrt(n). Make the event inversion, exact coverage under normality, difference from a normal-quantile interval, nonnormal scope, and probability-zero S=0 boundary auditable. The required algorithm artifact id is est_student_t_normal_mean_interval. Its run_estimator(request) input has observations as one numeric array of length at least 2 and confidence_level as a numeric scalar strictly between 0 and 1. It must return sample_mean, sample_standard_error, degrees_freedom, lower, and upper as finite numeric values, using the exact Student t quantile; state a finite policy for an exactly constant numeric sample. Use exploratory computation only as a diagnostic, then run a separately frozen confirmatory Monte Carlo coverage check over predeclared normal DGPs and report Monte Carlo standard errors. This task contains one distribution theorem, one interval algorithm, and one coverage target. Source-code replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "parametric inference",
+        "normal mean",
+        "confidence interval",
+        "known result",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "The Probable Error of a Mean",
+        "authors": [
+          "Student (William Sealy Gosset)"
+        ],
+        "venue": "Biometrika",
+        "year": 1908,
+        "volume": 6,
+        "issue": 1,
+        "pages": "1-25",
+        "doi": "10.1093/biomet/6.1.1",
+        "url": "https://doi.org/10.1093/biomet/6.1.1"
+      }
+    }
+  ]
+}

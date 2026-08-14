@@ -230,7 +230,7 @@ e-process guarantee. Neither task reached Formalizer, so the atomic Lean
 declaration-context improvement still has component evidence only. The held-out
 strict-formal panel remains sealed.
 
-The ladder now has four full-task-gold L0 tasks. White HC0 has one fresh
+The ladder now has five full-task-gold L0 tasks. White HC0 has one fresh
 corrected-v2 exact-Haiku run. v5 ended `BLOCKED`: its accepted estimator
 passed all 7 hidden reference/metamorphic checks and all 6 hidden empirical checks
 across two DGPs and 2,000 estimator calls, but its theory passed only 7 of 11 hidden
@@ -348,6 +348,25 @@ failure patterns were replaced by seven general scientific-review principles. Th
 inspection-provenance and harness-simplification evidence only. It does not repair or
 rescore James-Stein, make line coverage equivalent to correct judgment, or establish
 improved live theory capability until a future unrelated frozen task exercises it.
+
+That future task is now frozen before its first runtime model call. The Student-t
+normal-mean L0 benchmark contains one distribution theorem, one interval algorithm,
+and one MCSE-aware coverage target. Its model-visible authority is a hash-bound 1908
+source snapshot with an explicitly identified modern-notation transcription; deep
+formalization, novelty, and source-code replication are not required. The evaluator
+bundle remains outside the repository and all model/RAG workspaces. Its reference
+implementation passed six direct and metamorphic checks and three predeclared normal
+coverage DGPs with 3,000 replicates each, while three deliberately wrong estimator
+families were rejected.
+
+The evaluator-only exact-Haiku semantic authority classified all ten unlabeled
+preactivation cases correctly and passed its reference candidate in an isolated
+second call. Crucially, its failures include a document with the correct final
+Student interval but false active chi-square and independence steps. This calibration
+is not research capability evidence. It only establishes that the next single fresh
+draw can test the direct Markdown/LaTeX TheoryDeveloper, same-owner continuation, and
+claim-grounded referee without learning its scoring rule from the candidate output.
+After that draw the task will not be resampled merely to obtain a better model answer.
 
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same
