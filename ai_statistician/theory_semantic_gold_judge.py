@@ -91,9 +91,13 @@ def run_theory_semantic_gold_judge(
     model: str = LIVE_EVALUATION_CLAUDE_MODEL,
     model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     max_tokens: int = 6000,
+    semantic_artifact_role: str = "theory",
 ) -> dict[str, Any]:
-    """Judge one frozen theory artifact only after hidden-case calibration."""
+    """Judge one frozen scientific document only after hidden-case calibration."""
 
+    artifact_role = str(semantic_artifact_role).strip()
+    if not artifact_role:
+        raise ValueError("semantic artifact role must be nonempty")
     claim_ids = _rubric_claim_ids(rubric)
     case_ids = _calibration_case_ids(calibration_cases)
     prompt_cases = [
@@ -107,6 +111,7 @@ def run_theory_semantic_gold_judge(
         "task": {
             "id": task_id,
             "visible_question": deepcopy(dict(visible_question)),
+            "semantic_artifact_role": artifact_role,
         },
         "reference_documents": deepcopy(list(reference_documents)),
         "claim_rubric": deepcopy(dict(rubric)),
@@ -121,18 +126,20 @@ def run_theory_semantic_gold_judge(
     }
     request = GeneratorRequest(
         system_prompt=(
-            "You are an independent mathematical-statistics adjudicator. Compare "
-            "each document set with the reference and claim rubric at the level of "
-            "mathematical meaning. Accept equivalent notation and algebra. Reject "
-            "contradictory assumptions, false equations, unjustified limits, or "
-            "evidence-authority violations. Do not grade wording, formatting, or "
-            "keyword overlap. Reconstruct decisive equations or counterexamples "
-            "when needed. Calibration cases are deliberately unlabeled. Think through "
-            "the comparison, but keep the returned object minimal: output only case "
-            "IDs, overall statuses, claim IDs, and claim statuses, with no rationale, "
-            "evidence text, or commentary. Return exactly one assessment for every "
-            "required calibration case ID and every required claim ID, without "
-            "omission or duplication. Do not infer a desired label from case order."
+            "You are an independent scientific-document adjudicator. Compare each "
+            "document set with the reference and claim rubric at the level of "
+            "statistical and mathematical meaning. Accept equivalent notation and "
+            "algebra. Reject contradictory assumptions, false equations, incorrect "
+            "method identification, unjustified limits, source/result claims not "
+            "supported by the supplied authority, or evidence-authority violations. "
+            "Do not grade wording, formatting, or keyword overlap. Reconstruct "
+            "decisive equations or counterexamples when needed. Calibration cases "
+            "are deliberately unlabeled. Think through the comparison, but keep the "
+            "returned object minimal: output only case IDs, overall statuses, claim "
+            "IDs, and claim statuses, with no rationale, evidence text, or commentary. "
+            "Return exactly one assessment for every required calibration case ID and "
+            "every required claim ID, without omission or duplication. Do not infer a "
+            "desired label from case order."
         ),
         user_prompt=json.dumps(payload, ensure_ascii=False, default=str),
         model=model,
@@ -140,7 +147,12 @@ def run_theory_semantic_gold_judge(
         temperature=0.0,
         schema=THEORY_SEMANTIC_GOLD_JUDGE_SCHEMA,
         metadata={
-            "subsystem": "TheorySemanticGoldJudge",
+            "subsystem": (
+                "TheorySemanticGoldJudge"
+                if artifact_role == "theory"
+                else "ScientificDocumentSemanticGoldJudge"
+            ),
+            "semantic_artifact_role": artifact_role,
             "provider_name": str(getattr(provider, "provider_name", "") or ""),
             "model_tier": model_tier,
             PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY: True,
@@ -183,7 +195,12 @@ def run_theory_semantic_gold_judge(
     candidate_status = str(candidate_assessment["status"])
     passed = bool(calibrated and candidate_status == "PASS")
     body = {
-        "artifact_kind": "HiddenTheorySemanticGoldJudgment",
+        "artifact_kind": (
+            "HiddenTheorySemanticGoldJudgment"
+            if artifact_role == "theory"
+            else "HiddenScientificDocumentSemanticGoldJudgment"
+        ),
+        "semantic_artifact_role": artifact_role,
         "task_id_hash": stable_hash(task_id),
         "provider": str(response.provider or getattr(provider, "provider_name", "")),
         "model": str(response.model or model),

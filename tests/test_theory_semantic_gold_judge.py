@@ -63,7 +63,11 @@ class _RecordingProvider:
         )
 
 
-def _run(provider: _RecordingProvider) -> dict[str, object]:
+def _run(
+    provider: _RecordingProvider,
+    *,
+    semantic_artifact_role: str = "theory",
+) -> dict[str, object]:
     return run_theory_semantic_gold_judge(
         provider=provider,
         task_id="known-result",
@@ -93,6 +97,7 @@ def _run(provider: _RecordingProvider) -> dict[str, object]:
                 "documents": [{"path": "b.md", "content": "wrong limit"}],
             },
         ],
+        semantic_artifact_role=semantic_artifact_role,
     )
 
 
@@ -117,6 +122,32 @@ def test_candidate_pass_cannot_override_failed_calibration() -> None:
     assert result["candidate_status"] == "PASS"
     assert result["passed"] is False
     assert result["n_calibration_cases_correct"] == 1
+
+
+def test_theory_role_preserves_existing_judgment_contract() -> None:
+    provider = _RecordingProvider(_packet())
+
+    result = _run(provider)
+
+    assert result["artifact_kind"] == "HiddenTheorySemanticGoldJudgment"
+    assert provider.request.metadata["subsystem"] == "TheorySemanticGoldJudge"
+
+
+def test_semantic_judge_records_scientific_document_role() -> None:
+    provider = _RecordingProvider(_packet())
+
+    result = _run(
+        provider,
+        semantic_artifact_role="source_replication_report",
+    )
+
+    assert result["artifact_kind"] == (
+        "HiddenScientificDocumentSemanticGoldJudgment"
+    )
+    assert result["semantic_artifact_role"] == "source_replication_report"
+    assert provider.request.metadata["semantic_artifact_role"] == (
+        "source_replication_report"
+    )
 
 
 def test_semantic_judge_validator_rejects_inconsistent_overall_status() -> None:

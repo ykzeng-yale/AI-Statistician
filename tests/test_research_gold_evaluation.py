@@ -400,6 +400,75 @@ def _source_replication_component_manifest(tmp_path: Path) -> Path:
     return path
 
 
+def _add_source_report_semantic_evaluator(path: Path, tmp_path: Path) -> Path:
+    reference = tmp_path / "private-source-report-reference.md"
+    reference.write_text(
+        "# Reference\n\nThe immutable published source executed successfully.\n"
+    )
+    rubric = tmp_path / "private-source-report-rubric.json"
+    rubric.write_text(
+        json.dumps(
+            {
+                "rubric_id": "private-source-report-rubric",
+                "claims": [
+                    {
+                        "claim_id": "private-source-method-identity",
+                        "criterion": (
+                            "The report identifies the published method and result "
+                            "without substituting a nearby model."
+                        ),
+                    }
+                ],
+            }
+        )
+    )
+    calibration = tmp_path / "private-source-report-calibration.json"
+    calibration.write_text(
+        json.dumps(
+            {
+                "cases": [
+                    {
+                        "case_id": "private-source-report-correct",
+                        "expected_status": "PASS",
+                        "documents": [
+                            {"path": "correct.md", "content": "correct method"}
+                        ],
+                    },
+                    {
+                        "case_id": "private-source-report-wrong-method",
+                        "expected_status": "FAIL",
+                        "documents": [
+                            {"path": "wrong.md", "content": "nearby wrong method"}
+                        ],
+                    },
+                ]
+            }
+        )
+    )
+    manifest = json.loads(path.read_text())
+    manifest["active_tasks"][0]["hidden_source_report_semantic_evaluator"] = {
+        "provider": "anthropic",
+        "model_tier": "haiku",
+        "model": "claude-haiku-4-5-20251001",
+        "automatic_tier_escalation_allowed": False,
+        "max_tokens": 2000,
+        "timeout_seconds": 30,
+        "reference_documents": [
+            {
+                "document_id": "private-source-report-reference",
+                "path": str(reference),
+                "sha256": _fixture_sha256(reference),
+            }
+        ],
+        "rubric_path": str(rubric),
+        "rubric_sha256": _fixture_sha256(rubric),
+        "calibration_cases_path": str(calibration),
+        "calibration_cases_sha256": _fixture_sha256(calibration),
+    }
+    path.write_text(json.dumps(manifest))
+    return path
+
+
 def _runtime_result_with_source_replication(
     *,
     workspace_dir: Path,
@@ -592,6 +661,9 @@ def test_source_replication_component_is_scored_post_runtime_without_algorithm(
     task = result["tasks"][0]
     assert task["source_replication_manifest_id"] == "source_replication:test"
     assert task["hidden_source_replication_checks_passed"] is True
+    assert task["hidden_source_replication_identity_passed"] is True
+    assert task["hidden_source_report_semantic_evaluation_configured"] is False
+    assert task["hidden_source_replication_combined_passed"] is True
     assert task["dimension_status"]["source_replication"]["status"] == "passed"
     assert task["dimension_status"]["source_replication"]["gold_validated"] is True
     assert task["source_replication_checkpoint_valid"] is True
@@ -612,6 +684,95 @@ def test_source_replication_component_is_scored_post_runtime_without_algorithm(
     }
     assert task["task_passed"] is True
     assert task["failure_reasons"] == []
+
+
+@pytest.mark.parametrize(
+    ("calibrated", "candidate_status", "expected_pass"),
+    (
+        (True, "PASS", True),
+        (False, "PASS", False),
+        (True, "FAIL", False),
+    ),
+)
+def test_source_replication_separates_identity_from_report_semantics(
+    tmp_path: Path,
+    calibrated: bool,
+    candidate_status: str,
+    expected_pass: bool,
+) -> None:
+    manifest = _add_source_report_semantic_evaluator(
+        _source_replication_component_manifest(tmp_path),
+        tmp_path,
+    )
+
+    def source_runner(**kwargs) -> dict:
+        assert kwargs["candidate_artifact"]["raw_stdout"] == "published output\n"
+        return {
+            "execution_attempted": True,
+            "returncode": 0,
+            "errors": [],
+            "result_parse_error": "",
+            "result_hash": "hidden-source-result",
+            "metrics": {"source_gold_ok": True},
+        }
+
+    def semantic_runner(**kwargs) -> dict:
+        assert kwargs["semantic_artifact_role"] == "source_replication_report"
+        assert kwargs["model"] == "claude-haiku-4-5-20251001"
+        assert kwargs["model_tier"] == "haiku"
+        assert kwargs["candidate_documents"][0]["content"].startswith(
+            "# Published-source replication"
+        )
+        return {
+            "judgment_hash": "private-source-report-result",
+            "semantic_judge_calibrated": calibrated,
+            "n_calibration_cases": 2,
+            "n_calibration_cases_correct": 2 if calibrated else 1,
+            "n_claims": 1,
+            "candidate_status": candidate_status,
+            "passed": calibrated and candidate_status == "PASS",
+        }
+
+    result = evaluate_research_gold_benchmark(
+        [
+            _runtime_result_with_source_replication(
+                workspace_dir=tmp_path / "workspace"
+            )
+        ],
+        research_evaluation_summary={"rows": []},
+        benchmark_manifest_path=manifest,
+        out_dir=tmp_path / "out",
+        run_artifact_harness=source_runner,
+        run_theory_semantic_judge=semantic_runner,
+    )
+
+    task = result["tasks"][0]
+    assert task["hidden_source_replication_identity_passed"] is True
+    assert task["hidden_source_report_semantic_execution_attempted"] is True
+    assert task["hidden_source_report_semantic_judge_calibrated"] is calibrated
+    assert task["hidden_source_report_semantic_candidate_status"] == candidate_status
+    assert task["hidden_source_report_semantic_passed"] is expected_pass
+    assert task["hidden_source_replication_combined_passed"] is expected_pass
+    assert task["dimension_status"]["source_replication"]["status"] == (
+        "passed" if expected_pass else "failed"
+    )
+    assert task["task_passed"] is expected_pass
+    assert bool(task["source_replication_report_document_hash"])
+    serialized = json.dumps(result)
+    assert "private-source-method-identity" not in serialized
+    assert "private-source-report-correct" not in serialized
+    assert "correct method" not in serialized
+    if expected_pass:
+        assert task["failure_reasons"] == []
+    else:
+        assert (
+            "hidden source-report semantic checks did not all pass"
+            in task["failure_reasons"]
+        )
+        assert (
+            "required evidence dimension did not pass: source_replication"
+            in task["failure_reasons"]
+        )
 
 
 def test_source_replication_gold_rejects_unbound_runtime_manifest(
@@ -638,6 +799,71 @@ def test_source_replication_gold_rejects_unbound_runtime_manifest(
     assert "source replication manifest lineage is invalid" in task[
         "failure_reasons"
     ]
+
+
+def test_source_report_semantics_rejects_tampered_report_before_judgment(
+    tmp_path: Path,
+) -> None:
+    manifest = _add_source_report_semantic_evaluator(
+        _source_replication_component_manifest(tmp_path),
+        tmp_path,
+    )
+    runtime_result = _runtime_result_with_source_replication(
+        workspace_dir=tmp_path / "workspace"
+    )
+    report_path = tmp_path / "workspace" / "replication" / "report.md"
+    report_path.write_text("# Mutated after checkpoint\n", encoding="utf-8")
+
+    result = evaluate_research_gold_benchmark(
+        [runtime_result],
+        research_evaluation_summary={"rows": []},
+        benchmark_manifest_path=manifest,
+        out_dir=tmp_path / "out",
+        run_artifact_harness=lambda **kwargs: {
+            "execution_attempted": True,
+            "returncode": 0,
+            "errors": [],
+            "result_parse_error": "",
+            "result_hash": "hidden-source-result",
+            "metrics": {"source_gold_ok": True},
+        },
+        run_theory_semantic_judge=lambda **kwargs: pytest.fail(
+            "tampered report must not reach the hidden semantic judge"
+        ),
+    )
+
+    task = result["tasks"][0]
+    assert task["hidden_source_replication_identity_passed"] is True
+    assert task["source_replication_checkpoint_valid"] is False
+    assert task["hidden_source_report_semantic_execution_attempted"] is False
+    assert task["hidden_source_replication_combined_passed"] is False
+    assert task["task_passed"] is False
+
+
+def test_source_report_semantics_requires_source_identity_evaluator(
+    tmp_path: Path,
+) -> None:
+    manifest = _add_source_report_semantic_evaluator(
+        _source_replication_component_manifest(tmp_path),
+        tmp_path,
+    )
+    packet = json.loads(manifest.read_text())
+    del packet["active_tasks"][0]["hidden_source_replication_evaluator"]
+    manifest.write_text(json.dumps(packet))
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "source-report semantic evaluation requires "
+            "hidden_source_replication_evaluator"
+        ),
+    ):
+        evaluate_research_gold_benchmark(
+            [],
+            research_evaluation_summary={"rows": []},
+            benchmark_manifest_path=manifest,
+            out_dir=tmp_path / "out",
+        )
 
 
 def test_source_replication_requires_model_authored_gap_checkpoint(

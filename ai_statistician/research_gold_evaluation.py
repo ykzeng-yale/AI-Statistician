@@ -192,6 +192,14 @@ def _evaluate_gold_task(
         if isinstance(source_replication_evaluator, Mapping)
         else {}
     )
+    source_report_semantic_evaluator = task.get(
+        "hidden_source_report_semantic_evaluator", {}
+    )
+    source_report_semantic_evaluator = (
+        source_report_semantic_evaluator
+        if isinstance(source_report_semantic_evaluator, Mapping)
+        else {}
+    )
     base = {
         "task_id": task_id,
         "level": str(task["level"]),
@@ -269,6 +277,24 @@ def _evaluate_gold_task(
         "hidden_source_replication_execution_passed": False,
         "hidden_source_replication_checks_passed": False,
         "hidden_source_replication_check_results": [],
+        "hidden_source_replication_identity_passed": False,
+        "hidden_source_report_semantic_evaluation_configured": bool(
+            source_report_semantic_evaluator
+        ),
+        "hidden_source_report_semantic_evaluator_hash": (
+            stable_hash(source_report_semantic_evaluator)
+            if source_report_semantic_evaluator
+            else ""
+        ),
+        "hidden_source_report_semantic_execution_attempted": False,
+        "hidden_source_report_semantic_judge_calibrated": False,
+        "hidden_source_report_semantic_calibration_case_count": 0,
+        "hidden_source_report_semantic_calibration_cases_correct": 0,
+        "hidden_source_report_semantic_claim_count": 0,
+        "hidden_source_report_semantic_candidate_status": "",
+        "hidden_source_report_semantic_passed": False,
+        "hidden_source_replication_combined_passed": False,
+        "source_replication_report_document_hash": "",
         "source_replication_checkpoint_valid": False,
         "unresolved_gap_disclosure_present": False,
         "dimension_status": {},
@@ -314,6 +340,8 @@ def _evaluate_gold_task(
         return base
 
     artifacts = _runtime_artifacts(runtime_result)
+    hidden_source_replication_identity_passed = False
+    hidden_source_report_semantic_passed = not source_report_semantic_evaluator
     hidden_source_replication_passed = False
     source_replication_gap_disclosure_present = False
     if source_replication_evaluator:
@@ -327,8 +355,8 @@ def _evaluate_gold_task(
             base["source_replication_manifest_hash"] = str(
                 source_manifest.get("manifest_hash", "") or ""
             )
-            source_replication_gap_disclosure_present = (
-                _source_replication_checkpoint_gap_disclosure_present(
+            source_report_document, source_replication_gap_disclosure_present = (
+                _source_replication_checkpoint_report_document(
                     artifacts,
                     question_id=task_id,
                     source_manifest=source_manifest,
@@ -371,7 +399,7 @@ def _evaluate_gold_task(
                 source_execution,
                 evaluator=source_replication_evaluator,
             )
-            hidden_source_replication_passed = source_summary["passed"]
+            hidden_source_replication_identity_passed = source_summary["passed"]
             base.update(
                 {
                     "hidden_harness_execution_attempted": source_summary[
@@ -394,9 +422,80 @@ def _evaluate_gold_task(
                     "hidden_source_replication_check_results": source_summary[
                         "check_results"
                     ],
+                    "hidden_source_replication_identity_passed": (
+                        hidden_source_replication_identity_passed
+                    ),
                 }
             )
             base["failure_reasons"].extend(source_summary["errors"])
+            if source_report_document is not None:
+                base["source_replication_report_document_hash"] = stable_hash(
+                    {
+                        "path": source_report_document.get("path", ""),
+                        "sha256": source_report_document.get("sha256", ""),
+                    }
+                )
+            if source_report_document is not None and source_report_semantic_evaluator:
+                semantic_judgment, semantic_error = (
+                    _run_hidden_document_semantic_evaluation(
+                        evaluator=source_report_semantic_evaluator,
+                        task_id=task_id,
+                        visible_question=runtime_question,
+                        candidate_documents=[source_report_document],
+                        project_root=project_root,
+                        run_semantic_judge=run_theory_semantic_judge,
+                        semantic_judge_provider=theory_semantic_judge_provider,
+                        semantic_artifact_role="source_replication_report",
+                    )
+                )
+                if semantic_error:
+                    base["failure_reasons"].append(semantic_error)
+                elif semantic_judgment is not None:
+                    hidden_source_report_semantic_passed = (
+                        semantic_judgment.get("passed") is True
+                    )
+                    base.update(
+                        {
+                            "hidden_source_report_semantic_execution_attempted": True,
+                            "hidden_source_report_semantic_result_hash": str(
+                                semantic_judgment.get("judgment_hash", "") or ""
+                            ),
+                            "hidden_source_report_semantic_judge_calibrated": (
+                                semantic_judgment.get(
+                                    "semantic_judge_calibrated"
+                                )
+                                is True
+                            ),
+                            "hidden_source_report_semantic_calibration_case_count": int(
+                                semantic_judgment.get(
+                                    "n_calibration_cases", 0
+                                )
+                                or 0
+                            ),
+                            "hidden_source_report_semantic_calibration_cases_correct": int(
+                                semantic_judgment.get(
+                                    "n_calibration_cases_correct", 0
+                                )
+                                or 0
+                            ),
+                            "hidden_source_report_semantic_claim_count": int(
+                                semantic_judgment.get("n_claims", 0) or 0
+                            ),
+                            "hidden_source_report_semantic_candidate_status": str(
+                                semantic_judgment.get("candidate_status", "") or ""
+                            ),
+                            "hidden_source_report_semantic_passed": (
+                                hidden_source_report_semantic_passed
+                            ),
+                        }
+                    )
+            hidden_source_replication_passed = bool(
+                hidden_source_replication_identity_passed
+                and hidden_source_report_semantic_passed
+            )
+            base["hidden_source_replication_combined_passed"] = (
+                hidden_source_replication_passed
+            )
     hidden_theory_passed = False
     if theory_evaluator or theory_semantic_evaluator:
         theory_id, theory_packet, theory_errors = _latest_accepted_theory_packet(
@@ -477,71 +576,21 @@ def _evaluate_gold_task(
                 base["failure_reasons"].extend(theory_summary["errors"])
             semantic_theory_passed = not theory_semantic_evaluator
             if theory_candidate is not None and theory_semantic_evaluator:
-                try:
-                    reference_documents, rubric, calibration_cases = (
-                        _load_hidden_theory_semantic_authority(
-                            theory_semantic_evaluator,
-                            project_root=project_root,
-                        )
+                semantic_judgment, semantic_error = (
+                    _run_hidden_document_semantic_evaluation(
+                        evaluator=theory_semantic_evaluator,
+                        task_id=task_id,
+                        visible_question=runtime_question,
+                        candidate_documents=authoritative_documents,
+                        project_root=project_root,
+                        run_semantic_judge=run_theory_semantic_judge,
+                        semantic_judge_provider=theory_semantic_judge_provider,
+                        semantic_artifact_role="theory",
                     )
-                    if run_theory_semantic_judge is not None:
-                        semantic_judgment = dict(
-                            run_theory_semantic_judge(
-                                task_id=task_id,
-                                visible_question=runtime_question,
-                                candidate_documents=authoritative_documents,
-                                reference_documents=reference_documents,
-                                rubric=rubric,
-                                calibration_cases=calibration_cases,
-                                model=str(theory_semantic_evaluator["model"]),
-                                model_tier=str(
-                                    theory_semantic_evaluator["model_tier"]
-                                ),
-                                max_tokens=int(
-                                    theory_semantic_evaluator.get(
-                                        "max_tokens", 6000
-                                    )
-                                    or 6000
-                                ),
-                            )
-                        )
-                    else:
-                        semantic_provider = (
-                            theory_semantic_judge_provider
-                            or AnthropicGeneratorBackend(
-                                timeout_s=float(
-                                    theory_semantic_evaluator.get(
-                                        "timeout_seconds", 120
-                                    )
-                                    or 120
-                                )
-                            )
-                        )
-                        semantic_judgment = run_theory_semantic_gold_judge(
-                            provider=semantic_provider,
-                            task_id=task_id,
-                            visible_question=runtime_question,
-                            candidate_documents=authoritative_documents,
-                            reference_documents=reference_documents,
-                            rubric=rubric,
-                            calibration_cases=calibration_cases,
-                            model=str(theory_semantic_evaluator["model"]),
-                            model_tier=str(
-                                theory_semantic_evaluator["model_tier"]
-                            ),
-                            max_tokens=int(
-                                theory_semantic_evaluator.get(
-                                    "max_tokens", 6000
-                                )
-                                or 6000
-                            ),
-                        )
-                except Exception as exc:
-                    base["failure_reasons"].append(
-                        "hidden theory semantic evaluation failed closed: "
-                        f"{type(exc).__name__}"
-                    )
-                else:
+                )
+                if semantic_error:
+                    base["failure_reasons"].append(semantic_error)
+                elif semantic_judgment is not None:
                     semantic_theory_passed = (
                         semantic_judgment.get("passed") is True
                     )
@@ -610,9 +659,19 @@ def _evaluate_gold_task(
             if row["requirement"] == "required"
         )
         base["dimension_status"] = dimensions
-        if source_replication_evaluator and not hidden_source_replication_passed:
+        if (
+            source_replication_evaluator
+            and not hidden_source_replication_identity_passed
+        ):
             base["failure_reasons"].append(
-                "hidden source-replication acceptance checks did not all pass"
+                "hidden source-replication identity checks did not all pass"
+            )
+        if (
+            source_report_semantic_evaluator
+            and not hidden_source_report_semantic_passed
+        ):
+            base["failure_reasons"].append(
+                "hidden source-report semantic checks did not all pass"
             )
         dimension_failures = [
             dimension
@@ -1111,6 +1170,54 @@ def _load_hidden_theory_semantic_authority(
     return reference_documents, rubric, hydrated_cases
 
 
+def _run_hidden_document_semantic_evaluation(
+    *,
+    evaluator: Mapping[str, Any],
+    task_id: str,
+    visible_question: Mapping[str, Any],
+    candidate_documents: Sequence[Mapping[str, Any]],
+    project_root: Path,
+    run_semantic_judge: GoldTheorySemanticJudgeRunner | None,
+    semantic_judge_provider: GeneratorBackend | None,
+    semantic_artifact_role: str,
+) -> tuple[dict[str, Any] | None, str]:
+    try:
+        reference_documents, rubric, calibration_cases = (
+            _load_hidden_theory_semantic_authority(
+                evaluator,
+                project_root=project_root,
+            )
+        )
+        kwargs = {
+            "task_id": task_id,
+            "visible_question": visible_question,
+            "candidate_documents": candidate_documents,
+            "reference_documents": reference_documents,
+            "rubric": rubric,
+            "calibration_cases": calibration_cases,
+            "model": str(evaluator["model"]),
+            "model_tier": str(evaluator["model_tier"]),
+            "max_tokens": int(evaluator.get("max_tokens", 6000) or 6000),
+            "semantic_artifact_role": semantic_artifact_role,
+        }
+        if run_semantic_judge is not None:
+            return dict(run_semantic_judge(**kwargs)), ""
+        provider = semantic_judge_provider or AnthropicGeneratorBackend(
+            timeout_s=float(evaluator.get("timeout_seconds", 120) or 120)
+        )
+        return dict(
+            run_theory_semantic_gold_judge(
+                provider=provider,
+                **kwargs,
+            )
+        ), ""
+    except Exception as exc:
+        return None, (
+            f"hidden {semantic_artifact_role} semantic evaluation failed closed: "
+            f"{type(exc).__name__}"
+        )
+
+
 def _load_hidden_json_authority(
     evaluator: Mapping[str, Any],
     *,
@@ -1351,14 +1458,14 @@ def _latest_source_replication_manifest(
     return "", {}, ["no runtime-generated source replication manifest was observed"]
 
 
-def _source_replication_checkpoint_gap_disclosure_present(
+def _source_replication_checkpoint_report_document(
     artifacts: Mapping[str, Any],
     *,
     question_id: str,
     source_manifest: Mapping[str, Any],
     task_intent: Any,
-) -> bool:
-    """Verify one model-authored report/gap checkpoint bound to the source run."""
+) -> tuple[dict[str, Any] | None, bool]:
+    """Load one exact model-authored report bound to a valid source checkpoint."""
 
     source_artifact_id = str(source_manifest.get("artifact_id", "") or "")
     source_manifest_hash = str(source_manifest.get("manifest_hash", "") or "")
@@ -1430,18 +1537,24 @@ def _source_replication_checkpoint_gap_disclosure_present(
             and report.get("relative_path")
             in (workspace_evidence.get("changed_document_paths", []) or [])
         ):
-            return False
+            return None, False
         try:
             document_rows = load_theory_workspace_document_rows(workspace_evidence)
         except (OSError, UnicodeError, ValueError):
-            return False
-        return any(
+            return None, False
+        matching_rows = [
+            dict(row)
+            for row in document_rows
+            if (
             row.get("path") == report.get("relative_path")
             and row.get("sha256") == report.get("sha256")
             and str(row.get("content", "") or "").strip()
-            for row in document_rows
-        )
-    return False
+            )
+        ]
+        if len(matching_rows) != 1:
+            return None, False
+        return matching_rows[0], True
+    return None, False
 
 
 def _latest_accepted_algorithm_handoff(
@@ -1777,11 +1890,19 @@ def _validate_benchmark_manifest(
                     f"active task {index} empirical evaluator estimator identity "
                     "must match the algorithm evaluator"
                 )
-        semantic_evaluator = task.get("hidden_theory_semantic_evaluator")
-        if semantic_evaluator is not None:
+        for semantic_field, semantic_label in (
+            ("hidden_theory_semantic_evaluator", "theory"),
+            (
+                "hidden_source_report_semantic_evaluator",
+                "source report",
+            ),
+        ):
+            semantic_evaluator = task.get(semantic_field)
+            if semantic_evaluator is None:
+                continue
             if not isinstance(semantic_evaluator, Mapping) or not semantic_evaluator:
                 errors.append(
-                    f"active task {index} hidden_theory_semantic_evaluator "
+                    f"active task {index} {semantic_field} "
                     "must be a nonempty object"
                 )
             else:
@@ -1790,8 +1911,17 @@ def _validate_benchmark_manifest(
                         semantic_evaluator,
                         task_index=index,
                         project_root=project_root,
+                        artifact_label=semantic_label,
                     )
                 )
+                if (
+                    semantic_field == "hidden_source_report_semantic_evaluator"
+                    and not source_replication_evaluator
+                ):
+                    errors.append(
+                        f"active task {index} source-report semantic evaluation "
+                        "requires hidden_source_replication_evaluator"
+                    )
         if scoring_scope == "full_task":
             if not _full_task_gold_configured(task):
                 errors.append(
@@ -1810,8 +1940,11 @@ def _hidden_theory_semantic_evaluator_validation_errors(
     *,
     task_index: int,
     project_root: Path,
+    artifact_label: str = "theory",
 ) -> list[str]:
-    label = f"active task {task_index} hidden theory semantic evaluator"
+    label = (
+        f"active task {task_index} hidden {artifact_label} semantic evaluator"
+    )
     errors: list[str] = []
     if not (
         evaluator.get("provider") == "anthropic"
