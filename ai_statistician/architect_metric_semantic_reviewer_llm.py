@@ -32,8 +32,8 @@ from .structured_output_retry import (
 )
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 19
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 15
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 20
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 16
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -431,9 +431,10 @@ def build_architect_metric_semantic_review_prompt(
     }
     return (
         "Independently review this frozen empirical protocol before confirmatory "
-        "execution. Return only JSON matching the provider schema. Use concise but "
-        "substantive rationales; do not repeat the protocol or generate a repair "
-        "recipe.\n\n"
+        "execution. Return only JSON matching the provider schema. The "
+        "requirement_reviews object is keyed by the exact frozen requirement ID; "
+        "do not repeat that ID inside its value. Use concise but substantive "
+        "rationales; do not repeat the protocol or generate a repair recipe.\n\n"
         + json.dumps(
             payload,
             separators=(",", ":"),
@@ -443,7 +444,11 @@ def build_architect_metric_semantic_review_prompt(
     )
 
 
-def _review_row_schema(*, include_requirement_id: bool) -> dict[str, Any]:
+def _review_row_schema(
+    *,
+    include_requirement_id: bool,
+    include_semantic_positive_control: bool = False,
+) -> dict[str, Any]:
     required = ["status", "rationale", "evidence_refs"]
     properties: dict[str, Any] = {
         "status": {"type": "string", "enum": list(_REVIEW_STATUSES)},
@@ -462,8 +467,9 @@ def _review_row_schema(*, include_requirement_id: bool) -> dict[str, Any]:
     }
     if include_requirement_id:
         required.insert(0, "requirement_id")
-        required.append("semantic_positive_control")
         properties["requirement_id"] = {"type": "string", "minLength": 1}
+    if include_semantic_positive_control:
+        required.append("semantic_positive_control")
         properties["semantic_positive_control"] = {
             "type": "object",
             "additionalProperties": False,
@@ -578,6 +584,12 @@ _FINDING_SCHEMA: dict[str, Any] = {
 
 ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$defs": {
+        "requirement_review": _review_row_schema(
+            include_requirement_id=False,
+            include_semantic_positive_control=True,
+        ),
+    },
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -588,9 +600,10 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
     ],
     "properties": {
         "requirement_reviews": {
-            "type": "array",
-            "minItems": 1,
-            "items": _review_row_schema(include_requirement_id=True),
+            "type": "object",
+            "additionalProperties": False,
+            "required": [],
+            "properties": {},
         },
         "portfolio_review": _review_row_schema(
             include_requirement_id=False
@@ -614,11 +627,11 @@ def architect_metric_semantic_review_json_schema(
     schema = deepcopy(ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA)
     requirement_ids = _requirement_ids(review_material)
     requirement_schema = schema["properties"]["requirement_reviews"]
-    requirement_schema["minItems"] = len(requirement_ids)
-    requirement_schema["maxItems"] = len(requirement_ids)
-    requirement_schema["items"]["properties"]["requirement_id"]["enum"] = (
-        requirement_ids
-    )
+    requirement_schema["required"] = requirement_ids
+    requirement_schema["properties"] = {
+        requirement_id: {"$ref": "#/$defs/requirement_review"}
+        for requirement_id in requirement_ids
+    }
     prior_ids = _active_prior_finding_ids(review_material)
     prior_schema = schema["properties"]["prior_finding_reviews"]
     prior_schema["minItems"] = len(prior_ids)
@@ -672,14 +685,33 @@ def _normalize_semantic_positive_control(
     }
 
 
-def _normalize_review_rows(value: Any) -> list[dict[str, Any]]:
+def _normalize_review_rows(
+    value: Any,
+    *,
+    expected_requirement_ids: Sequence[str],
+) -> list[dict[str, Any]]:
+    if not isinstance(value, Mapping):
+        return []
+    keyed_rows = {
+        str(requirement_id): row
+        for requirement_id, row in value.items()
+    }
+    ordered_ids = [
+        *expected_requirement_ids,
+        *[
+            requirement_id
+            for requirement_id in keyed_rows
+            if requirement_id not in expected_requirement_ids
+        ],
+    ]
     rows: list[dict[str, Any]] = []
-    for row in value or []:
+    for requirement_id in ordered_ids:
+        if requirement_id not in keyed_rows:
+            continue
+        row = keyed_rows[requirement_id]
         if not isinstance(row, Mapping):
             continue
-        requirement_id = str(
-            row.get("requirement_id", "") or ""
-        ).strip()
+        requirement_id = str(requirement_id or "").strip()
         evidence_refs = list(
             dict.fromkeys(
                 [
@@ -888,7 +920,10 @@ def _normalize_architect_metric_semantic_review_packet(
     raw_response: str,
 ) -> dict[str, Any]:
     requirement_reviews = _execute_review_semantic_controls(
-        _normalize_review_rows(payload.get("requirement_reviews", [])),
+        _normalize_review_rows(
+            payload.get("requirement_reviews", {}),
+            expected_requirement_ids=_requirement_ids(review_material),
+        ),
         review_material=review_material,
     )
     portfolio_review = _normalize_portfolio_review(

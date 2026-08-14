@@ -1355,8 +1355,12 @@ def _is_retryable_generator_exception(exc: Exception) -> bool:
     retry_markers = (
         "apiconnectionerror",
         "api_connection_error",
+        "overloadederror",
+        "overloaded_error",
         "ratelimiterror",
         "rate_limit_error",
+        "error code: 529",
+        "status code: 529",
         "timeout",
         "connection",
         "temporarily unavailable",

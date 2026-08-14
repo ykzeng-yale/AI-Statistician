@@ -136,9 +136,8 @@ def _payload(
     prior_reviews: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     return {
-        "requirement_reviews": [
-            {
-                "requirement_id": str(requirement["requirement_id"]),
+        "requirement_reviews": {
+            str(requirement["requirement_id"]): {
                 "status": status,
                 "semantic_positive_control": {
                     "raw_metric_values": [0.0],
@@ -161,7 +160,7 @@ def _payload(
                 ],
             }
             for requirement in requirements
-        ],
+        },
         "portfolio_review": {
             "status": status,
             "rationale": (
@@ -321,7 +320,9 @@ def test_runtime_positive_control_rejects_an_implicit_target_shift() -> None:
     )
     material = _material(requirements=[requirement])
     payload = _payload([requirement])
-    payload["requirement_reviews"][0]["semantic_positive_control"] = {
+    payload["requirement_reviews"]["generic_gate"][
+        "semantic_positive_control"
+    ] = {
         "raw_metric_values": [0.30],
         "rationale": "The cited scientific target is an absolute fraction of 0.30.",
         "evidence_refs": ["requirement:generic_gate", "theory:generic_gate"],
@@ -519,11 +520,21 @@ def test_dynamic_schema_is_small_and_provider_transformable() -> None:
     schema = architect_metric_semantic_review_json_schema(material)
 
     assert len(json.dumps(schema, separators=(",", ":"))) < 8_000
-    assert schema["properties"]["requirement_reviews"]["minItems"] == 8
-    assert schema["properties"]["requirement_reviews"]["maxItems"] == 8
-    requirement_properties = schema["properties"]["requirement_reviews"][
-        "items"
-    ]["properties"]
+    requirement_schema = schema["properties"]["requirement_reviews"]
+    assert requirement_schema["required"] == [
+        f"gate_{index}" for index in range(8)
+    ]
+    assert set(requirement_schema["properties"]) == set(
+        requirement_schema["required"]
+    )
+    assert requirement_schema["additionalProperties"] is False
+    assert all(
+        value == {"$ref": "#/$defs/requirement_review"}
+        for value in requirement_schema["properties"].values()
+    )
+    requirement_properties = schema["$defs"]["requirement_review"][
+        "properties"
+    ]
     assert requirement_properties["semantic_positive_control"]["properties"][
         "raw_metric_values"
     ]["items"] == {"type": "number"}
@@ -535,6 +546,13 @@ def test_dynamic_schema_is_small_and_provider_transformable() -> None:
     anthropic = pytest.importorskip("anthropic")
     transformed = anthropic.transform_schema(schema)
     assert transformed["type"] == "object"
+    transformed_requirement_schema = transformed["properties"][
+        "requirement_reviews"
+    ]
+    assert transformed_requirement_schema["required"] == [
+        f"gate_{index}" for index in range(8)
+    ]
+    assert transformed_requirement_schema["additionalProperties"] is False
     assert set(transformed["properties"]) == {
         "requirement_reviews",
         "portfolio_review",
@@ -577,9 +595,12 @@ def test_validator_keeps_certificate_and_lineage_fail_closed() -> None:
 
 
 def test_base_schema_stays_generic() -> None:
-    assert (
-        ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA["properties"][
-            "requirement_reviews"
-        ].get("maxItems")
-        is None
-    )
+    requirement_schema = ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA[
+        "properties"
+    ]["requirement_reviews"]
+    assert requirement_schema == {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [],
+        "properties": {},
+    }

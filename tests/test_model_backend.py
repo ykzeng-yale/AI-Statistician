@@ -832,6 +832,46 @@ def test_anthropic_generator_backend_retries_transient_connection_error(
     assert response.metadata["retry_count"] == 1
 
 
+def test_anthropic_generator_backend_retries_overloaded_529_in_place(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_MAX_RETRIES", "2")
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_RETRY_BACKOFF_SECONDS", "0")
+    calls = {"count": 0}
+
+    class OverloadedError(Exception):
+        pass
+
+    OverloadedError.__module__ = "anthropic._exceptions"
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise OverloadedError("Error code: 529 - overloaded_error")
+            return SimpleNamespace(
+                content=[SimpleNamespace(text='{"ok": true}')]
+            )
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(Anthropic=FakeAnthropicClient),
+    )
+
+    response = AnthropicGeneratorBackend(
+        api_key="test-anthropic-key"
+    ).generate(_request())
+
+    assert calls["count"] == 2
+    assert response.text == '{"ok": true}'
+    assert response.metadata["retry_count"] == 1
+
+
 def test_anthropic_generator_backend_does_not_retry_timeout_by_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
