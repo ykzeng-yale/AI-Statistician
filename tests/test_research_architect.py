@@ -53,6 +53,7 @@ from ai_statistician.research_architect import (
     StaticArchitectLLMProvider,
     THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
     THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT,
+    THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY,
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
     build_theory_developer_revision_inputs,
     build_theory_developer_prompt,
@@ -77,10 +78,12 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
     THEORY_WORKSPACE_GAP_TOOL,
     THEORY_WORKSPACE_HANDOFF_ROLE,
+    THEORY_WORKSPACE_PROGRESS_TOOL,
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
     THEORY_WORKSPACE_WRITE_TOOL,
+    TheoryWorkspaceProgressError,
     TheoryWorkspaceResult,
     theory_workspace_document_manifest,
 )
@@ -1524,6 +1527,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
         THEORY_WORKSPACE_WRITE_TOOL,
         THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+        THEORY_WORKSPACE_PROGRESS_TOOL,
         THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
     }
@@ -1597,6 +1601,188 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert provider.generator_requests[0].metadata[
         "theory_developer_phase"
     ] == "estimator_interface_authoring"
+
+
+def test_initial_theory_progress_resumes_exact_document_workspace(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="continued_document_theory",
+        title="Continued document theory",
+        description="Develop a mathematical argument across model sessions.",
+    )
+    core_response, theory_documents = _file_authority_theory_fixture(
+        _sample_response()
+    )
+    core_estimators = [dict(row) for row in core_response["estimator_specs"]]
+    expected_contract = core_estimators[0].pop(
+        "estimator_interface_contract"
+    )
+    core_response["estimator_specs"] = core_estimators
+    core_artifacts = {
+        field: core_response[field]
+        for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
+    }
+    document_path, document_content = next(iter(theory_documents.items()))
+    workspace_root = tmp_path / "theory-workspaces"
+    first_provider = ScriptedTheoryToolBackend(
+        tool_responses=[
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="read-initial-context",
+                    name="read_theory_workspace",
+                    input={"artifact_names": ["initial_authoring_context"]},
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="write-partial-document",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                    input={
+                        "path": document_path,
+                        "content": document_content,
+                    },
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="checkpoint-partial-theory",
+                    name=THEORY_WORKSPACE_PROGRESS_TOOL,
+                    input={
+                        "summary": "The mathematical derivation is written.",
+                        "evidence_refs": [f"{document_path}#identify_ate"],
+                        "next_step": (
+                            "Index the claims and prepare the compact handoff."
+                        ),
+                    },
+                )
+            ),
+        ],
+        generator_responses=[],
+    )
+    first_developer = LLMTheoryDeveloperAgent(
+        provider=first_provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+
+    with pytest.raises(TheoryWorkspaceProgressError) as exc_info:
+        first_developer.derive(
+            question,
+            theory_workspace_root=workspace_root,
+        )
+
+    checkpoint = exc_info.value.progress_checkpoint
+    assert checkpoint["workspace_operation"] == "initial_discovery"
+    assert checkpoint["changed_document_paths"] == [document_path]
+    assert checkpoint["changed_artifact_names"] == []
+    stale_provider = ScriptedTheoryToolBackend(
+        tool_responses=[],
+        generator_responses=[],
+    )
+    stale_developer = LLMTheoryDeveloperAgent(
+        provider=stale_provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+    with pytest.raises(PacketValidationError, match="context mismatch"):
+        stale_developer.derive(
+            question,
+            architect_context={
+                THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY: checkpoint,
+                "architect_coordinator_proposal_id": "changed-plan",
+            },
+            theory_workspace_root=workspace_root,
+        )
+    assert stale_provider.tool_requests == []
+    assert stale_provider.generator_requests == []
+    second_provider = ScriptedTheoryToolBackend(
+        tool_responses=[
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="read-prior-progress",
+                    name="read_theory_workspace",
+                    input={
+                        "artifact_names": [
+                            "prior_theory_progress_checkpoint"
+                        ]
+                    },
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="read-preserved-document",
+                    name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                    input={
+                        "path": document_path,
+                        "line_start": 1,
+                        "line_end": 8,
+                    },
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="write-theory-handoff",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_theory_artifact_writes(core_artifacts),
+                )
+            ),
+            _theory_checkpoint_response(
+                "The preserved derivation and its claim index are ready for review."
+            ),
+        ],
+        generator_responses=[
+            {
+                "interfaces": {
+                    core_estimators[0]["id"]: expected_contract,
+                }
+            }
+        ],
+    )
+    second_developer = LLMTheoryDeveloperAgent(
+        provider=second_provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+
+    packet = second_developer.derive(
+        question,
+        architect_context={
+            THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY: checkpoint,
+        },
+        theory_workspace_root=workspace_root,
+    )
+
+    assert validate_theory_packet(packet) == []
+    final_evidence = packet["llm_client_tool_loop"]
+    assert final_evidence["workspace_id"] == checkpoint["workspace_id"]
+    assert final_evidence["changed_document_paths"] == [document_path]
+    assert final_evidence["n_model_document_writes"] == 0
+    manifest_row = packet["theory_workspace_manifest"]["documents"][0]
+    assert Path(manifest_row["path"]).read_text(encoding="utf-8") == (
+        document_content
+    )
+    continuation_prompt = str(second_provider.tool_requests[0].messages[0])
+    assert "Continue the existing document-backed" in continuation_prompt
+    assert "prior_theory_progress_checkpoint" in continuation_prompt
+    assert checkpoint["progress"]["next_step"] in str(
+        second_provider.tool_requests[1].messages
+    )
+    assert document_content.splitlines()[0] in str(
+        second_provider.tool_requests[2].messages
+    )
 
 
 def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> None:
@@ -1797,7 +1983,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
         + "\n## bounded_outcome_moment_control\n\n"
         + "Bounded outcomes imply the required finite moment.\n"
     )
-    provider = ScriptedTheoryToolBackend(
+    first_provider = ScriptedTheoryToolBackend(
         tool_responses=[
             _theory_tool_response(
                 ClientToolCall(
@@ -1823,6 +2009,72 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
             ),
             _theory_tool_response(
                 ClientToolCall(
+                    call_id="checkpoint-revision-progress",
+                    name=THEORY_WORKSPACE_PROGRESS_TOOL,
+                    input={
+                        "summary": (
+                            "Added the reviewer-requested bounded-outcome argument."
+                        ),
+                        "evidence_refs": [
+                            "theory/workspace.md#bounded_outcome_moment_control"
+                        ],
+                        "next_step": (
+                            "Index the new lemma and commit the revised handoff."
+                        ),
+                    },
+                )
+            ),
+        ],
+        generator_responses=[],
+    )
+    first_developer = LLMTheoryDeveloperAgent(
+        provider=first_provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            serious_model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+
+    with pytest.raises(TheoryWorkspaceProgressError) as exc_info:
+        first_developer.derive(question, architect_context=context)
+
+    checkpoint = exc_info.value.progress_checkpoint
+    assert checkpoint["workspace_operation"] == "targeted_revision"
+    assert checkpoint["authoring_binding_id"] == revision_inputs[
+        "revision_binding_id"
+    ]
+    assert checkpoint["changed_document_paths"] == ["theory/workspace.md"]
+    assert checkpoint["changed_artifact_names"] == []
+    second_provider = ScriptedTheoryToolBackend(
+        tool_responses=[
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="read-prior-revision-progress",
+                    name="read_theory_workspace",
+                    input={
+                        "artifact_names": [
+                            "prior_theory_progress_checkpoint"
+                        ]
+                    },
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="find-preserved-revised-claim",
+                    name=THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+                    input={
+                        "query": "bounded_outcome_moment_control",
+                        "document_paths": ["theory/workspace.md"],
+                        "max_results": 3,
+                    },
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
                     call_id="edit-lemmas",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
                     input=_theory_artifact_writes(
@@ -1837,8 +2089,8 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
         ],
         generator_responses=[],
     )
-    developer = LLMTheoryDeveloperAgent(
-        provider=provider,
+    second_developer = LLMTheoryDeveloperAgent(
+        provider=second_provider,
         config=ResearchArchitectConfig(
             provider_name="anthropic",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
@@ -1848,16 +2100,25 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
             max_validation_retries=0,
         ),
     )
+    continued_context = {
+        **context,
+        THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY: checkpoint,
+    }
 
-    packet = developer.derive(question, architect_context=context)
+    packet = second_developer.derive(
+        question,
+        architect_context=continued_context,
+    )
 
     assert packet["ok"] is True
     assert packet["lemma_cards"][-1]["id"] == (
         "bounded_outcome_moment_control"
     )
-    assert len(provider.tool_requests) == 4
-    assert provider.generator_requests == []
-    first_tool_request = provider.tool_requests[0]
+    assert len(first_provider.tool_requests) == 3
+    assert len(second_provider.tool_requests) == 4
+    assert first_provider.generator_requests == []
+    assert second_provider.generator_requests == []
+    first_tool_request = first_provider.tool_requests[0]
     assert first_tool_request.metadata["theory_developer_phase"] == (
         "artifact_workspace_revision"
     )
@@ -1871,6 +2132,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
         THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
         THEORY_WORKSPACE_WRITE_TOOL,
         THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+        THEORY_WORKSPACE_PROGRESS_TOOL,
         THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
     }
@@ -1881,10 +2143,18 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert "critic finding, or next action does not override" in first_prompt
     assert "failed status or nonempty errors is diagnostic only" in first_prompt
     assert revised_core["lemma_cards"][0]["id"] in str(
-        provider.tool_requests[1].messages
+        first_provider.tool_requests[1].messages
     )
     assert "The bounded-outcome premise is not explicit." in str(
-        provider.tool_requests[1].messages
+        first_provider.tool_requests[1].messages
+    )
+    continuation_prompt = str(second_provider.tool_requests[0].messages[0])
+    assert "prior_theory_progress_checkpoint" in continuation_prompt
+    assert checkpoint["progress"]["next_step"] in str(
+        second_provider.tool_requests[1].messages
+    )
+    assert "bounded_outcome_moment_control" in str(
+        second_provider.tool_requests[2].messages
     )
     transport = packet["theory_revision_transport"]
     assert transport["artifact_kind"] == (
@@ -1909,9 +2179,13 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     workspace_evidence = packet["llm_client_tool_loop"]
     assert workspace_evidence["model_owned_theory"] is True
     assert workspace_evidence["runtime_edited_theory"] is False
-    assert workspace_evidence["reads"] == 1
-    assert workspace_evidence["submissions"] == 2
-    assert workspace_evidence["n_model_document_writes"] == 1
+    assert workspace_evidence["reads"] == 2
+    assert workspace_evidence["submissions"] == 1
+    assert workspace_evidence["n_model_document_writes"] == 0
+    final_document = packet["theory_workspace_manifest"]["documents"][0]
+    assert Path(final_document["path"]).read_text(encoding="utf-8") == (
+        revised_document
+    )
     assert packet["theory_generation_phases"][0]["phase"] == (
         "artifact_workspace_revision"
     )

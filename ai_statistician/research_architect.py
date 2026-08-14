@@ -50,7 +50,9 @@ from .theory_workspace import (
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
     THEORY_WORKSPACE_HANDOFF_ROLE,
+    THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND,
     TheoryScratchpadConfig,
+    load_theory_progress_checkpoint_state,
     load_theory_workspace_documents,
     run_theory_artifact_workspace,
     theory_workspace_manifest_errors,
@@ -67,6 +69,9 @@ THEORY_SERIOUS_PROMPT_MODES = (
     THEORY_PROMPT_MODE_SERIOUS_REVISION,
 )
 THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND = "TheoryDeveloperStageRecoveryCheckpoint"
+THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY = (
+    "theory_developer_progress_checkpoint"
+)
 KERNEL_PROOF_BOUNDARY = (
     "LLM derivations, retrieval hits, and simulation predictions are proposal "
     "or diagnostic evidence only. Formal proof evidence requires AXLE/local "
@@ -313,6 +318,26 @@ class LLMTheoryDeveloperAgent:
             question=question,
             theory_prompt_mode=theory_prompt_mode,
         )
+        progress_checkpoint_state = (
+            _theory_developer_progress_checkpoint_state(
+                context,
+                question=question,
+                theory_prompt_mode=theory_prompt_mode,
+            )
+        )
+        if (
+            recovered_core_packet is not None
+            and progress_checkpoint_state is not None
+        ):
+            raise PacketValidationError(
+                validation_label="TheoryDeveloper recovery checkpoint",
+                attempts=0,
+                errors=[
+                    "interface-stage and theory-progress recovery cannot be active "
+                    "at the same time"
+                ],
+                history=[],
+            )
         if (
             self.research_sources is not None
             and recovered_core_packet is None
@@ -384,6 +409,7 @@ class LLMTheoryDeveloperAgent:
                 research_sources=self.research_sources,
                 research_source_execution=self.research_source_execution,
                 theory_workspace_root=theory_workspace_root,
+                progress_checkpoint_state=progress_checkpoint_state,
             )
         elif callable(
             getattr(self.provider, "generate_client_tool_turn", None)
@@ -414,6 +440,7 @@ class LLMTheoryDeveloperAgent:
                 research_sources=self.research_sources,
                 research_source_execution=self.research_source_execution,
                 theory_workspace_root=theory_workspace_root,
+                progress_checkpoint_state=progress_checkpoint_state,
             )
         else:
             if document_workspace_required:
@@ -862,6 +889,104 @@ def theory_developer_source_environment_feedback(
     if isinstance(environment_feedback, Mapping):
         return environment_feedback
     return {}
+
+
+def _theory_developer_progress_checkpoint_state(
+    architect_context: Mapping[str, Any],
+    *,
+    question: OpenResearchQuestion,
+    theory_prompt_mode: str,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, str]] | None:
+    raw_checkpoint = architect_context.get(
+        THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY,
+        {},
+    )
+    if not raw_checkpoint:
+        return None
+    if not isinstance(raw_checkpoint, Mapping):
+        raise PacketValidationError(
+            validation_label="TheoryDeveloper progress checkpoint",
+            attempts=0,
+            errors=["TheoryDeveloper progress checkpoint must be an object"],
+            history=[],
+        )
+    checkpoint = deepcopy(dict(raw_checkpoint))
+    errors: list[str] = []
+    expected_operation = (
+        "targeted_revision"
+        if theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION
+        else "initial_discovery"
+    )
+    if checkpoint.get("artifact_kind") != (
+        THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND
+    ):
+        errors.append("TheoryDeveloper progress checkpoint kind mismatch")
+    if checkpoint.get("workspace_operation") != expected_operation:
+        errors.append(
+            "TheoryDeveloper progress checkpoint operation does not match the "
+            "current theory mode"
+        )
+    try:
+        artifacts, documents = load_theory_progress_checkpoint_state(
+            checkpoint,
+            question_id=question.id,
+        )
+    except (OSError, UnicodeError, ValueError) as exc:
+        errors.append(str(exc))
+        artifacts, documents = {}, {}
+    if artifacts:
+        expected_fields = set(THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT)
+        actual_fields = set(artifacts)
+        missing_fields = sorted(expected_fields - actual_fields)
+        extra_fields = sorted(actual_fields - expected_fields)
+        if missing_fields:
+            errors.append(
+                "TheoryDeveloper progress checkpoint is missing handoff fields: "
+                + ", ".join(missing_fields)
+            )
+        if extra_fields:
+            errors.append(
+                "TheoryDeveloper progress checkpoint has unknown handoff fields: "
+                + ", ".join(extra_fields)
+            )
+        errors.extend(
+            _output_contract_shape_errors(
+                artifacts,
+                THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT,
+                path="",
+            )
+        )
+    if errors:
+        raise PacketValidationError(
+            validation_label="TheoryDeveloper progress checkpoint",
+            attempts=0,
+            errors=list(dict.fromkeys(errors)),
+            history=[],
+        )
+    return checkpoint, artifacts, documents
+
+
+def _theory_progress_prompt_artifact(
+    checkpoint: Mapping[str, Any],
+) -> dict[str, Any]:
+    progress = checkpoint.get("progress", {})
+    progress = dict(progress) if isinstance(progress, Mapping) else {}
+    return {
+        "checkpoint_id": checkpoint.get("checkpoint_id", ""),
+        "summary": progress.get("summary", ""),
+        "evidence_refs": list(progress.get("evidence_refs", []) or []),
+        "next_step": progress.get("next_step", ""),
+        "current_workspace_hash": checkpoint.get("current_workspace_hash", ""),
+        "changed_artifact_names": list(
+            checkpoint.get("changed_artifact_names", []) or []
+        ),
+        "changed_document_paths": list(
+            checkpoint.get("changed_document_paths", []) or []
+        ),
+        "proof_evidence_status": (
+            "THEORY_PROGRESS_CHECKPOINT_NOT_PROOF_EVIDENCE"
+        ),
+    }
 
 
 def _theory_developer_recovered_core_checkpoint(
@@ -3078,6 +3203,7 @@ def _initial_theory_workspace_prompt(
     max_submissions: int,
     formalization_authoring_required: bool,
     allow_source_replication_checkpoint: bool = False,
+    continuing_from_progress: bool = False,
 ) -> str:
     if allow_source_replication_checkpoint:
         return (
@@ -3104,10 +3230,22 @@ def _initial_theory_workspace_prompt(
     optional_handoffs = ", ".join(
         field for field, required in handoff_requirements.items() if not required
     )
+    opening = (
+        "Continue the existing document-backed TheoryDeveloper research workspace "
+        f"for question {question.id!r} in mode {theory_prompt_mode!r}. First read "
+        "prior_theory_progress_checkpoint, inspect its next step, and read the exact "
+        "current documents or handoff artifacts needed to continue. The original "
+        "initial_authoring_context remains available. "
+        if continuing_from_progress
+        else (
+            "Author the initial TheoryDeveloper research workspace for the supplied "
+            f"question {question.id!r} in mode {theory_prompt_mode!r}. First read the "
+            "single initial_authoring_context artifact. "
+        )
+    )
     return (
-        "Author the initial TheoryDeveloper research workspace for the supplied "
-        f"question {question.id!r} in mode {theory_prompt_mode!r}. First read the "
-        "single initial_authoring_context artifact. Then use your own statistical "
+        opening
+        + "Then use your own statistical "
         "judgment to write durable Markdown/LaTeX mathematics and only the "
         "task-intent-required, shape-typed cross-agent handoff. The documents, "
         "not JSON rows, are the "
@@ -3165,6 +3303,7 @@ def _theory_workspace_revision_prompt(
     *,
     question: OpenResearchQuestion,
     revision_inputs: Mapping[str, Any],
+    continuing_from_progress: bool = False,
 ) -> str:
     read_only_observations = _theory_workspace_read_only_observations(
         revision_inputs
@@ -3211,10 +3350,23 @@ def _theory_workspace_revision_prompt(
         "workspace_artifacts": list(THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT),
         "instructions": [
             (
-                "First read reviewer_observations by itself. Do not request every "
-                "workspace artifact in one read. After identifying the actual failed "
-                "claim or execution behavior, read only the parent artifacts needed "
-                "for that mathematical decision."
+                "First read prior_theory_progress_checkpoint, inspect its exact next "
+                "step, then read only the current documents and handoff artifacts "
+                "needed to continue the same revision lineage."
+                if continuing_from_progress
+                else (
+                    "First read reviewer_observations by itself. Do not request every "
+                    "workspace artifact in one read. After identifying the actual "
+                    "failed claim or execution behavior, read only the parent "
+                    "artifacts needed for that mathematical decision."
+                )
+            ),
+            (
+                "Reviewer observations remain available as the independent source of "
+                "the revision request; inspect them when the continued next step "
+                "depends on the original finding."
+                if continuing_from_progress
+                else "Keep the inspected reviewer finding bound to this revision."
             ),
             (
                 "Use your own statistical judgment. Reviewer observations identify "
@@ -3502,12 +3654,24 @@ def _generate_initial_theory_artifact_workspace(
     research_sources: ResearchSourceSnapshot | None = None,
     research_source_execution: ResearchSourceExecutionSpec | None = None,
     theory_workspace_root: Path | None = None,
+    progress_checkpoint_state: (
+        tuple[dict[str, Any], dict[str, Any], dict[str, str]] | None
+    ) = None,
 ) -> dict[str, Any]:
     allow_source_checkpoint = source_replication_checkpoint_allowed(
         question,
         research_source_execution,
     )
-    initial_artifacts = _empty_theory_core_workspace(file_authority=True)
+    progress_checkpoint: dict[str, Any] = {}
+    if progress_checkpoint_state is None:
+        initial_artifacts = _empty_theory_core_workspace(file_authority=True)
+        initial_documents: dict[str, str] = {}
+    else:
+        (
+            progress_checkpoint,
+            initial_artifacts,
+            initial_documents,
+        ) = progress_checkpoint_state
     read_only_artifacts = _initial_theory_workspace_read_only_artifacts(
         question=question,
         architect_context=architect_context,
@@ -3516,12 +3680,38 @@ def _generate_initial_theory_artifact_workspace(
         formalization_authoring_required=formalization_authoring_required,
         allow_source_replication_checkpoint=allow_source_checkpoint,
     )
-    authoring_binding_id = "initial_theory_authoring:" + stable_hash(
-        [question.id, theory_prompt_mode, read_only_artifacts]
-    )[:20]
-    workspace_id = "theory_workspace:" + stable_hash(
-        [authoring_binding_id, initial_artifacts]
-    )[:20]
+    if progress_checkpoint:
+        expected_authoring_binding_id = (
+            "initial_theory_authoring:"
+            + stable_hash(
+                [question.id, theory_prompt_mode, read_only_artifacts]
+            )[:20]
+        )
+        authoring_binding_id = str(
+            progress_checkpoint.get("authoring_binding_id", "") or ""
+        )
+        if authoring_binding_id != expected_authoring_binding_id:
+            raise PacketValidationError(
+                validation_label="TheoryDeveloper progress checkpoint",
+                attempts=0,
+                errors=[
+                    "TheoryDeveloper initial progress checkpoint context mismatch"
+                ],
+                history=[],
+            )
+        read_only_artifacts["prior_theory_progress_checkpoint"] = (
+            _theory_progress_prompt_artifact(progress_checkpoint)
+        )
+        workspace_id = str(
+            progress_checkpoint.get("workspace_id", "") or ""
+        )
+    else:
+        authoring_binding_id = "initial_theory_authoring:" + stable_hash(
+            [question.id, theory_prompt_mode, read_only_artifacts]
+        )[:20]
+        workspace_id = "theory_workspace:" + stable_hash(
+            [authoring_binding_id, initial_artifacts]
+        )[:20]
     workspace_dir = (
         theory_workspace_root / workspace_id.replace(":", "-")
         if theory_workspace_root is not None
@@ -3599,6 +3789,7 @@ def _generate_initial_theory_artifact_workspace(
                 formalization_authoring_required
             ),
             allow_source_replication_checkpoint=allow_source_checkpoint,
+            continuing_from_progress=bool(progress_checkpoint),
         ),
         model=request_model,
         model_tier=model_tier,
@@ -3613,7 +3804,7 @@ def _generate_initial_theory_artifact_workspace(
         authoring_binding_id=authoring_binding_id,
         workspace_operation="initial_discovery",
         initial_artifacts=initial_artifacts,
-        initial_documents={},
+        initial_documents=initial_documents,
         read_only_artifacts=read_only_artifacts,
         build_candidate=build_candidate,
         validate_candidate=validate_theory_core_packet,
@@ -3624,6 +3815,16 @@ def _generate_initial_theory_artifact_workspace(
         task_intent=question.task_intent,
         workspace_dir=workspace_dir,
         require_document_authority=True,
+        prior_changed_artifact_names=(
+            progress_checkpoint.get("changed_artifact_names", [])
+            if progress_checkpoint
+            else ()
+        ),
+        prior_changed_document_paths=(
+            progress_checkpoint.get("changed_document_paths", [])
+            if progress_checkpoint
+            else ()
+        ),
         request_metadata={
             "subsystem": "TheoryDeveloper",
             "agent": "LLMTheoryDeveloperAgent",
@@ -3703,6 +3904,9 @@ def _generate_theory_workspace_revision(
     research_sources: ResearchSourceSnapshot | None = None,
     research_source_execution: ResearchSourceExecutionSpec | None = None,
     theory_workspace_root: Path | None = None,
+    progress_checkpoint_state: (
+        tuple[dict[str, Any], dict[str, Any], dict[str, str]] | None
+    ) = None,
 ) -> dict[str, Any]:
     raw_parent_payload = revision_inputs.get("base_core_payload", {})
     if not isinstance(raw_parent_payload, Mapping):
@@ -3712,27 +3916,51 @@ def _generate_theory_workspace_revision(
             errors=["parent theory workspace is not an object"],
             history=[],
         )
-    initial_artifacts = {
-        field: deepcopy(raw_parent_payload[field])
-        for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
-        if field in raw_parent_payload
-    }
-    workspace_id = "theory_workspace:" + stable_hash(
-        [
-            question.id,
-            revision_inputs.get("revision_binding_id", ""),
-            revision_inputs.get("base_core_payload_fingerprint", ""),
-        ]
-    )[:20]
-    try:
-        initial_documents = load_theory_workspace_documents(raw_parent_payload)
-    except (OSError, UnicodeError, ValueError) as exc:
-        raise PacketValidationError(
-            validation_label="LLM TheoryDeveloper document workspace",
-            attempts=0,
-            errors=[str(exc)],
-            history=[],
-        ) from exc
+    progress_checkpoint: dict[str, Any] = {}
+    if progress_checkpoint_state is None:
+        initial_artifacts = {
+            field: deepcopy(raw_parent_payload[field])
+            for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
+            if field in raw_parent_payload
+        }
+        workspace_id = "theory_workspace:" + stable_hash(
+            [
+                question.id,
+                revision_inputs.get("revision_binding_id", ""),
+                revision_inputs.get("base_core_payload_fingerprint", ""),
+            ]
+        )[:20]
+        try:
+            initial_documents = load_theory_workspace_documents(
+                raw_parent_payload
+            )
+        except (OSError, UnicodeError, ValueError) as exc:
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper document workspace",
+                attempts=0,
+                errors=[str(exc)],
+                history=[],
+            ) from exc
+    else:
+        (
+            progress_checkpoint,
+            initial_artifacts,
+            initial_documents,
+        ) = progress_checkpoint_state
+        if str(
+            progress_checkpoint.get("authoring_binding_id", "") or ""
+        ) != str(revision_inputs.get("revision_binding_id", "") or ""):
+            raise PacketValidationError(
+                validation_label="TheoryDeveloper progress checkpoint",
+                attempts=0,
+                errors=[
+                    "TheoryDeveloper revision progress checkpoint binding mismatch"
+                ],
+                history=[],
+            )
+        workspace_id = str(
+            progress_checkpoint.get("workspace_id", "") or ""
+        )
     workspace_dir = (
         theory_workspace_root / workspace_id.replace(":", "-")
         if theory_workspace_root is not None
@@ -3803,6 +4031,13 @@ def _generate_theory_workspace_revision(
             changed_document_paths=changed_document_paths,
         )
 
+    read_only_artifacts = _theory_workspace_read_only_observations(
+        revision_inputs
+    )
+    if progress_checkpoint:
+        read_only_artifacts["prior_theory_progress_checkpoint"] = (
+            _theory_progress_prompt_artifact(progress_checkpoint)
+        )
     result = run_theory_artifact_workspace(
         provider=provider,
         system_prompt=(
@@ -3813,6 +4048,7 @@ def _generate_theory_workspace_revision(
         user_prompt=_theory_workspace_revision_prompt(
             question=question,
             revision_inputs=revision_inputs,
+            continuing_from_progress=bool(progress_checkpoint),
         ),
         model=request_model,
         model_tier=model_tier,
@@ -3830,9 +4066,7 @@ def _generate_theory_workspace_revision(
         workspace_operation="targeted_revision",
         initial_artifacts=initial_artifacts,
         initial_documents=initial_documents,
-        read_only_artifacts=_theory_workspace_read_only_observations(
-            revision_inputs
-        ),
+        read_only_artifacts=read_only_artifacts,
         build_candidate=build_candidate,
         validate_candidate=lambda packet: (
             _validate_theory_workspace_revision_packet(
@@ -3846,6 +4080,16 @@ def _generate_theory_workspace_revision(
         research_source_execution=research_source_execution,
         workspace_dir=workspace_dir,
         require_document_authority=True,
+        prior_changed_artifact_names=(
+            progress_checkpoint.get("changed_artifact_names", [])
+            if progress_checkpoint
+            else ()
+        ),
+        prior_changed_document_paths=(
+            progress_checkpoint.get("changed_document_paths", [])
+            if progress_checkpoint
+            else ()
+        ),
         request_metadata={
             "subsystem": "TheoryDeveloper",
             "agent": "LLMTheoryDeveloperAgent",

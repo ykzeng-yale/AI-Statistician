@@ -235,6 +235,7 @@ from .proof_state_feedback import (
 from .research_architect import (
     KERNEL_PROOF_BOUNDARY,
     LLMTheoryDeveloperAgent,
+    THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY,
     THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND,
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
     source_replication_checkpoint_allowed,
@@ -243,8 +244,10 @@ from .research_architect import (
 from .theory_workspace import (
     SOURCE_REPLICATION_CHECKPOINT_KIND,
     THEORY_WORKSPACE_CHECKPOINT_KIND,
+    THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND,
     TheoryScratchpadConfig,
     TheoryWorkspaceGapError,
+    TheoryWorkspaceProgressError,
 )
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
@@ -5399,6 +5402,21 @@ class TheoryDeveloperRuntimeSubsystem:
         question = _question_from_payload(task.inputs["question"])
         context = dict(task.inputs.get("architect_context", {}) or {})
         context["runtime_task"] = _runtime_task_prompt_summary(task)
+        progress_checkpoint = task.inputs.get(
+            "theory_progress_checkpoint", {}
+        )
+        if progress_checkpoint:
+            if not isinstance(progress_checkpoint, Mapping):
+                return _theory_progress_checkpoint_rejected_result(
+                    task=task,
+                    question=question,
+                    validation_error=(
+                        "resolved theory progress checkpoint must be an object"
+                    ),
+                )
+            context[THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY] = (
+                deepcopy(dict(progress_checkpoint))
+            )
         if "environment_feedback" in task.inputs:
             context["environment_feedback"] = task.inputs["environment_feedback"]
         metric_protocol_revision_feedback = (
@@ -5611,6 +5629,12 @@ class TheoryDeveloperRuntimeSubsystem:
                         else None
                     ),
                 )
+        except TheoryWorkspaceProgressError as exc:
+            return _theory_developer_progress_result(
+                task=task,
+                question=question,
+                exc=exc,
+            )
         except TheoryWorkspaceGapError as exc:
             return _theory_developer_gap_result(
                 task=task,
@@ -6182,6 +6206,181 @@ class TheoryDeveloperRuntimeSubsystem:
             evidence_entries=(evidence,),
             next_task=next_task,
         )
+
+
+def _theory_progress_checkpoint_rejected_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    validation_error: str,
+) -> AgentStepResult:
+    rejection_id = "theory_progress_checkpoint_rejection:" + stable_hash(
+        [task.task_id, question.id, validation_error]
+    )[:20]
+    boundary = (
+        "A missing or stale theory progress checkpoint cannot enter a model prompt. "
+        "Runtime did not regenerate partial mathematics or route a repair."
+    )
+    artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeTheoryProgressCheckpointRejection",
+        "rejection_id": rejection_id,
+        "question_id": question.id,
+        "task_id": task.task_id,
+        "validation_error": str(validation_error),
+        "runtime_edited_theory": False,
+        "kernel_verified": False,
+        "proof_evidence_status": (
+            "THEORY_PROGRESS_CHECKPOINT_REJECTION_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": boundary,
+    }
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, rejection_id])[:20],
+        task_id=task.task_id,
+        artifact_id=rejection_id,
+        evidence_type="theory_progress_checkpoint_rejection",
+        status="THEORY_PROGRESS_CHECKPOINT_REJECTED",
+        boundary=boundary,
+        payload={"kernel_verified": False},
+    )
+    return AgentStepResult(
+        status="BLOCKED",
+        rationale=(
+            "The theory progress continuation failed immutable checkpoint "
+            "validation before any model call."
+        ),
+        produced_artifacts={rejection_id: artifact},
+        observations=(
+            EnvironmentObservation(
+                observation_type="theory_progress_checkpoint_rejected",
+                summary=str(validation_error)[:500],
+                payload={"rejection_id": rejection_id},
+            ),
+        ),
+        evidence_entries=(evidence,),
+        failure_classification="theory_progress_checkpoint_invalid",
+    )
+
+
+def _theory_developer_progress_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    exc: TheoryWorkspaceProgressError,
+) -> AgentStepResult:
+    """Persist partial mathematics and continue the same source owner."""
+
+    checkpoint = deepcopy(dict(exc.progress_checkpoint))
+    workspace_evidence = deepcopy(dict(exc.evidence))
+    checkpoint_id = str(checkpoint.get("checkpoint_id", "") or "").strip()
+    if (
+        not checkpoint_id
+        or checkpoint.get("artifact_kind")
+        != THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND
+        or checkpoint.get("question_id") != question.id
+        or checkpoint.get("accepted") is not False
+        or checkpoint.get("kernel_verified") is not False
+    ):
+        return _theory_progress_checkpoint_rejected_result(
+            task=task,
+            question=question,
+            validation_error="model progress checkpoint identity is invalid",
+        )
+    workspace_evidence_id = str(
+        workspace_evidence.get("artifact_id", "") or ""
+    ).strip()
+    if not workspace_evidence_id:
+        workspace_evidence_id = "theory_workspace_progress:" + stable_hash(
+            [task.task_id, checkpoint_id, workspace_evidence]
+        )[:20]
+        workspace_evidence["artifact_id"] = workspace_evidence_id
+    continuation_count = int(
+        task.inputs.get("theory_progress_continuation_count", 0) or 0
+    ) + 1
+    next_inputs = deepcopy(dict(task.inputs))
+    next_inputs.pop("theory_progress_checkpoint", None)
+    next_inputs["theory_progress_checkpoint"] = runtime_artifact_reference(
+        checkpoint_id,
+        checkpoint,
+    )
+    next_inputs["theory_progress_continuation_count"] = continuation_count
+    next_task = AgentTask(
+        task_id=(
+            f"theory-progress:{question.id}:{continuation_count}:"
+            + stable_hash(checkpoint)[:10]
+        ),
+        owner_subsystem="TheoryDeveloper",
+        objective=task.objective,
+        inputs=next_inputs,
+        allowed_tools=task.allowed_tools,
+        budget=deepcopy(task.budget),
+        expected_artifacts=task.expected_artifacts,
+        acceptance_gate=task.acceptance_gate,
+        stop_condition=task.stop_condition,
+    )
+    boundary = (
+        "This checkpoint preserves exact model-authored partial Markdown/LaTeX and "
+        "structured state for the same TheoryDeveloper. It is not accepted theory, "
+        "independent review, empirical evidence, formal proof, or kernel evidence."
+    )
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, checkpoint_id])[:20],
+        task_id=task.task_id,
+        artifact_id=checkpoint_id,
+        evidence_type="theory_progress_checkpoint",
+        status="THEORY_PROGRESS_RECORDED_NOT_ACCEPTED",
+        boundary=boundary,
+        payload={
+            "workspace_evidence_id": workspace_evidence_id,
+            "continuation_count": continuation_count,
+            "changed_artifact_names": list(
+                checkpoint.get("changed_artifact_names", []) or []
+            ),
+            "changed_document_paths": list(
+                checkpoint.get("changed_document_paths", []) or []
+            ),
+            "kernel_verified": False,
+            "proof_evidence_status": checkpoint.get(
+                "proof_evidence_status", ""
+            ),
+        },
+    )
+    progress = checkpoint.get("progress", {})
+    return AgentStepResult(
+        status="REVISE",
+        rationale=(
+            "TheoryDeveloper checkpointed substantive document-backed progress and "
+            "requested a same-owner continuation; runtime preserved exact state "
+            "without Architect routing or content repair."
+        ),
+        produced_artifacts={
+            checkpoint_id: checkpoint,
+            workspace_evidence_id: workspace_evidence,
+        },
+        observations=(
+            EnvironmentObservation(
+                observation_type="theory_progress_checkpoint",
+                summary=(
+                    str(progress.get("summary", "") or "")[:500]
+                    if isinstance(progress, Mapping)
+                    else ""
+                ),
+                payload={
+                    "checkpoint_id": checkpoint_id,
+                    "continuation_count": continuation_count,
+                    "next_step": (
+                        str(progress.get("next_step", "") or "")
+                        if isinstance(progress, Mapping)
+                        else ""
+                    ),
+                    "kernel_verified": False,
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        next_task=next_task,
+    )
 
 
 def _theory_developer_gap_result(

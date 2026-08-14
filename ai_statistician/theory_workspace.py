@@ -35,6 +35,9 @@ from .structured_output_retry import PacketValidationError
 
 
 THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
+THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND = (
+    "TheoryDeveloperProgressCheckpoint"
+)
 THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "model_owned_documents_and_handoff_v1"
 THEORY_WORKSPACE_WRITE_TOOL = "write_theory_workspace"
 THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL = "write_theory_document"
@@ -42,6 +45,7 @@ THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL = "edit_theory_document"
 THEORY_WORKSPACE_READ_DOCUMENT_TOOL = "read_theory_document"
 THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL = "search_theory_documents"
 THEORY_WORKSPACE_COMMIT_TOOL = "commit_theory_checkpoint"
+THEORY_WORKSPACE_PROGRESS_TOOL = "checkpoint_theory_progress"
 SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL = "commit_source_replication_checkpoint"
 THEORY_WORKSPACE_GAP_TOOL = "report_theory_gap"
 THEORY_SCRATCHPAD_TOOL = "run_theory_scratchpad"
@@ -86,6 +90,26 @@ class TheoryWorkspaceGapError(RuntimeError):
         self.evidence = deepcopy(dict(evidence))
 
 
+class TheoryWorkspaceProgressError(RuntimeError):
+    """Model-owned partial checkpoint requesting same-owner continuation."""
+
+    def __init__(
+        self,
+        *,
+        progress_checkpoint: Mapping[str, Any],
+        evidence: Mapping[str, Any],
+    ) -> None:
+        progress = progress_checkpoint.get("progress", {})
+        summary = (
+            str(progress.get("summary", "") or "")
+            if isinstance(progress, Mapping)
+            else ""
+        )
+        super().__init__(summary or "theory research progress checkpoint")
+        self.progress_checkpoint = deepcopy(dict(progress_checkpoint))
+        self.evidence = deepcopy(dict(evidence))
+
+
 @dataclass(frozen=True)
 class TheoryScratchpadConfig:
     """Resource boundary for model-authored exploratory Python/R calculations."""
@@ -127,6 +151,8 @@ def run_theory_artifact_workspace(
     task_intent: Mapping[str, str] | None = None,
     workspace_dir: Path | None = None,
     require_document_authority: bool = False,
+    prior_changed_artifact_names: Sequence[str] = (),
+    prior_changed_document_paths: Sequence[str] = (),
 ) -> TheoryWorkspaceResult:
     """Let one model author text mathematics and a structured handoff in place."""
 
@@ -207,6 +233,29 @@ def run_theory_artifact_workspace(
     parent_shapes = {
         name: _artifact_shape(value) for name, value in parent.items()
     }
+    prior_artifact_changes = tuple(
+        dict.fromkeys(str(name).strip() for name in prior_changed_artifact_names)
+    )
+    unknown_prior_artifacts = sorted(set(prior_artifact_changes) - set(parent))
+    if unknown_prior_artifacts:
+        raise ValueError(
+            "theory progress checkpoint has unknown changed artifacts: "
+            + ", ".join(unknown_prior_artifacts)
+        )
+    prior_document_changes = tuple(
+        dict.fromkeys(
+            _normalized_theory_document_path(path)
+            for path in prior_changed_document_paths
+        )
+    )
+    unknown_prior_documents = sorted(
+        set(prior_document_changes) - set(parent_documents)
+    )
+    if unknown_prior_documents:
+        raise ValueError(
+            "theory progress checkpoint has unknown changed documents: "
+            + ", ".join(unknown_prior_documents)
+        )
     state: dict[str, Any] = {
         "artifacts": deepcopy(parent),
         "documents": deepcopy(parent_documents),
@@ -234,19 +283,43 @@ def run_theory_artifact_workspace(
         document_authority_enabled=require_document_authority,
     )
 
-    def changed_artifact_names(artifacts: Mapping[str, Any]) -> tuple[str, ...]:
+    def current_changed_artifact_names(
+        artifacts: Mapping[str, Any],
+    ) -> tuple[str, ...]:
         return tuple(
             name
             for name in writable_artifact_names
             if stable_hash(artifacts[name]) != stable_hash(parent[name])
         )
 
-    def changed_document_paths(documents: Mapping[str, str]) -> tuple[str, ...]:
+    def changed_artifact_names(artifacts: Mapping[str, Any]) -> tuple[str, ...]:
+        return tuple(
+            dict.fromkeys(
+                [
+                    *prior_artifact_changes,
+                    *current_changed_artifact_names(artifacts),
+                ]
+            )
+        )
+
+    def current_changed_document_paths(
+        documents: Mapping[str, str],
+    ) -> tuple[str, ...]:
         return tuple(
             sorted(
                 path
                 for path in set(parent_documents).union(documents)
                 if documents.get(path) != parent_documents.get(path)
+            )
+        )
+
+    def changed_document_paths(documents: Mapping[str, str]) -> tuple[str, ...]:
+        return tuple(
+            dict.fromkeys(
+                [
+                    *prior_document_changes,
+                    *current_changed_document_paths(documents),
+                ]
             )
         )
 
@@ -1106,6 +1179,76 @@ def run_theory_artifact_workspace(
                 ),
             )
 
+        if call.name == THEORY_WORKSPACE_PROGRESS_TOOL:
+            if not require_document_authority:
+                raise ClientToolInputError(
+                    "theory progress checkpoints require document authority"
+                )
+            if set(tool_input) != {"summary", "evidence_refs", "next_step"}:
+                raise ClientToolInputError(
+                    "checkpoint_theory_progress requires exactly summary, "
+                    "evidence_refs, and next_step"
+                )
+            summary = tool_input.get("summary")
+            evidence_refs = tool_input.get("evidence_refs")
+            next_step = tool_input.get("next_step")
+            if not isinstance(summary, str) or not summary.strip():
+                raise ClientToolInputError(
+                    "theory progress summary must be nonempty text"
+                )
+            if not isinstance(evidence_refs, list) or not evidence_refs or not all(
+                isinstance(value, str) and value.strip()
+                for value in evidence_refs
+            ):
+                raise ClientToolInputError(
+                    "theory progress evidence_refs must be a nonempty array of text"
+                )
+            if not isinstance(next_step, str) or not next_step.strip():
+                raise ClientToolInputError(
+                    "theory progress next_step must be nonempty text"
+                )
+            phase_document_changes = current_changed_document_paths(
+                state["documents"]
+            )
+            if not phase_document_changes:
+                raise ClientToolInputError(
+                    "checkpoint_theory_progress requires a new or revised "
+                    "authoritative document in the current continuation phase"
+                )
+            progress = {
+                "summary": summary.strip(),
+                "evidence_refs": [
+                    value.strip() for value in evidence_refs
+                ],
+                "next_step": next_step.strip(),
+                "phase_changed_artifact_names": list(
+                    current_changed_artifact_names(state["artifacts"])
+                ),
+                "phase_changed_document_paths": list(
+                    phase_document_changes
+                ),
+            }
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    "disposition": "THEORY_PROGRESS_CHECKPOINT",
+                    "progress": progress,
+                    "accepted": False,
+                    "proof_evidence_status": (
+                        "THEORY_PROGRESS_CHECKPOINT_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                state_changed=True,
+                terminal=True,
+                terminal_payload={
+                    "disposition": "THEORY_PROGRESS_CHECKPOINT",
+                    "progress": progress,
+                },
+                observation_key=(
+                    "theory-progress:" + stable_hash(progress)
+                ),
+            )
+
         if call.name == THEORY_WORKSPACE_GAP_TOOL:
             if set(tool_input) - {
                 "summary",
@@ -1238,6 +1381,17 @@ def run_theory_artifact_workspace(
         if require_document_authority
         else ""
     )
+    progress_guidance = (
+        "When you have made substantive document-backed progress but additional "
+        "derivation is genuinely needed beyond this session, call "
+        "checkpoint_theory_progress with the evidence you inspected and one concrete "
+        "next step. Each progress phase must create or revise an authoritative "
+        "document. This requests same-owner continuation and is not accepted theory, "
+        "empirical evidence, or proof. Do not use it to avoid a validator observation "
+        "that you can address now. "
+        if require_document_authority
+        else ""
+    )
     scratch_guidance = (
         "Use run_theory_scratchpad when a small Python or R calculation, numerical "
         "check, or counterexample would resolve a mathematical uncertainty. Submit "
@@ -1339,6 +1493,7 @@ def run_theory_artifact_workspace(
                     + write_guidance
                     + document_inspection_guidance
                     + edit_guidance
+                    + progress_guidance
                     + "When the current workspace is scientifically ready for "
                     "independent review, call commit_theory_checkpoint and explain "
                     "your own readiness judgment. There is no required number of "
@@ -1400,6 +1555,9 @@ def run_theory_artifact_workspace(
             "theory_workspace_manifest": document_manifest(current_documents),
             "changed_artifact_names": list(
                 changed_artifact_names(current_artifacts)
+            ),
+            "changed_document_paths": list(
+                changed_document_paths(current_documents)
             ),
             "reads": state["reads"],
             "submissions": state["submissions"],
@@ -1577,6 +1735,97 @@ def run_theory_artifact_workspace(
             "kernel_verified": False,
         }
         return TheoryWorkspaceResult(core_packet=packet, evidence=evidence)
+    if terminal.get("disposition") == "THEORY_PROGRESS_CHECKPOINT":
+        raw_progress = terminal.get("progress", {})
+        if not isinstance(raw_progress, Mapping) or not str(
+            raw_progress.get("summary", "") or ""
+        ).strip():
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper progress checkpoint",
+                attempts=loop.turns,
+                errors=["terminal theory progress payload is invalid"],
+                history=_theory_workspace_evidence_history(loop.history),
+                recovery_checkpoint=recovery_checkpoint(),
+            )
+        progress = deepcopy(dict(raw_progress))
+        checkpoint_body = {
+            **recovery_checkpoint(),
+            "artifact_kind": THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND,
+            "progress": progress,
+            "resumable": True,
+            "accepted": False,
+            "proof_evidence_status": (
+                "THEORY_PROGRESS_CHECKPOINT_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": (
+                "This is exact model-authored partial theory state requesting "
+                "same-owner continuation. It is not independent review acceptance, "
+                "empirical evidence, formal proof, or kernel evidence."
+            ),
+        }
+        checkpoint_id = "theory_progress_checkpoint:" + stable_hash(
+            checkpoint_body
+        )[:20]
+        checkpoint = {
+            **checkpoint_body,
+            "checkpoint_id": checkpoint_id,
+        }
+        evidence = {
+            "schema_version": 1,
+            "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+            "artifact_id": "theory_workspace_progress:"
+            + stable_hash(
+                [
+                    workspace_id,
+                    checkpoint_id,
+                    loop.transcript_fingerprint,
+                ]
+            )[:20],
+            "workspace_id": workspace_id,
+            "question_id": question_id,
+            "authoring_binding_id": authoring_binding_id,
+            "workspace_operation": workspace_operation,
+            "transport": "native_client_tools",
+            "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
+            "parent_workspace_hash": parent_hash,
+            "current_workspace_hash": checkpoint["current_workspace_hash"],
+            "changed_artifact_names": list(
+                checkpoint.get("changed_artifact_names", []) or []
+            ),
+            "changed_document_paths": list(
+                checkpoint.get("changed_document_paths", []) or []
+            ),
+            "theory_workspace_manifest": deepcopy(
+                dict(checkpoint["theory_workspace_manifest"])
+            ),
+            "progress": progress,
+            "reads": state["reads"],
+            "submissions": state["submissions"],
+            "turns": loop.turns,
+            "tool_calls": loop.tool_calls,
+            "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
+            "provider": loop.provider,
+            "model": loop.model,
+            "model_tier": model_tier,
+            "provider_usage": dict(loop.provider_usage),
+            "history": _theory_workspace_evidence_history(loop.history),
+            "transcript_fingerprint": loop.transcript_fingerprint,
+            "disposition": "THEORY_PROGRESS_CHECKPOINT",
+            "checkpoint_id": checkpoint_id,
+            "checkpoint_committed": True,
+            "resumable": True,
+            "model_owned_theory": True,
+            "runtime_edited_theory": False,
+            "accepted": False,
+            "proof_evidence_status": (
+                "THEORY_PROGRESS_CHECKPOINT_NOT_PROOF_EVIDENCE"
+            ),
+            "kernel_verified": False,
+        }
+        raise TheoryWorkspaceProgressError(
+            progress_checkpoint=checkpoint,
+            evidence=evidence,
+        )
     if terminal.get("disposition") == "THEORY_GAP":
         theory_gap = terminal.get("theory_gap", {})
         if not isinstance(theory_gap, Mapping) or not str(
@@ -2140,6 +2389,35 @@ def _theory_workspace_tools(
                 terminal=True,
             )
         )
+    if document_authority_enabled:
+        tools.append(
+            ClientToolDefinition(
+                name=THEORY_WORKSPACE_PROGRESS_TOOL,
+                description=(
+                    "Checkpoint substantive model-authored mathematical progress and "
+                    "request another TheoryDeveloper continuation. Use this only "
+                    "after creating or revising an authoritative document when more "
+                    "derivation is genuinely needed. The checkpoint is not accepted "
+                    "theory, empirical evidence, or proof."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["summary", "evidence_refs", "next_step"],
+                    "properties": {
+                        "summary": {"type": "string", "minLength": 1},
+                        "evidence_refs": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {"type": "string", "minLength": 1},
+                        },
+                        "next_step": {"type": "string", "minLength": 1},
+                    },
+                },
+                strict=True,
+                terminal=True,
+            )
+        )
     tools.append(
         ClientToolDefinition(
             name=THEORY_WORKSPACE_COMMIT_TOOL,
@@ -2660,6 +2938,92 @@ def load_theory_workspace_documents(
             )
         documents[relative_path] = content
     return documents
+
+
+def load_theory_progress_checkpoint_state(
+    checkpoint: Mapping[str, Any],
+    *,
+    question_id: str,
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Verify and load exact partial theory state without accepting its claims."""
+
+    if checkpoint.get("artifact_kind") != (
+        THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND
+    ):
+        raise ValueError("theory progress checkpoint kind mismatch")
+    if str(checkpoint.get("question_id", "") or "") != str(question_id):
+        raise ValueError("theory progress checkpoint belongs to another question")
+    if (
+        checkpoint.get("resumable") is not True
+        or checkpoint.get("accepted") is not False
+        or checkpoint.get("model_owned_theory") is not True
+        or checkpoint.get("runtime_edited_theory") is not False
+        or checkpoint.get("kernel_verified") is not False
+    ):
+        raise ValueError("theory progress checkpoint evidence boundary mismatch")
+    checkpoint_id = str(checkpoint.get("checkpoint_id", "") or "").strip()
+    checkpoint_body = dict(checkpoint)
+    checkpoint_body.pop("checkpoint_id", None)
+    expected_checkpoint_id = "theory_progress_checkpoint:" + stable_hash(
+        checkpoint_body
+    )[:20]
+    if not checkpoint_id or checkpoint_id != expected_checkpoint_id:
+        raise ValueError("theory progress checkpoint identity mismatch")
+    artifacts = checkpoint.get("current_artifacts", {})
+    if not isinstance(artifacts, Mapping) or not artifacts:
+        raise ValueError("theory progress checkpoint has no structured state")
+    manifest = checkpoint.get("theory_workspace_manifest", {})
+    if not isinstance(manifest, Mapping):
+        raise ValueError("theory progress checkpoint document manifest is missing")
+    documents = load_theory_workspace_documents(
+        {"theory_workspace_manifest": manifest}
+    )
+    if not documents:
+        raise ValueError("theory progress checkpoint has no authoritative documents")
+    if stable_hash(
+        {
+            "artifacts": dict(artifacts),
+            "documents": documents,
+        }
+    ) != str(checkpoint.get("current_workspace_hash", "") or ""):
+        raise ValueError("theory progress checkpoint workspace hash mismatch")
+    changed_artifacts = checkpoint.get("changed_artifact_names", [])
+    changed_documents = checkpoint.get("changed_document_paths", [])
+    if not isinstance(changed_artifacts, list) or not all(
+        isinstance(value, str) and value.strip()
+        for value in changed_artifacts
+    ):
+        raise ValueError("theory progress changed artifacts are invalid")
+    if (
+        not isinstance(changed_documents, list)
+        or not changed_documents
+        or not all(
+            isinstance(value, str) and value.strip()
+            for value in changed_documents
+        )
+        or not set(changed_documents).issubset(documents)
+    ):
+        raise ValueError("theory progress changed documents are invalid")
+    progress = checkpoint.get("progress", {})
+    if not isinstance(progress, Mapping):
+        raise ValueError("theory progress checkpoint summary is missing")
+    if not all(
+        str(progress.get(field, "") or "").strip()
+        for field in ("summary", "next_step")
+    ):
+        raise ValueError("theory progress checkpoint summary is incomplete")
+    evidence_refs = progress.get("evidence_refs", [])
+    phase_documents = progress.get("phase_changed_document_paths", [])
+    if (
+        not isinstance(evidence_refs, list)
+        or not evidence_refs
+        or not all(isinstance(value, str) and value.strip() for value in evidence_refs)
+        or not isinstance(phase_documents, list)
+        or not phase_documents
+        or not set(phase_documents).issubset(changed_documents)
+    ):
+        raise ValueError("theory progress checkpoint evidence is incomplete")
+    return deepcopy(dict(artifacts)), documents
 
 
 def load_theory_workspace_document_rows(

@@ -34,15 +34,19 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
     THEORY_WORKSPACE_GAP_TOOL,
     THEORY_WORKSPACE_HANDOFF_ROLE,
+    THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND,
+    THEORY_WORKSPACE_PROGRESS_TOOL,
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
     THEORY_WORKSPACE_WRITE_TOOL,
     TheoryScratchpadConfig,
     TheoryWorkspaceGapError,
+    TheoryWorkspaceProgressError,
     _replace_theory_workspace_artifacts,
     _theory_workspace_tools,
     load_theory_workspace_documents,
+    load_theory_progress_checkpoint_state,
     run_theory_artifact_workspace,
     theory_workspace_manifest_errors,
 )
@@ -751,6 +755,86 @@ def test_model_can_stop_with_an_explicit_unresolved_theory_gap() -> None:
         THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
     ]
+
+
+def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
+    markdown = (
+        "# Partial derivation\n\n"
+        "The model has established one intermediate expansion, while the "
+        "remainder bound is still open.\n"
+    )
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="write-partial-theory",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                    input={"path": "derivations/progress.md", "content": markdown},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-partial-index",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {"problem_card": {"claim": "partial revised claim"}}
+                    ),
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="checkpoint-progress",
+                    name=THEORY_WORKSPACE_PROGRESS_TOOL,
+                    input={
+                        "summary": "Established the first expansion.",
+                        "evidence_refs": ["derivations/progress.md#partial-derivation"],
+                        "next_step": "Derive and stress-test the remainder bound.",
+                    },
+                )
+            ),
+        ]
+    )
+
+    with pytest.raises(TheoryWorkspaceProgressError) as exc_info:
+        _run_workspace(
+            backend,
+            workspace_dir=tmp_path / "theory",
+            require_document_authority=True,
+        )
+
+    checkpoint = exc_info.value.progress_checkpoint
+    evidence = exc_info.value.evidence
+    assert checkpoint["artifact_kind"] == (
+        THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND
+    )
+    assert checkpoint["accepted"] is False
+    assert checkpoint["resumable"] is True
+    assert checkpoint["changed_artifact_names"] == ["problem_card"]
+    assert checkpoint["changed_document_paths"] == [
+        "derivations/progress.md"
+    ]
+    artifacts, documents = load_theory_progress_checkpoint_state(
+        checkpoint,
+        question_id="q1",
+    )
+    assert artifacts["problem_card"] == {"claim": "partial revised claim"}
+    assert documents == {"derivations/progress.md": markdown}
+    assert evidence["disposition"] == "THEORY_PROGRESS_CHECKPOINT"
+    assert evidence["accepted"] is False
+    assert evidence["kernel_verified"] is False
+    assert evidence["proof_evidence_status"] == (
+        "THEORY_PROGRESS_CHECKPOINT_NOT_PROOF_EVIDENCE"
+    )
+    assert THEORY_WORKSPACE_PROGRESS_TOOL in {
+        tool.name for tool in backend.requests[0].tools
+    }
+    document_path = tmp_path / "theory" / "derivations" / "progress.md"
+    document_path.write_text(markdown + "tampered\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="document hash mismatch"):
+        load_theory_progress_checkpoint_state(
+            checkpoint,
+            question_id="q1",
+        )
 
 
 def test_targeted_revision_uses_atomic_model_owned_artifact_writes() -> None:

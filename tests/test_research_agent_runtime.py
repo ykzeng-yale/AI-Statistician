@@ -442,6 +442,65 @@ def test_model_reported_theory_gap_blocks_without_validation_or_repair_route() -
     )
 
 
+def test_model_owned_theory_progress_continues_same_owner_by_reference() -> None:
+    question = OpenResearchQuestion(
+        id="long-horizon-theory",
+        title="Continue a document-backed derivation",
+        description="Preserve partial mathematics and continue without routing.",
+    )
+    checkpoint = {
+        "artifact_kind": runtime_module.THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND,
+        "checkpoint_id": "theory_progress_checkpoint:phase-one",
+        "question_id": question.id,
+        "accepted": False,
+        "kernel_verified": False,
+        "progress": {
+            "summary": "Established the leading expansion.",
+            "next_step": "Control the remainder uniformly.",
+        },
+        "changed_artifact_names": ["theory_derivation_packet"],
+        "changed_document_paths": ["derivations/main.md"],
+        "proof_evidence_status": (
+            "THEORY_PROGRESS_CHECKPOINT_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    error = runtime_module.TheoryWorkspaceProgressError(
+        progress_checkpoint=checkpoint,
+        evidence={
+            "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+            "artifact_id": "theory_workspace_progress:phase-one",
+            "accepted": False,
+            "kernel_verified": False,
+        },
+    )
+    task = AgentTask(
+        task_id="theory:long-horizon-theory",
+        owner_subsystem="TheoryDeveloper",
+        objective="Develop the theory artifact.",
+        inputs={"question": runtime_module._question_to_payload(question)},
+    )
+
+    result = runtime_module._theory_developer_progress_result(
+        task=task,
+        question=question,
+        exc=error,
+    )
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.next_task.inputs["theory_progress_continuation_count"] == 1
+    checkpoint_ref = result.next_task.inputs["theory_progress_checkpoint"]
+    assert checkpoint_ref["artifact_kind"] == "RuntimeArtifactRef"
+    assert checkpoint_ref["artifact_id"] == checkpoint["checkpoint_id"]
+    assert "current_artifacts" not in checkpoint_ref
+    assert checkpoint["checkpoint_id"] in result.produced_artifacts
+    assert result.evidence_entries[0].status == (
+        "THEORY_PROGRESS_RECORDED_NOT_ACCEPTED"
+    )
+    assert result.failure_classification == ""
+
+
 def test_runtime_promotes_only_hash_bound_source_replication_evidence() -> None:
     body = {
         "artifact_kind": "SourceReplicationManifest",
