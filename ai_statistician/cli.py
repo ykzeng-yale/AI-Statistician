@@ -4009,9 +4009,11 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 f"{gold.get('n_active_tasks', 0)} "
                 f"ready={gold.get('all_active_tasks_passed', False)}"
             )
-        ready = bool(summary.get("all_questions_research_eval_complete"))
-        if research_gold_manifest:
-            ready = ready and gold.get("all_active_tasks_passed") is True
+        ready = _research_agent_runtime_research_eval_ready(
+            summary=summary,
+            gold=gold,
+            research_gold_manifest=research_gold_manifest,
+        )
         return 0 if ready else 1
     if getattr(args, "capability_eval", False):
         audit = audit_research_agent_runtime(
@@ -4033,6 +4035,19 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             print(f"missing_capabilities={','.join(row for row in failed if row)}")
         return 0 if audit.get("capability_ready_for_full_ai_statistician") else 1
     return 0
+
+
+def _research_agent_runtime_research_eval_ready(
+    *,
+    summary: Mapping[str, Any],
+    gold: Mapping[str, Any],
+    research_gold_manifest: str,
+) -> bool:
+    """Use the frozen gold scope instead of imposing every research lane."""
+
+    if research_gold_manifest:
+        return gold.get("all_active_tasks_passed") is True
+    return summary.get("all_questions_research_eval_complete") is True
 
 
 

@@ -18,6 +18,7 @@ from ai_statistician.cli import (
     _apply_research_agent_runtime_research_eval_profile,
     _lean_project_import_preflight_errors,
     _load_runtime_resume_task_from_manifest,
+    _research_agent_runtime_research_eval_ready,
     build_parser,
 )
 from ai_statistician.fingerprint import stable_hash
@@ -76,6 +77,26 @@ def test_research_eval_contract_requires_research_lane_without_formalizer() -> N
         "CriticEvaluator",
     } <= required
     assert "FormalizationEvaluator" not in required
+
+
+def test_research_eval_cli_uses_frozen_gold_scope_when_configured() -> None:
+    incomplete_full_loop = {"all_questions_research_eval_complete": False}
+
+    assert _research_agent_runtime_research_eval_ready(
+        summary=incomplete_full_loop,
+        gold={"all_active_tasks_passed": True},
+        research_gold_manifest="gold.json",
+    )
+    assert not _research_agent_runtime_research_eval_ready(
+        summary={"all_questions_research_eval_complete": True},
+        gold={"all_active_tasks_passed": False},
+        research_gold_manifest="gold.json",
+    )
+    assert not _research_agent_runtime_research_eval_ready(
+        summary=incomplete_full_loop,
+        gold={},
+        research_gold_manifest="",
+    )
 
 
 def test_fresh_accepted_artifact_retires_only_its_exact_stale_replan() -> None:
