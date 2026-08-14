@@ -28,55 +28,104 @@ THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset(
 )
 
 
-THEORY_SEMANTIC_GOLD_JUDGE_SCHEMA: dict[str, Any] = {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["assessments"],
-    "properties": {
-        "assessments": {
-            "type": "array",
-            "items": {"$ref": "#/$defs/document_assessment"},
-        },
-    },
-    "$defs": {
-        "claim_assessment": {
+def _theory_semantic_gold_judge_schema(
+    *,
+    required_case_ids: Sequence[str],
+    claim_ids: Sequence[str],
+) -> dict[str, Any]:
+    if claim_ids:
+        assessment_schema: dict[str, Any] = {
             "type": "object",
             "additionalProperties": False,
-            "required": [
-                "claim_id",
-                "status",
-            ],
+            "required": ["claim_statuses"],
             "properties": {
-                "claim_id": {"type": "string"},
-                "status": {
-                    "type": "string",
-                    "enum": sorted(THEORY_SEMANTIC_CLAIM_STATUSES),
-                },
+                "claim_statuses": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": list(claim_ids),
+                    "properties": {
+                        claim_id: {
+                            "type": "string",
+                            "enum": sorted(THEORY_SEMANTIC_CLAIM_STATUSES),
+                        }
+                        for claim_id in claim_ids
+                    },
+                }
             },
-        },
-        "document_assessment": {
+        }
+    else:
+        assessment_schema = {
             "type": "object",
             "additionalProperties": False,
-            "required": [
-                "case_id",
-                "status",
-                "claim_assessments",
-            ],
+            "required": ["status"],
             "properties": {
-                "case_id": {"type": "string"},
                 "status": {
                     "type": "string",
                     "enum": sorted(THEORY_SEMANTIC_DOCUMENT_STATUSES),
-                },
-                "claim_assessments": {
-                    "type": "array",
-                    "items": {"$ref": "#/$defs/claim_assessment"},
-                },
+                }
             },
+        }
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["assessments"],
+        "properties": {
+            "assessments": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": list(required_case_ids),
+                "properties": {
+                    case_id: deepcopy(assessment_schema)
+                    for case_id in required_case_ids
+                },
+            }
         },
-    },
-}
+    }
+
+
+def _materialize_semantic_assessment_packet(
+    payload: Mapping[str, Any],
+    *,
+    claim_ids: Sequence[str],
+) -> dict[str, Any]:
+    raw_assessments = payload.get("assessments")
+    if not isinstance(raw_assessments, Mapping):
+        return deepcopy(dict(payload))
+    assessments: list[dict[str, Any]] = []
+    for case_id, raw_assessment in raw_assessments.items():
+        assessment = (
+            dict(raw_assessment)
+            if isinstance(raw_assessment, Mapping)
+            else {}
+        )
+        if claim_ids:
+            raw_statuses = assessment.get("claim_statuses", {})
+            raw_statuses = (
+                raw_statuses if isinstance(raw_statuses, Mapping) else {}
+            )
+            claim_assessments = [
+                {
+                    "claim_id": str(claim_id),
+                    "status": str(status),
+                }
+                for claim_id, status in raw_statuses.items()
+            ]
+            status = _derived_document_status(
+                [str(row["status"]) for row in claim_assessments],
+                expected_claim_count=len(claim_ids),
+            )
+        else:
+            claim_assessments = []
+            status = str(assessment.get("status", "") or "")
+        assessments.append(
+            {
+                "case_id": str(case_id),
+                "status": status,
+                "claim_assessments": claim_assessments,
+            }
+        )
+    return {"assessments": assessments}
 
 
 def _generate_semantic_assessment_batch(
@@ -122,19 +171,22 @@ def _generate_semantic_assessment_batch(
             "violations. Do not grade wording, formatting, or keyword overlap. "
             "Reconstruct decisive equations or counterexamples when needed. Calibration "
             "cases are unlabeled, and the candidate phase contains no calibration cases. "
-            "Think through the comparison, but return only case IDs and overall statuses "
-            "during calibration: required_claim_ids is empty, so every calibration "
-            "claim_assessments array must be empty. During candidate adjudication, return "
-            "the required claim IDs and claim statuses as well. Include no rationale or "
-            "commentary. Return exactly one assessment for every required case and claim "
-            "without omission or duplication. Do not infer a desired label from case "
-            "order."
+            "Think through the comparison, but follow the keyed response schema exactly. "
+            "During calibration, assessments is keyed by the frozen case IDs and each "
+            "value contains only an overall status. During candidate adjudication, each "
+            "assessment contains only claim_statuses keyed by every frozen claim ID; the "
+            "evaluator derives the overall status mechanically. Include no rationale, "
+            "commentary, copied IDs, or extra fields. Do not infer a desired label from "
+            "case order."
         ),
         user_prompt=json.dumps(payload, ensure_ascii=False, default=str),
         model=model,
         max_tokens=max_tokens,
         temperature=0.0,
-        schema=THEORY_SEMANTIC_GOLD_JUDGE_SCHEMA,
+        schema=_theory_semantic_gold_judge_schema(
+            required_case_ids=required_case_ids,
+            claim_ids=claim_ids,
+        ),
         metadata={
             "subsystem": (
                 "TheorySemanticGoldJudge"
@@ -149,9 +201,13 @@ def _generate_semantic_assessment_batch(
         },
     )
     response = provider.generate(request)
-    packet = extract_json_object(
+    raw_packet = extract_json_object(
         response.text,
         label=f"hidden {phase} semantic gold judgment",
+    )
+    packet = _materialize_semantic_assessment_packet(
+        raw_packet,
+        claim_ids=claim_ids,
     )
     errors = validate_theory_semantic_gold_judgment(
         packet,
@@ -377,18 +433,34 @@ def _document_assessment_errors(
         claim_statuses.append(claim_status)
         if claim_status not in THEORY_SEMANTIC_CLAIM_STATUSES:
             errors.append(f"{label} claim {index} has invalid status")
-    expected_status = (
-        "FAIL"
-        if "VIOLATED" in claim_statuses
-        else "INCONCLUSIVE"
-        if "INCONCLUSIVE" in claim_statuses
-        else "PASS"
-        if claim_statuses and len(claim_statuses) == len(claim_ids)
-        else ""
+    expected_status = _derived_document_status(
+        claim_statuses,
+        expected_claim_count=len(claim_ids),
     )
     if expected_status and status != expected_status:
         errors.append(f"{label} status is inconsistent with claim assessments")
     return errors
+
+
+def _derived_document_status(
+    claim_statuses: Sequence[str],
+    *,
+    expected_claim_count: int,
+) -> str:
+    if "VIOLATED" in claim_statuses:
+        return "FAIL"
+    if "INCONCLUSIVE" in claim_statuses:
+        return "INCONCLUSIVE"
+    if (
+        claim_statuses
+        and len(claim_statuses) == expected_claim_count
+        and all(
+            status in THEORY_SEMANTIC_CLAIM_STATUSES
+            for status in claim_statuses
+        )
+    ):
+        return "PASS"
+    return ""
 
 
 def _rubric_claim_ids(rubric: Mapping[str, Any]) -> list[str]:
