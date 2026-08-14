@@ -232,6 +232,8 @@ def test_same_theory_model_searches_and_reads_hash_bound_sources_without_copying
     initial_prompt = str(backend.requests[0].messages[0]["content"])
     assert research_sources.snapshot_hash in initial_prompt
     assert "Cite the exact citation_ref" in initial_prompt
+    assert "most specific primary definition or implementation" in initial_prompt
+    assert "do not substitute a nearby model family" in initial_prompt
     assert "estimating equation" in str(backend.requests[1].messages)
     read_observation = json.loads(
         backend.requests[2].messages[-1]["content"][0]["content"]
@@ -244,6 +246,9 @@ def test_same_theory_model_searches_and_reads_hash_bound_sources_without_copying
         research_sources.snapshot_hash
     )
     assert len(result.evidence["source_search_refs"]) == 1
+    assert result.evidence["source_search_refs"][0]["retrieval_policy"] == (
+        "document_diverse_then_additional_ranges_v1"
+    )
     assert len(result.evidence["source_read_refs"]) == 1
     read_ref = result.evidence["source_read_refs"][0]
     assert read_ref["document_id"] == "robust-location-paper"

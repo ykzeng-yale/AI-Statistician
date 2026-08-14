@@ -212,7 +212,9 @@ class ResearchSourceSnapshot:
         )
         hits: list[dict[str, Any]] = []
         covered_ranges: dict[str, list[tuple[int, int]]] = {}
-        for row in candidates:
+        covered_documents: set[str] = set()
+
+        def add_hit(row: Mapping[str, Any]) -> bool:
             document_id = str(row["document_id"])
             line_range = (int(row["line_start"]), int(row["line_end"]))
             prior_ranges = covered_ranges.setdefault(document_id, [])
@@ -220,11 +222,23 @@ class ResearchSourceSnapshot:
                 line_range[0] <= prior_end and prior_start <= line_range[1]
                 for prior_start, prior_end in prior_ranges
             ):
-                continue
-            hits.append(row)
+                return False
+            hits.append(dict(row))
             prior_ranges.append(line_range)
-            if len(hits) >= top_k:
+            covered_documents.add(document_id)
+            return True
+
+        # Expose the best evidence from distinct documents before allowing one
+        # long paper or source file to occupy the remaining result slots.
+        for row in candidates:
+            if str(row["document_id"]) in covered_documents:
+                continue
+            if add_hit(row) and len(hits) >= top_k:
                 break
+        if len(hits) < top_k:
+            for row in candidates:
+                if add_hit(row) and len(hits) >= top_k:
+                    break
 
         return {
             "ok": True,
@@ -234,6 +248,7 @@ class ResearchSourceSnapshot:
             "query": normalized_query,
             "query_hash": stable_hash(normalized_query),
             "hits": hits,
+            "retrieval_policy": "document_diverse_then_additional_ranges_v1",
             "proof_evidence_status": RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
             "boundary": (
                 "Search hits are exact excerpts from the hash-bound source snapshot. "

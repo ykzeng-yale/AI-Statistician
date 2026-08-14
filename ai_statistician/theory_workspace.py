@@ -528,6 +528,7 @@ def run_theory_artifact_workspace(
                 "snapshot_id": observation["snapshot_id"],
                 "snapshot_hash": observation["snapshot_hash"],
                 "query_hash": observation["query_hash"],
+                "retrieval_policy": observation["retrieval_policy"],
                 "hits": [
                     {
                         key: hit[key]
@@ -1156,7 +1157,10 @@ def run_theory_artifact_workspace(
         "search_research_sources and read_research_source directly in this same "
         "session when a definition, assumption, theorem, algorithm, or claimed "
         "precedent depends on prior work. Decide what to search and how to use it "
-        "yourself. Cite the exact citation_ref returned by a "
+        "yourself. For a method, model class, score, or implementation-specific "
+        "claim, inspect the most specific primary definition or implementation "
+        "available; do not substitute a nearby model family merely because its "
+        "paper passage ranks highly. Cite the exact citation_ref returned by a "
         "source read in the authoritative Markdown/LaTeX whenever a claim relies "
         "on that passage. Retrieved text is source evidence, not proof or "
         "independent review. "
@@ -1178,7 +1182,9 @@ def run_theory_artifact_workspace(
         "This task has no required substantive lane beyond exact source replication "
         "and honest gap disclosure. After inspecting the sources and raw run, write a "
         "durable Markdown report with the reproduced outputs, identity evidence, "
-        "comparison, interpretation, and caveats. Then call "
+        "comparison, interpretation, and caveats. Keep exact execution facts separate "
+        "from mathematical interpretation; if an interpretation is not grounded in "
+        "an exact source read, record that limitation as an unresolved gap. Then call "
         "commit_source_replication_checkpoint. You may instead continue into a full "
         "theory checkpoint if your own judgment finds that useful, but do not invent "
         "estimator, simulation, formalization, or novelty work merely to satisfy empty "

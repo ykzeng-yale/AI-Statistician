@@ -83,6 +83,72 @@ def test_hash_bound_source_snapshot_supports_exact_search_and_read(tmp_path) -> 
     assert "relative_path" not in descriptor
 
 
+def test_source_search_returns_distinct_documents_before_repeated_ranges(
+    tmp_path,
+) -> None:
+    source_root = tmp_path / "public_sources"
+    source_root.mkdir()
+    paper_text = (
+        "interactive regression orthogonal score definition\n"
+        "filler one\n"
+        "filler two\n"
+        "filler three\n"
+        "filler four\n"
+        "filler five\n"
+        "filler six\n"
+        "interactive regression orthogonal score discussion\n"
+    )
+    implementation_text = (
+        "interactive regression implementation score definition\n"
+    )
+    (source_root / "paper.md").write_text(paper_text, encoding="utf-8")
+    (source_root / "implementation.py").write_text(
+        implementation_text,
+        encoding="utf-8",
+    )
+    manifest = {
+        "schema_version": 1,
+        "snapshot_id": "document-diverse-source-search",
+        "source_horizon": "2025-12-31",
+        "source_root": "public_sources",
+        "documents": [
+            {
+                "document_id": "paper",
+                "title": "Broad paper",
+                "source_kind": "paper",
+                "relative_path": "paper.md",
+                "sha256": hashlib.sha256(paper_text.encode()).hexdigest(),
+                "model_visible": True,
+            },
+            {
+                "document_id": "implementation",
+                "title": "Exact implementation",
+                "source_kind": "code",
+                "relative_path": "implementation.py",
+                "sha256": hashlib.sha256(
+                    implementation_text.encode()
+                ).hexdigest(),
+                "model_visible": True,
+            },
+        ],
+    }
+    manifest_path = tmp_path / "sources.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = load_research_source_snapshot(manifest_path).search(
+        "interactive regression orthogonal score",
+        top_k=2,
+    )
+
+    assert result["retrieval_policy"] == (
+        "document_diverse_then_additional_ranges_v1"
+    )
+    assert {hit["document_id"] for hit in result["hits"]} == {
+        "paper",
+        "implementation",
+    }
+
+
 def test_source_snapshot_rejects_hash_mismatch(tmp_path) -> None:
     manifest_path, _ = _source_snapshot(
         tmp_path,
