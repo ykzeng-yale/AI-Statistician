@@ -339,6 +339,16 @@ dependency and countercheck, and distinguishes endorsed derivation from rejected
 exploration. It should not trigger a James-Stein rerun, task-specific formulas, more
 budget, or a new repair layer.
 
+The existing independent theory preflight has therefore been tightened without adding
+another reviewer or model call. In client-tool mode, its runtime now verifies that exact
+document reads cover every non-`REJECTED` claim-index anchor before accepting a review;
+the model still chooses ranges, reconstructs mathematics, tests counterexamples, and
+owns every verdict. At the same time, twenty-one accumulated prompts about particular
+failure patterns were replaced by seven general scientific-review principles. This is
+inspection-provenance and harness-simplification evidence only. It does not repair or
+rescore James-Stein, make line coverage equivalent to correct judgment, or establish
+improved live theory capability until a future unrelated frozen task exercises it.
+
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same
 two broad tasks in hope of a better model draw. This is an evaluation-selection

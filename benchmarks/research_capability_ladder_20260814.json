@@ -404,6 +404,9 @@
         "post_run_generic_checkpoint_guidance_commit": "530baa98ee864edd96c3ddd5c2331421d66ce8a8",
         "post_run_generic_checkpoint_guidance": "TheoryDeveloper is told to checkpoint substantive progress when structured handoff work remains but write quota is exhausted, and authoritative documents must separate endorsed derivation from rejected exploration. No task content, automatic checkpoint, retry, budget increase, agent, or scheduler was added.",
         "post_run_full_pytest": "737 passed in 95.86s",
+        "post_run_claim_grounded_referee_commit": "aa2179545a550e9c5ae0200d560ea8697febb924",
+        "post_run_claim_grounded_referee": "The existing independent preflight now requires exact document reads covering every non-REJECTED claim-index anchor while the model still owns derivation, counterexample, and verdict semantics. Twenty-one accumulated corner-case prompt rules were replaced by seven general scientific-review principles. No reviewer, model call, tool turn, retry, budget, task formula, or runtime-authored judgment was added.",
+        "post_run_claim_grounded_referee_full_pytest": "738 passed in 95.80s",
         "model_draw_resampling_blocked": true,
         "formalization_requirement": "not_applicable",
         "full_task_passed": false
@@ -514,6 +517,6 @@
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
     "latest_diagnostic": "Fresh exact-Haiku James-Stein L0 v1 exercised the direct Markdown workspace and hash-bound source tools, but stopped inside TheoryDeveloper with one unresolved claim-index linkage after all five model-owned submissions. It scored 0/1 before independent theory review, code, or simulation. An evaluator-only post-run diagnostic then exposed a separate review weakness: the frozen 7/7-calibrated Haiku semantic judge marked the unaccepted document PASS even though independent inspection found false intermediate equations, abandoned circular derivations presented as active mathematics, and an asserted rather than derived risk simplification. Neither the runtime document nor the diagnostic judgment receives capability credit.",
-    "next_step": "Do not rerun HC0, KM, DoubleML L1, quantile-CLT L0, or James-Stein L0 merely for another model draw. Preserve every frozen failure. Improve the generic theory workspace and referee protocol so the model maintains a clearly endorsed derivation and the independent reviewer must inspect claim-linked equation ranges, dependencies, and counterchecks rather than score only final conclusions. Validate same-owner continuation and the stronger referee only on a future unrelated benchmark frozen before its first model call, without adding task formulas, repair workers, retries, or budget increases."
+    "next_step": "Do not rerun HC0, KM, DoubleML L1, quantile-CLT L0, or James-Stein L0 merely for another model draw. Preserve every frozen failure. The generic preflight now requires exact reads covering every active claim anchor and uses seven general review principles instead of twenty-one accumulated corner-case rules, but this has regression evidence only. Validate same-owner continuation and the claim-grounded referee on a future unrelated benchmark frozen before its first model call, without adding task formulas, repair workers, retries, or budget increases."
   }
 }
