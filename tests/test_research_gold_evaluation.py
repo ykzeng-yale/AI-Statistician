@@ -1101,6 +1101,43 @@ def test_full_task_theory_requires_calibrated_semantic_judgment(
     assert "A correct claim" not in serialized
 
 
+def test_hidden_semantic_failure_records_safe_candidate_phase(
+    tmp_path: Path,
+) -> None:
+    manifest = _add_semantic_theory_evaluator(
+        _full_task_gold_manifest(tmp_path),
+        tmp_path,
+    )
+
+    def semantic_runner(**kwargs) -> dict:
+        del kwargs
+        raise ValueError(
+            "invalid hidden candidate semantic judgment: private validator detail"
+        )
+
+    result = evaluate_research_gold_benchmark(
+        [
+            _runtime_result_with_accepted_theory(
+                document_workspace=tmp_path / "theory-workspace"
+            )
+        ],
+        research_evaluation_summary=_research_summary(),
+        benchmark_manifest_path=manifest,
+        out_dir=tmp_path / "out",
+        run_harness=_passing_harness,
+        run_artifact_harness=_passing_artifact_harness,
+        run_theory_semantic_judge=semantic_runner,
+    )
+
+    task = result["tasks"][0]
+    assert task["hidden_theory_semantic_execution_attempted"] is False
+    assert (
+        "hidden theory semantic evaluation failed closed: "
+        "ValueError:INVALID_CANDIDATE_JUDGMENT"
+    ) in task["failure_reasons"]
+    assert "private validator detail" not in json.dumps(result)
+
+
 def test_gold_evaluator_preserves_passed_upstream_dimensions_when_runtime_blocks(
     tmp_path: Path,
 ) -> None:

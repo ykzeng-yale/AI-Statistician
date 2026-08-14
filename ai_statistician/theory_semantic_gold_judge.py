@@ -122,10 +122,13 @@ def _generate_semantic_assessment_batch(
             "violations. Do not grade wording, formatting, or keyword overlap. "
             "Reconstruct decisive equations or counterexamples when needed. Calibration "
             "cases are unlabeled, and the candidate phase contains no calibration cases. "
-            "Think through the comparison, but return only case IDs, overall statuses, "
-            "claim IDs, and claim statuses, with no rationale or commentary. Return "
-            "exactly one assessment for every required case and claim without omission "
-            "or duplication. Do not infer a desired label from case order."
+            "Think through the comparison, but return only case IDs and overall statuses "
+            "during calibration: required_claim_ids is empty, so every calibration "
+            "claim_assessments array must be empty. During candidate adjudication, return "
+            "the required claim IDs and claim statuses as well. Include no rationale or "
+            "commentary. Return exactly one assessment for every required case and claim "
+            "without omission or duplication. Do not infer a desired label from case "
+            "order."
         ),
         user_prompt=json.dumps(payload, ensure_ascii=False, default=str),
         model=model,
@@ -197,7 +200,7 @@ def run_theory_semantic_gold_judge(
             for row in calibration_cases
         ],
         required_case_ids=case_ids,
-        claim_ids=claim_ids,
+        claim_ids=(),
         model=model,
         model_tier=model_tier,
         max_tokens=max_tokens,
@@ -262,6 +265,8 @@ def run_theory_semantic_gold_judge(
         "model_tier": model_tier,
         "n_model_calls": 2,
         "calibration_candidate_context_isolated": True,
+        "calibration_claim_assessments_requested": False,
+        "candidate_claim_assessments_requested": True,
         "rubric_hash": stable_hash(rubric),
         "reference_documents_hash": stable_hash(reference_documents),
         "candidate_documents_hash": stable_hash(candidate_documents),

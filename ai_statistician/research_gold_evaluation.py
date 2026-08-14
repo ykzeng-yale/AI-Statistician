@@ -1236,9 +1236,18 @@ def _run_hidden_document_semantic_evaluation(
             )
         ), ""
     except Exception as exc:
+        message = str(exc)
+        if "invalid hidden calibration semantic judgment" in message:
+            failure_code = "INVALID_CALIBRATION_JUDGMENT"
+        elif "invalid hidden candidate semantic judgment" in message:
+            failure_code = "INVALID_CANDIDATE_JUDGMENT"
+        elif "semantic judge provider" in message:
+            failure_code = "PROVIDER_FAILURE"
+        else:
+            failure_code = "EVALUATOR_FAILURE"
         return None, (
             f"hidden {semantic_artifact_role} semantic evaluation failed closed: "
-            f"{type(exc).__name__}"
+            f"{type(exc).__name__}:{failure_code}"
         )
 
 

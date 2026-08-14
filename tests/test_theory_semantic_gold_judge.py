@@ -50,10 +50,22 @@ def _packet(*, misclassify_second_case: bool = False) -> dict[str, object]:
 def _calibration_packet(
     *, misclassify_second_case: bool = False
 ) -> dict[str, object]:
+    statuses = [
+        ("case:a", "PASS"),
+        (
+            "case:b",
+            "PASS" if misclassify_second_case else "FAIL",
+        ),
+    ]
     return {
-        "assessments": _packet(
-            misclassify_second_case=misclassify_second_case
-        )["assessments"][:2]
+        "assessments": [
+            {
+                "case_id": case_id,
+                "status": status,
+                "claim_assessments": [],
+            }
+            for case_id, status in statuses
+        ]
     }
 
 
@@ -139,6 +151,10 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
     assert "expected_status" not in provider.requests[0].user_prompt
     assert '"case_id": "candidate"' not in provider.requests[0].user_prompt
     assert '"case_id": "case:a"' not in provider.requests[1].user_prompt
+    assert '"required_claim_ids": []' in provider.requests[0].user_prompt
+    assert '"required_claim_ids": []' not in provider.requests[1].user_prompt
+    assert result["calibration_claim_assessments_requested"] is False
+    assert result["candidate_claim_assessments_requested"] is True
     assert provider.requests[0].metadata["semantic_adjudication_phase"] == (
         "calibration"
     )
@@ -219,4 +235,12 @@ def test_semantic_judge_identity_checks_do_not_require_row_order() -> None:
         packet,
         claim_ids=CLAIM_IDS,
         calibration_case_ids=CASE_IDS,
+    ) == []
+
+
+def test_semantic_judge_calibration_accepts_case_statuses_without_claim_rows() -> None:
+    assert validate_theory_semantic_gold_judgment(
+        _calibration_packet(),
+        claim_ids=[],
+        required_case_ids=CASE_IDS,
     ) == []
