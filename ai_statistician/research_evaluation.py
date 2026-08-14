@@ -13,7 +13,11 @@ from .metric_protocol_stage import (
 )
 from .model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER
 from .research_lab import build_research_provenance, run_research_benchmark
-from .research_schema import OpenResearchQuestion
+from .research_schema import (
+    RESEARCH_EVIDENCE_DIMENSIONS,
+    OpenResearchQuestion,
+    research_dimension_requirements,
+)
 from .research_trace_audit import audit_research_traces
 from .verifier import AxleProofVerifier, MockProofVerifier, ProofVerifier
 
@@ -256,10 +260,47 @@ def _critic_research_disposition_accepted(
         for row in dimensions
         if isinstance(row, Mapping)
     }
-    return all(
-        status_by_dimension.get(dimension) == "SUPPORTED"
-        for dimension in ("theory", "scientific_code", "empirical")
+    raw_requirements = proposal.get("dimension_requirements", {})
+    requirements = research_dimension_requirements(
+        raw_requirements if isinstance(raw_requirements, Mapping) else {}
     )
+    if not requirements:
+        requirements = {
+            "theory": "required",
+            "scientific_code": "required",
+            "empirical": "required",
+            "formal": "optional",
+        }
+    for dimension in RESEARCH_EVIDENCE_DIMENSIONS:
+        status = status_by_dimension.get(dimension, "")
+        requirement = requirements[dimension]
+        if status == "CONTRADICTED":
+            return False
+        if requirement == "required" and status != "SUPPORTED":
+            return False
+        if requirement == "not_applicable" and status != "NOT_REQUESTED":
+            return False
+    return True
+
+
+def _question_task_intent(
+    artifacts: Mapping[str, Mapping[str, Any]],
+) -> dict[str, str]:
+    for artifact in artifacts.values():
+        if artifact.get("artifact_kind") != "RuntimeQuestionMetadata":
+            continue
+        question = artifact.get("question", {})
+        task_intent = (
+            question.get("task_intent", {})
+            if isinstance(question, Mapping)
+            else {}
+        )
+        if isinstance(task_intent, Mapping):
+            return {
+                str(dimension): str(requirement)
+                for dimension, requirement in task_intent.items()
+            }
+    return {}
 
 
 def _semantic_review_accepted(
@@ -479,6 +520,16 @@ def build_research_evaluation_summary(
     rows: list[dict[str, Any]] = []
     for result in results:
         artifacts = _runtime_artifacts(result)
+        task_intent = _question_task_intent(artifacts)
+        dimension_requirements = research_dimension_requirements(task_intent)
+        explicit_task_intent = bool(dimension_requirements)
+        if not dimension_requirements:
+            dimension_requirements = {
+                "theory": "required",
+                "scientific_code": "required",
+                "empirical": "required",
+                "formal": "optional",
+            }
         critic_manifest = _final_accepted_critic_manifest(result, artifacts)
         if critic_manifest:
             theory_packet_id = str(
@@ -638,15 +689,72 @@ def build_research_evaluation_summary(
                 _critic_gap_disclosure_present(critic_manifest, artifacts)
             ),
         }
+        theory_required = bool(
+            not explicit_task_intent
+            or dimension_requirements["theory"] == "required"
+        )
+        scientific_code_required = bool(
+            dimension_requirements["scientific_code"] == "required"
+        )
+        empirical_required = bool(
+            dimension_requirements["empirical"] == "required"
+        )
+        required_capability_checks: list[str] = []
+        if theory_required:
+            required_capability_checks.append("serious_theory_completed")
+        if empirical_required:
+            required_capability_checks.append(
+                "theory_preexecution_review_accepted"
+            )
+        if scientific_code_required:
+            required_capability_checks.extend(
+                (
+                    "generated_algorithm_executed_and_passed",
+                    "algorithm_semantic_review_accepted",
+                )
+            )
+        if empirical_required:
+            required_capability_checks.extend(
+                (
+                    "metric_protocol_independently_accepted",
+                    "generated_simulation_executed_and_passed",
+                    "simulation_metric_evidence_nonvacuous_and_bound",
+                    "simulation_semantic_review_accepted",
+                )
+            )
+        required_capability_checks.extend(
+            (
+                "critic_research_acceptance",
+                "critic_unresolved_gap_disclosure_present",
+            )
+        )
+        formal_executed = bool(executed & STRICT_FORMAL_SUBSYSTEMS)
+        formal_requirement = dimension_requirements["formal"]
+        if formal_requirement == "required":
+            formal_intent_conformant = formal_executed
+        elif formal_requirement == "not_applicable":
+            formal_intent_conformant = not formal_executed
+        else:
+            formal_intent_conformant = True
         conformance_checks = {
-            "strict_formal_lane_not_executed": not bool(
-                executed & STRICT_FORMAL_SUBSYSTEMS
-            ),
+            "strict_formal_lane_not_executed": not formal_executed,
+            "formal_lane_task_intent_conformant": formal_intent_conformant,
         }
         research_loop_complete = bool(
-            applies and all(capability_checks.values())
+            applies
+            and all(
+                capability_checks[name] for name in required_capability_checks
+            )
         )
-        mode_conformant = bool(applies and all(conformance_checks.values()))
+        mode_conformant = bool(
+            applies
+            and conformance_checks["formal_lane_task_intent_conformant"]
+            and (
+                conformance_checks["strict_formal_lane_not_executed"]
+                if not explicit_task_intent
+                else True
+            )
+        )
         rows.append(
             {
                 "question_id": _question_id(result, critic_manifest, artifacts),
@@ -656,9 +764,13 @@ def build_research_evaluation_summary(
                     research_loop_complete
                 ),
                 "requirements": capability_checks,
+                "dimension_requirements": dimension_requirements,
+                "required_capability_checks": required_capability_checks,
                 "mode_conformance": conformance_checks,
                 "formalization_status": {
-                    "required_for_research_eval": False,
+                    "required_for_research_eval": (
+                        formal_requirement == "required"
+                    ),
                     "strict_formal_lane_executed": bool(
                         executed & STRICT_FORMAL_SUBSYSTEMS
                     ),

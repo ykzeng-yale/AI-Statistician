@@ -79,6 +79,31 @@ def test_research_eval_contract_requires_research_lane_without_formalizer() -> N
     assert "FormalizationEvaluator" not in required
 
 
+def test_explicit_theory_only_intent_does_not_require_unused_lanes() -> None:
+    contract = _runtime_requested_evidence_contract(
+        formal_verification_policy="required",
+        evaluation_mode="research_eval",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+
+    assert contract["formal_verification_policy"] == "optional"
+    assert contract["formal_target_authoring_required"] is False
+    assert contract["simulation_target_authoring_required"] is False
+    assert contract["research_evaluation_requires_generated_algorithm_code"] is False
+    assert contract["research_evaluation_requires_generated_simulation_code"] is False
+    assert contract["research_evaluation_requires_typed_metric_contracts"] is False
+    assert set(_required_architect_plan_subsystems(contract)) == {
+        "RetrievalMemory",
+        "TheoryDeveloper",
+        "CriticEvaluator",
+    }
+
+
 def test_research_eval_cli_uses_frozen_gold_scope_when_configured() -> None:
     incomplete_full_loop = {"all_questions_research_eval_complete": False}
 
@@ -871,6 +896,95 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
     assert summary["rows"][0]["mode_conformance"][
         "strict_formal_lane_not_executed"
     ] is False
+
+
+def test_research_summary_honors_theory_only_task_intent() -> None:
+    question = {
+        "id": "theory_only",
+        "task_intent": {
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    }
+    theory = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory",
+        "question": question,
+        "serious_theory_mode": True,
+        "provider": "anthropic",
+    }
+    critic_proposal = {
+        "artifact_kind": "CriticEvaluatorProposalPacket",
+        "dimension_requirements": dict(question["task_intent"]),
+        "dimension_assessments": [
+            {
+                "dimension": dimension,
+                "status": "SUPPORTED" if dimension == "theory" else "NOT_REQUESTED",
+            }
+            for dimension in ("theory", "scientific_code", "empirical", "formal")
+        ],
+        "research_disposition": {
+            "status": "ACCEPT",
+            "blocking_dimensions": [],
+            "rationale": "The requested theory is supported.",
+        },
+        "gap_disclosure": {
+            "status": "COMPLETE",
+            "disclosed_gaps": [],
+            "evidence_refs": ["theory"],
+            "rationale": "No unresolved requested-dimension gaps.",
+        },
+    }
+    critic = {
+        "artifact_kind": "RuntimeCriticEvaluatorManifest",
+        "manifest_id": "critic",
+        "question": question,
+        "theory_packet_id": "theory",
+        "algorithm_sandbox_manifest_id": "",
+        "simulation_manifest_id": "",
+        "llm_critic_evaluator_proposal_id": "critic_proposal",
+        "evidence_contract_decision": {
+            "runtime_status": "ACCEPTED",
+            "scientific_disposition": "ACCEPT",
+        },
+    }
+    result = {
+        "status": "ACCEPTED",
+        "blackboard": {
+            "artifacts": {
+                "question": {
+                    "artifact_kind": "RuntimeQuestionMetadata",
+                    "question": question,
+                },
+                "theory": theory,
+                "critic_proposal": critic_proposal,
+                "critic": critic,
+            }
+        },
+        "traces": (
+            {
+                "subsystem": "CriticEvaluator",
+                "status": "ACCEPTED",
+                "produced_artifact_ids": ("critic",),
+            },
+        ),
+    }
+
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+
+    row = summary["rows"][0]
+    assert row["research_loop_complete"] is True
+    assert row["required_capability_checks"] == [
+        "serious_theory_completed",
+        "critic_research_acceptance",
+        "critic_unresolved_gap_disclosure_present",
+    ]
+    assert row["requirements"]["generated_algorithm_executed_and_passed"] is False
+    assert row["requirements"]["generated_simulation_executed_and_passed"] is False
 
 
 def test_research_summary_preserves_reviewed_theory_and_code_before_critic() -> None:

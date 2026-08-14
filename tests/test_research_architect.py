@@ -57,6 +57,7 @@ from ai_statistician.research_architect import (
     build_theory_developer_revision_inputs,
     build_theory_developer_prompt,
     source_replication_checkpoint_allowed,
+    theory_handoff_requirements,
     validate_theory_core_packet,
     validate_theory_packet,
 )
@@ -164,6 +165,35 @@ def test_source_replication_checkpoint_requires_explicit_source_only_intent() ->
     assert source_replication_checkpoint_allowed(source_only, execution) is True
     assert source_replication_checkpoint_allowed(source_only, None) is False
     assert source_replication_checkpoint_allowed(theory_required, execution) is False
+
+
+def test_theory_handoff_requirements_follow_task_intent() -> None:
+    question = OpenResearchQuestion(
+        id="theory-only-handoff",
+        title="Theory only",
+        description="Derive one result without implementation or formalization.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+
+    requirements = theory_handoff_requirements(
+        question,
+        formalization_authoring_required=False,
+    )
+
+    assert requirements == {
+        "problem_card": True,
+        "theory_derivation_packet": True,
+        "estimator_specs": False,
+        "theorem_cards": True,
+        "proof_plan": True,
+        "simulation_ademp_spec": False,
+        "formalization_requests": False,
+    }
 
 
 def test_source_only_workspace_bypasses_full_theory_packet_contract(

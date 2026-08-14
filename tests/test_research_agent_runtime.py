@@ -176,6 +176,94 @@ def test_optional_formal_policy_defaults_to_simulation_first() -> None:
     assert contract["formal_target_authoring_required"] is False
 
 
+def test_task_intent_contract_cannot_be_resurrected_by_stale_feedback() -> None:
+    contract = runtime_module._runtime_requested_evidence_contract(
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+    context = {"runtime_requested_evidence_contract": contract}
+    stale_feedback = {
+        "architect_evidence_contract": {
+            "research_evaluation_requires_generated_algorithm_code": True,
+            "research_evaluation_requires_generated_simulation_code": True,
+            "research_evaluation_requires_typed_metric_contracts": True,
+        }
+    }
+
+    merged = runtime_module._runtime_context_with_environment_feedback_contract(
+        context,
+        stale_feedback,
+        subsystem="SimulationEvaluator",
+    )
+
+    merged_contract = merged["runtime_requested_evidence_contract"]
+    assert merged_contract[
+        "research_evaluation_requires_generated_algorithm_code"
+    ] is False
+    assert merged_contract[
+        "research_evaluation_requires_generated_simulation_code"
+    ] is False
+    assert runtime_module._runtime_requires_generated_algorithm_code(
+        merged,
+        stale_feedback,
+    ) is False
+    assert runtime_module._runtime_requires_generated_simulation_code(
+        merged,
+        stale_feedback,
+    ) is False
+
+
+def test_theory_only_path_compiles_directly_to_critic() -> None:
+    context = {
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "recommended_research_path": "simulation_first",
+                "formal_verification_policy": "optional",
+                "formal_required_for_final": False,
+                "research_evaluation_requires_generated_algorithm_code": False,
+                "dimension_requirements": {
+                    "theory": "required",
+                    "scientific_code": "not_applicable",
+                    "empirical": "not_applicable",
+                    "formal": "not_applicable",
+                },
+            },
+            "subsystem_execution_plan": [
+                {"subsystem": "RetrievalMemory"},
+                {"subsystem": "TheoryDeveloper"},
+                {"subsystem": "CriticEvaluator"},
+            ],
+        }
+    }
+
+    assert runtime_module._compiled_post_theory_workspace_owner(
+        context,
+        implementation_gaps=[],
+    ) == "CriticEvaluator"
+
+    context["architect_runtime_plan"]["evidence_contract"].update(
+        {
+            "simulation_targets": ["run one model-selected diagnostic"],
+            "dimension_requirements": {
+                "theory": "required",
+                "scientific_code": "not_applicable",
+                "empirical": "optional",
+                "formal": "not_applicable",
+            },
+        }
+    )
+    assert runtime_module._compiled_post_theory_workspace_owner(
+        context,
+        implementation_gaps=[],
+    ) == "SimulationEvaluator"
+
+
 def test_runtime_config_has_no_legacy_prover_authoring_plane() -> None:
     names = {field.name for field in fields(ResearchAgentRuntimeConfig)}
     forbidden_fragments = (

@@ -1,7 +1,52 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Mapping
+
+
+RESEARCH_EVIDENCE_DIMENSIONS = (
+    "theory",
+    "scientific_code",
+    "empirical",
+    "formal",
+)
+TASK_INTENT_REQUIREMENTS = frozenset(
+    {"required", "optional", "not_applicable"}
+)
+
+
+def research_dimension_requirements(
+    task_intent: Mapping[str, Any] | None,
+) -> dict[str, str]:
+    """Return the complete research-evidence contract for an explicit task intent.
+
+    An empty mapping means the caller is using the legacy evaluation profile. Once
+    an operator supplies any task intent, omitted research dimensions are optional
+    rather than silently becoming mandatory.
+    """
+
+    if not task_intent:
+        return {}
+    normalized = {
+        str(dimension): str(requirement).strip().lower()
+        for dimension, requirement in task_intent.items()
+    }
+    invalid = sorted(
+        {
+            requirement
+            for requirement in normalized.values()
+            if requirement not in TASK_INTENT_REQUIREMENTS
+        }
+    )
+    if invalid:
+        raise ValueError(
+            "task_intent requirements must be required, optional, or "
+            "not_applicable; invalid=" + ", ".join(invalid)
+        )
+    return {
+        dimension: normalized.get(dimension, "optional")
+        for dimension in RESEARCH_EVIDENCE_DIMENSIONS
+    }
 
 
 @dataclass(frozen=True)

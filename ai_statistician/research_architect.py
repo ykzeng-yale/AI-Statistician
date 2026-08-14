@@ -34,7 +34,7 @@ from .structured_output_retry import (
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
 )
-from .research_schema import OpenResearchQuestion
+from .research_schema import OpenResearchQuestion, research_dimension_requirements
 from .research_source_library import (
     ResearchSourceExecutionSpec,
     ResearchSourceSnapshot,
@@ -102,6 +102,59 @@ def source_replication_checkpoint_allowed(
             SOURCE_REPLICATION_CHECKPOINT_REQUIRED_DIMENSIONS
         )
     )
+
+
+def theory_handoff_requirements(
+    question: OpenResearchQuestion,
+    *,
+    formalization_authoring_required: bool,
+) -> dict[str, bool]:
+    """Select only the compact handoffs required by the frozen task intent."""
+
+    dimensions = research_dimension_requirements(question.task_intent)
+    legacy_full_handoff = not dimensions
+    implementation_required = bool(
+        legacy_full_handoff
+        or dimensions["scientific_code"] == "required"
+    )
+    theorem_required = bool(
+        legacy_full_handoff
+        or dimensions["theory"] == "required"
+        or dimensions["formal"] == "required"
+    )
+    return {
+        "problem_card": True,
+        "theory_derivation_packet": True,
+        "estimator_specs": implementation_required,
+        "theorem_cards": theorem_required,
+        "proof_plan": theorem_required,
+        "simulation_ademp_spec": bool(
+            legacy_full_handoff or dimensions["empirical"] == "required"
+        ),
+        "formalization_requests": bool(formalization_authoring_required),
+    }
+
+
+def _theory_output_contract_for_question(
+    contract: Mapping[str, Any],
+    *,
+    question: OpenResearchQuestion,
+    formalization_authoring_required: bool,
+) -> tuple[dict[str, Any], dict[str, bool]]:
+    output = deepcopy(dict(contract))
+    requirements = theory_handoff_requirements(
+        question,
+        formalization_authoring_required=formalization_authoring_required,
+    )
+    for field, required in requirements.items():
+        if required or field not in output:
+            continue
+        output[field] = [] if isinstance(output[field], list) else {}
+    if not formalization_authoring_required:
+        derivation_contract = output.get("theory_derivation_packet", {})
+        if isinstance(derivation_contract, dict):
+            derivation_contract["formalization_handoff"] = {}
+    return output, requirements
 
 
 class ArchitectLLMProvider(GeneratorBackend, Protocol):
@@ -561,14 +614,13 @@ def build_theory_developer_prompt(
     formalization_authoring_required = (
         _theory_formalization_authoring_required(architect_context)
     )
-    required_output_contract = deepcopy(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT)
-    if not formalization_authoring_required:
-        required_output_contract["formalization_requests"] = []
-        derivation_contract = required_output_contract.get(
-            "theory_derivation_packet", {}
+    required_output_contract, handoff_requirements = (
+        _theory_output_contract_for_question(
+            THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
+            question=question,
+            formalization_authoring_required=formalization_authoring_required,
         )
-        if isinstance(derivation_contract, dict):
-            derivation_contract["formalization_handoff"] = {}
+    )
     if serious_theory_mode:
         prompt_mode = {
             "mode": theory_prompt_mode,
@@ -683,10 +735,12 @@ def build_theory_developer_prompt(
             "title": question.title,
             "description": question.description,
             "tags": list(question.tags),
+            "task_intent": dict(question.task_intent),
         },
         "prompt_mode": prompt_mode,
         "architect_context": compact_context,
         "required_output_contract": required_output_contract,
+        "structured_handoff_requirements": handoff_requirements,
         output_budget_key: output_budget,
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
     }
@@ -2251,6 +2305,26 @@ def _validate_theory_packet(
     formalization_authoring_required = (
         packet.get("runtime_formalization_authoring_required") is not False
     )
+    raw_handoff_requirements = packet.get(
+        "runtime_theory_handoff_requirements", {}
+    )
+    handoff_requirements = (
+        {
+            str(field): bool(required)
+            for field, required in raw_handoff_requirements.items()
+        }
+        if isinstance(raw_handoff_requirements, Mapping)
+        and raw_handoff_requirements
+        else {
+            "problem_card": True,
+            "theory_derivation_packet": True,
+            "estimator_specs": True,
+            "theorem_cards": True,
+            "proof_plan": True,
+            "simulation_ademp_spec": True,
+            "formalization_requests": formalization_authoring_required,
+        }
+    )
     document_authority = (
         packet.get("theory_content_authority")
         == THEORY_WORKSPACE_CONTENT_AUTHORITY
@@ -2271,15 +2345,8 @@ def _validate_theory_packet(
     ):
         errors.append("theory workspace structured handoff role mismatch")
     required_nonempty_fields = [
-        "problem_card",
-        "theory_derivation_packet",
-        "estimator_specs",
-        "theorem_cards",
-        "proof_plan",
-        "simulation_ademp_spec",
+        field for field, required in handoff_requirements.items() if required
     ]
-    if formalization_authoring_required:
-        required_nonempty_fields.append("formalization_requests")
     for field in required_nonempty_fields:
         if packet.get(field) in (None, "", [], {}):
             errors.append(f"missing or empty field: {field}")
@@ -2329,12 +2396,15 @@ def _validate_theory_packet(
                 "theory_derivation_packet.formalization_handoff.semantic_alignment_constraints must be non-empty"
             )
     for list_field in ("estimator_specs", "theorem_cards"):
-        if not isinstance(packet.get(list_field), list) or not packet.get(list_field):
+        value = packet.get(list_field)
+        if not isinstance(value, list):
+            errors.append(f"{list_field} must be a list")
+        elif handoff_requirements.get(list_field, True) and not value:
             errors.append(f"{list_field} must be a non-empty list")
     formalization_requests = packet.get("formalization_requests", [])
     if not isinstance(formalization_requests, list):
         errors.append("formalization_requests must be a list")
-    elif formalization_authoring_required and not formalization_requests:
+    elif handoff_requirements.get("formalization_requests", False) and not formalization_requests:
         errors.append("formalization_requests must be a non-empty list")
     for list_field in ("lemma_cards", "critic_findings", "next_actions"):
         if not isinstance(packet.get(list_field), list):
@@ -2379,7 +2449,10 @@ def _validate_theory_packet(
     if len(estimator_ids) != len(set(estimator_ids)):
         errors.append("estimator_specs ids must be unique")
     simulation_ademp_spec = packet.get("simulation_ademp_spec", {})
-    if isinstance(simulation_ademp_spec, Mapping):
+    if isinstance(simulation_ademp_spec, Mapping) and (
+        simulation_ademp_spec
+        or handoff_requirements.get("simulation_ademp_spec", True)
+    ):
         if not str(simulation_ademp_spec.get("aim", "") or "").strip():
             errors.append("simulation_ademp_spec.aim must be non-empty")
         for field in (
@@ -2497,6 +2570,10 @@ def _normalize_theory_packet(
     body["runtime_formalization_authoring_required"] = bool(
         formalization_authoring_required
     )
+    body["runtime_theory_handoff_requirements"] = theory_handoff_requirements(
+        question,
+        formalization_authoring_required=formalization_authoring_required,
+    )
     derivation_packet = body.get("theory_derivation_packet")
     if isinstance(derivation_packet, Mapping):
         body["theory_derivation_packet"] = _canonicalize_theory_derivation_packet(
@@ -2557,6 +2634,7 @@ def _normalize_theory_packet(
             "title": question.title,
             "description": question.description,
             "tags": list(question.tags),
+            "task_intent": dict(question.task_intent),
         },
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,
@@ -2856,14 +2934,13 @@ def _initial_theory_workspace_read_only_artifacts(
     allow_source_replication_checkpoint: bool = False,
 ) -> dict[str, Any]:
     serious = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
-    required_output_contract = deepcopy(THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT)
-    if not formalization_authoring_required:
-        required_output_contract["formalization_requests"] = []
-        derivation_contract = required_output_contract.get(
-            "theory_derivation_packet", {}
+    required_output_contract, handoff_requirements = (
+        _theory_output_contract_for_question(
+            THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT,
+            question=question,
+            formalization_authoring_required=formalization_authoring_required,
         )
-        if isinstance(derivation_contract, dict):
-            derivation_contract["formalization_handoff"] = {}
+    )
     output_contract: dict[str, Any]
     if allow_source_replication_checkpoint:
         output_contract = {
@@ -2907,6 +2984,7 @@ def _initial_theory_workspace_read_only_artifacts(
                 "formalization_authoring_required": bool(
                     formalization_authoring_required
                 ),
+                "structured_handoff_requirements": handoff_requirements,
                 "source_replication_checkpoint_allowed": bool(
                     allow_source_replication_checkpoint
                 ),
@@ -2949,6 +3027,16 @@ def _initial_theory_workspace_prompt(
             "document bytes and validates identity and lineage; it does not interpret "
             "the scientific result or promote it to proof evidence."
         )
+    handoff_requirements = theory_handoff_requirements(
+        question,
+        formalization_authoring_required=formalization_authoring_required,
+    )
+    required_handoffs = ", ".join(
+        field for field, required in handoff_requirements.items() if required
+    )
+    optional_handoffs = ", ".join(
+        field for field, required in handoff_requirements.items() if not required
+    )
     return (
         "Author the initial TheoryDeveloper research workspace for the supplied "
         f"question {question.id!r} in mode {theory_prompt_mode!r}. First read the "
@@ -2968,8 +3056,12 @@ def _initial_theory_workspace_prompt(
         "artifact in one atomic call; accepted writes are retained. Derive "
         "definitions and claims rather "
         "than treating retrieval as an answer key. Keep assumptions, equations, "
-        "estimators, theorem cards, simulation semantics, and formal targets mutually "
-        "consistent. Treat IDs and document anchors as exact references. Do not copy a "
+        "every authored downstream handoff mutually consistent. Treat IDs and document "
+        "anchors as exact references. The required compact handoffs are: "
+        + required_handoffs
+        + ". Handoffs not required by this task intent may remain empty: "
+        + optional_handoffs
+        + ". Do not copy a "
         "long derivation back into JSON; structured fields are only a compact index, "
         "ABI, and handoff. Any Python or R scratchpad result is an exploratory "
         "diagnostic tied to its exact observation, never a confirmatory result, frozen "
@@ -3481,15 +3573,13 @@ def _generate_initial_theory_artifact_workspace(
     errors = validate_theory_core_packet(packet)
     changed = set(workspace_evidence.get("changed_artifact_names", []) or [])
     required_authored_artifacts = {
-        "problem_card",
-        "theory_derivation_packet",
-        "estimator_specs",
-        "theorem_cards",
-        "proof_plan",
-        "simulation_ademp_spec",
+        field
+        for field, required in theory_handoff_requirements(
+            question,
+            formalization_authoring_required=formalization_authoring_required,
+        ).items()
+        if required
     }
-    if formalization_authoring_required:
-        required_authored_artifacts.add("formalization_requests")
     if not required_authored_artifacts.issubset(changed):
         errors.append(
             "initial theory workspace did not author every required nonempty artifact"

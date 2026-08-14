@@ -31,6 +31,7 @@ from ai_statistician.model_backend import GeneratorResponse
 from ai_statistician.research_agent_runtime import (
     ArchitectCoordinatorRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
+    _runtime_requested_evidence_contract,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.scientific_code_workspace import (
@@ -354,6 +355,80 @@ def test_architect_provider_schema_is_compact_and_has_one_action() -> None:
     assert ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"]["next_actions"][
         "maxItems"
     ] == 1
+
+
+def test_architect_accepts_empty_targets_for_not_applicable_dimensions() -> None:
+    question = OpenResearchQuestion(
+        id="theory-only-architect",
+        title="Theory only",
+        description="Derive and review one mathematical result.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+    requested_contract = _runtime_requested_evidence_contract(
+        formal_verification_policy="required",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+    )
+    decision = {
+        "problem_analysis": {
+            "theorem_family": "generic",
+            "statistical_objects": ["one estimand"],
+            "assumption_dimensions": ["regularity"],
+            "likely_analogy_classes": ["known asymptotic arguments"],
+            "key_obstacles": ["derive the result"],
+            "missing_information": ["primary sources"],
+        },
+        "evidence_contract": {
+            "recommended_research_path": "simulation_first",
+            "formal_targets": [],
+            "simulation_targets": [],
+        },
+        "retrieval_strategy": {
+            "paper_queries": ["target theorem"],
+            "formal_source_queries": ["target definitions"],
+            "lean_rag_priorities": ["not requested"],
+        },
+        "iteration_policy": {
+            "max_revision_rounds": 1,
+            "stop_conditions": ["independent critic accepts the theory"],
+        },
+        "next_actions": [
+            {
+                "owner_agent": "RetrievalMemory",
+                "action": "Retrieve primary mathematical sources.",
+                "acceptance_gate": "Relevant source context is recorded.",
+            }
+        ],
+    }
+
+    packet = _normalize_architect_packet(
+        decision,
+        question=question,
+        model=EXACT_HAIKU_MODEL,
+        model_tier="haiku",
+        provider_name="anthropic",
+        raw_response=json.dumps(decision),
+        runtime_config={
+            "evaluation_mode": "research_eval",
+            "formal_verification_policy": "required",
+            "n_runs": 100,
+        },
+        architect_context={
+            "runtime_requested_evidence_contract": requested_contract
+        },
+    )
+
+    assert validate_architect_coordinator_packet(packet) == []
+    assert [
+        row["subsystem"] for row in packet["subsystem_execution_plan"]
+    ] == ["RetrievalMemory", "TheoryDeveloper", "CriticEvaluator"]
+    assert packet["evidence_contract"]["formal_targets"] == []
+    assert packet["evidence_contract"]["simulation_targets"] == []
 
 
 class _RouteBackend:

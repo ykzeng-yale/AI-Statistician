@@ -41,7 +41,7 @@ from .metric_protocol_stage import (
     theory_informed_metric_protocol_material,
 )
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
-from .research_schema import OpenResearchQuestion
+from .research_schema import OpenResearchQuestion, research_dimension_requirements
 from .semantic_review_feedback import (
     architect_observations_without_runtime_routing,
 )
@@ -685,6 +685,7 @@ def build_architect_feedback_route_prompt(
             "title": question.title,
             "description": question.description,
             "tags": list(question.tags),
+            "task_intent": dict(question.task_intent),
         },
         "available_route_subsystems": list(available_route_subsystems),
         "unavailable_route_subsystems": unavailable_route_subsystems,
@@ -1886,19 +1887,27 @@ def build_architect_coordinator_prompt(
     architect_context: Mapping[str, Any],
     runtime_config: Mapping[str, Any],
 ) -> str:
+    runtime_owned_contract = _architect_runtime_owned_evidence_contract(
+        architect_context=architect_context,
+        runtime_config=runtime_config,
+    )
     formal_verification_policy = str(
-        runtime_config.get("formal_verification_policy", "optional") or "optional"
+        runtime_owned_contract.get("formal_verification_policy", "optional")
+        or "optional"
     )
     requested_evidence_contract = {
-        **_architect_runtime_owned_evidence_contract(
-            architect_context=architect_context,
-            runtime_config=runtime_config,
-        ),
+        **runtime_owned_contract,
         "requested_research_path": str(
-            runtime_config.get("recommended_research_path", "") or ""
+            runtime_owned_contract.get("recommended_research_path", "")
+            or runtime_config.get("recommended_research_path", "")
+            or ""
         ),
-        "formal_required_for_final": formal_verification_policy == "required",
-        **_architect_runtime_evaluation_contract(runtime_config),
+        "formal_required_for_final": bool(
+            runtime_owned_contract.get(
+                "formal_required_for_final",
+                formal_verification_policy == "required",
+            )
+        ),
         "policy_semantics": {
             "required": (
                 "full formal proof is an acceptance gate; unresolved formal "
@@ -1948,6 +1957,7 @@ def build_architect_coordinator_prompt(
             "title": question.title,
             "description": question.description,
             "tags": list(question.tags),
+            "task_intent": dict(question.task_intent),
         },
         "architect_context": model_architect_context,
         "runtime_config": withhold_confirmatory_evaluation_seed(
@@ -2046,11 +2056,13 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
         "recommended_research_path": "simulation_first|proof_first|dual_track",
         "formal_targets": [
             (
-                "one precise task-specific mathematical claim naming its object, "
-                "assumptions or quantifiers, and conclusion"
+                "zero or more task-specific mathematical claims; leave empty when "
+                "formal evidence is not applicable"
             )
         ],
-        "simulation_targets": ["one short string"],
+        "simulation_targets": [
+            "zero or more targets; leave empty when empirical evidence is not applicable"
+        ],
     },
     "retrieval_strategy": {
         "paper_queries": ["one short string"],
@@ -2137,7 +2149,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                 },
                 "formal_targets": {
                     "type": "array",
-                    "minItems": 1,
+                    "minItems": 0,
                     "maxItems": 4,
                     "items": {
                         "type": "string",
@@ -2151,7 +2163,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                 },
                 "simulation_targets": {
                     "type": "array",
-                    "minItems": 1,
+                    "minItems": 0,
                     "maxItems": 4,
                     "items": {"type": "string"},
                 },
@@ -2227,6 +2239,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
 
 def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
+    dimension_requirements: dict[str, str] = {}
     for field in (
         "problem_analysis",
         "evidence_contract",
@@ -2257,6 +2270,18 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
     evaluation_mode = ""
     evidence_contract = packet.get("evidence_contract", {})
     if isinstance(evidence_contract, Mapping):
+        explicit_dimension_requirements = evidence_contract.get(
+            "dimension_requirements", {}
+        )
+        if not isinstance(explicit_dimension_requirements, Mapping):
+            errors.append("evidence_contract.dimension_requirements must be an object")
+        else:
+            try:
+                dimension_requirements = research_dimension_requirements(
+                    explicit_dimension_requirements
+                )
+            except ValueError as exc:
+                errors.append(str(exc))
         policy = str(
             evidence_contract.get("formal_verification_policy", "") or ""
         ).strip().lower()
@@ -2315,9 +2340,8 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 "evidence_contract.generated_metric_requirement_authority_policy "
                 "must be architect-authored and coding-agent-bound"
             )
-        if research_evaluation and (
-            typed_required is not True
-            or metric_policy != "typed_artifact_bound_required"
+        if research_evaluation and typed_required is True and (
+            metric_policy != "typed_artifact_bound_required"
             or authority_policy
             != GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED
             or not _research_evaluation_contract_flag(
@@ -2350,7 +2374,7 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
         expected_runtime_replicates = evidence_contract.get(
             "generated_sandbox_runtime_replicates"
         )
-        if research_evaluation and (
+        if research_evaluation and typed_required is True and (
             isinstance(expected_runtime_replicates, bool)
             or not isinstance(expected_runtime_replicates, int)
             or expected_runtime_replicates <= 0
@@ -2360,7 +2384,7 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 "generated_sandbox_runtime_replicates value"
             )
         if requirements not in (None, [], {}):
-            if research_evaluation and (
+            if research_evaluation and typed_required is True and (
                 metric_protocol_phase
                 != METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
                 or metric_protocol_execution_authorized is not True
@@ -2375,18 +2399,18 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                     required_target_subsystems=(
                         GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
                     )
-                    if research_evaluation
+                    if research_evaluation and typed_required is True
                     else (),
                     expected_runtime_replicates=(
                         expected_runtime_replicates
-                        if research_evaluation
+                        if research_evaluation and typed_required is True
                         and isinstance(expected_runtime_replicates, int)
                         and not isinstance(expected_runtime_replicates, bool)
                         else None
                     ),
                 )
             )
-            if research_evaluation:
+            if research_evaluation and typed_required is True:
                 review = evidence_contract.get(
                     "empirical_metric_requirements_preexecution_review", {}
                 )
@@ -2442,7 +2466,7 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                             "metric pre-execution review certificate is not bound "
                             "to the frozen requirement set"
                         )
-        elif research_evaluation:
+        elif research_evaluation and typed_required is True:
             if (
                 metric_protocol_phase
                 not in {
@@ -2457,14 +2481,39 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                     "theory-informed authoring turn remains pending and metric "
                     "protocol execution stays unauthorized"
                 )
-        for field in (
-            "formal_targets",
-            "simulation_targets",
-            "acceptance_modes",
-            "disclosure_requirements",
-        ):
+        for field in ("acceptance_modes", "disclosure_requirements"):
             if evidence_contract.get(field) in (None, "", [], {}):
                 errors.append(f"evidence_contract missing or empty field: {field}")
+        target_requirements = {
+            "formal_targets": bool(
+                evidence_contract.get("formal_target_authoring_required") is True
+            ),
+            "simulation_targets": bool(
+                evidence_contract.get("simulation_target_authoring_required") is True
+            ),
+        }
+        for field, required in target_requirements.items():
+            value = evidence_contract.get(field)
+            if not isinstance(value, list):
+                errors.append(f"evidence_contract.{field} must be a list")
+            elif required and not value:
+                errors.append(f"evidence_contract missing or empty field: {field}")
+        if (
+            dimension_requirements.get("formal") == "not_applicable"
+            and evidence_contract.get("formal_targets")
+        ):
+            errors.append(
+                "evidence_contract.formal_targets must be empty when formal evidence "
+                "is not applicable"
+            )
+        if (
+            dimension_requirements.get("empirical") == "not_applicable"
+            and evidence_contract.get("simulation_targets")
+        ):
+            errors.append(
+                "evidence_contract.simulation_targets must be empty when empirical "
+                "evidence is not applicable"
+            )
         formal_targets = evidence_contract.get("formal_targets", [])
         if isinstance(formal_targets, list):
             for index, target in enumerate(formal_targets):
@@ -2493,7 +2542,8 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 "subsystem_execution_plan missing evidence-contract-required "
                 f"subsystem: {subsystem}"
             )
-    if evaluation_mode == "research_eval":
+    formal_requirement = dimension_requirements.get("formal", "")
+    if evaluation_mode == "research_eval" and formal_requirement != "required":
         forbidden_formal_subsystems = sorted(
             planned_subsystems & RESEARCH_EVAL_FORBIDDEN_FORMAL_SUBSYSTEMS
         )
@@ -2523,9 +2573,18 @@ def _architect_runtime_owned_evidence_contract(
     contract: dict[str, Any] = {}
     for field in (
         "acceptance_modes",
+        "dimension_requirements",
         "disclosure_requirements",
+        "evaluation_mode",
         "formal_target_authoring_required",
         "formal_target_completion_policy",
+        "formal_evaluation_requires_formal_target_semantic_review",
+        "formal_evaluation_requires_formalizer_lean_candidate",
+        "research_evaluation_requires_generated_algorithm_code",
+        "research_evaluation_requires_generated_code_semantic_review",
+        "research_evaluation_requires_generated_simulation_code",
+        "research_evaluation_requires_typed_metric_contracts",
+        "recommended_research_path_frozen",
         "simulation_target_authoring_required",
     ):
         value = requested_contract.get(field)
@@ -2541,6 +2600,13 @@ def _architect_runtime_owned_evidence_contract(
         prior_contract = {}
     theory_material = theory_informed_metric_protocol_material(context)
     evaluation_contract = _architect_runtime_evaluation_contract(config)
+    if (
+        isinstance(requested_contract.get("dimension_requirements"), Mapping)
+        and requested_contract["dimension_requirements"]
+    ):
+        for field in tuple(evaluation_contract):
+            if field in requested_contract:
+                evaluation_contract[field] = requested_contract[field]
     strict_metric_protocol = _research_evaluation_contract_flag(
         evaluation_contract,
         "typed_metric_contracts",
@@ -2692,20 +2758,34 @@ def _architect_runtime_owned_evidence_contract(
             "boundary": ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
         }
     policy = str(
-        config.get("formal_verification_policy", "")
-        or requested_contract.get("formal_verification_policy", "")
+        requested_contract.get("formal_verification_policy", "")
+        or config.get("formal_verification_policy", "")
         or "optional"
     ).strip().lower()
     contract["formal_verification_policy"] = policy
     contract["formal_required_for_final"] = policy == "required"
-    requested_path = str(
-        requested_contract.get("recommended_research_path", "")
-        or config.get("recommended_research_path", "")
-        or ""
-    ).strip()
+    requested_path = ""
+    if requested_contract.get("recommended_research_path_frozen") is True:
+        requested_path = str(
+            requested_contract.get("recommended_research_path", "") or ""
+        ).strip()
+    elif isinstance(prior_contract, Mapping):
+        requested_path = str(
+            prior_contract.get("recommended_research_path", "") or ""
+        ).strip()
     if requested_path:
         contract["recommended_research_path"] = requested_path
     contract.update(evaluation_contract)
+    if not _research_evaluation_contract_flag(
+        contract,
+        "typed_metric_contracts",
+    ):
+        contract["generated_metric_contract_policy"] = (
+            "typed_artifact_bound_preferred"
+        )
+        contract["generated_metric_requirement_authority_policy"] = (
+            GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
+        )
     capability_eval = _research_evaluation_contract_flag(
         contract,
         "typed_metric_contracts",
@@ -2803,6 +2883,7 @@ def _normalize_architect_packet(
             "title": question.title,
             "description": question.description,
             "tags": list(question.tags),
+            "task_intent": dict(question.task_intent),
         },
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,

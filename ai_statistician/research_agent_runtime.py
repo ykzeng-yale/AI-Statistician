@@ -262,6 +262,7 @@ from .research_schema import (
     PaperSourceHit,
     ResearchProblemSpec,
     TheoremGoal,
+    research_dimension_requirements,
 )
 from .research_source_library import ResearchSourceSnapshot
 from .runtime_research_problem_adapter import (
@@ -421,35 +422,80 @@ def _runtime_requested_evidence_contract(
     recommended_research_path: str = "",
     evaluation_mode: str = "debug",
     formal_target_semantic_review_required: bool = False,
+    task_intent: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     policy = _normalized_formal_verification_policy(formal_verification_policy)
+    dimension_requirements = research_dimension_requirements(task_intent)
+    explicit_task_intent = bool(dimension_requirements)
+    if explicit_task_intent:
+        formal_requirement = dimension_requirements["formal"]
+        if formal_requirement == "required":
+            policy = "required"
+        elif policy == "required":
+            policy = "optional"
     path = _normalized_recommended_research_path(
         recommended_research_path,
         formal_verification_policy=policy,
     )
     research_evaluation = _is_runtime_research_evaluation_mode(evaluation_mode)
     capability_eval = str(evaluation_mode or "") == "capability_eval"
+    generated_algorithm_required = bool(
+        research_evaluation
+        and (
+            not explicit_task_intent
+            or dimension_requirements["scientific_code"] == "required"
+        )
+    )
+    generated_simulation_required = bool(
+        research_evaluation
+        and (
+            not explicit_task_intent
+            or dimension_requirements["empirical"] == "required"
+        )
+    )
+    generated_code_review_required = bool(
+        research_evaluation
+        and (
+            not explicit_task_intent
+            or generated_algorithm_required
+            or generated_simulation_required
+        )
+    )
+    formal_lane_required = bool(
+        not explicit_task_intent
+        or dimension_requirements["formal"] == "required"
+    )
     contract = {
         "formal_verification_policy": policy,
         "recommended_research_path": path,
+        "recommended_research_path_frozen": bool(
+            str(recommended_research_path or "").strip()
+        ),
         "formal_required_for_final": policy == "required",
         "evaluation_mode": str(evaluation_mode or "debug"),
         "research_evaluation_requires_generated_algorithm_code": (
-            research_evaluation
+            generated_algorithm_required
         ),
         "research_evaluation_requires_generated_simulation_code": (
-            research_evaluation
+            generated_simulation_required
         ),
         "research_evaluation_requires_generated_code_semantic_review": (
-            research_evaluation
+            generated_code_review_required
         ),
-        "research_evaluation_requires_typed_metric_contracts": research_evaluation,
+        "research_evaluation_requires_typed_metric_contracts": (
+            generated_simulation_required
+        ),
         "formal_evaluation_requires_formal_target_semantic_review": bool(
-            capability_eval and formal_target_semantic_review_required
+            capability_eval
+            and formal_lane_required
+            and formal_target_semantic_review_required
         ),
-        "formal_evaluation_requires_formalizer_lean_candidate": capability_eval,
+        "formal_evaluation_requires_formalizer_lean_candidate": bool(
+            capability_eval and formal_lane_required
+        ),
         "formal_target_authoring_required": bool(
-            policy == "required" or capability_eval
+            policy == "required"
+            or (capability_eval and not explicit_task_intent)
         ),
         "formal_target_completion_policy": (
             "the task-specific mathematical target requires exact local "
@@ -458,7 +504,10 @@ def _runtime_requested_evidence_contract(
             else "formal gaps must remain explicit when the task-specific target "
             "is not kernel verified"
         ),
-        "simulation_target_authoring_required": True,
+        "simulation_target_authoring_required": bool(
+            not explicit_task_intent
+            or dimension_requirements["empirical"] == "required"
+        ),
         "acceptance_modes": [
             "full source theorem kernel proof required"
             if policy == "required"
@@ -471,6 +520,8 @@ def _runtime_requested_evidence_contract(
             "report formal verification level as none, partial, or full",
         ],
     }
+    if explicit_task_intent:
+        contract["dimension_requirements"] = dimension_requirements
     return contract
 
 
@@ -481,6 +532,7 @@ def _runtime_architect_context_with_requested_evidence_contract(
     recommended_research_path: str = "",
     evaluation_mode: str = "debug",
     formal_target_semantic_review_required: bool = False,
+    task_intent: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = dict(context or {})
     requested_contract = _runtime_requested_evidence_contract(
@@ -490,11 +542,16 @@ def _runtime_architect_context_with_requested_evidence_contract(
         formal_target_semantic_review_required=(
             formal_target_semantic_review_required
         ),
+        task_intent=task_intent,
     )
     existing_contract = payload.get("runtime_requested_evidence_contract", {})
     if isinstance(existing_contract, Mapping):
-        requested_contract = {**requested_contract, **dict(existing_contract)}
-    if _is_runtime_research_evaluation_mode(evaluation_mode):
+        requested_contract = (
+            {**dict(existing_contract), **requested_contract}
+            if task_intent
+            else {**requested_contract, **dict(existing_contract)}
+        )
+    if _is_runtime_research_evaluation_mode(evaluation_mode) and not task_intent:
         for requirement in (
             "generated_algorithm_code",
             "generated_simulation_code",
@@ -504,11 +561,11 @@ def _runtime_architect_context_with_requested_evidence_contract(
             requested_contract[
                 f"research_evaluation_requires_{requirement}"
             ] = True
-    if str(evaluation_mode or "") == "capability_eval":
+    if str(evaluation_mode or "") == "capability_eval" and not task_intent:
         requested_contract[
             "formal_evaluation_requires_formalizer_lean_candidate"
         ] = True
-    elif str(evaluation_mode or "") == "research_eval":
+    elif str(evaluation_mode or "") == "research_eval" and not task_intent:
         requested_contract[
             "formal_evaluation_requires_formalizer_lean_candidate"
         ] = False
@@ -518,6 +575,33 @@ def _runtime_architect_context_with_requested_evidence_contract(
     payload["runtime_requested_evidence_contract"] = requested_contract
     payload["runtime_evaluation_mode"] = str(evaluation_mode or "debug")
     return payload
+
+
+def _runtime_task_intent_requires_generated_code_review(
+    task_intent: Mapping[str, Any] | None,
+    *,
+    evaluation_mode: str,
+) -> bool:
+    if not _is_runtime_research_evaluation_mode(evaluation_mode):
+        return False
+    requirements = research_dimension_requirements(task_intent)
+    return bool(
+        not requirements
+        or requirements["scientific_code"] == "required"
+        or requirements["empirical"] == "required"
+    )
+
+
+def _runtime_contract_dimension_requirements(
+    contract: Mapping[str, Any],
+) -> dict[str, str]:
+    raw = contract.get("dimension_requirements", {})
+    if not isinstance(raw, Mapping):
+        return {}
+    return {
+        str(dimension): str(requirement)
+        for dimension, requirement in raw.items()
+    }
 
 
 
@@ -595,17 +679,66 @@ def _compiled_post_theory_workspace_owner(
         for row in plan.get("subsystem_execution_plan", []) or []
         if isinstance(row, Mapping)
     ]
-    requires_algorithm = bool(
-        implementation_gaps
-        and _runtime_research_evaluation_contract_flag(
-            contract,
-            "generated_algorithm_code",
+    dimension_requirements = _runtime_contract_dimension_requirements(contract)
+    explicit_dimensions = bool(dimension_requirements)
+    requested_subsystem = _architect_packet_requested_subsystem(plan)
+    scientific_code_applicable = bool(
+        not explicit_dimensions
+        or dimension_requirements.get("scientific_code") != "not_applicable"
+    )
+    empirical_required = bool(
+        not explicit_dimensions
+        or dimension_requirements.get("empirical") == "required"
+    )
+    empirical_selected = bool(
+        empirical_required
+        or (
+            dimension_requirements.get("empirical") != "not_applicable"
+            and (
+                requested_subsystem == "SimulationEvaluator"
+                or bool(contract.get("simulation_targets"))
+            )
         )
     )
-    if research_path == "proof_first":
+    formal_required = bool(
+        contract.get("formal_required_for_final") is True
+        or dimension_requirements.get("formal") == "required"
+    )
+    formal_applicable = bool(
+        not explicit_dimensions
+        or dimension_requirements.get("formal") != "not_applicable"
+    )
+    formal_selected = bool(
+        formal_required
+        or (
+            formal_applicable
+            and (
+                requested_subsystem == "FormalizationEvaluator"
+                or bool(contract.get("formal_targets"))
+            )
+        )
+    )
+    requires_algorithm = bool(
+        implementation_gaps
+        and scientific_code_applicable
+        and (
+            _runtime_research_evaluation_contract_flag(
+                contract,
+                "generated_algorithm_code",
+            )
+            or requested_subsystem == "AlgorithmEngineer"
+        )
+    )
+    if research_path == "proof_first" and formal_selected:
         return "FormalizationEvaluator"
     if research_path == "simulation_first":
-        return "AlgorithmEngineer" if requires_algorithm else "SimulationEvaluator"
+        if requires_algorithm:
+            return "AlgorithmEngineer"
+        if empirical_selected:
+            return "SimulationEvaluator"
+        if formal_selected:
+            return "FormalizationEvaluator"
+        return "CriticEvaluator"
     for subsystem in planned:
         if subsystem not in {
             "AlgorithmEngineer",
@@ -613,12 +746,22 @@ def _compiled_post_theory_workspace_owner(
             "FormalizationEvaluator",
         }:
             continue
+        if subsystem == "SimulationEvaluator" and not empirical_selected:
+            continue
         if subsystem == "SimulationEvaluator" and requires_algorithm:
             return "AlgorithmEngineer"
-        if subsystem == "AlgorithmEngineer" and not implementation_gaps:
+        if subsystem == "AlgorithmEngineer" and not requires_algorithm:
+            continue
+        if subsystem == "FormalizationEvaluator" and not formal_applicable:
             continue
         return subsystem
-    return "AlgorithmEngineer" if requires_algorithm else "FormalizationEvaluator"
+    if requires_algorithm:
+        return "AlgorithmEngineer"
+    if empirical_selected:
+        return "SimulationEvaluator"
+    if formal_selected:
+        return "FormalizationEvaluator"
+    return "CriticEvaluator"
 
 
 def _architect_theory_preflight_accepted_result(
@@ -1417,13 +1560,20 @@ class ArchitectCoordinatorRuntimeSubsystem:
                         observation_type="llm_architect_feedback_route",
                         summary=(
                             f"Architect model selected {selected_subsystem}; runtime "
-                            "materialized that exact existing-agent route."
+                            + (
+                                "materialized that exact existing-agent route."
+                                if next_task.owner_subsystem == selected_subsystem
+                                else "enforced the frozen task-intent boundary and "
+                                f"continued at {next_task.owner_subsystem}."
+                            )
                         ),
                         payload={
                             "route_decision_id": decision_id,
                             "model_requested_subsystem": selected_subsystem,
                             "selected_subsystem": next_task.owner_subsystem,
-                            "runtime_owner_override_applied": False,
+                            "runtime_owner_override_applied": bool(
+                                next_task.owner_subsystem != selected_subsystem
+                            ),
                             "full_research_plan_regenerated": False,
                             "runtime_authored_candidate_fix": False,
                             "confirmatory_evaluation_cohort_transition_id": str(
@@ -2794,9 +2944,26 @@ def _architect_initial_routing_decision(
         requested_subsystem_override
     )
     if requested_override:
+        requested_contract = _architect_runtime_plan(architect_context).get(
+            "evidence_contract", {}
+        )
+        requested_dimensions = (
+            _runtime_contract_dimension_requirements(requested_contract)
+            if isinstance(requested_contract, Mapping)
+            else {}
+        )
+        requested_dimension = {
+            "AlgorithmEngineer": "scientific_code",
+            "SimulationEvaluator": "empirical",
+            "FormalizationEvaluator": "formal",
+        }.get(requested_override, "")
+        requested_lane_not_applicable = bool(
+            requested_dimension
+            and requested_dimensions.get(requested_dimension) == "not_applicable"
+        )
         selected_subsystem = (
             requested_override
-            if honor_requested_subsystem
+            if honor_requested_subsystem and not requested_lane_not_applicable
             else _architect_feasible_initial_subsystem(
                 requested_override,
                 architect_context=architect_context,
@@ -2815,7 +2982,12 @@ def _architect_initial_routing_decision(
                 requested_override != selected_subsystem
             ),
             "model_route_honored_exactly": bool(honor_requested_subsystem),
+            "requested_lane_not_applicable": requested_lane_not_applicable,
         }
+        selected["model_route_honored_exactly"] = bool(
+            honor_requested_subsystem
+            and requested_override == selected_subsystem
+        )
     else:
         selected = _architect_select_initial_subsystem(
             packet=packet,
@@ -3565,6 +3737,28 @@ def _architect_feasible_initial_subsystem(
     blackboard: BlackboardState,
     question_id: str = "",
 ) -> str:
+    runtime_plan = _architect_runtime_plan(architect_context)
+    evidence_contract = runtime_plan.get("evidence_contract", {})
+    if not isinstance(evidence_contract, Mapping) or not evidence_contract:
+        evidence_contract = architect_context.get(
+            "runtime_requested_evidence_contract", {}
+        )
+    dimension_requirements = (
+        _runtime_contract_dimension_requirements(evidence_contract)
+        if isinstance(evidence_contract, Mapping)
+        else {}
+    )
+    subsystem_dimension = {
+        "AlgorithmEngineer": "scientific_code",
+        "SimulationEvaluator": "empirical",
+        "FormalizationEvaluator": "formal",
+    }
+    requested_dimension = subsystem_dimension.get(requested, "")
+    if (
+        requested_dimension
+        and dimension_requirements.get(requested_dimension) == "not_applicable"
+    ):
+        requested = "CriticEvaluator"
     if requested in {"RetrievalMemory", "TheoryDeveloper"}:
         return requested
     if requested == "SimulationEvaluator":
@@ -3589,20 +3783,64 @@ def _architect_feasible_initial_subsystem(
             return "TheoryDeveloper"
         return "FormalizationEvaluator"
     if requested == "CriticEvaluator":
-        formalization_manifest_id = _architect_context_formalization_manifest_id(
-            architect_context
+        theory_packet_id = _architect_context_theory_packet_id(architect_context)
+        theory_needed = bool(
+            not dimension_requirements
+            or any(
+                dimension_requirements.get(dimension) == "required"
+                for dimension in (
+                    "theory",
+                    "scientific_code",
+                    "empirical",
+                    "formal",
+                )
+            )
         )
-        if formalization_manifest_id and _architect_blackboard_artifact_present(
+        if theory_needed and not _architect_blackboard_artifact_present(
             blackboard,
-            formalization_manifest_id,
+            theory_packet_id,
         ):
-            return "CriticEvaluator"
-        return _architect_feasible_initial_subsystem(
-            "FormalizationEvaluator",
-            architect_context=architect_context,
-            blackboard=blackboard,
-            question_id=question_id,
+            return "TheoryDeveloper"
+        required_artifacts = (
+            (
+                "scientific_code",
+                "AlgorithmEngineer",
+                _architect_context_algorithm_sandbox_manifest_id(
+                    architect_context
+                ),
+            ),
+            (
+                "empirical",
+                "SimulationEvaluator",
+                _architect_context_simulation_manifest_id(architect_context),
+            ),
         )
+        for dimension, subsystem, artifact_id in required_artifacts:
+            if (
+                dimension_requirements.get(dimension) == "required"
+                and not _architect_blackboard_artifact_present(
+                    blackboard,
+                    artifact_id,
+                )
+            ):
+                return subsystem
+        if (
+            dimension_requirements.get("formal") == "required"
+            or (
+                not dimension_requirements
+                and isinstance(evidence_contract, Mapping)
+                and evidence_contract.get("formal_required_for_final") is True
+            )
+        ):
+            formalization_manifest_id = _architect_context_formalization_manifest_id(
+                architect_context
+            )
+            if not _architect_blackboard_artifact_present(
+                blackboard,
+                formalization_manifest_id,
+            ):
+                return "FormalizationEvaluator"
+        return "CriticEvaluator"
     return "TheoryDeveloper" if requested else "RetrievalMemory"
 
 
@@ -19043,6 +19281,16 @@ def run_research_agent_runtime(
             )
     if (
         _is_runtime_research_evaluation_mode(config.evaluation_mode)
+        and (
+            not questions
+            or any(
+                _runtime_task_intent_requires_generated_code_review(
+                    question.task_intent,
+                    evaluation_mode=config.evaluation_mode,
+                )
+                for question in questions
+            )
+        )
         and generated_code_semantic_reviewer is None
     ):
         raise ValueError(
@@ -19051,6 +19299,11 @@ def run_research_agent_runtime(
         )
     if (
         config.formal_target_semantic_review_required
+        and any(
+            not (requirements := research_dimension_requirements(question.task_intent))
+            or requirements["formal"] == "required"
+            for question in questions
+        )
         and formal_target_semantic_reviewer is None
     ):
         raise ValueError(
@@ -19210,6 +19463,18 @@ def run_research_agent_runtime(
         ),
     }
     for question in questions:
+        question_architect_context = (
+            _runtime_architect_context_with_requested_evidence_contract(
+                runtime_architect_context,
+                formal_verification_policy=formal_verification_policy,
+                recommended_research_path=requested_research_path,
+                evaluation_mode=config.evaluation_mode,
+                formal_target_semantic_review_required=(
+                    config.formal_target_semantic_review_required
+                ),
+                task_intent=question.task_intent,
+            )
+        )
         resume_pending_task = initial_task_overrides.get(question.id)
         blackboard = BlackboardState(project_id=f"ai_statistician:{question.id}")
         rehydrated_artifacts = initial_blackboard_artifacts.get(question.id, {})
@@ -19377,7 +19642,7 @@ def run_research_agent_runtime(
                 ),
                 inputs={
                     "question": _question_to_payload(question),
-                    "architect_context": dict(runtime_architect_context),
+                    "architect_context": dict(question_architect_context),
                     "resume_pending_task": asdict(resume_pending_task),
                     "resume_review_contract": {
                         "artifact_kind": "RuntimeArchitectResumeReviewContract",
@@ -19415,7 +19680,7 @@ def run_research_agent_runtime(
                     ),
                     inputs={
                         "question": _question_to_payload(question),
-                        "architect_context": dict(runtime_architect_context),
+                        "architect_context": dict(question_architect_context),
                     },
                     allowed_tools=("model_backend", "blackboard"),
                     expected_artifacts=("architect_coordinator_proposal",),
@@ -19429,7 +19694,7 @@ def run_research_agent_runtime(
                     objective="Retrieve paper, statistical knowledge, and formal-source context before theory derivation.",
                     inputs={
                         "question": _question_to_payload(question),
-                        "architect_context": dict(runtime_architect_context),
+                        "architect_context": dict(question_architect_context),
                     },
                     allowed_tools=("research_knowledge", "paper_index", "formal_source_retriever"),
                     expected_artifacts=("retrieval_memory_manifest",),
@@ -19442,11 +19707,11 @@ def run_research_agent_runtime(
             and not (
                 config.resume_through_architect and architect_coordinator is not None
             )
-            and runtime_architect_context
+            and question_architect_context
         ):
             initial_task = _merge_resume_task_architect_context(
                 initial_task,
-                runtime_architect_context,
+                question_architect_context,
             )
         result = runtime.run(
             initial_task,
@@ -19766,6 +20031,9 @@ def run_research_agent_runtime(
         "question_task_families": {
             question.id: _question_primary_task_family(question)
             for question in questions
+        },
+        "question_task_intents": {
+            question.id: dict(question.task_intent) for question in questions
         },
         "config": asdict(config),
         "runtime_input_context": _runtime_input_context_summary(
@@ -21471,6 +21739,12 @@ def _runtime_context_contract_flag(
     flag: str,
 ) -> bool:
     requested_contract = context.get("runtime_requested_evidence_contract", {})
+    authoritative = _runtime_task_owned_contract_flag(
+        context,
+        flag=flag,
+    )
+    if authoritative is not None:
+        return authoritative
     if isinstance(requested_contract, Mapping) and requested_contract.get(flag) is True:
         return True
     control = _architect_control_payload(context, subsystem)
@@ -21479,6 +21753,21 @@ def _runtime_context_contract_flag(
         isinstance(evidence_contract, Mapping)
         and evidence_contract.get(flag) is True
     )
+
+
+def _runtime_task_owned_contract_flag(
+    context: Mapping[str, Any],
+    *,
+    flag: str,
+) -> bool | None:
+    requested = context.get("runtime_requested_evidence_contract", {})
+    if not (
+        isinstance(requested, Mapping)
+        and _runtime_contract_dimension_requirements(requested)
+    ):
+        return None
+    value = requested.get(flag)
+    return value if isinstance(value, bool) else None
 
 
 def _runtime_environment_feedback_contract_flag(
@@ -21506,6 +21795,23 @@ def _runtime_environment_feedback_contract_flag(
     return False
 
 
+def _runtime_effective_contract_flag(
+    context: Mapping[str, Any],
+    feedback: Mapping[str, Any] | None,
+    *,
+    subsystem: str,
+    flag: str,
+) -> bool:
+    authoritative = _runtime_task_owned_contract_flag(context, flag=flag)
+    if authoritative is not None:
+        return authoritative
+    return _runtime_context_contract_flag(
+        context,
+        subsystem=subsystem,
+        flag=flag,
+    ) or _runtime_environment_feedback_contract_flag(feedback, flag=flag)
+
+
 def _runtime_context_with_environment_feedback_contract(
     context: Mapping[str, Any],
     feedback: Mapping[str, Any] | None,
@@ -21520,6 +21826,9 @@ def _runtime_context_with_environment_feedback_contract(
         if isinstance(merged.get("runtime_requested_evidence_contract", {}), Mapping)
         else {}
     )
+    task_intent_owned = bool(
+        _runtime_contract_dimension_requirements(requested_contract)
+    )
     feedback_sources: list[Mapping[str, Any]] = [feedback]
     input_summary = feedback.get("input_summary", {})
     if isinstance(input_summary, Mapping):
@@ -21533,7 +21842,7 @@ def _runtime_context_with_environment_feedback_contract(
             if not isinstance(contract, Mapping):
                 continue
             for key, value in contract.items():
-                if str(key).startswith(
+                if (not task_intent_owned) and str(key).startswith(
                     ("research_evaluation_requires_", "formal_evaluation_requires_")
                 ) and value is True:
                     requested_contract[str(key)] = True
@@ -21560,8 +21869,11 @@ def _runtime_context_with_environment_feedback_contract(
         for key, value in requested_contract.items():
             if str(key).startswith(
                 ("research_evaluation_requires_", "formal_evaluation_requires_")
-            ) and value is True:
-                evidence_contract.setdefault(str(key), True)
+            ) and isinstance(value, bool):
+                if task_intent_owned:
+                    evidence_contract[str(key)] = value
+                elif value is True:
+                    evidence_contract.setdefault(str(key), True)
         if evidence_contract:
             control = dict(control)
             control["evidence_contract"] = evidence_contract
@@ -21575,12 +21887,10 @@ def _runtime_requires_generated_algorithm_code(
     context: Mapping[str, Any],
     environment_feedback: Mapping[str, Any] | None = None,
 ) -> bool:
-    return _runtime_context_contract_flag(
+    return _runtime_effective_contract_flag(
         context,
-        subsystem="AlgorithmEngineer",
-        flag="research_evaluation_requires_generated_algorithm_code",
-    ) or _runtime_environment_feedback_contract_flag(
         environment_feedback,
+        subsystem="AlgorithmEngineer",
         flag="research_evaluation_requires_generated_algorithm_code",
     )
 
@@ -21593,12 +21903,10 @@ def _runtime_requires_typed_metric_contracts(
 ) -> bool:
     if subsystem == "AlgorithmEngineer":
         return False
-    return _runtime_context_contract_flag(
+    return _runtime_effective_contract_flag(
         context,
-        subsystem=subsystem,
-        flag="research_evaluation_requires_typed_metric_contracts",
-    ) or _runtime_environment_feedback_contract_flag(
         environment_feedback,
+        subsystem=subsystem,
         flag="research_evaluation_requires_typed_metric_contracts",
     )
 
@@ -21677,12 +21985,10 @@ def _runtime_requires_generated_simulation_code(
     context: Mapping[str, Any],
     environment_feedback: Mapping[str, Any] | None = None,
 ) -> bool:
-    return _runtime_context_contract_flag(
+    return _runtime_effective_contract_flag(
         context,
-        subsystem="SimulationEvaluator",
-        flag="research_evaluation_requires_generated_simulation_code",
-    ) or _runtime_environment_feedback_contract_flag(
         environment_feedback,
+        subsystem="SimulationEvaluator",
         flag="research_evaluation_requires_generated_simulation_code",
     )
 
@@ -21956,6 +22262,9 @@ def _runtime_context_requires_formalizer_contract_flag(
 ) -> bool:
     if not isinstance(context, Mapping):
         return False
+    authoritative = _runtime_task_owned_contract_flag(context, flag=flag)
+    if authoritative is not None:
+        return authoritative
     if _runtime_context_contract_flag(
         context,
         subsystem="FormalizationEvaluator",
