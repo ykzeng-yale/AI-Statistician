@@ -57,16 +57,19 @@ def test_ladder_counts_fully_configured_active_tasks_without_embedding_gold() ->
         for candidate in candidates
         if candidate["status"].startswith("proposed_pending_")
     ]
-    assert ladder["current_readiness"]["active_scored_tasks"] == len(active) == 2
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 2
+    assert ladder["current_readiness"]["active_scored_tasks"] == len(active) == 3
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 3
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     assert {candidate["id"] for candidate in active} == {
         "heteroskedastic_covariance_known_result",
         "kaplan_meier_greenwood_known_result",
+        "double_machine_learning_public_replication",
     }
     for candidate in active:
         assert candidate["gold_runtime_visibility"] == "evaluator_only_after_runtime"
-        assert candidate["activation_status"].startswith("full_task_gold_")
+        assert candidate["activation_status"].startswith(
+            ("full_task_gold_", "fresh_live_v1_")
+        )
         assert Path(candidate["visible_questions_path"]).is_file()
         assert "gold_manifest" not in candidate
         assert candidate["gold_authority"] == (
@@ -104,10 +107,20 @@ def test_doubleml_l1_freezes_exact_replication_without_conflating_l2() -> None:
     )
 
     assert candidate["level"] == "L1"
-    assert candidate["status"] == (
-        "runtime_component_ready_pending_fresh_live_run"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_blocked_before_checkpoint_promotion"
     )
-    assert candidate["activation_evidence"]["fresh_live_runs"] == 0
+    assert candidate["activation_evidence"]["fresh_live_runs"] == 1
+    assert candidate["activation_evidence"]["fresh_live_runtime_status"] == (
+        "BLOCKED"
+    )
+    assert candidate["activation_evidence"][
+        "fresh_live_source_execution_status"
+    ] == "EXECUTED"
+    assert candidate["activation_evidence"][
+        "fresh_live_hidden_gold_result"
+    ].startswith("0/1")
     assert candidate["activation_evidence"][
         "runtime_source_replication_lane_available"
     ] is True
