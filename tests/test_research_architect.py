@@ -333,21 +333,13 @@ def _theory_tool_response(*calls: ClientToolCall) -> ClientToolTurnResponse:
 
 def _theory_artifact_writes(
     artifacts: dict[str, object],
-    *,
-    documents: dict[str, str] | None = None,
 ) -> dict[str, object]:
-    result: dict[str, object] = {
+    return {
         "writes": [
             {"artifact_name": name, "value": value}
             for name, value in artifacts.items()
         ]
     }
-    if documents:
-        result["document_writes"] = [
-            {"path": path, "content": content}
-            for path, content in documents.items()
-        ]
-    return result
 
 
 def _file_authority_theory_fixture(
@@ -1443,37 +1435,35 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     fixed_derivation["formalization_handoff"][
         "source_theorem_target"
     ] = "aipw_asymptotic_normality"
-    initial_artifact_items = list(invalid_core_artifacts.items())
-    initial_artifact_batches = [
-        dict(initial_artifact_items[index : index + 2])
-        for index in range(0, len(initial_artifact_items), 2)
-    ]
+    initial_document_path, initial_document_content = next(
+        iter(theory_documents.items())
+    )
     provider = ScriptedTheoryToolBackend(
         tool_responses=[
             _theory_tool_response(
                 ClientToolCall(
                     call_id="read-initial-context",
                     name="read_theory_workspace",
+                    input={"artifact_names": ["initial_authoring_context"]},
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="write-initial-theory-document",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
                     input={
-                        "artifact_names": ["initial_authoring_context"]
+                        "path": initial_document_path,
+                        "content": initial_document_content,
                     },
                 )
             ),
-            *[
-                _theory_tool_response(
-                    ClientToolCall(
-                        call_id=f"edit-initial-theory-{index}",
-                        name=THEORY_WORKSPACE_WRITE_TOOL,
-                        input=_theory_artifact_writes(
-                            batch,
-                            documents=(
-                                theory_documents if index == 0 else None
-                            ),
-                        ),
-                    )
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="write-initial-theory-handoff",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_theory_artifact_writes(invalid_core_artifacts),
                 )
-                for index, batch in enumerate(initial_artifact_batches)
-            ],
+            ),
             _theory_tool_response(
                 ClientToolCall(
                     call_id="reread-theory-before-fix",
@@ -1518,7 +1508,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     packet = developer.derive(question)
 
     assert validate_theory_packet(packet) == []
-    assert len(provider.tool_requests) == 8
+    assert len(provider.tool_requests) == 6
     assert len(provider.generator_requests) == 1
     first_request = provider.tool_requests[0]
     assert first_request.metadata["theory_developer_phase"] == (
@@ -1543,6 +1533,11 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert "initial_authoring_context" in initial_prompt
     assert "scratchpad result is an exploratory diagnostic" in initial_prompt
     assert "pre-outcome-frozen simulation lane" in initial_prompt
+    assert "Use write_theory_document(path, content)" in initial_prompt
+    assert "write_theory_workspace only for compact structured handoff" in (
+        initial_prompt
+    )
+    assert "one atomic call" not in initial_prompt
     assert (
         f"at most {developer.config.theory_workspace_max_submissions} writes"
         in initial_prompt
@@ -1572,7 +1567,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert evidence["model_owned_theory"] is True
     assert evidence["runtime_edited_theory"] is False
     assert evidence["reads"] == 2
-    assert evidence["submissions"] == 5
+    assert evidence["submissions"] == 3
     assert set(evidence["changed_artifact_names"]) == (
         set(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT) - optional_artifacts
     )
@@ -1797,6 +1792,11 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
         },
     ]
     revised_core["theory_derivation_packet"] = revised_derivation
+    revised_document = (
+        parent_documents["theory/workspace.md"]
+        + "\n## bounded_outcome_moment_control\n\n"
+        + "Bounded outcomes imply the required finite moment.\n"
+    )
     provider = ScriptedTheoryToolBackend(
         tool_responses=[
             _theory_tool_response(
@@ -1813,20 +1813,23 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
             ),
             _theory_tool_response(
                 ClientToolCall(
+                    call_id="write-revised-theory-document",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                    input={
+                        "path": "theory/workspace.md",
+                        "content": revised_document,
+                    },
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
                     call_id="edit-lemmas",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
                     input=_theory_artifact_writes(
                         {
                             "lemma_cards": revised_core["lemma_cards"],
                             "theory_derivation_packet": revised_derivation,
-                        },
-                        documents={
-                            "theory/workspace.md": (
-                                parent_documents["theory/workspace.md"]
-                                + "\n## bounded_outcome_moment_control\n\n"
-                                + "Bounded outcomes imply the required finite moment.\n"
-                            )
-                        },
+                        }
                     ),
                 )
             ),
@@ -1852,7 +1855,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert packet["lemma_cards"][-1]["id"] == (
         "bounded_outcome_moment_control"
     )
-    assert len(provider.tool_requests) == 3
+    assert len(provider.tool_requests) == 4
     assert provider.generator_requests == []
     first_tool_request = provider.tool_requests[0]
     assert first_tool_request.metadata["theory_developer_phase"] == (
@@ -1907,7 +1910,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert workspace_evidence["model_owned_theory"] is True
     assert workspace_evidence["runtime_edited_theory"] is False
     assert workspace_evidence["reads"] == 1
-    assert workspace_evidence["submissions"] == 1
+    assert workspace_evidence["submissions"] == 2
     assert workspace_evidence["n_model_document_writes"] == 1
     assert packet["theory_generation_phases"][0]["phase"] == (
         "artifact_workspace_revision"
@@ -2036,8 +2039,11 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
     assert prompt_payload["reviewer_observations"]["workspace_artifact"] == (
         "reviewer_observations"
     )
-    assert "write_theory_workspace" in " ".join(
-        prompt_payload["instructions"]
+    revision_instructions = " ".join(prompt_payload["instructions"])
+    assert "write_theory_document" in revision_instructions
+    assert "edit_theory_document" in revision_instructions
+    assert "write_theory_workspace only for compact structured handoff" in (
+        revision_instructions
     )
 
     tampered_context = json.loads(json.dumps(context))
@@ -2066,21 +2072,29 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged(
     context = _metric_theory_revision_context(question=question, parent=parent)
     revised_problem_card = json.loads(json.dumps(parent["problem_card"]))
     revised_problem_card["assumptions"].append("bounded outcomes")
+    revised_document = (
+        parent_documents["theory/workspace.md"]
+        + "\n## bounded_outcomes\n\n"
+        + "Assume outcomes are bounded.\n"
+    )
     provider = ScriptedTheoryToolBackend(
         tool_responses=[
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="write-revised-document-for-abi-reuse",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                    input={
+                        "path": "theory/workspace.md",
+                        "content": revised_document,
+                    },
+                )
+            ),
             _theory_tool_response(
                 ClientToolCall(
                     call_id="edit-revised-problem-card-for-abi-reuse",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
                     input=_theory_artifact_writes(
-                        {"problem_card": revised_problem_card},
-                        documents={
-                            "theory/workspace.md": (
-                                parent_documents["theory/workspace.md"]
-                                + "\n## bounded_outcomes\n\n"
-                                + "Assume outcomes are bounded.\n"
-                            )
-                        },
+                        {"problem_card": revised_problem_card}
                     ),
                 )
             ),
@@ -2103,7 +2117,7 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged(
     packet = developer.derive(question, architect_context=context)
 
     assert validate_theory_packet(packet) == []
-    assert len(provider.tool_requests) == 2
+    assert len(provider.tool_requests) == 3
     assert provider.generator_requests == []
     assert packet["estimator_specs"][0][
         "estimator_interface_contract"
@@ -2204,8 +2218,23 @@ def test_theory_revision_resumes_interface_stage_from_validated_core(
     ]["sample_size_rate"]["contributions"][0]["polynomial_exponent"] = (
         "still-invalid"
     )
+    revised_document = (
+        parent_documents["theory/workspace.md"]
+        + "\n## bounded_outcomes\n\n"
+        + "Assume outcomes are bounded.\n"
+    )
     first_provider = ScriptedTheoryToolBackend(
         tool_responses=[
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="write-revised-document-before-interface-stage",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                    input={
+                        "path": "theory/workspace.md",
+                        "content": revised_document,
+                    },
+                )
+            ),
             _theory_tool_response(
                 ClientToolCall(
                     call_id="edit-revised-problem-card",
@@ -2214,14 +2243,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core(
                         {
                             "problem_card": revised_core["problem_card"],
                             "estimator_specs": revised_core["estimator_specs"],
-                        },
-                        documents={
-                            "theory/workspace.md": (
-                                parent_documents["theory/workspace.md"]
-                                + "\n## bounded_outcomes\n\n"
-                                + "Assume outcomes are bounded.\n"
-                            )
-                        },
+                        }
                     ),
                 )
             ),

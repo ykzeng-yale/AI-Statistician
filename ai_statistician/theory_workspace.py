@@ -714,16 +714,16 @@ def run_theory_artifact_workspace(
                 raise ClientToolInputError(
                     "theory workspace submission budget is exhausted"
                 )
-            candidate_documents, document_write_records = (
-                _replace_theory_workspace_documents(
+            candidate_documents, document_write_record = (
+                _replace_theory_workspace_document(
                     state["documents"],
-                    [tool_input],
+                    tool_input,
                 )
             )
             return evaluate_model_write(
                 state["artifacts"],
                 candidate_documents,
-                document_writes=document_write_records,
+                document_writes=[document_write_record],
             )
 
         if call.name == THEORY_WORKSPACE_WRITE_TOOL:
@@ -731,15 +731,15 @@ def run_theory_artifact_workspace(
                 raise ClientToolInputError(
                     "theory workspace submission budget is exhausted"
                 )
-            if set(tool_input) - {"writes", "document_writes"}:
+            if set(tool_input) - {"writes"}:
                 raise ClientToolInputError(
-                    "write_theory_workspace accepts writes and document_writes"
+                    "write_theory_workspace accepts only structured writes; "
+                    "use write_theory_document for Markdown, LaTeX, or BibTeX"
                 )
             raw_artifact_writes = tool_input.get("writes", [])
-            raw_document_writes = tool_input.get("document_writes", [])
-            if not raw_artifact_writes and not raw_document_writes:
+            if not raw_artifact_writes:
                 raise ClientToolInputError(
-                    "write_theory_workspace requires at least one artifact or document write"
+                    "write_theory_workspace requires at least one structured write"
                 )
             candidate_artifacts, write_records = (
                 _replace_theory_workspace_artifacts(
@@ -749,18 +749,10 @@ def run_theory_artifact_workspace(
                     allow_empty=True,
                 )
             )
-            candidate_documents, document_write_records = (
-                _replace_theory_workspace_documents(
-                    state["documents"],
-                    raw_document_writes,
-                    allow_empty=True,
-                )
-            )
             return evaluate_model_write(
                 candidate_artifacts,
-                candidate_documents,
+                state["documents"],
                 artifact_writes=write_records,
-                document_writes=document_write_records,
             )
 
         if call.name == THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL:
@@ -2267,53 +2259,32 @@ def _replace_theory_workspace_artifacts(
     return candidate, records
 
 
-def _replace_theory_workspace_documents(
+def _replace_theory_workspace_document(
     current_documents: Mapping[str, str],
-    raw_writes: Any,
-    *,
-    allow_empty: bool = False,
-) -> tuple[dict[str, str], list[dict[str, Any]]]:
-    if (
-        not isinstance(raw_writes, Sequence)
-        or isinstance(raw_writes, (str, bytes))
-        or (not raw_writes and not allow_empty)
-    ):
+    raw_write: Any,
+) -> tuple[dict[str, str], dict[str, Any]]:
+    if not isinstance(raw_write, Mapping):
         raise ClientToolInputError(
-            "write_theory_workspace requires document_writes to be an array"
+            "write_theory_document requires an object"
         )
     candidate = dict(current_documents)
-    records: list[dict[str, Any]] = []
-    observed_paths: set[str] = set()
-    for index, raw_write in enumerate(raw_writes):
-        if not isinstance(raw_write, Mapping):
-            raise ClientToolInputError(
-                f"theory document write {index} must be an object"
-            )
-        write = dict(raw_write)
-        if set(write) != {"path", "content"}:
-            raise ClientToolInputError(
-                f"theory document write {index} requires exactly path and content"
-            )
-        path = _normalized_theory_document_path(write["path"])
-        if path in observed_paths:
-            raise ClientToolInputError(
-                f"theory document write {index} repeats {path!r}"
-            )
-        observed_paths.add(path)
-        content = write["content"]
-        if not isinstance(content, str) or not content.strip():
-            raise ClientToolInputError(
-                f"theory document write {index} content must be nonempty text"
-            )
-        candidate[path] = content
-        records.append(
-            {
-                "relative_path": path,
-                "sha256": _text_sha256(content),
-                "byte_size": len(content.encode("utf-8")),
-            }
+    write = dict(raw_write)
+    if set(write) != {"path", "content"}:
+        raise ClientToolInputError(
+            "write_theory_document requires exactly path and content"
         )
-    return candidate, records
+    path = _normalized_theory_document_path(write["path"])
+    content = write["content"]
+    if not isinstance(content, str) or not content.strip():
+        raise ClientToolInputError(
+            "write_theory_document content must be nonempty text"
+        )
+    candidate[path] = content
+    return candidate, {
+        "relative_path": path,
+        "sha256": _text_sha256(content),
+        "byte_size": len(content.encode("utf-8")),
+    }
 
 
 def _edit_theory_workspace_document(

@@ -425,18 +425,13 @@ def test_source_only_intent_commits_markdown_report_without_theory_packet(
             _response(
                 ClientToolCall(
                     call_id="write-source-report",
-                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
                     input={
-                        "writes": [],
-                        "document_writes": [
-                            {
-                                "path": report_path,
-                                "content": (
-                                    "# Replication report\n\nThe immutable run returned "
-                                    "`coef=0.5`; hidden evaluation remains external.\n"
-                                ),
-                            }
-                        ],
+                        "path": report_path,
+                        "content": (
+                            "# Replication report\n\nThe immutable run returned "
+                            "`coef=0.5`; hidden evaluation remains external.\n"
+                        ),
                     },
                 )
             ),
@@ -1196,6 +1191,21 @@ def test_document_authority_persists_exact_math_and_small_handoff(
         [
             _response(
                 ClientToolCall(
+                    call_id="reject-legacy-combined-write",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input={
+                        "writes": [],
+                        "document_writes": [
+                            {
+                                "path": "derivations/C1.md",
+                                "content": markdown,
+                            }
+                        ],
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
                     call_id="write-authoritative-document",
                     name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
                     input={
@@ -1237,6 +1247,12 @@ def test_document_authority_persists_exact_math_and_small_handoff(
     assert (tmp_path / "theory" / "derivations" / "C1.md").read_text() == markdown
     assert result.evidence["changed_document_paths"] == ["derivations/C1.md"]
     assert result.evidence["n_model_document_writes"] == 1
+    rejected_observation = backend.requests[1].messages[-1]["content"][0]
+    assert rejected_observation["is_error"] is True
+    rejected_payload = json.loads(rejected_observation["content"])
+    assert rejected_payload["error"] == "client_tool_input_rejected"
+    assert "accepts only structured writes" in rejected_payload["detail"]
+    assert "use write_theory_document" in rejected_payload["detail"]
     write_schema = next(
         tool.input_schema
         for tool in backend.requests[0].tools
