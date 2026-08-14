@@ -228,9 +228,9 @@ Architect authors one complete protocol
 ```
 
 Metric row limits are execution/review budgets, not statistical rules. The reviewer
-reports defects and evidence but does not choose repair routes or source edits.
-Runtime binds exact identities and derives the fail-closed verdict; models own the
-protocol and rationales. There is no whole-packet repair worker.
+supplies a theory-consistent positive control that the frozen evaluator executes.
+Runtime reports that observation; models still own protocol semantics and revisions.
+There is no whole-packet repair worker or runtime-authored statistical transformation.
 
 A rejected `metric_contract_review` returns the exact findings to the same metric
 author inside that bounded operation. If the revised candidate remains rejected,
