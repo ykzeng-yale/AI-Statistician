@@ -376,6 +376,35 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError(
                     "blocking_observations must be an array of nonempty strings"
                 )
+            n_environment_observations = sum(
+                int(state[key] or 0)
+                for key in (
+                    "checks",
+                    "searches",
+                    "proof_searches",
+                    "state_inspections",
+                    "declaration_inspections",
+                )
+            )
+            if n_environment_observations == 0:
+                raise ClientToolInputError(
+                    "report_formal_gap requires at least one concrete compiler, "
+                    "search, or inspection observation from the active environment"
+                )
+            current_source = str(state["source"] or "")
+            latest_check = state["last_check"]
+            if current_source.strip() and not bool(
+                latest_check.get(
+                    "local_lean_source_compiled",
+                    latest_check.get("compiled", False),
+                )
+            ):
+                raise ClientToolInputError(
+                    "report_formal_gap cannot promote an unelaborated model-authored "
+                    "source into a foundation gap; rewrite and resubmit the complete "
+                    "source, or first establish the unchanged target with a locally "
+                    "elaborated statement-level witness"
+                )
             formal_gap = {
                 "summary": summary.strip(),
                 "missing_primitives": [value.strip() for value in missing_primitives],
@@ -1074,7 +1103,9 @@ def _lean_candidate_revision_tools(
                     "or foundation blocker required by that target. Errors caused by "
                     "imports, identifiers, types, or proof terms chosen in the current "
                     "model-authored source are feedback to rewrite the complete source, "
-                    "not by themselves formal gaps. Do not claim an attempted revision "
+                    "not by themselves formal gaps. If a current source exists, its "
+                    "task-bound statement must first elaborate locally before a missing "
+                    "proof primitive can be reported. Do not claim an attempted revision "
                     "without a corresponding tool observation. This is a non-proof "
                     "terminal result."
                 ),
