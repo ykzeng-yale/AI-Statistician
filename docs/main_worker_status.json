@@ -1,9 +1,9 @@
 {
-  "schema_version": 62,
+  "schema_version": 63,
   "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "aaca8a528065b7d0052efc345e3e5d7f9fa7390f",
+  "validated_code_head": "d7869fcb5474cfae91a52c90a566984f29716af3",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -53,7 +53,7 @@
     ]
   },
   "validated_change": {
-    "commit": "aaca8a528065b7d0052efc345e3e5d7f9fa7390f",
+    "commit": "d7869fcb5474cfae91a52c90a566984f29716af3",
     "changes": [
       "The existing TheoryDeveloper workspace now exposes one no-input run_research_source action for an operator-fixed, hash-bound paper entrypoint and environment. The same model reads raw stdout and stderr; it cannot choose the command, edit source, inherit secrets, or use network access.",
       "Explicit task_intent can terminate a source-replication-only objective with one model-authored Markdown report and gap checkpoint without fabricating theory, generated code, simulation, novelty, or formal proof artifacts.",
@@ -66,12 +66,13 @@
       "AgentRuntime and serious TheoryDeveloper authoring now fail closed when the backend lacks native client-tool turns instead of silently switching mathematical authority back to a regenerated JSON packet. A recovered interface-stage checkpoint is accepted only when its core is already bound to model-authored Markdown/LaTeX documents.",
       "Explicit per-question task intent now owns mandatory outer-graph evidence: required dimensions remain fail-closed, not_applicable dimensions cannot be resurrected by stale feedback or Architect routing, and optional dimensions may be selected by the Architect without becoming completion gates.",
       "TheoryDeveloper keeps Markdown/LaTeX documents as mathematical authority while its compact JSON handoff now requires only the estimator, simulation, theorem, proof-plan, and formalization ABIs needed by that question.",
-      "Research-evaluation completion and the terminal Critic now apply the same required, optional, and not_applicable evidence vector instead of one global theory-code-simulation-formal pipeline."
+      "Research-evaluation completion and the terminal Critic now apply the same required, optional, and not_applicable evidence vector instead of one global theory-code-simulation-formal pipeline.",
+      "Canonical AgentRuntime now removes provider/tool transcript history from the persisted Theory packet and stores it once as a separate evidence artifact bound to the exact packet ID and content hash. Critic source-grounding audit resolves that evidence without making mathematical identity depend on transport history; legacy direct packets remain readable."
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document references, and execution boundaries. DoubleML expected values and tolerances remain in an evaluator-only bundle outside the repository and model workspace. Runtime contains no DoubleML statistic, IRM equation, expected output, Lean grammar rule, or repair recipe.",
     "verification": {
-      "full_pytest": "715 passed in 95.52s",
-      "affected_subsystem_pytest": "160 Architect, AgentRuntime, TheoryDeveloper, and research-evaluation tests passed in 67.17s; six focused task-intent regressions passed in 0.18s",
+      "full_pytest": "716 passed in 96.33s",
+      "affected_subsystem_pytest": "78 AgentRuntime, Critic, theory-semantic-material, and runtime-audit tests passed in 0.99s",
       "source_retrieval_ablation": "A representative query reconstructed from persisted L1 matched terms returned five distinct top-5 documents, including the exact DoubleMLIRM implementation. The failed live run did not persist its raw query text, so this is not an exact-query replay and provides no report-correctness credit.",
       "real_immutable_source_execution": "EXECUTED with return code 0, no errors, no source mutation, and frozen stdout SHA-256 ef1f1614e671a91b435e46e98126fb24c442faec198b19ab709788af32ab16d3",
       "hidden_source_harness_calibration": "6/6: gold accepted and five source, environment, execution, stdout, or sign variants rejected",
@@ -79,9 +80,9 @@
       "model_policy_audit": "production tiers remain Haiku or Sonnet with Opus rejected; tests and live evaluations remain pinned to claude-haiku-4-5-20251001",
       "fresh_live_research_draws": 1,
       "fresh_live_result": "DoubleML L1 v1 BLOCKED and hidden gold 0/1; no rerun was used to seek a favorable model draw",
-      "runtime_core_growth": "research_agent_runtime.py is 24727 lines, theory_workspace.py is 2426 lines, and research_architect.py is 4834 lines; the cross-cutting contract changed existing boundaries but added no Python module, agent, scheduler, repair subsystem, retry, budget, or model call"
+      "runtime_core_growth": "research_agent_runtime.py is 24751 lines, theory_workspace.py is 2426 lines, and research_architect.py is 4834 lines; transport evidence detachment changed existing storage and Critic-resolution boundaries but added no Python module, agent, scheduler, repair subsystem, retry, budget, model call, or task-specific content rule"
     },
-    "evidence_boundary": "The task-intent and document-authority changes have deterministic and full-regression evidence only; no fresh model run was used. The earlier real source rerun remains component evidence but does not make the fresh model task pass: the checkpoint was rejected, hidden scoring did not run, and the Markdown report contains an incorrect IRM explanation."
+    "evidence_boundary": "The task-intent, document-authority, and transport-evidence detachment changes have deterministic and full-regression evidence only; no fresh model run was used. The earlier real source rerun remains component evidence but does not make the fresh model task pass: the checkpoint was rejected, hidden scoring did not run, and the Markdown report contains an incorrect IRM explanation."
   },
   "latest_component_evidence": {
     "id": "research_l1_doubleml_exact_replication_v1_haiku_20260814",
@@ -199,7 +200,8 @@
       "not-applicable scientific-code or empirical dimensions being labeled gold_validated when no corresponding evaluator ran",
       "one long source document monopolizing a small source-search top-k while a distinct exact definition or implementation remained hidden",
       "canonical AgentRuntime or serious theory silently falling back from model-authored Markdown/LaTeX to complete JSON-only mathematical authority when native client tools were unavailable",
-      "a global all-lane research-evaluation contract overriding explicit per-question required, optional, and not-applicable evidence dimensions"
+      "a global all-lane research-evaluation contract overriding explicit per-question required, optional, and not-applicable evidence dimensions",
+      "the complete TheoryDeveloper client-tool transcript being recursively embedded in the mathematical Theory packet and therefore changing theory identity with transport history"
     ],
     "remaining_structural_problems": [
       "strict development exact source-theorem closure remains 0/2",
@@ -212,7 +214,7 @@
       "fresh HC0 v5 hidden theory passed only 7/11 checks; its runtime protocol and unresolved-gap dimensions also failed",
       "fresh KM v2 produced a correct hidden-tested estimator but its theory contains substantive errors that runtime author, preflight, and terminal acceptance all failed to reject",
       "the calibrated single-Haiku semantic theory judge false-accepted the frozen bad KM candidate and passed only 4/5 hidden calibration cases; it is correctly fail-closed and cannot serve as theory authority",
-      "the file-backed TheoryDeveloper handoff still duplicates substantial theorem, estimator, simulation, and tool-history payload in JSON; documents are authoritative, but consumers have not yet moved to mostly content-addressed references",
+      "the file-backed TheoryDeveloper handoff no longer embeds client-tool history, but it still carries substantial structured theorem, estimator, simulation, proof-plan, and formalization ABI payloads; consumers have not yet moved to mostly content-addressed claim references",
       "TheoryDeveloper has durable same-run documents, hash-bound localized edits, direct curated-source search/read, and cited-range referee context, but still lacks a mature cross-session definition/equation/claim DAG, autonomous source acquisition, and independent search for uncited contrary sources",
       "the strengthened mathematical and scratchpad-boundary preflight prompt has regression evidence only; no new model draw is justified merely to test prompt luck",
       "the corrected terminal Critic and exact-citation interface has regression and frozen-replay evidence only; exact-Haiku previously false-accepted the bad KM theory, and no fresh unrelated source-grounded draw has tested whether exact citations improve judgment",
@@ -242,14 +244,14 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24727,
+    "research_agent_runtime_lines": 24751,
     "theory_workspace_lines": 2426,
     "research_architect_lines": 4834,
     "formalizer_llm_lines": 2387,
     "agent_runtime_lines": 1207,
     "cli_lines": 7067,
     "top_level_python_modules": 141,
-    "top_level_package_lines": 139313,
+    "top_level_package_lines": 139370,
     "latest_runtime_manifest_bytes": 58807
   },
   "next_gates": [
@@ -258,7 +260,7 @@
     "Before activating the next source task, freeze separate evaluator authority for exact replication identity and for report interpretation. A correct source rerun must not imply that optional mathematical prose is correct.",
     "Evaluate the document-diverse source policy only on the next unrelated frozen source task, with separate source-identity and report-interpretation authority. Do not rerun DoubleML or add a task-specific literature router merely to validate the policy.",
     "Keep the failed 4/5 semantic calibration as a hard negative. Do not turn one uncalibrated Haiku judgment, an ensemble vote, or repeated sampling into theory authority; improve source-grounded theory development and referee reasoning before another capability claim.",
-    "Reduce the transitional theory JSON handoff toward document and claim references while retaining only typed estimator, simulation, and optional formalization ABIs needed by consumers.",
+    "Continue reducing the transitional theory JSON handoff toward document and claim references while retaining only typed estimator, simulation, and optional formalization ABIs that a selected downstream consumer actually needs; do not reintroduce transport history or a packet-repair layer.",
     "Validate the now-implemented task-intent outer graph on the next unrelated frozen known result without changing its routing after observing outcomes: not_applicable lanes must stay absent, optional lanes must remain Architect-selectable, and required lanes must remain fail-closed.",
     "On the next unrelated known result, test the corrected terminal Critic unchanged against primary-source-grounded theory documents and an independently curated claim rubric; do not add task-specific prompts or increase retries after observing the result.",
     "Extend the now-real exact replication lane to a disjoint paper with pinned data and original outputs before claiming paper-to-code or frontier research ability; do not add a literature router hierarchy.",
