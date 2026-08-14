@@ -471,6 +471,11 @@ class LLMArchitectCoordinatorAgent:
             architect_context=architect_context,
             environment_feedback=environment_feedback,
         )
+        terminal_gap_report_required = _architect_terminal_gap_report_required(
+            architect_context=architect_context,
+            environment_feedback=environment_feedback,
+            available_subsystems=available_route_subsystems,
+        )
         request = GeneratorRequest(
             system_prompt=ARCHITECT_COORDINATOR_SYSTEM_PROMPT,
             user_prompt=build_architect_feedback_route_prompt(
@@ -552,6 +557,9 @@ class LLMArchitectCoordinatorAgent:
                 validate_packet=lambda packet: validate_architect_feedback_route_packet(
                     packet,
                     available_subsystems=available_route_subsystems,
+                    required_terminal_reporter=(
+                        "CriticEvaluator" if terminal_gap_report_required else ""
+                    ),
                 ),
                 validation_label="LLM Architect feedback-route packet",
                 max_validation_retries=self.config.max_validation_retries,
@@ -654,6 +662,11 @@ def build_architect_feedback_route_prompt(
         set(ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS)
         - set(available_route_subsystems)
     )
+    terminal_gap_report_required = _architect_terminal_gap_report_required(
+        architect_context=architect_context,
+        environment_feedback=environment_feedback,
+        available_subsystems=available_route_subsystems,
+    )
     source_revision_assessment: Mapping[str, Any] = {}
     for candidate in (
         environment_feedback,
@@ -697,6 +710,7 @@ def build_architect_feedback_route_prompt(
             environment_feedback
         ),
         "environment_feedback_fingerprint": stable_hash(dict(environment_feedback)),
+        "terminal_gap_report_required": terminal_gap_report_required,
         "routing_contract": {
             "owner_selected_by_architect_model": True,
             "selected_worker_receives_complete_feedback": True,
@@ -708,6 +722,7 @@ def build_architect_feedback_route_prompt(
             "outcome_informed_new_source_requires_fresh_cohort": True,
             "aggregate_confirmatory_failure_is_not_component_attribution": True,
             "outcome_only_failure_routes_to_gap_reporting": True,
+            "required_terminal_gap_report_cannot_be_skipped_by_block": True,
             "unvisited_required_lanes_are_independent": True,
             "critic_requires_no_routable_required_lane": True,
             "new_repair_patch_or_adapter_subsystem_forbidden": True,
@@ -750,6 +765,9 @@ def build_architect_feedback_route_prompt(
         ),
         "environment_feedback_fingerprint": payload[
             "environment_feedback_fingerprint"
+        ],
+        "terminal_gap_report_required": payload[
+            "terminal_gap_report_required"
         ],
         "routing_contract": payload["routing_contract"],
         "required_output": payload["required_output"],
@@ -803,7 +821,8 @@ def build_architect_feedback_route_prompt(
         "starting formalization.\n"
         "6. This decision materializes exactly one task; no lane runs in the background. "
         "CriticEvaluator is terminal and is allowed only when no routable required lane "
-        "remains.\n"
+        "remains. When terminal_gap_report_required is true, route CriticEvaluator; "
+        "BLOCK would suppress required evidence reporting and is invalid.\n"
         "7. Choose BLOCK only when no available subsystem can produce the next evidence. "
         "Return only one JSON object matching required_output.\n\n"
         + json.dumps(bounded_payload, separators=(",", ":"), default=str)
@@ -814,6 +833,7 @@ def validate_architect_feedback_route_packet(
     packet: Mapping[str, Any],
     *,
     available_subsystems: tuple[str, ...] = ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS,
+    required_terminal_reporter: str = "",
 ) -> list[str]:
     errors: list[str] = []
     decision = str(packet.get("decision", "") or "").strip()
@@ -834,11 +854,56 @@ def validate_architect_feedback_route_packet(
             errors.append("BLOCK requires selected_subsystem NONE")
         if objective:
             errors.append("BLOCK must leave objective empty")
+    if required_terminal_reporter and not (
+        decision == "ROUTE" and selected == required_terminal_reporter
+    ):
+        errors.append(
+            "terminal evidence reporting requires ROUTE to "
+            f"{required_terminal_reporter}"
+        )
     if str(packet.get("operation", "") or "") != ARCHITECT_FEEDBACK_ROUTE_OPERATION:
         errors.append("operation must identify the Architect feedback route")
     if not str(packet.get("environment_feedback_fingerprint", "") or ""):
         errors.append("environment_feedback_fingerprint must be nonempty")
     return errors
+
+
+def _architect_terminal_gap_report_required(
+    *,
+    architect_context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any],
+    available_subsystems: tuple[str, ...],
+) -> bool:
+    """Require the terminal reporter once no substantive evidence lane remains."""
+
+    confirmatory_terminal = bool(
+        environment_feedback.get("terminal_gap_reporting_required") is True
+        or (
+            environment_feedback.get("feedback_type")
+            == "confirmatory_simulation_outcome"
+            and environment_feedback.get("source_execution_valid") is True
+            and environment_feedback.get("execution_results_observed") is True
+            and environment_feedback.get("unchanged_source_retry_authorized")
+            is False
+        )
+    )
+    if not confirmatory_terminal or "CriticEvaluator" not in available_subsystems:
+        return False
+    progress = architect_context.get("runtime_progress_snapshot", {})
+    inventory = (
+        progress.get("evidence_lane_inventory", {})
+        if isinstance(progress, Mapping)
+        else {}
+    )
+    remaining_primary = (
+        inventory.get("remaining_primary_subsystems", [])
+        if isinstance(inventory, Mapping)
+        else []
+    )
+    return not any(
+        str(subsystem) in available_subsystems
+        for subsystem in remaining_primary or []
+    )
 
 
 def _architect_feedback_route_subsystems(

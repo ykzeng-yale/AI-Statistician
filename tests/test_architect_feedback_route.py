@@ -520,6 +520,75 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     assert "historical_context" not in request.user_prompt
 
 
+def test_terminal_gap_report_cannot_be_skipped_by_model_block() -> None:
+    backend = _RouteSequenceBackend(
+        [
+            {
+                "decision": "BLOCK",
+                "selected_subsystem": "NONE",
+                "objective": "",
+                "rationale": "No further candidate edit is justified.",
+            },
+            {
+                "decision": "ROUTE",
+                "selected_subsystem": "CriticEvaluator",
+                "objective": "Record the unresolved empirical gap.",
+                "rationale": "All substantive lanes are terminal.",
+            },
+        ]
+    )
+    context = {
+        "runtime_progress_snapshot": {
+            "evidence_lane_inventory": {
+                "remaining_primary_subsystems": [],
+            }
+        }
+    }
+    feedback = {
+        "feedback_type": "confirmatory_simulation_outcome",
+        "source_execution_valid": True,
+        "execution_results_observed": True,
+        "unchanged_source_retry_authorized": False,
+        "terminal_gap_reporting_required": True,
+    }
+
+    packet = LLMArchitectCoordinatorAgent(
+        provider=backend,
+        config=ArchitectCoordinatorConfig(
+            provider_name="anthropic",
+            model=EXACT_HAIKU_MODEL,
+            model_tier="haiku",
+            max_validation_retries=1,
+        ),
+    ).route_environment_feedback(
+        question=_question(),
+        architect_context=context,
+        environment_feedback=feedback,
+    )
+
+    assert packet["decision"] == "ROUTE"
+    assert packet["selected_subsystem"] == "CriticEvaluator"
+    assert len(backend.requests) == 2
+    prompt_payload = json.loads(
+        backend.requests[0].user_prompt.rsplit("\n\n", 1)[1]
+    )
+    assert prompt_payload["terminal_gap_report_required"] is True
+    assert "BLOCK would suppress required evidence reporting" in (
+        backend.requests[0].user_prompt
+    )
+    assert validate_architect_feedback_route_packet(
+        {
+            **packet,
+            "decision": "BLOCK",
+            "selected_subsystem": "NONE",
+            "objective": "",
+        },
+        required_terminal_reporter="CriticEvaluator",
+    ) == [
+        "terminal evidence reporting requires ROUTE to CriticEvaluator"
+    ]
+
+
 def test_architect_route_transport_preserves_late_raw_execution_errors() -> None:
     prototype = {
         f"execution_metadata_{index}": f"value-{index}"

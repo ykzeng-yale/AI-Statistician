@@ -4278,67 +4278,6 @@ def _lineage_bound_execution_return_to_source_producer(
     feedback = next_task.inputs.get("environment_feedback", {})
     if not isinstance(feedback, Mapping):
         return False
-    if feedback.get("feedback_type") == "confirmatory_simulation_outcome":
-        source_manifest_id = str(
-            feedback.get("source_manifest_id", "") or ""
-        ).strip()
-        source_manifest = blackboard.artifacts.get(source_manifest_id, {})
-        question = next_task.inputs.get("question", {})
-        source_question = (
-            source_manifest.get("question", {})
-            if isinstance(source_manifest, Mapping)
-            else {}
-        )
-        architect_context = next_task.inputs.get("architect_context", {})
-        accepted_reviews = (
-            architect_context.get(
-                "accepted_generated_code_semantic_reviews",
-                [],
-            )
-            if isinstance(architect_context, Mapping)
-            else []
-        )
-        source_manifest_hash = (
-            stable_hash(dict(source_manifest))
-            if isinstance(source_manifest, Mapping) and source_manifest
-            else ""
-        )
-        exact_source_reviewed = any(
-            isinstance(review, Mapping)
-            and review.get("overall_verdict") == "ACCEPT"
-            and review.get("source_subsystem") == "SimulationEvaluator"
-            and str(review.get("source_manifest_id", "") or "")
-            == source_manifest_id
-            and str(review.get("source_manifest_hash", "") or "")
-            == source_manifest_hash
-            for review in accepted_reviews or []
-        )
-        return bool(
-            next_task.owner_subsystem == "SimulationEvaluator"
-            and source_manifest_id
-            and isinstance(source_manifest, Mapping)
-            and source_manifest.get("artifact_kind")
-            == "RuntimeSimulationManifest"
-            and str(source_manifest.get("manifest_id", "") or "")
-            == source_manifest_id
-            and str(feedback.get("source_manifest_hash", "") or "")
-            == source_manifest_hash
-            and feedback.get("source_execution_valid") is True
-            and feedback.get("unchanged_source_retry_authorized") is False
-            and feedback.get("runtime_edited_source") is False
-            and str(feedback.get("source_subsystem", "") or "")
-            == "SimulationEvaluator"
-            and str(feedback.get("theory_packet_id", "") or "")
-            == str(source_manifest.get("theory_packet_id", "") or "")
-            and isinstance(question, Mapping)
-            and isinstance(source_question, Mapping)
-            and str(feedback.get("question_id", "") or "")
-            == str(question.get("id", "") or "")
-            == str(source_question.get("id", "") or "")
-            and feedback.get("confirmatory_evaluation_cohort")
-            == source_manifest.get("confirmatory_evaluation_cohort")
-            and exact_source_reviewed
-        )
     transport = feedback.get("observation_transport", {})
     if (
         not isinstance(transport, Mapping)
@@ -10289,97 +10228,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 "deferred_metric_protocol_task", {}
             )
             confirmatory_feedback_id = ""
-            confirmatory_cohort_transition_evidence: EvidenceLedgerEntry | None = None
             if confirmatory_generated_metric_failure:
-                source_algorithm_manifest_id = str(
-                    upstream_algorithm_handoff.get(
-                        "algorithm_sandbox_manifest_id", ""
-                    )
-                    or ""
-                ).strip()
-                source_algorithm_manifest = blackboard.artifacts.get(
-                    source_algorithm_manifest_id,
-                    {},
-                )
-                source_continuation_fields: dict[str, Any] = {}
-                source_continuation_errors: list[str] = []
-                if source_algorithm_manifest_id:
-                    (
-                        consumer_source_owner,
-                        source_continuation_errors,
-                    ) = scientific_consumer_dependency_context(
-                        [
-                            row
-                            for row in generated_simulation_rows
-                            if row.get("execution_smoke_passed") is True
-                        ]
-                    )
-                    if (
-                        not isinstance(source_algorithm_manifest, Mapping)
-                        or source_algorithm_manifest.get("artifact_kind")
-                        != "RuntimeAlgorithmSandboxManifest"
-                        or str(
-                            source_algorithm_manifest.get("manifest_id", "")
-                            or ""
-                        )
-                        != source_algorithm_manifest_id
-                        or stable_hash(dict(source_algorithm_manifest))
-                        != str(
-                            consumer_source_owner.get(
-                                "source_manifest_hash", ""
-                            )
-                            or ""
-                        )
-                    ):
-                        source_continuation_errors.append(
-                            "confirmatory outcome source manifest is missing or stale"
-                        )
-                    if not source_continuation_errors:
-                        resume_inputs = deepcopy(dict(task.inputs))
-                        resume_context = deepcopy(dict(effective_context))
-                        resume_context["simulation_manifest_id"] = manifest_id
-                        resume_context["algorithm_sandbox_manifest_id"] = (
-                            source_algorithm_manifest_id
-                        )
-                        resume_inputs["architect_context"] = resume_context
-                        resume_inputs["consumer_resume_manifest"] = manifest
-                        consumer_resume_task = replace(
-                            task,
-                            task_id=(
-                                f"simulation-confirmatory-resume:{question.id}:"
-                                f"{stable_hash(manifest_id)[:8]}"
-                            ),
-                            objective=(
-                                "Replay the exact frozen simulation source after a "
-                                "model-owned upstream algorithm revision passes "
-                                "independent review."
-                            ),
-                            inputs=resume_inputs,
-                        )
-                        (
-                            _consumer_continuation_id,
-                            consumer_continuation,
-                            consumer_continuation_artifacts,
-                        ) = materialize_agent_task_continuation(
-                            consumer_resume_task,
-                            linked_input_references={
-                                stable_hash(manifest): runtime_artifact_reference(
-                                    manifest_id,
-                                    manifest,
-                                )
-                            },
-                        )
-                        produced_artifacts.update(
-                            consumer_continuation_artifacts
-                        )
-                        source_continuation_fields = {
-                            "consumer_source_owner": consumer_source_owner,
-                            "deferred_consumer_task_continuation_ref": (
-                                agent_task_continuation_reference(
-                                    consumer_continuation
-                                )
-                            ),
-                        }
                 confirmatory_feedback_payload = {
                     "schema_version": RUNTIME_SCHEMA_VERSION,
                     "artifact_kind": "RuntimeConfirmatorySimulationOutcome",
@@ -10421,24 +10270,11 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "execution_results_observed": True,
                     "source_semantic_review_required_before_release": True,
                     "unchanged_source_retry_authorized": False,
-                    "consumer_source_owner_is_dependency_identity_only": True,
+                    "outcome_informed_source_revision_authorized": False,
+                    "terminal_gap_reporting_required": True,
                     "runtime_edited_source": False,
                     "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
-                    **source_continuation_fields,
                 }
-                consumer_revision_budget = task.budget.get(
-                    SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY
-                )
-                if isinstance(consumer_revision_budget, Mapping) and (
-                    consumer_revision_budget
-                ):
-                    confirmatory_feedback_payload[
-                        SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY
-                    ] = deepcopy(dict(consumer_revision_budget))
-                if source_continuation_errors:
-                    confirmatory_feedback_payload[
-                        "algorithm_source_continuation_errors"
-                    ] = sorted(set(source_continuation_errors))
                 confirmatory_feedback_id = (
                     "confirmatory_simulation_outcome:"
                     + stable_hash(confirmatory_feedback_payload)[:20]
@@ -10449,161 +10285,46 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "observation_id": confirmatory_feedback_id,
                 }
                 produced_artifacts[confirmatory_feedback_id] = confirmatory_feedback
-                revision_context = dict(effective_context)
-                revision_context["previous_theory_packet_id"] = packet_id
-                revision_context["simulation_manifest_id"] = manifest_id
-                if not confirmatory_source_parent_manifest_id:
-                    next_confirmatory_cohort: dict[str, Any] = {}
-                    confirmatory_cohort_transition: dict[str, Any] = {}
-                    cohort_transition_errors: list[str] = []
-                    if candidate_gate_independence_required(context):
-                        (
-                            next_confirmatory_cohort,
-                            confirmatory_cohort_transition,
-                            cohort_transition_errors,
-                        ) = advance_confirmatory_evaluation_cohort(
-                            context,
-                            confirmatory_outcome=confirmatory_feedback,
-                            question_id=question.id,
-                        )
-                    if cohort_transition_errors:
-                        return AgentStepResult(
-                            status="BLOCKED",
-                            rationale=(
-                                "SimulationEvaluator rejected an invalid confirmatory "
-                                "cohort lineage before releasing the outcome."
-                            ),
-                            produced_artifacts=produced_artifacts,
-                            observations=tuple(observations)
-                            + (
-                                EnvironmentObservation(
-                                    observation_type=(
-                                        "confirmatory_evaluation_cohort_transition_rejected"
-                                    ),
-                                    summary="; ".join(cohort_transition_errors)[:500],
-                                    payload={
-                                        "validation_errors": cohort_transition_errors,
-                                        "model_call_authorized": False,
-                                        "execution_authorized": False,
-                                        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                                    },
-                                ),
-                            ),
-                            failure_classification=(
-                                "confirmatory_evaluation_cohort_lineage_invalid"
-                            ),
-                        )
-                    revision_inputs = deepcopy(dict(task.inputs))
-                    revision_inputs.pop("consumer_resume_manifest", None)
-                    revision_inputs.update(
-                        {
-                            "architect_context": revision_context,
-                            "environment_feedback": confirmatory_feedback,
-                        }
-                    )
-                    cohort_id = ""
-                    if next_confirmatory_cohort and confirmatory_cohort_transition:
-                        cohort_id = str(next_confirmatory_cohort["cohort_id"])
-                        transition_id = str(
-                            confirmatory_cohort_transition["transition_id"]
-                        )
-                        produced_artifacts.update(
-                            {
-                                cohort_id: next_confirmatory_cohort,
-                                transition_id: confirmatory_cohort_transition,
-                            }
-                        )
-                        revision_context[
-                            CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY
-                        ] = next_confirmatory_cohort
-                        revision_context[
-                            "runtime_confirmatory_evaluation_cohort_transition_id"
-                        ] = transition_id
-                        revision_inputs["architect_context"] = revision_context
-                        revision_inputs["seed"] = int(
-                            next_confirmatory_cohort["seed"]
-                        )
-                        confirmatory_cohort_transition_evidence = EvidenceLedgerEntry(
-                            evidence_id=(
-                                "evidence:"
-                                + stable_hash([task.task_id, transition_id])[:20]
-                            ),
-                            task_id=task.task_id,
-                            artifact_id=transition_id,
-                            evidence_type=(
-                                "confirmatory_evaluation_cohort_transition"
-                            ),
-                            status="FRESH_POST_OUTCOME_COHORT_ALLOCATED",
-                            boundary=str(
-                                confirmatory_cohort_transition.get("boundary", "")
-                                or ""
-                            ),
-                            payload={
-                                "transition": confirmatory_cohort_transition,
-                                "next_cohort": next_confirmatory_cohort,
-                                "next_owner_subsystem": "SimulationEvaluator",
-                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                            },
-                        )
-                    next_task = replace(
-                        task,
-                        task_id=(
-                            f"simulation-confirmatory-source-revision:{question.id}:"
-                            f"{stable_hash(confirmatory_feedback)[:8]}"
+                outcome_context = dict(effective_context)
+                outcome_context["previous_theory_packet_id"] = packet_id
+                outcome_context["simulation_manifest_id"] = manifest_id
+                outcome_context["environment_feedback"] = confirmatory_feedback
+                next_task = _post_empirical_evidence_task(
+                    question=question,
+                    packet_id=packet_id,
+                    simulation_manifest_id=manifest_id,
+                    algorithm_sandbox_manifest_id=(
+                        generated_algorithm_sandbox_manifest_id
+                    ),
+                    architect_context=outcome_context,
+                )
+                next_task = replace(
+                    next_task,
+                    inputs={
+                        **next_task.inputs,
+                        "environment_feedback": confirmatory_feedback,
+                    },
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "confirmatory_outcome_routed_to_terminal_evidence"
                         ),
-                        objective=(
-                            "Revise the exact model-authored simulation source from its "
-                            "released execution observation and run the changed source "
-                            "on the fresh blinded cohort."
+                        summary=(
+                            "The frozen confirmatory candidate remains failed. Its "
+                            "outcome is released only to independent downstream "
+                            "evidence and gap reporting, never to source revision."
                         ),
-                        inputs=revision_inputs,
-                    )
-                    observations.append(
-                        EnvironmentObservation(
-                            observation_type=(
-                                "confirmatory_outcome_routed_to_source_owner"
-                            ),
-                            summary=(
-                                "Independent source review gates one direct full-source "
-                                "revision by the current SimulationEvaluator model."
-                            ),
-                            payload={
-                                "source_manifest_id": manifest_id,
-                                "next_owner_subsystem": "SimulationEvaluator",
-                                "next_cohort_id": cohort_id,
-                                "unchanged_source_execution_authorized": False,
-                                "runtime_edited_source": False,
-                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                            },
-                        )
-                    )
-                else:
-                    next_task = AgentTask(
-                        task_id=(
-                            f"confirmatory-outcome:{question.id}:"
-                            f"{stable_hash(confirmatory_feedback)[:8]}"
-                        ),
-                        owner_subsystem="ArchitectCoordinator",
-                        objective=(
-                            "Choose a materially new upstream lineage or block after "
-                            "the current source owner's post-outcome revision failed."
-                        ),
-                        inputs={
-                            "question": _question_to_payload(question),
-                            "architect_context": revision_context,
-                            "environment_feedback": confirmatory_feedback,
-                            "runtime_architect_operation": (
-                                ARCHITECT_FEEDBACK_ROUTE_OPERATION
-                            ),
+                        payload={
+                            "source_manifest_id": manifest_id,
+                            "feedback_id": confirmatory_feedback_id,
+                            "next_owner_subsystem": next_task.owner_subsystem,
+                            "outcome_informed_source_revision_authorized": False,
+                            "runtime_edited_source": False,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                         },
-                        expected_artifacts=("architect_feedback_route_decision",),
-                        acceptance_gate=(
-                            "Architect does not retry the unchanged confirmatory source"
-                        ),
-                        stop_condition=(
-                            "a new lineage is scheduled or the failure blocks"
-                        ),
                     )
+                )
             elif (
                 exploratory_diagnostic
                 and isinstance(deferred_metric_protocol_payload, Mapping)
@@ -10745,7 +10466,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                         proposal_evidence,
                         evidence,
                         semantic_review_evidence,
-                        confirmatory_cohort_transition_evidence,
                     )
                     if row is not None
                 ),

@@ -22,9 +22,6 @@ from ai_statistician.agent_runtime import (
 from ai_statistician.algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
 )
-from ai_statistician.architect_coordinator_llm import (
-    _architect_feedback_route_subsystems,
-)
 from ai_statistician.generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
     GeneratedCodeSemanticReviewerConfig,
@@ -1040,7 +1037,7 @@ def test_initial_lane_coverage_does_not_interrupt_bound_source_owner_loop() -> N
     assert continued.next_task is source_owner_task
 
 
-def test_lane_coverage_preserves_reviewed_confirmatory_source_revision() -> None:
+def test_lane_coverage_rejects_outcome_driven_confirmatory_source_revision() -> None:
     question = OpenResearchQuestion(
         id="generic-confirmatory-source-revision",
         title="Generic confirmatory source revision",
@@ -1139,42 +1136,10 @@ def test_lane_coverage_preserves_reviewed_confirmatory_source_revision() -> None
         ),
     )
 
-    assert continued is result
-    assert continued.next_task is source_revision_task
-
-    stale_feedback_task = replace(
-        source_revision_task,
-        inputs={
-            **source_revision_task.inputs,
-            "environment_feedback": {
-                **feedback,
-                "source_manifest_hash": "stale-source-manifest-hash",
-            },
-        },
-    )
-    rerouted = _runtime_transition_policy(
-        iteration=9,
-        task=AgentTask(
-            task_id="review:stale-confirmatory-source",
-            owner_subsystem=(
-                runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
-            ),
-            objective="Reject stale confirmatory lineage.",
-        ),
-        subsystem_name=(
-            runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
-        ),
-        result=replace(result, next_task=stale_feedback_task),
-        blackboard=blackboard,
-        runtime_config=ResearchAgentRuntimeConfig(
-            evaluation_mode="capability_eval",
-            formal_verification_policy="required",
-        ),
-    )
-
-    assert rerouted.next_task is not None
-    assert rerouted.next_task.owner_subsystem == "FormalizationEvaluator"
-    assert rerouted.failure_classification == (
+    assert continued.next_task is not None
+    assert continued.next_task is not source_revision_task
+    assert continued.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert continued.failure_classification == (
         "runtime_required_evidence_lane_continuation"
     )
 
@@ -2336,6 +2301,16 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     context = _full_evidence_context(question.id)
     context["theory_packet_id"] = theory_packet_id
     context["empirical_evaluation_phase"] = "confirmatory"
+    context["architect_runtime_plan"]["evidence_contract"].update(
+        {
+            "evaluation_mode": "research_eval",
+            "formal_verification_policy": "advisory",
+            "formal_required_for_final": False,
+        }
+    )
+    context["runtime_requested_evidence_contract"] = {
+        "evaluation_mode": "research_eval"
+    }
     context["cross_family_evaluation_protocol"] = {
         "protocol_fingerprint": "protocol:generic-confirmatory-blinding",
         "candidate_gate_independence_required": True,
@@ -2392,27 +2367,16 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
                 dict(kwargs["initial_observation"])
             )
             source_workspace_operations.append(kwargs["workspace_operation"])
-            if kwargs["workspace_operation"] == "targeted_revision":
-                parent = dict(kwargs["code_draft"])
-                source_checks.append(
-                    dict(kwargs["check_candidate"](parent))
-                )
-                candidate = {
-                    **parent,
-                    "code": str(parent["code"])
-                    + "\n# model-authored post-outcome source revision\n",
-                }
-            else:
-                candidate = {
-                    "language": "python",
-                    "execution_profile": "stdlib",
-                    "dependencies": [],
-                    "entrypoint": "run_sandbox",
-                    "code": (
-                        "def run_sandbox(seed, replicates):\n"
-                        "    return {'generic_metric': 0.2}\n"
-                    ),
-                }
+            candidate = {
+                "language": "python",
+                "execution_profile": "stdlib",
+                "dependencies": [],
+                "entrypoint": "run_sandbox",
+                "code": (
+                    "def run_sandbox(seed, replicates):\n"
+                    "    return {'generic_metric': 0.2}\n"
+                ),
+            }
             check = dict(kwargs["check_candidate"](candidate))
             source_checks.append(check)
             return ScientificCodeWorkspaceResult(
@@ -2582,7 +2546,7 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
         all_artifacts[work_order["deferred_next_task_continuation_id"]],
         all_artifacts,
     )
-    assert deferred_task.owner_subsystem == "SimulationEvaluator"
+    assert deferred_task.owner_subsystem == "CriticEvaluator"
     feedback_ref = deferred_task.inputs["environment_feedback"]
     assert feedback_ref["artifact_kind"] == "RuntimeArtifactRef"
     feedback = resolve_runtime_artifact_references(
@@ -2594,95 +2558,26 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     assert feedback["execution_results_observed"] is True
     assert feedback["confirmatory_evaluation_cohort"] == cohort
     assert feedback["unchanged_source_retry_authorized"] is False
-    assert feedback[
-        runtime_module.SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY
-    ] == task.budget[runtime_module.SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY]
+    assert feedback["outcome_informed_source_revision_authorized"] is False
+    assert feedback["terminal_gap_reporting_required"] is True
+    assert runtime_module.SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY not in feedback
     assert feedback["empirical_outcomes"][0]["metric_gate_errors"]
-    assert "SimulationEvaluator" in (
-        _architect_feedback_route_subsystems(
-            architect_context=deferred_task.inputs["architect_context"],
-            environment_feedback=feedback,
-        )
-    )
-    next_cohort_ref = deferred_task.inputs["architect_context"][
-        runtime_module.CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY
-    ]
-    new_cohort = resolve_runtime_artifact_references(
-        next_cohort_ref,
-        all_artifacts,
-    )
-    assert new_cohort["cohort_index"] == 1
-    assert new_cohort["previous_cohort_id"] == cohort["cohort_id"]
-    assert new_cohort["seed"] != cohort["seed"]
-    transition = next(
-        artifact
-        for artifact in result.produced_artifacts.values()
-        if isinstance(artifact, dict)
+    assert SimulationAgent.propose_calls == 1
+    assert SimulationAgent.source_calls == 1
+    assert source_workspace_operations == ["initial_authoring"]
+    assert len(source_initial_observations) == 1
+    assert len(sandbox_calls) == 1
+    assert not any(
+        isinstance(artifact, dict)
         and artifact.get("artifact_kind")
         == "RuntimeConfirmatoryEvaluationCohortTransition"
+        for artifact in result.produced_artifacts.values()
     )
-    assert transition["from_cohort_id"] == cohort["cohort_id"]
-    assert transition["to_cohort_id"] == new_cohort["cohort_id"]
-    revision_inputs = resolve_runtime_artifact_references(
-        deferred_task.inputs,
-        all_artifacts,
+    assert any(
+        observation.observation_type
+        == "confirmatory_outcome_routed_to_terminal_evidence"
+        for observation in result.observations
     )
-    revision = subsystem.run(
-        replace(deferred_task, inputs=revision_inputs),
-        BlackboardState(project_id=question.id, artifacts=all_artifacts),
-    )
-
-    assert revision.status == "REROUTE"
-    assert SimulationAgent.propose_calls == 1
-    assert SimulationAgent.source_calls == 2
-    assert source_workspace_operations == ["initial_authoring", "targeted_revision"]
-    assert source_checks[1]["accepted"] is False
-    assert source_checks[1]["prototype"]["execution_attempted"] is False
-    assert source_checks[2]["accepted"] is True
-    assert "0.2" in str(source_initial_observations[1])
-    assert len(sandbox_calls) == 2
-    assert sandbox_calls[-1]["seed"] == new_cohort["seed"]
-    revised_manifest = next(
-        artifact
-        for artifact in revision.produced_artifacts.values()
-        if isinstance(artifact, dict)
-        and artifact.get("artifact_kind") == "RuntimeSimulationManifest"
-    )
-    revised_row = revised_manifest[
-        "generated_simulation_sandbox_prototypes"
-    ][0]
-    assert revised_row["script_hash"] != manifest[
-        "generated_simulation_sandbox_prototypes"
-    ][0]["script_hash"]
-    assert revised_row["source_revision_lineage"][
-        "parent_script_hashes"
-    ] == [manifest["generated_simulation_sandbox_prototypes"][0]["script_hash"]]
-    assert revised_manifest["confirmatory_evaluation_cohort"] == new_cohort
-    assert revised_manifest[
-        "confirmatory_source_revision_parent_manifest_id"
-    ] == manifest["manifest_id"]
-    revised_all_artifacts = {**all_artifacts, **revision.produced_artifacts}
-    revised_work_order = next(
-        artifact
-        for artifact in revision.produced_artifacts.values()
-        if isinstance(artifact, dict)
-        and artifact.get("artifact_kind")
-        == "RuntimeGeneratedCodeSemanticReviewWorkOrder"
-    )
-    post_revision_task = restore_agent_task_continuation(
-        revised_all_artifacts[
-            revised_work_order["deferred_next_task_continuation_id"]
-        ],
-        revised_all_artifacts,
-    )
-    assert post_revision_task.owner_subsystem == "ArchitectCoordinator"
-    post_revision_feedback = resolve_runtime_artifact_references(
-        post_revision_task.inputs["environment_feedback"],
-        revised_all_artifacts,
-    )
-    assert post_revision_feedback[
-        "source_revision_parent_manifest_id"
-    ] == manifest["manifest_id"]
 
 
 def test_architect_algorithm_route_restores_source_and_frozen_simulation() -> None:

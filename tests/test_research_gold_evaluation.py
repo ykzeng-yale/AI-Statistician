@@ -383,7 +383,8 @@ def test_full_task_pass_requires_hidden_theory_code_and_empirical_checks(
 def test_gold_evaluator_preserves_passed_upstream_dimensions_when_runtime_blocks(
     tmp_path: Path,
 ) -> None:
-    runtime_result = _runtime_result()
+    manifest = _full_task_gold_manifest(tmp_path)
+    runtime_result = _runtime_result_with_accepted_theory()
     runtime_result["status"] = "BLOCKED"
     summary = _research_summary()
     row = summary["rows"][0]
@@ -401,25 +402,26 @@ def test_gold_evaluator_preserves_passed_upstream_dimensions_when_runtime_blocks
     result = evaluate_research_gold_benchmark(
         [runtime_result],
         research_evaluation_summary=summary,
-        benchmark_manifest_path=GOLD_MANIFEST,
-        out_dir=tmp_path,
+        benchmark_manifest_path=manifest,
+        out_dir=tmp_path / "out",
         run_harness=_passing_harness,
+        run_artifact_harness=_passing_artifact_harness,
     )
 
     task = result["tasks"][0]
     assert task["hidden_checks_passed"] is True
-    assert task["dimension_status"]["theory"]["status"] == (
-        "runtime_reviewed_not_gold_validated"
-    )
+    assert task["dimension_status"]["theory"]["status"] == "passed"
     assert task["dimension_status"]["scientific_code"]["status"] == "passed"
-    assert task["dimension_status"]["empirical"]["status"] == "failed"
+    assert task["dimension_status"]["empirical"]["status"] == (
+        "hidden_gold_passed_runtime_not_accepted"
+    )
+    assert task["dimension_status"]["empirical"]["gold_validated"] is True
     assert task["dimension_status"]["unresolved_gaps"]["status"] == "failed"
     assert task["dimension_status"]["overall_runtime_research_loop"][
         "status"
     ] == "failed"
     assert task["task_passed"] is False
     assert task["failure_reasons"] == [
-        "required evidence dimension did not pass: theory",
         "required evidence dimension did not pass: empirical",
         "required evidence dimension did not pass: unresolved_gaps",
         "required evidence dimension did not pass: overall_runtime_research_loop",

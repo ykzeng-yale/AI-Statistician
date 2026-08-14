@@ -102,7 +102,7 @@ def evaluate_research_gold_benchmark(
                 )
             )
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "artifact_kind": "ResearchCapabilityGoldEvaluation",
         "configured": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -600,6 +600,8 @@ def _dimension_status(
                 if hidden_empirical_passed
                 else "runtime_accepted_not_gold_validated"
             )
+        elif dimension == "empirical" and hidden_empirical_passed:
+            status = "hidden_gold_passed_runtime_not_accepted"
         elif observed[dimension]:
             status = "passed"
         elif requirement == "optional":
@@ -610,8 +612,9 @@ def _dimension_status(
             "requirement": requirement,
             "status": status,
             "gold_validated": bool(
-                dimension in {"theory", "scientific_code", "empirical"}
-                and status == "passed"
+                (dimension == "theory" and hidden_theory_passed)
+                or (dimension == "scientific_code" and hidden_algorithm_passed)
+                or (dimension == "empirical" and hidden_empirical_passed)
             ),
             "evidence_authority": {
                 "theory": (
