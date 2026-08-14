@@ -279,15 +279,29 @@ post-outcome source backedge and requires terminal gap reporting without changin
 models, thresholds, retries, or budgets. It has deterministic regression evidence;
 there is no post-fix live rerun.
 
-The next product-evaluation step is to calibrate a claim-anchored, notation-invariant
-theory authority on the frozen reference, negative variants, and KM v2 artifact.
-Deterministic evaluation should continue to own hashes, executable invariants, and
-MCSE checks; substantive prose mathematics needs independent semantic adjudication
-with exact document anchors and explicit derivation or counterexample evidence. The
-existing preflight prompt now requires such an independent check without adding an
-agent, retry, task rule, or larger budget. After calibration, the ladder should move
-to an unrelated known result and a pinned published replication. Repeated HC0 or KM
-draws would not distinguish a mechanism improvement from sampling another response.
+A claim-anchored semantic authority has now been calibrated on the frozen reference,
+independent negative variants, and exact KM v2 documents. It runs once under hidden
+post-runtime evaluator authority with exact Haiku and no retry or tier escalation.
+The model classified only four of five unlabeled calibration cases correctly and
+also marked the known-bad candidate `PASS`. The calibration gate therefore failed
+closed. The candidate receives no theory credit, while its independently hidden
+algorithm and empirical passes remain intact. This is an evaluator diagnosis, not a
+fresh research draw.
+
+The completion contract now also requires the exact hash-bound theory preflight and
+an explicit per-dimension terminal Critic disposition. A Critic manifest can no
+longer bypass preflight, ambiguous legacy simulation flags are excluded from the
+Critic view, and task intent determines which dimensions are required, optional, or
+not applicable. Full theory documents are transient Critic context; manifests retain
+only their canonical-view hash and artifact references. Recomputing frozen KM v2
+under this contract gives `research_loop_complete=false` and `full_task_passed=false`.
+
+An exact-Haiku Critic replay with the authoritative Markdown documents nevertheless
+still called theory supported and accepted the candidate. Better prompting and full
+text alone therefore did not supply reliable mathematical judgment. The next product
+step is source-grounded long-horizon theory development and referee reasoning on an
+unrelated known result, followed by a pinned published replication. It is not another
+KM/HC0 draw, a larger budget, an ensemble vote, or more task-specific guardrails.
 
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same

@@ -183,11 +183,11 @@
       "status": "active_scored",
       "visible_questions_path": "benchmarks/research_l0_survival_questions_20260814.json",
       "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
-      "gold_bundle_id": "research-l0-km-greenwood-20260814-v1",
-      "gold_manifest_sha256": "7686339fd42b7eaedff82758fae4b8c0e6ec991f574110614cd7fe48394f2561",
-      "gold_descriptor_hash": "af2b3999908893d5640270fafb55cff7f7873df038d5b38117538ff90cf564e8",
+      "gold_bundle_id": "research-l0-km-greenwood-20260814-v2",
+      "gold_manifest_sha256": "eaf8a818830e0a34ae51d77599d03d0d086ba0d7948a4da74d5b609b43c9ce8b",
+      "gold_descriptor_hash": "11001d632ff2ddc53f7b1236889c5db8662d1fce06bf5ec63c45c2ea2c22dd6c",
       "gold_runtime_visibility": "evaluator_only_after_runtime",
-      "activation_status": "full_task_gold_evaluated_v2_theory_authority_recalibration_required",
+      "activation_status": "full_task_gold_evaluated_v2_semantic_authority_uncalibrated_failed",
       "activation_evidence": {
         "published_source_doi": "10.1080/01621459.1958.10501452",
         "hidden_theory_harness_sha256": "b5deb05f4d026d0396797b0e96baa60328a3d3b14a36285bd2a71dc6e98e2ce6",
@@ -215,6 +215,16 @@
         "fresh_v2_hidden_empirical_checks": "6/6 passed across two DGPs and 2000 estimator calls",
         "fresh_v2_hidden_theory_raw_checks": "10/13, not a valid semantic score because three failures were notation or wording false negatives",
         "fresh_v2_theory_authority_calibration": "failed: the lexical evaluator missed substantive false claims while rejecting equivalent LaTeX and prose forms",
+        "frozen_v2_semantic_evaluator_hash": "2d6f05c29243408f54d332dfca6346486fcc6d45c691492d310cf4e59f1792e7",
+        "frozen_v2_semantic_calibration_cases": 5,
+        "frozen_v2_semantic_calibration_cases_correct": 4,
+        "frozen_v2_semantic_judge_calibrated": false,
+        "frozen_v2_semantic_candidate_status": "PASS",
+        "frozen_v2_semantic_theory_passed": false,
+        "frozen_v2_corrected_research_loop_complete": false,
+        "frozen_v2_corrected_critic_research_acceptance": false,
+        "frozen_v2_hidden_algorithm_gold_passed": true,
+        "frozen_v2_hidden_empirical_gold_passed": true,
         "fresh_v2_independent_theory_audit": "failed: the censoring assumption includes an incoherent independence statement and the displayed asymptotic variance integral has an extra survival factor",
         "fresh_v2_progressive_evidence_audit": "failed: TheoryDeveloper relabeled pre-review scratchpad outcomes as confirmatory simulation results and selected acceptance thresholds before the frozen downstream lane",
         "fresh_v2_runtime_preflight_caught_theory_error": false,
@@ -321,7 +331,7 @@
     "fully_gold_configured_tasks": 2,
     "fully_gold_passed_tasks": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "Fresh exact-Haiku KM/Greenwood v2 exercised the new file-backed TheoryDeveloper workspace and completed the product research loop. Its accepted implementation passed 10/10 hidden algorithm checks and 6/6 hidden empirical checks, but the independent runtime theory preflight accepted substantive mathematical errors and TheoryDeveloper mislabeled pre-review scratchpad outcomes as confirmatory. The first hidden theory scorer also proved too lexical: three raw failures were equivalent-notation false negatives while it missed the real errors. The full task is therefore not validated.",
-    "next_step": "Do not resample HC0 or KM for another draw. Calibrate a notation-invariant, claim-anchored theory authority on the frozen reference, negative variants, and v2 artifact; keep the deterministic harness limited to identity and executable checks. Then use the existing preflight stage, with independent derivation and counterexample prompting, on the next unrelated known result and begin a pinned published replication."
+    "latest_diagnostic": "Frozen exact-Haiku KM/Greenwood v2 remains a failed full task. Its accepted implementation passed all hidden algorithm and empirical checks, but theory contains substantive mathematical errors. A claim-anchored semantic judge classified only 4/5 hidden calibration cases correctly and false-accepted the bad candidate, so calibration failed closed. The corrected completion contract also rejects the historical terminal packet because a Critic manifest cannot bypass exact preflight or substitute for an explicit evidence-bound scientific disposition.",
+    "next_step": "Do not resample HC0 or KM for another draw and do not promote an ensemble or repeated uncalibrated Haiku judgments to theory authority. Improve source-grounded long-horizon theory development and referee reasoning, test the unchanged mechanism on an unrelated known result, and begin a pinned published replication with paper, code, data, environment, and outputs fixed before execution."
   }
 }
