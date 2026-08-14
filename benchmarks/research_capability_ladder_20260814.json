@@ -211,7 +211,7 @@
       "gold_manifest_sha256": "025ea5b486aa5c1004e0bb35bbd02b5f5d94cf4d95873cb52a83c4ebf3b2932d",
       "gold_descriptor_hash": "3e022ac9599abd52c632f984f2e3eb83133bb78a8e701318ea0e7f838b4b13bd",
       "gold_runtime_visibility": "evaluator_only_after_runtime",
-      "activation_status": "full_task_gold_configured_fresh_v2_pending",
+      "activation_status": "full_task_gold_evaluated_v5_failed",
       "activation_evidence": {
         "published_source_doi": "10.2307/1912934",
         "hidden_theory_harness_sha256": "b62d1f4c566e4ed03a7861d80ea39dc7840cf72b318aa9a8d8abfa0d8cd71131",
@@ -224,7 +224,13 @@
         "corrected_reference_theory_accepted": true,
         "empirical_reference_dgps_passed": 2,
         "empirical_reference_replicates_per_dgp": 1000,
-        "empirical_reference_maximum_target_mcse": 0.006892024376045111
+        "empirical_reference_maximum_target_mcse": 0.006892024376045111,
+        "fresh_v5_runtime_status": "BLOCKED",
+        "fresh_v5_hidden_theory_checks": "7/11",
+        "fresh_v5_hidden_algorithm_checks": "7/7",
+        "fresh_v5_hidden_empirical_checks": "6/6",
+        "fresh_v5_full_task_passed": false,
+        "fresh_v5_formalization_requirement": "not_applicable"
       },
       "task_intent": {
         "theory": "required",
@@ -275,7 +281,7 @@
     "fully_gold_configured_tasks": 1,
     "fully_gold_passed_tasks": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "Four exact-Haiku runs against the retired v1 statement each produced accepted algorithm source that passed all seven hidden algorithm checks, but no run completed the empirical loop. The fourth run also exposed a theory normalization error that its independent preflight missed.",
-    "next_step": "Run the corrected fully gold-configured HC0 v2 task once under the unchanged exact-Haiku policy and budgets. The evaluator must continue rejecting every v1-v4 artifact by visible-question hash. Do not activate a second unrelated L0 or L1 task until the first run has been diagnosed without task-specific runtime changes."
+    "latest_diagnostic": "Fresh corrected-v2 exact-Haiku v5 failed the full task. Its accepted algorithm passed 7/7 hidden checks and 6/6 hidden empirical checks, but theory passed only 7/11 hidden checks, the frozen runtime protocol failed one of six metric gates, and the pre-fix terminal route skipped Critic gap reporting. Formalization was not applicable and did not block the task.",
+    "next_step": "Do not resample HC0 merely for another draw. Curate a second unrelated focused known-result task with complete private authorities, and use it to test shared long-horizon theory and terminal-reporting improvements before moving to pinned published replication."
   }
 }

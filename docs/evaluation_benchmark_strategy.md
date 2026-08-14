@@ -111,6 +111,12 @@ Exploratory runs may be cheaper and adaptive, but their labels and seeds cannot 
 promoted to confirmatory evidence. Confirmatory stopping may depend on a predeclared
 precision statistic, never on whether the scientific result looks favorable.
 
+A failed confirmatory outcome terminates that candidate lineage for the scored run.
+It may motivate a separately registered follow-up study, but it is not returned to
+the same source model for result-informed rewriting and another nominally
+confirmatory execution. Independent source review still runs before outcome release,
+then the task continues only to unvisited evidence lanes and the final gap report.
+
 ## Evidence vector
 
 Each task freezes `required`, `optional`, or `not_applicable` for these dimensions:
@@ -210,13 +216,15 @@ e-process guarantee. Neither task reached Formalizer, so the atomic Lean
 declaration-context improvement still has component evidence only. The held-out
 strict-formal panel remains sealed.
 
-The ladder now has one active L0 task, White HC0, with private full-task gold
-configured but no passing fresh v2 run. Four exact-Haiku diagnostic runs against the retired
-v1 statement each produced independently accepted estimator source that passed
-all seven hidden reference and metamorphic checks; none completed the empirical
-loop. The fourth theory packet also confused the finite-sample covariance of the
-OLS estimator with the asymptotic covariance of its square-root-n limit. Its
-independent preflight accepted that normalization error.
+The ladder now has one active L0 task, White HC0, with private full-task gold and
+one fresh corrected-v2 exact-Haiku run. v5 ended `BLOCKED`: its accepted estimator
+passed all 7 hidden reference/metamorphic checks and all 6 hidden empirical checks
+across two DGPs and 2,000 estimator calls, but its theory passed only 7 of 11 hidden
+checks. It omitted required design/variance-limit, triangular-array/moment, and
+aggregate-meat arguments and retained an invalid unscaled nonzero covariance limit.
+The frozen runtime simulation also failed one of six metric gates, so hidden
+empirical support is reported separately and does not turn the runtime protocol or
+the full task into a pass.
 
 The corrected v2 statement distinguishes `V_HC0 = O(n^-1)` from
 `n V_HC0 -> Q^-1 Omega Q^-1` and requires design and moment regularity beyond
@@ -229,10 +237,19 @@ estimator source, and MCSE-calibrated homoskedastic and heteroskedastic behavior
 It rejects the retired v4 theory scaling, accepts a corrected reference packet,
 passes an independently implemented estimator on every hidden dimension, runs in
 an ephemeral sandbox, and persists neither evaluator paths nor check identities,
-thresholds, observed values, or harness source. This is evaluator calibration, not
-model capability. The next product-evaluation step is one fresh corrected v2 run
-under unchanged exact-Haiku budgets before activating another unrelated L0 or L1
-task.
+thresholds, observed values, or harness source. The v5 hidden results are model
+component evidence, not full-task success. v5 also exposed an efficiency defect:
+the pre-fix runtime used the failed confirmatory outcome for one source rewrite and
+second execution, then accepted an Architect `BLOCK` packet whose own rationale
+said Critic was the required terminal reporter. The shared fix removes that
+post-outcome source backedge and requires terminal gap reporting without changing
+models, thresholds, retries, or budgets. It has deterministic regression evidence;
+there is no post-fix live rerun.
+
+The next product-evaluation step is a second unrelated focused known result with
+complete private theory, code, empirical, and gap-report authorities. After that,
+the ladder should add a pinned published replication. Repeated HC0 draws would not
+distinguish a mechanism improvement from sampling another model response.
 
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same
