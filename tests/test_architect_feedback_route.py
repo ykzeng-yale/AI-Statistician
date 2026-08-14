@@ -10,13 +10,20 @@ from ai_statistician.architect_coordinator_llm import (
     ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS,
     ArchitectCoordinatorConfig,
     LLMArchitectCoordinatorAgent,
+    _architect_frozen_metric_protocol_rebinding_context,
     _normalize_architect_packet,
     build_architect_coordinator_prompt,
     build_architect_feedback_route_prompt,
     validate_architect_coordinator_packet,
     validate_architect_feedback_route_packet,
 )
+from ai_statistician.architect_metric_contract_authoring import (
+    _frozen_metric_protocol_rebinding_errors,
+)
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.generated_metric_contract import (
+    generated_metric_requirement_set_id,
+)
 from ai_statistician.cross_family_eval_protocol import (
     resolve_confirmatory_evaluation_cohort,
 )
@@ -28,6 +35,12 @@ from ai_statistician.research_agent_runtime import (
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY,
+)
+from ai_statistician.metric_protocol_stage import (
+    build_theory_informed_metric_protocol_material,
+)
+from ai_statistician.theory_revision_lineage import (
+    consume_architect_routed_theory_revision,
 )
 
 
@@ -41,6 +54,132 @@ def _question() -> OpenResearchQuestion:
         description="Develop and evaluate a new estimator without task-specific rules.",
         tags=("held-out-family",),
     )
+
+
+def _post_result_theory_revision_context(
+    *, execution_results_observed: bool
+) -> tuple[dict[str, object], dict[str, object]]:
+    prior_packet_id = "theory:prior"
+    prior_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": prior_packet_id,
+        "problem_card": {"estimand": "a generic scalar"},
+    }
+    prior_packet_hash = stable_hash(prior_packet)
+    current_packet_id = "theory:revised"
+    current_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": current_packet_id,
+        "problem_card": {"estimand": "the same generic scalar"},
+    }
+    current_material = build_theory_informed_metric_protocol_material(
+        theory_packet=current_packet,
+        theory_packet_id=current_packet_id,
+    )
+    current_packet_hash = str(current_material["source_theory_packet_hash"])
+    requirements = [
+        {
+            "requirement_id": "generic_calibration",
+            "operator": "<",
+            "threshold": 0.05,
+            "metric_semantics": "Generic calibration error",
+        }
+    ]
+    requirement_set_id = generated_metric_requirement_set_id(requirements)
+    feedback_fingerprint = stable_hash(
+        {"feedback_id": "feedback:post-result", "observed": 0.08}
+    )
+    route_decision_id = "architect_feedback_route:post-result"
+    context: dict[str, object] = {
+        "architect_metric_protocol_theory_material": current_material,
+        "architect_metric_protocol_authority_invalidation": {
+            "artifact_kind": "RuntimeMetricProtocolTheoryLineageInvalidation",
+            "current_source_theory_packet_id": current_packet_id,
+            "current_source_theory_packet_hash": current_packet_hash,
+            "prior_contract_source_theory_packet_id": prior_packet_id,
+            "prior_contract_source_theory_packet_hash": prior_packet_hash,
+        },
+        "architect_feedback_route_decision": {
+            "artifact_kind": "ArchitectFeedbackRouteDecision",
+            "decision": "ROUTE",
+            "selected_subsystem": "TheoryDeveloper",
+            "route_decision_id": route_decision_id,
+            "environment_feedback_fingerprint": feedback_fingerprint,
+        },
+        "architect_initial_routing": {
+            "artifact_kind": "ArchitectInitialRoutingDecision",
+            "source": "architect_feedback_route_model",
+            "requested_subsystem": "TheoryDeveloper",
+            "selected_subsystem": "TheoryDeveloper",
+            "architect_packet_id": route_decision_id,
+            "environment_feedback_hash": feedback_fingerprint,
+        },
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "empirical_metric_requirements": requirements,
+                "empirical_metric_requirement_set_id": requirement_set_id,
+                "empirical_metric_requirements_preexecution_review": {
+                    "overall_verdict": "ACCEPT",
+                    "independent_agent": True,
+                    "independent_invocation": True,
+                    "execution_results_observed": False,
+                    "source_theory_packet_id": prior_packet_id,
+                    "source_theory_packet_hash": prior_packet_hash,
+                    "reviewed_empirical_metric_requirement_set_id": (
+                        requirement_set_id
+                    ),
+                },
+            }
+        },
+    }
+    context = consume_architect_routed_theory_revision(
+        architect_context=context,
+        revision_binding={
+            "revision_source": "architect_routed_environment_observations",
+            "question_id": _question().id,
+            "source_theory_packet_id": prior_packet_id,
+            "source_theory_packet_hash": prior_packet_hash,
+            "feedback_id": "feedback:post-result",
+            "source_feedback_fingerprint": feedback_fingerprint,
+            "source_feedback": {
+                "feedback_type": "confirmatory_simulation_outcome"
+            },
+            "execution_results_observed": execution_results_observed,
+            "upstream_theory_revision_count": 1,
+            "max_upstream_theory_revisions": 1,
+        },
+        revised_theory_packet_id=current_packet_id,
+        revised_theory_packet_hash=current_packet_hash,
+    )
+    return context, requirements[0]
+
+
+def test_post_result_theory_revision_rebinds_the_frozen_metric_portfolio() -> None:
+    context, source_requirement = _post_result_theory_revision_context(
+        execution_results_observed=True
+    )
+
+    rebinding = _architect_frozen_metric_protocol_rebinding_context(context)
+
+    assert rebinding["source_requirement_rows"] == [source_requirement]
+    assert rebinding["raw_execution_artifacts_included"] is False
+    assert rebinding["post_result_gate_changes_allowed"] is False
+    relaxed = {**source_requirement, "threshold": 0.10}
+    assert _frozen_metric_protocol_rebinding_errors(
+        candidate_requirements=[relaxed],
+        rebinding_context=rebinding,
+    ) == [
+        "frozen metric rebinding may not change "
+        "generic_calibration.threshold"
+    ]
+
+
+def test_preexecution_theory_revision_does_not_freeze_a_metric_portfolio() -> None:
+    context, _ = _post_result_theory_revision_context(
+        execution_results_observed=False
+    )
+
+    assert _architect_frozen_metric_protocol_rebinding_context(context) == {}
 
 
 def test_bridge_only_gap_planner_is_not_a_generic_feedback_owner() -> None:

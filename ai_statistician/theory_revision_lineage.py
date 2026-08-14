@@ -298,11 +298,17 @@ def consume_architect_routed_theory_revision(
         "source_feedback_id": str(
             revision_binding.get("feedback_id", "") or ""
         ),
+        "source_feedback_fingerprint": str(
+            revision_binding.get("source_feedback_fingerprint", "") or ""
+        ),
         "source_feedback_type": str(
             _mapping(revision_binding.get("source_feedback")).get(
                 "feedback_type", ""
             )
             or ""
+        ),
+        "execution_results_observed": bool(
+            revision_binding.get("execution_results_observed", False)
         ),
         "source_review_execution_id": str(
             revision_binding.get("source_review_execution_id", "") or ""
@@ -311,6 +317,9 @@ def consume_architect_routed_theory_revision(
             revision_binding.get("source_review_packet_id", "") or ""
         ),
         "prior_theory_packet_id": parent_packet_id,
+        "prior_theory_packet_hash": str(
+            revision_binding.get("source_theory_packet_hash", "") or ""
+        ),
         "revised_theory_packet_id": revised_theory_packet_id,
         "revised_theory_packet_hash": revised_theory_packet_hash,
         "theory_revision_binding_id": str(

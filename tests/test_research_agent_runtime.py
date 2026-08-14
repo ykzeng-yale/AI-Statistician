@@ -2486,6 +2486,7 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     )
     assert feedback["feedback_type"] == "confirmatory_simulation_outcome"
     assert feedback["source_subsystem"] == "SimulationEvaluator"
+    assert feedback["execution_results_observed"] is True
     assert feedback["confirmatory_evaluation_cohort"] == cohort
     assert feedback["unchanged_source_retry_authorized"] is False
     assert feedback[

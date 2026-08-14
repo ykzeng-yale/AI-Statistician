@@ -1310,22 +1310,34 @@ def _architect_frozen_metric_protocol_rebinding_context(
         theory_material.get("source_theory_packet_hash", "") or ""
     )
     resolution = architect_context.get(
-        "runtime_generated_code_semantic_review_replan_resolution", {}
+        "runtime_model_routed_theory_revision_resolution", {}
     )
     invalidation = architect_context.get(
         "architect_metric_protocol_authority_invalidation", {}
     )
+    feedback_route = architect_context.get(
+        "architect_feedback_route_decision", {}
+    )
     routing = architect_context.get("architect_initial_routing", {})
-    architect_packet_id = str(
-        architect_context.get("architect_coordinator_proposal_id", "") or ""
+    route_decision_id = str(
+        feedback_route.get("route_decision_id", "")
+        if isinstance(feedback_route, Mapping)
+        else ""
+    )
+    feedback_fingerprint = str(
+        resolution.get("source_feedback_fingerprint", "")
+        if isinstance(resolution, Mapping)
+        else ""
     )
     if not (
         isinstance(resolution, Mapping)
         and resolution.get("artifact_kind")
-        == "RuntimeGeneratedCodeSemanticReviewReplanResolution"
+        == "RuntimeModelRoutedTheoryRevisionResolution"
         and resolution.get("resolution_status")
-        == "CONSUMED_BY_FRESH_THEORY_REVISION"
-        and resolution.get("requires_fresh_metric_protocol_review") is True
+        == "CONSUMED_BY_MODEL_ROUTED_THEORY_REVISION"
+        and resolution.get("execution_results_observed") is True
+        and str(resolution.get("source_feedback_id", "") or "")
+        and feedback_fingerprint
         and str(resolution.get("revised_theory_packet_id", "") or "")
         == current_theory_packet_id
         and str(resolution.get("revised_theory_packet_hash", "") or "")
@@ -1341,18 +1353,25 @@ def _architect_frozen_metric_protocol_rebinding_context(
             invalidation.get("current_source_theory_packet_hash", "") or ""
         )
         == current_theory_packet_hash
-        and architect_packet_id
-        and str(resolution.get("architect_packet_id", "") or "")
-        == architect_packet_id
+        and isinstance(feedback_route, Mapping)
+        and feedback_route.get("artifact_kind")
+        == "ArchitectFeedbackRouteDecision"
+        and feedback_route.get("decision") == "ROUTE"
+        and feedback_route.get("selected_subsystem") == "TheoryDeveloper"
+        and route_decision_id
+        and str(
+            feedback_route.get("environment_feedback_fingerprint", "") or ""
+        )
+        == feedback_fingerprint
         and isinstance(routing, Mapping)
         and routing.get("artifact_kind") == "ArchitectInitialRoutingDecision"
-        and routing.get("source") == "architect_packet"
+        and routing.get("source") == "architect_feedback_route_model"
         and routing.get("requested_subsystem") == "TheoryDeveloper"
         and routing.get("selected_subsystem") == "TheoryDeveloper"
         and str(routing.get("architect_packet_id", "") or "")
-        == architect_packet_id
-        and str(routing.get("environment_feedback_execution_id", "") or "")
-        == str(resolution.get("rejected_review_execution_id", "") or "")
+        == route_decision_id
+        and str(routing.get("environment_feedback_hash", "") or "")
+        == feedback_fingerprint
     ):
         return {}
 
@@ -1374,6 +1393,9 @@ def _architect_frozen_metric_protocol_rebinding_context(
     prior_theory_packet_id = str(
         resolution.get("prior_theory_packet_id", "") or ""
     )
+    prior_theory_packet_hash = str(
+        resolution.get("prior_theory_packet_hash", "") or ""
+    )
     if not (
         isinstance(requirements, list)
         and requirements
@@ -1385,6 +1407,16 @@ def _architect_frozen_metric_protocol_rebinding_context(
         and prior_review.get("execution_results_observed") is False
         and str(prior_review.get("source_theory_packet_id", "") or "")
         == prior_theory_packet_id
+        and str(prior_review.get("source_theory_packet_hash", "") or "")
+        == prior_theory_packet_hash
+        and str(
+            invalidation.get("prior_contract_source_theory_packet_id", "") or ""
+        )
+        == prior_theory_packet_id
+        and str(
+            invalidation.get("prior_contract_source_theory_packet_hash", "") or ""
+        )
+        == prior_theory_packet_hash
         and str(
             prior_review.get(
                 "reviewed_empirical_metric_requirement_set_id", ""
@@ -1434,7 +1466,7 @@ def _architect_frozen_metric_protocol_rebinding_context(
         "current_source_theory_packet_id": current_theory_packet_id,
         "current_source_theory_packet_hash": current_theory_packet_hash,
         "source_review_execution_id": str(
-            resolution.get("rejected_review_execution_id", "") or ""
+            resolution.get("source_review_execution_id", "") or ""
         ),
         "raw_execution_artifacts_included": False,
         "post_result_gate_changes_allowed": False,

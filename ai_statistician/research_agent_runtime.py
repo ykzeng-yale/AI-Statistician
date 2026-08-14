@@ -10319,6 +10319,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     ],
                     "simulation_passed": False,
                     "source_execution_valid": True,
+                    "execution_results_observed": True,
                     "source_semantic_review_required_before_release": True,
                     "unchanged_source_retry_authorized": False,
                     "consumer_source_owner_is_dependency_identity_only": True,
