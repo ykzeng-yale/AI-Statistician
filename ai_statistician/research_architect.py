@@ -252,6 +252,9 @@ class LLMTheoryDeveloperAgent:
             else self.config.max_validation_retries
         )
         revision_inputs: Mapping[str, Any] | None = None
+        document_workspace_required = bool(
+            theory_workspace_root is not None or serious_theory_mode
+        )
         recovered_core_packet = _theory_developer_recovered_core_checkpoint(
             context,
             question=question,
@@ -273,6 +276,19 @@ class LLMTheoryDeveloperAgent:
                 history=[],
             )
         if recovered_core_packet is not None:
+            if document_workspace_required and recovered_core_packet.get(
+                "theory_content_authority"
+            ) != THEORY_WORKSPACE_CONTENT_AUTHORITY:
+                raise PacketValidationError(
+                    validation_label="LLM TheoryDeveloper document workspace",
+                    attempts=0,
+                    errors=[
+                        "AgentRuntime and serious theory recovery require a "
+                        "model-authored Markdown/LaTeX checkpoint; a legacy "
+                        "JSON-only core packet cannot become the theory authority"
+                    ],
+                    history=[],
+                )
             core_packet = recovered_core_packet
         elif theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION:
             revision_inputs = build_theory_developer_revision_inputs(
@@ -347,6 +363,17 @@ class LLMTheoryDeveloperAgent:
                 theory_workspace_root=theory_workspace_root,
             )
         else:
+            if document_workspace_required:
+                raise PacketValidationError(
+                    validation_label="LLM TheoryDeveloper document workspace",
+                    attempts=0,
+                    errors=[
+                        "AgentRuntime and serious theory authoring require native "
+                        "client-tool turns with model-authored Markdown/LaTeX; "
+                        "the legacy JSON-only theory transport is not a valid fallback"
+                    ],
+                    history=[],
+                )
             user_prompt = build_theory_developer_prompt(
                 question,
                 architect_context=context,

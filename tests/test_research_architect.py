@@ -1177,7 +1177,7 @@ def test_serious_theory_validation_requires_explicit_sanity_recomputations() -> 
     assert any("sanity_checks must be a non-empty list" in error for error in errors)
 
 
-def test_capability_theory_mode_uses_reviewer_owned_rigor_not_row_counts(
+def test_capability_theory_mode_rejects_legacy_json_only_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv(
@@ -1193,59 +1193,52 @@ def test_capability_theory_mode_uses_reviewer_owned_rigor_not_row_counts(
         ),
     )
 
-    packet = developer.derive(
-        OpenResearchQuestion(
-            id="serious_theory",
-            title="Serious theory mode",
-            description="Require a research-grade equation trace.",
+    with pytest.raises(
+        PacketValidationError,
+        match="legacy JSON-only theory transport is not a valid fallback",
+    ):
+        developer.derive(
+            OpenResearchQuestion(
+                id="serious_theory",
+                title="Serious theory mode",
+                description="Require a research-grade equation trace.",
+            ),
+            architect_context={
+                "architect_runtime_plan": {
+                    "evidence_contract": {"evaluation_mode": "capability_eval"}
+                }
+            },
+        )
+
+    assert provider.requests == []
+
+
+def test_agent_runtime_theory_rejects_legacy_json_only_transport(
+    tmp_path: Path,
+) -> None:
+    provider = SequentialGeneratorBackend([_sample_response()])
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            max_validation_retries=0,
         ),
-        architect_context={
-            "architect_runtime_plan": {
-                "evidence_contract": {"evaluation_mode": "capability_eval"}
-            }
-        },
     )
 
-    assert packet["ok"] is True
-    assert packet["theory_derivation_contract"]["row_count_policy"] == (
-        "model_selected_nonempty_required_structures"
-    )
-    assert len(provider.requests) == 1
-    request = provider.requests[0]
-    assert request.model == "claude-sonnet-serious-theory-test"
-    assert request.max_tokens == 10000
-    assert request.metadata["model_tier"] == "sonnet"
-    assert request.metadata["base_model_tier"] == "sonnet"
-    assert request.metadata["serious_theory_mode"] is True
-    assert request.metadata["theory_prompt_mode"] == (
-        "serious_capability_theory_workspace"
-    )
-    derivation_schema = request.schema["properties"][
-        "theory_derivation_packet"
-    ]["properties"]
-    assert derivation_schema["derivation_steps"]["minItems"] == 1
-    assert derivation_schema["equation_chain"]["minItems"] == 1
-    assert derivation_schema["sanity_checks"]["minItems"] == 1
-    assert "maxItems" not in derivation_schema["derivation_steps"]
-    assert "maxItems" not in derivation_schema["equation_chain"]
-    assert "maxItems" not in derivation_schema["sanity_checks"]
-    assert "maxItems" not in request.schema["properties"]["theorem_cards"]
-    assert "maxLength" not in request.schema["properties"]["problem_card"][
-        "properties"
-    ]["observed_data"]
-    assert "You own all mathematical content" in request.user_prompt
-    assert "runtime does not provide issue-specific corrections" in (
-        request.user_prompt
-    )
-    assert "reviewer observations as evidence" in request.user_prompt
-    assert "row counts are not a quality metric" in request.user_prompt
-    assert "model_selected_within_token_budget" in request.user_prompt
-    assert "does not define research quality through row counts" in (
-        request.user_prompt
-    )
-    assert "n or sqrt(n) factor" not in request.user_prompt
-    assert "one-observation or boundary value" not in request.user_prompt
-    assert "optimization, extrema, stopping" not in request.user_prompt
+    with pytest.raises(
+        PacketValidationError,
+        match="legacy JSON-only theory transport is not a valid fallback",
+    ):
+        developer.derive(
+            OpenResearchQuestion(
+                id="runtime_document_theory",
+                title="Runtime document theory",
+                description="Require an authoritative mathematical workspace.",
+            ),
+            theory_workspace_root=tmp_path / "theory-workspaces",
+        )
+
+    assert provider.requests == []
 
 
 def test_theory_developer_anthropic_request_uses_structured_output() -> None:
@@ -2266,7 +2259,7 @@ def test_theory_developer_uses_shared_full_packet_regeneration(
     assert captured["max_validation_retries"] == 2
 
 
-def test_theory_developer_truncation_recovery_is_serious_and_bounded() -> None:
+def test_serious_theory_truncation_recovery_does_not_resample_json() -> None:
     provider = SequentialGeneratorBackend(
         [
             '{"problem_card":{"observed_data":"truncated"',
@@ -2293,7 +2286,10 @@ def test_theory_developer_truncation_recovery_is_serious_and_bounded() -> None:
         },
     }
 
-    with pytest.raises(PacketValidationError):
+    with pytest.raises(
+        PacketValidationError,
+        match="legacy JSON-only theory transport is not a valid fallback",
+    ):
         developer.derive(
             OpenResearchQuestion(
                 id="transport_recovery",
@@ -2303,23 +2299,7 @@ def test_theory_developer_truncation_recovery_is_serious_and_bounded() -> None:
             architect_context=context,
         )
 
-    assert len(provider.requests) == 2
-    request = provider.requests[0]
-    assert request.metadata["transport_recovery"] is True
-    assert request.metadata["effective_max_validation_retries"] == 1
-    derivation_schema = request.schema["properties"][
-        "theory_derivation_packet"
-    ]["properties"]
-    assert derivation_schema["derivation_steps"]["minItems"] == 1
-    assert derivation_schema["derivation_steps"]["maxItems"] == 5
-    assert derivation_schema["equation_chain"]["minItems"] == 1
-    assert derivation_schema["equation_chain"]["maxItems"] == 4
-    assert derivation_schema["sanity_checks"]["minItems"] == 1
-    assert derivation_schema["sanity_checks"]["maxItems"] == 3
-    assert request.schema["properties"]["problem_card"]["properties"][
-        "observed_data"
-    ]["maxLength"] == 320
-    assert '"transport_recovery":true' in request.user_prompt
+    assert provider.requests == []
 
 
 def test_llm_theory_developer_repairs_invalid_json_packet_before_accepting() -> None:
