@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "james_stein_normal_mean_known_result",
+      "title": "James-Stein shrinkage for a multivariate normal mean",
+      "description": "Focused known-result evaluation based on W. James and Charles Stein, Estimation with Quadratic Loss, Proceedings of the Fourth Berkeley Symposium on Mathematical Statistics and Probability, Volume 1, 1961, pages 361-379. Let X be distributed as N_p(theta, sigma^2 I_p), where p is at least 3 and sigma^2 is known and positive, and use total squared-error loss. In an authoritative Markdown/LaTeX theory workspace, derive rather than merely quote that the usual estimator delta_0(X)=X has constant risk p sigma^2. For the ordinary, untruncated James-Stein estimator delta_JS(X) = (1 - (p-2)sigma^2/||X||^2)X, derive the Stein-identity risk calculation and the exact risk reduction R(theta,delta_JS)=p sigma^2-(p-2)^2 sigma^4 E_theta[1/||X||^2] < p sigma^2. Make the divergence calculation, integrability for p greater than 2, uniformity in theta, and the probability-zero singularity at X=0 auditable. Distinguish this ordinary estimator from the positive-part estimator and explain why the p=1 or p=2 cases are outside the stated dominance result. The required algorithm artifact id is est_james_stein_normal_mean. Its run_estimator(request) input has observations as one nonzero length-p numeric array with p at least 3 and known_variance as a positive numeric scalar. It must return estimate as a length-p numeric array and shrinkage_factor as a numeric scalar for the ordinary, untruncated estimator. State a finite numerical policy for the exact-zero input without changing the almost-sure statistical result. Use exploratory computation only as a diagnostic, then run a separately frozen confirmatory paired Monte Carlo comparison of squared-error risk across multiple predeclared dimensions and signal strengths, reporting Monte Carlo standard errors. This L0 task exposes the known result, source snapshot, and ABI; it tests faithful derivation, implementation, empirical validation, and honest gaps rather than novelty. Source-code replication and Lean formalization are not applicable.",
+      "tags": [
+        "decision theory",
+        "normal mean",
+        "shrinkage",
+        "known result",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "Estimation with Quadratic Loss",
+        "authors": [
+          "W. James",
+          "Charles Stein"
+        ],
+        "venue": "Proceedings of the Fourth Berkeley Symposium on Mathematical Statistics and Probability",
+        "year": 1961,
+        "volume": 1,
+        "pages": "361-379",
+        "url": "https://projecteuclid.org/ebooks/berkeley-symposium-on-mathematical-statistics-and-probability/Proceedings-of-the-Fourth-Berkeley-Symposium-on-Mathematical-Statistics-and/chapter/Estimation-with-Quadratic-Loss/bsmsp/1200512173"
+      }
+    }
+  ]
+}

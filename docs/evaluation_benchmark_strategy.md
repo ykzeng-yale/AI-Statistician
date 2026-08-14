@@ -230,7 +230,7 @@ e-process guarantee. Neither task reached Formalizer, so the atomic Lean
 declaration-context improvement still has component evidence only. The held-out
 strict-formal panel remains sealed.
 
-The ladder now has two full-task-gold L0 tasks. White HC0 has one fresh
+The ladder now has four full-task-gold L0 tasks. White HC0 has one fresh
 corrected-v2 exact-Haiku run. v5 ended `BLOCKED`: its accepted estimator
 passed all 7 hidden reference/metamorphic checks and all 6 hidden empirical checks
 across two DGPs and 2,000 estimator calls, but its theory passed only 7 of 11 hidden
@@ -309,6 +309,17 @@ revision. This removes premature acceptance or lost partial mathematics as a har
 constraint, but currently has deterministic replay evidence only. It does not make a
 partial checkpoint accepted theory, cross-task research memory, or evidence that the
 model can complete a long derivation correctly.
+
+An unrelated James-Stein normal-mean L0 task is now frozen before its first runtime
+model call. Its model-visible authority is a hash-bound 1961 paper extraction plus a
+page-bound transcription of the scan's damaged formulas. Evaluator-only gold combines
+the generic Markdown/LaTeX identity harness, a 7/7 exact-Haiku semantic calibration,
+closed-form and metamorphic estimator checks, and a predeclared paired-risk simulation
+with MCSE reporting. The reference estimator passes all five algorithm checks and all
+three empirical DGPs; three deliberately wrong estimator families are rejected. These
+are evaluator calibration facts, not model capability. The single fresh run will test
+the new document workspace and continuation mechanism without changing runtime prompts,
+agents, retries, iteration budgets, or task-specific rules.
 
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same
