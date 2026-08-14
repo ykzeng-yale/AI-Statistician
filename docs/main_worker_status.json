@@ -1,9 +1,9 @@
 {
-  "schema_version": 70,
+  "schema_version": 71,
   "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "50166ff391e70c5efddd16784a7cc62bb66e26e8",
+  "validated_code_head": "207bc09fbc9d30354af002eab3d40456dfe104cf",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -53,7 +53,7 @@
     ]
   },
   "validated_change": {
-    "commit": "50166ff391e70c5efddd16784a7cc62bb66e26e8",
+    "commit": "207bc09fbc9d30354af002eab3d40456dfe104cf",
     "changes": [
       "The existing TheoryDeveloper workspace now exposes one no-input run_research_source action for an operator-fixed, hash-bound paper entrypoint and environment. The same model reads raw stdout and stderr; it cannot choose the command, edit source, inherit secrets, or use network access.",
       "Explicit task_intent can terminate a source-replication-only objective with one model-authored Markdown report and gap checkpoint without fabricating theory, generated code, simulation, novelty, or formal proof artifacts.",
@@ -77,12 +77,14 @@
       "Document-authoritative Theory packets no longer acquire empty legacy derivation_steps, equation_chain, assumption_ledger, or sanity_checks arrays during normalization. Markdown/LaTeX remains the mathematical authority; JSON retains only the claim and sanity-check index plus downstream estimator, theorem, simulation, proof-plan, and optional formalization handoffs.",
       "The model-visible question hash now includes explicit task intent, and evaluator preflight rejects any mismatch between visible and hidden source, theory, code, empirical, formal, novelty, or unresolved-gap requirements before a model call. Evidence scope can no longer drift while retaining the same visible-question identity.",
       "Canonical TheoryDeveloper authoring now separates one strict model-owned path-plus-content Markdown/LaTeX/BibTeX write from the small structured claim-index and executable-ABI handoff. The runtime stores and validates exact bytes but neither interprets nor repairs the mathematics; the former batch document_writes input remains compatibility-only and is no longer exposed to the model.",
-      "Theory-only hidden evaluation now counts as a genuinely evaluated gold task even when no algorithm harness is configured, while every not-applicable dimension reports not_configured authority instead of naming a hidden evaluator that never ran."
+      "Theory-only hidden evaluation now counts as a genuinely evaluated gold task even when no algorithm harness is configured, while every not-applicable dimension reports not_configured authority instead of naming a hidden evaluator that never ran.",
+      "TheoryDeveloper initial and revision prompts now describe the actual direct-document, hash-bound edit, and structured-handoff tools instead of instructing the model to use the removed combined batch shape. The executor no longer accepts document_writes through write_theory_workspace, and deterministic replay proves the same model receives a direct-tool correction rather than a runtime content patch.",
+      "Canonical scripted theory sessions now write one complete mathematical document and one mutually consistent structured handoff instead of splitting the handoff into arbitrary two-artifact batches. This reduced the representative initial session from eight to six tool turns and from five to three accepted writes without increasing any budget."
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, and execution boundaries. The model chooses every claim, dependency, document query, path, line range, and edit. DoubleML expected values and tolerances remain in an evaluator-only bundle outside the repository and model workspace. Runtime contains no DoubleML statistic, IRM equation, expected output, Lean grammar rule, tactic rule, or repair recipe.",
     "verification": {
-      "full_pytest": "734 passed in 95.95s",
-      "affected_subsystem_pytest": "122 TheoryDeveloper workspace, Architect, model-backend, and client-tool-loop tests passed in 3.28s; 25 hidden gold tests passed in 0.13s",
+      "full_pytest": "734 passed in 95.96s",
+      "affected_subsystem_pytest": "122 TheoryDeveloper workspace, Architect, model-backend, and client-tool-loop tests passed in 3.27s",
       "source_retrieval_ablation": "A representative query reconstructed from persisted L1 matched terms returned five distinct top-5 documents, including the exact DoubleMLIRM implementation. The failed live run did not persist its raw query text, so this is not an exact-query replay and provides no report-correctness credit.",
       "real_immutable_source_execution": "EXECUTED with return code 0, no errors, no source mutation, and frozen stdout SHA-256 ef1f1614e671a91b435e46e98126fb24c442faec198b19ab709788af32ab16d3",
       "hidden_source_harness_calibration": "6/6: gold accepted and five source, environment, execution, stdout, or sign variants rejected",
@@ -90,9 +92,9 @@
       "model_policy_audit": "production tiers remain Haiku or Sonnet with Opus rejected; tests and live evaluations remain pinned to claude-haiku-4-5-20251001",
       "fresh_live_research_draws": 1,
       "fresh_live_result": "Quantile-CLT L0 v1 BLOCKED and hidden gold 0/1; no accepted theory artifact reached hidden evaluation, and no rerun was used to seek a favorable model draw",
-      "runtime_core_growth": "research_agent_runtime.py remains 24774 lines, theory_workspace.py is 2770 lines, and research_architect.py is 4907 lines. The direct document tool reuses the existing workspace executor and state; the changes add no Python module, runtime agent, scheduler, repair subsystem, retry, outer iteration, model call, or task-specific content rule"
+      "runtime_core_growth": "research_agent_runtime.py remains 24774 lines, theory_workspace.py is 2741 lines, and research_architect.py is 4914 lines. Removing the combined document batch path shrank the workspace implementation; the changes add no Python module, runtime agent, scheduler, repair subsystem, retry, outer iteration, model call, or task-specific content rule"
     },
-    "evidence_boundary": "The task-intent identity and direct-document authoring changes have deterministic and full-regression evidence only. The fresh quantile run used the prior overloaded batch tool and exposed the interface defect; it did not execute the post-run fix, produce an accepted theory artifact, or reach hidden mathematical evaluation. Therefore the run remains 0/1 and supplies no theory-correctness credit. Earlier task-intent, document-authority, transport-evidence detachment, document claim-DAG, claim-revision-delta, parent-reference hydration, document inspection, and report-semantic changes likewise prove interface and evidence behavior rather than improved model judgment."
+    "evidence_boundary": "The task-intent identity and direct-document authoring changes have deterministic and full-regression evidence only. The fresh quantile run used the prior overloaded batch tool and exposed the interface defect; it did not execute commits 50166ff3 or 207bc09f, produce an accepted theory artifact, or reach hidden mathematical evaluation. Therefore the run remains 0/1 and supplies no theory-correctness credit. Prompt-tool alignment, fallback deletion, document authority, transport detachment, claim-DAG, revision-delta, parent-reference hydration, document inspection, and report-semantic changes prove interface and evidence behavior rather than improved model judgment."
   },
   "latest_component_evidence": {
     "id": "research_l0_quantile_clt_v1_document_theory_exact_haiku_20260814",
@@ -118,7 +120,7 @@
     "runtime_behavior": "failed closed, retained a recovery checkpoint, did not route through a repair agent, and did not promote malformed or absent theory to hidden gold",
     "scientific_diagnosis": "No candidate mathematics reached an authoritative Markdown/LaTeX artifact or independent reviewer. The run therefore cannot support either a mathematical pass or a mathematical failure diagnosis.",
     "preactivation_evaluator_calibration": "exact Haiku classified 6/6 sealed calibration cases correctly; the reference candidate passed, and mechanical positive and non-document-authority negative controls behaved as frozen before the runtime",
-    "post_run_shared_fix": "50166ff3 replaces the canonical overloaded batch authoring input with one strict path-plus-content document tool and leaves the structured tool as a small claim index or executable ABI. The same source-owning model still receives exact execution feedback; no repair worker, content patch, task rule, retry, budget increase, model escalation, or scheduler was added.",
+    "post_run_shared_fix": "50166ff3 introduced one strict path-plus-content document tool; 207bc09f aligned every initial and revision prompt with that tool and deleted the old combined document_writes executor fallback. The same source-owning model still receives exact tool feedback; no repair worker, content patch, task rule, retry, budget increase, model escalation, or scheduler was added.",
     "formalization_status": "not_applicable by task intent; no Lean work was scheduled and formalization was not the bottleneck",
     "component_result": "0/1 passed",
     "fresh_unrelated_task_live_run": true,
@@ -223,7 +225,7 @@
       "strict development exact source-theorem closure remains 0/2",
       "the research ladder has four active gold-configured tasks but zero passing tasks",
       "fresh quantile-CLT L0 v1 correctly stayed theory-only but its prior overloaded authoring tool rejected three malformed document_writes values, so no mathematical artifact reached independent or hidden evaluation and the task scored 0/1",
-      "the post-quantile direct path-plus-content document tool has deterministic and full-regression evidence only; it has not yet produced an accepted live theory document or improved a hidden theory score on an unrelated frozen task",
+      "the post-quantile direct path-plus-content document tool and prompt alignment have deterministic and full-regression evidence only; they have not yet produced an accepted live theory document or improved a hidden theory score on an unrelated frozen task",
       "fresh DoubleML L1 v1 completed the exact immutable author-source process but failed its model-authored checkpoint and therefore scored 0/1",
       "the DoubleML Markdown report confused the partially linear regression model with the interactive regression model even though the exact DoubleMLIRM definition was available in the source snapshot",
       "the frozen DoubleML L1 evaluator validates replication identity but had no pre-run semantic authority for the model-authored report; the new generic report-semantic mechanism cannot retroactively rescore that run",
@@ -265,13 +267,13 @@
   },
   "current_structure": {
     "research_agent_runtime_lines": 24774,
-    "theory_workspace_lines": 2770,
-    "research_architect_lines": 4907,
+    "theory_workspace_lines": 2741,
+    "research_architect_lines": 4914,
     "formalizer_llm_lines": 2387,
     "agent_runtime_lines": 1207,
     "cli_lines": 7067,
     "top_level_python_modules": 141,
-    "top_level_package_lines": 140702,
+    "top_level_package_lines": 140680,
     "latest_runtime_manifest_bytes": 59615
   },
   "next_gates": [

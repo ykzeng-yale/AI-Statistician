@@ -327,7 +327,9 @@
         "capability_interpretation": "The run establishes correct theory-only routing and fail-closed evidence behavior, but it does not judge mathematical competence because no model-authored document or theory packet reached independent evaluation.",
         "post_run_generic_harness_fix_commit": "50166ff391e70c5efddd16784a7cc62bb66e26e8",
         "post_run_generic_harness_fix": "Canonical TheoryDeveloper authoring now gives the same model one strict path-plus-content document tool and keeps structured JSON as a small claim index or executable ABI. No content repair, task rule, retry, tool-call budget, model tier, agent, or scheduler was added.",
-        "post_run_full_pytest": "734 passed in 95.95s",
+        "post_run_direct_authoring_alignment_commit": "207bc09fbc9d30354af002eab3d40456dfe104cf",
+        "post_run_direct_authoring_alignment": "Initial and revision prompts now name the direct document, hash-bound edit, and structured-handoff tools exactly. The obsolete combined document_writes executor path and its scripted-test usage were deleted instead of retained as a fallback.",
+        "post_run_full_pytest": "734 passed in 95.96s",
         "model_draw_resampling_blocked": true,
         "full_task_passed": false
       },
