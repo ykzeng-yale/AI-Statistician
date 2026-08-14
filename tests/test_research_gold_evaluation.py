@@ -302,6 +302,66 @@ def _full_task_gold_manifest(tmp_path: Path) -> Path:
     return path
 
 
+def _add_semantic_theory_evaluator(path: Path, tmp_path: Path) -> Path:
+    reference = tmp_path / "private-reference.md"
+    reference.write_text("# Reference\n\nA correct claim.\n")
+    rubric = tmp_path / "private-rubric.json"
+    rubric.write_text(
+        json.dumps(
+            {
+                "rubric_id": "private-rubric",
+                "claims": [
+                    {
+                        "claim_id": "private-claim",
+                        "criterion": "The candidate is semantically correct.",
+                    }
+                ],
+            }
+        )
+    )
+    calibration = tmp_path / "private-calibration.json"
+    calibration.write_text(
+        json.dumps(
+            {
+                "cases": [
+                    {
+                        "case_id": "private-case-a",
+                        "expected_status": "PASS",
+                        "documents": [{"path": "a.md", "content": "correct"}],
+                    },
+                    {
+                        "case_id": "private-case-b",
+                        "expected_status": "FAIL",
+                        "documents": [{"path": "b.md", "content": "incorrect"}],
+                    },
+                ]
+            }
+        )
+    )
+    manifest = json.loads(path.read_text())
+    manifest["active_tasks"][0]["hidden_theory_semantic_evaluator"] = {
+        "provider": "anthropic",
+        "model_tier": "haiku",
+        "model": "claude-haiku-4-5-20251001",
+        "automatic_tier_escalation_allowed": False,
+        "max_tokens": 2000,
+        "timeout_seconds": 30,
+        "reference_documents": [
+            {
+                "document_id": "private-reference",
+                "path": str(reference),
+                "sha256": _fixture_sha256(reference),
+            }
+        ],
+        "rubric_path": str(rubric),
+        "rubric_sha256": _fixture_sha256(rubric),
+        "calibration_cases_path": str(calibration),
+        "calibration_cases_sha256": _fixture_sha256(calibration),
+    }
+    path.write_text(json.dumps(manifest))
+    return path
+
+
 def test_gold_evaluator_scores_only_accepted_exact_source(tmp_path: Path) -> None:
     result = evaluate_research_gold_benchmark(
         [_runtime_result()],
@@ -440,6 +500,60 @@ def test_hidden_theory_evaluator_receives_hash_verified_documents(
     assert task["accepted_theory_document_count"] == 1
     assert task["accepted_theory_document_set_hash"]
     assert task["hidden_theory_checks_passed"] is True
+
+
+@pytest.mark.parametrize("calibrated", (True, False))
+def test_full_task_theory_requires_calibrated_semantic_judgment(
+    tmp_path: Path,
+    calibrated: bool,
+) -> None:
+    manifest = _add_semantic_theory_evaluator(
+        _full_task_gold_manifest(tmp_path),
+        tmp_path,
+    )
+
+    def semantic_runner(**kwargs) -> dict:
+        assert kwargs["model"] == "claude-haiku-4-5-20251001"
+        assert kwargs["model_tier"] == "haiku"
+        assert kwargs["candidate_documents"][0]["content"].startswith("# C1")
+        assert kwargs["reference_documents"][0]["content"].startswith(
+            "# Reference"
+        )
+        assert len(kwargs["calibration_cases"]) == 2
+        return {
+            "judgment_hash": "private-semantic-result",
+            "semantic_judge_calibrated": calibrated,
+            "n_calibration_cases": 2,
+            "n_calibration_cases_correct": 2 if calibrated else 1,
+            "n_claims": 1,
+            "candidate_status": "PASS",
+            "passed": calibrated,
+        }
+
+    result = evaluate_research_gold_benchmark(
+        [
+            _runtime_result_with_accepted_theory(
+                document_workspace=tmp_path / "theory-workspace"
+            )
+        ],
+        research_evaluation_summary=_research_summary(),
+        benchmark_manifest_path=manifest,
+        out_dir=tmp_path / "out",
+        run_harness=_passing_harness,
+        run_artifact_harness=_passing_artifact_harness,
+        run_theory_semantic_judge=semantic_runner,
+    )
+
+    task = result["tasks"][0]
+    assert task["hidden_theory_semantic_execution_attempted"] is True
+    assert task["hidden_theory_semantic_judge_calibrated"] is calibrated
+    assert task["hidden_theory_semantic_passed"] is calibrated
+    assert task["hidden_theory_combined_passed"] is calibrated
+    assert task["task_passed"] is calibrated
+    serialized = json.dumps(result)
+    assert "private-claim" not in serialized
+    assert "private-case-a" not in serialized
+    assert "A correct claim" not in serialized
 
 
 def test_gold_evaluator_preserves_passed_upstream_dimensions_when_runtime_blocks(

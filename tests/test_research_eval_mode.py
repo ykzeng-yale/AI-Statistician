@@ -661,15 +661,55 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
             "algorithm_sandbox_manifest_id": "algorithm",
             "simulation_manifest_id": "simulation",
             "llm_critic_evaluator_proposal_id": "critic_proposal",
-            "evidence_contract_decision": {"runtime_status": "ACCEPTED"},
+            "evidence_contract_decision": {
+                "runtime_status": "ACCEPTED",
+                "scientific_disposition": "ACCEPT",
+            },
         },
         "critic_proposal": {
             "artifact_kind": "CriticEvaluatorProposalPacket",
-            "current_observation_assessment": {
-                "independent_missing_evidence": [],
-            },
             "critic_findings": [],
+            "dimension_assessments": [
+                {
+                    "dimension": dimension,
+                    "status": (
+                        "NOT_REQUESTED" if dimension == "formal" else "SUPPORTED"
+                    ),
+                }
+                for dimension in (
+                    "theory",
+                    "scientific_code",
+                    "empirical",
+                    "formal",
+                )
+            ],
+            "gap_disclosure": {
+                "status": "COMPLETE",
+                "disclosed_gaps": [],
+                "evidence_refs": ["critic-canonical-view"],
+                "rationale": "All observed gaps are disclosed.",
+            },
+            "research_disposition": {
+                "status": "ACCEPT",
+                "blocking_dimensions": [],
+                "rationale": "The requested research dimensions are supported.",
+            },
         },
+    }
+    preflight = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+        "source_theory_packet_id": "theory",
+        "source_theory_packet_hash": stable_hash(artifacts["theory"]),
+        "overall_verdict": "ACCEPT",
+        "active_unresolved_finding_ids": [],
+    }
+    artifacts["theory_preflight"] = preflight
+    artifacts["theory_preflight_acceptance"] = {
+        "artifact_kind": "RuntimeArchitectTheoryExecutionPreflightAcceptance",
+        "source_theory_packet_id": "theory",
+        "source_theory_packet_hash": stable_hash(artifacts["theory"]),
+        "preflight_packet_id": "theory_preflight",
+        "preflight_packet_hash": stable_hash(preflight),
     }
     accepted_review = {
         "artifact_kind": "RuntimeGeneratedCodeSemanticReviewExecutionManifest",
@@ -713,22 +753,32 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
         "critic_unresolved_gap_disclosure_present"
     ] is True
 
-    artifacts["critic_proposal"]["current_observation_assessment"].pop(
-        "independent_missing_evidence"
+    preflight_acceptance = artifacts.pop("theory_preflight_acceptance")
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+    assert summary["all_questions_research_loop_complete"] is False
+    assert summary["rows"][0]["requirements"][
+        "theory_preexecution_review_accepted"
+    ] is False
+    artifacts["theory_preflight_acceptance"] = preflight_acceptance
+
+    artifacts["critic_proposal"]["gap_disclosure"].pop("evidence_refs")
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+    assert summary["all_questions_research_loop_complete"] is False
+    artifacts["critic_proposal"]["gap_disclosure"]["evidence_refs"] = [
+        "critic-canonical-view"
+    ]
+    artifacts["critic_proposal"]["research_disposition"]["status"] = (
+        "INCONCLUSIVE"
     )
     summary = build_research_evaluation_summary(
         [result], evaluation_mode="research_eval", schema_version="test"
     )
     assert summary["all_questions_research_loop_complete"] is False
-    artifacts["critic_proposal"]["current_observation_assessment"][
-        "independent_missing_evidence"
-    ] = []
-    artifacts["critic_proposal"].pop("critic_findings")
-    summary = build_research_evaluation_summary(
-        [result], evaluation_mode="research_eval", schema_version="test"
-    )
-    assert summary["all_questions_research_loop_complete"] is False
-    artifacts["critic_proposal"]["critic_findings"] = []
+    artifacts["critic_proposal"]["research_disposition"]["status"] = "ACCEPT"
 
     artifacts["simulation"].update(
         {

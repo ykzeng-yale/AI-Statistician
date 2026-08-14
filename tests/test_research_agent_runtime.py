@@ -469,6 +469,48 @@ def test_summary_flags_and_subclaims_do_not_satisfy_exact_theorem_gate() -> None
     assert decision["failure_classification"] == "formal_required_unverified"
 
 
+@pytest.mark.parametrize(
+    ("disposition", "failure_classification"),
+    (
+        ("REJECT", "critic_scientific_rejected"),
+        ("INCONCLUSIVE", "critic_scientific_inconclusive"),
+    ),
+)
+def test_critic_scientific_disposition_blocks_without_retry(
+    disposition: str,
+    failure_classification: str,
+) -> None:
+    decision = runtime_module._critic_evidence_contract_decision(
+        critic_control={
+            "evidence_contract": {"formal_verification_policy": "optional"}
+        },
+        formalization_manifest={"counts": {"formal_gap": 1}},
+        revision_required=False,
+        scientific_disposition=disposition,
+    )
+
+    assert decision["runtime_status"] == "BLOCKED"
+    assert decision["scientific_disposition"] == disposition
+    assert decision["failure_classification"] == failure_classification
+
+
+def test_critic_acceptance_keeps_optional_formalization_nonblocking() -> None:
+    decision = runtime_module._critic_evidence_contract_decision(
+        critic_control={
+            "evidence_contract": {"formal_verification_policy": "optional"}
+        },
+        formalization_manifest={"counts": {"formal_gap": 1}},
+        revision_required=False,
+        scientific_disposition="ACCEPT",
+    )
+
+    assert decision["runtime_status"] == "ACCEPTED"
+    assert decision["scientific_disposition"] == "ACCEPT"
+    assert decision["final_acceptance_status"] == (
+        "RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS"
+    )
+
+
 def test_workspace_parent_lineage_reopens_only_after_parent_artifact_changes() -> None:
     formalizer_parents = runtime_module._runtime_workspace_parent_artifact_ids(
         "FormalizationEvaluator",

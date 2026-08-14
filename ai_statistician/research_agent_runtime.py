@@ -49,6 +49,7 @@ from .critic_evaluator_llm import (
     CRITIC_EVALUATOR_BOUNDARY,
     CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE,
     LLMCriticEvaluatorAgent,
+    build_critic_canonical_evidence_view,
 )
 from .cross_family_eval_protocol import (
     CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY,
@@ -18074,6 +18075,16 @@ class CriticEvaluatorRuntimeSubsystem:
             if explicit_critic_environment_feedback
             else dict(critic_runtime_observations)
         )
+        canonical_evidence_view = build_critic_canonical_evidence_view(
+            question_id=question.id,
+            theory_packet=theory_packet,
+            algorithm_manifest=algorithm_manifest,
+            simulation_manifest=simulation_manifest,
+            formalization_manifest=formalization_manifest,
+            artifacts=blackboard.artifacts,
+            formal_verification_policy=formal_verification_policy,
+            evidence_contract=critic_evidence_contract,
+        )
         proposal_packet: dict[str, Any] | None = None
         proposal_evidence: EvidenceLedgerEntry | None = None
         proposal_validation_failure_id = ""
@@ -18091,6 +18102,7 @@ class CriticEvaluatorRuntimeSubsystem:
                         simulation_manifest=simulation_manifest,
                         algorithm_manifest=algorithm_manifest,
                         formalization_manifest=formalization_manifest,
+                        canonical_evidence_view=canonical_evidence_view,
                         environment_feedback=critic_environment_feedback,
                     )
             except PacketValidationError as exc:
@@ -18180,6 +18192,15 @@ class CriticEvaluatorRuntimeSubsystem:
         coordination_scope = str(
             coordination_assessment.get("scope", "none") or "none"
         ).strip()
+        research_disposition = (
+            proposal_packet.get("research_disposition", {})
+            if isinstance(proposal_packet, Mapping)
+            and isinstance(proposal_packet.get("research_disposition", {}), Mapping)
+            else {}
+        )
+        scientific_disposition = str(
+            research_disposition.get("status", "") or ""
+        ).strip()
         conflicting_artifact_ids = list(
             dict.fromkeys(
                 str(value).strip()
@@ -18226,6 +18247,7 @@ class CriticEvaluatorRuntimeSubsystem:
                 architect_replan_required
                 or proposal_validation_failure_feedback is not None
             ),
+            scientific_disposition=scientific_disposition,
         )
         manifest_id = "critic_evaluator_manifest:" + stable_hash(
             [
@@ -18253,6 +18275,10 @@ class CriticEvaluatorRuntimeSubsystem:
             "llm_critic_evaluator_validation_failure_id": (
                 proposal_validation_failure_id
             ),
+            "canonical_evidence_view_hash": str(
+                canonical_evidence_view.get("view_hash", "") or ""
+            ),
+            "research_disposition": dict(research_disposition),
             "coordination_assessment": dict(coordination_assessment),
             "critic_revision_round": critic_round,
             "max_critic_revision_rounds": max_critic_revision_rounds,
@@ -20802,6 +20828,7 @@ def _critic_evidence_contract_decision(
     formalization_manifest: Mapping[str, Any],
     source_theorem_kernel_verified: bool = False,
     revision_required: bool,
+    scientific_disposition: str = "",
 ) -> dict[str, Any]:
     """Classify terminal critic status under the Architect evidence contract."""
 
@@ -20831,10 +20858,21 @@ def _critic_evidence_contract_decision(
         formal_gaps <= 0
         and source_theorem_kernel_verified
     )
+    normalized_scientific_disposition = str(
+        scientific_disposition or ""
+    ).strip().upper()
     if revision_required:
         final_status = "REROUTE_REQUIRED_BEFORE_FINAL"
         runtime_status = "REVISE"
         failure_classification = ""
+    elif normalized_scientific_disposition == "REJECT":
+        final_status = "RESEARCH_CANDIDATE_REJECTED"
+        runtime_status = "BLOCKED"
+        failure_classification = "critic_scientific_rejected"
+    elif normalized_scientific_disposition == "INCONCLUSIVE":
+        final_status = "RESEARCH_CANDIDATE_INCONCLUSIVE"
+        runtime_status = "BLOCKED"
+        failure_classification = "critic_scientific_inconclusive"
     elif policy == "required" and not formal_satisfied:
         final_status = "FORMAL_REQUIRED_BLOCKED"
         runtime_status = "BLOCKED"
@@ -20872,6 +20910,7 @@ def _critic_evidence_contract_decision(
         ),
         "full_frontier_theorem_proved": source_theorem_kernel_verified,
         "formal_satisfied": formal_satisfied,
+        "scientific_disposition": normalized_scientific_disposition,
         "runtime_status": runtime_status,
         "final_acceptance_status": final_status,
         "failure_classification": failure_classification,

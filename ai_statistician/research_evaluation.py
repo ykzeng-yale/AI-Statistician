@@ -218,17 +218,47 @@ def _critic_gap_disclosure_present(
         critic_manifest.get("llm_critic_evaluator_proposal_id", "") or ""
     )
     proposal = artifacts.get(proposal_id, {})
-    assessment = proposal.get("current_observation_assessment", {})
-    missing_evidence = (
-        assessment.get("independent_missing_evidence")
-        if isinstance(assessment, Mapping)
-        else None
-    )
-    findings = proposal.get("critic_findings")
+    disclosure = proposal.get("gap_disclosure", {})
     return bool(
         proposal.get("artifact_kind") == "CriticEvaluatorProposalPacket"
-        and isinstance(missing_evidence, list)
-        and isinstance(findings, list)
+        and isinstance(disclosure, Mapping)
+        and disclosure.get("status") == "COMPLETE"
+        and isinstance(disclosure.get("disclosed_gaps"), list)
+        and isinstance(disclosure.get("evidence_refs"), list)
+        and str(disclosure.get("rationale", "") or "").strip()
+    )
+
+
+def _critic_research_disposition_accepted(
+    critic_manifest: Mapping[str, Any],
+    artifacts: Mapping[str, Mapping[str, Any]],
+) -> bool:
+    proposal_id = str(
+        critic_manifest.get("llm_critic_evaluator_proposal_id", "") or ""
+    )
+    proposal = artifacts.get(proposal_id, {})
+    disposition = proposal.get("research_disposition", {})
+    dimensions = proposal.get("dimension_assessments", [])
+    decision = critic_manifest.get("evidence_contract_decision", {})
+    if not (
+        proposal.get("artifact_kind") == "CriticEvaluatorProposalPacket"
+        and isinstance(disposition, Mapping)
+        and disposition.get("status") == "ACCEPT"
+        and not disposition.get("blocking_dimensions")
+        and isinstance(dimensions, list)
+        and isinstance(decision, Mapping)
+        and decision.get("scientific_disposition") == "ACCEPT"
+        and decision.get("runtime_status") == "ACCEPTED"
+    ):
+        return False
+    status_by_dimension = {
+        str(row.get("dimension", "") or ""): str(row.get("status", "") or "")
+        for row in dimensions
+        if isinstance(row, Mapping)
+    }
+    return all(
+        status_by_dimension.get(dimension) == "SUPPORTED"
+        for dimension in ("theory", "scientific_code", "empirical")
     )
 
 
@@ -530,8 +560,7 @@ def build_research_evaluation_summary(
                 in {"anthropic", "openai"}
             ),
             "theory_preexecution_review_accepted": bool(
-                critic_manifest
-                or _theory_preexecution_review_accepted(
+                _theory_preexecution_review_accepted(
                     artifacts,
                     theory_packet_id=theory_packet_id,
                     theory_packet=theory_packet,
@@ -598,7 +627,12 @@ def build_research_evaluation_summary(
                 require_confirmatory_empirical_evidence=True,
             ),
             "critic_research_acceptance": bool(
-                critic_manifest and result.get("status") == "ACCEPTED"
+                critic_manifest
+                and result.get("status") == "ACCEPTED"
+                and _critic_research_disposition_accepted(
+                    critic_manifest,
+                    artifacts,
+                )
             ),
             "critic_unresolved_gap_disclosure_present": (
                 _critic_gap_disclosure_present(critic_manifest, artifacts)
