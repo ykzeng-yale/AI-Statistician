@@ -57,14 +57,14 @@ def test_ladder_counts_fully_configured_active_tasks_without_embedding_gold() ->
         for candidate in candidates
         if candidate["status"].startswith("proposed_pending_")
     ]
-    assert ladder["current_readiness"]["active_scored_tasks"] == len(active) == 3
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 3
-    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
-    assert {candidate["id"] for candidate in active} == {
-        "heteroskedastic_covariance_known_result",
-        "kaplan_meier_greenwood_known_result",
-        "double_machine_learning_public_replication",
-    }
+    assert active
+    assert ladder["current_readiness"]["active_scored_tasks"] == len(active)
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == len(active)
+    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == sum(
+        candidate["activation_evidence"].get("full_task_passed") is True
+        for candidate in active
+    )
+    assert len({candidate["id"] for candidate in candidates}) == len(candidates)
     for candidate in active:
         assert candidate["gold_runtime_visibility"] == "evaluator_only_after_runtime"
         assert candidate["activation_status"].startswith(
@@ -96,6 +96,39 @@ def test_ladder_live_evaluation_policy_is_exact_haiku() -> None:
     assert model_policy["sonnet_live_calls_allowed"] is False
     assert model_policy["opus_live_calls_allowed"] is False
     assert model_policy["automatic_tier_escalation_allowed"] is False
+
+
+def test_quantile_l0_freezes_theory_only_failure_without_resampling() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "sample_quantile_clt_known_result"
+    )
+
+    assert candidate["level"] == "L0"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_evidence"]["fresh_live_runs"] == 1
+    assert candidate["activation_evidence"]["fresh_live_runtime_status"] == "BLOCKED"
+    assert candidate["activation_evidence"]["fresh_live_hidden_gold_result"].startswith(
+        "0/1"
+    )
+    assert candidate["activation_evidence"]["model_draw_resampling_blocked"] is True
+    assert candidate["activation_evidence"]["full_task_passed"] is False
+    assert candidate["task_intent"] == {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+    visible_path = Path(candidate["visible_questions_path"])
+    assert visible_path.is_file()
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        candidate["activation_evidence"]["visible_questions_sha256"]
+    )
 
 
 def test_doubleml_l1_freezes_exact_replication_without_conflating_l2() -> None:
