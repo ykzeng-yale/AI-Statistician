@@ -84,6 +84,69 @@ def test_research_evaluation_is_pinned_to_exact_haiku_snapshot() -> None:
         )
 
 
+def test_retrieval_memory_skips_lean_search_only_when_formal_is_not_applicable() -> None:
+    class RecordingFormalSourceRetriever:
+        name = "recording_formal_source"
+
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, int]] = []
+
+        def descriptor(self) -> dict[str, object]:
+            return {"name": self.name, "provider": "test"}
+
+        def search(self, query: str, *, k: int) -> list[object]:
+            self.calls.append((query, k))
+            return []
+
+    def run_with_formal_requirement(
+        requirement: str,
+    ) -> tuple[RecordingFormalSourceRetriever, AgentStepResult, dict[str, object]]:
+        retriever = RecordingFormalSourceRetriever()
+        subsystem = runtime_module.RetrievalMemoryRuntimeSubsystem(
+            formal_source_retriever=retriever
+        )
+        question = OpenResearchQuestion(
+            id=f"retrieval-{requirement}",
+            title="Task-intent retrieval",
+            description="Develop a source-grounded statistical result.",
+            task_intent={"formal": requirement},
+        )
+        result = subsystem.run(
+            AgentTask(
+                task_id=f"retrieval:{question.id}",
+                owner_subsystem="RetrievalMemory",
+                objective="Collect permitted research context.",
+                inputs={"question": runtime_module._question_to_payload(question)},
+            ),
+            BlackboardState(project_id=question.id),
+        )
+        manifest = next(
+            artifact
+            for artifact in result.produced_artifacts.values()
+            if artifact.get("artifact_kind") == "RuntimeRetrievalMemoryManifest"
+        )
+        return retriever, result, manifest
+
+    skipped_retriever, skipped_result, skipped_manifest = (
+        run_with_formal_requirement("not_applicable")
+    )
+    assert skipped_retriever.calls == []
+    assert skipped_result.tool_calls == ()
+    assert skipped_manifest["formal_source_retrieval_status"] == (
+        "skipped_formal_not_applicable"
+    )
+    assert skipped_manifest["formal_source_hits"] == []
+    assert skipped_manifest["formal_source_provider_topology"] == {}
+    assert skipped_manifest["counts"]["formal_source_provider_calls"] == 0
+
+    optional_retriever, optional_result, optional_manifest = (
+        run_with_formal_requirement("optional")
+    )
+    assert optional_retriever.calls
+    assert len(optional_result.tool_calls) == 1
+    assert optional_manifest["formal_source_retrieval_status"] == "executed"
+
+
 def test_theory_scratch_budget_allows_failure_correction_and_recheck() -> None:
     assert ResearchAgentRuntimeConfig().theory_scratch_max_runs >= 3
 

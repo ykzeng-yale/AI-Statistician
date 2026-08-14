@@ -4819,19 +4819,31 @@ class RetrievalMemoryRuntimeSubsystem:
         )
         knowledge = retrieve_problem_knowledge(question, problem, theorem_goals, k=8)
         paper_sources = retrieve_paper_sources(question, problem, theorem_goals, k=5)
-        reset_provider_runtime_diagnostics(self.formal_source_retriever)
-        formal_hits = _runtime_formal_source_hits(
-            self.formal_source_retriever,
-            problem=problem,
-            theorem_goals=theorem_goals,
-            k=4,
+        dimension_requirements = research_dimension_requirements(question.task_intent)
+        formal_source_retrieval_applicable = bool(
+            not dimension_requirements
+            or dimension_requirements["formal"] != "not_applicable"
         )
-        formal_source_provider_diagnostics = provider_runtime_diagnostics(
-            self.formal_source_retriever
-        )
-        formal_source_provider_topology = provider_descriptor(
-            self.formal_source_retriever
-        )
+        if formal_source_retrieval_applicable:
+            formal_source_provider_topology = provider_descriptor(
+                self.formal_source_retriever
+            )
+            reset_provider_runtime_diagnostics(self.formal_source_retriever)
+            formal_hits = _runtime_formal_source_hits(
+                self.formal_source_retriever,
+                problem=problem,
+                theorem_goals=theorem_goals,
+                k=4,
+            )
+            formal_source_provider_diagnostics = provider_runtime_diagnostics(
+                self.formal_source_retriever
+            )
+            formal_source_retrieval_status = "executed"
+        else:
+            formal_hits = []
+            formal_source_provider_diagnostics = []
+            formal_source_provider_topology = {}
+            formal_source_retrieval_status = "skipped_formal_not_applicable"
         return_owner = _runtime_retrieval_return_owner(task)
         manifest_id = "retrieval_memory_manifest:" + stable_hash([task.task_id, question.id, formal_hits])[:20]
         manifest = {
@@ -4848,6 +4860,7 @@ class RetrievalMemoryRuntimeSubsystem:
             "knowledge_cards": [_knowledge_card_to_json(row) for row in knowledge],
             "paper_sources": [_paper_source_to_json(row) for row in paper_sources],
             "formal_source_hits": formal_hits,
+            "formal_source_retrieval_status": formal_source_retrieval_status,
             "formal_source_provider_topology": formal_source_provider_topology,
             "formal_source_provider_diagnostics": formal_source_provider_diagnostics,
             "retrieval_return_to_subsystem": return_owner,
@@ -4872,8 +4885,9 @@ class RetrievalMemoryRuntimeSubsystem:
                 ),
             },
             "boundary": (
-                "Retrieval memory supplies source, analogy, and Lean declaration context. "
-                "Retrieval hits are not proof evidence and must be checked by downstream gates."
+                "Retrieval memory supplies paper and analogy context and, when task "
+                "intent permits it, Lean declaration context. Retrieval hits are not "
+                "proof evidence and must be checked by downstream gates."
             ),
         }
         evidence = EvidenceLedgerEntry(
@@ -4895,6 +4909,7 @@ class RetrievalMemoryRuntimeSubsystem:
             "knowledge_cards": manifest["knowledge_cards"],
             "paper_sources": manifest["paper_sources"],
             "formal_source_hits": manifest["formal_source_hits"],
+            "formal_source_retrieval_status": formal_source_retrieval_status,
             "formal_source_provider_topology": formal_source_provider_topology,
             "formal_source_provider_diagnostics": formal_source_provider_diagnostics,
             "research_problem_authority": problem_authority,
@@ -4974,27 +4989,8 @@ class RetrievalMemoryRuntimeSubsystem:
                 ),
                 stop_condition=task.stop_condition,
             )
-        return AgentStepResult(
-            status="REROUTE",
-            rationale=(
-                "Runtime retrieval memory recorded paper, knowledge, and "
-                f"formal-source context for {return_owner}."
-            ),
-            produced_artifacts={
-                manifest_id: manifest,
-                retrieval_context_id: retrieval_context,
-            },
-            observations=(
-                EnvironmentObservation(
-                    observation_type="retrieval_memory",
-                    summary=(
-                        f"knowledge={len(knowledge)} papers={len(paper_sources)} "
-                        f"formal_hit_groups={len(formal_hits)}"
-                    ),
-                    payload=manifest["counts"],
-                ),
-            ),
-            tool_calls=(
+        formal_source_tool_calls = (
+            (
                 ToolCallRecord(
                     tool_name="FormalSourceSearchProvider.search",
                     inputs={
@@ -5014,7 +5010,32 @@ class RetrievalMemoryRuntimeSubsystem:
                     ),
                     safety_boundary=LEAN_PROVIDER_BOUNDARY,
                 ),
+            )
+            if formal_source_retrieval_applicable
+            else ()
+        )
+        return AgentStepResult(
+            status="REROUTE",
+            rationale=(
+                "Runtime retrieval memory recorded paper and knowledge context for "
+                f"{return_owner}; formal-source retrieval was "
+                f"{formal_source_retrieval_status}."
             ),
+            produced_artifacts={
+                manifest_id: manifest,
+                retrieval_context_id: retrieval_context,
+            },
+            observations=(
+                EnvironmentObservation(
+                    observation_type="retrieval_memory",
+                    summary=(
+                        f"knowledge={len(knowledge)} papers={len(paper_sources)} "
+                        f"formal_hit_groups={len(formal_hits)}"
+                    ),
+                    payload=manifest["counts"],
+                ),
+            ),
+            tool_calls=formal_source_tool_calls,
             evidence_entries=(evidence,),
             next_task=next_task,
         )
