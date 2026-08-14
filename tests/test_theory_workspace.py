@@ -828,6 +828,17 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
     assert THEORY_WORKSPACE_PROGRESS_TOOL in {
         tool.name for tool in backend.requests[0].tools
     }
+    initial_prompt = str(backend.requests[0].messages[0]["content"])
+    assert "an unfinished structured handoff or exhausted write quota is not" in (
+        initial_prompt
+    )
+    assert "use checkpoint_theory_progress for same-owner continuation" in (
+        initial_prompt
+    )
+    final_write_observation = json.loads(
+        backend.requests[2].messages[-1]["content"][0]["content"]
+    )
+    assert final_write_observation["remaining_submissions"] == 0
     document_path = tmp_path / "theory" / "derivations" / "progress.md"
     document_path.write_text(markdown + "tampered\n", encoding="utf-8")
     with pytest.raises(ValueError, match="document hash mismatch"):

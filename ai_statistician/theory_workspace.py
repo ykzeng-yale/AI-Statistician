@@ -1383,12 +1383,14 @@ def run_theory_artifact_workspace(
     )
     progress_guidance = (
         "When you have made substantive document-backed progress but additional "
-        "derivation is genuinely needed beyond this session, call "
+        "derivation or handoff work is genuinely needed beyond this session, call "
         "checkpoint_theory_progress with the evidence you inspected and one concrete "
         "next step. Each progress phase must create or revise an authoritative "
         "document. This requests same-owner continuation and is not accepted theory, "
-        "empirical evidence, or proof. Do not use it to avoid a validator observation "
-        "that you can address now. "
+        "empirical evidence, or proof. Address validator observations directly while "
+        "a write remains. If no submission remains after substantive document work, "
+        "checkpoint that progress so the same owner can continue; an unfinished "
+        "structured handoff or exhausted write quota is not a mathematical gap. "
         if require_document_authority
         else ""
     )
@@ -1505,6 +1507,10 @@ def run_theory_artifact_workspace(
                     "after inspecting the relevant artifacts. State the blocker and "
                     "model-observed evidence directly; this ends the workspace as "
                     "blocked and never counts as theory or proof success. "
+                    "Do not report a mathematical gap merely because a structured "
+                    "index is unfinished or the current phase has no write left after "
+                    "substantive document progress; use checkpoint_theory_progress "
+                    "for same-owner continuation instead. "
                     + "Each structurally valid model write is retained even when the "
                     "combined workspace still fails validation, so a validator "
                     "observation is not a rollback and later calls should contain only "

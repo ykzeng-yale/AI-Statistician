@@ -1541,6 +1541,9 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert "write_theory_workspace only for compact structured handoff" in (
         initial_prompt
     )
+    assert "separate the argument you currently endorse from exploration" in (
+        initial_prompt
+    )
     assert "one atomic call" not in initial_prompt
     assert (
         f"at most {developer.config.theory_workspace_max_submissions} writes"

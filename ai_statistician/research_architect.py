@@ -3264,7 +3264,10 @@ def _initial_theory_workspace_prompt(
         "replacement Markdown/LaTeX/BibTeX document. Use edit_theory_document for a "
         "hash-bound local text edit, and use write_theory_workspace only for compact "
         "structured handoff values. Do not put document bodies in the structured "
-        "handoff. Every accepted call is retained. Derive "
+        "handoff. Every accepted call is retained. Authoritative documents must "
+        "separate the argument you currently endorse from exploration: remove false "
+        "or abandoned intermediate claims, or mark them explicitly as rejected so "
+        "they cannot read as proof steps or support the claim index. Derive "
         "definitions and claims rather "
         "than treating retrieval as an answer key. Keep assumptions, equations, "
         "every authored downstream handoff mutually consistent. Treat IDs and document "
@@ -3386,6 +3389,12 @@ def _theory_workspace_revision_prompt(
                 "formalization requests that need to change. A self-critique, status "
                 "label, critic finding, or next action does not override contradictory "
                 "mathematics; rewrite every affected document before submitting."
+            ),
+            (
+                "Keep only the current endorsed argument as authoritative mathematics. "
+                "Delete abandoned or false intermediate claims, or label them "
+                "explicitly as rejected so they cannot be read as proof steps or "
+                "support a claim-index entry."
             ),
             (
                 "Recompute every affected sanity check and preserve PASS, FAIL, or "
