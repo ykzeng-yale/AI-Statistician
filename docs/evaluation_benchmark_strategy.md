@@ -210,10 +210,25 @@ e-process guarantee. Neither task reached Formalizer, so the atomic Lean
 declaration-context improvement still has component evidence only. The held-out
 strict-formal panel remains sealed.
 
-The ladder currently has zero active scored tasks. The next product-evaluation
-step is therefore to curate L0-L2 gold snapshots and run focused known-result and
-exact-replication tasks before spending long budgets on frontier questions. A
-candidate queue or a broad S13 trace is not a replacement for hidden gold.
+The ladder now has one active component-scored L0 task, White HC0, but zero tasks
+with complete gold coverage. Four exact-Haiku diagnostic runs against the retired
+v1 statement each produced independently accepted estimator source that passed
+all seven hidden reference and metamorphic checks; none completed the empirical
+loop. The fourth theory packet also confused the finite-sample covariance of the
+OLS estimator with the asymptotic covariance of its square-root-n limit. Its
+independent preflight accepted that normalization error.
+
+The corrected v2 statement distinguishes `V_HC0 = O(n^-1)` from
+`n V_HC0 -> Q^-1 Omega Q^-1` and requires design and moment regularity beyond
+finite-sample full rank. The evaluator binds every result to the exact visible
+question hash, so the retired v1 runs cannot receive v2 credit. The real evaluator
+bundle is operator-provisioned outside the repository and model-visible workspace;
+the public tree contains only its content hashes and a non-capability unit-test
+fixture. Hidden algorithm checks can now pass the scientific-code dimension, while
+runtime-only theory and empirical reviews are reported as such and cannot pass the
+full task. The next product-evaluation step is to curate evaluator-only theory and
+empirical gold for v2, then run it fresh before activating another unrelated L0 or
+L1 task.
 
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same

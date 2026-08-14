@@ -160,7 +160,7 @@ def test_metric_author_receives_executable_semantic_control_observation() -> Non
                 {
                     "requirement_id": "metric:realized_fraction",
                     "semantic_positive_control": {
-                        "raw_metric_values": [0.3],
+                        "raw_comparison_value": 0.3,
                         "rationale": "The scientific target is an absolute fraction.",
                         "runtime_evaluation": {
                             "runtime_passed": False,
@@ -176,7 +176,7 @@ def test_metric_author_receives_executable_semantic_control_observation() -> Non
     )
 
     review = projected["requirement_reviews"][0]
-    assert review["semantic_positive_control"]["raw_metric_values"] == [0.3]
+    assert review["semantic_positive_control"]["raw_comparison_value"] == 0.3
     assert review["semantic_positive_control"]["runtime_evaluation"] == {
         "runtime_passed": False,
         "aggregate_value": 0.3,

@@ -39,7 +39,7 @@ from .metric_protocol_finding_ledger import (
 from .research_schema import OpenResearchQuestion
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 15
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 19
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 20
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -88,6 +88,15 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "its claimed invariant or guarantee, including normalization and sample-size "
         "scale for every executable output. Do not validate an identity by restating "
         "a theorem card, sanity check, named theorem, or the estimator's own formula."
+    ),
+    (
+        "Carry every sample-size factor through the displayed finite-sample formula. "
+        "When a theorem concerns a normalized estimator, derive the order of the "
+        "unscaled executable output and then reapply the theorem's normalization. "
+        "Explicitly compare objects such as an estimator's covariance with the "
+        "covariance of its normalized limit; a missing or extra sample-size factor is "
+        "a non-PASS defect. Finite-sample existence or full rank alone does not establish "
+        "the uniform moment, nondegeneracy, or limit conditions used asymptotically."
     ),
     (
         "Make the recomputation auditable in the estimator's ordered output row. "
@@ -688,8 +697,8 @@ def architect_theory_execution_preflight_json_schema(
                                 "On one discriminating admitted case or regime, state the "
                                 "primitive recomputation, candidate executable output, and "
                                 "whether they agree. Include support, normalization, weights, "
-                                "and data dependence that matter; avoid symmetry-only or "
-                                "source-authored sanity-check cases."
+                                "sample-size powers, and data dependence that matter; avoid "
+                                "symmetry-only or source-authored sanity-check cases."
                             ),
                         },
                         "blocking_gaps": {

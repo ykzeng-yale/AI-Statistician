@@ -18,6 +18,9 @@ runs/
 .tmp_frontier/
 .tmp_publish/
 
+# Capability gold must remain outside model-visible source and repository search.
+benchmarks/evaluator_only/
+
 # Local handoff transcripts are useful for operator context but too large and
 # sensitive to commit. Keep concise project blueprints in docs/ instead.
 docs/chat_history_*_ai_statistician_system.md

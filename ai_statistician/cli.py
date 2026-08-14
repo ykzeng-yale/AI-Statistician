@@ -3574,6 +3574,14 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         for error in evaluation_model_policy_errors:
             print(f"- {error}")
         return 2
+    research_gold_manifest = str(
+        getattr(args, "research_gold_manifest", "") or ""
+    ).strip()
+    if research_gold_manifest and not bool(getattr(args, "research_eval", False)):
+        print("\nAI Statistician Agent Runtime rejected gold evaluation config")
+        print("=" * 72)
+        print("- --research-gold-manifest requires --research-eval")
+        return 2
     _apply_research_agent_runtime_live_lean_defaults(args)
     if getattr(args, "capability_eval", False):
         config_errors = _research_agent_runtime_capability_config_errors(args)
@@ -3797,6 +3805,9 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         proof_state_provider=proof_state_provider,
         formal_source_retriever=formal_source_retriever,
         proof_search_provider=proof_search_provider,
+        research_gold_manifest=(
+            Path(research_gold_manifest) if research_gold_manifest else None
+        ),
         architect_context=context,
         initial_task_overrides=resume_initial_tasks,
         initial_blackboard_artifacts=resume_blackboard_artifacts,
@@ -3900,6 +3911,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     )
     if getattr(args, "research_eval", False):
         summary = manifest.get("research_evaluation_summary", {})
+        gold = manifest.get("research_gold_evaluation", {})
         print(
             "research_evaluation="
             f"{summary.get('n_questions_research_eval_complete', 0)}/"
@@ -3908,7 +3920,17 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             f"conformant={summary.get('all_questions_mode_conformant', False)} "
             f"ready={summary.get('all_questions_research_eval_complete', False)}"
         )
-        return 0 if summary.get("all_questions_research_eval_complete") else 1
+        if gold.get("configured") is not False:
+            print(
+                "research_gold_evaluation="
+                f"{gold.get('n_tasks_passed', 0)}/"
+                f"{gold.get('n_active_tasks', 0)} "
+                f"ready={gold.get('all_active_tasks_passed', False)}"
+            )
+        ready = bool(summary.get("all_questions_research_eval_complete"))
+        if research_gold_manifest:
+            ready = ready and gold.get("all_active_tasks_passed") is True
+        return 0 if ready else 1
     if getattr(args, "capability_eval", False):
         audit = audit_research_agent_runtime(
             Path(args.out),
@@ -6803,6 +6825,15 @@ def build_parser() -> argparse.ArgumentParser:
             "run as a strict main-capability evaluation: reject static/no-Architect/"
             "manual-proof-filter debug modes and return nonzero unless the runtime "
             "capability scorecard is ready"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--research-gold-manifest",
+        default="",
+        help=(
+            "evaluator-only hidden gold manifest for --research-eval. It runs "
+            "after AgentRuntime termination and cannot enter model context or "
+            "generate source-revision feedback"
         ),
     )
     research_agent_runtime.add_argument(

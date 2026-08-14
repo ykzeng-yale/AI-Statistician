@@ -2460,32 +2460,33 @@ def _evaluate_generated_metric_contract(
 def evaluate_generated_metric_semantic_control(
     requirement: Mapping[str, Any],
     *,
-    raw_metric_values: Sequence[Any],
+    raw_comparison_value: Any,
 ) -> dict[str, Any]:
-    """Execute a model-authored semantic control through the real metric evaluator."""
+    """Check one theory-grounded value against the frozen comparison gate."""
 
-    values = deepcopy(list(raw_metric_values))
+    value = deepcopy(raw_comparison_value)
     requirement_id = str(requirement.get("requirement_id", "") or "").strip()
     control_identity = {
         "requirement_id": requirement_id,
         "requirement_fingerprint": stable_hash(dict(requirement)),
-        "raw_metric_values": values,
+        "raw_comparison_value": value,
     }
     contract = {
         **deepcopy(dict(requirement)),
         "contract_id": "metric_semantic_control:" + stable_hash(control_identity)[:20],
         "artifact_id": "metric_semantic_control",
-        "metric_path": ["raw_metric_values", "*"],
+        "metric_path": ["raw_comparison_value"],
+        "aggregation": "identity",
     }
     evaluation = _evaluate_generated_metric_contract(
-        {"raw_metric_values": values},
+        {"raw_comparison_value": value},
         contract=contract,
     )
     body = {
         "artifact_kind": "GeneratedMetricSemanticControlEvaluation",
         "requirement_id": requirement_id,
         "requirement_fingerprint": control_identity["requirement_fingerprint"],
-        "raw_metric_values": values,
+        "raw_comparison_value": value,
         "expected_pass": True,
         "runtime_passed": evaluation["passed"] is True,
         "runtime_matches_scientific_expectation": bool(
@@ -2504,10 +2505,10 @@ def evaluate_generated_metric_semantic_control(
         "errors": list(evaluation.get("errors", []) or []),
         "proof_evidence_status": GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
         "boundary": (
-            "The independent model selects a theory-consistent positive-control "
-            "value before execution. Runtime applies the exact frozen evaluator and "
-            "reports only its mechanical result; this is protocol validation, not "
-            "empirical acceptance or theorem proof evidence."
+            "The independent model selects one theory-consistent value on the "
+            "post-aggregation comparison scale before execution. Runtime applies the "
+            "frozen operator and gate and reports only its mechanical result; this is "
+            "coordinate validation, not empirical acceptance or theorem proof evidence."
         ),
     }
     return {
@@ -2757,11 +2758,6 @@ def _metric_comparison_shape_errors(
         ):
             errors.append(
                 f"{prefix}.boolean metric_value_kind requires null lower/upper"
-            )
-        if aggregation in {"mean", "min", "max"}:
-            errors.append(
-                f"{prefix}.boolean metric_value_kind cannot use {aggregation} "
-                "aggregation"
             )
     return errors
 

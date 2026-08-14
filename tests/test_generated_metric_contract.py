@@ -230,6 +230,57 @@ def test_typed_boolean_metric_uses_runtime_truth_representation() -> None:
     )
 
 
+def test_boolean_mean_uses_existing_truth_comparison_without_special_adapter() -> None:
+    requirement = _requirement(
+        requirement_id="architect:boolean-rate",
+        metric_semantics="mean of repeated intrinsic predicate checks",
+        metric_value_kind="boolean",
+        measurement_protocol="return one boolean predicate result per replicate",
+        operator="==",
+        threshold=1,
+        tolerance=0,
+        aggregation="mean",
+        minimum_pass_count=None,
+        gate_field_authorities=[],
+    )
+
+    assert validate_generated_metric_requirements([requirement]) == []
+    contracts = materialize_generated_metric_contract_bindings(
+        [
+            {
+                "contract_id": "boolean-rate-contract",
+                "requirement_id": "architect:boolean-rate",
+                "artifact_id": "artifact:boolean-rate",
+                "metric_path": ["checks", "*"],
+            }
+        ],
+        authoritative_requirements=[requirement],
+        target_subsystem="SimulationEngineer",
+    )
+
+    passed = evaluate_generated_metric_contracts(
+        {"checks": [True, True, True]},
+        contracts=contracts,
+        artifact_id="artifact:boolean-rate",
+        runtime_replicates=80,
+        authoritative_requirements=[requirement],
+        target_subsystem="SimulationEngineer",
+    )
+    failed = evaluate_generated_metric_contracts(
+        {"checks": [True, False, True]},
+        contracts=contracts,
+        artifact_id="artifact:boolean-rate",
+        runtime_replicates=80,
+        authoritative_requirements=[requirement],
+        target_subsystem="SimulationEngineer",
+    )
+
+    assert passed["all_required_passed"] is True
+    assert passed["evaluations"][0]["aggregate_value"] == 1.0
+    assert failed["all_required_passed"] is False
+    assert failed["evaluations"][0]["aggregate_value"] == pytest.approx(2 / 3)
+
+
 def test_authority_kind_mismatch_reports_exact_catalog_observations() -> None:
     catalog = generated_metric_acceptance_authority_catalog(
         question={
@@ -1067,7 +1118,7 @@ def test_metric_evaluator_certificate_records_actual_dispatch_order() -> None:
     )
 
 
-def test_model_authored_semantic_control_uses_the_real_metric_evaluator() -> None:
+def test_model_authored_semantic_control_uses_the_frozen_comparison_gate() -> None:
     offset_gate_for_raw_level = _requirement(
         metric_semantics="absolute realized fraction with target 0.30",
         measurement_protocol="return the absolute realized fraction",
@@ -1081,13 +1132,14 @@ def test_model_authored_semantic_control_uses_the_real_metric_evaluator() -> Non
 
     evaluation = evaluate_generated_metric_semantic_control(
         offset_gate_for_raw_level,
-        raw_metric_values=[0.30],
+        raw_comparison_value=0.30,
     )
 
     assert evaluation["expected_pass"] is True
     assert evaluation["runtime_passed"] is False
     assert evaluation["runtime_matches_scientific_expectation"] is False
     assert evaluation["aggregate_value"] == pytest.approx(0.30)
+    assert evaluation["raw_comparison_value"] == pytest.approx(0.30)
     assert evaluation["errors"]
     assert evaluation["proof_evidence_status"] == (
         GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE

@@ -496,6 +496,13 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     assert "statistically non-diagnostic result does not" in (
         request.user_prompt
     )
+    assert "an aggregate confirmatory gate fails" in request.user_prompt
+    assert "falsifies only the current end-to-end candidate" in (
+        request.user_prompt
+    )
+    assert "route CriticEvaluator to report the unresolved" in (
+        request.user_prompt
+    )
     assert "weaken a frozen gate" in request.user_prompt
     assert "Quote a frozen requirement's operator" in request.user_prompt
     assert "choose BLOCK because post-execution source" in request.user_prompt

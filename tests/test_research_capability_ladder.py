@@ -45,13 +45,31 @@ def test_research_ladder_has_progressive_evidence_and_no_fixed_replication_rule(
     assert ladder["formalization_contract"]["nonproof_evidence_may_be_promoted_to_proof"] is False
 
 
-def test_initial_ladder_candidates_are_inactive_and_contain_no_gold_answers() -> None:
+def test_ladder_has_one_evaluator_only_active_task_and_no_embedded_gold_answers() -> None:
     ladder = _load_ladder()
     candidates = ladder["initial_candidate_queue"]
 
     assert candidates
-    assert ladder["current_readiness"]["active_scored_tasks"] == 0
-    assert all(candidate["status"].startswith("proposed_pending_") for candidate in candidates)
+    active = [candidate for candidate in candidates if candidate["status"] == "active_scored"]
+    pending = [
+        candidate
+        for candidate in candidates
+        if candidate["status"].startswith("proposed_pending_")
+    ]
+    assert ladder["current_readiness"]["active_scored_tasks"] == len(active) == 1
+    assert ladder["current_readiness"]["fully_gold_covered_tasks"] == 0
+    assert active[0]["id"] == "heteroskedastic_covariance_known_result"
+    assert active[0]["gold_runtime_visibility"] == "evaluator_only_after_runtime"
+    assert active[0]["activation_status"] == (
+        "component_scoring_active_full_task_gold_incomplete"
+    )
+    assert Path(active[0]["visible_questions_path"]).is_file()
+    assert "gold_manifest" not in active[0]
+    assert active[0]["gold_authority"] == (
+        "operator_provisioned_outside_repository_and_model_workspace"
+    )
+    assert len(active[0]["gold_manifest_sha256"]) == 64
+    assert pending
     forbidden_keys = {
         "expected_answer",
         "expected_results",

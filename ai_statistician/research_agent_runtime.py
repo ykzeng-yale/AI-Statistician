@@ -142,6 +142,10 @@ from .implementation_metric_handoff import (
     build_accepted_implementation_interface_handoff,
 )
 from .research_evaluation import build_research_evaluation_summary
+from .research_gold_evaluation import (
+    evaluate_research_gold_benchmark,
+    validate_research_gold_benchmark_manifest,
+)
 from .formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
     LLMFormalTargetSemanticReviewerAgent,
@@ -18949,11 +18953,30 @@ def run_research_agent_runtime(
     formal_source_retriever: Any | None = None,
     proof_search_provider: LeanProofSearchProvider | None = None,
     config: ResearchAgentRuntimeConfig = ResearchAgentRuntimeConfig(),
+    research_gold_manifest: Path | None = None,
     architect_context: Mapping[str, Any] | None = None,
     initial_task_overrides: Mapping[str, AgentTask] | None = None,
     initial_blackboard_artifacts: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     config = _normalized_runtime_evaluation_model_config(config)
+    if research_gold_manifest is not None and config.evaluation_mode != "research_eval":
+        raise ValueError(
+            "research_gold_manifest is evaluator-only and requires "
+            "evaluation_mode=research_eval"
+        )
+    if research_gold_manifest is not None:
+        gold_descriptor = validate_research_gold_benchmark_manifest(
+            research_gold_manifest
+        )
+        missing_gold_questions = sorted(
+            set(gold_descriptor["active_task_ids"])
+            - {question.id for question in questions}
+        )
+        if missing_gold_questions:
+            raise ValueError(
+                "research gold tasks are absent from the selected question set: "
+                + ", ".join(missing_gold_questions)
+            )
     if (
         _is_runtime_research_evaluation_mode(config.evaluation_mode)
         and generated_code_semantic_reviewer is None
@@ -19597,6 +19620,32 @@ def run_research_agent_runtime(
     )
     artifacts["runtime_failure_summary_json"] = str(failure_summary_path)
 
+    research_evaluation_summary = build_research_evaluation_summary(
+        results,
+        evaluation_mode=config.evaluation_mode,
+        schema_version=RUNTIME_SCHEMA_VERSION,
+    )
+    research_gold_evaluation = (
+        evaluate_research_gold_benchmark(
+            results,
+            research_evaluation_summary=research_evaluation_summary,
+            benchmark_manifest_path=research_gold_manifest,
+            out_dir=out_dir,
+        )
+        if research_gold_manifest is not None
+        else {
+            "configured": False,
+            "artifact_kind": "ResearchCapabilityGoldEvaluation",
+            "boundary": (
+                "No evaluator-only gold benchmark was configured for this run."
+            ),
+        }
+    )
+    if research_gold_evaluation.get("artifact_path"):
+        artifacts["research_capability_gold_evaluation_json"] = str(
+            research_gold_evaluation["artifact_path"]
+        )
+
     manifest = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "ResearchAgentRuntimeManifest",
@@ -19636,11 +19685,8 @@ def run_research_agent_runtime(
         "runtime_completion_summary": completion_summary,
         "runtime_failure_summary": failure_summary,
         "runtime_terminal_kind": failure_summary["terminal_kind"],
-        "research_evaluation_summary": build_research_evaluation_summary(
-            results,
-            evaluation_mode=config.evaluation_mode,
-            schema_version=RUNTIME_SCHEMA_VERSION,
-        ),
+        "research_evaluation_summary": research_evaluation_summary,
+        "research_gold_evaluation": research_gold_evaluation,
         "n_runtime_traces": len(trace_rows),
         "n_runtime_evidence_ledger_rows": len(evidence_rows),
         "n_runtime_task_handoffs": len(handoff_rows),

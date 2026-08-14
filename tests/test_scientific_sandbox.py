@@ -1647,6 +1647,47 @@ def test_live_estimator_failure_is_tagged_as_algorithm_runtime_feedback(
     )
 
 
+def test_nonfinite_estimator_request_remains_consumer_source_feedback(
+    tmp_path: Path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Pyodide runtime is not installed on this host")
+    algorithm = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': sum(request['outcomes'])}\n"
+    )
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="bound-invalid-consumer-request",
+        language="python",
+        code=(
+            "def run_sandbox(seed, replicates, estimators):\n"
+            "    return estimators['candidate']({'outcomes': [float('nan')]})\n"
+        ),
+        dependencies=[],
+        seed=7,
+        replicates=5,
+        timeout_s=60,
+        estimator_bindings=(
+            ScientificEstimatorBinding(
+                artifact_id="candidate",
+                language="python",
+                code=algorithm,
+                code_hash=stable_hash(algorithm),
+            ),
+        ),
+    )
+
+    assert result.status == "FAILED"
+    assert result.estimator_runtime_failure_ids == ()
+    assert result.estimator_runtime_errors == ()
+    envelope = json.loads(Path(result.result_path).read_text(encoding="utf-8"))
+    assert envelope["error_origin"] == "generated_source"
+    assert "outcomes" in envelope["error_message"]
+
+
 def test_live_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
     tmp_path: Path,
 ) -> None:

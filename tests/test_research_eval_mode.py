@@ -660,7 +660,15 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
             "theory_packet_id": "theory",
             "algorithm_sandbox_manifest_id": "algorithm",
             "simulation_manifest_id": "simulation",
+            "llm_critic_evaluator_proposal_id": "critic_proposal",
             "evidence_contract_decision": {"runtime_status": "ACCEPTED"},
+        },
+        "critic_proposal": {
+            "artifact_kind": "CriticEvaluatorProposalPacket",
+            "current_observation_assessment": {
+                "independent_missing_evidence": [],
+            },
+            "critic_findings": [],
         },
     }
     accepted_review = {
@@ -701,6 +709,26 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
         [result], evaluation_mode="research_eval", schema_version="test"
     )
     assert summary["all_questions_research_loop_complete"] is True
+    assert summary["rows"][0]["requirements"][
+        "critic_unresolved_gap_disclosure_present"
+    ] is True
+
+    artifacts["critic_proposal"]["current_observation_assessment"].pop(
+        "independent_missing_evidence"
+    )
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+    assert summary["all_questions_research_loop_complete"] is False
+    artifacts["critic_proposal"]["current_observation_assessment"][
+        "independent_missing_evidence"
+    ] = []
+    artifacts["critic_proposal"].pop("critic_findings")
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+    assert summary["all_questions_research_loop_complete"] is False
+    artifacts["critic_proposal"]["critic_findings"] = []
 
     artifacts["simulation"].update(
         {
@@ -768,7 +796,94 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
     )
     assert summary["all_questions_research_loop_complete"] is True
     assert summary["all_questions_mode_conformant"] is False
-    assert summary["all_questions_research_eval_complete"] is False
+    assert summary["all_questions_research_eval_complete"] is True
     assert summary["rows"][0]["mode_conformance"][
         "strict_formal_lane_not_executed"
     ] is False
+
+
+def test_research_summary_preserves_reviewed_theory_and_code_before_critic() -> None:
+    question = {"id": "blocked_after_reviewed_code"}
+    theory = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory",
+        "question": question,
+        "serious_theory_mode": True,
+        "provider": "anthropic",
+    }
+    preflight = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+        "source_theory_packet_id": "theory",
+        "source_theory_packet_hash": stable_hash(theory),
+        "overall_verdict": "ACCEPT",
+        "source_grounding_verified": True,
+        "active_unresolved_finding_ids": [],
+    }
+    algorithm = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": "algorithm",
+        "theory_packet_id": "theory",
+        "n_live_generated_code_executed": 1,
+        "n_passed": 1,
+        "n_live_generated_code_execution_failed": 0,
+    }
+    artifacts = {
+        "question_metadata": {
+            "artifact_kind": "RuntimeQuestionMetadata",
+            "question": question,
+        },
+        "theory": theory,
+        "preflight": preflight,
+        "preflight_acceptance": {
+            "artifact_kind": (
+                "RuntimeArchitectTheoryExecutionPreflightAcceptance"
+            ),
+            "source_theory_packet_id": "theory",
+            "source_theory_packet_hash": stable_hash(theory),
+            "preflight_packet_id": "preflight",
+            "preflight_packet_hash": stable_hash(preflight),
+        },
+        "algorithm": algorithm,
+        "algorithm_review": {
+            "artifact_kind": (
+                "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+            ),
+            "source_subsystem": "AlgorithmEngineer",
+            "source_manifest_id": "algorithm",
+            "source_manifest_hash": stable_hash(algorithm),
+            "semantic_review_accepted": True,
+            "independent_agent": True,
+            "independent_invocation": True,
+            "reviewer_model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            "confirmatory_empirical_evidence_eligible": False,
+        },
+    }
+    result = {
+        "status": "BLOCKED",
+        "blackboard": {"artifacts": artifacts},
+        "traces": (
+            {
+                "subsystem": "ArchitectCoordinator",
+                "status": "REROUTE",
+                "task": {"inputs_ref": "persisted-task-input"},
+                "produced_artifact_ids": (),
+            },
+        ),
+    }
+
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+
+    row = summary["rows"][0]
+    assert row["question_id"] == question["id"]
+    assert row["requirements"]["serious_theory_completed"] is True
+    assert row["requirements"]["theory_preexecution_review_accepted"] is True
+    assert row["requirements"][
+        "generated_algorithm_executed_and_passed"
+    ] is True
+    assert row["requirements"]["algorithm_semantic_review_accepted"] is True
+    assert row["requirements"][
+        "generated_simulation_executed_and_passed"
+    ] is False
+    assert row["research_eval_complete"] is False

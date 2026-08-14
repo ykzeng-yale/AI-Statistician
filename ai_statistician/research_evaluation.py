@@ -210,6 +210,28 @@ def _final_accepted_critic_manifest(
     return {}
 
 
+def _critic_gap_disclosure_present(
+    critic_manifest: Mapping[str, Any],
+    artifacts: Mapping[str, Mapping[str, Any]],
+) -> bool:
+    proposal_id = str(
+        critic_manifest.get("llm_critic_evaluator_proposal_id", "") or ""
+    )
+    proposal = artifacts.get(proposal_id, {})
+    assessment = proposal.get("current_observation_assessment", {})
+    missing_evidence = (
+        assessment.get("independent_missing_evidence")
+        if isinstance(assessment, Mapping)
+        else None
+    )
+    findings = proposal.get("critic_findings")
+    return bool(
+        proposal.get("artifact_kind") == "CriticEvaluatorProposalPacket"
+        and isinstance(missing_evidence, list)
+        and isinstance(findings, list)
+    )
+
+
 def _semantic_review_accepted(
     artifacts: Mapping[str, Mapping[str, Any]],
     *,
@@ -238,6 +260,76 @@ def _semantic_review_accepted(
         )
         for row in artifacts.values()
     )
+
+
+def _latest_independently_reviewed_manifest(
+    artifacts: Mapping[str, Mapping[str, Any]],
+    *,
+    artifact_kind: str,
+    source_subsystem: str,
+    require_confirmatory_empirical_evidence: bool,
+) -> tuple[str, Mapping[str, Any]]:
+    for artifact_id, artifact in reversed(list(artifacts.items())):
+        if artifact.get("artifact_kind") != artifact_kind:
+            continue
+        if _semantic_review_accepted(
+            artifacts,
+            source_subsystem=source_subsystem,
+            source_manifest_id=str(artifact_id),
+            source_manifest=artifact,
+            require_confirmatory_empirical_evidence=(
+                require_confirmatory_empirical_evidence
+            ),
+        ):
+            return str(artifact_id), artifact
+    return "", {}
+
+
+def _latest_serious_theory_packet(
+    artifacts: Mapping[str, Mapping[str, Any]],
+) -> tuple[str, Mapping[str, Any]]:
+    for artifact_id, artifact in reversed(list(artifacts.items())):
+        if (
+            artifact.get("artifact_kind") == "TheoryDerivationPacket"
+            and artifact.get("serious_theory_mode") is True
+            and str(artifact.get("provider", "") or "") in {"anthropic", "openai"}
+            and artifact.get("packet_id") == artifact_id
+        ):
+            return str(artifact_id), artifact
+    return "", {}
+
+
+def _theory_preexecution_review_accepted(
+    artifacts: Mapping[str, Mapping[str, Any]],
+    *,
+    theory_packet_id: str,
+    theory_packet: Mapping[str, Any],
+) -> bool:
+    if not theory_packet_id or not theory_packet:
+        return False
+    theory_packet_hash = stable_hash(dict(theory_packet))
+    for acceptance in artifacts.values():
+        if not (
+            acceptance.get("artifact_kind")
+            == "RuntimeArchitectTheoryExecutionPreflightAcceptance"
+            and acceptance.get("source_theory_packet_id") == theory_packet_id
+            and acceptance.get("source_theory_packet_hash") == theory_packet_hash
+        ):
+            continue
+        preflight_id = str(acceptance.get("preflight_packet_id", "") or "")
+        preflight = artifacts.get(preflight_id, {})
+        if (
+            preflight.get("artifact_kind")
+            == "ArchitectTheoryExecutionPreflightReviewPacket"
+            and stable_hash(dict(preflight))
+            == str(acceptance.get("preflight_packet_hash", "") or "")
+            and preflight.get("source_theory_packet_id") == theory_packet_id
+            and preflight.get("source_theory_packet_hash") == theory_packet_hash
+            and preflight.get("overall_verdict") == "ACCEPT"
+            and not preflight.get("active_unresolved_finding_ids")
+        ):
+            return True
+    return False
 
 
 def _metric_protocol_accepted(packet: Mapping[str, Any]) -> bool:
@@ -322,10 +414,17 @@ def _simulation_has_bound_nonvacuous_metric_evidence(
 def _question_id(
     result: Mapping[str, Any],
     critic_manifest: Mapping[str, Any],
+    artifacts: Mapping[str, Mapping[str, Any]],
 ) -> str:
     question = critic_manifest.get("question", {})
     if isinstance(question, Mapping) and question.get("id"):
         return str(question["id"])
+    for artifact in artifacts.values():
+        if artifact.get("artifact_kind") != "RuntimeQuestionMetadata":
+            continue
+        question = artifact.get("question", {})
+        if isinstance(question, Mapping) and question.get("id"):
+            return str(question["id"])
     traces = result.get("traces", [])
     first = (
         traces[0]
@@ -351,13 +450,40 @@ def build_research_evaluation_summary(
     for result in results:
         artifacts = _runtime_artifacts(result)
         critic_manifest = _final_accepted_critic_manifest(result, artifacts)
-        theory_packet_id = str(critic_manifest.get("theory_packet_id", "") or "")
-        algorithm_manifest_id = str(
-            critic_manifest.get("algorithm_sandbox_manifest_id", "") or ""
-        )
-        simulation_manifest_id = str(
-            critic_manifest.get("simulation_manifest_id", "") or ""
-        )
+        if critic_manifest:
+            theory_packet_id = str(
+                critic_manifest.get("theory_packet_id", "") or ""
+            )
+            algorithm_manifest_id = str(
+                critic_manifest.get("algorithm_sandbox_manifest_id", "") or ""
+            )
+            simulation_manifest_id = str(
+                critic_manifest.get("simulation_manifest_id", "") or ""
+            )
+        else:
+            algorithm_manifest_id, algorithm_manifest = (
+                _latest_independently_reviewed_manifest(
+                    artifacts,
+                    artifact_kind="RuntimeAlgorithmSandboxManifest",
+                    source_subsystem="AlgorithmEngineer",
+                    require_confirmatory_empirical_evidence=False,
+                )
+            )
+            simulation_manifest_id, simulation_manifest = (
+                _latest_independently_reviewed_manifest(
+                    artifacts,
+                    artifact_kind="RuntimeSimulationManifest",
+                    source_subsystem="SimulationEvaluator",
+                    require_confirmatory_empirical_evidence=True,
+                )
+            )
+            theory_packet_id = str(
+                algorithm_manifest.get("theory_packet_id", "")
+                or simulation_manifest.get("theory_packet_id", "")
+                or ""
+            )
+            if not theory_packet_id:
+                theory_packet_id, _ = _latest_serious_theory_packet(artifacts)
         theory_packet = artifacts.get(theory_packet_id, {})
         algorithm_manifest = artifacts.get(algorithm_manifest_id, {})
         simulation_manifest = artifacts.get(simulation_manifest_id, {})
@@ -402,6 +528,14 @@ def build_research_evaluation_summary(
                 and theory_packet.get("serious_theory_mode") is True
                 and str(theory_packet.get("provider", "") or "")
                 in {"anthropic", "openai"}
+            ),
+            "theory_preexecution_review_accepted": bool(
+                critic_manifest
+                or _theory_preexecution_review_accepted(
+                    artifacts,
+                    theory_packet_id=theory_packet_id,
+                    theory_packet=theory_packet,
+                )
             ),
             "generated_algorithm_executed_and_passed": bool(
                 algorithm_manifest.get("artifact_kind")
@@ -466,6 +600,9 @@ def build_research_evaluation_summary(
             "critic_research_acceptance": bool(
                 critic_manifest and result.get("status") == "ACCEPTED"
             ),
+            "critic_unresolved_gap_disclosure_present": (
+                _critic_gap_disclosure_present(critic_manifest, artifacts)
+            ),
         }
         conformance_checks = {
             "strict_formal_lane_not_executed": not bool(
@@ -478,11 +615,11 @@ def build_research_evaluation_summary(
         mode_conformant = bool(applies and all(conformance_checks.values()))
         rows.append(
             {
-                "question_id": _question_id(result, critic_manifest),
+                "question_id": _question_id(result, critic_manifest, artifacts),
                 "research_loop_complete": research_loop_complete,
                 "mode_conformant": mode_conformant,
                 "research_eval_complete": bool(
-                    research_loop_complete and mode_conformant
+                    research_loop_complete
                 ),
                 "requirements": capability_checks,
                 "mode_conformance": conformance_checks,
@@ -531,6 +668,7 @@ def build_research_evaluation_summary(
         "evidence_boundary": (
             "This is research-loop evidence only. Theory, generated code, simulation, "
             "and semantic review are not theorem proof; formalization and kernel "
-            "closure remain separately reported and are not required by research_eval."
+            "closure remain separately reported and are not required by research_eval. "
+            "Mode conformance is diagnostic and cannot erase completed research evidence."
         ),
     }

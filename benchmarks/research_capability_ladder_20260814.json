@@ -204,7 +204,20 @@
       "id": "heteroskedastic_covariance_known_result",
       "level": "L0",
       "family": "regression",
-      "status": "proposed_pending_gold_curation",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l0_questions_20260814.json",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l0-hc0-20260814-v2",
+      "gold_manifest_sha256": "717b2a97de5ff4ba6b4c0a52e1ecc86de430452b680fe3138a9dafe761eb34a4",
+      "gold_descriptor_hash": "82fb76cf684d2eb20b43811a3a629f4461079cc68956b87fa5a6599970c00f07",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "component_scoring_active_full_task_gold_incomplete",
+      "activation_evidence": {
+        "published_source_doi": "10.2307/1912934",
+        "hidden_harness_sha256": "23a6f80a687ff2fb4bb0f8514920bbe0a92707c38e7165e4736170188d298fe7",
+        "independent_reference": "statsmodels 0.14.6 cov_HC0",
+        "independent_reference_max_abs_error": 3.3306690738754696e-16
+      },
       "task_intent": {
         "theory": "required",
         "scientific_code": "required",
@@ -250,8 +263,10 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 0,
+    "active_scored_tasks": 1,
+    "fully_gold_covered_tasks": 0,
     "candidate_queue_is_capability_evidence": false,
-    "next_step": "Curate and independently verify immutable L0-L2 gold snapshots before activating scored runs."
+    "latest_diagnostic": "Four exact-Haiku runs against the retired v1 statement each produced accepted algorithm source that passed all seven hidden algorithm checks, but no run completed the empirical loop. The fourth run also exposed a theory normalization error that its independent preflight missed.",
+    "next_step": "Curate evaluator-only theory and empirical gold for the corrected HC0 v2 statement before a fresh scored run. The evaluator must reject every v1-v4 artifact by visible-question hash, and a second unrelated L0 or L1 task should not be activated from component evidence alone."
   }
 }

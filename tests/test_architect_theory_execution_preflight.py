@@ -1170,6 +1170,9 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     for phrase in (
         "full declared support",
         "recompute the procedure-defining identity",
+        "derive the order of the unscaled executable output",
+        "missing or extra sample-size factor",
+        "full rank alone does not establish",
         "condition on the information available",
         "fixed-candidate result does not automatically survive",
         "source_interface_inventory",
@@ -2291,6 +2294,46 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
     assert "runtime_selected_owner" not in result.next_task.inputs[
         "environment_feedback"
     ]
+
+
+def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> None:
+    accepted_packet, _backend = _review(accept=True)
+
+    class Reviewer:
+        config = type("Config", (), {"model_tier": "haiku"})()
+
+        def review_theory_execution_preflight(self, **_kwargs):
+            return accepted_packet
+
+    provider = _Backend({})
+    with pytest.raises(PacketValidationError):
+        author_reviewed_architect_metric_requirements(
+            provider=provider,
+            config=ArchitectMetricContractAuthoringConfig(
+                model_tier="haiku",
+                max_validation_retries=0,
+                metric_semantic_reviewer_max_revisions=0,
+            ),
+            request_model=TEST_HAIKU_MODEL,
+            semantic_reviewer=Reviewer(),  # type: ignore[arg-type]
+            question=_question(),
+            runtime_contract={
+                "research_evaluation_requires_typed_metric_contracts": True,
+                "empirical_metric_requirements": [],
+                "empirical_metric_protocol_phase": (
+                    METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED
+                ),
+                "generated_sandbox_runtime_replicates": 17,
+                "simulation_targets": ["evaluate the declared risk"],
+            },
+            theory_protocol_material=_theory_material(),
+        )
+
+    assert len(provider.requests) == 1
+    prompt = provider.requests[0].user_prompt
+    assert "quantitative uncertainty or sampling-error calculation" in prompt
+    assert "'stringent but attainable' are not evidence" in prompt
+    assert "does not alone justify a tight finite-run threshold" in prompt
 
 
 def test_metric_review_exhaustion_blocks_in_source_workspace() -> None:

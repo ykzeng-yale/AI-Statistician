@@ -706,6 +706,8 @@ def build_architect_feedback_route_prompt(
             "source_only_review_cannot_be_reclassified_as_parent_defect": True,
             "confirmatory_unchanged_source_retry_is_forbidden": True,
             "outcome_informed_new_source_requires_fresh_cohort": True,
+            "aggregate_confirmatory_failure_is_not_component_attribution": True,
+            "outcome_only_failure_routes_to_gap_reporting": True,
             "unvisited_required_lanes_are_independent": True,
             "critic_requires_no_routable_required_lane": True,
             "new_repair_patch_or_adapter_subsystem_forbidden": True,
@@ -783,6 +785,13 @@ def build_architect_feedback_route_prompt(
         "from prose. If the frozen row's declared returned metric and numeric gate are "
         "already in conflicting coordinates, choose BLOCK because post-execution source "
         "or theory revision cannot repair an invalid frozen protocol. When "
+        "an aggregate confirmatory gate fails without a component-specific executable "
+        "diagnostic, intervention, compiler error, or independent reference mismatch, it "
+        "falsifies only the current end-to-end candidate and does not identify an "
+        "AlgorithmEngineer or TheoryDeveloper defect. If source execution and independent "
+        "semantic review succeeded, route CriticEvaluator to report the unresolved "
+        "empirical gap, or choose BLOCK when CriticEvaluator is unavailable; do not request "
+        "an outcome-driven source rewrite. When "
         "active_source_revision_assessment says the current source edit "
         "is sufficient or no parent artifact change is required, do not reinterpret "
         "source-budget exhaustion as a TheoryDeveloper defect; choose an available "

@@ -59,7 +59,12 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "Judge each frozen requirement as one semantic unit: estimand and regime, "
         "measurement identity, normalization, finite-sample attainability, operator, "
         "aggregation, and source authority. Put any decisive recomputation directly "
-        "in that requirement's rationale instead of expanding a second audit schema."
+        "in that requirement's rationale instead of expanding a second audit schema. "
+        "For every stochastic row, independently quantify or bound finite-run "
+        "uncertainty from its declared replicate budget. An unsupported assertion that "
+        "a threshold is attainable is not a calculation and must be UNCERTAIN or FAIL. "
+        "Do not turn an expectation, consistency, or asymptotic theorem into a tight "
+        "finite-run gate without a justified sampling distribution or error bound."
     ),
     (
         "For every numeric row, literally substitute the declared returned raw metric "
@@ -68,15 +73,19 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "Reject a row when its bounds are offsets around a target but its measurement "
         "returns the untransformed level, or when any other declared transformation "
         "and gate use different numeric coordinates. For each requirement, author one "
-        "semantic_positive_control containing raw metric values that the cited "
-        "scientific semantics expect to pass. Do not choose values merely because they "
-        "fit the numeric gate. Runtime will execute that control through the exact "
-        "frozen evaluator after your response."
+        "semantic_positive_control containing a single comparison-scale value that the "
+        "cited scientific semantics expect to pass after the declared aggregation. Do "
+        "not choose the value merely because it fits the numeric gate. Runtime will "
+        "apply the frozen operator and gate to that value after your response."
     ),
     (
         "Judge the portfolio once for cross-requirement consistency, redundancy, "
         "multiplicity, dependence, and non-vacuity. Repeated scenarios should normally "
-        "be represented by one vector-valued measurement and explicit aggregation."
+        "be represented by one vector-valued measurement and explicit aggregation. "
+        "Check that each statistic is mathematically well-defined at its stated "
+        "dimension and that the joint portfolio has a defensible probability of "
+        "accepting a valid pipeline. A confirmatory outcome gate evaluates the whole "
+        "pipeline; it does not by itself localize a defect to one upstream component."
     ),
     (
         "Cite exact requirement:... or supplied authority anchor IDs. Mark an actual "
@@ -473,13 +482,9 @@ def _review_row_schema(
         properties["semantic_positive_control"] = {
             "type": "object",
             "additionalProperties": False,
-            "required": ["raw_metric_values", "rationale", "evidence_refs"],
+            "required": ["raw_comparison_value", "rationale", "evidence_refs"],
             "properties": {
-                "raw_metric_values": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {"type": "number"},
-                },
+                "raw_comparison_value": {"type": "number"},
                 "rationale": {
                     "type": "string",
                     "minLength": 1,
@@ -677,9 +682,7 @@ def _normalize_semantic_positive_control(
         )
     )
     return {
-        "raw_metric_values": deepcopy(
-            list(row.get("raw_metric_values", []) or [])
-        ),
+        "raw_comparison_value": deepcopy(row.get("raw_comparison_value")),
         "rationale": str(row.get("rationale", "") or "").strip(),
         "evidence_refs": evidence_refs,
     }
@@ -767,7 +770,7 @@ def _execute_review_semantic_controls(
         requirement = requirements_by_id.get(requirement_id, {})
         evaluation = evaluate_generated_metric_semantic_control(
             requirement,
-            raw_metric_values=list(control.get("raw_metric_values", []) or []),
+            raw_comparison_value=control.get("raw_comparison_value"),
         )
         control["runtime_evaluation"] = evaluation
         row["semantic_positive_control"] = control
@@ -1129,11 +1132,13 @@ def validate_architect_metric_semantic_review_packet(
                 "semantic_positive_control"
             )
             control = {}
-        control_values = control.get("raw_metric_values", [])
-        if not isinstance(control_values, list) or not control_values:
+        control_value = control.get("raw_comparison_value")
+        if not isinstance(control_value, (int, float)) or isinstance(
+            control_value, bool
+        ):
             errors.append(
                 f"requirement review {requirement_id or index} positive control "
-                "must contain raw metric values"
+                "must contain one numeric raw_comparison_value"
             )
         if not str(control.get("rationale", "") or "").strip():
             errors.append(

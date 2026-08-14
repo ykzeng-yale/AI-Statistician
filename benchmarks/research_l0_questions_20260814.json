@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "heteroskedastic_covariance_known_result",
+      "title": "White HC0 covariance for full-rank ordinary least squares",
+      "description": "Focused known-result evaluation based on Halbert White, Econometrica 48(4), 1980, pages 817-838, DOI 10.2307/1912934. For a p-fixed sequence of linear regressions with independent mean-zero errors and possibly observation-specific conditional variances, state moment, design, nondegeneracy, and Lindeberg-type conditions sufficient for OLS consistency and asymptotic normality. In particular, control Q_n = X'X/n and Omega_n = X' diag(sigma_i^2) X/n rather than treating full rank at each finite n as sufficient asymptotic regularity. Derive beta_hat and the finite-sample HC0 covariance V_HC0 = (X'X)^(-1) X' diag(e_i^2) X (X'X)^(-1), and distinguish its normalization: V_HC0 estimates the covariance of beta_hat and is order n^(-1), whereas n V_HC0 consistently estimates the covariance Q_n^(-1) Omega_n Q_n^(-1) of sqrt(n)(beta_hat - beta) (or its limit when Q_n and Omega_n converge). The required algorithm artifact id is est_ols_hc0_covariance. Its run_estimator(request) input has design_matrix as an n by p numeric array and outcomes as a length-n numeric array. It must return coefficients as length p, covariance as p by p, and standard_errors as length p. Run an exploratory check, then a separately frozen confirmatory heteroskedastic simulation assessing coefficient bias and standard-error calibration with finite-run uncertainty reported. This L0 task exposes the known result and ABI; it tests faithful derivation, implementation, empirical validation, and honest gaps rather than novelty. Lean formalization is not applicable.",
+      "tags": [
+        "regression",
+        "heteroskedasticity",
+        "sandwich covariance",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "title": "A Heteroskedasticity-Consistent Covariance Matrix Estimator and a Direct Test for Heteroskedasticity",
+        "author": "Halbert White",
+        "journal": "Econometrica",
+        "year": 1980,
+        "volume": 48,
+        "issue": 4,
+        "pages": "817-838",
+        "doi": "10.2307/1912934",
+        "url": "https://ideas.repec.org/a/ecm/emetrp/v48y1980i4p817-38.html"
+      }
+    }
+  ]
+}

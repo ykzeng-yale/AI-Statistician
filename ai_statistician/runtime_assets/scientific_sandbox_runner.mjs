@@ -136,9 +136,9 @@ async function runPython(request, source, estimatorSources) {
       `        if not isinstance(request, dict):\n` +
       `            raise TypeError("run_estimator request must be a dict: " + _artifact_id)\n` +
       `        request_shape = _ai_stat_trace_shape(request)\n` +
+      `        normalized_request = _ai_stat_json_native(request)\n` +
+      `        _ai_stat_json.dumps(normalized_request, allow_nan=False, sort_keys=True)\n` +
       `        try:\n` +
-      `            normalized_request = _ai_stat_json_native(request)\n` +
-      `            _ai_stat_json.dumps(normalized_request, allow_nan=False, sort_keys=True)\n` +
       `            raw_response = _implementation(normalized_request)\n` +
       `            if not isinstance(raw_response, dict):\n` +
       `                raise TypeError("run_estimator response must be a dict")\n` +

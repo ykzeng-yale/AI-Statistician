@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityGoldBenchmark",
+  "benchmark_id": "research-gold-unit-test-fixture",
+  "runtime_visibility": "evaluator_only_after_runtime",
+  "model_visible_questions_path": "benchmarks/research_l0_questions_20260814.json",
+  "model_visible_questions_sha256": "28d8e1d74121267c58e954c935a558ab991317b5a1f0dd2fb9a5b1ae95b77e38",
+  "model_policy": {
+    "provider": "anthropic",
+    "model_tier": "haiku",
+    "model": "claude-haiku-4-5-20251001",
+    "automatic_tier_escalation_allowed": false
+  },
+  "active_tasks": [
+    {
+      "task_id": "heteroskedastic_covariance_known_result",
+      "level": "L0",
+      "status": "active_scored",
+      "visible_question_hash": "fa4296eae1a9541fb697866e5d1fe657fcefed32082cc0783db9c7112febd0b7",
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "hidden_algorithm_evaluator": {
+        "required_estimator_id": "est_ols_hc0_covariance",
+        "harness_path": "tests/fixtures/research_gold/mock_hidden_harness.py",
+        "harness_sha256": "d78cc071d4041f6c1acc4e1439bfa3bc7635bee35fd64d05ac182a3836aadbea",
+        "language": "python",
+        "dependencies": ["numpy"],
+        "seed": 1,
+        "replicates": 1,
+        "timeout_seconds": 30,
+        "acceptance_checks": [
+          {
+            "check_id": "all_hidden_cases_pass",
+            "path": ["hidden_cases_passed"],
+            "operator": "eq",
+            "expected": 4
+          },
+          {
+            "check_id": "finite_output",
+            "path": ["all_outputs_finite"],
+            "operator": "eq",
+            "expected": true
+          }
+        ]
+      }
+    }
+  ],
+  "gold_is_accessible_to_runtime_rag": false,
+  "gold_is_accessible_to_model_workspace": false,
+  "gold_execution_may_generate_runtime_feedback": false,
+  "proof_evidence_status": "UNIT_TEST_FIXTURE_NOT_CAPABILITY_EVIDENCE",
+  "boundary": "Public unit-test fixture for evaluator mechanics only; it is not hidden gold or capability evidence."
+}
