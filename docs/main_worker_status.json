@@ -1,9 +1,9 @@
 {
-  "schema_version": 48,
+  "schema_version": 49,
   "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "8d7a68805180850c10efad57896c5ebed453192c",
+  "validated_code_head": "e05c1e78dd046308386b55cbc1bd52793e212a5a",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -53,7 +53,7 @@
     ]
   },
   "validated_change": {
-    "commit": "8d7a68805180850c10efad57896c5ebed453192c",
+    "commit": "e05c1e78dd046308386b55cbc1bd52793e212a5a",
     "changes": [
       "TheoryDeveloper has a direct model-owned report_theory_gap tool. It requires a prior observation, terminates as BLOCKED, stores workspace evidence once by reference, and never becomes proof evidence.",
       "A runtime-owned formal_target_authoring_required contract now controls TheoryDeveloper formalization artifacts. Optional and advisory research tasks need not invent Lean handoffs; capability_eval and required formal tasks still fail closed, and an Architect plan cannot lower that gate.",
@@ -66,12 +66,15 @@
       "Serious TheoryDeveloper work no longer encodes mathematical quality as at most eight derivation rows, eight equation rows, two theorem cards, four lemma cards, or 420 characters per field. The existing token, isolation, and no-progress boundaries remain unchanged; compact and truncation-recovery packets remain bounded.",
       "One TheoryDeveloper tool call may atomically replace every mutually dependent writable artifact. This removes harness-created extra turns while preserving exact model-authored values, shape validation, immutable parent identity, and duplicate-name rejection.",
       "Optional and advisory product research now default to simulation_first. Explicit tasks may still select proof_first or dual_track, and required strict-formal evaluation remains dual_track.",
-      "The independent metric reviewer now supplies one theory-consistent positive control per frozen row. Runtime executes that model-authored value through the exact production evaluator before ACCEPT, returns any contradiction to the same author, and never invents a statistical transformation or repair."
+      "The independent metric reviewer now supplies one theory-consistent positive control per frozen row. Runtime executes that model-authored value through the exact production evaluator before ACCEPT, returns any contradiction to the same author, and never invents a statistical transformation or repair.",
+      "Metric-review row identity is enforced by the provider schema as an object keyed by the exact frozen requirement IDs. Runtime normalizes the accepted object to the existing ordered evidence ABI; it does not repair duplicate or missing rows after generation.",
+      "Anthropic 529 overloaded responses are classified as transient transport failures and retried inside the exact provider request rather than replaying a whole Architect subsystem.",
+      "Lean declaration inspection now returns one atomic active-project API observation binding the importable module, qualified declaration, namespace, exact signature, module prefix, and local source. The model still writes every source; runtime adds no Lean syntax or proof rule."
     ],
     "anti_hardcoding_audit": "No task-family condition, statistical answer, Lean grammar/tactic rule, repair worker, or fallback scheduler was added to executable code.",
     "verification": {
-      "full_pytest": "648 passed in 100.75s",
-      "affected_subsystem_pytest": "152 passed in 0.49s; focused reviewer and evaluator checks 54 passed in 0.27s",
+      "full_pytest": "649 passed in 104.01s",
+      "affected_subsystem_pytest": "46 passed in 0.26s for Lean client-tool, Formalizer feedback, and proof-state feedback",
       "python_compileall": "passed",
       "json_validation": "passed",
       "git_diff_check": "passed",
@@ -82,43 +85,43 @@
     "evidence_boundary": "Tests and replay validate mechanisms only. They do not earn live research, empirical, novelty, or theorem-closure credit."
   },
   "latest_component_evidence": {
-    "id": "metric_semantic_positive_control_exact_haiku_20260814",
+    "id": "formalizer_atomic_active_project_context_exact_haiku_20260814",
     "model": "claude-haiku-4-5-20251001",
-    "scope": "pre-execution metric semantic review replay of the v433 raw-level versus offset-gate mismatch",
-    "before_change": "The same exact model incorrectly returned ACCEPT by silently interpreting offset bounds as a target-centered interval.",
-    "after_change": "The model selected raw value 0.30 as its scientifically expected positive control; the unchanged frozen evaluator rejected that value against the offset-scale gate, so runtime normalized the review to REVISE.",
-    "execution_results_observed": false,
-    "runtime_authored_statistical_content": false,
-    "extra_model_calls_or_outer_iterations": 0,
-    "boundary": "This is live component evidence for the generic semantic-to-evaluator check, not a fresh integrated research run, accepted empirical evidence, or theorem proof."
+    "scope": "component ablation of active-project Lean declaration context using the exact v435 Formalizer declaration family",
+    "before_change": "With declaration source and lexical context presented without a bound importable module identity, the exact model copied internal dependency imports and produced source that Lean rejected.",
+    "after_change": "With importable module, qualified declaration, namespace, module prefix, and local declaration source presented as one atomic API observation in the production-shaped payload, the exact model authored a standalone source that real local Lean compiled with exit status 0.",
+    "lean_compiler_execution_observed": true,
+    "runtime_authored_lean_content": false,
+    "runtime_extra_model_calls_or_outer_iterations": 0,
+    "boundary": "This is live component evidence for a generic context interface, not a fresh integrated Formalizer run, semantic target acceptance, or source-theorem closure."
   },
   "latest_authoritative_integrated_run": {
-    "id": "v433",
-    "path": "runs/main_worker_cross_family_development_20260814_v433_single_result_retain_exact_haiku",
-    "model": "claude-haiku-4-5-20251001 for all nine enabled live agents",
+    "id": "v435",
+    "path": "runs/main_worker_cross_family_development_20260814_v435_keyed_metric_review_exact_haiku",
+    "model": "claude-haiku-4-5-20251001 for every enabled live agent",
     "status_counts": {
       "BLOCKED": 2
     },
-    "capability_scorecard": "10/16",
+    "capability_scorecard": "6/16",
     "capability_ready_for_full_ai_statistician": false,
-    "runtime_traces": 55,
-    "runtime_tool_calls": 48,
-    "runtime_observations": 126,
-    "live_generated_code_executions": 3,
+    "runtime_traces": 36,
+    "runtime_tool_calls": 24,
+    "runtime_observations": 66,
+    "live_generated_code_executions": 2,
     "live_generated_simulation_executions": 1,
-    "formalizer_workspaces": 3,
-    "formalizer_source_updates": 13,
-    "formalizer_local_lean_checks": 14,
-    "formalizer_local_lean_compiled": 2,
-    "formalizer_formal_rag_calls": 21,
+    "formalizer_workspaces": 1,
+    "formalizer_source_updates": 5,
+    "formalizer_local_lean_checks": 5,
+    "formalizer_local_lean_compiled": 0,
+    "formalizer_formal_rag_calls": 6,
     "kernel_verified_subclaims": 0,
     "exact_source_theorem_closure": "0/2",
     "diagnosis": {
-      "right_censored_survival_km": "Reached FormalTargetSemanticReviewer after scientific execution and Formalizer work. Independent review rejected the opaque source theorem twice and exhausted its bounded revision lineage. This is a correct semantic block, not proof.",
-      "sequential_anytime_bernoulli": "Reached Formalizer and returned raw Lean observations to the same model, but no exact target obtained trusted kernel evidence. Final Critic correctly returned FORMAL_REQUIRED_BLOCKED.",
-      "shared_mechanism_signal": "One scientific source changed and another exact parent source was reexecuted in the changed dependency environment without runtime source editing. The frozen metric-coordinate mismatch exposed by this run was addressed in model prompts and independent review, not by a task answer rule."
+      "right_censored_survival_km": "Completed repeated theory, generated algorithm, independently reviewed metric, generated simulation, fresh empirical feedback, and bounded theory revision cycles. Confirmatory gates eventually passed and the task reached Formalizer, where five model-authored Lean sources all failed before declaration elaboration; Critic correctly returned FORMAL_REQUIRED_BLOCKED.",
+      "sequential_anytime_bernoulli": "The independent theory preflight rejected the first packet. In the same TheoryDeveloper workspace, the exact model used its scratchpad to show that its own tempered likelihood-ratio construction was not a martingale and terminated through report_theory_gap instead of fabricating a downstream algorithm or proof.",
+      "shared_mechanism_signal": "The keyed metric-review schema worked in a fresh integrated run, scientific failures returned to the source-owning model without packet repair, and an honest mathematical gap stopped the invalid theory lineage. The 6/16 aggregate is lower because all-question rows remain false after Sequential stopped early; it is not evidence of reduced integrity."
     },
-    "boundary": "v433 is diagnostic integrated evidence. Two compiling checkpoints, RAG calls, semantic review, and source iteration are not exact theorem proof. Held-out strict-formal tasks remain sealed."
+    "boundary": "v435 is diagnostic integrated evidence. Scientific execution, accepted empirical gates, RAG calls, theory-gap reporting, and Lean source iteration are not exact theorem proof. Exact source-theorem closure remains 0/2 and held-out strict-formal tasks remain sealed."
   },
   "current_design_assessment": {
     "correct_to_keep": [
@@ -141,18 +144,20 @@
       "one universal exact-Lean product completion definition",
       "serious theory depth being capped by fixed derivation, equation, theorem, lemma, and string counts",
       "TheoryDeveloper needing multiple tool turns solely because one atomic write could contain at most two mutually dependent artifacts",
-      "optional product research defaulting to dual-track formalization instead of simulation-first"
+      "optional product research defaulting to dual-track formalization instead of simulation-first",
+      "metric-review identity depending on an array-level prompt instruction that Anthropic structured output could not enforce",
+      "active-project Lean declaration source being separated from its importable module identity"
     ],
     "remaining_structural_problems": [
       "strict development exact source-theorem closure remains 0/2",
       "the current source scout is bounded local retrieval, not a complete live web/GitHub paper-code-data replication workspace",
       "TheoryDeveloper now permits model-selected serious-theory depth within the token window, but still lacks a mature persistent cross-session theorem/claim DAG editor and live on-demand paper/code search",
-      "v433 repeatedly routed confirmatory simulation failures through source review and Architect; the exact-Haiku executable-control replay now detects the underlying metric-coordinate contradiction before execution, but a fresh integrated run and generic global lineage/stagnation semantics are still required",
+      "v435 still used Architect for several cross-workspace empirical feedback decisions; ordinary source errors stayed local, but generic global lineage and stagnation semantics remain incomplete",
       "scientific execution has Pyodide/WebR foundations but live R, broad package support, and precision-driven confirmatory replication need integrated evidence",
       "Formalizer has real RAG, local Lean, source revision, and semantic review but still lacks reliable exact statistical theorem closure",
-      "formal retrieval needs stronger proof-state relevance and active-project declaration compatibility without theorem-specific rules",
+      "the atomic active-project declaration context has exact-Haiku component evidence but still needs a fresh integrated Formalizer run and cross-task ablation",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
-      "research_agent_runtime.py remains large at 24228 lines and must shrink before adding another control feature"
+      "research_agent_runtime.py remains large at 24250 lines and must shrink before adding another control feature"
     ],
     "wrong_next_move": "Do not add a repair worker, packet patcher, theorem-specific bridge, Lean grammar fixer, forced tactic policy, hardcoded statistical answer, fixed universal simulation count, more outer budget, or another scheduler."
   },
@@ -162,18 +167,18 @@
     "theory_development": "about 48-55%",
     "source_replication_and_paper_ingest": "about 20-30%",
     "formalization_and_exact_proof_closure": "about 30-35%",
-    "product_research_end_to_end_readiness": "about 45-52%",
+    "product_research_end_to_end_readiness": "about 48-55%",
     "strict_formal_end_to_end_readiness": "about 38-43%",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24228,
+    "research_agent_runtime_lines": 24250,
     "agent_runtime_lines": 1207,
     "cli_lines": 6907,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 131707,
-    "latest_runtime_manifest_bytes": 59048
+    "top_level_package_lines": 131775,
+    "latest_runtime_manifest_bytes": 58888
   },
   "next_gates": [
     "Curate independent immutable L0-L2 paper, code, data, environment, and gold snapshots before activating the research benchmark ladder.",
@@ -181,7 +186,7 @@
     "Ablate progressive theory and exploratory simulation on known results: code may start after stable interfaces, but confirmatory execution must wait for independent theory/source acceptance and a frozen precision rule.",
     "Implement task-specific Monte Carlo precision contracts selected before outcomes instead of treating n_runs=100 as a scientific default.",
     "Run a product research_eval known-result panel where formalization is advisory and report the full evidence vector without Lean blocking accepted empirical dimensions.",
-    "Run the next strict exact-Haiku development panel under unchanged budgets and require exact target-bound kernel closure on both development families before opening held-out PCA/extremes.",
+    "Run a fresh strict exact-Haiku development panel under unchanged budgets to test the atomic declaration context in the integrated Formalizer; require exact target-bound kernel closure on both development families before opening held-out PCA/extremes.",
     "Improve TheoryDeveloper and Formalizer through direct on-demand retrieval, durable claim/state artifacts, and measured prompt/tool ablations, never content-specific middleware.",
     "Delete or extract existing central runtime responsibilities before adding any new outer control feature."
   ]
