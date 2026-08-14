@@ -58,6 +58,88 @@ def _nonnegative_int(value: Any) -> int:
         return 0
 
 
+def _prior_semantic_review_observation(task: AgentTask) -> dict[str, Any]:
+    raw_feedback = task.inputs.get("environment_feedback", {})
+    feedback = raw_feedback if isinstance(raw_feedback, Mapping) else {}
+    if str(feedback.get("feedback_type", "") or "") != (
+        "formal_target_semantic_review_feedback"
+    ):
+        return {}
+    return {
+        field: feedback[field]
+        for field in (
+            "feedback_id",
+            "semantic_review_execution_id",
+            "semantic_review_packet_id",
+            "semantic_review_packet_hash",
+            "candidate_source_hash",
+            "overall_verdict",
+            "dimension_reviews",
+            "findings",
+        )
+        if feedback.get(field) not in (None, "", [], {})
+    }
+
+
+def _compact_formalizer_grounding_observations(
+    workspace_evidence: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    evidence = workspace_evidence if isinstance(workspace_evidence, Mapping) else {}
+    if not evidence:
+        return {}
+    observations: list[dict[str, Any]] = []
+    for turn in evidence.get("history", []) or []:
+        if not isinstance(turn, Mapping):
+            continue
+        for raw_call in turn.get("tool_calls", []) or []:
+            if not isinstance(raw_call, Mapping):
+                continue
+            tool_name = str(raw_call.get("name", "") or "")
+            if tool_name not in {
+                "inspect_lean_declaration",
+                "inspect_lean_state",
+                "search_formal_environment",
+            }:
+                continue
+            observations.append(
+                {
+                    "tool_name": tool_name,
+                    "observation_key": str(
+                        raw_call.get("observation_key", "") or ""
+                    ),
+                    "result_excerpt": str(
+                        raw_call.get("result_excerpt", "") or ""
+                    )[:2500],
+                }
+            )
+    return {
+        "workspace_artifact_id": str(evidence.get("artifact_id", "") or ""),
+        "workspace_phase": str(evidence.get("workspace_phase", "") or ""),
+        "parent_source_hash": str(evidence.get("parent_source_hash", "") or ""),
+        "independently_rejected_source_hash": str(
+            evidence.get("independently_rejected_source_hash", "") or ""
+        ),
+        "submitted_source_hash": str(
+            evidence.get("submitted_source_hash", "") or ""
+        ),
+        "source_updates": _nonnegative_int(evidence.get("source_updates", 0)),
+        "declaration_inspections": _nonnegative_int(
+            evidence.get("lean_declaration_inspections", 0)
+        ),
+        "formal_environment_searches": _nonnegative_int(
+            evidence.get("formal_environment_searches", 0)
+        ),
+        "lean_state_inspections": _nonnegative_int(
+            evidence.get("lean_state_inspections", 0)
+        ),
+        "tool_observations": observations[-6:],
+        "boundary": (
+            "These are compact raw observations requested by the source-owning "
+            "Formalizer. They ground review but are not proof or semantic authority."
+        ),
+    }
+
+
 def _question_to_payload(question: OpenResearchQuestion) -> dict[str, Any]:
     return {
         "id": question.id,
@@ -92,6 +174,7 @@ def _runtime_formal_target_semantic_review_dispatch(
     deferred_next_task: AgentTask,
     blackboard_artifacts: Mapping[str, Any],
     max_revisions: int,
+    formalizer_workspace_evidence: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     target_context = (
         dict(candidate_feedback.get("formalizer_workspace_context", {}) or {})
@@ -293,6 +376,14 @@ def _runtime_formal_target_semantic_review_dispatch(
                 candidate_row.get("local_lean_stderr", "") or ""
             ),
         },
+        "prior_semantic_review_observation": (
+            _prior_semantic_review_observation(task)
+        ),
+        "formalizer_grounding_observations": (
+            _compact_formalizer_grounding_observations(
+                formalizer_workspace_evidence
+            )
+        ),
         "formalizer_target_context_hash": stable_hash(target_context),
         "source_agent": str(proposal_packet.get("source_agent", "") or ""),
         "source_model": str(proposal_packet.get("model", "") or ""),
@@ -565,6 +656,12 @@ def _runtime_formal_target_semantic_review_material(
             ),
             "candidate_row": candidate_row,
         },
+        "prior_semantic_review_observation": dict(
+            work_order.get("prior_semantic_review_observation", {}) or {}
+        ),
+        "formalizer_grounding_observations": dict(
+            work_order.get("formalizer_grounding_observations", {}) or {}
+        ),
         "evidence_boundary": FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
     }
     return material, sorted(set(errors))

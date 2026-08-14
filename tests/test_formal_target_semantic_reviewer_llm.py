@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import pytest
 
@@ -125,6 +125,8 @@ def _runtime_fixture(
     target_hash_algorithm: str = LEAN_TARGET_STATEMENT_HASH_ALGORITHM,
     revision_count: int = 0,
     max_revisions: int = 2,
+    prior_review_feedback: Mapping[str, Any] | None = None,
+    workspace_evidence: Mapping[str, Any] | None = None,
 ) -> tuple[
     FormalTargetSemanticReviewerRuntimeSubsystem,
     AgentTask,
@@ -220,6 +222,11 @@ def _runtime_fixture(
                 },
                 "formal_target_semantic_review_revision_count": revision_count,
             },
+            **(
+                {"environment_feedback": dict(prior_review_feedback)}
+                if prior_review_feedback
+                else {}
+            ),
         },
     )
     target_context = {
@@ -269,6 +276,7 @@ def _runtime_fixture(
             candidate_materialization["manifest_id"]: candidate_materialization,
         },
         max_revisions=max_revisions,
+        formalizer_workspace_evidence=workspace_evidence,
     )
     assert dispatch is not None
     blackboard = BlackboardState(project_id="formal-target-semantic-review-test")
@@ -455,8 +463,102 @@ def test_prompt_requests_observations_and_forbids_runtime_repair_planning() -> N
     assert "missing proof" in prompt
     assert "not a semantic finding" in prompt
     assert "ACCEPT means eligible for proof construction, not proved" in prompt
+    assert "comments, docstrings, theorem names, field names" in prompt
+    assert "returning a stored proof of the conclusion" in prompt
+    assert "unused-hypothesis warnings" in prompt
+    assert "new hash, renaming, or expanded comment" in prompt
     assert "repair_scope" not in prompt
     assert "repair_owner" not in prompt
+
+
+def test_revision_review_receives_prior_findings_and_formalizer_grounding(
+    tmp_path: Path,
+) -> None:
+    prior_feedback = {
+        "feedback_type": "formal_target_semantic_review_feedback",
+        "feedback_id": "prior-feedback",
+        "semantic_review_execution_id": "prior-execution",
+        "semantic_review_packet_id": "prior-packet",
+        "semantic_review_packet_hash": "prior-packet-hash",
+        "candidate_source_hash": "prior-source-hash",
+        "overall_verdict": "REVISE",
+        "findings": [
+            {
+                "severity": "high",
+                "category": "opaque_certificate",
+                "summary": "The conclusion is stored in an opaque structure field.",
+                "observed_behavior": "The proof returns the stored field.",
+                "expected_behavior": "Derive the bound conclusion from assumptions.",
+                "evidence_refs": ["/exact_formal_target"],
+            }
+        ],
+    }
+    workspace_evidence = {
+        "artifact_id": "formalizer-workspace:revision",
+        "workspace_phase": "revision",
+        "parent_source_hash": "prior-source-hash",
+        "independently_rejected_source_hash": "prior-source-hash",
+        "submitted_source_hash": "current-source-hash",
+        "source_updates": 1,
+        "lean_declaration_inspections": 1,
+        "formal_environment_searches": 0,
+        "lean_state_inspections": 1,
+        "history": [
+            {
+                "tool_calls": [
+                    {
+                        "name": "inspect_lean_declaration",
+                        "observation_key": "lean-declaration:source",
+                        "result_excerpt": "source-shaped certificate declaration",
+                    },
+                    {
+                        "name": "inspect_lean_state",
+                        "observation_key": "lean-state:unused",
+                        "result_excerpt": "unused variable h_assumption",
+                    },
+                    {
+                        "name": "submit_lean_source",
+                        "observation_key": "lean-submit:ignored",
+                        "result_excerpt": "full source omitted from review grounding",
+                    },
+                ]
+            }
+        ],
+    }
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accepted=False,
+        revision_count=1,
+        prior_review_feedback=prior_feedback,
+        workspace_evidence=workspace_evidence,
+    )
+    backend = _CapturingBackend([_review_response(accepted=False)])
+    subsystem.reviewer = LLMFormalTargetSemanticReviewerAgent(
+        provider=backend,
+        config=FormalTargetSemanticReviewerConfig(
+            provider_name="static",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+
+    subsystem.run(task, blackboard)
+
+    payload = json.loads(backend.requests[0].user_prompt.split("\n\n", 1)[1])
+    material = payload["review_material"]
+    assert material["prior_semantic_review_observation"]["findings"] == (
+        prior_feedback["findings"]
+    )
+    grounding = material["formalizer_grounding_observations"]
+    assert grounding["independently_rejected_source_hash"] == "prior-source-hash"
+    assert [row["tool_name"] for row in grounding["tool_observations"]] == [
+        "inspect_lean_declaration",
+        "inspect_lean_state",
+    ]
+    assert "source-shaped certificate" in grounding["tool_observations"][0][
+        "result_excerpt"
+    ]
 
 
 def test_dimension_schema_uses_required_provider_safe_slots() -> None:

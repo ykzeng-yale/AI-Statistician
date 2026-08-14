@@ -13819,6 +13819,9 @@ class FormalizerWorkspaceRuntimeSubsystem:
                     max_revisions=(
                         self.formal_target_semantic_review_max_revisions
                     ),
+                    formalizer_workspace_evidence=(
+                        lean_candidate_client_tool_loop_evidence
+                    ),
                 )
                 if self.formal_target_semantic_reviewer_available
                 else None
@@ -14004,6 +14007,9 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         blackboard_artifacts=blackboard.artifacts,
                         max_revisions=(
                             self.formal_target_semantic_review_max_revisions
+                        ),
+                        formalizer_workspace_evidence=(
+                            lean_candidate_client_tool_loop_evidence
                         ),
                     )
                 )
