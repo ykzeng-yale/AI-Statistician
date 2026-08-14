@@ -1,190 +1,211 @@
 # Evaluation Benchmark Strategy
 
-Updated: 2026-08-09
+Updated: 2026-08-14
 
-## Purpose
+## What evaluation must separate
 
-Evaluation must answer one question: can the canonical AI-Statistician runtime
-complete a fresh statistical research task with model-authored theory, executable
-scientific code, task-bound formal retrieval, iterative Lean feedback, and exact
-kernel-checked theorem closure?
+AI Statistician has two different evaluation authorities.
 
-Component checks are useful for development, but they never substitute for that
-end-to-end result.
+1. Product research evaluation asks whether the system produced defensible theory,
+   replication, code, empirical evidence, novelty analysis, and an honest gap
+   ledger for the task's frozen intent.
+2. Strict formal-capability evaluation asks whether the integrated system also
+   closed the exact theorem in Lean with target-bound kernel evidence.
 
-## Canonical Evaluation Path
+The second is deliberately stronger, but it is not the definition of every useful
+research task. A missing optional Lean proof cannot erase accepted empirical
+evidence. Likewise, simulation, retrieval, or model agreement can never be called
+a theorem proof.
 
-All capability evaluation runs through one typed `AgentRuntime` graph:
+Product research uses
+`benchmarks/research_capability_ladder_20260814.json`. The immutable cross-family
+protocol `benchmarks/autonomous_cross_family_e2e_protocol_20260713.json` remains
+the S13 integrated formal-capability authority and is not weakened by this split.
+
+## Minimal harness principle
+
+The harness protects execution and evidence; the model owns research content.
 
 ```text
-Architect plan
-  -> Theory workspace
-  -> Scientific coding workspace
-  -> Independent semantic review
-  -> Formalization and proving workspace
-  -> Critic and kernel gate
+model selects an action or writes an artifact
+  -> real literature, Python, R, simulation, or Lean tool runs
+  -> raw observation returns to the same source-owning model
+  -> model revises, reports a grounded gap, or stops
 ```
 
-Each source-producing workspace owns its own bounded environment loop:
+Runtime may enforce identities, hashes, task intent, source visibility, isolation,
+budgets, frozen gates, and proof promotion. It must not encode statistical answers,
+patch source, interpret Lean errors into tactic recipes, or route ordinary local
+failures through a repair hierarchy.
+
+This follows the useful common denominator of frontier systems rather than copying
+their full orchestration stacks:
+
+- [mini-SWE-agent](https://github.com/SWE-agent/mini-swe-agent) and
+  [Numina Lean Agent](https://arxiv.org/abs/2601.14027): small tool loop, complete
+  source ownership, and direct environment feedback;
+- [ERA](https://github.com/google-research/era): generate, execute, score, and
+  search only where an executable objective is reliable;
+- [AI Co-Scientist](https://arxiv.org/abs/2502.18864): generate, debate, rank,
+  evolve, and meta-review hypotheses where no exact scorer exists;
+- [AI Scientist-v2](https://arxiv.org/abs/2504.08066): end-to-end experimentation
+  with explicit failure evidence rather than demo-only outputs;
+- [Read the Paper, Write the Code](https://arxiv.org/abs/2604.21965): evaluate
+  paper understanding by executable reproduction, not textual similarity alone;
+- [LeanMarathon](https://arxiv.org/abs/2606.05400): use a durable statement/lemma
+  DAG and verifier-backed checkpoints for long-horizon formal work.
+
+## Progressive research graph
+
+The default order is progressive commitment, not a rigid waterfall.
 
 ```text
-model chooses a tool or complete source edit
-  -> Python, R, retrieval, or Lean executes
-  -> raw observation returns to the same model
-  -> model revises the current artifact
+task intent and source-visibility policy
+  -> literature/code/data scout
+  -> exact public replication when available
+  -> theory workspace and claim DAG
+  <-> exploratory implementation and falsification
+  -> independent theory/source review and stable checkpoint
+  -> frozen confirmatory protocol and precision budget
+  -> confirmatory execution
+  -> optional/advisory/required deep formalization
+  -> final evidence vector and gap ledger
 ```
 
-The runtime may enforce identity, hashes, budgets, permissions, schemas, and
-evidence boundaries. It must not author source patches, statistical answers,
-Lean grammar fixes, tactic recipes, theorem-family rules, or hidden repair plans.
+Search begins early when the task allows external evidence. For a published result
+with public code and data, the first scientific act is to rerun the exact pinned
+artifact. Reimplementation follows only after the environment and claimed target
+are understood. The manifest distinguishes author code, model code, and reused
+library code by source snapshot and hash.
 
-There is no post-runtime formal execution plane. When `AgentRuntime` terminates,
-unresolved typed tasks remain debt for a later resumed run. Offline reports may
-read immutable artifacts but may not execute workers or receive capability credit.
+TheoryDeveloper is a persistent workspace, not one JSON answer. It maintains
+definitions, assumptions, equation lineage, a lemma/claim DAG, counterexamples,
+sanity checks, and unresolved gaps. Independent review and empirical or formal
+observations can reopen the current theory lineage. A model-reported theory gap is
+an honest blocked result, never proof evidence.
 
-## Model Policy
+Algorithm and exploratory Simulation may begin as soon as the estimand, DGP,
+procedure ABI, and consumed claims are stable enough to execute. They need not wait
+for every theorem lemma. Exploratory outcomes may challenge theory but remain
+non-confirmatory. Confirmatory code is accepted only against the current reviewed
+theory checkpoint and a frozen measurement protocol.
 
-- Every live test and evaluation call uses exactly
-  `claude-haiku-4-5-20251001`.
-- Production may use Haiku or Sonnet.
-- Opus is forbidden in executable configuration.
-- Every manifest records provider, requested tier, and resolved model.
-- A run with a non-Haiku evaluation call fails model-policy conformance.
+A light formal scout may run in parallel to identify missing definitions, library
+APIs, or an ill-posed theorem statement. Expensive proof search normally waits for
+statement stability. `proof_first` tasks may reverse that order, and `dual_track`
+tasks may run both. Formal gaps block only when the frozen task contract marks the
+formal dimension required.
 
-## Frozen Cross-Family Protocol
+## Simulation precision
 
-The authoritative split is
-`benchmarks/autonomous_cross_family_e2e_protocol_20260713.json`.
+There is no general scientific reason to use exactly 100 replications. Before
+confirmatory outcomes are visible, the evaluator freezes one of:
 
-Development tasks:
+- a target Monte Carlo standard error;
+- a target confidence-interval width;
+- a power or rare-event precision target;
+- a fixed resource budget with the resulting uncertainty reported.
+
+The replicate count follows from the selected criterion and task geometry.
+Exploratory runs may be cheaper and adaptive, but their labels and seeds cannot be
+promoted to confirmatory evidence. Confirmatory stopping may depend on a predeclared
+precision statistic, never on whether the scientific result looks favorable.
+
+## Evidence vector
+
+Each task freezes `required`, `optional`, or `not_applicable` for these dimensions:
+
+- `source_replication`: exact rerun of supplied public code/data;
+- `theory`: definitions, assumptions, derivation/claim lineage, and review;
+- `scientific_code`: model-authored Python or R execution and source review;
+- `empirical`: frozen confirmatory results and Monte Carlo uncertainty;
+- `formal`: exact target identity, Lean feedback, semantic review, and kernel proof;
+- `novelty`: comparison against the task's allowed source horizon;
+- `unresolved_gaps`: explicit remaining defects and their evidence.
+
+There is no scalar score that can hide a required failure. Reports may summarize
+coverage, but they retain the status and evidence references for every dimension.
+Evidence from another task, source hash, cohort, replay fixture, or weaker theorem
+cannot close the current dimension.
+
+## Benchmark ladder
+
+Evaluation should become harder only after the preceding level is reliable.
+
+| Level | Task | Model-visible material | Gold authority |
+|---|---|---|---|
+| L0 | Focused known-result unit | statement and minimal setup | curated theorem, code, or numeric invariant |
+| L1 | Exact published replication | paper, author code, data | pinned environment and published outputs |
+| L2 | Paper-to-code reproduction | paper and data, author code hidden | hidden source and result distributions |
+| L3 | Known-theory rederivation | problem and assumptions, result/proof hidden | independent theorem and proof rubric |
+| L4 | Historical rediscovery | pre-publication source horizon | later published theory/code/results |
+| L5 | Near-frontier extension | base paper, extension target | later or independently curated result |
+| L6 | True open problem | permitted contemporary sources | no answer gold; evidence and gap audit only |
+
+L0-L3 measure correctness and mechanism reliability. L4-L5 test research-like
+rediscovery under time and source controls. L6 measures research process,
+falsifiability, and honesty; it cannot establish scientific correctness merely
+because several LLM reviewers agree.
+
+The initial L0-L2 candidates in the ladder file are curation proposals, not live
+gold. Each must obtain immutable paper/code/data snapshots, independent expected
+artifacts, environment lockfiles, and leakage review before activation. Their
+answers must never enter runtime prompts, general RAG, policy packs, or source code.
+
+## Leakage and independence
+
+Every scored run records:
+
+- exact model `claude-haiku-4-5-20251001` for all live evaluation calls;
+- task release, source-horizon, paper/code/data visibility, and snapshot hashes;
+- fresh-start state and disabled task-learning memory;
+- model-authored versus supplied artifacts;
+- independent reviewer context and result blinding;
+- frozen metric and simulation-precision contracts;
+- seeds/cohorts hidden until execution and fresh cohorts after outcome-driven edits;
+- all web, repository, and RAG handles actually exposed to the model.
+
+Gold artifacts live outside accessible RAG and model workspaces. Held-out outcomes
+cannot motivate task-family validators, prompts, aliases, or fixtures. Shared
+harness defects found on development tasks may be repaired only when the change is
+content-independent and tested across unrelated families.
+
+## Strict formal-capability protocol
+
+The existing cross-family development panel remains:
 
 - `right_censored_survival_km`
 - `sequential_anytime_bernoulli`
 
-Held-out tasks:
+Its held-out panel remains sealed:
 
 - `high_dimensional_spiked_pca`
 - `extreme_tail_quantile_hill`
 
-Held-out evaluation remains sealed until both development tasks independently
-reach exact source-theorem kernel closure. A support lemma, retrieved theorem,
-simulation pass, semantic-review acceptance, or aggregate score cannot replace
-per-task closure.
+Every task in that protocol still requires a fresh Architect plan, model-authored
+theory and scientific source, independent review, task-bound formal retrieval,
+raw Lean feedback, exact target identity, and local kernel closure. Support lemmas,
+RAG hits, pseudo-formalization, or simulation cannot substitute for closure.
 
-After held-out evaluation begins, task-specific runtime rules, validators,
-prompts, fixtures, or policy-pack changes based on held-out outcomes are forbidden.
+## Efficiency contract
 
-## Required Per-Task Evidence
+Evaluation records calls, latency, token use, tool turns, source hashes, and repeated
+finding fingerprints. It fails harness efficiency when it resets a lineage budget,
+repeats an unchanged owner/finding/source cycle without new evidence, routes routine
+source failures through Architect, executes confirmatory work before its gates, or
+copies recursive payloads into manifests.
 
-Every passing task must contain task-bound, same-run evidence for:
+Deterministic replay is appropriate for harness regression tests. It is never live
+model capability, fresh scientific execution, novelty, or proof evidence.
 
-1. A fresh live Architect plan.
-2. A rigorous TheoryDeveloper derivation and Critic revision.
-3. Model-generated Python or R source executed in the declared environment.
-4. Independent exact-Haiku semantic review of the exact source, arguments,
-   result lineage, theory alignment, and frozen measurement protocol.
-5. Architect-authored empirical requirements evaluated independently.
-6. Formal-source retrieval bound to the current target and accessible imports.
-7. Model-authored Lean source with raw compiler or proof-state observations
-   returned to the same source-producing model.
-8. Immutable exact-target identity from source statement through proof attempt.
-9. Local Lean or AXLE kernel acceptance of the exact source theorem.
-10. Zero acceptance-gating formal gaps.
+## Current evidence
 
-Evidence from another task, another source hash, a replay fixture, a registered
-template, or a standalone component run does not satisfy these requirements.
+The latest immutable exact-Haiku v433 development run remains diagnostic: both
+tasks ended `BLOCKED`, integrated capability was 10/16, and exact theorem closure
+was 0/2. It showed direct source iteration and honest gap behavior, not readiness.
+The held-out strict-formal panel therefore remains sealed.
 
-## Capability Suites
-
-The maintained suite registry is `benchmarks/capability_eval_suites.json`.
-
-| Suite | Scope | Release meaning |
-|---|---|---|
-| S0 | Release sanity | Package, schemas, and baseline gates are coherent. |
-| S1 | Core method E2E | Registered methods execute through the product path. |
-| S2 | Frontier static coverage | Intake and routing coverage only. |
-| S3 | Blind theory-target recovery | Theory targets are recovered without answer fixtures. |
-| S4 | Formal primitive ladder | Missing primitives are identified and closed honestly. |
-| S5 | Proof bank and search | Existing proof assets and search regressions work. |
-| S6 | Algorithm and simulation stress | Generated scientific code survives execution stress. |
-| S7 | Feedback-loop regeneration | The same source model improves from raw failures. |
-| S8 | Unsupported intake | Unsupported tasks fail closed. |
-| S9 | Fresh frontier holdout | Generalization on unseen tasks. |
-| S12 | Live Architect path policy | Live orchestration follows the model policy. |
-| S13 | Integrated runtime capability | Full same-run, cross-subsystem evidence gate. |
-
-S13 is the readiness authority. No other suite, audit counter, or historical
-component result implies S13 success.
-
-## Evidence Authority
-
-Evidence levels are deliberately non-interchangeable:
-
-```text
-retrieval or pseudo-formal support
-  < model or independent-review judgment
-  < source execution or Lean diagnostic
-  < target-bound local kernel verification
-```
-
-Only the final level proves a theorem. Simulation establishes empirical behavior,
-not theorem truth. Semantic review establishes a model judgment, not execution or
-proof. Retrieval establishes source support, not acceptance.
-
-The readiness scorecard uses a compact set of integrated requirements. Readiness
-is false if any required task lacks exact target-bound kernel evidence, regardless
-of the number of support artifacts or passing component tests.
-
-## Artifact And Lineage Policy
-
-Substantive artifacts are content-addressed and stored once. Runtime state and
-manifests carry compact references:
-
-```text
-TaskRef: id, owner, objective_ref, workspace_ref, budget
-ArtifactRef: id, path, hash, kind, size
-Observation: tool, status, stdout_ref, stderr_ref
-Decision: action, target_ref
-```
-
-References are dereferenced only at the consumer boundary and their hashes are
-verified. Traces must not recursively embed full tasks, deferred tasks, source
-packets, or prior traces.
-
-## Efficiency Contract
-
-Evaluation records model calls, tool calls, latency, token use, candidate lineage,
-and repeated-finding fingerprints. A run fails the efficiency contract when it:
-
-- resets a lineage budget after Architect replanning;
-- repeats the same owner/finding/source-hash cycle without a new observation;
-- routes routine compile or ABI failures through Architect;
-- executes code before a required theory or identifiability preflight passes;
-- continues work after the selected evaluation endpoint;
-- copies large payloads into manifests instead of storing references.
-
-Deterministic replay is allowed for harness regression tests. Replay cannot count
-as live model capability, source execution, or theorem evidence.
-
-## Anti-Hardcoding Review
-
-Any proposed runtime rule must answer all of the following:
-
-1. Is it an environment, identity, safety, budget, schema, or evidence invariant?
-2. Does it apply unchanged across unrelated statistical task families?
-3. Does it avoid selecting mathematical content or source edits?
-4. Could the source-producing model instead decide it from raw observations?
-
-If the fourth answer is yes and the first answer is no, the behavior belongs in
-the model workspace or prompt, not in Python middleware.
-
-## Current Status
-
-The historical v310 development run ended `MAX_ITERATIONS_REACHED` on both
-development tasks and achieved `0/2` exact theorem closures. It is diagnostic
-history, not readiness evidence. No post-simplification integrated live run has
-yet passed S13, so held-out evaluation remains sealed.
-
-The next gate is a fresh exact-Haiku development run through the single typed
-runtime endpoint. Architecture work should be driven by shared failures observed
-there, with no task-answer patches and no new side evaluation path.
+The next product-evaluation step is to curate L0-L2 gold snapshots and run focused
+known-result tasks before spending long budgets on frontier questions. The next S13
+step remains a fresh strict-formal development run after shared mechanism changes
+pass replay and unit tests.

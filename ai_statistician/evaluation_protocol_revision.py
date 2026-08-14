@@ -21,6 +21,9 @@ from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
 )
 from .research_schema import OpenResearchQuestion
+from .theory_revision_lineage import (
+    RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY,
+)
 
 
 EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION = 1
@@ -964,6 +967,15 @@ def architect_preexecution_metric_protocol_rejection_result(
             "proof_evidence_status": (
                 "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
             ),
+        }
+        next_context[RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY] = {
+            "revisions_used": next_revision_count,
+            "max_revisions": max_theory_revisions,
+            "budget_exhausted": bool(
+                max_theory_revisions <= 0
+                or next_revision_count >= max_theory_revisions
+            ),
+            "reset_scope": "fresh_question_runtime_only",
         }
         status = "REROUTE"
         manifest["upstream_theory_revision_routed"] = True

@@ -237,6 +237,7 @@ from .research_architect import (
 from .theory_workspace import (
     THEORY_WORKSPACE_CHECKPOINT_KIND,
     TheoryScratchpadConfig,
+    TheoryWorkspaceGapError,
 )
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
@@ -5137,6 +5138,12 @@ class TheoryDeveloperRuntimeSubsystem:
                         else None
                     ),
                 )
+        except TheoryWorkspaceGapError as exc:
+            return _theory_developer_gap_result(
+                task=task,
+                question=question,
+                exc=exc,
+            )
         except PacketValidationError as exc:
             return _theory_developer_packet_validation_failure_result(
                 task=task,
@@ -5641,6 +5648,96 @@ class TheoryDeveloperRuntimeSubsystem:
             evidence_entries=(evidence,),
             next_task=next_task,
         )
+
+
+def _theory_developer_gap_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    exc: TheoryWorkspaceGapError,
+) -> AgentStepResult:
+    """Preserve an intentional model-owned theory gap as a terminal block."""
+
+    gap = deepcopy(dict(exc.theory_gap))
+    workspace_evidence = deepcopy(dict(exc.evidence))
+    workspace_evidence_id = str(
+        workspace_evidence.get("artifact_id", "") or ""
+    ).strip()
+    if not workspace_evidence_id:
+        workspace_evidence_id = "theory_workspace_evidence:" + stable_hash(
+            [task.task_id, question.id, workspace_evidence]
+        )[:20]
+        workspace_evidence["artifact_id"] = workspace_evidence_id
+    workspace_evidence_hash = stable_hash(workspace_evidence)
+    gap_id = "theory_developer_gap:" + stable_hash(
+        [task.task_id, question.id, gap, workspace_evidence_hash]
+    )[:20]
+    artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeTheoryDeveloperGap",
+        "gap_id": gap_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question": _question_to_payload(question),
+        "task_id": task.task_id,
+        "theory_gap": gap,
+        "workspace_evidence_id": workspace_evidence_id,
+        "workspace_evidence_hash": workspace_evidence_hash,
+        "model_owned_theory": True,
+        "runtime_edited_theory": False,
+        "kernel_verified": False,
+        "proof_evidence_status": (
+            "MODEL_REPORTED_THEORY_GAP_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This is the TheoryDeveloper model's explicit unresolved blocker. It "
+            "terminates the current source workspace without promoting an incomplete "
+            "theory packet, empirical result, or proof claim."
+        ),
+    }
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, gap_id])[:20],
+        task_id=task.task_id,
+        artifact_id=gap_id,
+        evidence_type="model_reported_theory_gap",
+        status="THEORY_GAP_RECORDED_NOT_ACCEPTED",
+        boundary=str(artifact["boundary"]),
+        payload={
+            "model_owned_theory": True,
+            "runtime_edited_theory": False,
+            "kernel_verified": False,
+            "proof_evidence_status": artifact["proof_evidence_status"],
+        },
+    )
+    return AgentStepResult(
+        status="BLOCKED",
+        rationale=(
+            "TheoryDeveloper intentionally stopped with an explicit unresolved "
+            "mathematical gap; runtime preserved the model-authored blocker and did "
+            "not route or invent a repair."
+        ),
+        produced_artifacts={
+            workspace_evidence_id: workspace_evidence,
+            gap_id: artifact,
+        },
+        observations=(
+            EnvironmentObservation(
+                observation_type="model_reported_theory_gap",
+                summary=str(gap.get("summary", "") or "")[:500],
+                payload={
+                    "gap_id": gap_id,
+                    "blocking_claims": list(
+                        gap.get("blocking_claims", []) or []
+                    ),
+                    "evidence_refs": list(gap.get("evidence_refs", []) or []),
+                    "proof_evidence_status": artifact[
+                        "proof_evidence_status"
+                    ],
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        failure_classification="theory_developer_reported_gap",
+    )
 
 
 def _theory_developer_packet_validation_failure_result(
@@ -11459,6 +11556,23 @@ class AlgorithmEngineerRuntimeSubsystem:
                     )
                     return candidate_prototype, candidate_tool_calls
 
+                dependency_environment_changed = bool(
+                    consumer_revision_mode
+                    and any(
+                        artifact_id != estimator_id
+                        and str(source_row.get("script_hash", "") or "")
+                        != str(
+                            consumer_source_rows_by_id.get(
+                                artifact_id,
+                                {},
+                            ).get("script_hash", "")
+                            or ""
+                        )
+                        for artifact_id, source_row in (
+                            working_source_rows_by_id.items()
+                        )
+                    )
+                )
                 prototype, source_tool_calls = (
                     _run_source_owner_scientific_workspace(
                         proposal_agent=self.proposal_agent,
@@ -11515,6 +11629,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                             external_initial_observation
                         ),
                         confirmatory_result_blind=consumer_revision_mode,
+                        allow_current_source_run=dependency_environment_changed,
                     )
                 )
                 tool_calls.extend(source_tool_calls)
@@ -11637,6 +11752,36 @@ class AlgorithmEngineerRuntimeSubsystem:
         incomplete_estimator_ids = tuple(
             sorted(required_estimator_ids - passed_estimator_ids)
         )
+        model_retained_source_rows = [
+            row
+            for row in prototype_rows
+            if str(row.get("estimator_id", "") or "")
+            in source_revision_artifact_ids
+            and row.get("smoke_passed") is True
+            and str(row.get("script_hash", "") or "")
+            == str(
+                consumer_source_rows_by_id.get(
+                    str(row.get("estimator_id", "") or ""),
+                    {},
+                ).get("script_hash", "")
+                or ""
+            )
+        ]
+        model_revised_source_rows = [
+            row
+            for row in prototype_rows
+            if str(row.get("estimator_id", "") or "")
+            in source_revision_artifact_ids
+            and row.get("smoke_passed") is True
+            and str(row.get("script_hash", "") or "")
+            != str(
+                consumer_source_rows_by_id.get(
+                    str(row.get("estimator_id", "") or ""),
+                    {},
+                ).get("script_hash", "")
+                or ""
+            )
+        ]
         manifest_id = "algorithm_sandbox_manifest:" + stable_hash([task.task_id, prototype_rows])[:20]
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -11690,12 +11835,12 @@ class AlgorithmEngineerRuntimeSubsystem:
                 source_revision_artifact_ids
             ),
             "n_consumer_source_artifacts_revised": (
-                len(source_revision_artifact_ids)
+                len(model_revised_source_rows)
                 if consumer_revision_mode
                 else 0
             ),
             "n_consumer_source_artifacts_reused": (
-                len(reused_prototype_rows)
+                len(reused_prototype_rows) + len(model_retained_source_rows)
                 if consumer_revision_mode
                 else 0
             ),
@@ -21634,10 +21779,6 @@ def _runtime_context_requires_formalizer_contract_flag(
         context,
         subsystem="FormalizationEvaluator",
         flag=flag,
-    ) or _runtime_context_contract_flag(
-        context,
-        subsystem="FormalizationEvaluator",
-        flag=flag,
     ):
         return True
     environment_feedback = context.get("environment_feedback", {})
@@ -22923,6 +23064,7 @@ def _run_source_owner_scientific_workspace(
     failure_identity: Mapping[str, Any],
     external_initial_observation: Mapping[str, Any] | None = None,
     confirmatory_result_blind: bool = False,
+    allow_current_source_run: bool = False,
     disallowed_unchanged_source_hashes: Sequence[str] = (),
 ) -> tuple[dict[str, Any], list[ToolCallRecord]]:
     """Execute one initial or revision source loop without a second scheduler."""
@@ -23107,6 +23249,7 @@ def _run_source_owner_scientific_workspace(
             workspace_context=dict(workspace_context),
             check_candidate=check_candidate,
             workspace_operation=workspace_operation,
+            allow_current_source_run=allow_current_source_run,
         )
     except PacketValidationError as exc:
         if last_checked_prototype:

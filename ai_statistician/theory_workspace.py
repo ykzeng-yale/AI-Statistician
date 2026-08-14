@@ -26,6 +26,7 @@ THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
 THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "direct_artifact_replacement_v3"
 THEORY_WORKSPACE_WRITE_TOOL = "write_theory_artifacts"
 THEORY_WORKSPACE_MAX_WRITES_PER_CALL = 2
+THEORY_WORKSPACE_GAP_TOOL = "report_theory_gap"
 THEORY_SCRATCHPAD_TOOL = "run_theory_scratchpad"
 THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE = (
     "THEORY_SCRATCHPAD_EXECUTION_NOT_PROOF_EVIDENCE"
@@ -41,6 +42,20 @@ TheoryWorkspaceCandidateValidator = Callable[[Mapping[str, Any]], Sequence[str]]
 class TheoryWorkspaceResult:
     core_packet: Mapping[str, Any]
     evidence: Mapping[str, Any]
+
+
+class TheoryWorkspaceGapError(RuntimeError):
+    """Intentional model-owned stop for an unresolved mathematical gap."""
+
+    def __init__(
+        self,
+        *,
+        theory_gap: Mapping[str, Any],
+        evidence: Mapping[str, Any],
+    ) -> None:
+        super().__init__(str(theory_gap.get("summary", "unresolved theory gap")))
+        self.theory_gap = deepcopy(dict(theory_gap))
+        self.evidence = deepcopy(dict(evidence))
 
 
 @dataclass(frozen=True)
@@ -433,6 +448,74 @@ def run_theory_artifact_workspace(
                 ),
             )
 
+        if call.name == THEORY_WORKSPACE_GAP_TOOL:
+            if set(tool_input) - {
+                "summary",
+                "blocking_claims",
+                "evidence_refs",
+                "next_step",
+            }:
+                raise ClientToolInputError(
+                    "report_theory_gap accepts summary, blocking_claims, "
+                    "evidence_refs, and next_step"
+                )
+            summary = tool_input.get("summary")
+            evidence_refs = tool_input.get("evidence_refs")
+            blocking_claims = tool_input.get("blocking_claims", [])
+            next_step = tool_input.get("next_step", "")
+            if not isinstance(summary, str) or not summary.strip():
+                raise ClientToolInputError("theory-gap summary must be nonempty")
+            for values, label in (
+                (blocking_claims, "blocking_claims"),
+                (evidence_refs, "evidence_refs"),
+            ):
+                if not isinstance(values, list) or not all(
+                    isinstance(value, str) and value.strip() for value in values
+                ):
+                    raise ClientToolInputError(
+                        f"{label} must be an array of nonempty strings"
+                    )
+            if not evidence_refs:
+                raise ClientToolInputError(
+                    "report_theory_gap requires at least one model-observed evidence ref"
+                )
+            if not isinstance(next_step, str):
+                raise ClientToolInputError("theory-gap next_step must be a string")
+            if not (
+                state["reads"]
+                or state["submissions"]
+                or state["scratch_runs"]
+            ):
+                raise ClientToolInputError(
+                    "report_theory_gap requires a prior workspace read, write "
+                    "observation, or scratch execution"
+                )
+            theory_gap = {
+                "summary": summary.strip(),
+                "blocking_claims": [
+                    value.strip() for value in blocking_claims
+                ],
+                "evidence_refs": [value.strip() for value in evidence_refs],
+                "next_step": next_step.strip(),
+            }
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    "disposition": "THEORY_GAP",
+                    "theory_gap": deepcopy(theory_gap),
+                    "proof_evidence_status": (
+                        "MODEL_REPORTED_THEORY_GAP_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                state_changed=True,
+                terminal=True,
+                terminal_payload={
+                    "disposition": "THEORY_GAP",
+                    "theory_gap": theory_gap,
+                },
+                observation_key="theory-gap:" + stable_hash(theory_gap),
+            )
+
         raise ClientToolInputError("unsupported theory workspace tool")
 
     catalog = {
@@ -478,6 +561,11 @@ def run_theory_artifact_workspace(
                     + "\n\nRead the artifacts needed for mathematical judgment. "
                     + scratch_guidance
                     + write_guidance
+                    + "If a mathematical contradiction, missing premise, or unresolved "
+                    "question prevents a coherent submission, use report_theory_gap "
+                    "after inspecting the relevant artifacts. State the blocker and "
+                    "model-observed evidence directly; this ends the workspace as "
+                    "blocked and never counts as theory or proof success. "
                     + "Each structurally valid model write is retained even when the "
                     "combined workspace still fails validation, so a validator "
                     "observation is not a rollback and later calls should contain only "
@@ -573,6 +661,60 @@ def run_theory_artifact_workspace(
         ) from exc
 
     terminal = dict(loop.terminal_payload)
+    if terminal.get("disposition") == "THEORY_GAP":
+        theory_gap = terminal.get("theory_gap", {})
+        if not isinstance(theory_gap, Mapping) or not str(
+            theory_gap.get("summary", "") or ""
+        ).strip():
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper artifact workspace",
+                attempts=loop.turns,
+                errors=["terminal theory-gap payload is invalid"],
+                history=[deepcopy(dict(row)) for row in loop.history],
+                recovery_checkpoint=recovery_checkpoint(),
+            )
+        gap = deepcopy(dict(theory_gap))
+        evidence = {
+            "schema_version": 1,
+            "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+            "artifact_id": "theory_workspace_gap:"
+            + stable_hash(
+                [workspace_id, workspace_operation, gap, loop.transcript_fingerprint]
+            )[:20],
+            "workspace_id": workspace_id,
+            "question_id": question_id,
+            "authoring_binding_id": authoring_binding_id,
+            "workspace_operation": workspace_operation,
+            "transport": "native_client_tools",
+            "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
+            "parent_workspace_hash": parent_hash,
+            "current_workspace_hash": stable_hash(state["artifacts"]),
+            "changed_artifact_names": list(
+                changed_artifact_names(state["artifacts"])
+            ),
+            "reads": state["reads"],
+            "submissions": state["submissions"],
+            "scratch_runs": state["scratch_runs"],
+            "turns": loop.turns,
+            "tool_calls": loop.tool_calls,
+            "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
+            "provider": loop.provider,
+            "model": loop.model,
+            "model_tier": model_tier,
+            "provider_usage": dict(loop.provider_usage),
+            "history": [deepcopy(dict(row)) for row in loop.history],
+            "transcript_fingerprint": loop.transcript_fingerprint,
+            "disposition": "THEORY_GAP",
+            "theory_gap": gap,
+            "model_owned_theory": True,
+            "runtime_edited_theory": False,
+            "accepted": False,
+            "proof_evidence_status": (
+                "MODEL_REPORTED_THEORY_GAP_NOT_PROOF_EVIDENCE"
+            ),
+            "kernel_verified": False,
+        }
+        raise TheoryWorkspaceGapError(theory_gap=gap, evidence=evidence)
     core_packet = terminal.get("core_packet", {})
     if not isinstance(core_packet, Mapping):
         raise PacketValidationError(
@@ -756,6 +898,36 @@ def _theory_workspace_tools(
                             },
                         },
                     }
+                },
+            },
+            terminal=True,
+        )
+    )
+    tools.append(
+        ClientToolDefinition(
+            name=THEORY_WORKSPACE_GAP_TOOL,
+            description=(
+                "Stop with an explicit unresolved mathematical gap after inspecting "
+                "the current workspace. Use this when you cannot make the authoritative "
+                "artifacts coherent within the available evidence and budget. Report "
+                "your own blocker and evidence; this is a non-success, non-proof result."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["summary", "evidence_refs"],
+                "properties": {
+                    "summary": {"type": "string"},
+                    "blocking_claims": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "evidence_refs": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"type": "string"},
+                    },
+                    "next_step": {"type": "string"},
                 },
             },
             terminal=True,

@@ -19,9 +19,11 @@ from ai_statistician.theory_workspace import (
     THEORY_SCRATCHPAD_TOOL,
     THEORY_WORKSPACE_CHECKPOINT_KIND,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
+    THEORY_WORKSPACE_GAP_TOOL,
     THEORY_WORKSPACE_MAX_WRITES_PER_CALL,
     THEORY_WORKSPACE_WRITE_TOOL,
     TheoryScratchpadConfig,
+    TheoryWorkspaceGapError,
     _replace_theory_workspace_artifacts,
     _theory_workspace_tools,
     run_theory_artifact_workspace,
@@ -236,6 +238,56 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     assert len(backend.requests) == 1
 
 
+def test_model_can_stop_with_an_explicit_unresolved_theory_gap() -> None:
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="read-blocked-claim",
+                    name="read_theory_workspace",
+                    input={"artifact_names": ["problem_card"]},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="report-gap",
+                    name=THEORY_WORKSPACE_GAP_TOOL,
+                    input={
+                        "summary": (
+                            "The supplied assumptions do not identify the requested "
+                            "estimand."
+                        ),
+                        "blocking_claims": ["requested identification claim"],
+                        "evidence_refs": ["workspace:problem_card"],
+                        "next_step": "Request an additional identifying assumption.",
+                    },
+                )
+            ),
+        ]
+    )
+
+    with pytest.raises(TheoryWorkspaceGapError) as exc_info:
+        _run_workspace(backend)
+
+    gap = exc_info.value.theory_gap
+    evidence = exc_info.value.evidence
+    assert gap["blocking_claims"] == ["requested identification claim"]
+    assert gap["evidence_refs"] == ["workspace:problem_card"]
+    assert evidence["disposition"] == "THEORY_GAP"
+    assert evidence["accepted"] is False
+    assert evidence["model_owned_theory"] is True
+    assert evidence["runtime_edited_theory"] is False
+    assert evidence["kernel_verified"] is False
+    assert evidence["proof_evidence_status"] == (
+        "MODEL_REPORTED_THEORY_GAP_NOT_PROOF_EVIDENCE"
+    )
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        "read_theory_workspace",
+        THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_GAP_TOOL,
+    ]
+
+
 def test_targeted_revision_uses_atomic_model_owned_artifact_writes() -> None:
     backend = ScriptedTheoryWorkspaceBackend(
         [
@@ -289,6 +341,7 @@ def test_targeted_revision_uses_atomic_model_owned_artifact_writes() -> None:
     assert tool_names == [
         "read_theory_workspace",
         THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_GAP_TOOL,
     ]
     prompt = str(backend.requests[0].messages[0]["content"])
     assert "complete model-authored JSON values" in prompt
@@ -413,6 +466,7 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
         "read_theory_workspace",
         THEORY_SCRATCHPAD_TOOL,
         THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_GAP_TOOL,
     ]
     first_prompt = str(backend.requests[0].messages[0]["content"])
     assert "Never promote finite scratch output" in first_prompt

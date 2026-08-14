@@ -165,6 +165,7 @@ def test_required_formal_policy_does_not_hardcode_proof_first_execution() -> Non
     )
 
     assert contract["recommended_research_path"] == "dual_track"
+    assert contract["formal_target_authoring_required"] is True
 
 
 def test_runtime_config_has_no_legacy_prover_authoring_plane() -> None:
@@ -285,6 +286,60 @@ def test_source_owner_packet_exhaustion_blocks_without_architect_routing() -> No
         assert result.produced_artifacts
         assert result.failure_classification
         assert "Architect routing loop" in result.rationale
+
+
+def test_model_reported_theory_gap_blocks_without_validation_or_repair_route() -> None:
+    question = OpenResearchQuestion(
+        id="honest-theory-gap",
+        title="Preserve an unresolved mathematical blocker",
+        description="The source model cannot identify the target from the assumptions.",
+    )
+    error = runtime_module.TheoryWorkspaceGapError(
+        theory_gap={
+            "summary": "The requested estimand is not identified.",
+            "blocking_claims": ["identification"],
+            "evidence_refs": ["workspace:problem_card"],
+            "next_step": "Supply an identifying restriction.",
+        },
+        evidence={
+            "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+            "accepted": False,
+            "model_owned_theory": True,
+            "runtime_edited_theory": False,
+        },
+    )
+
+    result = runtime_module._theory_developer_gap_result(
+        task=AgentTask(
+            task_id="theory:honest-theory-gap",
+            owner_subsystem="TheoryDeveloper",
+            objective="Develop the theory artifact.",
+            inputs={},
+        ),
+        question=question,
+        exc=error,
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == "theory_developer_reported_gap"
+    artifact = next(
+        value
+        for value in result.produced_artifacts.values()
+        if value.get("artifact_kind") == "RuntimeTheoryDeveloperGap"
+    )
+    assert artifact["artifact_kind"] == "RuntimeTheoryDeveloperGap"
+    assert artifact["model_owned_theory"] is True
+    assert artifact["runtime_edited_theory"] is False
+    assert artifact["kernel_verified"] is False
+    assert "workspace_evidence" not in artifact
+    assert artifact["workspace_evidence_id"] in result.produced_artifacts
+    assert runtime_module.stable_hash(
+        result.produced_artifacts[artifact["workspace_evidence_id"]]
+    ) == artifact["workspace_evidence_hash"]
+    assert result.evidence_entries[0].status == (
+        "THEORY_GAP_RECORDED_NOT_ACCEPTED"
+    )
 
 
 def test_architect_source_escalation_requires_independent_semantic_conflict() -> None:
@@ -1746,9 +1801,13 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
         "source_owner_subsystem": "AlgorithmEngineer",
         "source_manifest_id": source_manifest_id,
         "source_manifest_hash": runtime_module.stable_hash(source_manifest),
-        "dependency_artifact_ids": ["failed-estimator"],
+        "dependency_artifact_ids": [
+            "failed-estimator",
+            "stable-estimator",
+        ],
         "dependency_artifact_hashes": {
-            "failed-estimator": failed_parent["script_hash"]
+            "failed-estimator": failed_parent["script_hash"],
+            "stable-estimator": stable_parent["script_hash"],
         },
         "consumer_observations_by_dependency": {
             "failed-estimator": [
@@ -1759,7 +1818,16 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
                         "stderr_summary": "KeyError: value",
                     },
                 }
-            ]
+            ],
+            "stable-estimator": [
+                {
+                    "consumer_artifact_id": "generic-consumer",
+                    "consumer_source_hash": "consumer-source-hash",
+                    "observation": {
+                        "summary": "Consumer also binds this dependency.",
+                    },
+                }
+            ],
         },
     }
     feedback = {
@@ -1797,6 +1865,7 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
         source_calls: list[str] = []
         initial_observations: list[dict[str, object]] = []
         candidate_checks: list[dict[str, object]] = []
+        current_source_run_authorizations: list[bool] = []
 
         @classmethod
         def propose(cls, **_kwargs):
@@ -1805,10 +1874,32 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
 
         @classmethod
         def iterate_code_with_tools(cls, **kwargs):
-            cls.source_calls.append(str(kwargs["artifact_id"]))
+            artifact_id = str(kwargs["artifact_id"])
+            cls.source_calls.append(artifact_id)
+            cls.current_source_run_authorizations.append(
+                bool(kwargs["allow_current_source_run"])
+            )
             cls.initial_observations.append(
                 dict(kwargs["initial_observation"])
             )
+            if artifact_id.endswith(":stable-estimator"):
+                retained_candidate = dict(kwargs["code_draft"])
+                retained_check = dict(
+                    kwargs["check_candidate"](retained_candidate)
+                )
+                cls.candidate_checks.append(retained_check)
+                return ScientificCodeWorkspaceResult(
+                    code_draft=retained_candidate,
+                    check_result=retained_check,
+                    evidence={
+                        "workspace_operation": "targeted_revision",
+                        "model_owned_source": True,
+                        "runtime_edited_source": False,
+                        "source_changed": False,
+                        "current_source_run_requested": True,
+                        "accepted": retained_check["accepted"],
+                    },
+                )
             first_candidate = {
                 **dict(kwargs["code_draft"]),
                 "code": (
@@ -1952,7 +2043,10 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
             "architect_context": {},
             "environment_feedback": feedback,
             "consumer_source_manifest": source_manifest,
-            "source_revision_artifact_ids": ["failed-estimator"],
+            "source_revision_artifact_ids": [
+                "failed-estimator",
+                "stable-estimator",
+            ],
             "deferred_consumer_task_continuation_ref": continuation_ref,
         },
         budget=consumer_budget,
@@ -1980,21 +2074,23 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
     assert result.status == "REROUTE"
     assert SourceAgent.propose_calls == 0
     assert SourceAgent.source_calls == [
-        "generic-targeted-consumer:failed-estimator"
+        "generic-targeted-consumer:failed-estimator",
+        "generic-targeted-consumer:stable-estimator",
     ]
+    assert SourceAgent.current_source_run_authorizations == [False, True]
     assert SourceAgent.initial_observations[0]["consumer_observations"][0][
         "observation"
     ]["stderr_summary"] == "KeyError: value"
     assert [
         check["accepted"] for check in SourceAgent.candidate_checks
-    ] == [False, True]
+    ] == [False, True, True]
     assert SourceAgent.candidate_checks[0]["prototype"][
         "empirical_outcomes_withheld"
     ] is True
     assert "invalid object" in str(
         SourceAgent.candidate_checks[0]["prototype"]
     )
-    assert len(integration_sources) == 2
+    assert len(integration_sources) == 3
     manifests = [
         artifact
         for artifact in result.produced_artifacts.values()
@@ -2006,11 +2102,9 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
     manifest = manifests[0]
     assert manifest["n_consumer_source_artifacts_revised"] == 1
     assert manifest["n_consumer_source_artifacts_reused"] == 1
-    assert manifest["n_executed"] == 1
+    assert manifest["n_executed"] == 2
     rows = {row["estimator_id"]: row for row in manifest["prototypes"]}
-    assert rows["stable-estimator"]["prototype_status"] == (
-        "REUSED_REVIEWED_SOURCE"
-    )
+    assert rows["stable-estimator"]["prototype_status"] == "EXECUTED"
     assert rows["stable-estimator"]["script_hash"] == stable_parent["script_hash"]
     assert rows["failed-estimator"]["script_hash"] != failed_parent["script_hash"]
     assert result.next_task is not None

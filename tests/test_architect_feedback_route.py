@@ -497,6 +497,8 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
         request.user_prompt
     )
     assert "weaken a frozen gate" in request.user_prompt
+    assert "Quote a frozen requirement's operator" in request.user_prompt
+    assert "choose BLOCK because post-execution source" in request.user_prompt
     assert "Simulation and algorithm artifacts are not prerequisites" in (
         request.user_prompt
     )
@@ -892,6 +894,11 @@ def test_question_theory_revision_budget_does_not_reset_on_new_feedback() -> Non
         "runtime_errors": ["metric_path /estimate resolved no values"],
     }
     context = {
+        "runtime_theory_revision_budget": {
+            "revisions_used": 1,
+            "max_revisions": 2,
+            "budget_exhausted": False,
+        },
         "architect_metric_protocol_gate": {
             "artifact_kind": "RuntimeArchitectMetricProtocolGate",
             "upstream_theory_revision_count": 2,
@@ -915,6 +922,14 @@ def test_question_theory_revision_budget_does_not_reset_on_new_feedback() -> Non
     assert payload["active_runtime_context"][
         "architect_metric_protocol_gate"
     ]["max_upstream_theory_revisions"] == 2
+    assert payload["active_runtime_context"][
+        "runtime_theory_revision_budget"
+    ] == {
+        "revisions_used": 2,
+        "max_revisions": 2,
+        "budget_exhausted": True,
+        "reset_scope": "fresh_question_runtime_only",
+    }
 
     reserved_feedback = {
         **feedback,

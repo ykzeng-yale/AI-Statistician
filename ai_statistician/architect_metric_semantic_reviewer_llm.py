@@ -30,7 +30,7 @@ from .structured_output_retry import (
 
 
 ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 18
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 13
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 14
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -57,6 +57,14 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "measurement identity, normalization, finite-sample attainability, operator, "
         "aggregation, and source authority. Put any decisive recomputation directly "
         "in that requirement's rationale instead of expanding a second audit schema."
+    ),
+    (
+        "For every numeric row, literally substitute the declared returned raw metric "
+        "into its operator, aggregation, and active gate fields. Runtime performs no "
+        "implicit target subtraction, centering, absolute value, or normalization. "
+        "Reject a row when its bounds are offsets around a target but its measurement "
+        "returns the untransformed level, or when any other declared transformation "
+        "and gate use different numeric coordinates."
     ),
     (
         "Judge the portfolio once for cross-requirement consistency, redundancy, "

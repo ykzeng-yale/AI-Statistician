@@ -1656,6 +1656,17 @@ def author_reviewed_architect_metric_requirements(
                 "evaluator ABI; it does not select their statistical semantics."
             ),
             (
+                "Keep every gate in the same numeric coordinates as the declared "
+                "returned metric. AgentRuntime applies the operator and active numeric "
+                "gate fields directly to that returned metric after the declared "
+                "aggregation; it does not implicitly subtract a target, center, take "
+                "an absolute value, or normalize. If the intended predicate is a "
+                "deviation from a target, either declare and return that deviation (or "
+                "absolute deviation) or place absolute bounds around the target. Never "
+                "pair a raw level with bounds expressed only as offsets from an "
+                "unstated target."
+            ),
+            (
                 "Copy every source anchor exactly from acceptance_authority_catalog. "
                 "Use those anchors to identify the statistical context supporting each "
                 "predicate and numeric choice. Fresh rows are recorded by AgentRuntime "

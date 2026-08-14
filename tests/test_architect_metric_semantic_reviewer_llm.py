@@ -446,6 +446,8 @@ def test_prompt_projects_semantic_inputs_without_long_derivation_replay() -> Non
     assert "OMIT_LONG_DERIVATION" not in prompt
     assert "OMIT_LONG_EQUATION" not in prompt
     assert "metric_claim_check_contract" not in prompt
+    assert "literally substitute the declared returned raw metric" in prompt
+    assert "Runtime performs no implicit target subtraction" in prompt
     assert len(prompt) < 30_000
 
 

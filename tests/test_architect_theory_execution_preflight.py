@@ -2422,6 +2422,14 @@ def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -
     assert result.status == "REROUTE"
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.next_task.inputs["architect_context"][
+        "runtime_theory_revision_budget"
+    ] == {
+        "revisions_used": 2,
+        "max_revisions": 2,
+        "budget_exhausted": True,
+        "reset_scope": "fresh_question_runtime_only",
+    }
     assert result.failure_classification == (
         "theory_execution_preflight_returned_to_source_workspace"
     )

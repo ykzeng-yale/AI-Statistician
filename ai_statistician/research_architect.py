@@ -174,6 +174,9 @@ class LLMTheoryDeveloperAgent:
     ) -> dict[str, Any]:
         context = dict(architect_context or {})
         theory_prompt_mode = _theory_developer_prompt_mode(context)
+        formalization_authoring_required = (
+            _theory_formalization_authoring_required(context)
+        )
         serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
         transport_recovery = _theory_developer_transport_recovery(context)
         effective_model_tier = (
@@ -247,6 +250,9 @@ class LLMTheoryDeveloperAgent:
                 max_no_progress_turns=(
                     self.config.theory_workspace_max_no_progress_turns
                 ),
+                formalization_authoring_required=(
+                    formalization_authoring_required
+                ),
                 theory_scratchpad=theory_scratchpad,
             )
         elif callable(
@@ -266,9 +272,13 @@ class LLMTheoryDeveloperAgent:
                 temperature=self.config.temperature,
                 max_tokens=effective_max_tokens,
                 max_turns=self.config.theory_workspace_max_turns,
+                max_reads=self.config.theory_workspace_max_reads,
                 max_submissions=self.config.theory_workspace_max_submissions,
                 max_no_progress_turns=(
                     self.config.theory_workspace_max_no_progress_turns
+                ),
+                formalization_authoring_required=(
+                    formalization_authoring_required
                 ),
                 theory_scratchpad=theory_scratchpad,
             )
@@ -286,6 +296,9 @@ class LLMTheoryDeveloperAgent:
                 schema=_theory_developer_core_json_schema(
                     theory_prompt_mode=theory_prompt_mode,
                     transport_recovery=transport_recovery,
+                    formalization_authoring_required=(
+                        formalization_authoring_required
+                    ),
                 ),
                 metadata={
                     "subsystem": "TheoryDeveloper",
@@ -322,6 +335,9 @@ class LLMTheoryDeveloperAgent:
                     provider_name=self.config.provider_name or response.provider,
                     raw_response=raw_text,
                     theory_prompt_mode=theory_prompt_mode,
+                    formalization_authoring_required=(
+                        formalization_authoring_required
+                    ),
                 )
 
             core_packet = generate_validated_json_packet(
@@ -446,6 +462,17 @@ def build_theory_developer_prompt(
     compact_context = _compact_architect_context_for_prompt(architect_context)
     serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
     transport_recovery = _theory_developer_transport_recovery(architect_context)
+    formalization_authoring_required = (
+        _theory_formalization_authoring_required(architect_context)
+    )
+    required_output_contract = deepcopy(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT)
+    if not formalization_authoring_required:
+        required_output_contract["formalization_requests"] = []
+        derivation_contract = required_output_contract.get(
+            "theory_derivation_packet", {}
+        )
+        if isinstance(derivation_contract, dict):
+            derivation_contract["formalization_handoff"] = {}
     if serious_theory_mode:
         prompt_mode = {
             "mode": theory_prompt_mode,
@@ -464,7 +491,11 @@ def build_theory_developer_prompt(
             "max_candidate_procedures": 1 if transport_recovery else 2,
             "max_theorem_goals": 1 if transport_recovery else 2,
             "max_lemma_cards": 2 if transport_recovery else 4,
-            "max_formalization_requests": 1 if transport_recovery else 2,
+            "max_formalization_requests": (
+                (1 if transport_recovery else 2)
+                if formalization_authoring_required
+                else 0
+            ),
             "max_critic_findings": 2 if transport_recovery else 4,
             "max_simulation_predictions": 2 if transport_recovery else 4,
             "max_next_actions": 1 if transport_recovery else 3,
@@ -484,8 +515,13 @@ def build_theory_developer_prompt(
                 "the stated setup and assumptions, link equations and lemmas by id, "
                 "and independently check the claims most likely to invalidate the "
                 "procedure. Keep the DGP, estimand, procedure, theorem, executable "
-                "semantics, simulation plan, and formal target mutually consistent. "
-                "When evidence is insufficient or a contradiction remains, record it "
+                "semantics and simulation plan mutually consistent. "
+                + (
+                    "Keep the formal target consistent with them. "
+                    if formalization_authoring_required
+                    else "Do not invent a formalization handoff for this task. "
+                )
+                + "When evidence is insufficient or a contradiction remains, record it "
                 "as an unresolved critic finding instead of inventing certainty. Use "
                 "only the rows the argument needs, state each definition or equation "
                 "once, and refer to its id elsewhere. On a revision turn, use the "
@@ -507,14 +543,22 @@ def build_theory_developer_prompt(
             "max_candidate_procedures": 1,
             "max_theorem_goals": 1,
             "max_lemma_cards": 1,
-            "max_formalization_requests": 1,
+            "max_formalization_requests": (
+                1 if formalization_authoring_required else 0
+            ),
             "max_critic_findings": 1,
             "max_simulation_predictions": 1,
             "max_next_actions": 1,
             "max_string_chars": 180,
             "instruction": (
                 "Return a complete valid JSON object within this budget. Author one "
-                "primary estimator, theorem target, and formalization request. Choose "
+                "primary estimator and theorem target. "
+                + (
+                    "Author one formalization request. "
+                    if formalization_authoring_required
+                    else "Leave formalization artifacts empty. "
+                )
+                + "Choose "
                 "the number of derivation, equation, lemma, sanity-check, critic, and "
                 "action rows from the argument itself; optional lists may be empty. "
                 "Keep every string one sentence or one equation fragment. Do not "
@@ -530,7 +574,7 @@ def build_theory_developer_prompt(
         },
         "prompt_mode": prompt_mode,
         "architect_context": compact_context,
-        "required_output_contract": THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
+        "required_output_contract": required_output_contract,
         output_budget_key: output_budget,
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
     }
@@ -546,7 +590,7 @@ def build_theory_developer_prompt(
         "objects from the argument itself; row counts are not a quality metric."
         if serious_theory_mode
         else "This is a focused first-pass discovery packet with one primary "
-        "procedure, theorem target, and formalization request. Choose all supporting "
+        "procedure and theorem target. Choose all supporting "
         "row counts from the argument; counts are not a quality metric."
     )
     return (
@@ -598,6 +642,32 @@ def _theory_developer_prompt_mode(
     ):
         return THEORY_PROMPT_MODE_SERIOUS_CAPABILITY
     return THEORY_PROMPT_MODE_COMPACT
+
+
+def _theory_formalization_authoring_required(
+    architect_context: Mapping[str, Any],
+) -> bool:
+    """Read the runtime-owned task intent without letting theory lower the gate."""
+
+    contracts: list[Mapping[str, Any]] = []
+    requested = architect_context.get("runtime_requested_evidence_contract", {})
+    if isinstance(requested, Mapping):
+        contracts.append(requested)
+    architect_plan = architect_context.get("architect_runtime_plan", {})
+    if isinstance(architect_plan, Mapping):
+        plan_contract = architect_plan.get("evidence_contract", {})
+        if isinstance(plan_contract, Mapping):
+            contracts.append(plan_contract)
+    for contract in contracts:
+        explicit = contract.get("formal_target_authoring_required")
+        if isinstance(explicit, bool):
+            return explicit
+        evaluation_mode = str(contract.get("evaluation_mode", "") or "")
+        if evaluation_mode == "research_eval":
+            return False
+        if evaluation_mode == "capability_eval":
+            return True
+    return True
 
 
 def _theory_developer_transport_recovery(
@@ -1406,8 +1476,8 @@ THEORY_DEVELOPER_OUTPUT_CONTRACT: dict[str, Any] = {
                 ),
                 "recomputation": "explicit substituted expression or calculation",
                 "result": (
-                    "PASS|FAIL followed by the computed or logically reduced result "
-                    "and any theory revision made if FAIL"
+                    "computed or logically reduced result with an explicit model-authored "
+                    "PASS|FAIL|INCONCLUSIVE disposition; never hide an unresolved check"
                 ),
                 "depends_on": ["source ids"],
             }
@@ -1580,6 +1650,7 @@ def _theory_developer_json_schema(
     *,
     theory_prompt_mode: str,
     transport_recovery: bool = False,
+    formalization_authoring_required: bool = True,
 ) -> dict[str, Any]:
     """Return the output contract with the prompt's size budget made explicit."""
 
@@ -1595,7 +1666,8 @@ def _theory_developer_json_schema(
         default_max_items=12,
     )
     properties = schema["properties"]
-    derivation = properties["theory_derivation_packet"]["properties"]
+    derivation_schema = properties["theory_derivation_packet"]
+    derivation = derivation_schema["properties"]
 
     if serious_theory_mode:
         derivation_step_bounds = (
@@ -1649,9 +1721,23 @@ def _theory_developer_json_schema(
     for field, maximum in top_level_maxima.items():
         _set_theory_schema_array_bounds(
             properties[field],
-            0 if field in optional_list_fields else 1,
+            (
+                0
+                if field in optional_list_fields
+                or (
+                    field == "formalization_requests"
+                    and not formalization_authoring_required
+                )
+                else 1
+            ),
             maximum,
         )
+    if not formalization_authoring_required:
+        derivation_schema["required"] = [
+            field
+            for field in derivation_schema.get("required", [])
+            if field != "formalization_handoff"
+        ]
     return schema
 
 
@@ -1659,12 +1745,14 @@ def _theory_developer_core_json_schema(
     *,
     theory_prompt_mode: str,
     transport_recovery: bool = False,
+    formalization_authoring_required: bool = True,
 ) -> dict[str, Any]:
     """Return the bounded core-theory schema without executable interfaces."""
 
     schema = _theory_developer_json_schema(
         theory_prompt_mode=theory_prompt_mode,
         transport_recovery=transport_recovery,
+        formalization_authoring_required=formalization_authoring_required,
     )
     estimator_item = schema["properties"]["estimator_specs"]["items"]
     estimator_item["properties"].pop("estimator_interface_contract", None)
@@ -1779,20 +1867,25 @@ def _validate_theory_packet(
     *,
     require_estimator_interfaces: bool,
 ) -> list[str]:
+    formalization_authoring_required = (
+        packet.get("runtime_formalization_authoring_required") is not False
+    )
     errors: list[str] = _output_contract_shape_errors(
         packet,
         THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
         path="",
     )
-    for field in (
+    required_nonempty_fields = [
         "problem_card",
         "theory_derivation_packet",
         "estimator_specs",
         "theorem_cards",
         "proof_plan",
-        "formalization_requests",
         "simulation_ademp_spec",
-    ):
+    ]
+    if formalization_authoring_required:
+        required_nonempty_fields.append("formalization_requests")
+    for field in required_nonempty_fields:
         if packet.get(field) in (None, "", [], {}):
             errors.append(f"missing or empty field: {field}")
     problem_card = packet.get("problem_card", {})
@@ -1886,19 +1979,29 @@ def _validate_theory_packet(
                         "required fields: " + ", ".join(missing_fields)
                     )
         formalization_handoff = derivation.get("formalization_handoff", {})
-        if not isinstance(formalization_handoff, Mapping) or not formalization_handoff:
-            errors.append("theory_derivation_packet.formalization_handoff must be non-empty")
-        elif not formalization_handoff.get("semantic_alignment_constraints"):
+        if formalization_authoring_required and (
+            not isinstance(formalization_handoff, Mapping)
+            or not formalization_handoff
+        ):
+            errors.append(
+                "theory_derivation_packet.formalization_handoff must be non-empty"
+            )
+        elif (
+            isinstance(formalization_handoff, Mapping)
+            and formalization_handoff
+            and not formalization_handoff.get("semantic_alignment_constraints")
+        ):
             errors.append(
                 "theory_derivation_packet.formalization_handoff.semantic_alignment_constraints must be non-empty"
             )
-    for list_field in (
-        "estimator_specs",
-        "theorem_cards",
-        "formalization_requests",
-    ):
+    for list_field in ("estimator_specs", "theorem_cards"):
         if not isinstance(packet.get(list_field), list) or not packet.get(list_field):
             errors.append(f"{list_field} must be a non-empty list")
+    formalization_requests = packet.get("formalization_requests", [])
+    if not isinstance(formalization_requests, list):
+        errors.append("formalization_requests must be a list")
+    elif formalization_authoring_required and not formalization_requests:
+        errors.append("formalization_requests must be a non-empty list")
     for list_field in ("lemma_cards", "critic_findings", "next_actions"):
         if not isinstance(packet.get(list_field), list):
             errors.append(f"{list_field} must be a list")
@@ -1986,12 +2089,12 @@ def _validate_theory_packet(
         if isinstance(formalization_handoff, Mapping)
         else ""
     )
-    if not source_theorem_target:
+    if formalization_authoring_required and not source_theorem_target:
         errors.append(
             "theory_derivation_packet.formalization_handoff."
             "source_theorem_target must be non-empty"
         )
-    elif source_theorem_target not in theorem_card_id_set:
+    elif source_theorem_target and source_theorem_target not in theorem_card_id_set:
         errors.append(
             "theory_derivation_packet.formalization_handoff."
             "source_theorem_target must exactly match a theorem_cards id; "
@@ -2051,11 +2154,15 @@ def _normalize_theory_packet(
     provider_name: str,
     raw_response: str,
     theory_prompt_mode: str = THEORY_PROMPT_MODE_COMPACT,
+    formalization_authoring_required: bool = True,
 ) -> dict[str, Any]:
     body = dict(payload)
     serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
     body["theory_prompt_mode"] = theory_prompt_mode
     body["serious_theory_mode"] = serious_theory_mode
+    body["runtime_formalization_authoring_required"] = bool(
+        formalization_authoring_required
+    )
     derivation_packet = body.get("theory_derivation_packet")
     if isinstance(derivation_packet, Mapping):
         body["theory_derivation_packet"] = _canonicalize_theory_derivation_packet(
@@ -2083,6 +2190,9 @@ def _normalize_theory_packet(
         "has_formalization_handoff": bool(
             isinstance(derivation.get("formalization_handoff", {}), Mapping)
             and derivation.get("formalization_handoff")
+        ),
+        "formalization_authoring_required": bool(
+            formalization_authoring_required
         ),
         "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
         "boundary": (
@@ -2393,8 +2503,17 @@ def _initial_theory_workspace_read_only_artifacts(
     architect_context: Mapping[str, Any],
     theory_prompt_mode: str,
     max_submissions: int,
+    formalization_authoring_required: bool,
 ) -> dict[str, Any]:
     serious = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
+    required_output_contract = deepcopy(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT)
+    if not formalization_authoring_required:
+        required_output_contract["formalization_requests"] = []
+        derivation_contract = required_output_contract.get(
+            "theory_derivation_packet", {}
+        )
+        if isinstance(derivation_contract, dict):
+            derivation_contract["formalization_handoff"] = {}
     return {
         "initial_authoring_context": {
             "research_question": {
@@ -2406,9 +2525,7 @@ def _initial_theory_workspace_read_only_artifacts(
             "architect_context": _compact_architect_context_for_prompt(
                 architect_context
             ),
-            "required_output_contract": deepcopy(
-                THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
-            ),
+            "required_output_contract": required_output_contract,
             "authoring_policy": {
                 "theory_prompt_mode": theory_prompt_mode,
                 "serious_theory_mode": serious,
@@ -2421,6 +2538,9 @@ def _initial_theory_workspace_read_only_artifacts(
                 "maximum_submissions": max(1, int(max_submissions)),
                 "row_count_policy": "model_selected",
                 "row_counts_are_not_quality_metrics": True,
+                "formalization_authoring_required": bool(
+                    formalization_authoring_required
+                ),
                 "substantive_author": "TheoryDeveloper model",
                 "runtime_role": (
                     "apply exact model-authored edits, validate structure and "
@@ -2438,6 +2558,7 @@ def _initial_theory_workspace_prompt(
     question: OpenResearchQuestion,
     theory_prompt_mode: str,
     max_submissions: int,
+    formalization_authoring_required: bool,
 ) -> str:
     return (
         "Author the initial TheoryDeveloper research workspace for the supplied "
@@ -2454,10 +2575,21 @@ def _initial_theory_workspace_prompt(
         "definitions and claims rather "
         "than treating retrieval as an answer key. Keep assumptions, equations, "
         "estimators, theorem cards, simulation semantics, and formal targets mutually "
-        "consistent. Treat IDs as exact references: the formalization handoff and "
-        "every formalization request must name an existing theorem-card ID. Record "
+        "consistent. Treat IDs as exact references. "
+        + (
+            "The formalization handoff and every formalization request must name an "
+            "existing theorem-card ID. "
+            if formalization_authoring_required
+            else "Formalization is not requested for this task: leave "
+            "formalization_requests empty and omit formalization_handoff rather than "
+            "inventing Lean work. "
+        )
+        + "Record "
         "uncertainty explicitly. A failed scratch execution is diagnostic only; do "
         "not promote guessed or model-computed numbers from it into observed results. "
+        "Keep PASS, FAIL, and INCONCLUSIVE sanity-check outcomes explicit. A failed "
+        "check may guide exploratory work, but it cannot support confirmatory "
+        "acceptance; revise the affected theory or report a grounded theory gap. "
         "Do not claim execution, Lean "
         "proof, or kernel verification. The runtime applies only your exact edits and "
         "will not choose, fill, or rewrite any substantive field."
@@ -2535,6 +2667,11 @@ def _theory_workspace_revision_prompt(
                 "sanity-check note, critic finding, or next action does not override "
                 "a contradictory authoritative artifact; rewrite every affected "
                 "authoritative artifact before submitting."
+            ),
+            (
+                "Recompute every affected sanity check and preserve PASS, FAIL, or "
+                "INCONCLUSIVE honestly. Do not relabel a failed calculation; use it as "
+                "exploratory evidence, revise the mathematics, or report a theory gap."
             ),
             (
                 "A scratch execution with a failed status or nonempty errors is "
@@ -2753,8 +2890,10 @@ def _generate_initial_theory_artifact_workspace(
     temperature: float,
     max_tokens: int,
     max_turns: int,
+    max_reads: int,
     max_submissions: int,
     max_no_progress_turns: int,
+    formalization_authoring_required: bool,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
 ) -> dict[str, Any]:
     initial_artifacts = _empty_theory_core_workspace()
@@ -2763,6 +2902,7 @@ def _generate_initial_theory_artifact_workspace(
         architect_context=architect_context,
         theory_prompt_mode=theory_prompt_mode,
         max_submissions=max_submissions,
+        formalization_authoring_required=formalization_authoring_required,
     )
     authoring_binding_id = "initial_theory_authoring:" + stable_hash(
         [question.id, theory_prompt_mode, read_only_artifacts]
@@ -2796,6 +2936,9 @@ def _generate_initial_theory_artifact_workspace(
             provider_name=provider_name,
             raw_response=raw_response,
             theory_prompt_mode=theory_prompt_mode,
+            formalization_authoring_required=(
+                formalization_authoring_required
+            ),
         )
 
     result = run_theory_artifact_workspace(
@@ -2809,13 +2952,16 @@ def _generate_initial_theory_artifact_workspace(
             question=question,
             theory_prompt_mode=theory_prompt_mode,
             max_submissions=max_submissions,
+            formalization_authoring_required=(
+                formalization_authoring_required
+            ),
         ),
         model=request_model,
         model_tier=model_tier,
         temperature=temperature,
         max_tokens=max_tokens,
         max_turns=max(1, max_turns),
-        max_reads=1,
+        max_reads=max(1, max_reads),
         max_submissions=max(1, max_submissions),
         max_no_progress_turns=max(1, max_no_progress_turns),
         workspace_id=workspace_id,
@@ -2855,9 +3001,10 @@ def _generate_initial_theory_artifact_workspace(
         "estimator_specs",
         "theorem_cards",
         "proof_plan",
-        "formalization_requests",
         "simulation_ademp_spec",
     }
+    if formalization_authoring_required:
+        required_authored_artifacts.add("formalization_requests")
     if not required_authored_artifacts.issubset(changed):
         errors.append(
             "initial theory workspace did not author every required nonempty artifact"
@@ -2900,6 +3047,7 @@ def _generate_theory_workspace_revision(
     max_reads: int,
     max_submissions: int,
     max_no_progress_turns: int,
+    formalization_authoring_required: bool,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
 ) -> dict[str, Any]:
     initial_artifacts = revision_inputs.get("base_core_payload", {})
@@ -2942,6 +3090,9 @@ def _generate_theory_workspace_revision(
             provider_name=provider_name,
             raw_response=raw_response,
             theory_prompt_mode=THEORY_PROMPT_MODE_SERIOUS_REVISION,
+            formalization_authoring_required=(
+                formalization_authoring_required
+            ),
         )
         return _attach_theory_workspace_revision_transport(
             packet,

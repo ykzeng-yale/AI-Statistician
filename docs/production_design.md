@@ -5,12 +5,16 @@
 AI Statistician is an autonomous statistical theory laboratory. Given a fresh
 research question or paper, it should be able to:
 
-1. identify the estimand, assumptions, procedure, and theorem targets;
-2. derive a rigorous theory argument with explicit equation and lemma lineage;
-3. implement and test scientific Python or R code;
-4. design and run simulations under a protocol frozen before confirmatory results;
-5. formalize the exact target in Lean using task-bound retrieval and live Lean state;
-6. revise its own artifacts from raw environment feedback and stop only with an honest result: accepted evidence, an explicit gap, or a budget-bound failure.
+1. inspect prior literature, code, and data under a recorded source policy;
+2. identify the estimand, assumptions, procedure, and theorem targets;
+3. develop a reviewable theory argument with equation and lemma lineage;
+4. implement and test scientific Python or R code;
+5. run exploratory and then frozen confirmatory simulations; and
+6. when task intent requests it, formalize the exact target in Lean.
+
+Every lane stops honestly with accepted evidence, an explicit unresolved gap, or
+a budget-bound failure. Formal evidence is one dimension of the product result,
+not a universal prerequisite for empirical or theoretical research credit.
 
 The product is not a collection of task-specific scripts, a theorem answer bank,
 or an audit dashboard. The model performs semantic research and source authoring.
@@ -21,12 +25,13 @@ The harness supplies a reliable environment and preserves evidence boundaries.
 There is one outer `AgentRuntime` graph:
 
 ```text
-Goal and plan
-  -> Theory workspace
-  -> Scientific coding and simulation workspace
-  -> Independent semantic review
-  -> Lean formalization workspace
-  -> Final critic and kernel gate
+Goal, source policy, and task-intent evidence contract
+  -> source scout or exact replication when relevant
+  -> iterative theory workspace <-> exploratory scientific workspace
+  -> independent theory and source review
+  -> frozen confirmatory simulation
+  -> optional, advisory, or required Lean workspace
+  -> final critic with a per-dimension evidence vector
 ```
 
 The Architect creates the initial plan, resolves independently evidenced conflicts
@@ -53,17 +58,28 @@ stores the exact pending `AgentTask`; manifests carry only its task and
 continuation refs, and resume hash-verifies and restores that task without
 rewriting its inputs. Substantive failures remain terminal.
 
-This deliberately adopts the minimal mechanism shared by
-[Numina-Lean-Agent](https://github.com/project-numina/numina-lean-agent) and
-[AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general source
-agent, real environment feedback, optional search, and bounded context. For
-long-horizon formalization, the useful idea from
-[LeanMarathon](https://github.com/YuanheZ/LeanMarathon) is a durable blueprint and
-lemma DAG with CI gates; it is an artifact model, not a reason to duplicate its
-agent hierarchy inside this runtime. Scientific candidate search may later adopt
-the small `generate -> execute -> score` interface from
-[ERA](https://github.com/google-research/era), but only within an existing source
-workspace.
+The inner mechanism follows [Numina-Lean-Agent](https://github.com/project-numina/numina-lean-agent)
+and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general source
+agent, real feedback, optional search, and bounded context. Long-horizon work uses
+the durable blueprint/lemma-DAG idea from
+[LeanMarathon](https://github.com/YuanheZ/LeanMarathon), not its whole agent stack.
+Scientific search may use ERA's `generate -> execute -> score` interface only
+inside an existing source workspace.
+
+## Progressive commitment
+
+The graph does not impose one universal research order. Literature and repository
+search starts early when external sources are allowed. If exact public code and
+data exist, the system first reruns that immutable snapshot before reimplementation;
+replication evidence stays distinct from model-authored research.
+
+Theory remains long-horizon and iterative. As soon as the estimand, DGP,
+procedure interface, and a testable claim are stable enough, exploratory coding
+may run in parallel and return non-confirmatory counterexamples to TheoryDeveloper.
+Independent theory review establishes a stable checkpoint before confirmatory
+gates are frozen. A light formalization scout may expose missing definitions in
+parallel, but expensive Lean proving normally begins after the statement stabilizes
+unless the task explicitly selects `proof_first`.
 
 ## Responsibility boundary
 
@@ -113,25 +129,18 @@ than treating a small JSON packet as the theory itself. Its durable products are
 - counterexamples, failure regimes, and unresolved mathematical gaps;
 - revision links from simulation, semantic review, and formalization observations.
 
-Compact structured packets are handoff indexes into this workspace. Fixed numbers
-of equations, lemmas, or characters are transport limits, never quality criteria.
-The workspace validator requires nonempty typed derivation, equation, assumption,
-and sanity-check structures plus a primary estimator, theorem target, and
-formalization request; it does not prescribe how many rows constitute a rigorous
-argument. Supporting lemma, critic-finding, and next-action lists may remain empty
-when the model has no justified item. Independent theory preflight and the final
-Critic, rather than schema cardinality, judge mathematical sufficiency.
-Initial discovery and revision share this model-owned workspace. Discovery reads
-one content-addressed question/Architect/RAG/contract context; revision reads exact
-parent and reviewer artifacts on demand. Both apply only model-authored standard
-JSON edits. The editor has no statistical rules, suggested values, or routing role.
-Each structurally valid partial write is retained even when the combined workspace
-still fails validation. The tool reports that write as accepted, returns the raw
-validation errors, and lets the same model submit only the remaining or revised
-artifacts. The last invalid write stops immediately with a model-owned checkpoint;
-it does not spend later turns calling an exhausted tool. Capability audit requires
-this direct evidence, but the system must not claim full theory-
-development capability until fresh cross-family evaluations exercise both paths.
+Compact packets are handoff indexes, not the theory itself. Row and character
+limits are transport budgets, never quality criteria. The validator requires
+typed derivations, assumptions, sanity checks, a primary procedure, and theorem
+targets; formalization artifacts are required only by the runtime-owned task
+contract. Supporting rows may be empty when unjustified. The model may explicitly
+report an unresolved theory gap after inspecting or testing workspace artifacts;
+this blocks the lineage without pretending that a model judgment is proof.
+
+Discovery and revision use the same workspace and exact parent/reviewer artifacts.
+Only model-authored edits are applied. Partial valid writes remain available, raw
+validation observations return to the model, and the editor has no statistical
+rules, suggested values, or routing role.
 
 ## Scientific coding workspace
 
@@ -148,6 +157,11 @@ return raw observations to the same source owner; exploratory work may also retu
 explicitly non-confirmatory empirical diagnostics. Execution is persisted once, stale
 observations leave model context, and identical source is a tool no-op rather than a
 runtime edit.
+
+Exploratory source may start before the complete theorem program is closed once
+its consumed interfaces are stable. Such runs can falsify a proposed theory or
+guide its revision but cannot satisfy confirmatory gates. Confirmatory source is
+bound to the independently reviewed current theory and frozen protocol.
 
 For live providers with native client tools, the structured proposal carries only
 artifact identity and immutable bindings. Source is authored afterward in the same
@@ -194,6 +208,13 @@ Confirmatory metrics are proposed and independently reviewed before confirmatory
 results are visible. Their identities and numeric authority are frozen for that
 candidate. A failed result cannot mutate its own gate.
 
+There is no universal replicate count such as 100. Before outcomes are revealed,
+the evaluator freezes a task-specific budget from a declared Monte Carlo standard
+error, interval-width, or power target plus resource limits. Exploratory runs may
+be small and adaptive but are labelled non-confirmatory. Confirmatory replication
+may stop only by its predeclared precision rule, never because the observed result
+crossed a desired threshold.
+
 The minimal control pattern is:
 
 ```text
@@ -204,21 +225,10 @@ Architect authors one complete protocol
   -> execution evaluates only an accepted frozen protocol
 ```
 
-New protocols carry at most eight required metric rows. This is an execution and
-review budget, not a statistical rule: repeated scenarios use vector measurements
-and explicit aggregation. A frozen historical protocol keeps its exact row set.
-
-The reviewer reports defects and evidence; it does not choose a `repair_scope` or
-route tasks. Authoring and independent review remain one bounded Architect protocol
-operation with separate model contexts and visible timing substages. They should not
-be promoted into two additional outer tasks merely for telemetry. Independent review
-and pre-result freezing remain required while ownership routers and duplicate finding
-taxonomies are removed.
-
-The reviewer returns one judgment per immutable requirement, one portfolio judgment,
-prior-finding decisions, and new findings. Runtime binds exact identities, checks
-coverage and lineage, and derives the fail-closed verdict; the model owns every
-rationale. There is no matrix checklist or whole-packet regeneration retry.
+Metric row limits are execution/review budgets, not statistical rules. The reviewer
+reports defects and evidence but does not choose repair routes or source edits.
+Runtime binds exact identities and derives the fail-closed verdict; models own the
+protocol and rationales. There is no whole-packet repair worker.
 
 A rejected `metric_contract_review` returns the exact findings to the same metric
 author inside that bounded operation. If the revised candidate remains rejected,
@@ -226,25 +236,19 @@ the operation blocks with its full lineage; it does not ask Architect to reinter
 a protocol defect as a TheoryDeveloper task. A later outer-plan change requires a
 separately evidenced cross-workspace inconsistency.
 
-A rejected `theory_execution_preflight` returns its observations directly to the
-exact parent-bound TheoryDeveloper workspace. This is a fixed stage-ownership
-edge, not a reviewer-selected owner or an Architect model route. The reviewer
-inspects exact theory anchors first and may query task-bound RAG when it needs
-additional context; search and external citations are not mandatory. Every cited
-external handle is runtime-verified against the returned source snapshot, while
-uncited search results do not force unrelated findings to carry citations.
-Independent queries may share one client-tool turn.
-
-Prior preflight findings are immutable identities, not irreversible verdicts. On
-the next current-parent review, the independent model may mark a prior finding
-`RESOLVED_BY_CURRENT_THEORY` when the source changed, or
-`RETRACTED_BY_CURRENT_EVIDENCE` when current anchors show the prior claim is
-contradicted, outside the admitted DGP or requested measurements, or only a
-downstream implementation/proof obligation. Both require a model-authored rationale
-and current evidence refs. Runtime never chooses a retraction; it only validates
-the binding and removes closed rows from the active ledger.
+A rejected theory preflight returns exact observations to the parent-bound theory
+workspace. The reviewer may query task-bound literature or formal RAG, and every
+cited source is snapshot-verified. Prior findings remain immutable records but may
+be resolved or retracted by the independent model using current evidence; runtime
+only validates lineage.
 
 ## Lean formalization workspace
+
+Formalization policy is `required`, `optional`, or `advisory` and scheduling is
+`proof_first`, `simulation_first`, or `dual_track`. A formal gap blocks only a
+required formal contract. Optional/advisory gaps are disclosed in the final
+evidence vector and cannot erase accepted theory or empirical evidence. Conversely,
+simulation or review can never be promoted to theorem proof.
 
 Formalizer/ProofEngineer receives one exact theorem-goal reference already owned by
 the outer research graph. Runtime resolves that upstream ID and hash only; it makes
@@ -337,32 +341,24 @@ tool-turn count.
 
 ## Evaluation authority
 
-Unit tests validate mechanisms but do not establish research capability. The
-frozen cross-family protocol is the product gate. Each fresh task must show the
-same-run lineage:
+Unit tests validate mechanisms, not research capability. Product research uses
+`benchmarks/research_capability_ladder_20260814.json` and reports separate theory,
+empirical, formal, novelty, replication, and unresolved-gap dimensions. A task
+passes only the dimensions required by its frozen intent; no aggregate score hides
+a required failure.
 
-```text
-plan -> theory -> model-authored code -> isolated execution
-     -> independent review -> frozen simulation protocol -> fresh results
-     -> exact formal target -> task-bound RAG and Lean feedback
-     -> exact source-theorem kernel closure -> final critic
-```
+The frozen `autonomous_cross_family_e2e_protocol_20260713.json` remains the strict
+integrated formal-capability gate. Its development and held-out tasks require exact
+source-theorem kernel closure and stay sealed under their existing rules. That gate
+measures S13 formal integration, not universal product completion. Optional product
+formalization does not weaken S13, and S13 failure does not invalidate independently
+accepted non-formal research evidence.
 
-Development tasks may drive shared interface and harness fixes. Held-out tasks
-remain sealed until the development gate passes, and their outcomes may not be
-used to add theorem-family rules. A capability scorecard, support lemma count, or
-audit percentage cannot substitute for exact closure on each task.
-
-As of 2026-08-13, exact-Haiku v399 is the latest fresh integrated panel: 9/16,
-two `BLOCKED` tasks, and 0/2 exact source-theorem closures. Both reached
-Formalizer; survival made eight source updates and Lean checks without compiling,
-while sequential reported one model-authored gap. Neither is proof.
-
-The run exposed a generic RAG bug where a Lean module was used as a declaration
-namespace. `EmpericalProcessLEAN` `4cec7860` and AI-Statistician `f76da2df` fix
-the identity, and fresh-index LSP replay retrieved the exact source. That validates
-the mechanism only: it does not close v399 or prove the reported gap false.
-Held-out tasks remain sealed; `all_ok=true` cannot override 0/2 kernel closure.
+Benchmark progression starts with reproducible published results and immutable
+code/data snapshots, then paper-to-code reproduction, hidden known-theory
+rederivation, historical rediscovery, near-frontier extension, and finally true
+open problems. Only levels with hidden gold can measure correctness. Open-problem
+runs report evidence and remaining gaps, never “success” from model agreement.
 
 ## Structural constraints
 

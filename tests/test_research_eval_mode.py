@@ -192,6 +192,7 @@ def test_research_eval_keeps_serious_theory_and_independent_review_gate(
     ] is True
     assert contract["research_evaluation_requires_typed_metric_contracts"] is True
     assert contract["formal_evaluation_requires_formalizer_lean_candidate"] is False
+    assert contract["formal_target_authoring_required"] is False
     assert (
         _theory_developer_prompt_mode(
             {

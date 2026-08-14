@@ -66,6 +66,7 @@ from ai_statistician.theory_revision_lineage import (
 )
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
+    THEORY_WORKSPACE_GAP_TOOL,
     THEORY_WORKSPACE_WRITE_TOOL,
 )
 
@@ -266,8 +267,7 @@ def _sample_response() -> dict[str, object]:
                     "recomputation": (
                         "Substitute the conditional means into the g-formula."
                     ),
-                    "result": "psi = E[m_1(X)-m_0(X)]",
-                    "conclusion": "PASS",
+                    "result": "PASS: psi = E[m_1(X)-m_0(X)]",
                     "depends_on": ["identify_ate"],
                 },
                 {
@@ -277,8 +277,9 @@ def _sample_response() -> dict[str, object]:
                     "recomputation": (
                         "Let e(X) approach zero in A/e(X); the weight diverges."
                     ),
-                    "result": "A positive lower propensity bound is required.",
-                    "conclusion": "PASS after retaining positivity",
+                    "result": (
+                        "PASS: A positive lower propensity bound is required."
+                    ),
                     "depends_on": ["orthogonal_score"],
                 },
                 {
@@ -288,8 +289,7 @@ def _sample_response() -> dict[str, object]:
                     "recomputation": (
                         "Multiply two o_p(n^-1/4) nuisance errors."
                     ),
-                    "result": "Their product is o_p(n^-1/2).",
-                    "conclusion": "PASS",
+                    "result": "PASS: Their product is o_p(n^-1/2).",
                     "depends_on": ["remainder_control"],
                 },
             ],
@@ -609,6 +609,96 @@ def test_theory_validation_allows_model_selected_supporting_row_counts() -> None
     packet["kernel_verified"] = False
 
     assert validate_theory_core_packet(packet) == []
+
+
+def test_advisory_theory_can_omit_formalization_authoring_artifacts() -> None:
+    packet = _sample_response()
+    derivation = dict(packet["theory_derivation_packet"])
+    derivation.pop("formalization_handoff")
+    packet["theory_derivation_packet"] = derivation
+    packet["formalization_requests"] = []
+    packet["runtime_formalization_authoring_required"] = False
+    packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
+    packet["kernel_verified"] = False
+
+    assert validate_theory_core_packet(packet) == []
+
+
+def test_optional_theory_prompt_does_not_invent_formalization_work() -> None:
+    prompt = build_theory_developer_prompt(
+        OpenResearchQuestion(
+            id="optional_formalization",
+            title="Optional formalization",
+            description="Develop and test a statistical procedure.",
+        ),
+        architect_context={
+            "runtime_requested_evidence_contract": {
+                "evaluation_mode": "research_eval",
+                "formal_target_authoring_required": False,
+            }
+        },
+    )
+    payload = json.loads(prompt.split("\n\n", 1)[1])
+
+    assert payload["concise_output_budget"]["max_formalization_requests"] == 0
+    assert payload["required_output_contract"]["formalization_requests"] == []
+    assert payload["required_output_contract"]["theory_derivation_packet"][
+        "formalization_handoff"
+    ] == {}
+    assert "Leave formalization artifacts empty" in prompt
+
+
+def test_runtime_formal_contract_cannot_be_lowered_by_architect_plan() -> None:
+    prompt = build_theory_developer_prompt(
+        OpenResearchQuestion(
+            id="strict_formalization",
+            title="Strict formalization",
+            description="Exercise the strict integrated proof capability.",
+        ),
+        architect_context={
+            "runtime_requested_evidence_contract": {
+                "evaluation_mode": "capability_eval",
+                "formal_target_authoring_required": True,
+            },
+            "architect_runtime_plan": {
+                "evidence_contract": {
+                    "evaluation_mode": "research_eval",
+                    "formal_target_authoring_required": False,
+                }
+            },
+        },
+    )
+    payload = json.loads(prompt.split("\n\n", 1)[1])
+
+    assert payload["serious_theory_output_budget"][
+        "max_formalization_requests"
+    ] > 0
+    assert payload["required_output_contract"]["formalization_requests"]
+    assert "Keep the formal target consistent" in prompt
+
+
+def test_theory_validation_preserves_an_unresolved_sanity_check_for_review() -> None:
+    packet = _sample_response()
+    derivation = dict(packet["theory_derivation_packet"])
+    sanity_checks = [dict(row) for row in derivation["sanity_checks"]]
+    sanity_checks[0]["result"] = (
+        "FAIL: the recomputation contradicts the authoritative derivation"
+    )
+    derivation["sanity_checks"] = sanity_checks
+    packet["theory_derivation_packet"] = derivation
+    packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
+    packet["kernel_verified"] = False
+
+    assert validate_theory_core_packet(packet) == []
+
+
+def test_theory_contract_keeps_model_authored_sanity_dispositions() -> None:
+    sanity_contract = THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT[
+        "theory_derivation_packet"
+    ]["sanity_checks"][0]
+
+    assert "PASS|FAIL|INCONCLUSIVE" in sanity_contract["result"]
+    assert "conclusion" not in sanity_contract
 
 
 def test_theory_validation_requires_operational_precode_semantics() -> None:
@@ -1019,6 +1109,15 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
             ],
             _theory_tool_response(
                 ClientToolCall(
+                    call_id="reread-theory-before-fix",
+                    name="read_theory_workspace",
+                    input={
+                        "artifact_names": ["theory_derivation_packet"]
+                    },
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
                     call_id="fix-formal-target-reference",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
                     input=_theory_artifact_writes(
@@ -1048,7 +1147,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     packet = developer.derive(question)
 
     assert validate_theory_packet(packet) == []
-    assert len(provider.tool_requests) == 6
+    assert len(provider.tool_requests) == 7
     assert len(provider.generator_requests) == 1
     first_request = provider.tool_requests[0]
     assert first_request.metadata["theory_developer_phase"] == (
@@ -1060,6 +1159,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert {tool.name for tool in first_request.tools} == {
         "read_theory_workspace",
         THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_GAP_TOOL,
     }
     initial_prompt = str(first_request.messages[0]["content"])
     assert core_response["problem_card"]["dgp"] not in initial_prompt
@@ -1091,7 +1191,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert evidence["n_model_artifact_writes"] == len(core_artifacts) + 1
     assert evidence["model_owned_theory"] is True
     assert evidence["runtime_edited_theory"] is False
-    assert evidence["reads"] == 1
+    assert evidence["reads"] == 2
     assert evidence["submissions"] == 5
     assert set(evidence["changed_artifact_names"]) == (
         set(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT) - optional_artifacts
@@ -1340,6 +1440,7 @@ def test_theory_revision_uses_model_owned_artifact_workspace() -> None:
     assert {tool.name for tool in first_tool_request.tools} == {
         "read_theory_workspace",
         THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_GAP_TOOL,
     }
     first_prompt = str(first_tool_request.messages[0]["content"])
     assert json.dumps(revision_inputs["base_core_payload"]) not in first_prompt

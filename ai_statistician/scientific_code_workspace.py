@@ -31,6 +31,7 @@ ScientificCodeCheck = Callable[[Mapping[str, Any]], Mapping[str, Any]]
 SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS = "native_client_tools"
 SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET = "structured_packet"
 SCIENTIFIC_SOURCE_SUBMISSION_TOOL = "submit_scientific_source"
+SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL = "run_current_scientific_source"
 SCIENTIFIC_SOURCE_REVISE_CURRENT = "revise_current_source"
 SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER = (
     "return_to_bound_dependency_owner"
@@ -668,6 +669,7 @@ def run_scientific_code_workspace(
     initial_check_result: Mapping[str, Any],
     check_candidate: ScientificCodeCheck,
     workspace_operation: str = "targeted_revision",
+    allow_current_source_run: bool = False,
     request_metadata: Mapping[str, Any] | None = None,
 ) -> ScientificCodeWorkspaceResult:
     """Let one model own complete scientific source across raw sandbox feedback."""
@@ -696,10 +698,115 @@ def run_scientific_code_workspace(
         "code_draft": parent_draft,
         "code_draft_hash": parent_hash,
         "source_updates": 0,
+        "current_source_run_requests": 0,
         "checks": 0,
         "last_check": deepcopy(dict(initial_check_result)),
     }
-    tools = _scientific_code_tools()
+    tools = _scientific_code_tools(
+        allow_current_source_run=(
+            bool(parent_draft) and allow_current_source_run
+        )
+    )
+
+    def execute_checked_draft(
+        draft: Mapping[str, Any],
+        *,
+        source_changed: bool,
+        current_source_reexecuted: bool,
+    ) -> ClientToolExecutionResult:
+        raw = check_candidate(deepcopy(dict(draft)))
+        if not isinstance(raw, Mapping):
+            raise ClientToolInputError("scientific sandbox returned a non-object result")
+        check = deepcopy(dict(raw))
+        observed_hash = str(check.get("code_draft_hash", "") or "")
+        if observed_hash != state["code_draft_hash"]:
+            raise ClientToolInputError(
+                "scientific sandbox result is not bound to the current candidate hash"
+            )
+        state["checks"] += 1
+        state["last_check"] = check
+        accepted = check.get("accepted") is True
+        disposition = str(
+            check.get("source_iteration_disposition", "") or ""
+        ).strip()
+        if not disposition:
+            disposition = (
+                "accepted" if accepted else SCIENTIFIC_SOURCE_REVISE_CURRENT
+            )
+            check["source_iteration_disposition"] = disposition
+        if disposition not in {
+            "accepted",
+            SCIENTIFIC_SOURCE_REVISE_CURRENT,
+            SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
+        }:
+            raise ClientToolInputError(
+                "scientific sandbox returned an unsupported source iteration "
+                "disposition"
+            )
+        if accepted != (disposition == "accepted"):
+            raise ClientToolInputError(
+                "scientific sandbox acceptance and source iteration disposition "
+                "disagree"
+            )
+        terminal = bool(
+            accepted
+            or disposition == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+        )
+        if disposition == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER:
+            source_owner = check.get("source_owner", {})
+            if not (
+                isinstance(source_owner, Mapping)
+                and str(source_owner.get("owner_subsystem", "") or "").strip()
+                and str(source_owner.get("source_manifest_id", "") or "").strip()
+                and str(source_owner.get("source_manifest_hash", "") or "").strip()
+                and isinstance(source_owner.get("artifact_ids"), Sequence)
+                and not isinstance(source_owner.get("artifact_ids"), (str, bytes))
+                and source_owner.get("artifact_ids")
+                and isinstance(source_owner.get("artifact_hashes"), Mapping)
+                and all(
+                    str(
+                        source_owner["artifact_hashes"].get(artifact_id, "")
+                        or ""
+                    ).strip()
+                    for artifact_id in source_owner["artifact_ids"]
+                )
+            ):
+                raise ClientToolInputError(
+                    "dependency-owner disposition requires bound source owner refs"
+                )
+        return ClientToolExecutionResult(
+            content={
+                **check,
+                "ok": accepted,
+                "changed": source_changed,
+                "current_source_reexecuted": current_source_reexecuted,
+                "checks": state["checks"],
+                "source_updates": state["source_updates"],
+                "execution_evidence_status": (
+                    "SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE"
+                ),
+            },
+            is_error=not accepted,
+            state_changed=True,
+            terminal=terminal,
+            terminal_payload=(
+                {
+                    "code_draft": deepcopy(dict(state["code_draft"])),
+                    "code_draft_hash": state["code_draft_hash"],
+                    "check_result": check,
+                }
+                if terminal
+                else None
+            ),
+            observation_key="scientific-submission:"
+            + stable_hash(
+                {
+                    "code_draft_hash": state["code_draft_hash"],
+                    "check": check,
+                    "current_source_reexecuted": current_source_reexecuted,
+                }
+            ),
+        )
 
     def execute_tool(call, context):
         del context
@@ -733,96 +840,36 @@ def run_scientific_code_workspace(
             state["code_draft_hash"] = draft_hash
             state["source_updates"] += 1
             observed_draft_hashes.add(draft_hash)
-            raw = check_candidate(deepcopy(dict(state["code_draft"])))
-            if not isinstance(raw, Mapping):
-                raise ClientToolInputError("scientific sandbox returned a non-object result")
-            check = deepcopy(dict(raw))
-            observed_hash = str(check.get("code_draft_hash", "") or "")
-            if observed_hash != state["code_draft_hash"]:
-                raise ClientToolInputError(
-                    "scientific sandbox result is not bound to the current candidate hash"
-                )
-            state["checks"] += 1
-            state["last_check"] = check
-            accepted = check.get("accepted") is True
-            disposition = str(
-                check.get("source_iteration_disposition", "") or ""
-            ).strip()
-            if not disposition:
-                disposition = (
-                    "accepted" if accepted else SCIENTIFIC_SOURCE_REVISE_CURRENT
-                )
-                check["source_iteration_disposition"] = disposition
-            if disposition not in {
-                "accepted",
-                SCIENTIFIC_SOURCE_REVISE_CURRENT,
-                SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
-            }:
-                raise ClientToolInputError(
-                    "scientific sandbox returned an unsupported source iteration "
-                    "disposition"
-                )
-            if accepted != (disposition == "accepted"):
-                raise ClientToolInputError(
-                    "scientific sandbox acceptance and source iteration disposition "
-                    "disagree"
-                )
-            terminal = bool(
-                accepted
-                or disposition == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+            return execute_checked_draft(
+                state["code_draft"],
+                source_changed=changed,
+                current_source_reexecuted=False,
             )
-            if disposition == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER:
-                source_owner = check.get("source_owner", {})
-                if not (
-                    isinstance(source_owner, Mapping)
-                    and str(source_owner.get("owner_subsystem", "") or "").strip()
-                    and str(source_owner.get("source_manifest_id", "") or "").strip()
-                    and str(source_owner.get("source_manifest_hash", "") or "").strip()
-                    and isinstance(source_owner.get("artifact_ids"), Sequence)
-                    and not isinstance(source_owner.get("artifact_ids"), (str, bytes))
-                    and source_owner.get("artifact_ids")
-                    and isinstance(source_owner.get("artifact_hashes"), Mapping)
-                    and all(
-                        str(
-                            source_owner["artifact_hashes"].get(artifact_id, "")
-                            or ""
-                        ).strip()
-                        for artifact_id in source_owner["artifact_ids"]
-                    )
-                ):
-                    raise ClientToolInputError(
-                        "dependency-owner disposition requires bound source owner refs"
-                    )
-            return ClientToolExecutionResult(
-                content={
-                    **check,
-                    "ok": accepted,
-                    "changed": True,
-                    "checks": state["checks"],
-                    "source_updates": state["source_updates"],
-                    "execution_evidence_status": (
-                        "SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE"
-                    ),
-                },
-                is_error=not accepted,
-                state_changed=True,
-                terminal=terminal,
-                terminal_payload=(
-                    {
-                        "code_draft": deepcopy(dict(state["code_draft"])),
-                        "code_draft_hash": state["code_draft_hash"],
-                        "check_result": check,
-                    }
-                    if terminal
-                    else None
-                ),
-                observation_key="scientific-submission:"
-                + stable_hash(
-                    {
-                        "code_draft_hash": state["code_draft_hash"],
-                        "check": check,
-                    }
-                ),
+
+        if call.name == SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL:
+            if not parent_draft or not allow_current_source_run:
+                raise ClientToolInputError(
+                    "run_current_scientific_source is unavailable unless the current "
+                    "source is bound to a newly changed dependency environment"
+                )
+            if state["current_source_run_requests"]:
+                raise ClientToolInputError(
+                    "the exact current source was already executed in the current "
+                    "dependency environment"
+                )
+            if set(tool_input) != {"reason"} or not str(
+                tool_input.get("reason", "") or ""
+            ).strip():
+                raise ClientToolInputError(
+                    "run_current_scientific_source requires one nonempty reason"
+                )
+            state["current_source_run_requests"] += 1
+            state["code_draft"] = deepcopy(parent_draft)
+            state["code_draft_hash"] = parent_hash
+            return execute_checked_draft(
+                state["code_draft"],
+                source_changed=False,
+                current_source_reexecuted=True,
             )
 
         raise ClientToolInputError("unsupported scientific code workspace tool")
@@ -851,13 +898,24 @@ def run_scientific_code_workspace(
                 + "\n\nInitial workspace observation:\n"
                 + _compact_json(initial_check_result)
                 + (
-                    "\n\nThe current candidate failed. Diagnose that exact observation, "
-                    "then submit a changed complete candidate. Every submission executes "
-                    "immediately; identical bytes are not a new attempt."
+                    "\n\nThe current candidate has a failed consumer observation. "
+                    "Diagnose that exact observation. If this source owns the defect, "
+                    "submit a changed complete candidate; if another bound dependency "
+                    "owns it, call run_current_scientific_source to execute the exact "
+                    "current bytes in the newly changed dependency environment. Every "
+                    "submission executes immediately; identical bytes are not a new "
+                    "submission."
+                    if initial_check_result.get("accepted") is not True
+                    and parent_draft
+                    and allow_current_source_run
+                    else "\n\nThe current candidate has a failed observation. Diagnose "
+                    "that exact observation and submit a changed complete candidate. "
+                    "Every submission executes immediately; identical bytes are not "
+                    "a new submission."
                     if initial_check_result.get("accepted") is not True
                     and parent_draft
                     else ""
-                ),
+                )
             },
         ),
         tools=tools,
@@ -943,6 +1001,12 @@ def run_scientific_code_workspace(
         "submitted_code_draft_hash": draft_hash,
         "terminal_check_result_hash": stable_hash(check),
         "source_changed": draft_hash != parent_hash,
+        "current_source_run_requested": bool(
+            state["current_source_run_requests"]
+        ),
+        "current_source_run_requests": state[
+            "current_source_run_requests"
+        ],
         "source_updates": state["source_updates"],
         "sandbox_checks": state["checks"],
         "submit_and_execute_atomic": True,
@@ -1003,8 +1067,11 @@ def _complete_code_draft(value: Mapping[str, Any] | Any) -> dict[str, Any]:
     return draft
 
 
-def _scientific_code_tools() -> tuple[ClientToolDefinition, ...]:
-    return (
+def _scientific_code_tools(
+    *,
+    allow_current_source_run: bool,
+) -> tuple[ClientToolDefinition, ...]:
+    tools = [
         ClientToolDefinition(
             name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
             description=(
@@ -1060,7 +1127,35 @@ def _scientific_code_tools() -> tuple[ClientToolDefinition, ...]:
             },
             terminal=True,
         ),
-    )
+    ]
+    if allow_current_source_run:
+        tools.append(
+            ClientToolDefinition(
+                name=SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
+                description=(
+                    "Execute the exact current source without editing it when a bound "
+                    "dependency environment has changed since its prior observation. "
+                    "The runtime returns the new raw observation and does not infer "
+                    "whether this source or another dependency owns any defect."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["reason"],
+                    "properties": {
+                        "reason": {
+                            "type": "string",
+                            "description": (
+                                "Why executing the current bytes in the changed bound "
+                                "environment is the next useful diagnostic action."
+                            ),
+                        }
+                    },
+                },
+                terminal=True,
+            )
+        )
+    return tuple(tools)
 
 
 def _compact_json(value: Any, *, max_chars: int = 30_000) -> str:

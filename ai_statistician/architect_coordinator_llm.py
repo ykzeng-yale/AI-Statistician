@@ -580,6 +580,18 @@ def build_architect_feedback_route_prompt(
         )
         if key in architect_context
     }
+    effective_theory_revisions, effective_theory_revision_limit = (
+        runtime_theory_revision_budget(architect_context)
+    )
+    active_runtime_context[RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY] = {
+        "revisions_used": effective_theory_revisions,
+        "max_revisions": effective_theory_revision_limit,
+        "budget_exhausted": bool(
+            effective_theory_revision_limit <= 0
+            or effective_theory_revisions >= effective_theory_revision_limit
+        ),
+        "reset_scope": "fresh_question_runtime_only",
+    }
     active_runtime_context["active_artifact_refs"] = {
         str(key): deepcopy(value)
         for key, value in architect_context.items()
@@ -766,7 +778,12 @@ def build_architect_feedback_route_prompt(
         "a repair, patch, correction, or adapter agent. A statistically non-diagnostic "
         "result does not justify a source or theory revision. Numbers in reviewer prose "
         "are not execution observations unless the supplied authority marks them as "
-        "observed. When active_source_revision_assessment says the current source edit "
+        "observed. Quote a frozen requirement's operator, threshold, lower, upper, and "
+        "tolerance exactly from its authoritative row; never recompute or invent a gate "
+        "from prose. If the frozen row's declared returned metric and numeric gate are "
+        "already in conflicting coordinates, choose BLOCK because post-execution source "
+        "or theory revision cannot repair an invalid frozen protocol. When "
+        "active_source_revision_assessment says the current source edit "
         "is sufficient or no parent artifact change is required, do not reinterpret "
         "source-budget exhaustion as a TheoryDeveloper defect; choose an available "
         "unvisited independent lane or BLOCK.\n"

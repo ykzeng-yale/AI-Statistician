@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityBenchmarkLadder",
+  "protocol_id": "research-capability-ladder-20260814-v1",
+  "created_at": "2026-08-14T00:00:00Z",
+  "purpose": "Stage AI-Statistician evaluation from reproducible known results to open research while preserving task-specific evidence requirements and source leakage controls.",
+  "authority_boundary": {
+    "product_research_authority": true,
+    "strict_formal_capability_protocol": "benchmarks/autonomous_cross_family_e2e_protocol_20260713.json",
+    "strict_formal_protocol_unchanged": true,
+    "aggregate_score_may_override_required_dimension": false,
+    "open_problem_model_agreement_is_correctness_evidence": false
+  },
+  "model_policy": {
+    "provider": "anthropic",
+    "live_evaluation_model_tier": "haiku",
+    "live_evaluation_model": "claude-haiku-4-5-20251001",
+    "sonnet_live_calls_allowed": false,
+    "opus_live_calls_allowed": false,
+    "automatic_tier_escalation_allowed": false
+  },
+  "evidence_dimensions": [
+    {
+      "id": "source_replication",
+      "meaning": "Exact rerun of supplied immutable author code and data.",
+      "allowed_requirements": ["required", "optional", "not_applicable"]
+    },
+    {
+      "id": "theory",
+      "meaning": "Definitions, assumptions, equation and claim lineage, counterchecks, and independent review.",
+      "allowed_requirements": ["required", "optional", "not_applicable"]
+    },
+    {
+      "id": "scientific_code",
+      "meaning": "Model-authored Python or R source executed and independently reviewed against current theory.",
+      "allowed_requirements": ["required", "optional", "not_applicable"]
+    },
+    {
+      "id": "empirical",
+      "meaning": "Frozen confirmatory protocol, fresh outcomes, and reported Monte Carlo uncertainty.",
+      "allowed_requirements": ["required", "optional", "not_applicable"]
+    },
+    {
+      "id": "formal",
+      "meaning": "Exact target-bound Lean source, semantic review, and local kernel evidence.",
+      "allowed_requirements": ["required", "optional", "not_applicable"]
+    },
+    {
+      "id": "novelty",
+      "meaning": "Comparison against the frozen permitted source horizon.",
+      "allowed_requirements": ["required", "optional", "not_applicable"]
+    },
+    {
+      "id": "unresolved_gaps",
+      "meaning": "Explicit evidence-bound defects and unclosed claims.",
+      "allowed_requirements": ["required"]
+    }
+  ],
+  "progressive_workflow": [
+    {
+      "id": "source_scout",
+      "starts_when": "external sources are permitted by task policy",
+      "outputs": ["source snapshot refs", "paper-code-data availability", "replication plan"]
+    },
+    {
+      "id": "exact_replication",
+      "starts_when": "pinned public code and data are supplied",
+      "outputs": ["environment lock", "raw rerun observation", "published-output comparison"]
+    },
+    {
+      "id": "iterative_theory",
+      "starts_when": "the research question and source policy are frozen",
+      "outputs": ["definition ledger", "assumption ledger", "equation lineage", "claim DAG", "counterchecks", "gap ledger"]
+    },
+    {
+      "id": "exploratory_scientific_work",
+      "starts_when": "estimand, DGP, consumed claim, and procedure interface are executable",
+      "outputs": ["model-authored source", "raw execution feedback", "non-confirmatory diagnostics"]
+    },
+    {
+      "id": "stable_theory_checkpoint",
+      "starts_when": "independent review accepts the current theory and source semantics",
+      "outputs": ["review artifact", "immutable parent hashes", "remaining gaps"]
+    },
+    {
+      "id": "confirmatory_execution",
+      "starts_when": "metric contract, source review, cohort, and simulation precision rule are frozen",
+      "outputs": ["fresh blinded outcomes", "Monte Carlo uncertainty", "requirement verdicts"]
+    },
+    {
+      "id": "deep_formalization",
+      "starts_when": "the theorem statement is stable or task scheduling is proof_first",
+      "outputs": ["formal RAG trace", "raw Lean observations", "kernel evidence or formal gap"]
+    },
+    {
+      "id": "final_critic",
+      "starts_when": "all required lanes are terminal",
+      "outputs": ["per-dimension status", "evidence refs", "unresolved gaps", "honest overall disposition"]
+    }
+  ],
+  "formalization_contract": {
+    "policies": ["required", "optional", "advisory"],
+    "schedules": ["proof_first", "simulation_first", "dual_track"],
+    "light_formal_scout_may_run_in_parallel": true,
+    "deep_proving_default_start": "after independent statement-stability review",
+    "optional_gap_blocks_nonformal_dimensions": false,
+    "required_gap_blocks_task_completion": true,
+    "nonproof_evidence_may_be_promoted_to_proof": false
+  },
+  "simulation_precision_contract": {
+    "universal_fixed_replication_count": null,
+    "allowed_pre_outcome_budget_rules": [
+      "target Monte Carlo standard error",
+      "target confidence interval width",
+      "target power or rare-event precision",
+      "fixed resource budget with reported uncertainty"
+    ],
+    "exploratory_runs_are_confirmatory": false,
+    "confirmatory_rule_frozen_before_outcomes": true,
+    "favorable_outcome_stopping_forbidden": true
+  },
+  "levels": [
+    {
+      "id": "L0",
+      "name": "focused_known_result",
+      "model_visible": ["statement", "minimal setup"],
+      "gold_authority": ["curated theorem", "reference code", "numeric invariant"],
+      "correctness_scored": true
+    },
+    {
+      "id": "L1",
+      "name": "exact_published_replication",
+      "model_visible": ["paper", "author code", "data"],
+      "gold_authority": ["pinned environment", "published outputs", "independent rerun"],
+      "correctness_scored": true
+    },
+    {
+      "id": "L2",
+      "name": "paper_to_code_reproduction",
+      "model_visible": ["paper", "data"],
+      "hidden": ["author code", "gold outputs"],
+      "gold_authority": ["hidden author source", "held-out result distributions"],
+      "correctness_scored": true
+    },
+    {
+      "id": "L3",
+      "name": "known_theory_rederivation",
+      "model_visible": ["problem", "assumptions"],
+      "hidden": ["paper identity", "theorem statement", "proof", "code", "results"],
+      "gold_authority": ["independent theorem rubric", "hidden proof and experiments"],
+      "correctness_scored": true
+    },
+    {
+      "id": "L4",
+      "name": "historical_rediscovery",
+      "model_visible": ["pre-publication source horizon", "open question"],
+      "hidden": ["later paper", "later code", "later results"],
+      "gold_authority": ["later published artifacts"],
+      "correctness_scored": true
+    },
+    {
+      "id": "L5",
+      "name": "near_frontier_extension",
+      "model_visible": ["base paper", "extension target", "frozen source horizon"],
+      "hidden": ["later or independently curated extension result"],
+      "gold_authority": ["later publication or independent expert replication"],
+      "correctness_scored": true
+    },
+    {
+      "id": "L6",
+      "name": "true_open_problem",
+      "model_visible": ["question", "permitted contemporary sources"],
+      "gold_authority": ["none"],
+      "correctness_scored": false,
+      "reported_only": ["falsifiable claims", "theory evidence", "empirical evidence", "formal evidence", "novelty audit", "unresolved gaps"]
+    }
+  ],
+  "initial_candidate_queue": [
+    {
+      "id": "kaplan_meier_greenwood_known_result",
+      "level": "L0",
+      "family": "survival",
+      "status": "proposed_pending_gold_curation",
+      "task_intent": {
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "optional"
+      }
+    },
+    {
+      "id": "benjamini_hochberg_independence_known_result",
+      "level": "L0",
+      "family": "multiple_testing",
+      "status": "proposed_pending_gold_curation",
+      "task_intent": {
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "optional"
+      }
+    },
+    {
+      "id": "heteroskedastic_covariance_known_result",
+      "level": "L0",
+      "family": "regression",
+      "status": "proposed_pending_gold_curation",
+      "task_intent": {
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable"
+      }
+    },
+    {
+      "id": "double_machine_learning_public_replication",
+      "level": "L1",
+      "family": "causal_semiparametric",
+      "status": "proposed_pending_source_snapshot",
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable"
+      }
+    },
+    {
+      "id": "model_x_public_paper_to_code_reproduction",
+      "level": "L2",
+      "family": "conditional_independence",
+      "status": "proposed_pending_disjoint_gold_snapshot",
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable"
+      }
+    }
+  ],
+  "activation_requirements": [
+    "immutable paper, code, data, environment, and gold snapshot hashes",
+    "independent domain review of target and scoring rubric",
+    "gold and expected results inaccessible to runtime RAG and model workspaces",
+    "disjoint development and held-out source families where claimed",
+    "fresh-start execution with task-learning memory disabled",
+    "all exposed web, repository, and RAG handles recorded",
+    "confirmatory metrics, precision rule, and cohort policy frozen before outcomes",
+    "no task-specific runtime or prompt change after held-out activation"
+  ],
+  "current_readiness": {
+    "active_scored_tasks": 0,
+    "candidate_queue_is_capability_evidence": false,
+    "next_step": "Curate and independently verify immutable L0-L2 gold snapshots before activating scored runs."
+  }
+}

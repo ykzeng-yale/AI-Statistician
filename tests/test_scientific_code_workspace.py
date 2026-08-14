@@ -8,6 +8,7 @@ from ai_statistician.model_backend import (
     ClientToolTurnResponse,
 )
 from ai_statistician.scientific_code_workspace import (
+    SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
     SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
     SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
     run_scientific_code_workspace,
@@ -119,8 +120,11 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
     assert "NameError: missing_name" in str(backend.requests[0].messages)
     assert all(request.enable_prompt_caching for request in backend.requests)
     assert [tool.name for tool in backend.requests[0].tools] == [
-        SCIENTIFIC_SOURCE_SUBMISSION_TOOL
+        SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
     ]
+    assert SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL not in str(
+        backend.requests[0].messages
+    )
     submission_schema = next(
         tool.input_schema
         for tool in backend.requests[0].tools
@@ -349,6 +353,151 @@ def test_byte_identical_replacement_is_returned_to_same_model_as_noop() -> None:
     assert noop["is_error"] is True
     assert "byte-identical" in noop["result_excerpt"]
     assert "byte-identical" in str(backend.requests[1].messages)
+
+
+def test_model_can_run_current_source_in_changed_dependency_environment() -> None:
+    initial = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates):\n    return {'value': 0}\n",
+    }
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="run-current",
+                    name=SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
+                    input={
+                        "reason": (
+                            "This artifact satisfies its owned interface; another "
+                            "bound dependency caused the consumer failure."
+                        )
+                    },
+                )
+            )
+        ]
+    )
+    checked: list[dict] = []
+
+    def check(candidate):
+        checked.append(dict(candidate))
+        return {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": True,
+            "stdout": "dependency integration passed",
+        }
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Resolve the bound consumer observation.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_no_progress_turns=2,
+        artifact_id="question:run-current",
+        initial_code_draft=initial,
+        initial_check_result={
+            "code_draft_hash": stable_hash(initial),
+            "accepted": False,
+            "stderr": "another dependency failed",
+        },
+        check_candidate=check,
+        allow_current_source_run=True,
+    )
+
+    assert dict(result.code_draft) == initial
+    assert checked == [initial]
+    assert result.evidence["source_changed"] is False
+    assert result.evidence["source_updates"] == 0
+    assert result.evidence["sandbox_checks"] == 1
+    assert result.evidence["current_source_run_requested"] is True
+    assert result.evidence["current_source_run_requests"] == 1
+    assert result.evidence["accepted"] is True
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+        SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
+    ]
+
+
+def test_current_source_runs_at_most_once_per_dependency_environment() -> None:
+    initial = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates): return {'value': 0}\n",
+    }
+    revised = {
+        **initial,
+        "code": "def run_sandbox(seed, replicates): return {'value': 1}\n",
+    }
+    run_current_call = {
+        "reason": "Another bound dependency owns the observed failure."
+    }
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "run-current-1",
+                    SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
+                    run_current_call,
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "run-current-2",
+                    SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
+                    run_current_call,
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-revision",
+                    SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    revised,
+                )
+            ),
+        ]
+    )
+    checked: list[dict] = []
+
+    def check(candidate):
+        checked.append(dict(candidate))
+        return {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": dict(candidate) == revised,
+        }
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Resolve the bound consumer observation.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_no_progress_turns=2,
+        artifact_id="question:single-parent-reexecution",
+        initial_code_draft=initial,
+        initial_check_result={
+            "code_draft_hash": stable_hash(initial),
+            "accepted": False,
+        },
+        check_candidate=check,
+        allow_current_source_run=True,
+    )
+
+    assert dict(result.code_draft) == revised
+    assert checked == [initial, revised]
+    repeated = result.evidence["history"][1]["tool_calls"][0]
+    assert repeated["is_error"] is True
+    assert "current dependency environment" in repeated["result_excerpt"]
 
 
 def test_scientific_workspace_does_not_reexecute_an_older_source() -> None:

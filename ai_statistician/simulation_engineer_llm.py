@@ -264,6 +264,7 @@ class LLMSimulationEngineerAgent:
         workspace_context: Mapping[str, Any],
         check_candidate: Callable[[Mapping[str, Any]], Mapping[str, Any]],
         workspace_operation: str = "targeted_revision",
+        allow_current_source_run: bool = False,
     ) -> ScientificCodeWorkspaceResult:
         """Run one direct model -> sandbox -> same-model source loop."""
 
@@ -306,6 +307,7 @@ class LLMSimulationEngineerAgent:
             initial_check_result=initial_observation,
             check_candidate=check_candidate,
             workspace_operation=workspace_operation,
+            allow_current_source_run=allow_current_source_run,
             request_metadata={
                 "subsystem": "SimulationEvaluator",
                 "agent": "LLMSimulationEngineerAgent",
