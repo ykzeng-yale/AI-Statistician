@@ -1,5 +1,5 @@
 {
-  "schema_version": 49,
+  "schema_version": 50,
   "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -96,32 +96,32 @@
     "boundary": "This is live component evidence for a generic context interface, not a fresh integrated Formalizer run, semantic target acceptance, or source-theorem closure."
   },
   "latest_authoritative_integrated_run": {
-    "id": "v435",
-    "path": "runs/main_worker_cross_family_development_20260814_v435_keyed_metric_review_exact_haiku",
+    "id": "v436",
+    "path": "runs/main_worker_cross_family_development_20260814_v436_atomic_declaration_context_exact_haiku",
     "model": "claude-haiku-4-5-20251001 for every enabled live agent",
     "status_counts": {
       "BLOCKED": 2
     },
-    "capability_scorecard": "6/16",
+    "capability_scorecard": "5/16",
     "capability_ready_for_full_ai_statistician": false,
-    "runtime_traces": 36,
-    "runtime_tool_calls": 24,
-    "runtime_observations": 66,
-    "live_generated_code_executions": 2,
+    "runtime_traces": 39,
+    "runtime_tool_calls": 36,
+    "runtime_observations": 74,
+    "live_generated_code_executions": 3,
     "live_generated_simulation_executions": 1,
-    "formalizer_workspaces": 1,
-    "formalizer_source_updates": 5,
-    "formalizer_local_lean_checks": 5,
+    "formalizer_workspaces": 0,
+    "formalizer_source_updates": 0,
+    "formalizer_local_lean_checks": 0,
     "formalizer_local_lean_compiled": 0,
-    "formalizer_formal_rag_calls": 6,
+    "formalizer_formal_rag_calls": 0,
     "kernel_verified_subclaims": 0,
     "exact_source_theorem_closure": "0/2",
     "diagnosis": {
-      "right_censored_survival_km": "Completed repeated theory, generated algorithm, independently reviewed metric, generated simulation, fresh empirical feedback, and bounded theory revision cycles. Confirmatory gates eventually passed and the task reached Formalizer, where five model-authored Lean sources all failed before declaration elaboration; Critic correctly returned FORMAL_REQUIRED_BLOCKED.",
-      "sequential_anytime_bernoulli": "The independent theory preflight rejected the first packet. In the same TheoryDeveloper workspace, the exact model used its scratchpad to show that its own tempered likelihood-ratio construction was not a martingale and terminated through report_theory_gap instead of fabricating a downstream algorithm or proof.",
-      "shared_mechanism_signal": "The keyed metric-review schema worked in a fresh integrated run, scientific failures returned to the source-owning model without packet repair, and an honest mathematical gap stopped the invalid theory lineage. The 6/16 aggregate is lower because all-question rows remain false after Sequential stopped early; it is not evidence of reduced integrity."
+      "right_censored_survival_km": "Completed independent theory preflight, three live generated-code executions, one live generated-simulation execution, cross-workspace empirical revision, and a reviewed theory revision. The final model-authored metric-review packet marked every row PASS, but its numeric positive control for req_ci_coverage_loglog supplied 0.92 against the frozen >=0.93 gate. The production evaluator correctly rejected the contradiction and stopped after the existing bounded author revision; no Formalizer work began.",
+      "sequential_anytime_bernoulli": "The independent theory preflight rejected the initial packet and two substantive same-workspace TheoryDeveloper revisions. The revisions added a finite horizon and a default weight but did not establish that numerical quadrature preserves the claimed e-process/type-I guarantee. The no-progress boundary stopped the lineage before scientific or formal execution instead of treating prose as a proof.",
+      "shared_mechanism_signal": "v436 found no shared source-repair or routing defect that justifies another retry, larger budget, or task rule. Both blocks are informative model-capability failures caught by existing independent or executable checks. The atomic Lean declaration-context change therefore remains component evidence only because neither task reached Formalizer in this run."
     },
-    "boundary": "v435 is diagnostic integrated evidence. Scientific execution, accepted empirical gates, RAG calls, theory-gap reporting, and Lean source iteration are not exact theorem proof. Exact source-theorem closure remains 0/2 and held-out strict-formal tasks remain sealed."
+    "boundary": "v436 is diagnostic integrated evidence. Its evidence-integrity audit passed, but audit integrity is not scientific or theorem readiness. No task reached Formalizer, exact source-theorem closure remains 0/2, and held-out strict-formal tasks remain sealed."
   },
   "current_design_assessment": {
     "correct_to_keep": [
@@ -152,10 +152,12 @@
       "strict development exact source-theorem closure remains 0/2",
       "the current source scout is bounded local retrieval, not a complete live web/GitHub paper-code-data replication workspace",
       "TheoryDeveloper now permits model-selected serious-theory depth within the token window, but still lacks a mature persistent cross-session theorem/claim DAG editor and live on-demand paper/code search",
-      "v435 still used Architect for several cross-workspace empirical feedback decisions; ordinary source errors stayed local, but generic global lineage and stagnation semantics remain incomplete",
+      "v436 still used Architect for cross-workspace empirical ownership decisions; ordinary source errors stayed local, but generic global lineage and stagnation semantics remain incomplete",
       "scientific execution has Pyodide/WebR foundations but live R, broad package support, and precision-driven confirmatory replication need integrated evidence",
       "Formalizer has real RAG, local Lean, source revision, and semantic review but still lacks reliable exact statistical theorem closure",
       "the atomic active-project declaration context has exact-Haiku component evidence but still needs a fresh integrated Formalizer run and cross-task ablation",
+      "the research-capability ladder has zero active scored tasks because every L0-L2 candidate still lacks independently curated immutable gold; repeated bundled S13 runs cannot substitute for this missing diagnostic ladder",
+      "the active Lean foundation pins Statlib 6575d611 on Lean 4.30, while fetched Statlib origin/main 01d2a03 adds EVariable and DPI foundations on Lean 4.33. The active importable corpus and latest upstream discovery corpus must retain distinct snapshot identities until a deliberate compatibility migration succeeds",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
       "research_agent_runtime.py remains large at 24250 lines and must shrink before adding another control feature"
     ],
@@ -163,12 +165,12 @@
   },
   "maturity_estimate": {
     "evidence_and_control_plane": "about 88-90%",
-    "model_owned_scientific_workspace": "about 74-78%",
-    "theory_development": "about 48-55%",
-    "source_replication_and_paper_ingest": "about 20-30%",
+    "model_owned_scientific_workspace": "about 70-75%",
+    "theory_development": "about 45-52%",
+    "source_replication_and_paper_ingest": "about 20-25%",
     "formalization_and_exact_proof_closure": "about 30-35%",
-    "product_research_end_to_end_readiness": "about 48-55%",
-    "strict_formal_end_to_end_readiness": "about 38-43%",
+    "product_research_end_to_end_readiness": "about 45-52%",
+    "strict_formal_end_to_end_readiness": "about 35-40%",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
@@ -178,7 +180,7 @@
     "cli_lines": 6907,
     "top_level_python_modules": 138,
     "top_level_package_lines": 131775,
-    "latest_runtime_manifest_bytes": 58888
+    "latest_runtime_manifest_bytes": 58895
   },
   "next_gates": [
     "Curate independent immutable L0-L2 paper, code, data, environment, and gold snapshots before activating the research benchmark ladder.",
@@ -186,7 +188,8 @@
     "Ablate progressive theory and exploratory simulation on known results: code may start after stable interfaces, but confirmatory execution must wait for independent theory/source acceptance and a frozen precision rule.",
     "Implement task-specific Monte Carlo precision contracts selected before outcomes instead of treating n_runs=100 as a scientific default.",
     "Run a product research_eval known-result panel where formalization is advisory and report the full evidence vector without Lean blocking accepted empirical dimensions.",
-    "Run a fresh strict exact-Haiku development panel under unchanged budgets to test the atomic declaration context in the integrated Formalizer; require exact target-bound kernel closure on both development families before opening held-out PCA/extremes.",
+    "Do not spend another live strict S13 run merely to resample the same broad tasks. Run it under unchanged budgets only after a relevant shared mechanism change has component or replay evidence and require exact target-bound kernel closure on both development families before opening held-out PCA/extremes.",
+    "Keep the active Statlib pin as the only importable authority while indexing newer upstream Statlib snapshots under a separate non-importable discovery identity; migrate the project pin only after whole-project compile and declaration-compatibility checks.",
     "Improve TheoryDeveloper and Formalizer through direct on-demand retrieval, durable claim/state artifacts, and measured prompt/tool ablations, never content-specific middleware.",
     "Delete or extract existing central runtime responsibilities before adding any new outer control feature."
   ]

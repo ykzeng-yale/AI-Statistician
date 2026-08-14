@@ -437,6 +437,36 @@ resume, and the accepted gate is consumed once so it cannot override later
 replans. A fresh cross-family run is still required; local tests do not
 establish E2E readiness.
 
+## 2026-08-14 Statlib Refresh
+
+A fresh fetch separates the latest Statlib research surface from the currently
+importable AI-Statistician foundation:
+
+- the external Statlib checkout is at local `0dc5b767`, with `origin/main` at
+  `01d2a037`, 15 commits ahead;
+- upstream now includes `Statlib/EValues/EVariable.lean`, utility foundations,
+  and a data-processing inequality for e-variable utility;
+- upstream uses Lean `v4.33.0-rc2`, while the active
+  EmpericalProcessLEAN project uses Lean `v4.30.0` and pins Statlib
+  `6575d611`; that pinned snapshot contains no `Statlib/EValues` tree.
+
+This is highly relevant to sequential inference, but it is not safe to replace
+the active pin or rebuild its RAG database under the same source identity. Doing
+so would let the Formalizer retrieve declarations that its active Lean project
+cannot import. The correct topology has two explicit snapshots:
+
+1. `statlib_active_6575d611`: importable premise authority for local Lean and
+   kernel promotion;
+2. `statlib_upstream_01d2a037`: non-importable discovery and port-candidate
+   corpus until a deliberate Lean/toolchain migration passes whole-project
+   compilation and declaration-compatibility checks.
+
+The next RAG improvement is snapshot freshness and importability labeling, not
+another lexical alias or theorem-specific retrieval rule. A future migration
+may adopt the new EValues API after testing all StatInference sources; until
+then, upstream source can guide theory and port planning but cannot be presented
+as active-project proof context.
+
 ## Reuse Rules
 
 An external mechanism may enter the default runtime only when all of the

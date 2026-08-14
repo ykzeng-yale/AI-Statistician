@@ -200,12 +200,24 @@ model capability, fresh scientific execution, novelty, or proof evidence.
 
 ## Current evidence
 
-The latest immutable exact-Haiku v433 development run remains diagnostic: both
-tasks ended `BLOCKED`, integrated capability was 10/16, and exact theorem closure
-was 0/2. It showed direct source iteration and honest gap behavior, not readiness.
-The held-out strict-formal panel therefore remains sealed.
+The latest immutable exact-Haiku v436 development run remains diagnostic: both
+tasks ended `BLOCKED`, integrated capability was 5/16, and exact theorem closure
+was 0/2. Survival reached real generated-code and simulation execution, but a
+model-authored semantic positive control contradicted its own frozen numeric
+gate and was correctly rejected. Sequential made two substantive theory
+revisions but did not establish that numerical quadrature preserves its claimed
+e-process guarantee. Neither task reached Formalizer, so the atomic Lean
+declaration-context improvement still has component evidence only. The held-out
+strict-formal panel remains sealed.
 
-The next product-evaluation step is to curate L0-L2 gold snapshots and run focused
-known-result tasks before spending long budgets on frontier questions. The next S13
-step remains a fresh strict-formal development run after shared mechanism changes
-pass replay and unit tests.
+The ladder currently has zero active scored tasks. The next product-evaluation
+step is therefore to curate L0-L2 gold snapshots and run focused known-result and
+exact-replication tasks before spending long budgets on frontier questions. A
+candidate queue or a broad S13 trace is not a replacement for hidden gold.
+
+Another S13 live run should answer a specific shared-mechanism hypothesis that
+already has component or replay evidence; it should not merely resample the same
+two broad tasks in hope of a better model draw. This is an evaluation-selection
+rule, not a smaller source-workspace budget or an extra runtime guardrail. The
+unchanged S13 budgets and exact kernel gate remain authoritative whenever that
+formal-capability evaluation is run.
