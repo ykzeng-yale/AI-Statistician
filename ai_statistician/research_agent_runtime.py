@@ -382,9 +382,7 @@ def _default_recommended_research_path_for_policy(
     policy = _normalized_formal_verification_policy(formal_verification_policy)
     if policy == "required":
         return "dual_track"
-    if policy == "advisory":
-        return "simulation_first"
-    return "dual_track"
+    return "simulation_first"
 
 
 def _normalized_recommended_research_path(

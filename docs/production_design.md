@@ -114,8 +114,9 @@ limited to compact control and handoff envelopes. Substantive theory, Python, R,
 and Lean artifacts belong in model-owned workspaces where the same model receives
 raw observations and authors the next artifact state. Runtime may apply a standard
 model-authored edit, but never chooses it or fills content. Initial discovery and
-revision use one atomic RFC 6902 editor. The bounded estimator-interface handoff
-remains acceptable only while small, visible, and preserving owner feedback.
+revision use one atomic complete-artifact replacement tool. The bounded estimator-
+interface handoff remains acceptable only while small, visible, and preserving
+owner feedback.
 
 ## Theory workspace
 
@@ -129,10 +130,11 @@ than treating a small JSON packet as the theory itself. Its durable products are
 - counterexamples, failure regimes, and unresolved mathematical gaps;
 - revision links from simulation, semantic review, and formalization observations.
 
-Compact packets are handoff indexes, not the theory itself. Row and character
-limits are transport budgets, never quality criteria. The validator requires
-typed derivations, assumptions, sanity checks, a primary procedure, and theorem
-targets; formalization artifacts are required only by the runtime-owned task
+Compact packets are handoff indexes, not the theory itself. Compact/recovery limits
+exist only to survive constrained transport; serious theory has no per-field caps
+and is bounded by the model token window, workspace safety, and no-progress policy.
+The validator requires typed derivations, assumptions, sanity checks, a primary
+procedure, and theorem targets; formalization artifacts are required only by the runtime-owned task
 contract. Supporting rows may be empty when unjustified. The model may explicitly
 report an unresolved theory gap after inspecting or testing workspace artifacts;
 this blocks the lineage without pretending that a model judgment is proof.
@@ -248,7 +250,9 @@ Formalization policy is `required`, `optional`, or `advisory` and scheduling is
 `proof_first`, `simulation_first`, or `dual_track`. A formal gap blocks only a
 required formal contract. Optional/advisory gaps are disclosed in the final
 evidence vector and cannot erase accepted theory or empirical evidence. Conversely,
-simulation or review can never be promoted to theorem proof.
+simulation or review can never be promoted to theorem proof. Optional/advisory
+product work defaults to `simulation_first`; explicit tasks may choose another path,
+while strict formal-capability evaluation remains `required` and `dual_track`.
 
 Formalizer/ProofEngineer receives one exact theorem-goal reference already owned by
 the outer research graph. Runtime resolves that upstream ID and hash only; it makes

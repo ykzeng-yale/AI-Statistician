@@ -671,8 +671,8 @@ def test_runtime_formal_contract_cannot_be_lowered_by_architect_plan() -> None:
     payload = json.loads(prompt.split("\n\n", 1)[1])
 
     assert payload["serious_theory_output_budget"][
-        "max_formalization_requests"
-    ] > 0
+        "formalization_requests_required"
+    ] is True
     assert payload["required_output_contract"]["formalization_requests"]
     assert "Keep the formal target consistent" in prompt
 
@@ -990,19 +990,23 @@ def test_capability_theory_mode_uses_reviewer_owned_rigor_not_row_counts(
     assert derivation_schema["derivation_steps"]["minItems"] == 1
     assert derivation_schema["equation_chain"]["minItems"] == 1
     assert derivation_schema["sanity_checks"]["minItems"] == 1
-    assert derivation_schema["derivation_steps"]["maxItems"] == 8
-    assert derivation_schema["equation_chain"]["maxItems"] == 8
-    assert derivation_schema["sanity_checks"]["maxItems"] == 6
-    assert request.schema["properties"]["theorem_cards"]["maxItems"] == 2
-    assert request.schema["properties"]["problem_card"]["properties"][
-        "observed_data"
-    ]["maxLength"] == 420
+    assert "maxItems" not in derivation_schema["derivation_steps"]
+    assert "maxItems" not in derivation_schema["equation_chain"]
+    assert "maxItems" not in derivation_schema["sanity_checks"]
+    assert "maxItems" not in request.schema["properties"]["theorem_cards"]
+    assert "maxLength" not in request.schema["properties"]["problem_card"][
+        "properties"
+    ]["observed_data"]
     assert "You own all mathematical content" in request.user_prompt
     assert "runtime does not provide issue-specific corrections" in (
         request.user_prompt
     )
     assert "reviewer observations as evidence" in request.user_prompt
     assert "row counts are not a quality metric" in request.user_prompt
+    assert "model_selected_within_token_budget" in request.user_prompt
+    assert "does not define research quality through row counts" in (
+        request.user_prompt
+    )
     assert "n or sqrt(n) factor" not in request.user_prompt
     assert "one-observation or boundary value" not in request.user_prompt
     assert "optimization, extrema, stopping" not in request.user_prompt

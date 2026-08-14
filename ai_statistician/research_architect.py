@@ -485,22 +485,33 @@ def build_theory_developer_prompt(
         }
         output_budget_key = "serious_theory_output_budget"
         output_budget = {
-            "max_derivation_steps": 5 if transport_recovery else 8,
-            "max_equation_chain_steps": 4 if transport_recovery else 8,
-            "max_sanity_checks": 3 if transport_recovery else 6,
-            "max_candidate_procedures": 1 if transport_recovery else 2,
-            "max_theorem_goals": 1 if transport_recovery else 2,
-            "max_lemma_cards": 2 if transport_recovery else 4,
-            "max_formalization_requests": (
-                (1 if transport_recovery else 2)
-                if formalization_authoring_required
-                else 0
+            **(
+                {
+                    "max_derivation_steps": 5,
+                    "max_equation_chain_steps": 4,
+                    "max_sanity_checks": 3,
+                    "max_candidate_procedures": 1,
+                    "max_theorem_goals": 1,
+                    "max_lemma_cards": 2,
+                    "max_formalization_requests": (
+                        1 if formalization_authoring_required else 0
+                    ),
+                    "max_critic_findings": 2,
+                    "max_simulation_predictions": 2,
+                    "max_next_actions": 1,
+                    "max_string_chars": 320,
+                }
+                if transport_recovery
+                else {
+                    "row_count_policy": "model_selected_within_token_budget",
+                    "per_field_row_caps": None,
+                    "per_string_character_caps": None,
+                }
             ),
-            "max_critic_findings": 2 if transport_recovery else 4,
-            "max_simulation_predictions": 2 if transport_recovery else 4,
-            "max_next_actions": 1 if transport_recovery else 3,
-            "max_string_chars": 320 if transport_recovery else 420,
             "transport_recovery": transport_recovery,
+            "formalization_requests_required": bool(
+                formalization_authoring_required
+            ),
             "instruction": (
                 (
                     "This is a transport recovery after a truncated response. "
@@ -508,7 +519,12 @@ def build_theory_developer_prompt(
                     "preserving every active mathematical obligation. "
                 )
                 if transport_recovery
-                else ""
+                else (
+                    "Use as many dependency-linked claims, equations, lemmas, "
+                    "counterchecks, and alternatives as the argument needs within "
+                    "the model token budget. The schema does not define research "
+                    "quality through row counts or string lengths. "
+                )
             ) + (
                 "Return one complete valid JSON object. Build a coherent mathematical "
                 "workspace at the level required by the question: derive claims from "
@@ -1655,41 +1671,55 @@ def _theory_developer_json_schema(
     """Return the output contract with the prompt's size budget made explicit."""
 
     serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
-    max_string_chars = (
-        320 if serious_theory_mode and transport_recovery
-        else 420 if serious_theory_mode
-        else 180
-    )
+    if serious_theory_mode:
+        max_string_chars = 320 if transport_recovery else None
+    else:
+        max_string_chars = 180
     schema = _bounded_theory_schema_value(
         THEORY_DEVELOPER_JSON_SCHEMA,
         max_string_chars=max_string_chars,
-        default_max_items=12,
+        default_max_items=(
+            12 if not serious_theory_mode or transport_recovery else None
+        ),
     )
     properties = schema["properties"]
     derivation_schema = properties["theory_derivation_packet"]
     derivation = derivation_schema["properties"]
 
+    unbounded_serious = serious_theory_mode and not transport_recovery
     if serious_theory_mode:
         derivation_step_bounds = (
             1,
-            5 if transport_recovery else 8,
+            None if unbounded_serious else 5,
         )
         equation_chain_bounds = (
             1,
-            4 if transport_recovery else 8,
+            None if unbounded_serious else 4,
         )
         sanity_check_bounds = (
             1,
-            3 if transport_recovery else 6,
+            None if unbounded_serious else 3,
         )
-        top_level_maxima = {
-            "estimator_specs": 1 if transport_recovery else 2,
-            "theorem_cards": 1 if transport_recovery else 2,
-            "lemma_cards": 2 if transport_recovery else 4,
-            "formalization_requests": 1 if transport_recovery else 2,
-            "critic_findings": 2 if transport_recovery else 4,
-            "next_actions": 1 if transport_recovery else 3,
-        }
+        if unbounded_serious:
+            top_level_maxima = dict.fromkeys(
+                (
+                    "estimator_specs",
+                    "theorem_cards",
+                    "lemma_cards",
+                    "formalization_requests",
+                    "critic_findings",
+                    "next_actions",
+                )
+            )
+        else:
+            top_level_maxima = {
+                "estimator_specs": 1,
+                "theorem_cards": 1,
+                "lemma_cards": 2,
+                "formalization_requests": 1,
+                "critic_findings": 2,
+                "next_actions": 1,
+            }
     else:
         derivation_step_bounds = (1, 5)
         equation_chain_bounds = (1, 5)
@@ -1710,13 +1740,19 @@ def _theory_developer_json_schema(
         derivation["equation_chain"], *equation_chain_bounds
     )
     _set_theory_schema_array_bounds(
-        derivation["assumption_ledger"], 1, 10
+        derivation["assumption_ledger"], 1, None if unbounded_serious else 10
     )
     _set_theory_schema_array_bounds(
         derivation["sanity_checks"], *sanity_check_bounds
     )
-    _set_theory_schema_array_bounds(derivation["self_critique"], 1, 4)
-    _set_theory_schema_array_bounds(derivation["rejected_alternatives"], 0, 3)
+    _set_theory_schema_array_bounds(
+        derivation["self_critique"], 1, None if unbounded_serious else 4
+    )
+    _set_theory_schema_array_bounds(
+        derivation["rejected_alternatives"],
+        0,
+        None if unbounded_serious else 3,
+    )
     optional_list_fields = {"lemma_cards", "critic_findings", "next_actions"}
     for field, maximum in top_level_maxima.items():
         _set_theory_schema_array_bounds(
@@ -1767,8 +1803,8 @@ def _theory_developer_core_json_schema(
 def _bounded_theory_schema_value(
     value: Any,
     *,
-    max_string_chars: int,
-    default_max_items: int,
+    max_string_chars: int | None,
+    default_max_items: int | None,
 ) -> Any:
     if isinstance(value, Mapping):
         bounded = {
@@ -1781,9 +1817,11 @@ def _bounded_theory_schema_value(
         }
         if bounded.get("type") == "string":
             bounded["minLength"] = 1
-            bounded["maxLength"] = max_string_chars
+            if max_string_chars is not None:
+                bounded["maxLength"] = max_string_chars
         elif bounded.get("type") == "array":
-            bounded.setdefault("maxItems", default_max_items)
+            if default_max_items is not None:
+                bounded.setdefault("maxItems", default_max_items)
         return bounded
     if isinstance(value, list):
         return [
@@ -1800,10 +1838,13 @@ def _bounded_theory_schema_value(
 def _set_theory_schema_array_bounds(
     schema: dict[str, Any],
     minimum: int,
-    maximum: int,
+    maximum: int | None,
 ) -> None:
     schema["minItems"] = max(0, int(minimum))
-    schema["maxItems"] = max(schema["minItems"], int(maximum))
+    if maximum is None:
+        schema.pop("maxItems", None)
+    else:
+        schema["maxItems"] = max(schema["minItems"], int(maximum))
 
 
 def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
@@ -2570,8 +2611,8 @@ def _initial_theory_workspace_prompt(
         "the workspace even while the combined workspace is invalid, so edit only "
         "the still-empty or intentionally revised artifacts on the next call. You "
         f"have at most {max(1, int(max_submissions))} "
-        "writes. Submit at most two complete artifacts per call; accepted writes are "
-        "retained, so use later calls for other still-empty required artifacts. Derive "
+        "writes. You may replace every mutually dependent artifact in one atomic "
+        "call; accepted writes are retained. Derive "
         "definitions and claims rather "
         "than treating retrieval as an answer key. Keep assumptions, equations, "
         "estimators, theorem cards, simulation semantics, and formal targets mutually "

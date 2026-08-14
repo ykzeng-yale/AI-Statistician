@@ -168,6 +168,17 @@ def test_required_formal_policy_does_not_hardcode_proof_first_execution() -> Non
     assert contract["formal_target_authoring_required"] is True
 
 
+def test_optional_formal_policy_defaults_to_simulation_first() -> None:
+    contract = runtime_module._runtime_requested_evidence_contract(
+        formal_verification_policy="optional",
+        evaluation_mode="debug",
+    )
+
+    assert contract["recommended_research_path"] == "simulation_first"
+    assert contract["formal_required_for_final"] is False
+    assert contract["formal_target_authoring_required"] is False
+
+
 def test_runtime_config_has_no_legacy_prover_authoring_plane() -> None:
     names = {field.name for field in fields(ResearchAgentRuntimeConfig)}
     forbidden_fragments = (

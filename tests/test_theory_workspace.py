@@ -20,7 +20,6 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_CHECKPOINT_KIND,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
     THEORY_WORKSPACE_GAP_TOOL,
-    THEORY_WORKSPACE_MAX_WRITES_PER_CALL,
     THEORY_WORKSPACE_WRITE_TOOL,
     TheoryScratchpadConfig,
     TheoryWorkspaceGapError,
@@ -661,7 +660,7 @@ def test_targeted_revision_rejects_duplicate_artifact_names_atomically() -> None
     assert "repeats 'problem_card'" in rejected_payload["detail"]
 
 
-def test_theory_workspace_bounds_each_complete_write_batch() -> None:
+def test_theory_workspace_accepts_one_coherent_complete_write_batch() -> None:
     tools = _theory_workspace_tools(
         {
             "problem_card": "object",
@@ -677,25 +676,33 @@ def test_theory_workspace_bounds_each_complete_write_batch() -> None:
     )
     write_tool = next(tool for tool in tools if tool.name == THEORY_WORKSPACE_WRITE_TOOL)
 
-    assert write_tool.input_schema["properties"]["writes"]["maxItems"] == (
-        THEORY_WORKSPACE_MAX_WRITES_PER_CALL
+    assert write_tool.input_schema["properties"]["writes"]["maxItems"] == 3
+
+    artifacts, writes = _replace_theory_workspace_artifacts(
+        {
+            "problem_card": {},
+            "lemma_cards": [],
+            "theorem_cards": [],
+        },
+        [
+            {"artifact_name": "problem_card", "value": {"claim": "x"}},
+            {"artifact_name": "lemma_cards", "value": [{"id": "l"}]},
+            {"artifact_name": "theorem_cards", "value": [{"id": "t"}]},
+        ],
+        writable_artifact_shapes={
+            "problem_card": "object",
+            "lemma_cards": "array",
+            "theorem_cards": "array",
+        },
     )
 
-    with pytest.raises(ClientToolInputError, match="at most two"):
-        _replace_theory_workspace_artifacts(
-            {
-                "problem_card": {},
-                "lemma_cards": [],
-                "theorem_cards": [],
-            },
-            [
-                {"artifact_name": "problem_card", "value": {"claim": "x"}},
-                {"artifact_name": "lemma_cards", "value": [{"id": "l"}]},
-                {"artifact_name": "theorem_cards", "value": [{"id": "t"}]},
-            ],
-            writable_artifact_shapes={
-                "problem_card": "object",
-                "lemma_cards": "array",
-                "theorem_cards": "array",
-            },
-        )
+    assert artifacts == {
+        "problem_card": {"claim": "x"},
+        "lemma_cards": [{"id": "l"}],
+        "theorem_cards": [{"id": "t"}],
+    }
+    assert [row["artifact_name"] for row in writes] == [
+        "problem_card",
+        "lemma_cards",
+        "theorem_cards",
+    ]
