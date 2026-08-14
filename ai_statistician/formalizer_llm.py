@@ -339,6 +339,14 @@ class LLMFormalizerProofEngineerAgent:
                 "avoid cycling through synonymous searches, reserve time to revise "
                 "from compiler feedback, and use proof-candidate search or proof-state "
                 "inspection when a checked source exposes concrete proof obligations. "
+                "A temporary admitted body is permitted only as a nonterminal "
+                "development probe for declaration elaboration or proof-state "
+                "inspection; replace it with a complete proof before handoff. When "
+                "Lean reports DECLARATION_ELABORATED_PROOF_UNTRUSTED, preserve the "
+                "statement unless a fresh diagnostic requires changing it and move "
+                "to proof construction. If a model-defined declaration's argument "
+                "shape is unclear, ask Lean with #check or #print in a submitted "
+                "diagnostic source instead of guessing several call signatures. "
                 "Finish by choosing either a "
                 "complete submit_lean_source call or a concrete report_formal_gap call."
             ),
@@ -1502,7 +1510,11 @@ grounding loop when you can already formulate the target. Use the supplied theor
 independent-review findings, current source, and raw verifier observations to choose
 every definition, import, declaration, decomposition, tactic, query, and source
 revision. Do not weaken the target, replace
-a mathematical assumption with a vacuous placeholder, or submit an admitted proof.
+a mathematical assumption with a vacuous placeholder, or present an admitted proof
+as completed evidence. A temporary admitted body, #check, or #print command may be
+used only as model-authored diagnostic source so Lean can elaborate a declaration or
+expose its exact API and proof state. Such a source is nonterminal and non-proof; the
+same model must replace it with a complete proof before semantic review or promotion.
 When the active libraries lack a required primitive, report the precise formal gap
 instead of inventing an API or proving a weaker statement. AgentRuntime executes
 tools and preserves identity, budgets, and evidence; it never writes Lean for you.
@@ -2107,6 +2119,12 @@ def _complete_lean_candidate_revision_feedback(
         "candidate_identity_lean_exit_status",
         "candidate_identity_lean_stdout",
         "candidate_identity_lean_stderr",
+        "candidate_declaration_elaborated",
+        "candidate_development_status",
+        "candidate_axiom_names",
+        "candidate_untrusted_axiom_names",
+        "candidate_axiom_audit_checked",
+        "candidate_axiom_audit_clean",
         "proof_evidence_status",
     )
     candidate_observation: dict[str, Any] = {}

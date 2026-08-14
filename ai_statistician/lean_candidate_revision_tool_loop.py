@@ -1010,6 +1010,12 @@ def _compact_lean_check_observation(value: Any) -> dict[str, Any]:
         "candidate_identity_lean_verified",
         "candidate_identity_lean_stdout",
         "candidate_identity_lean_stderr",
+        "candidate_declaration_elaborated",
+        "candidate_development_status",
+        "candidate_axiom_names",
+        "candidate_untrusted_axiom_names",
+        "candidate_axiom_audit_checked",
+        "candidate_axiom_audit_clean",
     )
     return {key: deepcopy(value[key]) for key in keys if key in value}
 
@@ -1057,7 +1063,11 @@ def _lean_candidate_revision_tools(
                 "candidate_declaration_name is only the fully qualified Lean identifier "
                 "introduced or checked by the source, not a theorem header or type. The "
                 "runtime stores and immediately checks those exact bytes in the "
-                "configured Lean project, then returns raw diagnostics to this same model."
+                "configured Lean project, then returns raw diagnostics to this same model. "
+                "A model-authored diagnostic source may temporarily use Lean #check, "
+                "#print, or an admitted body to learn declaration elaboration and proof "
+                "state, but it remains a failed non-proof artifact until the exact "
+                "declaration passes the axiom audit with a complete proof."
             ),
             input_schema={
                 "type": "object",
@@ -1162,6 +1172,8 @@ def _lean_candidate_revision_tools(
                 description=(
                     "Inspect the exact current source through the configured Lean "
                     "LSP/MCP or local proof-state provider after a failed check. "
+                    "This is especially useful after Lean reports that the declaration "
+                    "elaborated but its proof remains untrusted. "
                     "Returns raw diagnostic and goal observations; it never edits "
                     "or promotes the source."
                 ),

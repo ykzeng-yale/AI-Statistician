@@ -15,6 +15,7 @@ from ai_statistician.lean_candidate_revision_tool_loop import (
 from ai_statistician.lean_candidate_identity import (
     TRUSTED_LEAN_AXIOMS,
     _lean_axioms_from_report,
+    run_lean_candidate_identity_probe,
 )
 from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.model_backend import (
@@ -34,6 +35,7 @@ from ai_statistician import (
     lean_candidate_revision_tool_loop as lean_candidate_tool_loop_module,
 )
 import ai_statistician.formalizer_llm as formalizer_module
+import ai_statistician.lean_candidate_identity as lean_identity_module
 import ai_statistician.research_agent_runtime as runtime_module
 
 
@@ -106,6 +108,73 @@ def test_lean_axiom_audit_uses_lean_report_instead_of_source_grammar() -> None:
         "'target' does not depend on any axioms"
     ) == (True, ())
     assert _lean_axioms_from_report("unrelated compiler output") == (False, ())
+
+
+def test_identity_probe_separates_elaboration_from_untrusted_proof(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    source_path = tmp_path / "Candidate.lean"
+    source_path.write_text(
+        "namespace Candidate\ntheorem target : True := by\n  sorry\nend Candidate\n",
+        encoding="utf-8",
+    )
+
+    class Completed:
+        def __init__(self, returncode: int, stdout: str = "", stderr: str = ""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    responses = [
+        Completed(0),
+        Completed(
+            0,
+            "Candidate.target : True\n"
+            "'Candidate.target' depends on axioms: [sorryAx]",
+        ),
+    ]
+    commands: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        commands.append(list(command))
+        assert kwargs["check"] is False
+        assert kwargs["capture_output"] is True
+        return responses.pop(0)
+
+    monkeypatch.setattr(lean_identity_module.subprocess, "run", fake_run)
+
+    result = run_lean_candidate_identity_probe(
+        artifact_path=source_path,
+        candidate_lean_declaration="Candidate.target",
+        lean_project=tmp_path,
+    )
+
+    assert len(commands) == 2
+    assert result["local_lean_source_compiled"] is True
+    assert result["local_lean_compiled"] is False
+    assert result["candidate_declaration_elaborated"] is True
+    assert result["candidate_development_status"] == (
+        "DECLARATION_ELABORATED_PROOF_UNTRUSTED"
+    )
+    assert result["candidate_identity_lean_verified"] is False
+    assert result["candidate_untrusted_axiom_names"] == ["sorryAx"]
+    assert result["candidate_axiom_audit_clean"] is False
+
+
+def test_formalizer_prompt_exposes_lean_owned_diagnostic_scaffolds() -> None:
+    assert "temporary admitted body" in formalizer_module.FORMALIZER_SYSTEM_PROMPT
+    assert "#check" in formalizer_module.FORMALIZER_SYSTEM_PROMPT
+    assert "same model must replace it with a complete proof" in (
+        formalizer_module.FORMALIZER_SYSTEM_PROMPT
+    )
+    submit_tool = next(
+        tool
+        for tool in lean_candidate_tool_loop_module._lean_candidate_revision_tools()
+        if tool.name == LEAN_SOURCE_SUBMISSION_TOOL
+    )
+    assert "diagnostic source" in submit_tool.description
+    assert "failed non-proof artifact" in submit_tool.description
 
 
 def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() -> None:
@@ -1896,6 +1965,14 @@ def test_lean_candidate_prompt_leaves_current_workspace_state_to_snapshot() -> N
                     "source_hash": "candidate-hash",
                     "lean_source_excerpt": "duplicate" * 5000,
                     "local_lean_stderr": exact_error,
+                    "candidate_declaration_elaborated": True,
+                    "candidate_development_status": (
+                        "DECLARATION_ELABORATED_PROOF_UNTRUSTED"
+                    ),
+                    "candidate_axiom_names": ["sorryAx"],
+                    "candidate_untrusted_axiom_names": ["sorryAx"],
+                    "candidate_axiom_audit_checked": True,
+                    "candidate_axiom_audit_clean": False,
                 }
             ],
             "formalizer_recovery_checkpoint": {
@@ -1975,6 +2052,12 @@ def test_lean_candidate_prompt_leaves_current_workspace_state_to_snapshot() -> N
     observation = feedback["candidate_diagnostics"][0]
     assert "lean_source_excerpt" not in observation
     assert observation["local_lean_stderr"] == exact_error
+    assert observation["candidate_declaration_elaborated"] is True
+    assert observation["candidate_development_status"] == (
+        "DECLARATION_ELABORATED_PROOF_UNTRUSTED"
+    )
+    assert observation["candidate_untrusted_axiom_names"] == ["sorryAx"]
+    assert observation["candidate_axiom_audit_clean"] is False
     checkpoint = feedback["model_revision_checkpoint"]
     assert checkpoint["current_source_hash"] == stable_hash(initial_source)
     assert "current_source" not in checkpoint
@@ -2710,6 +2793,14 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             "local_lean_stderr": "",
             "candidate_identity_lean_checked": True,
             "candidate_identity_lean_verified": True,
+            "candidate_declaration_elaborated": True,
+            "candidate_development_status": (
+                "DECLARATION_ELABORATED_PROOF_VERIFIED"
+            ),
+            "candidate_axiom_names": ["Classical.choice"],
+            "candidate_untrusted_axiom_names": [],
+            "candidate_axiom_audit_checked": True,
+            "candidate_axiom_audit_clean": True,
         },
     )
     agent = FakeAgent()
@@ -2736,6 +2827,14 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     packet, evidence = result
     assert packet["packet_id"] == "formalizer_proposal:revised"
     assert agent.check_result["compiled"] is True
+    assert agent.check_result["candidate_declaration_elaborated"] is True
+    assert agent.check_result["candidate_development_status"] == (
+        "DECLARATION_ELABORATED_PROOF_VERIFIED"
+    )
+    assert agent.check_result["candidate_axiom_names"] == [
+        "Classical.choice"
+    ]
+    assert agent.check_result["candidate_axiom_audit_clean"] is True
     assert evidence["parent_candidate_source_hash"] == stable_hash(source)
     assert evidence["resumed_from_model_checkpoint"] is False
     assert agent.declaration_result["status"] == "OBSERVED"

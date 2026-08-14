@@ -268,7 +268,7 @@ The stable initial/revision tool surface offers complete-source submission,
 declaration/proof-state inspection, formal RAG, proof-candidate search, and a typed
 formal gap. A revision gap preserves exact target provenance, clears proof-candidate
 source fields, and remains non-proof. Independent review must distinguish a true
-missing foundation from a fixable API or modeling error.
+missing foundation from a fixable API or modeling error. Temporary admitted bodies or Lean `#check`/`#print` commands are diagnostic only: Lean reports elaboration and axioms, and only a complete axiom-clean source may enter review or promotion.
 
 Every changed statement receives independent target-semantic review. When a
 candidate is rejected, it cannot be handed back unchanged after temporary edits:

@@ -14812,6 +14812,41 @@ def _materialize_formalizer_lean_candidate_artifacts(
                     )
                     or []
                 ),
+                "candidate_declaration_elaborated": _bool_like(
+                    local_lean_result.get(
+                        "candidate_declaration_elaborated",
+                        False,
+                    )
+                ),
+                "candidate_development_status": str(
+                    local_lean_result.get(
+                        "candidate_development_status",
+                        "",
+                    )
+                    or ""
+                ),
+                "candidate_axiom_names": list(
+                    local_lean_result.get("candidate_axiom_names", []) or []
+                ),
+                "candidate_untrusted_axiom_names": list(
+                    local_lean_result.get(
+                        "candidate_untrusted_axiom_names",
+                        [],
+                    )
+                    or []
+                ),
+                "candidate_axiom_audit_checked": _bool_like(
+                    local_lean_result.get(
+                        "candidate_axiom_audit_checked",
+                        False,
+                    )
+                ),
+                "candidate_axiom_audit_clean": _bool_like(
+                    local_lean_result.get(
+                        "candidate_axiom_audit_clean",
+                        False,
+                    )
+                ),
                 "target_ids": list(target_context.get("target_ids", []) or []),
                 "target_theorem_goal_ids": list(
                     target_context.get("target_theorem_goal_ids", []) or []
@@ -17273,6 +17308,24 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             ),
             "candidate_identity_lean_stderr": str(
                 local_result.get("candidate_identity_lean_stderr", "") or ""
+            ),
+            "candidate_declaration_elaborated": _bool_like(
+                local_result.get("candidate_declaration_elaborated", False)
+            ),
+            "candidate_development_status": str(
+                local_result.get("candidate_development_status", "") or ""
+            ),
+            "candidate_axiom_names": list(
+                local_result.get("candidate_axiom_names", []) or []
+            ),
+            "candidate_untrusted_axiom_names": list(
+                local_result.get("candidate_untrusted_axiom_names", []) or []
+            ),
+            "candidate_axiom_audit_checked": _bool_like(
+                local_result.get("candidate_axiom_audit_checked", False)
+            ),
+            "candidate_axiom_audit_clean": _bool_like(
+                local_result.get("candidate_axiom_audit_clean", False)
             ),
             "local_lean_command": list(
                 local_result.get("local_lean_command", []) or []

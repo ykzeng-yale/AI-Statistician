@@ -155,6 +155,28 @@ def run_lean_candidate_identity_probe(
     untrusted_axiom_names = tuple(
         name for name in candidate_axiom_names if name not in TRUSTED_LEAN_AXIOMS
     )
+    candidate_declaration_elaborated = bool(
+        identity_checked
+        and identity_exit_status in {"0", "axiom_audit_failed"}
+    )
+    if source_exit_status != "0":
+        candidate_development_status = "SOURCE_NOT_ELABORATED"
+    elif not declaration:
+        candidate_development_status = (
+            "SOURCE_ELABORATED_DECLARATION_IDENTITY_MISSING"
+        )
+    elif not candidate_declaration_elaborated:
+        candidate_development_status = (
+            "SOURCE_ELABORATED_DECLARATION_IDENTITY_FAILED"
+        )
+    elif identity_verified:
+        candidate_development_status = (
+            "DECLARATION_ELABORATED_PROOF_VERIFIED"
+        )
+    else:
+        candidate_development_status = (
+            "DECLARATION_ELABORATED_PROOF_UNTRUSTED"
+        )
 
     exit_status = source_exit_status
     stdout = source_stdout
@@ -186,6 +208,8 @@ def run_lean_candidate_identity_probe(
         "candidate_identity_lean_stdout": identity_stdout,
         "candidate_identity_lean_stderr": identity_stderr,
         "candidate_identity_lean_command": identity_command,
+        "candidate_declaration_elaborated": candidate_declaration_elaborated,
+        "candidate_development_status": candidate_development_status,
         "candidate_axioms_report": identity_stdout,
         "candidate_axiom_names": list(candidate_axiom_names),
         "candidate_untrusted_axiom_names": list(untrusted_axiom_names),
