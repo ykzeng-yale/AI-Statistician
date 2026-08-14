@@ -1,9 +1,9 @@
 {
-  "schema_version": 60,
+  "schema_version": 61,
   "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "99d2dd34015f052ecacac35ad71fabf504b2e455",
+  "validated_code_head": "b903eb6de3a7c1997edb1ae92c099b0e16f7d34b",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -53,7 +53,7 @@
     ]
   },
   "validated_change": {
-    "commit": "99d2dd34015f052ecacac35ad71fabf504b2e455",
+    "commit": "b903eb6de3a7c1997edb1ae92c099b0e16f7d34b",
     "changes": [
       "The existing TheoryDeveloper workspace now exposes one no-input run_research_source action for an operator-fixed, hash-bound paper entrypoint and environment. The same model reads raw stdout and stderr; it cannot choose the command, edit source, inherit secrets, or use network access.",
       "Explicit task_intent can terminate a source-replication-only objective with one model-authored Markdown report and gap checkpoint without fabricating theory, generated code, simulation, novelty, or formal proof artifacts.",
@@ -62,12 +62,13 @@
       "After fresh L1 exposed an inconsistent turn/tool bound, source-only workspaces were changed so max turns can reach the already-authorized tool-call count. This adds no tool call, retry, agent, scheduler, content patch, task-family answer, or model tier escalation.",
       "Not-applicable evidence dimensions no longer claim gold_validated merely because their evaluator lane was skipped.",
       "Hash-bound source search now exposes the best non-overlapping result from distinct documents before filling remaining slots with additional ranges. This prevents one long paper from crowding an exact definition or implementation out of a small top-k without adding a source router or task-family rule.",
-      "TheoryDeveloper source guidance now asks the same model to inspect the most specific primary definition or implementation for model-, score-, or implementation-specific claims and to separate exact execution facts from unsupported interpretation."
+      "TheoryDeveloper source guidance now asks the same model to inspect the most specific primary definition or implementation for model-, score-, or implementation-specific claims and to separate exact execution facts from unsupported interpretation.",
+      "AgentRuntime and serious TheoryDeveloper authoring now fail closed when the backend lacks native client-tool turns instead of silently switching mathematical authority back to a regenerated JSON packet. A recovered interface-stage checkpoint is accepted only when its core is already bound to model-authored Markdown/LaTeX documents."
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document references, and execution boundaries. DoubleML expected values and tolerances remain in an evaluator-only bundle outside the repository and model workspace. Runtime contains no DoubleML statistic, IRM equation, expected output, Lean grammar rule, or repair recipe.",
     "verification": {
-      "full_pytest": "708 passed in 95.62s",
-      "affected_subsystem_pytest": "27 source-library and TheoryDeveloper workspace tests passed in 0.18s; the earlier source-only gold and runtime suites remain covered by the full 708-test run",
+      "full_pytest": "709 passed in 95.51s",
+      "affected_subsystem_pytest": "73 TheoryDeveloper workspace and cross-consumer document-authority tests passed in 0.23s; all source-only gold and runtime paths remain covered by the full suite",
       "source_retrieval_ablation": "A representative query reconstructed from persisted L1 matched terms returned five distinct top-5 documents, including the exact DoubleMLIRM implementation. The failed live run did not persist its raw query text, so this is not an exact-query replay and provides no report-correctness credit.",
       "real_immutable_source_execution": "EXECUTED with return code 0, no errors, no source mutation, and frozen stdout SHA-256 ef1f1614e671a91b435e46e98126fb24c442faec198b19ab709788af32ab16d3",
       "hidden_source_harness_calibration": "6/6: gold accepted and five source, environment, execution, stdout, or sign variants rejected",
@@ -75,7 +76,7 @@
       "model_policy_audit": "production tiers remain Haiku or Sonnet with Opus rejected; tests and live evaluations remain pinned to claude-haiku-4-5-20251001",
       "fresh_live_research_draws": 1,
       "fresh_live_result": "DoubleML L1 v1 BLOCKED and hidden gold 0/1; no rerun was used to seek a favorable model draw",
-      "runtime_core_growth": "research_agent_runtime.py is 24418 lines and theory_workspace.py is 2426 lines; no new Python module, agent, scheduler, repair subsystem, retry, or model call was added"
+      "runtime_core_growth": "research_agent_runtime.py is 24418 lines, theory_workspace.py is 2426 lines, and research_architect.py is 4744 lines; no new Python module, agent, scheduler, repair subsystem, retry, budget, or model call was added"
     },
     "evidence_boundary": "The mechanism and real source rerun are valid component evidence. They do not make the fresh model task pass: the model failed checkpoint validation, the source manifest was not promoted to hidden evaluation, and the Markdown report contains an incorrect IRM explanation."
   },
@@ -193,7 +194,8 @@
       "component-scoped hidden gold being combined with the legacy complete-research-loop CLI gate",
       "a source-only workspace exhausting max turns while an already-authorized tool call remained available for same-model error correction",
       "not-applicable scientific-code or empirical dimensions being labeled gold_validated when no corresponding evaluator ran",
-      "one long source document monopolizing a small source-search top-k while a distinct exact definition or implementation remained hidden"
+      "one long source document monopolizing a small source-search top-k while a distinct exact definition or implementation remained hidden",
+      "canonical AgentRuntime or serious theory silently falling back from model-authored Markdown/LaTeX to complete JSON-only mathematical authority when native client tools were unavailable"
     ],
     "remaining_structural_problems": [
       "strict development exact source-theorem closure remains 0/2",
@@ -202,6 +204,7 @@
       "the DoubleML Markdown report confused the partially linear regression model with the interactive regression model even though the exact DoubleMLIRM definition was available in the source snapshot",
       "the current L1 source evaluator validates replication identity but does not semantically score the model-authored report; optional interpretation must not be silently treated as correct",
       "the post-v1 document-diverse retrieval policy has deterministic component and representative-query ablation evidence only; it has not shown on a fresh unrelated frozen task that the model reads or correctly interprets the newly exposed primary source",
+      "task_intent is not yet the general outer-graph authority: source-only termination and formal policy are task-aware, but ordinary theory-only, code-only, or empirical-only research still inherits broad research-eval topology and completion assumptions",
       "fresh HC0 v5 hidden theory passed only 7/11 checks; its runtime protocol and unresolved-gap dimensions also failed",
       "fresh KM v2 produced a correct hidden-tested estimator but its theory contains substantive errors that runtime author, preflight, and terminal acceptance all failed to reject",
       "the calibrated single-Haiku semantic theory judge false-accepted the frozen bad KM candidate and passed only 4/5 hidden calibration cases; it is correctly fail-closed and cannot serve as theory authority",
@@ -237,6 +240,7 @@
   "current_structure": {
     "research_agent_runtime_lines": 24418,
     "theory_workspace_lines": 2426,
+    "research_architect_lines": 4744,
     "formalizer_llm_lines": 2387,
     "agent_runtime_lines": 1207,
     "cli_lines": 7067,
@@ -251,6 +255,7 @@
     "Evaluate the document-diverse source policy only on the next unrelated frozen source task, with separate source-identity and report-interpretation authority. Do not rerun DoubleML or add a task-specific literature router merely to validate the policy.",
     "Keep the failed 4/5 semantic calibration as a hard negative. Do not turn one uncalibrated Haiku judgment, an ensemble vote, or repeated sampling into theory authority; improve source-grounded theory development and referee reasoning before another capability claim.",
     "Reduce the transitional theory JSON handoff toward document and claim references while retaining only typed estimator, simulation, and optional formalization ABIs needed by consumers.",
+    "Make explicit task_intent requirements drive the existing outer graph and evidence-vector completion without introducing a second scheduler: not_applicable lanes must not be fabricated, while required lanes must remain fail-closed.",
     "On the next unrelated known result, test the corrected terminal Critic unchanged against primary-source-grounded theory documents and an independently curated claim rubric; do not add task-specific prompts or increase retries after observing the result.",
     "Extend the now-real exact replication lane to a disjoint paper with pinned data and original outputs before claiming paper-to-code or frontier research ability; do not add a literature router hierarchy.",
     "Ablate progressive theory and exploratory simulation on a future unrelated known result: code may start after stable interfaces, but every scratchpad outcome remains exploratory and confirmatory execution waits for independent theory/source acceptance and a frozen precision rule.",
