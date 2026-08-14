@@ -427,8 +427,16 @@ Architect proposal, objective, tool contract, and other frozen context. The exis
 TheoryDeveloper prompt now also asks the same model to recompute pivotal identities,
 test minimal and boundary cases, and correct or mark unresolved claims before a
 checkpoint. No retry, turn, submission, model tier, agent, scheduler, task formula, or
-content repair was added; 745 tests pass. The task is not rerun or rescored, and both
+content repair was added; 746 tests pass. The task is not rerun or rescored, and both
 changes have regression evidence only.
+
+The same frozen trace also showed that outer RetrievalMemory queried and persisted
+Lean declaration context even though the task declared formalization not applicable.
+RetrievalMemory now preserves paper and general knowledge scouting but makes no Lean
+provider call, tool record, or topology payload for that explicit task intent. Formal
+`optional`, `required`, and legacy tasks retain their prior retrieval behavior. This
+is a task-intent conformance simplification with regression evidence only; it does not
+change the frozen run or remove the Formalizer and Statlib RAG capabilities.
 
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same

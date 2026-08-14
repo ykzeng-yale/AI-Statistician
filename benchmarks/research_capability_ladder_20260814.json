@@ -627,7 +627,9 @@
         "fresh_live_document_audit": "No capability credit: the unaccepted document expands the joint-covariance quadratic form incorrectly, treats symmetric two-by-two block structure as sufficient for arbitrary coordinatewise swap invariance, and gives an incomplete conditional-covariance PSD argument. These are model-authored mathematical defects, not transport errors, and must be found by model self-review plus independent semantic review rather than runtime content rules.",
         "post_run_shared_continuation_fix_commit": "4e093eba4244fc2ea695815f8394111267f97c28",
         "post_run_shared_continuation_fix": "Initial theory workspace identity now excludes only the transient scheduling task_id while retaining the exact question, prompt mode, Architect proposal, objective, tool contract, and other frozen context. The TheoryDeveloper prompt also asks the same model to recompute pivotal identities and test minimal and boundary cases before checkpointing. No task formula, content repair, retry, turn, submission, agent, scheduler, or model-tier change was added.",
-        "post_run_full_pytest": "745 passed in 95.72s",
+        "post_run_nonformal_retrieval_fix_commit": "18ca1283f541ae724491d01a8d5cb58bfc241944",
+        "post_run_nonformal_retrieval_fix": "RetrievalMemory keeps paper and general knowledge scouting but makes zero Lean provider calls and persists no Lean topology when frozen task intent marks formalization not_applicable. Optional, required, and legacy formal retrieval remain available. No RAG corpus, model tool, research-source access, or Formalizer capability was removed.",
+        "post_run_full_pytest": "746 passed in 95.66s",
         "model_draw_resampling_blocked": true,
         "full_task_passed": false
       },

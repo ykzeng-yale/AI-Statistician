@@ -1,9 +1,9 @@
 {
-  "schema_version": 76,
+  "schema_version": 77,
   "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "4e093eba4244fc2ea695815f8394111267f97c28",
+  "validated_code_head": "18ca1283f541ae724491d01a8d5cb58bfc241944",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -53,8 +53,9 @@
     ]
   },
   "validated_change": {
-    "commit": "4e093eba4244fc2ea695815f8394111267f97c28",
+    "commit": "18ca1283f541ae724491d01a8d5cb58bfc241944",
     "changes": [
+      "RetrievalMemory now obeys explicit non-formal task intent: paper and general knowledge scouting remain active, but formal=not_applicable makes zero Lean declaration-provider calls and persists no formal tool record or provider topology. Formal optional, required, and legacy paths retain their prior retrieval behavior.",
       "The single frozen Model-X Gaussian L2 exact-Haiku draw wrote one 13,130-byte authoritative Markdown theory document and compact handoffs, then explicitly checkpointed unfinished anchor work. Its same-owner continuation was rejected before a second model call because the initial workspace identity incorrectly included the transient scheduling task_id. Runtime remained BLOCKED, research_eval 0/1, hidden gold 0/1 not executed, with no algorithm, simulation, or Formalizer work.",
       "Initial TheoryDeveloper workspace identity now excludes only runtime_task.task_id, which necessarily changes for a continuation, while retaining the exact question, theory mode, Architect proposal, objective, tool contract, and all other frozen authoring context. Changed scientific or orchestration context still fails before a model call.",
       "TheoryDeveloper's existing system prompt now asks the same source-owning model to act as a skeptical referee before checkpointing: independently recompute pivotal identities, test minimal and boundary cases, and correct or mark unresolved claims. This is model-owned scientific reasoning, not a runtime algebra rule or task-specific answer.",
@@ -102,8 +103,8 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, and execution boundaries. The model chooses every claim, dependency, research-source query, document path, line range, edit, metric semantics, progress summary, and next step. Student-t, James-Stein, and DoubleML expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, Lean grammar rule, tactic rule, repair recipe, or task-specific metric count.",
     "verification": {
-      "full_pytest": "745 passed in 95.41s",
-      "affected_subsystem_pytest": "58 TheoryDeveloper workspace tests passed in 0.27s; focused initial-progress and runtime-reference regressions passed 2/2",
+      "full_pytest": "746 passed in 95.66s",
+      "affected_subsystem_pytest": "58 TheoryDeveloper workspace tests passed in 0.27s; focused continuation regressions passed 2/2; task-intent retrieval regression passed with both skipped and optional formal paths",
       "source_retrieval_ablation": "A representative query reconstructed from persisted L1 matched terms returned five distinct top-5 documents, including the exact DoubleMLIRM implementation. The failed live run did not persist its raw query text, so this is not an exact-query replay and provides no report-correctness credit.",
       "real_immutable_source_execution": "EXECUTED with return code 0, no errors, no source mutation, and frozen stdout SHA-256 ef1f1614e671a91b435e46e98126fb24c442faec198b19ab709788af32ab16d3",
       "hidden_source_harness_calibration": "6/6: gold accepted and five source, environment, execution, stdout, or sign variants rejected",
@@ -113,7 +114,7 @@
       "fresh_live_result": "Model-X Gaussian L2 v1 runtime BLOCKED and research_eval 0/1 after a valid model-authored progress checkpoint hit a transient task-id binding defect; hidden gold did not execute, and no rerun was used to seek a favorable draw",
       "post_run_semantic_diagnostic": "The evaluator failure is preserved as hidden theory semantic status unvalidated. df616c3a records safe failure phases and a smaller case-only calibration output; it does not change the frozen run's score or produce runtime feedback.",
       "task_bound_referee_regression": "A real ResearchSourceSnapshot test executes search_research_sources, exact read_research_source, and source-grounded submission in one preflight loop; source bodies are visible to the model but absent from the persisted review packet.",
-      "runtime_core_growth": "research_agent_runtime.py remains 24973 lines; theory_workspace.py is 3113 lines; architect_theory_execution_preflight.py is 3464 lines; and research_architect.py is 5198 lines. The continuation fix adds one stable-identity projection and a general self-review prompt, not an agent, scheduler, retry, router, task formula, or content patch. Non-formal RetrievalMemory still performs broad formal-source retrieval and should be simplified before another outer feature."
+      "runtime_core_growth": "research_agent_runtime.py is 24994 lines; theory_workspace.py is 3113 lines; architect_theory_execution_preflight.py is 3464 lines; and research_architect.py is 5198 lines. The continuation and retrieval changes add no agent, scheduler, retry, router, task formula, content patch, or new provider. RetrievalMemory now omits irrelevant Lean calls instead of adding a second scout or filter layer."
     },
     "evidence_boundary": "Fresh Model-X v1 supplies live evidence that exact-Haiku can use a paper-only snapshot to author a substantial Markdown/LaTeX workspace and honestly checkpoint unfinished work, while task intent keeps Formalizer absent. It supplies no accepted theory, code, empirical, or hidden-gold credit. The post-run continuation and self-review changes have regression evidence only and cannot retroactively continue, repair, accept, or rescore the frozen document."
   },
@@ -147,7 +148,7 @@
     "runtime_behavior": "kept the full run in the non-formal product graph, returned raw tool observations to the same TheoryDeveloper, recorded partial theory as accepted=false, and used no RepairAgent or runtime-authored scientific content",
     "scientific_diagnosis": "The unaccepted Markdown contains a wrong joint-covariance quadratic-form expansion, an insufficient proof of arbitrary coordinatewise swap invariance, and an incomplete conditional-covariance PSD argument. These defects are a theory-capability hard negative; the runtime continuation bug is separate and fixing it supplies no mathematical credit.",
     "preactivation_evaluator_calibration": "exact Haiku classified 10/10 sealed semantic cases correctly; the separate reference theory satisfied 8/8 claims; the reference algorithm passed 7/7 checks; four wrong implementations were rejected by both algorithm and empirical harnesses; and three 12,000-row reference DGPs passed before runtime",
-    "post_run_shared_fix": "4e093eba removes only transient task_id from initial workspace identity and strengthens the same model's general referee-style self-check. It adds no model call, retry, turn, submission, task formula, content repair, agent, scheduler, or model-tier escalation.",
+    "post_run_shared_fix": "4e093eba removes only transient task_id from initial workspace identity and strengthens the same model's general referee-style self-check. 18ca1283 keeps paper and knowledge scouting but skips Lean declaration retrieval for explicit formal=not_applicable tasks. Neither adds a model call, retry, turn, submission, task formula, content repair, agent, scheduler, or model-tier escalation.",
     "formalization_status": "not_applicable by task intent; no Lean work was scheduled and formalization was not the bottleneck",
     "component_result": "0/1 passed",
     "fresh_unrelated_task_live_run": true,
@@ -263,7 +264,7 @@
       "the research ladder has seven active gold-configured tasks but zero passing tasks",
       "fresh Model-X Gaussian L2 v1 wrote a source-grounded 13,130-byte Markdown theory workspace and requested same-owner continuation, but the frozen run stopped before independent review, code, or simulation because transient task identity contaminated the continuation binding",
       "the unaccepted Model-X document independently exhibits substantive errors in covariance algebra, arbitrary-coordinate swap reasoning, and the conditional-covariance PSD argument; the post-run self-review prompt and continuation fix have regression evidence only and cannot repair or rescore it",
-      "the non-formal Model-X paper-to-code path still spent its RetrievalMemory stage on broad formal-library declaration search even though formalization was not applicable; literature scouting should remain available while Lean retrieval becomes model-justified rather than a default payload",
+      "the frozen non-formal Model-X paper-to-code path spent its RetrievalMemory stage on broad formal-library declaration search even though formalization was not applicable; the post-run task-intent skip has regression evidence only and cannot change that run",
       "fresh Student-t L0 v1 completed runtime theory, code, simulation, and Critic stages and passed hidden algorithm 7/7 plus empirical 6/6 checks, but its hidden theory semantic evaluator failed closed before a verdict, so the full task remains 0/1",
       "the Student-t independent preflight accepted after reading the full candidate derivation but searched only irrelevant formal-library sources; the post-run task-bound research-source tools have deterministic evidence only and did not execute in that frozen run",
       "the Student-t metric author expanded one requested coverage target into five required gates and 4,880 runtime estimator calls; the post-run minimal-portfolio prompt change has regression evidence only and no hardcoded cardinality enforcement",
@@ -312,20 +313,20 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24973,
+    "research_agent_runtime_lines": 24994,
     "theory_workspace_lines": 3113,
     "research_architect_lines": 5198,
     "formalizer_llm_lines": 2387,
     "agent_runtime_lines": 1207,
     "cli_lines": 7070,
     "top_level_python_modules": 141,
-    "top_level_package_lines": 141927,
+    "top_level_package_lines": 141948,
     "latest_runtime_manifest_bytes": 60798
   },
   "next_gates": [
     "Do not rerun Model-X L2, HC0, KM, DoubleML L1, quantile-CLT L0, James-Stein L0, or Student-t L0 merely for another model or evaluator draw. Keep every frozen failure as a capability diagnosis and do not manually complete, repair, or rescore any candidate artifact.",
     "Treat Model-X v1 as two separate failures: the shared continuation identity defect is regression-fixed, while the model-authored mathematical defects remain unaccepted. Validate continuation and referee-style self-check only on a future unrelated benchmark frozen before its first model call.",
-    "Simplify RetrievalMemory before another product live draw: keep paper, code, data, and general knowledge scouting available, but do not automatically build and persist broad Lean declaration context for a task whose frozen formal requirement is not_applicable unless the model explicitly requests a light formal scout.",
+    "On a future unrelated product task, verify that the task-intent RetrievalMemory simplification removes irrelevant Lean calls without reducing paper or general knowledge discovery. The frozen Model-X run is not rerun to establish that live evidence.",
     "Keep Student-t's evidence vector split: runtime research completion plus hidden algorithm and empirical passes are real component evidence, but the absent hidden theory semantic verdict keeps the full task at 0/1. The safe evaluator phase code and smaller calibration packet cannot retroactively supply that verdict.",
     "Evaluate task-bound source-grounded preflight only on a future unrelated benchmark frozen before its first model call. The same reviewer now has exact research-source search/read tools, but deterministic tool-loop evidence does not establish that Haiku will find, interpret, or judge the right passage.",
     "Require the next confirmatory metric portfolio to preserve the declared scientific-claim granularity. Extra stress scenarios may remain exploratory or become one model-authored vector measurement; do not add a runtime cardinality rule or rerun Student-t to test prompt luck.",
