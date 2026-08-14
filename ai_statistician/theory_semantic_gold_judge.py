@@ -79,6 +79,89 @@ THEORY_SEMANTIC_GOLD_JUDGE_SCHEMA: dict[str, Any] = {
 }
 
 
+def _generate_semantic_assessment_batch(
+    *,
+    provider: GeneratorBackend,
+    task_id: str,
+    visible_question: Mapping[str, Any],
+    reference_documents: Sequence[Mapping[str, Any]],
+    rubric: Mapping[str, Any],
+    document_cases: Sequence[Mapping[str, Any]],
+    required_case_ids: Sequence[str],
+    claim_ids: Sequence[str],
+    model: str,
+    model_tier: str,
+    max_tokens: int,
+    artifact_role: str,
+    phase: str,
+) -> tuple[dict[str, Any], Any]:
+    payload = {
+        "task": {
+            "id": task_id,
+            "visible_question": deepcopy(dict(visible_question)),
+            "semantic_artifact_role": artifact_role,
+        },
+        "reference_documents": deepcopy(list(reference_documents)),
+        "claim_rubric": deepcopy(dict(rubric)),
+        "document_cases": deepcopy(list(document_cases)),
+        "required_document_case_ids": list(required_case_ids),
+        "required_claim_ids": list(claim_ids),
+        "adjudication_phase": phase,
+        "boundary": THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY,
+    }
+    request = GeneratorRequest(
+        system_prompt=(
+            "You are an independent scientific-document adjudicator. Compare every "
+            "document set with the reference and claim rubric at the level of "
+            "statistical and mathematical meaning. Accept equivalent notation and "
+            "algebra. For each rubric claim, inspect the complete endorsed derivation, "
+            "including intermediate displayed equations and dependencies; a correct "
+            "final conclusion does not cancel a false, circular, or unsupported step. "
+            "Reject contradictory assumptions, incorrect method identification, "
+            "unjustified limits, unsupported source/result claims, or evidence-authority "
+            "violations. Do not grade wording, formatting, or keyword overlap. "
+            "Reconstruct decisive equations or counterexamples when needed. Calibration "
+            "cases are unlabeled, and the candidate phase contains no calibration cases. "
+            "Think through the comparison, but return only case IDs, overall statuses, "
+            "claim IDs, and claim statuses, with no rationale or commentary. Return "
+            "exactly one assessment for every required case and claim without omission "
+            "or duplication. Do not infer a desired label from case order."
+        ),
+        user_prompt=json.dumps(payload, ensure_ascii=False, default=str),
+        model=model,
+        max_tokens=max_tokens,
+        temperature=0.0,
+        schema=THEORY_SEMANTIC_GOLD_JUDGE_SCHEMA,
+        metadata={
+            "subsystem": (
+                "TheorySemanticGoldJudge"
+                if artifact_role == "theory"
+                else "ScientificDocumentSemanticGoldJudge"
+            ),
+            "semantic_artifact_role": artifact_role,
+            "semantic_adjudication_phase": phase,
+            "provider_name": str(getattr(provider, "provider_name", "") or ""),
+            "model_tier": model_tier,
+            PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY: True,
+        },
+    )
+    response = provider.generate(request)
+    packet = extract_json_object(
+        response.text,
+        label=f"hidden {phase} semantic gold judgment",
+    )
+    errors = validate_theory_semantic_gold_judgment(
+        packet,
+        claim_ids=claim_ids,
+        required_case_ids=required_case_ids,
+    )
+    if errors:
+        raise ValueError(
+            f"invalid hidden {phase} semantic judgment: " + "; ".join(errors)
+        )
+    return packet, response
+
+
 def run_theory_semantic_gold_judge(
     *,
     provider: GeneratorBackend,
@@ -93,87 +176,37 @@ def run_theory_semantic_gold_judge(
     max_tokens: int = 6000,
     semantic_artifact_role: str = "theory",
 ) -> dict[str, Any]:
-    """Judge one frozen scientific document only after hidden-case calibration."""
+    """Judge one frozen document after an isolated hidden-case calibration."""
 
     artifact_role = str(semantic_artifact_role).strip()
     if not artifact_role:
         raise ValueError("semantic artifact role must be nonempty")
     claim_ids = _rubric_claim_ids(rubric)
     case_ids = _calibration_case_ids(calibration_cases)
-    prompt_cases = [
-        {
-            "case_id": str(row["case_id"]),
-            "documents": deepcopy(list(row.get("documents", []) or [])),
-        }
-        for row in calibration_cases
-    ]
-    payload = {
-        "task": {
-            "id": task_id,
-            "visible_question": deepcopy(dict(visible_question)),
-            "semantic_artifact_role": artifact_role,
-        },
-        "reference_documents": deepcopy(list(reference_documents)),
-        "claim_rubric": deepcopy(dict(rubric)),
-        "unlabeled_calibration_cases": prompt_cases,
-        "candidate": {
-            "case_id": "candidate",
-            "documents": deepcopy(list(candidate_documents)),
-        },
-        "required_document_case_ids": [*case_ids, "candidate"],
-        "required_claim_ids": claim_ids,
-        "boundary": THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY,
-    }
-    request = GeneratorRequest(
-        system_prompt=(
-            "You are an independent scientific-document adjudicator. Compare each "
-            "document set with the reference and claim rubric at the level of "
-            "statistical and mathematical meaning. Accept equivalent notation and "
-            "algebra. Reject contradictory assumptions, false equations, incorrect "
-            "method identification, unjustified limits, source/result claims not "
-            "supported by the supplied authority, or evidence-authority violations. "
-            "Do not grade wording, formatting, or keyword overlap. Reconstruct "
-            "decisive equations or counterexamples when needed. Calibration cases "
-            "are deliberately unlabeled. Think through the comparison, but keep the "
-            "returned object minimal: output only case IDs, overall statuses, claim "
-            "IDs, and claim statuses, with no rationale, evidence text, or commentary. "
-            "Return exactly one assessment for every required calibration case ID and "
-            "every required claim ID, without omission or duplication. Do not infer a "
-            "desired label from case order."
-        ),
-        user_prompt=json.dumps(payload, ensure_ascii=False, default=str),
-        model=model,
-        max_tokens=max_tokens,
-        temperature=0.0,
-        schema=THEORY_SEMANTIC_GOLD_JUDGE_SCHEMA,
-        metadata={
-            "subsystem": (
-                "TheorySemanticGoldJudge"
-                if artifact_role == "theory"
-                else "ScientificDocumentSemanticGoldJudge"
-            ),
-            "semantic_artifact_role": artifact_role,
-            "provider_name": str(getattr(provider, "provider_name", "") or ""),
-            "model_tier": model_tier,
-            PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY: True,
-        },
-    )
-    response = provider.generate(request)
-    packet = extract_json_object(
-        response.text,
-        label="hidden theory semantic gold judgment",
-    )
-    errors = validate_theory_semantic_gold_judgment(
-        packet,
+    calibration_packet, calibration_response = _generate_semantic_assessment_batch(
+        provider=provider,
+        task_id=task_id,
+        visible_question=visible_question,
+        reference_documents=reference_documents,
+        rubric=rubric,
+        document_cases=[
+            {
+                "case_id": str(row["case_id"]),
+                "documents": deepcopy(list(row.get("documents", []) or [])),
+            }
+            for row in calibration_cases
+        ],
+        required_case_ids=case_ids,
         claim_ids=claim_ids,
-        calibration_case_ids=case_ids,
+        model=model,
+        model_tier=model_tier,
+        max_tokens=max_tokens,
+        artifact_role=artifact_role,
+        phase="calibration",
     )
-    if errors:
-        raise ValueError("invalid hidden theory semantic judgment: " + "; ".join(errors))
-
     assessment_by_case = {
         str(row["case_id"]): str(row["status"])
-        for row in packet["assessments"]
+        for row in calibration_packet["assessments"]
     }
     expected_by_case = {
         str(row["case_id"]): str(row["expected_status"])
@@ -189,9 +222,27 @@ def run_theory_semantic_gold_judge(
     calibrated = bool(
         calibration_results and all(row["correct"] for row in calibration_results)
     )
-    candidate_assessment = next(
-        row for row in packet["assessments"] if row["case_id"] == "candidate"
+    candidate_packet, candidate_response = _generate_semantic_assessment_batch(
+        provider=provider,
+        task_id=task_id,
+        visible_question=visible_question,
+        reference_documents=reference_documents,
+        rubric=rubric,
+        document_cases=[
+            {
+                "case_id": "candidate",
+                "documents": deepcopy(list(candidate_documents)),
+            }
+        ],
+        required_case_ids=["candidate"],
+        claim_ids=claim_ids,
+        model=model,
+        model_tier=model_tier,
+        max_tokens=max_tokens,
+        artifact_role=artifact_role,
+        phase="candidate",
     )
+    candidate_assessment = candidate_packet["assessments"][0]
     candidate_status = str(candidate_assessment["status"])
     passed = bool(calibrated and candidate_status == "PASS")
     body = {
@@ -202,9 +253,15 @@ def run_theory_semantic_gold_judge(
         ),
         "semantic_artifact_role": artifact_role,
         "task_id_hash": stable_hash(task_id),
-        "provider": str(response.provider or getattr(provider, "provider_name", "")),
-        "model": str(response.model or model),
+        "provider": str(
+            candidate_response.provider
+            or calibration_response.provider
+            or getattr(provider, "provider_name", "")
+        ),
+        "model": str(candidate_response.model or calibration_response.model or model),
         "model_tier": model_tier,
+        "n_model_calls": 2,
+        "calibration_candidate_context_isolated": True,
         "rubric_hash": stable_hash(rubric),
         "reference_documents_hash": stable_hash(reference_documents),
         "candidate_documents_hash": stable_hash(candidate_documents),
@@ -221,7 +278,18 @@ def run_theory_semantic_gold_judge(
             candidate_assessment
         ),
         "passed": passed,
-        "raw_response_fingerprint": stable_hash(response.text),
+        "calibration_raw_response_fingerprint": stable_hash(
+            calibration_response.text
+        ),
+        "candidate_raw_response_fingerprint": stable_hash(
+            candidate_response.text
+        ),
+        "raw_response_fingerprint": stable_hash(
+            {
+                "calibration": calibration_response.text,
+                "candidate": candidate_response.text,
+            }
+        ),
         "proof_evidence_status": "SEMANTIC_GOLD_JUDGMENT_NOT_PROOF_EVIDENCE",
         "boundary": THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY,
     }
@@ -233,13 +301,18 @@ def validate_theory_semantic_gold_judgment(
     packet: Mapping[str, Any],
     *,
     claim_ids: Sequence[str],
-    calibration_case_ids: Sequence[str],
+    calibration_case_ids: Sequence[str] = (),
+    required_case_ids: Sequence[str] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     assessments = packet.get("assessments", [])
     if not isinstance(assessments, list):
         return ["assessments must be an array"]
-    expected_case_ids = [*calibration_case_ids, "candidate"]
+    expected_case_ids = (
+        list(required_case_ids)
+        if required_case_ids is not None
+        else [*calibration_case_ids, "candidate"]
+    )
     observed_case_ids = [
         str(row.get("case_id", "") or "")
         for row in assessments

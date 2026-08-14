@@ -47,17 +47,32 @@ def _packet(*, misclassify_second_case: bool = False) -> dict[str, object]:
     }
 
 
+def _calibration_packet(
+    *, misclassify_second_case: bool = False
+) -> dict[str, object]:
+    return {
+        "assessments": _packet(
+            misclassify_second_case=misclassify_second_case
+        )["assessments"][:2]
+    }
+
+
+def _candidate_packet() -> dict[str, object]:
+    return {"assessments": [_assessment("candidate")]}
+
+
 class _RecordingProvider:
     provider_name = "static"
 
-    def __init__(self, packet: dict[str, object]) -> None:
-        self.packet = packet
-        self.request = None
+    def __init__(self, packets: list[dict[str, object]]) -> None:
+        self.packets = packets
+        self.requests = []
 
     def generate(self, request):
-        self.request = request
+        packet = self.packets[len(self.requests)]
+        self.requests.append(request)
         return GeneratorResponse(
-            text=json.dumps(self.packet),
+            text=json.dumps(packet),
             provider=self.provider_name,
             model=request.model,
         )
@@ -102,7 +117,7 @@ def _run(
 
 
 def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
-    provider = _RecordingProvider(_packet())
+    provider = _RecordingProvider([_calibration_packet(), _candidate_packet()])
 
     result = _run(provider)
 
@@ -110,13 +125,37 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
     assert result["candidate_status"] == "PASS"
     assert result["passed"] is True
     assert result["n_calibration_cases_correct"] == 2
-    assert provider.request.model == LIVE_EVALUATION_CLAUDE_MODEL
-    assert provider.request.metadata["model_tier"] == "haiku"
-    assert "expected_status" not in provider.request.user_prompt
+    assert result["n_model_calls"] == 2
+    assert result["calibration_candidate_context_isolated"] is True
+    assert len(provider.requests) == 2
+    assert all(
+        request.model == LIVE_EVALUATION_CLAUDE_MODEL
+        for request in provider.requests
+    )
+    assert all(
+        request.metadata["model_tier"] == "haiku"
+        for request in provider.requests
+    )
+    assert "expected_status" not in provider.requests[0].user_prompt
+    assert '"case_id": "candidate"' not in provider.requests[0].user_prompt
+    assert '"case_id": "case:a"' not in provider.requests[1].user_prompt
+    assert provider.requests[0].metadata["semantic_adjudication_phase"] == (
+        "calibration"
+    )
+    assert provider.requests[1].metadata["semantic_adjudication_phase"] == (
+        "candidate"
+    )
 
 
 def test_candidate_pass_cannot_override_failed_calibration() -> None:
-    result = _run(_RecordingProvider(_packet(misclassify_second_case=True)))
+    result = _run(
+        _RecordingProvider(
+            [
+                _calibration_packet(misclassify_second_case=True),
+                _candidate_packet(),
+            ]
+        )
+    )
 
     assert result["semantic_judge_calibrated"] is False
     assert result["candidate_status"] == "PASS"
@@ -125,16 +164,19 @@ def test_candidate_pass_cannot_override_failed_calibration() -> None:
 
 
 def test_theory_role_preserves_existing_judgment_contract() -> None:
-    provider = _RecordingProvider(_packet())
+    provider = _RecordingProvider([_calibration_packet(), _candidate_packet()])
 
     result = _run(provider)
 
     assert result["artifact_kind"] == "HiddenTheorySemanticGoldJudgment"
-    assert provider.request.metadata["subsystem"] == "TheorySemanticGoldJudge"
+    assert all(
+        request.metadata["subsystem"] == "TheorySemanticGoldJudge"
+        for request in provider.requests
+    )
 
 
 def test_semantic_judge_records_scientific_document_role() -> None:
-    provider = _RecordingProvider(_packet())
+    provider = _RecordingProvider([_calibration_packet(), _candidate_packet()])
 
     result = _run(
         provider,
@@ -145,8 +187,10 @@ def test_semantic_judge_records_scientific_document_role() -> None:
         "HiddenScientificDocumentSemanticGoldJudgment"
     )
     assert result["semantic_artifact_role"] == "source_replication_report"
-    assert provider.request.metadata["semantic_artifact_role"] == (
-        "source_replication_report"
+    assert all(
+        request.metadata["semantic_artifact_role"]
+        == "source_replication_report"
+        for request in provider.requests
     )
 
 
