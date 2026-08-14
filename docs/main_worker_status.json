@@ -138,7 +138,7 @@
       "v422_kernel_promotion_diagnosis": "survival produced seven repeated exact-source kernel promotion artifacts across two source hashes, but the runtime reopened semantic review after promotion and eventually exhausted review budget; final panel closure remained 0/2",
       "post_fix_critic_artifact_replay": "using the real v423 707 KB Algorithm manifest and 79 KB Theory packet, the final Critic prompt is 24,404 characters while preserving both artifact IDs and content hashes",
       "post_fix_regression_boundary": "verified-promotion routing, target-bound Critic closure, complete Algorithm workspace acceptance, and compact Critic input have full-suite regression evidence; all seven v422 promoted manifests pass the new linked-promotion replay, but no fresh post-fix panel has yet earned integrated closure credit",
-      "remote_coordination": "after the final 2026-08-13 fetch, origin/main=dc03f8a1 had zero commits absent from local HEAD, no unmerged remote branch was present, and the GitHub connector reported zero open pull requests"
+      "remote_coordination": "The final fetch found zero origin/main commits absent from local history and no unmerged remote branch. Direct pushes aligned origin/main and the working branch to the same history; the latest GitHub connector check reported zero open pull requests."
     },
     "evidence_boundary": "Tests, re-audits, and direct component probes validate mechanisms only. They do not earn integrated theorem-closure credit."
   },
