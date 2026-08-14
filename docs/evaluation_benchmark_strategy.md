@@ -210,8 +210,8 @@ e-process guarantee. Neither task reached Formalizer, so the atomic Lean
 declaration-context improvement still has component evidence only. The held-out
 strict-formal panel remains sealed.
 
-The ladder now has one active component-scored L0 task, White HC0, but zero tasks
-with complete gold coverage. Four exact-Haiku diagnostic runs against the retired
+The ladder now has one active L0 task, White HC0, with private full-task gold
+configured but no passing fresh v2 run. Four exact-Haiku diagnostic runs against the retired
 v1 statement each produced independently accepted estimator source that passed
 all seven hidden reference and metamorphic checks; none completed the empirical
 loop. The fourth theory packet also confused the finite-sample covariance of the
@@ -223,12 +223,16 @@ The corrected v2 statement distinguishes `V_HC0 = O(n^-1)` from
 finite-sample full rank. The evaluator binds every result to the exact visible
 question hash, so the retired v1 runs cannot receive v2 credit. The real evaluator
 bundle is operator-provisioned outside the repository and model-visible workspace;
-the public tree contains only its content hashes and a non-capability unit-test
-fixture. Hidden algorithm checks can now pass the scientific-code dimension, while
-runtime-only theory and empirical reviews are reported as such and cannot pass the
-full task. The next product-evaluation step is to curate evaluator-only theory and
-empirical gold for v2, then run it fresh before activating another unrelated L0 or
-L1 task.
+the public tree contains only its content hashes and non-capability unit-test
+fixtures. The private authority now checks the exact accepted theory packet,
+estimator source, and MCSE-calibrated homoskedastic and heteroskedastic behavior.
+It rejects the retired v4 theory scaling, accepts a corrected reference packet,
+passes an independently implemented estimator on every hidden dimension, runs in
+an ephemeral sandbox, and persists neither evaluator paths nor check identities,
+thresholds, observed values, or harness source. This is evaluator calibration, not
+model capability. The next product-evaluation step is one fresh corrected v2 run
+under unchanged exact-Haiku budgets before activating another unrelated L0 or L1
+task.
 
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same

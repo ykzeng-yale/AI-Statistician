@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import tempfile
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -20,6 +22,7 @@ GOLD_EVALUATION_BOUNDARY = (
     "the blackboard, retrieval context, model prompt, or source-revision loop."
 )
 GoldHarnessRunner = Callable[..., Mapping[str, Any]]
+GoldArtifactHarnessRunner = Callable[..., Mapping[str, Any]]
 
 
 def validate_research_gold_benchmark_manifest(path: Path) -> dict[str, Any]:
@@ -39,6 +42,11 @@ def validate_research_gold_benchmark_manifest(path: Path) -> dict[str, Any]:
         "active_task_ids": [
             str(task["task_id"]) for task in benchmark["active_tasks"]
         ],
+        "n_full_task_gold_configured": sum(
+            str(task.get("scoring_scope", "component") or "component")
+            == "full_task"
+            for task in benchmark["active_tasks"]
+        ),
         "runtime_visibility": "evaluator_only_after_runtime",
         "boundary": GOLD_EVALUATION_BOUNDARY,
     }
@@ -51,8 +59,9 @@ def evaluate_research_gold_benchmark(
     benchmark_manifest_path: Path,
     out_dir: Path,
     run_harness: GoldHarnessRunner | None = None,
+    run_artifact_harness: GoldArtifactHarnessRunner | None = None,
 ) -> dict[str, Any]:
-    """Evaluate accepted model source against hidden post-runtime gold cases."""
+    """Evaluate immutable accepted artifacts against hidden post-runtime gold."""
 
     benchmark_manifest_path = benchmark_manifest_path.resolve()
     benchmark = _load_benchmark_manifest(benchmark_manifest_path)
@@ -74,32 +83,41 @@ def evaluate_research_gold_benchmark(
         and str(row.get("question_id", "") or "").strip()
     }
     harness_runner = run_harness or _run_hidden_scientific_harness
+    artifact_harness_runner = (
+        run_artifact_harness or _run_hidden_artifact_harness
+    )
     task_rows: list[dict[str, Any]] = []
-    for task in benchmark["active_tasks"]:
-        task_rows.append(
-            _evaluate_gold_task(
-                task,
-                runtime_result=result_by_question.get(str(task["task_id"])),
-                research_summary_row=summary_rows.get(str(task["task_id"]), {}),
-                project_root=project_root,
-                out_dir=out_dir,
-                run_harness=harness_runner,
+    with tempfile.TemporaryDirectory(prefix="ai-stat-gold-") as sandbox_value:
+        sandbox_root = Path(sandbox_value)
+        for task in benchmark["active_tasks"]:
+            task_rows.append(
+                _evaluate_gold_task(
+                    task,
+                    runtime_result=result_by_question.get(str(task["task_id"])),
+                    research_summary_row=summary_rows.get(str(task["task_id"]), {}),
+                    project_root=project_root,
+                    sandbox_root=sandbox_root,
+                    run_harness=harness_runner,
+                    run_artifact_harness=artifact_harness_runner,
+                )
             )
-        )
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "artifact_kind": "ResearchCapabilityGoldEvaluation",
         "configured": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "benchmark_id": benchmark["benchmark_id"],
-        "benchmark_manifest_path": str(benchmark_manifest_path),
         "benchmark_manifest_hash": stable_hash(benchmark),
+        "benchmark_authority_location_disclosed": False,
         "gold_visibility": "evaluator_only_after_runtime_termination",
         "n_active_tasks": len(task_rows),
         "n_tasks_evaluated": sum(
             row["hidden_harness_execution_attempted"] is True for row in task_rows
         ),
         "n_tasks_passed": sum(row["task_passed"] is True for row in task_rows),
+        "n_full_task_gold_configured": sum(
+            row["full_task_gold_configured"] is True for row in task_rows
+        ),
         "all_active_tasks_passed": bool(
             task_rows and all(row["task_passed"] for row in task_rows)
         ),
@@ -125,8 +143,9 @@ def _evaluate_gold_task(
     runtime_result: Mapping[str, Any] | None,
     research_summary_row: Mapping[str, Any],
     project_root: Path,
-    out_dir: Path,
+    sandbox_root: Path,
     run_harness: GoldHarnessRunner,
+    run_artifact_harness: GoldArtifactHarnessRunner,
 ) -> dict[str, Any]:
     task_id = str(task["task_id"])
     runtime_requirements = (
@@ -134,9 +153,21 @@ def _evaluate_gold_task(
         if isinstance(research_summary_row.get("requirements", {}), Mapping)
         else {}
     )
+    theory_evaluator = task.get("hidden_theory_evaluator", {})
+    theory_evaluator = (
+        theory_evaluator if isinstance(theory_evaluator, Mapping) else {}
+    )
+    empirical_evaluator = task.get("hidden_empirical_evaluator", {})
+    empirical_evaluator = (
+        empirical_evaluator if isinstance(empirical_evaluator, Mapping) else {}
+    )
     base = {
         "task_id": task_id,
         "level": str(task["level"]),
+        "scoring_scope": str(
+            task.get("scoring_scope", "component") or "component"
+        ),
+        "full_task_gold_configured": _full_task_gold_configured(task),
         "runtime_result_observed": runtime_result is not None,
         "runtime_research_eval_complete": (
             research_summary_row.get("research_eval_complete") is True
@@ -155,6 +186,24 @@ def _evaluate_gold_task(
         "hidden_harness_execution_passed": False,
         "hidden_checks_passed": False,
         "hidden_check_results": [],
+        "accepted_theory_packet_id": "",
+        "accepted_theory_packet_hash": "",
+        "hidden_theory_evaluation_configured": bool(theory_evaluator),
+        "hidden_theory_evaluator_source_hash": str(
+            theory_evaluator.get("harness_sha256", "") or ""
+        ),
+        "hidden_theory_execution_attempted": False,
+        "hidden_theory_execution_passed": False,
+        "hidden_theory_checks_passed": False,
+        "hidden_theory_check_results": [],
+        "hidden_empirical_evaluation_configured": bool(empirical_evaluator),
+        "hidden_empirical_evaluator_source_hash": str(
+            empirical_evaluator.get("harness_sha256", "") or ""
+        ),
+        "hidden_empirical_execution_attempted": False,
+        "hidden_empirical_execution_passed": False,
+        "hidden_empirical_checks_passed": False,
+        "hidden_empirical_check_results": [],
         "dimension_status": {},
         "task_passed": False,
         "failure_reasons": [],
@@ -167,7 +216,9 @@ def _evaluate_gold_task(
             task,
             runtime_requirements=runtime_requirements,
             runtime_research_eval_complete=False,
+            hidden_theory_passed=False,
             hidden_algorithm_passed=False,
+            hidden_empirical_passed=False,
             runtime_result_observed=False,
         )
         return base
@@ -188,25 +239,84 @@ def _evaluate_gold_task(
             task,
             runtime_requirements=runtime_requirements,
             runtime_research_eval_complete=False,
+            hidden_theory_passed=False,
             hidden_algorithm_passed=False,
+            hidden_empirical_passed=False,
             runtime_result_observed=True,
         )
         return base
 
     artifacts = _runtime_artifacts(runtime_result)
+    hidden_theory_passed = False
+    if theory_evaluator:
+        theory_id, theory_packet, theory_errors = _latest_accepted_theory_packet(
+            artifacts
+        )
+        if theory_errors:
+            base["failure_reasons"].extend(theory_errors)
+        else:
+            base["accepted_theory_packet_id"] = theory_id
+            base["accepted_theory_packet_hash"] = stable_hash(theory_packet)
+            theory_harness_path = _project_path(
+                str(theory_evaluator["harness_path"]),
+                project_root=project_root,
+            )
+            theory_execution = dict(
+                run_artifact_harness(
+                    sandbox_dir=sandbox_root / task_id / "theory",
+                    artifact_id=f"gold-theory-{task_id}",
+                    harness_code=theory_harness_path.read_text(encoding="utf-8"),
+                    harness_dependencies=tuple(
+                        str(value)
+                        for value in theory_evaluator.get("dependencies", []) or []
+                    ),
+                    candidate_artifact=theory_packet,
+                    seed=int(theory_evaluator.get("seed", 0) or 0),
+                    replicates=int(theory_evaluator.get("replicates", 1) or 1),
+                    timeout_s=int(
+                        theory_evaluator.get("timeout_seconds", 60) or 60
+                    ),
+                )
+            )
+            theory_summary = _hidden_execution_summary(
+                theory_execution,
+                evaluator=theory_evaluator,
+            )
+            hidden_theory_passed = theory_summary["passed"]
+            base.update(
+                {
+                    "hidden_theory_execution_attempted": theory_summary[
+                        "execution_attempted"
+                    ],
+                    "hidden_theory_execution_passed": theory_summary[
+                        "execution_passed"
+                    ],
+                    "hidden_theory_result_hash": theory_summary["result_hash"],
+                    "hidden_theory_checks_passed": theory_summary[
+                        "checks_passed"
+                    ],
+                    "hidden_theory_check_results": theory_summary[
+                        "check_results"
+                    ],
+                }
+            )
+            base["failure_reasons"].extend(theory_summary["errors"])
+
     accepted_id, accepted_handoff, errors = _latest_accepted_algorithm_handoff(
         runtime_result,
         artifacts,
     )
     if errors:
-        base["failure_reasons"] = errors
+        base["failure_reasons"].extend(errors)
         base["dimension_status"] = _dimension_status(
             task,
             runtime_requirements=runtime_requirements,
             runtime_research_eval_complete=(
                 research_summary_row.get("research_eval_complete") is True
             ),
+            hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=False,
+            hidden_empirical_passed=False,
             runtime_result_observed=True,
         )
         return base
@@ -222,17 +332,19 @@ def _evaluate_gold_task(
         and str(row.get("estimator_id", "") or "") == estimator_id
     ]
     if len(source_rows) != 1:
-        base["failure_reasons"] = [
+        base["failure_reasons"].append(
             "accepted algorithm handoff does not contain exactly one required "
             f"estimator source: {estimator_id}"
-        ]
+        )
         base["dimension_status"] = _dimension_status(
             task,
             runtime_requirements=runtime_requirements,
             runtime_research_eval_complete=(
                 research_summary_row.get("research_eval_complete") is True
             ),
+            hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=False,
+            hidden_empirical_passed=False,
             runtime_result_observed=True,
         )
         return base
@@ -240,16 +352,18 @@ def _evaluate_gold_task(
     source_code = str(source.get("exact_source_code", "") or "")
     source_hash = str(source.get("exact_source_hash", "") or "")
     if not source_code or source_hash != stable_hash(source_code):
-        base["failure_reasons"] = [
+        base["failure_reasons"].append(
             "accepted estimator source is missing or its immutable hash is invalid"
-        ]
+        )
         base["dimension_status"] = _dimension_status(
             task,
             runtime_requirements=runtime_requirements,
             runtime_research_eval_complete=(
                 research_summary_row.get("research_eval_complete") is True
             ),
+            hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=False,
+            hidden_empirical_passed=False,
             runtime_result_observed=True,
         )
         return base
@@ -262,7 +376,7 @@ def _evaluate_gold_task(
     harness_code = harness_path.read_text(encoding="utf-8")
     execution = dict(
         run_harness(
-            sandbox_dir=out_dir / "gold_sandbox" / task_id,
+            sandbox_dir=sandbox_root / task_id / "algorithm",
             artifact_id=f"gold-{task_id}",
             harness_code=harness_code,
             harness_dependencies=tuple(
@@ -282,73 +396,99 @@ def _evaluate_gold_task(
             timeout_s=int(evaluator.get("timeout_seconds", 60) or 60),
         )
     )
-    execution_attempted = execution.get("execution_attempted") is True
-    execution_passed = bool(
-        execution_attempted
-        and _safe_int(execution.get("returncode"), default=-1) == 0
-        and not execution.get("errors")
-        and not execution.get("estimator_binding_errors")
-        and not execution.get("estimator_runtime_errors")
-        and not execution.get("result_parse_error")
+    algorithm_summary = _hidden_execution_summary(
+        execution,
+        evaluator=evaluator,
+        required_estimator_id=estimator_id,
     )
-    metrics = execution.get("metrics", {})
-    metrics = metrics if isinstance(metrics, Mapping) else {}
-    check_results = [
-        _evaluate_hidden_check(metrics, check)
-        for check in evaluator.get("acceptance_checks", []) or []
-    ]
-    hidden_checks_passed = bool(
-        check_results and all(row["passed"] for row in check_results)
-    )
-    invocation_counts = (
-        execution.get("estimator_invocation_counts", {})
-        if isinstance(execution.get("estimator_invocation_counts", {}), Mapping)
-        else {}
-    )
-    estimator_invocation_count = _safe_int(
-        invocation_counts.get(estimator_id),
-        default=0,
-    )
-    hidden_algorithm_passed = bool(
-        execution_passed
-        and hidden_checks_passed
-        and estimator_invocation_count > 0
-    )
+    hidden_algorithm_passed = algorithm_summary["passed"]
     base.update(
         {
-            "hidden_harness_execution_attempted": execution_attempted,
-            "hidden_harness_execution_passed": execution_passed,
-            "hidden_harness_result_hash": str(
-                execution.get("result_hash", "") or ""
-            ),
-            "hidden_harness_estimator_invocation_count": (
-                estimator_invocation_count
-            ),
-            "hidden_checks_passed": hidden_checks_passed,
-            "hidden_check_results": check_results,
-            "failure_reasons": [
-                str(value)
-                for value in (
-                    execution.get("errors", [])
-                    or execution.get("estimator_binding_errors", [])
-                    or execution.get("estimator_runtime_errors", [])
-                    or (
-                        [str(execution.get("result_parse_error"))]
-                        if execution.get("result_parse_error")
-                        else []
-                    )
-                )
-                if str(value).strip()
+            "hidden_harness_execution_attempted": algorithm_summary[
+                "execution_attempted"
             ],
+            "hidden_harness_execution_passed": algorithm_summary[
+                "execution_passed"
+            ],
+            "hidden_harness_result_hash": algorithm_summary["result_hash"],
+            "hidden_harness_estimator_invocation_count": (
+                algorithm_summary["estimator_invocation_count"]
+            ),
+            "hidden_checks_passed": algorithm_summary["checks_passed"],
+            "hidden_check_results": algorithm_summary["check_results"],
         }
     )
+    base["failure_reasons"].extend(algorithm_summary["errors"])
+
+    hidden_empirical_passed = False
+    if empirical_evaluator:
+        empirical_harness_path = _project_path(
+            str(empirical_evaluator["harness_path"]),
+            project_root=project_root,
+        )
+        empirical_execution = dict(
+            run_harness(
+                sandbox_dir=sandbox_root / task_id / "empirical",
+                artifact_id=f"gold-empirical-{task_id}",
+                harness_code=empirical_harness_path.read_text(encoding="utf-8"),
+                harness_dependencies=tuple(
+                    str(value)
+                    for value in empirical_evaluator.get("dependencies", []) or []
+                ),
+                estimator_binding=ScientificEstimatorBinding(
+                    artifact_id=estimator_id,
+                    language=str(source.get("language", "") or "python"),
+                    code=source_code,
+                    code_hash=source_hash,
+                    dependencies=tuple(
+                        str(value)
+                        for value in source.get("dependencies", []) or []
+                    ),
+                ),
+                seed=int(empirical_evaluator.get("seed", 0) or 0),
+                replicates=int(empirical_evaluator.get("replicates", 1) or 1),
+                timeout_s=int(
+                    empirical_evaluator.get("timeout_seconds", 60) or 60
+                ),
+            )
+        )
+        empirical_summary = _hidden_execution_summary(
+            empirical_execution,
+            evaluator=empirical_evaluator,
+            required_estimator_id=estimator_id,
+        )
+        hidden_empirical_passed = empirical_summary["passed"]
+        base.update(
+            {
+                "hidden_empirical_execution_attempted": empirical_summary[
+                    "execution_attempted"
+                ],
+                "hidden_empirical_execution_passed": empirical_summary[
+                    "execution_passed"
+                ],
+                "hidden_empirical_result_hash": empirical_summary["result_hash"],
+                "hidden_empirical_estimator_invocation_count": (
+                    empirical_summary["estimator_invocation_count"]
+                ),
+                "hidden_empirical_checks_passed": empirical_summary[
+                    "checks_passed"
+                ],
+                "hidden_empirical_check_results": empirical_summary[
+                    "check_results"
+                ],
+            }
+        )
+        base["failure_reasons"].extend(empirical_summary["errors"])
+
     dimensions = _dimension_status(
         task,
         runtime_requirements=runtime_requirements,
         runtime_research_eval_complete=(
             research_summary_row.get("research_eval_complete") is True
         ),
+        hidden_theory_passed=hidden_theory_passed,
         hidden_algorithm_passed=hidden_algorithm_passed,
+        hidden_empirical_passed=hidden_empirical_passed,
         runtime_result_observed=True,
     )
     required_dimensions_passed = all(
@@ -365,6 +505,14 @@ def _evaluate_gold_task(
     if not hidden_algorithm_passed:
         base["failure_reasons"].append(
             "hidden algorithm acceptance checks did not all pass"
+        )
+    if theory_evaluator and not hidden_theory_passed:
+        base["failure_reasons"].append(
+            "hidden theory acceptance checks did not all pass"
+        )
+    if empirical_evaluator and not hidden_empirical_passed:
+        base["failure_reasons"].append(
+            "hidden empirical acceptance checks did not all pass"
         )
     base["failure_reasons"].extend(
         f"required evidence dimension did not pass: {dimension}"
@@ -384,7 +532,9 @@ def _dimension_status(
     *,
     runtime_requirements: Mapping[str, Any],
     runtime_research_eval_complete: bool,
+    hidden_theory_passed: bool,
     hidden_algorithm_passed: bool,
+    hidden_empirical_passed: bool,
     runtime_result_observed: bool,
 ) -> dict[str, dict[str, Any]]:
     intent = task.get("task_intent", {})
@@ -439,9 +589,17 @@ def _dimension_status(
         if requirement == "not_applicable":
             status = "not_applicable"
         elif dimension == "theory" and observed[dimension]:
-            status = "runtime_reviewed_not_gold_validated"
+            status = (
+                "passed"
+                if hidden_theory_passed
+                else "runtime_reviewed_not_gold_validated"
+            )
         elif dimension == "empirical" and observed[dimension]:
-            status = "runtime_accepted_not_gold_validated"
+            status = (
+                "passed"
+                if hidden_empirical_passed
+                else "runtime_accepted_not_gold_validated"
+            )
         elif observed[dimension]:
             status = "passed"
         elif requirement == "optional":
@@ -452,12 +610,21 @@ def _dimension_status(
             "requirement": requirement,
             "status": status,
             "gold_validated": bool(
-                dimension == "scientific_code" and status == "passed"
+                dimension in {"theory", "scientific_code", "empirical"}
+                and status == "passed"
             ),
             "evidence_authority": {
-                "theory": "runtime_independent_review",
+                "theory": (
+                    "evaluator_only_hidden_artifact_harness"
+                    if hidden_theory_passed
+                    else "runtime_independent_review"
+                ),
                 "scientific_code": "evaluator_only_hidden_harness",
-                "empirical": "runtime_confirmatory_protocol",
+                "empirical": (
+                    "evaluator_only_hidden_empirical_harness"
+                    if hidden_empirical_passed
+                    else "runtime_confirmatory_protocol"
+                ),
                 "unresolved_gaps": "runtime_critic_disclosure",
             }.get(dimension, "not_configured"),
         }
@@ -470,11 +637,95 @@ def _dimension_status(
     return rows
 
 
+def _full_task_gold_configured(task: Mapping[str, Any]) -> bool:
+    if str(task.get("scoring_scope", "component") or "component") != "full_task":
+        return False
+    intent = task.get("task_intent", {})
+    if not isinstance(intent, Mapping):
+        return False
+    if str(intent.get("scientific_code", "not_applicable")) == "required" and not (
+        isinstance(task.get("hidden_algorithm_evaluator"), Mapping)
+        and task.get("hidden_algorithm_evaluator")
+    ):
+        return False
+    if str(intent.get("theory", "not_applicable")) == "required" and not (
+        isinstance(task.get("hidden_theory_evaluator"), Mapping)
+        and task.get("hidden_theory_evaluator")
+    ):
+        return False
+    if str(intent.get("empirical", "not_applicable")) == "required" and not (
+        isinstance(task.get("hidden_empirical_evaluator"), Mapping)
+        and task.get("hidden_empirical_evaluator")
+    ):
+        return False
+    return not any(
+        str(intent.get(dimension, "not_applicable")) == "required"
+        for dimension in ("source_replication", "formal", "novelty")
+    )
+
+
+def _hidden_execution_summary(
+    execution: Mapping[str, Any],
+    *,
+    evaluator: Mapping[str, Any],
+    required_estimator_id: str = "",
+) -> dict[str, Any]:
+    execution_attempted = execution.get("execution_attempted") is True
+    errors = [
+        str(value)
+        for field in (
+            "errors",
+            "estimator_binding_errors",
+            "estimator_runtime_errors",
+        )
+        for value in (execution.get(field, []) or [])
+        if str(value).strip()
+    ]
+    if execution.get("result_parse_error"):
+        errors.append(str(execution["result_parse_error"]))
+    execution_passed = bool(
+        execution_attempted
+        and _safe_int(execution.get("returncode"), default=-1) == 0
+        and not errors
+    )
+    metrics = execution.get("metrics", {})
+    metrics = metrics if isinstance(metrics, Mapping) else {}
+    check_results = [
+        _evaluate_hidden_check(metrics, check)
+        for check in evaluator.get("acceptance_checks", []) or []
+    ]
+    checks_passed = bool(
+        check_results and all(row["passed"] for row in check_results)
+    )
+    invocation_counts = execution.get("estimator_invocation_counts", {})
+    invocation_counts = (
+        invocation_counts if isinstance(invocation_counts, Mapping) else {}
+    )
+    invocation_count = (
+        _safe_int(invocation_counts.get(required_estimator_id), default=0)
+        if required_estimator_id
+        else 0
+    )
+    return {
+        "execution_attempted": execution_attempted,
+        "execution_passed": execution_passed,
+        "result_hash": str(execution.get("result_hash", "") or ""),
+        "estimator_invocation_count": invocation_count,
+        "checks_passed": checks_passed,
+        "check_results": check_results,
+        "errors": errors,
+        "passed": bool(
+            execution_passed
+            and checks_passed
+            and (not required_estimator_id or invocation_count > 0)
+        ),
+    }
+
+
 def _evaluate_hidden_check(
     metrics: Mapping[str, Any],
     check: Mapping[str, Any],
 ) -> dict[str, Any]:
-    check_id = str(check.get("check_id", "") or "")
     path = check.get("path", [])
     value, found = _nested_value(metrics, path)
     operator = str(check.get("operator", "") or "")
@@ -497,15 +748,7 @@ def _evaluate_hidden_check(
             and _finite_number(tolerance)
         ):
             passed = abs(float(value) - float(expected)) <= float(tolerance)
-    return {
-        "check_id": check_id,
-        "path": [str(part) for part in path] if isinstance(path, list) else [],
-        "operator": operator,
-        "observed": value if found else None,
-        "observed_hash": stable_hash(value) if found else "",
-        "passed": passed,
-        "expected_value_disclosed": False,
-    }
+    return {"passed": passed}
 
 
 def _nested_value(
@@ -535,6 +778,49 @@ def _safe_int(value: Any, *, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _latest_accepted_theory_packet(
+    artifacts: Mapping[str, Any],
+) -> tuple[str, Mapping[str, Any], list[str]]:
+    for acceptance in reversed(list(artifacts.values())):
+        if not (
+            isinstance(acceptance, Mapping)
+            and acceptance.get("artifact_kind")
+            == "RuntimeArchitectTheoryExecutionPreflightAcceptance"
+        ):
+            continue
+        theory_id = str(acceptance.get("source_theory_packet_id", "") or "")
+        theory = artifacts.get(theory_id, {})
+        if not isinstance(theory, Mapping) or not theory:
+            return "", {}, ["accepted theory packet payload is missing"]
+        theory_hash = stable_hash(theory)
+        if theory_hash != str(
+            acceptance.get("source_theory_packet_hash", "") or ""
+        ):
+            return "", {}, ["accepted theory packet hash mismatch"]
+        if not (
+            theory.get("artifact_kind") == "TheoryDerivationPacket"
+            and theory.get("serious_theory_mode") is True
+            and theory.get("packet_id") == theory_id
+        ):
+            return "", {}, ["accepted theory packet identity is invalid"]
+        preflight_id = str(acceptance.get("preflight_packet_id", "") or "")
+        preflight = artifacts.get(preflight_id, {})
+        if not (
+            isinstance(preflight, Mapping)
+            and preflight.get("artifact_kind")
+            == "ArchitectTheoryExecutionPreflightReviewPacket"
+            and stable_hash(preflight)
+            == str(acceptance.get("preflight_packet_hash", "") or "")
+            and preflight.get("source_theory_packet_id") == theory_id
+            and preflight.get("source_theory_packet_hash") == theory_hash
+            and preflight.get("overall_verdict") == "ACCEPT"
+            and not preflight.get("active_unresolved_finding_ids")
+        ):
+            return "", {}, ["accepted theory preflight lineage is invalid"]
+        return theory_id, theory, []
+    return "", {}, ["no independently accepted serious theory packet was observed"]
 
 
 def _latest_accepted_algorithm_handoff(
@@ -632,6 +918,48 @@ def _run_hidden_scientific_harness(
     return execution.to_json()
 
 
+def _run_hidden_artifact_harness(
+    *,
+    sandbox_dir: Path,
+    artifact_id: str,
+    harness_code: str,
+    harness_dependencies: Sequence[str],
+    candidate_artifact: Mapping[str, Any],
+    seed: int,
+    replicates: int,
+    timeout_s: int,
+) -> Mapping[str, Any]:
+    candidate_json = json.dumps(
+        candidate_artifact,
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
+    compressed_candidate = zlib.compress(candidate_json.encode("utf-8"), level=9)
+    executable_code = (
+        "import json as _gold_json\n"
+        + "import zlib as _gold_zlib\n"
+        + harness_code.rstrip()
+        + "\n\n_gold_candidate = _gold_json.loads(_gold_zlib.decompress("
+        + repr(compressed_candidate)
+        + ").decode('utf-8'))\n"
+        + "def run_sandbox(seed, replicates):\n"
+        + "    return evaluate_artifact(\n"
+        + "        _gold_candidate, seed=seed, replicates=replicates\n"
+        + "    )\n"
+    )
+    execution = execute_scientific_sandbox(
+        sandbox_dir=sandbox_dir,
+        artifact_id=artifact_id,
+        language="python",
+        code=executable_code,
+        dependencies=harness_dependencies,
+        seed=seed,
+        replicates=replicates,
+        timeout_s=timeout_s,
+    )
+    return execution.to_json()
+
+
 def _load_benchmark_manifest(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -713,6 +1041,13 @@ def _validate_benchmark_manifest(
         observed_ids.add(task_id)
         if task.get("status") != "active_scored":
             errors.append(f"active task {index} status must be active_scored")
+        scoring_scope = str(
+            task.get("scoring_scope", "component") or "component"
+        )
+        if scoring_scope not in {"component", "full_task"}:
+            errors.append(
+                f"active task {index} scoring_scope must be component or full_task"
+            )
         visible_question = visible_questions.get(task_id, {})
         visible_runtime_payload = {
             key: visible_question.get(key)
@@ -732,49 +1067,121 @@ def _validate_benchmark_manifest(
             for value in intent.values()
         ):
             errors.append(f"active task {index} task_intent has an invalid requirement")
-        evaluator = task.get("hidden_algorithm_evaluator", {})
-        if not isinstance(evaluator, Mapping):
-            errors.append(f"active task {index} hidden evaluator must be an object")
-            continue
-        harness_path = _project_path(
-            str(evaluator.get("harness_path", "") or ""),
-            project_root=project_root,
+        algorithm_evaluator = task.get("hidden_algorithm_evaluator", {})
+        if not isinstance(algorithm_evaluator, Mapping) or not algorithm_evaluator:
+            errors.append(
+                f"active task {index} hidden_algorithm_evaluator must be an object"
+            )
+            algorithm_evaluator = {}
+        else:
+            errors.extend(
+                _hidden_evaluator_validation_errors(
+                    algorithm_evaluator,
+                    task_index=index,
+                    label="algorithm",
+                    project_root=project_root,
+                    require_estimator=True,
+                )
+            )
+        algorithm_estimator_id = str(
+            algorithm_evaluator.get("required_estimator_id", "") or ""
         )
-        if not harness_path.is_file():
-            errors.append(f"active task {index} hidden harness is missing")
-        elif _file_sha256(harness_path) != str(
-            evaluator.get("harness_sha256", "") or ""
+        for field, label, require_estimator in (
+            ("hidden_theory_evaluator", "theory", False),
+            ("hidden_empirical_evaluator", "empirical", True),
         ):
-            errors.append(f"active task {index} hidden harness hash mismatch")
-        if not str(evaluator.get("required_estimator_id", "") or "").strip():
-            errors.append(f"active task {index} required_estimator_id is missing")
-        checks = evaluator.get("acceptance_checks", [])
-        if not isinstance(checks, list) or not checks:
-            errors.append(f"active task {index} acceptance_checks are missing")
-        for check_index, check in enumerate(checks or []):
-            if not isinstance(check, Mapping):
+            evaluator = task.get(field)
+            if evaluator is None:
+                continue
+            if not isinstance(evaluator, Mapping) or not evaluator:
                 errors.append(
-                    f"active task {index} check {check_index} must be an object"
+                    f"active task {index} {field} must be a nonempty object"
                 )
                 continue
-            if str(check.get("operator", "") or "") not in {
-                "eq",
-                "le",
-                "ge",
-                "approx",
-            }:
-                errors.append(
-                    f"active task {index} check {check_index} has unsupported operator"
+            errors.extend(
+                _hidden_evaluator_validation_errors(
+                    evaluator,
+                    task_index=index,
+                    label=label,
+                    project_root=project_root,
+                    require_estimator=require_estimator,
                 )
-            if not isinstance(check.get("path"), list) or not check.get("path"):
+            )
+            if require_estimator and str(
+                evaluator.get("required_estimator_id", "") or ""
+            ) != algorithm_estimator_id:
                 errors.append(
-                    f"active task {index} check {check_index} path is invalid"
+                    f"active task {index} empirical evaluator estimator identity "
+                    "must match the algorithm evaluator"
+                )
+        if scoring_scope == "full_task":
+            if not _full_task_gold_configured(task):
+                errors.append(
+                    f"active task {index} full_task scoring lacks hidden gold "
+                    "for a required substantive dimension"
                 )
     if errors:
         raise ValueError(
             f"invalid gold benchmark manifest {manifest_path}: "
             + "; ".join(errors)
         )
+
+
+def _hidden_evaluator_validation_errors(
+    evaluator: Mapping[str, Any],
+    *,
+    task_index: int,
+    label: str,
+    project_root: Path,
+    require_estimator: bool,
+) -> list[str]:
+    errors: list[str] = []
+    harness_path = _project_path(
+        str(evaluator.get("harness_path", "") or ""),
+        project_root=project_root,
+    )
+    if not harness_path.is_file():
+        errors.append(f"active task {task_index} hidden {label} harness is missing")
+    elif _file_sha256(harness_path) != str(
+        evaluator.get("harness_sha256", "") or ""
+    ):
+        errors.append(
+            f"active task {task_index} hidden {label} harness hash mismatch"
+        )
+    if require_estimator and not str(
+        evaluator.get("required_estimator_id", "") or ""
+    ).strip():
+        errors.append(
+            f"active task {task_index} {label} required_estimator_id is missing"
+        )
+    checks = evaluator.get("acceptance_checks", [])
+    if not isinstance(checks, list) or not checks:
+        errors.append(
+            f"active task {task_index} {label} acceptance_checks are missing"
+        )
+        checks = []
+    for check_index, check in enumerate(checks):
+        if not isinstance(check, Mapping):
+            errors.append(
+                f"active task {task_index} {label} check {check_index} "
+                "must be an object"
+            )
+            continue
+        if str(check.get("operator", "") or "") not in {
+            "eq",
+            "le",
+            "ge",
+            "approx",
+        }:
+            errors.append(
+                f"active task {task_index} {label} check {check_index} "
+                "has unsupported operator"
+            )
+        if not isinstance(check.get("path"), list) or not check.get("path"):
+            errors.append(
+                f"active task {task_index} {label} check {check_index} path is invalid"
+            )
+    return errors
 
 
 def _project_path(value: str, *, project_root: Path) -> Path:

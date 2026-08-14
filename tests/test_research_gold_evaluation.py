@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -127,6 +128,38 @@ def _runtime_result(*, include_handoff: bool = True) -> dict:
     }
 
 
+def _runtime_result_with_accepted_theory() -> dict:
+    result = _runtime_result()
+    artifacts = result["blackboard"]["artifacts"]
+    theory_id = "theory_derivation:test"
+    preflight_id = "architect_theory_execution_preflight:test"
+    acceptance_id = "architect_theory_execution_preflight_acceptance:test"
+    theory = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_id,
+        "serious_theory_mode": True,
+        "theory_derivation_packet": {"mock_claim": "candidate-owned content"},
+    }
+    preflight = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+        "source_theory_packet_id": theory_id,
+        "source_theory_packet_hash": stable_hash(theory),
+        "overall_verdict": "ACCEPT",
+        "active_unresolved_finding_ids": [],
+    }
+    acceptance = {
+        "artifact_kind": "RuntimeArchitectTheoryExecutionPreflightAcceptance",
+        "source_theory_packet_id": theory_id,
+        "source_theory_packet_hash": stable_hash(theory),
+        "preflight_packet_id": preflight_id,
+        "preflight_packet_hash": stable_hash(preflight),
+    }
+    artifacts[theory_id] = theory
+    artifacts[preflight_id] = preflight
+    artifacts[acceptance_id] = acceptance
+    return result
+
+
 def _research_summary() -> dict:
     return {
         "rows": [
@@ -173,8 +206,78 @@ def _passing_harness(**kwargs) -> dict:
             "response_scale_equivariance_error": 0.0,
             "exact_fit_error": 0.0,
             "all_outputs_finite": True,
+            "empirical_gold_ok": True,
         },
     }
+
+
+def _passing_artifact_harness(**kwargs) -> dict:
+    candidate = kwargs["candidate_artifact"]
+    assert candidate["artifact_kind"] == "TheoryDerivationPacket"
+    return {
+        "execution_attempted": True,
+        "returncode": 0,
+        "errors": [],
+        "estimator_binding_errors": [],
+        "estimator_runtime_errors": [],
+        "result_parse_error": "",
+        "result_hash": "hidden-theory-result-hash",
+        "metrics": {"theory_gold_ok": True},
+    }
+
+
+def _fixture_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _full_task_gold_manifest(tmp_path: Path) -> Path:
+    manifest = json.loads(GOLD_MANIFEST.read_text())
+    task = manifest["active_tasks"][0]
+    task["scoring_scope"] = "full_task"
+    theory_harness = Path(
+        "tests/fixtures/research_gold/mock_theory_harness.py"
+    )
+    empirical_harness = Path(
+        "tests/fixtures/research_gold/mock_empirical_harness.py"
+    )
+    task["hidden_theory_evaluator"] = {
+        "harness_path": str(theory_harness),
+        "harness_sha256": _fixture_sha256(theory_harness),
+        "language": "python",
+        "dependencies": [],
+        "seed": 1,
+        "replicates": 1,
+        "timeout_seconds": 10,
+        "acceptance_checks": [
+            {
+                "check_id": "private_theory_check",
+                "path": ["theory_gold_ok"],
+                "operator": "eq",
+                "expected": True,
+            }
+        ],
+    }
+    task["hidden_empirical_evaluator"] = {
+        "required_estimator_id": "est_ols_hc0_covariance",
+        "harness_path": str(empirical_harness),
+        "harness_sha256": _fixture_sha256(empirical_harness),
+        "language": "python",
+        "dependencies": [],
+        "seed": 2,
+        "replicates": 25,
+        "timeout_seconds": 10,
+        "acceptance_checks": [
+            {
+                "check_id": "private_empirical_check",
+                "path": ["empirical_gold_ok"],
+                "operator": "eq",
+                "expected": True,
+            }
+        ],
+    }
+    path = tmp_path / "full-task-gold.json"
+    path.write_text(json.dumps(manifest))
+    return path
 
 
 def test_gold_evaluator_scores_only_accepted_exact_source(tmp_path: Path) -> None:
@@ -206,15 +309,75 @@ def test_gold_evaluator_scores_only_accepted_exact_source(tmp_path: Path) -> Non
         "required evidence dimension did not pass: theory",
         "required evidence dimension did not pass: empirical",
     ]
-    assert all(
-        row["expected_value_disclosed"] is False
-        for row in task["hidden_check_results"]
-    )
+    assert all(set(row) == {"passed"} for row in task["hidden_check_results"])
     persisted = json.loads(
         (tmp_path / "research_capability_gold_evaluation.json").read_text()
     )
     assert persisted["hidden_expected_values_disclosed"] is False
     assert persisted["runtime_feedback_generated"] is False
+    assert persisted["benchmark_authority_location_disclosed"] is False
+    assert "benchmark_manifest_path" not in persisted
+    assert not (tmp_path / "gold_sandbox").exists()
+    serialized = json.dumps(persisted)
+    assert "all_hidden_cases_pass" not in serialized
+    assert "direct_reference_accuracy" not in serialized
+    assert '"operator"' not in serialized
+    assert '"observed"' not in serialized
+
+
+def test_full_task_gold_requires_every_substantive_hidden_authority(
+    tmp_path: Path,
+) -> None:
+    manifest = json.loads(GOLD_MANIFEST.read_text())
+    manifest["active_tasks"][0]["scoring_scope"] = "full_task"
+    path = tmp_path / "incomplete-full-task.json"
+    path.write_text(json.dumps(manifest))
+
+    with pytest.raises(ValueError, match="full_task scoring lacks hidden gold"):
+        validate_research_gold_benchmark_manifest(path)
+
+
+def test_full_task_pass_requires_hidden_theory_code_and_empirical_checks(
+    tmp_path: Path,
+) -> None:
+    manifest = _full_task_gold_manifest(tmp_path)
+    sandbox_paths: list[Path] = []
+
+    def scientific_runner(**kwargs) -> dict:
+        sandbox_paths.append(Path(kwargs["sandbox_dir"]))
+        return _passing_harness(**kwargs)
+
+    def artifact_runner(**kwargs) -> dict:
+        sandbox_paths.append(Path(kwargs["sandbox_dir"]))
+        return _passing_artifact_harness(**kwargs)
+
+    result = evaluate_research_gold_benchmark(
+        [_runtime_result_with_accepted_theory()],
+        research_evaluation_summary=_research_summary(),
+        benchmark_manifest_path=manifest,
+        out_dir=tmp_path / "out",
+        run_harness=scientific_runner,
+        run_artifact_harness=artifact_runner,
+    )
+
+    assert result["n_full_task_gold_configured"] == 1
+    assert result["n_tasks_passed"] == 1
+    assert result["all_active_tasks_passed"] is True
+    task = result["tasks"][0]
+    assert task["full_task_gold_configured"] is True
+    assert task["task_passed"] is True
+    assert task["failure_reasons"] == []
+    assert task["hidden_theory_checks_passed"] is True
+    assert task["hidden_checks_passed"] is True
+    assert task["hidden_empirical_checks_passed"] is True
+    for dimension in ("theory", "scientific_code", "empirical"):
+        assert task["dimension_status"][dimension]["status"] == "passed"
+        assert task["dimension_status"][dimension]["gold_validated"] is True
+    serialized = json.dumps(result)
+    assert "private_theory_check" not in serialized
+    assert "private_empirical_check" not in serialized
+    assert sandbox_paths
+    assert all(not path.exists() for path in sandbox_paths)
 
 
 def test_gold_evaluator_preserves_passed_upstream_dimensions_when_runtime_blocks(
