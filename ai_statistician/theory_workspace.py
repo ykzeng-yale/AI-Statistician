@@ -151,6 +151,7 @@ def run_theory_artifact_workspace(
     task_intent: Mapping[str, str] | None = None,
     workspace_dir: Path | None = None,
     require_document_authority: bool = False,
+    writable_artifact_names: Sequence[str] | None = None,
     prior_changed_artifact_names: Sequence[str] = (),
     prior_changed_document_paths: Sequence[str] = (),
 ) -> TheoryWorkspaceResult:
@@ -229,9 +230,30 @@ def run_theory_artifact_workspace(
         {"artifacts": parent, "documents": parent_documents}
     )
     artifact_names = tuple(sorted({*parent, *read_only}))
-    writable_artifact_names = tuple(sorted(parent))
     parent_shapes = {
         name: _artifact_shape(value) for name, value in parent.items()
+    }
+    selected_writable_names = tuple(
+        sorted(
+            parent
+            if writable_artifact_names is None
+            else {
+                str(name).strip()
+                for name in writable_artifact_names
+                if str(name).strip()
+            }
+        )
+    )
+    unknown_writable_names = sorted(set(selected_writable_names) - set(parent))
+    if unknown_writable_names:
+        raise ValueError(
+            "theory workspace has unknown writable artifacts: "
+            + ", ".join(unknown_writable_names)
+        )
+    if not selected_writable_names:
+        raise ValueError("theory workspace requires a writable artifact")
+    writable_artifact_shapes = {
+        name: parent_shapes[name] for name in selected_writable_names
     }
     prior_artifact_changes = tuple(
         dict.fromkeys(str(name).strip() for name in prior_changed_artifact_names)
@@ -275,7 +297,7 @@ def run_theory_artifact_workspace(
     }
     tools = _theory_workspace_tools(
         artifact_names,
-        parent_shapes,
+        writable_artifact_shapes,
         scratchpad_enabled=scratchpad is not None,
         research_sources_enabled=research_sources is not None,
         research_source_execution_enabled=research_source_execution is not None,
@@ -288,7 +310,7 @@ def run_theory_artifact_workspace(
     ) -> tuple[str, ...]:
         return tuple(
             name
-            for name in writable_artifact_names
+            for name in selected_writable_names
             if stable_hash(artifacts[name]) != stable_hash(parent[name])
         )
 
@@ -818,7 +840,7 @@ def run_theory_artifact_workspace(
                 _replace_theory_workspace_artifacts(
                     state["artifacts"],
                     raw_artifact_writes,
-                    writable_artifact_shapes=parent_shapes,
+                    writable_artifact_shapes=writable_artifact_shapes,
                     allow_empty=True,
                 )
             )
@@ -1328,7 +1350,7 @@ def run_theory_artifact_workspace(
             "byte_size": len(
                 _compact_json(readable_artifact(name)).encode("utf-8")
             ),
-            "writable": name in parent,
+            "writable": name in selected_writable_names,
         }
         for name in artifact_names
     }

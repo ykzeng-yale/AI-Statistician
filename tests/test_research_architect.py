@@ -224,6 +224,36 @@ def test_theory_handoff_requirements_follow_task_intent() -> None:
     assert formal_requirements["formalization_requests"] is True
 
 
+def test_nonformal_revision_keeps_existing_legacy_handoff_model_writable() -> None:
+    question = OpenResearchQuestion(
+        id="nonformal-legacy-handoff",
+        title="Nonformal legacy handoff",
+        description="Continue a document-backed theory from an older packet.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+    artifacts = research_architect_module._empty_theory_core_workspace(
+        file_authority=True
+    )
+    artifacts["theorem_cards"] = [{"id": "legacy-theorem"}]
+
+    writable = research_architect_module._theory_workspace_writable_handoff_names(
+        question=question,
+        formalization_authoring_required=False,
+        artifacts=artifacts,
+    )
+
+    assert writable == (
+        "problem_card",
+        "theory_derivation_packet",
+        "theorem_cards",
+    )
+
+
 def test_source_only_workspace_bypasses_full_theory_packet_contract(
     monkeypatch,
 ) -> None:
@@ -1481,6 +1511,12 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         id="initial_theory_workspace",
         title="Initial theory workspace",
         description="Author initial theory through direct model-owned artifacts.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "required",
+            "empirical": "required",
+            "formal": "required",
+        },
     )
     core_response, theory_documents = _file_authority_theory_fixture(
         _sample_response()
@@ -1601,6 +1637,26 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
     }
+    write_tool = next(
+        tool
+        for tool in first_request.tools
+        if tool.name == THEORY_WORKSPACE_WRITE_TOOL
+    )
+    writable_names = set(
+        write_tool.input_schema["properties"]["writes"]["items"][
+            "properties"
+        ]["artifact_name"]["enum"]
+    )
+    assert {
+        "problem_card",
+        "theory_derivation_packet",
+        "estimator_specs",
+        "theorem_cards",
+        "lemma_cards",
+        "proof_plan",
+        "formalization_requests",
+        "simulation_ademp_spec",
+    } == writable_names
     initial_prompt = str(first_request.messages[0]["content"])
     assert core_response["problem_card"]["dgp"] not in initial_prompt
     assert "Authoritative theory workspace catalog" in initial_prompt
@@ -1754,7 +1810,17 @@ def test_nonformal_initial_workspace_checkpoints_without_theorem_abi() -> None:
     assert packet["formalization_requests"] == []
     assert provider.generator_requests == []
     assert len(provider.tool_requests) == 4
-    initial_prompt = str(provider.tool_requests[0].messages[0]["content"])
+    first_request = provider.tool_requests[0]
+    write_tool = next(
+        tool
+        for tool in first_request.tools
+        if tool.name == THEORY_WORKSPACE_WRITE_TOOL
+    )
+    writable_names = write_tool.input_schema["properties"]["writes"]["items"][
+        "properties"
+    ]["artifact_name"]["enum"]
+    assert writable_names == ["problem_card", "theory_derivation_packet"]
+    initial_prompt = str(first_request.messages[0]["content"])
     assert "required compact handoffs are: problem_card, theory_derivation_packet" in (
         initial_prompt
     )

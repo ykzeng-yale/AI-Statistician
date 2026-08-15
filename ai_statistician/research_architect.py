@@ -3146,6 +3146,39 @@ def _empty_theory_core_workspace(
     return workspace
 
 
+def _theory_workspace_writable_handoff_names(
+    *,
+    question: OpenResearchQuestion,
+    formalization_authoring_required: bool,
+    artifacts: Mapping[str, Any],
+) -> tuple[str, ...]:
+    if not research_dimension_requirements(question.task_intent):
+        return tuple(
+            field
+            for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
+            if field in artifacts
+        )
+    requirements = theory_handoff_requirements(
+        question,
+        formalization_authoring_required=formalization_authoring_required,
+    )
+    selected = {
+        field for field, required in requirements.items() if required
+    }
+    if requirements["theorem_cards"]:
+        selected.add("lemma_cards")
+    selected.update(
+        field
+        for field, value in artifacts.items()
+        if value not in (None, "", [], {})
+    )
+    return tuple(
+        field
+        for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
+        if field in artifacts and field in selected
+    )
+
+
 def _initial_theory_workspace_read_only_artifacts(
     *,
     question: OpenResearchQuestion,
@@ -3855,6 +3888,13 @@ def _generate_initial_theory_artifact_workspace(
         task_intent=question.task_intent,
         workspace_dir=workspace_dir,
         require_document_authority=True,
+        writable_artifact_names=_theory_workspace_writable_handoff_names(
+            question=question,
+            formalization_authoring_required=(
+                formalization_authoring_required
+            ),
+            artifacts=initial_artifacts,
+        ),
         prior_changed_artifact_names=(
             progress_checkpoint.get("changed_artifact_names", [])
             if progress_checkpoint
@@ -4120,6 +4160,13 @@ def _generate_theory_workspace_revision(
         research_source_execution=research_source_execution,
         workspace_dir=workspace_dir,
         require_document_authority=True,
+        writable_artifact_names=_theory_workspace_writable_handoff_names(
+            question=question,
+            formalization_authoring_required=(
+                formalization_authoring_required
+            ),
+            artifacts=initial_artifacts,
+        ),
         prior_changed_artifact_names=(
             progress_checkpoint.get("changed_artifact_names", [])
             if progress_checkpoint
