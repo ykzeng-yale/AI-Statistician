@@ -235,3 +235,62 @@ def test_model_x_l2_hides_author_code_and_freezes_gold_before_first_draw() -> No
         "description"
     ]
     assert "downstream knockoff-filter FDR theorem" in question["description"]
+
+
+def test_horvitz_thompson_l0_freezes_gold_without_embedding_evaluator() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "poisson_horvitz_thompson_total_known_result"
+    )
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "survey_sampling"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "full_task_gold_frozen_before_first_live_draw"
+    )
+    evidence = candidate["activation_evidence"]
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["semantic_calibration_cases"] == 10
+    assert evidence["semantic_calibration_cases_correct"] == 10
+    assert evidence["algorithm_reference_checks"] == "8/8"
+    assert evidence["algorithm_negative_variants_rejected"] == 4
+    assert evidence["full_task_passed"] is False
+    assert candidate["task_intent"] == {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+    assert len(candidate["source_snapshot_hash"]) == 64
+    assert len(candidate["source_manifest_sha256"]) == 64
+    assert len(candidate["gold_manifest_sha256"]) == 64
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert "est_poisson_horvitz_thompson" in question["description"]
+    assert "Lean formalization" in question["description"]
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "reference_estimator.py",
+        "negative_unweighted.py",
+        "negative_hajek.py",
+        "negative_variance_denominator.py",
+        "semantic_reference.md",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible

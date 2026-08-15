@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "poisson_horvitz_thompson_total_known_result",
+      "title": "Design-unbiased Horvitz-Thompson total under Poisson sampling",
+      "description": "Focused L0 known-result evaluation in survey sampling. A finite population U={1,...,N} has fixed real values y_i. The only randomness is the sampling design: independently for each unit, I_i is Bernoulli(pi_i), with known 0<pi_i<=1. The realized sample size is random and may be zero. In an authoritative Markdown/LaTeX theory workspace, derive the Horvitz-Thompson estimator of the finite-population total, prove its design-unbiasedness, derive its exact design variance under independent Poisson inclusion, and derive a design-unbiased estimator of that variance using only sampled units. State every expectation and variance with respect to the sampling design conditional on the fixed finite population. Distinguish the requested total estimator from a self-normalized Hajek estimator and from a superpopulation expectation; do not add asymptotic normality or confidence-interval claims. The required algorithm artifact id is est_poisson_horvitz_thompson. Its run_estimator(request) input contains sample_values and sample_inclusion_probs as equal-length finite numeric arrays for the realized sample. It must return finite numeric total_estimate and variance_estimate, including total_estimate=0 and variance_estimate=0 for an empty realized sample. Use exploratory calculations only for diagnosis, then run one separately frozen confirmatory assessment over repeated independent Poisson samples. That assessment has one joint empirical target: the Monte Carlo mean of total_estimate agrees with the fixed population total, the Monte Carlo variance of total_estimate agrees with the exact design variance, and the Monte Carlo mean of variance_estimate agrees with that same exact variance, with a pre-outcome precision rule or reported Monte Carlo uncertainty. This task contains one estimator theorem, one executable estimator ABI, and one joint empirical target. Exact source-code replication, novelty, Lean formalization, confidence intervals, and asymptotic theory are not applicable.",
+      "tags": [
+        "design-based inference",
+        "finite population",
+        "Horvitz-Thompson",
+        "Poisson sampling",
+        "survey sampling",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "A Generalization of Sampling Without Replacement from a Finite Universe",
+        "authors": [
+          "D. G. Horvitz",
+          "D. J. Thompson"
+        ],
+        "venue": "Journal of the American Statistical Association",
+        "year": 1952,
+        "volume": 47,
+        "issue": 260,
+        "pages": "663-685",
+        "doi": "10.1080/01621459.1952.10483446",
+        "url": "https://doi.org/10.1080/01621459.1952.10483446"
+      }
+    }
+  ]
+}

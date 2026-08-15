@@ -230,7 +230,7 @@ e-process guarantee. Neither task reached Formalizer, so the atomic Lean
 declaration-context improvement still has component evidence only. The held-out
 strict-formal panel remains sealed.
 
-The ladder now has five full-task-gold L0 tasks. White HC0 has one fresh
+The ladder now has six full-task-gold L0 tasks. White HC0 has one fresh
 corrected-v2 exact-Haiku run. v5 ended `BLOCKED`: its accepted estimator
 passed all 7 hidden reference/metamorphic checks and all 6 hidden empirical checks
 across two DGPs and 2,000 estimator calls, but its theory passed only 7 of 11 hidden
@@ -437,6 +437,21 @@ provider call, tool record, or topology payload for that explicit task intent. F
 `optional`, `required`, and legacy tasks retain their prior retrieval behavior. This
 is a task-intent conformance simplification with regression evidence only; it does not
 change the frozen run or remove the Formalizer and Statlib RAG capabilities.
+
+An unrelated survey-sampling L0 task is now frozen before its first runtime model
+call. It asks for one finite-population Horvitz-Thompson total theorem, one sampled-sum
+estimator ABI, and one joint design-moment assessment under independent Poisson
+sampling. The runtime-visible authority is a hash-bound survey-sampling source
+snapshot; evaluator-only Markdown semantics, reference source, negative variants,
+acceptance checks, and outcomes remain outside the repository and model workspace.
+Before activation, the reference implementation passed 8/8 direct and metamorphic
+checks and all three 12,000-replicate design-moment DGPs, four executable but
+statistically wrong variants were rejected by both hidden lanes, and exact Haiku
+classified 10/10 isolated semantic calibration cases correctly. These are evaluator
+calibration facts, not model capability. Exactly one future draw will test the shared
+Markdown continuation, skeptical self-check, source-grounded referee, generated-code,
+confirmatory-simulation, and non-formal retrieval mechanisms without changing their
+budgets or adding survey-specific runtime guidance.
 
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same
