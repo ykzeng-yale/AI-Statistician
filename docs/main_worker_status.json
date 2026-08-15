@@ -1,13 +1,13 @@
 {
-  "schema_version": 82,
+  "schema_version": 83,
   "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "44e12fff3e2f5163d071944b973416cf70f14fc4",
+  "validated_code_head": "5e13b3db7b7847872160b2100bc117674d5cb0f9",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Use frozen known-result failures to make long-horizon Markdown/LaTeX theory and claim-linked independent counterderivation scientifically reliable before frontier claims. Preserve model ownership of mathematics, keep JSON limited to identity and consumer ABIs, keep formalization task-optional, and validate shared mechanisms only on future disjoint benchmarks without resampling failed model draws.",
+  "current_goal_focus": "Use frozen known-result failures to make long-horizon Markdown/LaTeX theory and claim-linked independent counterderivation scientifically reliable before frontier claims. Accepted TheoryDeveloper checkpoints are now bound to model inspection of the final model-authored text changes before independent review, while inspection remains non-proof provenance. Preserve model ownership of mathematics, keep JSON limited to identity and consumer ABIs, keep formalization task-optional, and validate shared mechanisms only on future disjoint benchmarks without resampling failed model draws.",
   "operating_principle": "Models own statistical, mathematical, Python, R, retrieval-query, and Lean content. The harness owns isolation, immutable identity, source visibility, budgets, checkpoints, independent review, result blinding, frozen evaluation authority, and proof promotion. It does not author substantive fixes.",
   "model_policy": {
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
@@ -53,8 +53,12 @@
     ]
   },
   "validated_change": {
-    "commit": "44e12fff3e2f5163d071944b973416cf70f14fc4",
+    "commit": "5e13b3db7b7847872160b2100bc117674d5cb0f9",
     "changes": [
+      "Frozen median-of-means trajectory inspection showed that TheoryDeveloper read only lines 1-50 of its first Markdown draft, edited the document, never inspected the final SHA-256, and then asserted readiness. All operator-detected mathematical defects lay outside that stale read or in the final version; this is a generic checkpoint-provenance failure, not a median-of-means formula fix.",
+      "A document-authoritative theory checkpoint now requires the same source-owning model to inspect, at the final document SHA-256, every current line it created or revised relative to the parent workspace. A new document and a document carried only from a prior progress phase require complete inspection; a localized edit requires only its model-authored changed ranges, so large persistent workspaces are not forced through full rereads after each small revision.",
+      "Whole-document and exact-range reads produce compact path, hash, and line-range references. The runtime compares text versions and coverage only; it does not parse equations, choose mathematical checks, repair content, infer correctness, or promote inspection to proof evidence. Independent theory review, hidden evaluation, and optional Lean authority remain separate.",
+      "The change adds no agent, scheduler, model call, retry, turn, read limit, write limit, task statistic, content patch, Lean grammar rule, tactic rule, or model-tier escalation. New-document, stale-read, partial-read, localized long-document, progress-continuation, Architect integration, and central runtime trajectories are regression-covered.",
       "The single frozen median-of-means L0 exact-Haiku draw produced one authoritative Markdown theory document, then failed on the first independent-preflight model turn because Anthropic rejected a six-tool strict schema as too complex to compile. Runtime stopped after four traces with no reviewer verdict, algorithm, simulation, Critic, Formalizer, or hidden evaluation; the task remains 0/1 and is closed from rerun or output repair.",
       "Independent operator audit found active mathematical errors in the unaccepted Markdown: strict boundary implications were misstated, an event threshold was called equal when it differed by one half, a false Hoeffding formula remained inside the active proof before prose correction, and the confidence-level block rule violated the frozen odd-k interface and gave a wrong numeric example.",
       "The candidate confirms that substantive theory authority is Markdown/LaTeX rather than JSON: its structured handoff contains zero derivation-step or equation-chain bodies. This improves readability and auditability but does not itself make model reasoning correct; the mathematical defects receive no task credit.",
@@ -120,8 +124,8 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, and execution boundaries. The model chooses every claim, dependency, research-source query, document path, line range, edit, metric semantics, progress summary, and next step. Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, and median-of-means expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, Lean grammar rule, tactic rule, repair recipe, or task-specific metric count.",
     "verification": {
-      "full_pytest": "757 passed in 63.00s",
-      "affected_subsystem_pytest": "47/47 architect theory-execution preflight tests passed, including compact sixteen-claim submission and document-plus-research-source tool selection",
+      "full_pytest": "759 passed in 63.09s",
+      "affected_subsystem_pytest": "83/83 TheoryDeveloper workspace and ResearchArchitect tests plus 69/69 central AgentRuntime tests passed, including final-hash inspection, stale-read rejection, partial-read rejection, localized long-document review, and progress continuation",
       "neutral_exact_haiku_transport_probe": "Anthropic accepted five client tools with a 5,201-character sixteen-claim submit schema under claude-haiku-4-5-20251001, returned tool_use, and reported zero strict tools; no research content or frozen task was executed",
       "source_retrieval_ablation": "A representative query reconstructed from persisted L1 matched terms returned five distinct top-5 documents, including the exact DoubleMLIRM implementation. The failed live run did not persist its raw query text, so this is not an exact-query replay and provides no report-correctness credit.",
       "real_immutable_source_execution": "EXECUTED with return code 0, no errors, no source mutation, and frozen stdout SHA-256 ef1f1614e671a91b435e46e98126fb24c442faec198b19ab709788af32ab16d3",
@@ -132,9 +136,9 @@
       "fresh_live_result": "Median-of-means L0 v1 failed before independent preflight response because the provider rejected the strict tool schema; operator audit separately found multiple active mathematical errors, so the immutable task remains 0/1 without rerun, output repair, or rescore",
       "post_run_semantic_diagnostic": "Markdown authority made the candidate inspectable but did not make it correct. Because the independent reviewer never answered, no claim-review verdict can be inferred; operator-detected mathematical defects remain negative evidence rather than inputs to a task-specific runtime fix.",
       "task_bound_referee_regression": "A real ResearchSourceSnapshot test executes search_research_sources, exact read_research_source, and source-grounded submission in one preflight loop; source bodies are visible to the model but absent from the persisted review packet.",
-      "runtime_core_growth": "research_agent_runtime.py is 24996 lines; theory_workspace.py is 3135 lines; architect_theory_execution_preflight.py is 3758 lines; and research_architect.py is 5245 lines. The transport change removes a provider constraint and one redundant task-selected tool rather than adding an agent or scheduler; central runtime remains unchanged."
+      "runtime_core_growth": "research_agent_runtime.py is 24996 lines; theory_workspace.py is 3311 lines; architect_theory_execution_preflight.py is 3758 lines; and research_architect.py is 5245 lines. The checkpoint change is confined to the existing document workspace and adds no agent, scheduler, configuration field, or central-runtime branch."
     },
-    "evidence_boundary": "Fresh median-of-means v1 supplies live evidence that exact Haiku can write a substantive document-authoritative theory workspace, but not that it can derive or review the theorem correctly. Provider transport failed before reviewer judgment, operator audit found independent mathematical defects, and no downstream scientific or formal lane ran. The shared simplification has regression and neutral transport evidence only; full-task credit remains zero."
+    "evidence_boundary": "Fresh median-of-means v1 supplies live evidence that exact Haiku can write a substantive document-authoritative theory workspace, but not that it can derive or review the theorem correctly. Provider transport failed before reviewer judgment, operator audit found independent mathematical defects, and no downstream scientific or formal lane ran. Compact transport has regression and neutral provider evidence; final-SHA author inspection has regression evidence only. Neither changes the frozen score or supplies mathematical correctness, and full-task credit remains zero."
   },
   "latest_component_evidence": {
     "id": "research_l0_median_of_means_v1_document_theory_exact_haiku_20260814",
@@ -165,6 +169,7 @@
     "operator_audit": "docs/operator_audits/median_of_means_l0_v1.md",
     "post_run_shared_fix": "Commit 44e12fff removes provider strict compilation from the already runtime-validated terminal review, uses compact fixed-length review arrays, and omits duplicate compact-source search only for document-plus-source non-formal tasks. It adds no content rule, model call, retry, agent, or fallback.",
     "post_run_transport_evidence": "47 focused tests and 757 full tests passed; a neutral exact-Haiku five-tool sixteen-claim probe returned tool_use with zero strict tools",
+    "post_run_theory_checkpoint_fix": "Commit 5e13b3db binds accepted checkpoints to compact final-SHA inspection coverage of model-authored text changes. It is regression-only evidence, does not repair or rescore this frozen candidate, and does not establish mathematical correctness.",
     "formalization_status": "not_applicable by task intent; no Formalizer work ran",
     "component_result": "0/1 passed",
     "fresh_unrelated_task_live_run": true,
@@ -199,6 +204,7 @@
     "hidden_gold_tasks_evaluated": 0,
     "operator_audit": "docs/operator_audits/median_of_means_l0_v1.md",
     "shared_transport_fix_commit": "44e12fff3e2f5163d071944b973416cf70f14fc4",
+    "post_frozen_theory_checkpoint_fix_commit": "5e13b3db7b7847872160b2100bc117674d5cb0f9",
     "full_task_passed": false,
     "boundary": "The only permitted runtime draw is complete and immutable. Expected mathematics and executable gold stayed outside runtime context. Provider transport failure and operator-detected mathematical defects are recorded separately; neither permits rerun, output repair, or rescore."
   },
@@ -241,6 +247,7 @@
       "exact target-bound Lean kernel promotion"
     ],
     "fixed_in_validated_head": [
+      "TheoryDeveloper being able to commit a document-authoritative checkpoint after inspecting only a stale pre-edit version or an unrelated fragment of its own final mathematical changes",
       "independent theory preflight collapsing all active mathematical claims into five coarse dimension paragraphs without one runtime-bound adversarial audit per claim",
       "pre-review scratch output being labelable or usable as frozen confirmatory evidence without an explicit evidence-chronology verdict",
       "formal=not_applicable tasks being counted as formally unverified and retaining a formal-library search scope inside independent preflight",
@@ -320,6 +327,7 @@
       "both the runtime independent preflight and a 10/10-calibrated hidden exact-Haiku semantic judge false-accepted that fatal active proof step; per-claim adversarial review is now regression-tested but remains model judgment rather than proof authority",
       "fresh median-of-means L0 v1 wrote a substantive Markdown proof but failed before independent reviewer response because Anthropic rejected the six-tool strict schema; compact non-strict transport is regression-tested and accepted by a neutral Haiku probe, but the frozen task cannot be rerun",
       "the unaccepted median-of-means document contains strict-boundary, event-equivalence, active rejected-calculation, and odd-block-selection errors; Markdown authority makes these defects auditable but does not supply mathematical correctness",
+      "final-SHA inspection of model-authored document changes has deterministic and full-regression evidence only; it forces the source-owning model to revisit its final text but cannot establish that the model notices an error, derives correctly, or deserves theory credit",
       "fresh Horvitz-Thompson L0 v1 authored a 9,001-byte Markdown derivation but exhausted five writes synchronizing redundant non-formal theorem-card IDs, so it stopped before independent review, code, or simulation and scored 0/1; the post-run document-native handoff fix has regression evidence only",
       "fresh Model-X Gaussian L2 v1 wrote a source-grounded 13,130-byte Markdown theory workspace and requested same-owner continuation, but the frozen run stopped before independent review, code, or simulation because transient task identity contaminated the continuation binding",
       "the unaccepted Model-X document independently exhibits substantive errors in covariance algebra, arbitrary-coordinate swap reasoning, and the conditional-covariance PSD argument; the post-run self-review prompt and continuation fix have regression evidence only and cannot repair or rescore it",
@@ -373,17 +381,18 @@
   },
   "current_structure": {
     "research_agent_runtime_lines": 24996,
-    "theory_workspace_lines": 3135,
+    "theory_workspace_lines": 3311,
     "research_architect_lines": 5245,
     "formalizer_llm_lines": 2387,
     "agent_runtime_lines": 1207,
     "cli_lines": 7078,
     "top_level_python_modules": 141,
-    "top_level_package_lines": 142333,
+    "top_level_package_lines": 142509,
     "latest_runtime_manifest_bytes": 48318
   },
   "next_gates": [
     "Treat median-of-means v1 as two independent failures: provider transport prevented a reviewer verdict, while operator audit found substantive model-authored mathematical defects. Preserve the run at 0/1; validate compact transport only through regression and neutral probes, never by rerunning or patching the frozen candidate.",
+    "Validate final-SHA self-inspection only on a future unrelated pre-frozen theory task. Keep it as authoring provenance before independent review, never as mathematical validation, and do not increase read or turn budgets merely to force a pass.",
     "Do not rerun median-of-means L0, normal-sample-variance L0, Horvitz-Thompson L0, Model-X L2, HC0, KM, DoubleML L1, quantile-CLT L0, James-Stein L0, or Student-t L0 merely for another model or evaluator draw. Keep every frozen failure as a capability diagnosis and do not manually complete, repair, or rescore any candidate artifact.",
     "Treat the normal-sample-variance automated 1/1 as an evaluator false positive, not a research success. Preserve the immutable run and operator audit; validate per-claim review, chronology separation, formal-not-applicable reporting, and runtime-argument review only through deterministic regression before selecting a new disjoint task.",
     "Treat Horvitz-Thompson v1 as a shared handoff failure, not a theory success: the document-native non-formal contract and lazy Lean topology are regression-fixed, while the unreviewed model-authored mathematics remains unaccepted. Validate both simplifications only on a future disjoint benchmark frozen before its first model call.",
