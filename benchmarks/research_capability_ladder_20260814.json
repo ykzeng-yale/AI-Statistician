@@ -311,6 +311,55 @@
       }
     },
     {
+      "id": "wilson_score_binomial_interval_known_result",
+      "level": "L0",
+      "family": "binomial_inference",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l0_wilson_score_questions_20260814.json",
+      "source_authority": "operator_provisioned_hash_bound_model_visible_snapshot",
+      "source_snapshot_id": "wilson-score-binomial-known-result-v1",
+      "source_snapshot_hash": "a3fed22897f8a84e7f9449e73088ae6aa3d9a7af02c5ad9503fd2c44cb894306",
+      "source_manifest_sha256": "df60bc5865c92c937e3c6aa0f1fca3f98c318503044b817be2dfe8c2a9991219",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l0-wilson-score-20260814-v1",
+      "gold_manifest_sha256": "b58cb35fda02418c2a8faebd504e299efba3661d1f2b43c5073f489e4bb93de0",
+      "gold_descriptor_hash": "73f88b4ac3954bf16f4d169d558f867071911c65d2f8fea737b99cb6e99380c4",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "full_task_gold_frozen_v1_pending_first_runtime_draw",
+      "activation_evidence": {
+        "public_reference": "Wilson, JASA 22(158):209-212, 1927, DOI 10.1080/01621459.1927.10502953; NIST e-Handbook section 7.2.4.1",
+        "visible_questions_sha256": "256cbb9910a0e2921f721254d30151ae87cf3a91b31953fd6830bbc685e38e92",
+        "source_snapshot_documents": 2,
+        "public_scan_sha256": "c2fc82b5c7c3fca821d8451dcaae82a047310b32b5bcfb2a4268362a1a438735",
+        "model_visible_transcription_sha256": "9e4915361e605d786bcfd96959f0e404dd979923cd2987fdd9f195c7b2a13688",
+        "algorithm_reference_checks": "10/10",
+        "algorithm_negative_variants_rejected": 4,
+        "empirical_reference_dgps_passed": 3,
+        "empirical_reference_replicates_per_dgp": 12000,
+        "empirical_reference_maximum_coverage_mcse": 0.0024541943117780836,
+        "semantic_calibration_cases": 11,
+        "semantic_calibration_cases_correct": 11,
+        "semantic_reference_claims": 8,
+        "semantic_reference_candidate_passed": true,
+        "hidden_gold_manifest_validated": true,
+        "gold_frozen_before_first_runtime_model_call": true,
+        "first_runtime_model_call_occurred": false,
+        "fresh_live_runs": 0,
+        "formalization_requirement": "optional_nonblocking",
+        "model_draw_resampling_blocked": true,
+        "full_task_passed": false
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "optional",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
+    },
+    {
       "id": "heteroskedastic_covariance_known_result",
       "level": "L0",
       "family": "regression",
@@ -914,14 +963,14 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 11,
-    "fully_gold_configured_tasks": 11,
+    "active_scored_tasks": 12,
+    "fully_gold_configured_tasks": 12,
     "fully_gold_passed_tasks": 0,
     "runtime_source_replication_components_ready": 1,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "A disjoint multiple-testing L0 task is now fully curated and frozen before its first model call. Its model-visible source snapshot contains the 1995 paper and a citation-bound OCR transcription; evaluator-only theory, algorithm, and empirical gold passed 11/11 semantic calibration cases, 10/10 algorithm checks, four negative implementations, and three 12000-replicate FDR checks. No product runtime or prompt was changed for this activation.",
-    "next_step": "Commit and push the frozen Benjamini-Hochberg identities, then execute exactly one fresh exact-Haiku research-eval draw. Preserve the result without resampling and use any failure only to diagnose shared model-owned workspace, review, coding, or orchestration mechanisms."
+    "latest_diagnostic": "A disjoint binomial-inference L0 task is fully curated and frozen before its first model call. Its model-visible source snapshot contains a citation-bound Wilson 1927 transcription and NIST reference; evaluator-only theory, algorithm, and empirical gold passed 11/11 semantic calibration cases, 10/10 algorithm checks, four negative implementations, and three 12000-replicate exact-binomial-referenced coverage and width checks. No product runtime or prompt was changed for this activation.",
+    "next_step": "Commit and push the frozen Wilson identities, then execute exactly one fresh exact-Haiku research-eval draw. Preserve the result without resampling and use any failure only to diagnose shared model-owned workspace, review, coding, empirical, or orchestration mechanisms."
   }
 }

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "wilson_score_binomial_interval_known_result",
+      "title": "Wilson score interval by binomial score-test inversion",
+      "description": "Focused L0 known-result evaluation in binomial inference based on Wilson (1927). Let X be Binomial(n,p), let p_hat=X/n, let 1-alpha be a two-sided confidence level in (0,1), and let z=Phi^{-1}(1-alpha/2). In an authoritative Markdown/LaTeX theory workspace, start from the score acceptance set n(p_hat-p)^2 <= z^2 p(1-p), expand the exact quadratic inequality in the candidate parameter p, derive its discriminant and two roots without skipping algebra, and show that the accepted set is the closed interval with center (p_hat+z^2/(2n))/(1+z^2/n) and half-width z sqrt(p_hat(1-p_hat)/n+z^2/(4n^2))/(1+z^2/n). Treat X=0 and X=n, interval ordering, and containment in [0,1]. Explain precisely why this is an exact algebraic inversion of the stated score inequality but not an exact finite-sample binomial coverage guarantee; for each fixed p in (0,1), derive asymptotic coverage 1-alpha from the binomial CLT. Distinguish this interval from the Wald and Clopper-Pearson intervals, and do not use simulation as proof. The required algorithm artifact id is est_wilson_score_interval. Its run_estimator(request) input contains successes as an integer x, trials as a positive integer n with 0<=x<=n, and confidence_level in (0,1). It must return finite numeric estimate, lower, upper, center, and half_width values implementing the two-sided Wilson score interval. Exploratory computation may diagnose the implementation. A separate frozen confirmatory assessment must simulate repeated binomial counts under predeclared interior and boundary-near parameter settings, compare empirical coverage with the exact coverage obtained by summing binomial probabilities over success counts whose Wilson intervals contain p, and report Monte Carlo uncertainty and interval width. This is one joint empirical calibration target and does not prove the theorem. Source-code replication and novelty are not applicable. Lean formalization is optional and cannot block the required nonformal dimensions.",
+      "tags": [
+        "binomial inference",
+        "confidence interval",
+        "score test",
+        "Wilson interval",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "optional",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
+    }
+  ]
+}
