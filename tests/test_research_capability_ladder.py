@@ -459,7 +459,7 @@ def test_median_of_means_l0_is_frozen_after_its_only_live_draw() -> None:
         assert hidden_name not in runtime_visible
 
 
-def test_benjamini_hochberg_l0_is_frozen_before_its_first_live_draw() -> None:
+def test_benjamini_hochberg_l0_single_live_draw_is_frozen_failed() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -471,21 +471,48 @@ def test_benjamini_hochberg_l0_is_frozen_before_its_first_live_draw() -> None:
     assert candidate["family"] == "multiple_testing"
     assert candidate["status"] == "active_scored"
     assert candidate["activation_status"] == (
-        "full_task_gold_frozen_v1_pending_first_runtime_draw"
+        "full_task_gold_frozen_v1_failed_theory_index_anchor_transport"
     )
     evidence = candidate["activation_evidence"]
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["hidden_gold_manifest_validated"] is True
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["algorithm_reference_checks"] == "10/10"
     assert evidence["algorithm_negative_variants_rejected"] == 4
     assert evidence["empirical_reference_dgps_passed"] == 3
     assert evidence["empirical_reference_replicates_per_dgp"] == 12000
     assert evidence["semantic_calibration_cases"] == 11
     assert evidence["semantic_calibration_cases_correct"] == 11
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_terminal_classification"] == (
+        "theory_developer_reported_gap"
+    )
+    assert evidence["research_eval_complete"] is False
+    assert evidence["hidden_gold_tasks_evaluated"] == 0
+    assert evidence["runtime_traces"] == 3
+    assert evidence["theory_model_turns"] == 10
+    assert evidence["theory_tool_executions"] == 10
+    assert evidence["theory_workspace_submissions"] == 5
+    assert evidence["authoritative_theory_documents"] == 1
+    assert evidence["theory_document_lines"] == 192
+    assert evidence["theory_document_bytes"] == 10051
+    assert evidence["accepted_theory_packet"] is False
+    assert evidence["algorithm_executions"] == 0
+    assert evidence["simulation_executions"] == 0
+    assert evidence["formalizer_executions"] == 0
+    assert evidence["operator_audit"] == (
+        "docs/operator_audits/benjamini_hochberg_l0_v1.md"
+    )
+    assert evidence["post_run_shared_fix_verification"] == "761 passed"
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["full_task_passed"] is False
+    for field in (
+        "runtime_manifest_sha256",
+        "hidden_gold_report_sha256",
+        "theory_document_sha256",
+    ):
+        assert len(evidence[field]) == 64
     assert candidate["task_intent"] == {
         "source_replication": "not_applicable",
         "theory": "required",
