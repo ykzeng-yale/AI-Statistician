@@ -360,16 +360,6 @@ class _PreflightToolBackend:
                 finding["source_evidence_refs"] = [source_ref]
             for review in payload.get("prior_finding_reviews", []) or []:
                 review["source_evidence_refs"] = [source_ref]
-        for field in (
-            "claim_reviews",
-            "dimension_reviews",
-            "estimator_execution_checks",
-        ):
-            rows = payload.get(field)
-            if isinstance(rows, list):
-                payload[field] = {
-                    f"slot_{index}": row for index, row in enumerate(rows)
-                }
         return payload
 
     def generate_client_tool_turn(self, request):
@@ -655,6 +645,7 @@ def _tool_review(
     research_sources=None,
     prior_finding_ledger=(),
     theory_protocol_material=None,
+    upstream_research_contract=None,
 ):
     return review_architect_theory_execution_preflight(
         provider=backend,
@@ -664,10 +655,14 @@ def _tool_review(
             if theory_protocol_material is not None
             else _theory_material()
         ),
-        upstream_research_contract={
-            "formal_targets": [],
-            "simulation_targets": ["evaluate the declared risk"],
-        },
+        upstream_research_contract=(
+            upstream_research_contract
+            if upstream_research_contract is not None
+            else {
+                "formal_targets": [],
+                "simulation_targets": ["evaluate the declared risk"],
+            }
+        ),
         model=TEST_HAIKU_MODEL,
         model_tier="haiku",
         max_tokens=7000,
@@ -709,7 +704,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
         PREFLIGHT_CLIENT_TOOL_NAMES
     )
     assert backend.requests[0].tools[0].strict is False
-    assert backend.requests[0].tools[-1].strict is True
+    assert backend.requests[0].tools[-1].strict is False
     assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert backend.requests[0].disable_parallel_tool_use is False
     assert all(request.enable_prompt_caching for request in backend.requests)
@@ -879,6 +874,25 @@ def test_preflight_formal_not_applicable_excludes_formal_sources() -> None:
 def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
     tmp_path: Path,
 ) -> None:
+    theory_text = (
+        "# Candidate theory\n"
+        "\n"
+        "The finite procedure returns a typed outcome on every admitted input.\n"
+    )
+    theory_path = tmp_path / "candidate_theory.md"
+    theory_path.write_text(theory_text, encoding="utf-8")
+    theory_material = _theory_material()
+    semantic_material = theory_material["theory_semantic_material"]
+    semantic_material["theory_workspace_manifest"] = (
+        theory_workspace_document_manifest(
+            {"candidate_theory.md": theory_text},
+            workspace_dir=tmp_path,
+        )
+    )
+    semantic_material["theory_content_authority"] = (
+        THEORY_WORKSPACE_CONTENT_AUTHORITY
+    )
+    semantic_material["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
     source_text = (
         "# Exact finite-sample result\n"
         "\n"
@@ -922,6 +936,18 @@ def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
             if turn == 1:
                 return _tool_response(
                     ClientToolCall(
+                        "read-theory-document",
+                        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                        {
+                            "path": "candidate_theory.md",
+                            "line_start": 1,
+                            "line_end": 3,
+                        },
+                    )
+                )
+            if turn == 2:
+                return _tool_response(
+                    ClientToolCall(
                         "search-research-source",
                         RESEARCH_SOURCE_SEARCH_TOOL,
                         {
@@ -933,7 +959,7 @@ def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
             result = json.loads(
                 request.messages[-1]["content"][0]["content"]
             )
-            if turn == 2:
+            if turn == 3:
                 hit = result["hits"][0]
                 return _tool_response(
                     ClientToolCall(
@@ -956,16 +982,29 @@ def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
             )
 
     backend = ResearchSourceBackend()
-    packet = _tool_review(backend, research_sources=snapshot)
+    packet = _tool_review(
+        backend,
+        research_sources=snapshot,
+        theory_protocol_material=theory_material,
+        upstream_research_contract={
+            "dimension_requirements": {"formal": "not_applicable"},
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+    )
 
     assert [tool.name for tool in backend.requests[0].tools] == [
         THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         RESEARCH_SOURCE_SEARCH_TOOL,
         RESEARCH_SOURCE_READ_TOOL,
-        "search_preflight_sources",
         "submit_theory_preflight_review",
     ]
+    assert "search_preflight_sources" not in backend.requests[0].messages[0][
+        "content"
+    ]
+    assert backend.requests[0].tools[-1].strict is False
+    submit_schema = backend.requests[0].tools[-1].input_schema
+    assert submit_schema["properties"]["dimension_reviews"]["type"] == "array"
     assert packet["preflight_source_search_count"] == 1
     assert [
         row["source_scope"]
@@ -1841,7 +1880,10 @@ This abandoned route is explicitly rejected.
         for tool in backend.requests[0].tools
         if tool.name == "submit_theory_preflight_review"
     ).input_schema["properties"]["claim_reviews"]
-    assert claim_schema["required"] == ["slot_0", "slot_1"]
+    assert claim_schema["type"] == "array"
+    assert claim_schema["minItems"] == 2
+    assert claim_schema["maxItems"] == 2
+    assert claim_schema["items"] == {"$ref": "#/$defs/claim_review"}
 
 
 def test_one_failed_claim_review_blocks_preflight_acceptance(tmp_path: Path) -> None:
@@ -2024,8 +2066,7 @@ def test_preflight_prior_finding_schema_uses_compact_ordered_array() -> None:
     ) < 400
 
 
-def test_preflight_v344_shape_survives_anthropic_strict_transform() -> None:
-    anthropic = pytest.importorskip("anthropic")
+def test_preflight_client_submit_schema_stays_compact_with_sixteen_claims() -> None:
     material = build_architect_theory_execution_preflight_material(
         question=_question(),
         theory_protocol_material=_theory_material(),
@@ -2035,26 +2076,35 @@ def test_preflight_v344_shape_survives_anthropic_strict_transform() -> None:
         },
     )
     material["required_estimator_ids"] = ["estimator_a", "estimator_b"]
+    material["required_claim_review_ids"] = [
+        f"claim:{index}" for index in range(16)
+    ]
     material["active_prior_finding_ids"] = [
         "finding:0",
         "finding:1",
         "finding:2",
     ]
+    expanded_schema = architect_theory_execution_preflight_json_schema(material)
     schema = _architect_theory_execution_preflight_submit_schema(material)
-    transformed = anthropic.transform_schema(schema)
 
-    for field in (
-        "dimension_reviews",
-        "estimator_execution_checks",
-    ):
-        assert transformed["properties"][field]["required"] == (
-            schema["properties"][field]["required"]
-        )
-    transformed_prior = transformed["properties"]["prior_finding_reviews"]
-    assert transformed_prior["type"] == "array"
-    assert "maxItems: 3" in transformed_prior["description"]
-    assert "minItems: 3" in transformed_prior["description"]
-    estimator_properties = transformed["$defs"][
+    expected_counts = {
+        "claim_reviews": 16,
+        "dimension_reviews": len(
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+        ),
+        "estimator_execution_checks": 2,
+    }
+    for field, count in expected_counts.items():
+        field_schema = schema["properties"][field]
+        assert field_schema["type"] == "array"
+        assert field_schema["minItems"] == count
+        assert field_schema["maxItems"] == count
+        assert "properties" not in field_schema
+    prior_schema = schema["properties"]["prior_finding_reviews"]
+    assert prior_schema["type"] == "array"
+    assert prior_schema["minItems"] == 3
+    assert prior_schema["maxItems"] == 3
+    estimator_properties = schema["$defs"][
         "estimator_execution_check"
     ]["properties"]
     assert set(estimator_properties) == {
@@ -2065,7 +2115,10 @@ def test_preflight_v344_shape_survives_anthropic_strict_transform() -> None:
         "status",
         "evidence_refs",
     }
-    assert len(json.dumps(transformed, separators=(",", ":"))) < 7_500
+    compact_size = len(json.dumps(schema, separators=(",", ":")))
+    expanded_size = len(json.dumps(expanded_schema, separators=(",", ":")))
+    assert compact_size < expanded_size
+    assert compact_size < 6_500
 
 
 def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> None:

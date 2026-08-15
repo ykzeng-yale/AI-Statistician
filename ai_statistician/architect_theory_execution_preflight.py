@@ -828,6 +828,7 @@ def build_architect_theory_execution_preflight_prompt(
     material: Mapping[str, Any],
     *,
     include_authoritative_document_content: bool = True,
+    compact_source_search_available: bool = True,
 ) -> str:
     anchor_catalog = [
         dict(row)
@@ -995,10 +996,18 @@ def build_architect_theory_execution_preflight_prompt(
                 len(row.get("hits", []) or []) for row in formal_source_groups
             ),
             "access_policy": (
-                "Use search_preflight_sources in client-tool mode. Retrieval rows "
-                "are context, not proof or automatic semantic authority. Formal "
-                "library retrieval is available only when the task evidence contract "
-                "marks formalization applicable."
+                (
+                    "Use search_preflight_sources in client-tool mode. "
+                    if compact_source_search_available
+                    else (
+                        "Use the dedicated theory-document and task-bound research-"
+                        "source tools; compact runtime source search is not exposed "
+                        "for this non-formal review. "
+                    )
+                )
+                + "Retrieval rows are context, not proof or automatic semantic "
+                "authority. Formal library retrieval is available only when the task "
+                "evidence contract marks formalization applicable."
             ),
         },
         "verdict_policy": (
@@ -1200,7 +1209,7 @@ def _architect_theory_execution_preflight_submit_schema(
             "pattern": r"^S[1-9][0-9]*H[1-9][0-9]*$",
         },
         "description": (
-            "Short source_ref handles returned by search_preflight_sources that "
+            "Short source_ref handles returned by the available source tools that "
             "support this blocking finding. Use S...H... handles here only. Runtime "
             "resolves them to immutable source_hit_id values. The separate "
             "evidence_refs field accepts only theory anchor IDs from its enum."
@@ -1214,6 +1223,38 @@ def _architect_theory_execution_preflight_submit_schema(
     if isinstance(prior_review_schema, dict):
         prior_review_schema["properties"]["source_evidence_refs"] = {
             "$ref": "#/$defs/source_evidence_refs"
+        }
+    ordered_array_counts = {
+        "claim_reviews": len(
+            material.get("required_claim_review_ids", []) or []
+        ),
+        "dimension_reviews": len(
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+        ),
+        "estimator_execution_checks": len(
+            material.get("required_estimator_ids", []) or []
+        ),
+    }
+    ordered_array_definitions = {
+        "claim_reviews": "claim_review",
+        "dimension_reviews": "dimension_review",
+        "estimator_execution_checks": "estimator_execution_check",
+    }
+    for field, count in ordered_array_counts.items():
+        existing = schema["properties"].get(field)
+        if not isinstance(existing, Mapping):
+            continue
+        schema["properties"][field] = {
+            "type": "array",
+            "minItems": count,
+            "maxItems": count,
+            "description": (
+                str(existing.get("description", "") or "")
+                + " Submit rows in ordered_review_slots order."
+            ),
+            "items": {
+                "$ref": f"#/$defs/{ordered_array_definitions[field]}"
+            },
         }
     return schema
 
@@ -3056,13 +3097,12 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     authoritative_documents = _preflight_authoritative_theory_documents(material)
     allowed_source_scopes = _preflight_allowed_source_scopes(material)
     formal_sources_applicable = _preflight_formal_sources_applicable(material)
-    tools = (
-        *theory_document_client_tools(),
-        *(
-            research_source_client_tools()
-            if research_sources is not None
-            else ()
-        ),
+    compact_source_search_available = not (
+        authoritative_documents
+        and research_sources is not None
+        and not formal_sources_applicable
+    )
+    compact_source_tools = (
         ClientToolDefinition(
             name="search_preflight_sources",
             description=(
@@ -3105,6 +3145,15 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 },
             },
         ),
+    ) if compact_source_search_available else ()
+    tools = (
+        *theory_document_client_tools(),
+        *(
+            research_source_client_tools()
+            if research_sources is not None
+            else ()
+        ),
+        *compact_source_tools,
         ClientToolDefinition(
             name="submit_theory_preflight_review",
             description=(
@@ -3113,12 +3162,13 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             ),
             input_schema=submit_schema,
             terminal=True,
-            strict=True,
+            strict=False,
         ),
     )
     prompt = build_architect_theory_execution_preflight_prompt(
         material,
         include_authoritative_document_content=False,
+        compact_source_search_available=compact_source_search_available,
     )
     tool_prompt = (
         prompt.split("\n\n", 1)[-1]
@@ -3129,9 +3179,14 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "follow dependencies, reconstruct decisive transitions, and challenge them. "
         "Choose all searches and ranges yourself. When available, use "
         "search_research_sources and read_research_source for task-bound papers, code, "
-        "and documentation; use search_preflight_sources for compact runtime context"
-        + (" or formal declarations" if formal_sources_applicable else "")
-        + ". Cite only handles returned by those tools. Runtime binds "
+        "and documentation"
+        + (
+            "; use search_preflight_sources for compact runtime context"
+            + (" or formal declarations" if formal_sources_applicable else "")
+            if compact_source_search_available
+            else ""
+        )
+        + ". Cite only handles returned by available source tools. Runtime binds "
         "identities but never chooses semantics. "
         "No generated-code or simulation results exist at this stage; mark a question "
         "UNCERTAIN when it genuinely requires that downstream evidence. Keep citation "
