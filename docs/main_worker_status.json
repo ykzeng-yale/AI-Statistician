@@ -1,13 +1,13 @@
 {
-  "schema_version": 86,
+  "schema_version": 87,
   "updated_at": "2026-08-15",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "fe65d1f3fb3c5bbdb58e040c15e11fcc8bdc2fc8",
+  "validated_code_head": "94df076a",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Make long-horizon theory and independent mathematical review genuinely document-native before frontier claims. TheoryDeveloper and its referee author Markdown/LaTeX; JSON carries only content-addressed references, ordered statuses, claim dependencies, findings, and consumer ABIs. Preserve model ownership of mathematics, keep formalization task-optional, freeze confirmatory evidence, delete legacy expanded review transport before adding orchestration, and validate shared mechanisms only on future disjoint benchmarks without resampling any failed draw.",
+  "current_goal_focus": "Make long-horizon theory and independent mathematical review genuinely document-native before frontier claims. TheoryDeveloper and its referee author Markdown/LaTeX; JSON carries only content-addressed references, ordered statuses, claim dependencies, findings, and consumer ABIs. The legacy expanded review transport is now deleted. Next improve actual progressive theory and source-replication quality through the existing generic workspaces, keep formalization task-optional, freeze confirmatory evidence, and validate shared mechanisms only on a future disjoint known-result benchmark without resampling any failed draw.",
   "operating_principle": "Models own statistical, mathematical, Python, R, retrieval-query, and Lean content. The harness owns isolation, immutable identity, source visibility, budgets, checkpoints, independent review, result blinding, frozen evaluation authority, and proof promotion. It does not author substantive fixes.",
   "model_policy": {
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
@@ -53,8 +53,13 @@
     ]
   },
   "validated_change": {
-    "commit": "fe65d1f3fb3c5bbdb58e040c15e11fcc8bdc2fc8",
+    "commit": "94df076a",
     "changes": [
+      "Every product theory-execution preflight now requires native client-tool turns. The JSON-only GeneratorRequest path, full-packet regeneration callback, dynamic review-output cap, and 332-line expanded per-row review schema were deleted rather than retained as disabled fallbacks.",
+      "The independent model writes one coherent Markdown/LaTeX referee report and submits only ordered claim and dimension statuses, compact estimator blockers, prior-finding dispositions, and actual findings. Runtime persists and hash-binds the exact report, binds immutable identities, and returns raw structural or semantic validation observations to the same model without authoring a repair.",
+      "The compact tool envelope has generic shape validation only; no statistical formula, theorem-family condition, mathematical correction, Lean grammar rule, tactic rule, new agent, retry, turn, or budget was added. The configured max_tokens now reaches the reviewing model unchanged instead of being silently reduced by a runtime-derived cap.",
+      "Regression fixtures now exercise native client-tool rejection and resubmission rather than a fake structured-output regeneration backend. Focused theory-preflight tests passed 48/48, dependent semantic-reviewer and AgentRuntime tests passed 82/82, and the full local suite passed 763/763 in 62.93 seconds.",
+      "This transport cleanup supplies no new mathematical or E2E credit: the frozen Wilson task remains 0/1, no frozen task was rerun or rescored, no live model call occurred, full-task gold-covered successes remain zero, and exact source-theorem closure remains 0/2.",
       "The single frozen Wilson-score L0 exact-Haiku draw wrote and final-hash-inspected one 347-line, 13,964-byte Markdown/LaTeX derivation in eleven source-owning tool turns. Independent preflight read the complete document and sources but exhausted seven review turns after two roughly 6,000-output-token terminal submissions normalized to empty repeated claim, dimension, and estimator rows. Runtime correctly blocked before algorithm, simulation, Critic, hidden gold, or Formalizer execution, so the immutable task remains 0/1.",
       "Operator audit independently found false scratch algebra retained in the active document, an incomplete interval-containment argument, a wrong confidence-level quantile in the estimator ABI, invalid sample-size orders for endpoint and center values, and missing boundary conventions. The review transport failure therefore does not imply that the theory should have passed, and no Wilson answer entered product code.",
       "Canonical client-tool preflight now persists one exact model-authored Markdown referee report and accepts only a compact ordered status, finding, evidence-reference, and estimator-gap envelope. Runtime binds immutable identities, derives routing, and verifies path and content hashes without summarizing, repairing, or selecting mathematical content.",
@@ -137,9 +142,9 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, and execution boundaries. The model chooses every claim, dependency, research-source query, document path, line range, edit, metric semantics, progress summary, and next step. Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, and median-of-means expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, or task-specific metric count.",
     "verification": {
-      "full_pytest": "763 passed in 63.41s",
+      "full_pytest": "763 passed in 62.93s",
       "next_frozen_activation": "none selected or authorized; Wilson score L0 v1 consumed its only draw and is frozen failed at 0/1",
-      "affected_subsystem_pytest": "144/144 ResearchArchitect, independent theory-preflight, TheoryDeveloper workspace, and capability-ladder tests passed; the compact Markdown referee report, hash-bound persistence, path containment, nonduplicated evidence refs, and frozen Wilson ledger are included",
+      "affected_subsystem_pytest": "48/48 independent theory-preflight tests and 82/82 dependent semantic-reviewer and AgentRuntime tests passed; native client-tool rejection/resubmission, Markdown persistence, hash/path containment, compact ordered identity binding, and prior-finding lineage are covered",
       "neutral_exact_haiku_transport_probe": "Anthropic accepted five client tools with a 5,201-character sixteen-claim submit schema under claude-haiku-4-5-20251001, returned tool_use, and reported zero strict tools; no research content or frozen task was executed",
       "source_retrieval_ablation": "A representative query reconstructed from persisted L1 matched terms returned five distinct top-5 documents, including the exact DoubleMLIRM implementation. The failed live run did not persist its raw query text, so this is not an exact-query replay and provides no report-correctness credit.",
       "real_immutable_source_execution": "EXECUTED with return code 0, no errors, no source mutation, and frozen stdout SHA-256 ef1f1614e671a91b435e46e98126fb24c442faec198b19ab709788af32ab16d3",
@@ -150,7 +155,7 @@
       "fresh_live_result": "Wilson-score L0 v1 remained BLOCKED after complete source-grounded Markdown authoring and document inspection because the old preflight packet could not carry the review. Operator audit separately found multiple mathematical and estimator-ABI defects, so the immutable task remains 0/1 without rerun, output repair, or rescore.",
       "post_run_semantic_diagnostic": "Markdown authority made the 347-line candidate inspectable but did not make it correct. The independent reviewer read the complete candidate and sources but no packet was accepted; operator-detected defects remain negative evidence rather than inputs to a task-specific runtime fix.",
       "task_bound_referee_regression": "A real client-tool review writes one model-authored Markdown report, submits only ordered statuses and compact blockers, persists the exact report under the run review workspace, rejects path escape, and stores report-level evidence refs once.",
-      "runtime_core_growth": "research_agent_runtime.py remains 24996 lines and gained no branch; theory_workspace.py is 3316 lines; architect_theory_execution_preflight.py is 4138 lines; and research_architect.py is 5233 lines. Canonical review is simpler, but the preflight file grew because legacy expanded transport still exists and is the next deletion target."
+      "runtime_core_growth": "research_agent_runtime.py remains 24996 lines and gained no branch; theory_workspace.py is 3316 lines; architect_theory_execution_preflight.py fell from 4138 to 3793 lines after legacy expanded transport deletion; and research_architect.py is 5233 lines."
     },
     "evidence_boundary": "Fresh Benjamini-Hochberg v1 supplies live evidence that exact Haiku can search a frozen paper and write a substantive document-authoritative theory workspace, but not that it can complete or review the theorem correctly. Compact-index grammar blocked review, operator audit found independent mathematical defects, and no downstream scientific or formal lane ran. Grammar-free indexing and full-document reviewer inspection have regression evidence only; neither changes the frozen score or supplies mathematical correctness, and full-task credit remains zero."
   },
@@ -184,6 +189,7 @@
     "preactivation_evaluator_calibration": "the reference algorithm passed 10/10 checks; four wrong implementations were rejected; three 12,000-replicate DGPs passed with maximum coverage MCSE 0.0024541943117780836; exact Haiku classified 11/11 sealed semantic cases correctly and accepted the eight-claim reference; all gold remained outside repository and model context",
     "operator_audit": "docs/operator_audits/wilson_score_l0_v1.md",
     "post_run_shared_fix": "Commit fe65d1f3fb3c5bbdb58e040c15e11fcc8bdc2fc8 makes one model-authored Markdown referee report authoritative and keeps only compact identity-bound statuses and blockers in the transport envelope. It adds no content rule, model call, retry, agent, or fallback to the canonical client-tool path.",
+    "post_run_transport_cleanup": "Commit 94df076a deletes the remaining JSON-only review generation path and expanded schema, so every product theory preflight now uses the same native client-tool Markdown review loop. This is regression evidence only and does not change the frozen result.",
     "post_run_transport_evidence": "60 focused review/ladder tests and 763 full tests passed",
     "formalization_status": "optional and nonblocking by task intent; no Formalizer work ran",
     "component_result": "0/1 passed",
@@ -234,7 +240,7 @@
       "exact claude-haiku-4-5-20251001 for every test or live evaluation agent"
     ],
     "preactivation_gates": [
-      "delete or isolate the legacy expanded non-client preflight packet so every canonical mathematical review is document-authoritative",
+      "select one disjoint known result with a single principal theorem, executable ABI, and confirmatory target; do not reactivate any consumed frozen task",
       "calibrate hidden semantic negatives without exposing expected values to runtime or retrieval",
       "push the full frozen identity to both the work branch and main before the first model call"
     ],
