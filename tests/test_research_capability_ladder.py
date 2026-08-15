@@ -76,7 +76,7 @@ def test_ladder_counts_fully_configured_active_tasks_without_embedding_gold() ->
             "operator_provisioned_outside_repository_and_model_workspace"
         )
         assert len(candidate["gold_manifest_sha256"]) == 64
-    assert pending
+    assert len(active) + len(pending) == len(candidates)
     forbidden_keys = {
         "expected_answer",
         "expected_results",
@@ -453,6 +453,76 @@ def test_median_of_means_l0_is_frozen_after_its_only_live_draw() -> None:
         "negative_radius.py",
         "negative_failure_exponent.py",
         "negative_block_layout.py",
+        "semantic_reference.md",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_benjamini_hochberg_l0_is_frozen_before_its_first_live_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "benjamini_hochberg_independence_known_result"
+    )
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "multiple_testing"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "full_task_gold_frozen_v1_pending_first_runtime_draw"
+    )
+    evidence = candidate["activation_evidence"]
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["algorithm_reference_checks"] == "10/10"
+    assert evidence["algorithm_negative_variants_rejected"] == 4
+    assert evidence["empirical_reference_dgps_passed"] == 3
+    assert evidence["empirical_reference_replicates_per_dgp"] == 12000
+    assert evidence["semantic_calibration_cases"] == 11
+    assert evidence["semantic_calibration_cases_correct"] == 11
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["full_task_passed"] is False
+    assert candidate["task_intent"] == {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "optional",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+    for field in (
+        "source_snapshot_hash",
+        "source_manifest_sha256",
+        "gold_manifest_sha256",
+        "gold_descriptor_hash",
+    ):
+        assert len(candidate[field]) == 64
+    visible_path = Path(candidate["visible_questions_path"])
+    assert visible_path.is_file()
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert "authoritative Markdown/LaTeX theory workspace" in question["description"]
+    assert "est_benjamini_hochberg" in question["description"]
+    assert "Lean formalization is optional" in question["description"]
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "reference_estimator.py",
+        "negative_step_down.py",
+        "negative_strict_boundary.py",
+        "negative_sorted_output.py",
+        "negative_unadjusted_values.py",
         "semantic_reference.md",
         "semantic_calibration_cases.json",
     ):

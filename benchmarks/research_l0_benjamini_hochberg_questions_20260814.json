@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "benjamini_hochberg_independence_known_result",
+      "title": "Benjamini-Hochberg FDR control under independence",
+      "description": "Focused L0 known-result evaluation in multiple testing based on Benjamini and Hochberg (1995). Consider m hypotheses, of which the fixed index set I_0 contains m_0 true nulls. The true-null p-values are independent Uniform(0,1) variables and are independent of the complete false-null p-value vector; the false-null p-values may have an arbitrary joint distribution. In an authoritative Markdown/LaTeX theory workspace, define V, R, FDP=V/max(R,1), and FDR=E[FDP]; define the BH step-up rule R=max({r: P_(r)<=rq/m} union {0}); and give a complete auditable conditioning, induction, or leave-one-out derivation of FDR <= (m_0/m)q <= q. Explain every event identity and independence use, distinguish FDR from E[V]/E[R], E[V/R | R>0], and FWER, treat the no-rejection event correctly, and state the all-null consequence. Do not assume independence among false-null p-values, claim control under arbitrary dependence, or use simulation as proof. The required algorithm artifact id is est_benjamini_hochberg. Its run_estimator(request) input contains p_values as a finite numeric array in [0,1] and fdr_level as q in (0,1). It must return rejected as booleans in original hypothesis order, adjusted_p_values as finite BH adjusted p-values in original order using the reverse cumulative minimum formula, rejection_count as an integer, and cutoff as P_(R) when R>0 and 0.0 otherwise. Use the inclusive <= boundary, preserve original-order identity through sorting and ties, and cap adjusted p-values at one. Exploratory computation may diagnose the implementation. A separate frozen confirmatory assessment must estimate FDP over repeated predeclared independent-null DGPs, compare FDR with q m_0/m, and report Monte Carlo uncertainty; this empirical assessment supports implementation behavior and does not prove the theorem. This task contains one FDR theorem, one executable procedure ABI, and one joint empirical target. Source-code replication and novelty are not applicable. Lean formalization is optional and cannot block the required nonformal dimensions.",
+      "tags": [
+        "multiple testing",
+        "false discovery rate",
+        "Benjamini-Hochberg",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "optional",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
+    }
+  ]
+}

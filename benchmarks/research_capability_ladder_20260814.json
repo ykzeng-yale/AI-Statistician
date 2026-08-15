@@ -242,12 +242,48 @@
       "id": "benjamini_hochberg_independence_known_result",
       "level": "L0",
       "family": "multiple_testing",
-      "status": "proposed_pending_gold_curation",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l0_benjamini_hochberg_questions_20260814.json",
+      "source_authority": "operator_provisioned_hash_bound_model_visible_snapshot",
+      "source_snapshot_id": "benjamini-hochberg-independence-known-result-v1",
+      "source_snapshot_hash": "310c2195fc509c3beca9ac512253444a77b5144d74cd06b80a1181cdba12f413",
+      "source_manifest_sha256": "15720377cd9542e589b2234dd21f41c1714cd9765e83285380246f8a6da2cf28",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l0-benjamini-hochberg-20260814-v1",
+      "gold_manifest_sha256": "c6bbbfaf54b29594f595fd54a9cde4daa223751562fba30030d085f42a1cd937",
+      "gold_descriptor_hash": "ed005b0773b699426c7c85be5dd9de7613914de80f3fd0cd91352393dccd06b2",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "full_task_gold_frozen_v1_pending_first_runtime_draw",
+      "activation_evidence": {
+        "public_reference": "Benjamini and Hochberg, JRSS B 57(1):289-300, 1995, DOI 10.2307/2346101",
+        "visible_questions_sha256": "4a94f535afe822a9fcf4c843d1f68484174f4854215caef8a42fffcb22dc56b6",
+        "source_snapshot_documents": 2,
+        "author_pdf_sha256": "f3f7e2352a941403e812b7b5afee6094c9a31002d725dfcc25fc60ca3c240eab",
+        "model_visible_transcription_sha256": "8f2fea92f1ebe517bcf7f1676c04f44252f2064d4bbcf9fe2a459ba2198bcfcc",
+        "algorithm_reference_checks": "10/10",
+        "algorithm_negative_variants_rejected": 4,
+        "empirical_reference_dgps_passed": 3,
+        "empirical_reference_replicates_per_dgp": 12000,
+        "empirical_reference_maximum_fdr_mcse": 0.00269143522295646,
+        "semantic_calibration_cases": 11,
+        "semantic_calibration_cases_correct": 11,
+        "semantic_reference_candidate_passed": true,
+        "hidden_gold_manifest_validated": true,
+        "gold_frozen_before_first_runtime_model_call": true,
+        "first_runtime_model_call_occurred": false,
+        "fresh_live_runs": 0,
+        "formalization_requirement": "optional_nonblocking",
+        "model_draw_resampling_blocked": true,
+        "full_task_passed": false
+      },
       "task_intent": {
+        "source_replication": "not_applicable",
         "theory": "required",
         "scientific_code": "required",
         "empirical": "required",
-        "formal": "optional"
+        "formal": "optional",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
       }
     },
     {
@@ -854,14 +890,14 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 10,
-    "fully_gold_configured_tasks": 10,
+    "active_scored_tasks": 11,
+    "fully_gold_configured_tasks": 11,
     "fully_gold_passed_tasks": 0,
     "runtime_source_replication_components_ready": 1,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "The single frozen median-of-means run failed before an independent reviewer response because Anthropic could not compile its six-tool strict schema. Its unaccepted Markdown theory independently contains multiple active mathematical errors, so the task remains 0/1 and is closed without rerun or output repair. The shared transport was simplified generically and accepted by a neutral exact-Haiku probe.",
-    "next_step": "Keep the median-of-means and normal-sample-variance failures immutable. Use their negative evidence to strengthen model-owned long-horizon theory practice and claim-linked independent counterderivation on a future disjoint benchmark, without adding task formulas, more retries, or another review layer."
+    "latest_diagnostic": "A disjoint multiple-testing L0 task is now fully curated and frozen before its first model call. Its model-visible source snapshot contains the 1995 paper and a citation-bound OCR transcription; evaluator-only theory, algorithm, and empirical gold passed 11/11 semantic calibration cases, 10/10 algorithm checks, four negative implementations, and three 12000-replicate FDR checks. No product runtime or prompt was changed for this activation.",
+    "next_step": "Commit and push the frozen Benjamini-Hochberg identities, then execute exactly one fresh exact-Haiku research-eval draw. Preserve the result without resampling and use any failure only to diagnose shared model-owned workspace, review, coding, or orchestration mechanisms."
   }
 }
