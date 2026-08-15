@@ -86,11 +86,13 @@ an honest blocked result, never proof evidence.
 
 The mathematical authority is now model-authored Markdown, LaTeX, and BibTeX in a
 content-addressed workspace. The structured handoff carries claim/document anchors,
-theorem summaries, and typed cross-agent ABIs, but it is no longer the authority for
-the derivation. It is still a transitional payload and should be reduced further as
-consumers move to references. Reviewers, coding agents, simulation agents, and hidden
-evaluators consume the same hash-verified document bytes; schema validity cannot stand
-in for mathematical validity.
+plus only the typed ABIs selected by task intent, but it is no longer the authority
+for the derivation. Theorem cards and proof plans are Lean-facing handoffs and are not
+required for non-formal theory; theorem identity and dependencies already live in the
+document-backed claim DAG. The remaining structured payload is transitional and should
+shrink as consumers move to references. Reviewers, coding agents, simulation agents,
+and hidden evaluators consume the same hash-verified document bytes; schema validity
+cannot stand in for mathematical validity.
 
 A schema-valid theory write does not automatically close the workspace. The author
 model explicitly commits a review checkpoint or continues within the existing
@@ -438,20 +440,32 @@ provider call, tool record, or topology payload for that explicit task intent. F
 is a task-intent conformance simplification with regression evidence only; it does not
 change the frozen run or remove the Formalizer and Statlib RAG capabilities.
 
-An unrelated survey-sampling L0 task is now frozen before its first runtime model
-call. It asks for one finite-population Horvitz-Thompson total theorem, one sampled-sum
+The unrelated survey-sampling L0 task was frozen before its first runtime model call.
+It asks for one finite-population Horvitz-Thompson total theorem, one sampled-sum
 estimator ABI, and one joint design-moment assessment under independent Poisson
-sampling. The runtime-visible authority is a hash-bound survey-sampling source
-snapshot; evaluator-only Markdown semantics, reference source, negative variants,
-acceptance checks, and outcomes remain outside the repository and model workspace.
-Before activation, the reference implementation passed 8/8 direct and metamorphic
-checks and all three 12,000-replicate design-moment DGPs, four executable but
-statistically wrong variants were rejected by both hidden lanes, and exact Haiku
-classified 10/10 isolated semantic calibration cases correctly. These are evaluator
-calibration facts, not model capability. Exactly one future draw will test the shared
-Markdown continuation, skeptical self-check, source-grounded referee, generated-code,
-confirmatory-simulation, and non-formal retrieval mechanisms without changing their
-budgets or adding survey-specific runtime guidance.
+sampling. Before activation, the reference implementation passed 8/8 direct and
+metamorphic checks and all three 12,000-replicate design-moment DGPs, four executable
+but statistically wrong variants were rejected by both hidden lanes, and exact Haiku
+classified 10/10 isolated semantic calibration cases correctly. Those remain evaluator
+calibration facts, not model capability.
+
+Exactly one exact-Haiku draw then ran under the frozen authority. TheoryDeveloper wrote
+one 9,001-byte authoritative Markdown derivation and a document-backed claim index,
+but the non-formal contract also required duplicate theorem cards and a proof plan.
+All five writes were consumed aligning those redundant IDs, after which the model
+reported a structural mismatch as a theory gap. Runtime ended `BLOCKED`, research and
+hidden gold remained 0/1, independent theory review did not run, and no generated code,
+simulation, or Formalizer execution occurred. The task is frozen and will not be
+rerun or rescored.
+
+The shared correction removes theorem cards and proof plans from required non-formal
+handoffs while preserving them for selected formal authoring and exact kernel gates.
+The same run also confirmed zero Lean retrieval calls, but its top-level manifest still
+copied an irrelevant 57,753-declaration provider inventory. Default Lean providers now
+initialize only when at least one selected task may use a formal lane; an all-nonformal
+run records only a compact inactive descriptor. Neither change adds an agent, retry,
+budget, task formula, content repair, or model-tier escalation. All 750 tests pass;
+these fixes have regression evidence only and confer no credit on the frozen draw.
 
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same
