@@ -95,6 +95,12 @@ shrink as consumers move to references. Reviewers, coding agents, simulation age
 and hidden evaluators consume the same hash-verified document bytes; schema validity
 cannot stand in for mathematical validity.
 
+Independent mathematical review follows the same rule: the referee's substantive
+argument is one model-authored Markdown/LaTeX report, while the structured submission
+contains only ordered claim and dimension statuses, evidence references, and compact
+blocking findings. Runtime may bind identities, hash and persist the report, and derive
+routing; it may not duplicate, summarize, repair, or choose the referee's mathematics.
+
 A schema-valid theory write does not automatically close the workspace. The author
 model explicitly commits a review checkpoint or continues within the existing
 bounded session; the harness imposes no fixed review ritual. Independent theory

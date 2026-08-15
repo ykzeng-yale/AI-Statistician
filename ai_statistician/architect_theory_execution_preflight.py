@@ -5,6 +5,7 @@ import json
 import re
 from copy import deepcopy
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .client_tool_loop import (
@@ -55,8 +56,8 @@ from .theory_workspace import (
     theory_document_client_tools,
 )
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 17
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 24
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 18
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 25
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -75,7 +76,13 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_document_inspection_and_task_bound_source_query_v12"
+    "client_tool_document_inspection_and_task_bound_source_query_v13"
+)
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = (
+    "model_authored_markdown_referee_report_with_compact_status_envelope_v1"
+)
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY = (
+    "model_authored_markdown_referee_report"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
@@ -134,12 +141,14 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "missing evidence and leave it to the existing downstream workspace."
     ),
     (
-        "Use exact evidence IDs and the ordered review slots supplied by the runtime. "
-        "Mark uncertainty FAIL or UNCERTAIN, report one compact finding per actual "
-        "blocker, and describe the observed and required behavior without prescribing "
-        "a repair. Resolve or retract a prior finding only from current inspected "
-        "evidence; otherwise leave it unresolved. AgentRuntime derives the verdict and "
-        "binds identities without choosing scientific semantics."
+        "Write the mathematical judgment as one self-contained Markdown referee "
+        "report. Use exact evidence IDs once in the compact envelope, then return only "
+        "ordered PASS, FAIL, or UNCERTAIN statuses and one compact finding per actual "
+        "blocker; do not duplicate a prose rationale for every claim or review "
+        "dimension. Resolve or retract a prior finding only from current inspected "
+        "evidence; otherwise leave it unresolved. AgentRuntime derives the verdict, "
+        "binds identities, and persists the exact report without choosing scientific "
+        "semantics."
     ),
 )
 
@@ -320,6 +329,26 @@ def _active_claim_review_rows(
     return rows
 
 
+def _preflight_review_workspace_root(
+    semantic: Mapping[str, Any],
+    *,
+    question_id: str,
+    source_theory_packet_hash: str,
+) -> str:
+    manifest = semantic.get("theory_workspace_manifest", {})
+    if not isinstance(manifest, Mapping):
+        return ""
+    workspace_root = str(manifest.get("workspace_root", "") or "").strip()
+    if not workspace_root:
+        return ""
+    source_root = Path(workspace_root).expanduser().resolve()
+    run_root = source_root.parent.parent
+    review_id = stable_hash(
+        [question_id, source_theory_packet_hash, "theory_preflight_review"]
+    )[:20]
+    return str((run_root / "theory_reviews" / f"preflight-{review_id}").resolve())
+
+
 def build_architect_theory_execution_preflight_material(
     *,
     question: OpenResearchQuestion,
@@ -455,6 +484,9 @@ def build_architect_theory_execution_preflight_material(
         and str(dimension_requirements.get("formal", "") or "").strip()
         == "not_applicable"
     )
+    source_theory_packet_hash = str(
+        theory_protocol_material.get("source_theory_packet_hash", "") or ""
+    )
     return {
         "schema_version": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION,
         "artifact_kind": "ArchitectTheoryExecutionPreflightMaterial",
@@ -462,9 +494,7 @@ def build_architect_theory_execution_preflight_material(
         "source_theory_packet_id": str(
             theory_protocol_material.get("source_theory_packet_id", "") or ""
         ),
-        "source_theory_packet_hash": str(
-            theory_protocol_material.get("source_theory_packet_hash", "") or ""
-        ),
+        "source_theory_packet_hash": source_theory_packet_hash,
         "execution_results_available": False,
         "required_estimator_ids": estimator_ids,
         "required_claim_reviews": required_claim_reviews,
@@ -490,6 +520,11 @@ def build_architect_theory_execution_preflight_material(
         "anchor_catalog_fingerprint": stable_hash(anchor_catalog),
         "retrieval_context": retrieval_context,
         "formal_sources_applicable": formal_sources_applicable,
+        "review_workspace_root": _preflight_review_workspace_root(
+            semantic,
+            question_id=question.id,
+            source_theory_packet_hash=source_theory_packet_hash,
+        ),
         "proof_evidence_status": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE,
         "boundary": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_BOUNDARY,
     }
@@ -828,6 +863,7 @@ def build_architect_theory_execution_preflight_prompt(
     *,
     include_authoritative_document_content: bool = True,
     compact_source_search_available: bool = True,
+    compact_status_envelope: bool = False,
 ) -> str:
     anchor_catalog = [
         dict(row)
@@ -850,6 +886,7 @@ def build_architect_theory_execution_preflight_prompt(
             "anchor_catalog",
             "prior_finding_ledger",
             "retrieval_context",
+            "review_workspace_root",
         }
     }
     source_material["research_question"] = _compact_value(
@@ -947,7 +984,11 @@ def build_architect_theory_execution_preflight_prompt(
         "review_protocol_version": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION,
         "review_protocol": list(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL),
         "ordered_review_slots": {
-            "claim_reviews": [
+            (
+                "claim_statuses"
+                if compact_status_envelope
+                else "claim_reviews"
+            ): [
                 {
                     "output_slot": f"slot_{index}",
                     **deepcopy(dict(claim)),
@@ -957,7 +998,11 @@ def build_architect_theory_execution_preflight_prompt(
                 )
                 if isinstance(claim, Mapping)
             ],
-            "dimension_reviews": [
+            (
+                "dimension_statuses"
+                if compact_status_envelope
+                else "dimension_reviews"
+            ): [
                 {
                     "output_slot": f"slot_{index}",
                     "dimension": dimension,
@@ -975,7 +1020,11 @@ def build_architect_theory_execution_preflight_prompt(
                     material.get("required_estimator_ids", []) or []
                 )
             ],
-            "prior_finding_reviews": [
+            (
+                "prior_finding_statuses"
+                if compact_status_envelope
+                else "prior_finding_reviews"
+            ): [
                 prior_review_slot(index, finding_id)
                 for index, finding_id in enumerate(
                     material.get("active_prior_finding_ids", []) or []
@@ -1011,7 +1060,14 @@ def build_architect_theory_execution_preflight_prompt(
         },
         "verdict_policy": (
             "Do not return an overall verdict. AgentRuntime derives it from the "
-            "complete claim, dimension, estimator, and finding rows. A blocking finding, "
+            + (
+                "ordered claim and dimension statuses, compact estimator checks, and "
+                "findings. Put the independent mathematical argument in one Markdown "
+                "referee report rather than repeating a rationale in every slot. "
+                if compact_status_envelope
+                else "complete claim, dimension, estimator, and finding rows. "
+            )
+            + "A blocking finding, "
             "including an UNRESOLVED prior finding, requires at least one FAIL or "
             "UNCERTAIN claim, dimension, or estimator row. If every review row "
             "is PASS, return no new findings. Resolve a prior finding only when current "
@@ -1158,8 +1214,8 @@ def _read_preflight_theory_document(
 def _architect_theory_execution_preflight_submit_schema(
     material: Mapping[str, Any],
 ) -> dict[str, Any]:
-    schema = architect_theory_execution_preflight_json_schema(material)
-    finding_schema = schema["$defs"]["finding"]
+    legacy_schema = architect_theory_execution_preflight_json_schema(material)
+    finding_schema = deepcopy(legacy_schema["$defs"]["finding"])
     source_evidence_refs = {
         "type": "array",
         "minItems": 1,
@@ -1177,48 +1233,131 @@ def _architect_theory_execution_preflight_submit_schema(
             "evidence_refs field accepts only theory anchor IDs from its enum."
         ),
     }
-    schema["$defs"]["source_evidence_refs"] = source_evidence_refs
     finding_schema["properties"]["source_evidence_refs"] = {
         "$ref": "#/$defs/source_evidence_refs"
     }
-    prior_review_schema = schema["$defs"].get("prior_finding_review")
-    if isinstance(prior_review_schema, dict):
-        prior_review_schema["properties"]["source_evidence_refs"] = {
-            "$ref": "#/$defs/source_evidence_refs"
-        }
-    ordered_array_counts = {
-        "claim_reviews": len(
-            material.get("required_claim_review_ids", []) or []
-        ),
-        "dimension_reviews": len(
-            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-        ),
-        "estimator_execution_checks": len(
-            material.get("required_estimator_ids", []) or []
-        ),
-    }
-    ordered_array_definitions = {
-        "claim_reviews": "claim_review",
-        "dimension_reviews": "dimension_review",
-        "estimator_execution_checks": "estimator_execution_check",
-    }
-    for field, count in ordered_array_counts.items():
-        existing = schema["properties"].get(field)
-        if not isinstance(existing, Mapping):
-            continue
-        schema["properties"][field] = {
+    anchor_ids = [
+        str(row.get("anchor_id", "") or "")
+        for row in material.get("anchor_catalog", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("anchor_id", "") or "").strip()
+    ]
+    claim_count = len(material.get("required_claim_review_ids", []) or [])
+    estimator_count = len(material.get("required_estimator_ids", []) or [])
+    prior_count = len(material.get("active_prior_finding_ids", []) or [])
+    def status_array(count: int, description: str) -> dict[str, Any]:
+        return {
             "type": "array",
             "minItems": count,
             "maxItems": count,
-            "description": (
-                str(existing.get("description", "") or "")
-                + " Submit rows in ordered_review_slots order."
-            ),
+            "description": description,
             "items": {
-                "$ref": f"#/$defs/{ordered_array_definitions[field]}"
+                "type": "string",
+                "enum": ["PASS", "FAIL", "UNCERTAIN"],
             },
         }
-    return schema
+    properties: dict[str, Any] = {
+        "review_report_markdown": {
+            "type": "string",
+            "minLength": 1,
+            "description": (
+                "The complete mathematical referee report in readable Markdown with "
+                "LaTeX equations where useful. Reconstruct decisive steps, identify "
+                "counterexamples or uncertainties, and explain the final judgment "
+                "here instead of duplicating prose in every status slot."
+            ),
+        },
+        "report_evidence_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "enum": anchor_ids},
+            "description": (
+                "Theory documents and compact handoff anchors actually inspected and "
+                "used by the Markdown report."
+            ),
+        },
+        "claim_statuses": status_array(
+            claim_count,
+            "One status per ordered claim slot. Detailed reasoning belongs in the report.",
+        ),
+        "dimension_statuses": status_array(
+            len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
+            "One status per ordered review dimension. Detailed reasoning belongs in the report.",
+        ),
+        "estimator_execution_checks": {
+            "type": "array",
+            "minItems": estimator_count,
+            "maxItems": estimator_count,
+            "description": (
+                "One compact row per ordered estimator slot. Put mathematical and "
+                "execution analysis in the Markdown report; list only actual blockers here."
+            ),
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["status", "blocking_gaps"],
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": ["PASS", "FAIL", "UNCERTAIN"],
+                    },
+                    "blocking_gaps": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "minLength": 1,
+                        },
+                    },
+                },
+            },
+        },
+        "findings": {
+            "type": "array",
+            "description": (
+                "Only actual blockers. The Markdown report carries the full audit; "
+                "these compact findings drive bounded upstream revision."
+            ),
+            "items": {"$ref": "#/$defs/finding"},
+        },
+    }
+    required = [
+        "review_report_markdown",
+        "report_evidence_refs",
+        "claim_statuses",
+        "dimension_statuses",
+        "estimator_execution_checks",
+        "findings",
+    ]
+    if prior_count:
+        properties["prior_finding_statuses"] = {
+            "type": "array",
+            "minItems": prior_count,
+            "maxItems": prior_count,
+            "description": (
+                "One status per ordered prior-finding slot. Explain resolution or "
+                "continued uncertainty in the Markdown report."
+            ),
+            "items": {
+                "type": "string",
+                "enum": [
+                    METRIC_PROTOCOL_FINDING_UNRESOLVED,
+                    METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
+                    METRIC_PROTOCOL_FINDING_RETRACTED_BY_CURRENT_EVIDENCE,
+                ],
+            },
+        }
+        required.append("prior_finding_statuses")
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": required,
+        "properties": properties,
+        "$defs": {
+            "evidence_refs": deepcopy(legacy_schema["$defs"]["evidence_refs"]),
+            "source_evidence_refs": source_evidence_refs,
+            "finding": finding_schema,
+        },
+    }
 
 
 def _preflight_source_tokens(value: Any) -> set[str]:
@@ -2167,6 +2306,87 @@ def _prior_finding_semantics(value: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _preflight_review_report_manifest(
+    *,
+    content: str,
+    material: Mapping[str, Any],
+    evidence_refs: Sequence[str],
+) -> dict[str, Any]:
+    content_sha256 = _preflight_text_sha256(content)
+    report_id = "theory_preflight_review_document:" + content_sha256[:20]
+    workspace_root = str(material.get("review_workspace_root", "") or "").strip()
+    path = (
+        str((Path(workspace_root) / f"review-{content_sha256[:20]}.md").resolve())
+        if workspace_root
+        else ""
+    )
+    return {
+        "schema_version": 1,
+        "artifact_kind": "TheoryExecutionPreflightReviewDocument",
+        "document_id": report_id,
+        "content_authority": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY,
+        "media_type": "text/markdown",
+        "path": path,
+        "sha256": content_sha256,
+        "byte_size": len(content.encode("utf-8")),
+        "evidence_refs": list(evidence_refs),
+        "persisted": False,
+        "proof_evidence_status": (
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE
+        ),
+    }
+
+
+def _materialize_preflight_review_report(
+    packet: Mapping[str, Any],
+    *,
+    material: Mapping[str, Any],
+) -> dict[str, Any]:
+    materialized = deepcopy(dict(packet))
+    if materialized.get("review_transport") != (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT
+    ):
+        return materialized
+    content = str(materialized.pop("review_report_markdown", "") or "")
+    report = materialized.get("review_report", {})
+    report = dict(report) if isinstance(report, Mapping) else {}
+    path = str(report.get("path", "") or "").strip()
+    if not content or not path:
+        raise ValueError(
+            "compact theory preflight report requires model-authored Markdown and a "
+            "runtime review workspace"
+        )
+    report_path = Path(path).expanduser().resolve()
+    workspace_root = str(material.get("review_workspace_root", "") or "").strip()
+    if not workspace_root:
+        raise ValueError("theory preflight review workspace is unavailable")
+    expected_root = Path(workspace_root).expanduser().resolve()
+    try:
+        report_path.relative_to(expected_root)
+    except ValueError as exc:
+        raise ValueError(
+            "theory preflight report path escapes its runtime review workspace"
+        ) from exc
+    if report_path.parent != expected_root:
+        raise ValueError(
+            "theory preflight report must be a direct review-workspace artifact"
+        )
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    if report_path.exists():
+        existing = report_path.read_text(encoding="utf-8")
+        if existing != content:
+            raise ValueError("theory preflight report path already has different content")
+    else:
+        report_path.write_text(content, encoding="utf-8")
+    if _preflight_text_sha256(report_path.read_text(encoding="utf-8")) != str(
+        report.get("sha256", "") or ""
+    ):
+        raise ValueError("persisted theory preflight report hash mismatch")
+    report["persisted"] = True
+    materialized["review_report"] = report
+    return materialized
+
+
 def _normalize_packet(
     payload: Mapping[str, Any],
     *,
@@ -2198,6 +2418,67 @@ def _normalize_packet(
                 "runtime_selected_review_semantics": False,
             }
         )
+    compact_report = str(body.get("review_report_markdown", "") or "")
+    compact_report_refs = [
+        str(value).strip()
+        for value in body.get("report_evidence_refs", []) or []
+        if str(value).strip()
+    ]
+    if compact_report.strip():
+        body["review_transport"] = (
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT
+        )
+        body["review_report_markdown"] = compact_report
+        body["review_report"] = _preflight_review_report_manifest(
+            content=compact_report,
+            material=material,
+            evidence_refs=compact_report_refs,
+        )
+        report_ref = str(body["review_report"]["document_id"])
+        if "claim_statuses" in body:
+            body["claim_reviews"] = [
+                {
+                    "status": str(status or "").strip().upper(),
+                    "review_report_ref": report_ref,
+                }
+                for status in body.get("claim_statuses", []) or []
+            ]
+        if "dimension_statuses" in body:
+            body["dimension_reviews"] = [
+                {
+                    "status": str(status or "").strip().upper(),
+                    "review_report_ref": report_ref,
+                }
+                for status in body.get("dimension_statuses", []) or []
+            ]
+        compact_estimator_rows = body.get("estimator_execution_checks", [])
+        if isinstance(compact_estimator_rows, Sequence) and not isinstance(
+            compact_estimator_rows, (str, bytes)
+        ):
+            body["estimator_execution_checks"] = [
+                {
+                    **dict(row),
+                    "status": str(row.get("status", "") or "").strip().upper(),
+                    "review_report_ref": report_ref,
+                }
+                for row in compact_estimator_rows
+                if isinstance(row, Mapping)
+            ]
+        if "prior_finding_statuses" in body:
+            body["prior_finding_reviews"] = [
+                {
+                    "status": str(status or "").strip().upper(),
+                    "review_report_ref": report_ref,
+                }
+                for status in body.get("prior_finding_statuses", []) or []
+            ]
+        for field in (
+            "claim_statuses",
+            "dimension_statuses",
+            "prior_finding_statuses",
+            "report_evidence_refs",
+        ):
+            body.pop(field, None)
     raw_dimension_reviews = _ordered_review_slot_rows(
         body.get("dimension_reviews", {}),
         expected_count=len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
@@ -2455,12 +2736,20 @@ def _normalize_packet(
             }
         )
     body["overall_verdict"] = _derived_verdict(body)
+    packet_identity_body = deepcopy(body)
+    packet_identity_body.pop("review_report_markdown", None)
+    report_identity = packet_identity_body.get("review_report", {})
+    if isinstance(report_identity, Mapping):
+        report_identity = dict(report_identity)
+        report_identity.pop("path", None)
+        report_identity.pop("persisted", None)
+        packet_identity_body["review_report"] = report_identity
     packet_id = "architect_theory_execution_preflight:" + stable_hash(
         [
             question.id,
             material.get("source_theory_packet_id", ""),
             material.get("source_theory_packet_hash", ""),
-            body,
+            packet_identity_body,
         ]
     )[:20]
     prior_finding_ledger = [
@@ -2571,12 +2860,87 @@ def _normalize_packet(
     }
 
 
+def _preflight_review_report_errors(
+    packet: Mapping[str, Any],
+    *,
+    material: Mapping[str, Any],
+) -> list[str]:
+    if packet.get("review_transport") != (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT
+    ):
+        return []
+    errors: list[str] = []
+    report = packet.get("review_report", {})
+    report = dict(report) if isinstance(report, Mapping) else {}
+    if report.get("artifact_kind") != "TheoryExecutionPreflightReviewDocument":
+        errors.append("theory execution preflight review report kind mismatch")
+    if report.get("content_authority") != (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY
+    ):
+        errors.append("theory execution preflight review report authority mismatch")
+    content = str(packet.get("review_report_markdown", "") or "")
+    path = str(report.get("path", "") or "").strip()
+    workspace_root = str(material.get("review_workspace_root", "") or "").strip()
+    if not workspace_root:
+        errors.append("theory execution preflight review workspace is unavailable")
+    elif path:
+        expected_root = Path(workspace_root).expanduser().resolve()
+        report_path = Path(path).expanduser().resolve()
+        try:
+            report_path.relative_to(expected_root)
+        except ValueError:
+            errors.append(
+                "theory execution preflight review report path escapes its workspace"
+            )
+        else:
+            if report_path.parent != expected_root:
+                errors.append(
+                    "theory execution preflight review report is not a direct "
+                    "workspace artifact"
+                )
+    if content:
+        observed_sha256 = _preflight_text_sha256(content)
+        observed_byte_size = len(content.encode("utf-8"))
+    elif path and report.get("persisted") is True:
+        try:
+            persisted_content = Path(path).expanduser().resolve().read_text(
+                encoding="utf-8"
+            )
+        except (OSError, UnicodeError):
+            errors.append("theory execution preflight review report is unavailable")
+            persisted_content = ""
+        observed_sha256 = (
+            _preflight_text_sha256(persisted_content) if persisted_content else ""
+        )
+        observed_byte_size = len(persisted_content.encode("utf-8"))
+    else:
+        errors.append("theory execution preflight review report content is missing")
+        observed_sha256 = ""
+        observed_byte_size = 0
+    if observed_sha256 != str(report.get("sha256", "") or ""):
+        errors.append("theory execution preflight review report hash mismatch")
+    if observed_byte_size != int(report.get("byte_size", 0) or 0):
+        errors.append("theory execution preflight review report byte size mismatch")
+    evidence_refs = [
+        str(value).strip()
+        for value in report.get("evidence_refs", []) or []
+        if str(value).strip()
+    ]
+    if not evidence_refs:
+        errors.append("theory execution preflight review report has no evidence refs")
+    return errors
+
+
 def validate_architect_theory_execution_preflight_packet(
     packet: Mapping[str, Any],
     *,
     material: Mapping[str, Any],
 ) -> list[str]:
     errors: list[str] = []
+    compact_report = packet.get("review_transport") == (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT
+    )
+    errors.extend(_preflight_review_report_errors(packet, material=material))
     if packet.get("artifact_kind") != "ArchitectTheoryExecutionPreflightReviewPacket":
         errors.append("theory execution preflight artifact_kind mismatch")
     if packet.get("schema_version") != ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION:
@@ -2696,16 +3060,17 @@ def validate_architect_theory_execution_preflight_packet(
     for row_index, row in enumerate(estimator_rows):
         status = str(row.get("status", "") or "").strip().upper()
         estimator_id = str(row.get("estimator_id", "") or "").strip()
-        for field in (
-            "audit_rationale",
-            "identity_check",
-            "boundary_or_counterexample",
-        ):
-            if not str(row.get(field, "") or "").strip():
-                errors.append(
-                    f"estimator_execution_checks[{row_index}] estimator_id="
-                    f"{estimator_id!r} missing model-authored {field}"
-                )
+        if not compact_report:
+            for field in (
+                "audit_rationale",
+                "identity_check",
+                "boundary_or_counterexample",
+            ):
+                if not str(row.get(field, "") or "").strip():
+                    errors.append(
+                        f"estimator_execution_checks[{row_index}] estimator_id="
+                        f"{estimator_id!r} missing model-authored {field}"
+                    )
         blocking_gaps = row.get("blocking_gaps", [])
         valid_blocking_gaps = isinstance(blocking_gaps, list) and all(
             str(value or "").strip() for value in blocking_gaps
@@ -2728,12 +3093,13 @@ def validate_architect_theory_execution_preflight_packet(
             )
     for row_index, row in enumerate(claim_rows):
         claim_id = str(row.get("claim_id", "") or "").strip()
-        for field in ("independent_check", "rationale"):
-            if not str(row.get(field, "") or "").strip():
-                errors.append(
-                    f"claim_reviews[{row_index}] claim_id={claim_id!r} "
-                    f"missing model-authored {field}"
-                )
+        if not compact_report:
+            for field in ("independent_check", "rationale"):
+                if not str(row.get(field, "") or "").strip():
+                    errors.append(
+                        f"claim_reviews[{row_index}] claim_id={claim_id!r} "
+                        f"missing model-authored {field}"
+                    )
     expected_claim_identity_bindings: list[dict[str, Any]] = []
     for transport_index, row in enumerate(claim_rows):
         claim_id = str(row.get("claim_id", "") or "").strip()
@@ -2784,17 +3150,46 @@ def validate_architect_theory_execution_preflight_packet(
         for row in material.get("anchor_catalog", []) or []
         if isinstance(row, Mapping)
     }
+    if compact_report:
+        report = packet.get("review_report", {})
+        report = dict(report) if isinstance(report, Mapping) else {}
+        report_ref = str(report.get("document_id", "") or "").strip()
+        report_evidence_refs = [
+            str(value).strip()
+            for value in report.get("evidence_refs", []) or []
+            if str(value).strip()
+        ]
+        if any(ref not in valid_anchor_ids for ref in report_evidence_refs):
+            errors.append(
+                "theory execution preflight review report uses unknown evidence refs"
+            )
+        compact_rows = [
+            *claim_rows,
+            *dimension_rows,
+            *estimator_rows,
+            *prior_finding_reviews,
+        ]
+        if not report_ref or any(
+            str(row.get("review_report_ref", "") or "") != report_ref
+            for row in compact_rows
+        ):
+            errors.append(
+                "theory execution preflight compact statuses are not bound to the "
+                "review report"
+            )
     cited_rows = [
-        *claim_rows,
-        *dimension_rows,
-        *estimator_rows,
-        *prior_finding_reviews,
-        *[
-            row
-            for row in packet.get("findings", []) or []
-            if isinstance(row, Mapping)
-        ],
+        row
+        for row in packet.get("findings", []) or []
+        if isinstance(row, Mapping)
     ]
+    if not compact_report:
+        cited_rows = [
+            *claim_rows,
+            *dimension_rows,
+            *estimator_rows,
+            *prior_finding_reviews,
+            *cited_rows,
+        ]
     for row in cited_rows:
         refs = [str(value) for value in row.get("evidence_refs", []) or []]
         if not refs or any(ref not in valid_anchor_ids for ref in refs):
@@ -3005,6 +3400,10 @@ Reject a checkpoint that labels or uses pre-review scratch output as frozen conf
 evidence, even when its numbers happen to agree with the theory.
 If a judgment requires generated execution, state the missing evidence rather than
 inventing a result. Report findings, not repairs, and never claim proof evidence.
+In client-tool mode, write one coherent Markdown referee report containing the actual
+mathematics. Its tool envelope is only a compact identity and routing ABI: cite the
+inspected anchors once, return ordered statuses, and list actual blockers without
+duplicating the report.
 """
 
 
@@ -3131,6 +3530,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         material,
         include_authoritative_document_content=False,
         compact_source_search_available=compact_source_search_available,
+        compact_status_envelope=True,
     )
     tool_prompt = (
         prompt.split("\n\n", 1)[-1]
@@ -3154,8 +3554,10 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "UNCERTAIN when it genuinely requires that downstream evidence. Keep citation "
         "namespaces distinct: evidence_refs accepts theory anchor IDs, while "
         "source_evidence_refs accepts only S...H... source handles. "
-        "Call submit_theory_preflight_review with the full typed review; do not "
-        "answer in prose."
+        "Call submit_theory_preflight_review with one complete Markdown referee "
+        "report plus the compact status and finding envelope. Do not duplicate a "
+        "separate prose rationale for every claim or dimension, and do not answer "
+        "outside the tool."
     )
     state: dict[str, Any] = {
         "searches": 0,
@@ -3608,6 +4010,20 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             ),
             attempts=loop.turns,
             errors=errors,
+            history=_preflight_evidence_history(loop.history),
+        )
+    packet = _materialize_preflight_review_report(packet, material=material)
+    persisted_errors = validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=material,
+    )
+    if persisted_errors:
+        raise PacketValidationError(
+            validation_label=(
+                "Architect theory-to-execution source-grounded preflight review"
+            ),
+            attempts=loop.turns,
+            errors=persisted_errors,
             history=_preflight_evidence_history(loop.history),
         )
     return packet

@@ -20,6 +20,7 @@ from ai_statistician.architect_metric_contract_authoring import (
 from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT,
     _architect_theory_execution_preflight_submit_schema,
     _search_preflight_sources,
@@ -683,7 +684,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_document_inspection_and_task_bound_source_query_v12"
+        "client_tool_document_inspection_and_task_bound_source_query_v13"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
@@ -1004,7 +1005,10 @@ def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
     ]
     assert backend.requests[0].tools[-1].strict is False
     submit_schema = backend.requests[0].tools[-1].input_schema
-    assert submit_schema["properties"]["dimension_reviews"]["type"] == "array"
+    assert submit_schema["properties"]["dimension_statuses"]["type"] == "array"
+    assert submit_schema["properties"]["review_report_markdown"]["type"] == (
+        "string"
+    )
     assert packet["preflight_source_search_count"] == 1
     assert [
         row["source_scope"]
@@ -1884,11 +1888,11 @@ This abandoned route is explicitly rejected.
         tool
         for tool in backend.requests[0].tools
         if tool.name == "submit_theory_preflight_review"
-    ).input_schema["properties"]["claim_reviews"]
+    ).input_schema["properties"]["claim_statuses"]
     assert claim_schema["type"] == "array"
     assert claim_schema["minItems"] == 2
     assert claim_schema["maxItems"] == 2
-    assert claim_schema["items"] == {"$ref": "#/$defs/claim_review"}
+    assert claim_schema["items"]["enum"] == ["PASS", "FAIL", "UNCERTAIN"]
 
 
 def test_one_failed_claim_review_blocks_preflight_acceptance(tmp_path: Path) -> None:
@@ -2093,8 +2097,8 @@ def test_preflight_client_submit_schema_stays_compact_with_sixteen_claims() -> N
     schema = _architect_theory_execution_preflight_submit_schema(material)
 
     expected_counts = {
-        "claim_reviews": 16,
-        "dimension_reviews": len(
+        "claim_statuses": 16,
+        "dimension_statuses": len(
             ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
         ),
         "estimator_execution_checks": 2,
@@ -2105,25 +2109,154 @@ def test_preflight_client_submit_schema_stays_compact_with_sixteen_claims() -> N
         assert field_schema["minItems"] == count
         assert field_schema["maxItems"] == count
         assert "properties" not in field_schema
-    prior_schema = schema["properties"]["prior_finding_reviews"]
+    prior_schema = schema["properties"]["prior_finding_statuses"]
     assert prior_schema["type"] == "array"
     assert prior_schema["minItems"] == 3
     assert prior_schema["maxItems"] == 3
-    estimator_properties = schema["$defs"][
-        "estimator_execution_check"
-    ]["properties"]
+    estimator_properties = schema["properties"][
+        "estimator_execution_checks"
+    ]["items"]["properties"]
     assert set(estimator_properties) == {
-        "audit_rationale",
-        "identity_check",
         "blocking_gaps",
-        "boundary_or_counterexample",
         "status",
-        "evidence_refs",
     }
+    assert "review_report_markdown" in schema["required"]
+    assert "report_evidence_refs" in schema["required"]
+    assert "maxItems" not in schema["properties"]["report_evidence_refs"]
+    assert "maxItems" not in schema["properties"]["findings"]
+    assert "maxItems" not in estimator_properties["blocking_gaps"]
     compact_size = len(json.dumps(schema, separators=(",", ":")))
     expanded_size = len(json.dumps(expanded_schema, separators=(",", ":")))
     assert compact_size < expanded_size
     assert compact_size < 6_500
+
+
+def test_client_tool_preflight_persists_markdown_referee_report(
+    tmp_path: Path,
+) -> None:
+    relative_path = "derivations/candidate.md"
+    theory_text = (
+        "# Candidate\n\n"
+        "Define the finite procedure and derive its claimed identity.\n"
+    )
+    workspace_dir = tmp_path / "run" / "theory_workspaces" / "workspace"
+    theory_path = workspace_dir / relative_path
+    theory_path.parent.mkdir(parents=True)
+    theory_path.write_text(theory_text, encoding="utf-8")
+    theory_material = _theory_material()
+    semantic = theory_material["theory_semantic_material"]
+    semantic["theory_workspace_manifest"] = theory_workspace_document_manifest(
+        {relative_path: theory_text},
+        workspace_dir=workspace_dir,
+    )
+    semantic["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
+    semantic["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
+    semantic["theory_derivation_packet"]["claim_index"] = [
+        {
+            "id": "finite_identity",
+            "kind": "equation",
+            "document_path": relative_path,
+            "depends_on": [],
+            "status": "SUPPORTED",
+        }
+    ]
+    theory_material["source_theory_packet_hash"] = stable_hash(semantic)
+    report = (
+        "# Independent theory preflight\n\n"
+        "I reconstructed the finite identity from the declared definition and "
+        "checked the no-event boundary. The typed censored outcome keeps the "
+        "procedure total, and no generated execution result is assumed.\n"
+    )
+
+    class CompactReportBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "read-candidate",
+                        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                        {
+                            "path": relative_path,
+                            "line_start": 1,
+                            "line_end": len(theory_text.splitlines()),
+                        },
+                    )
+                )
+            return _tool_response(
+                ClientToolCall(
+                    "submit-compact-report",
+                    "submit_theory_preflight_review",
+                    {
+                        "review_report_markdown": report,
+                        "report_evidence_refs": [
+                            f"theory.document:{relative_path}",
+                            "theory.estimator_specs",
+                        ],
+                        "claim_statuses": ["PASS"],
+                        "dimension_statuses": [
+                            "PASS"
+                            for _ in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+                        ],
+                        "estimator_execution_checks": [
+                            {"status": "PASS", "blocking_gaps": []}
+                        ],
+                        "findings": [],
+                    },
+                )
+            )
+
+    backend = CompactReportBackend()
+    packet = _tool_review(
+        backend,
+        theory_protocol_material=theory_material,
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["review_transport"] == (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT
+    )
+    assert "review_report_markdown" not in packet
+    review_document = packet["review_report"]
+    assert review_document["persisted"] is True
+    review_path = Path(review_document["path"])
+    assert review_path.read_text(encoding="utf-8") == report
+    assert review_path.is_relative_to(tmp_path / "run" / "theory_reviews")
+    assert packet["claim_reviews"][0]["review_report_ref"] == (
+        review_document["document_id"]
+    )
+    assert "evidence_refs" not in packet["claim_reviews"][0]
+    assert review_document["evidence_refs"] == [
+        f"theory.document:{relative_path}",
+        "theory.estimator_specs",
+    ]
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=theory_material,
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+    )
+    escaped_packet = deepcopy(packet)
+    escaped_packet["review_report"]["path"] = str(
+        tmp_path / "outside-review-workspace.md"
+    )
+    assert any(
+        "path escapes its workspace" in error
+        for error in validate_architect_theory_execution_preflight_packet(
+            escaped_packet,
+            material=material,
+        )
+    )
+    submit_schema = backend.requests[0].tools[-1].input_schema
+    assert "claim_reviews" not in submit_schema["properties"]
+    assert "dimension_reviews" not in submit_schema["properties"]
 
 
 def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> None:
