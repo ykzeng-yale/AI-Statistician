@@ -1916,7 +1916,6 @@ THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
             "id": "stable claim or equation id",
             "kind": "definition|assumption|lemma|theorem|equation|counterexample",
             "document_path": "workspace-relative .md or .tex path",
-            "anchor": "heading or LaTeX label",
             "depends_on": ["direct predecessor claim_index ids"],
             "status": "OPEN|SUPPORTED|REJECTED|INCONCLUSIVE",
         }
@@ -1926,7 +1925,6 @@ THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
             "id": "stable check id",
             "claim_ref": "claim_index id",
             "document_path": "workspace-relative .md or .tex path",
-            "anchor": "heading or LaTeX label",
             "status": "PASS|FAIL|INCONCLUSIVE",
         }
     ],
@@ -1935,11 +1933,11 @@ THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
             "formalization_handoff"
         ]
     ),
-    "self_critique": ["short unresolved-risk summary with document anchors"],
+    "self_critique": ["short unresolved-risk summary with claim IDs and document paths"],
     "rejected_alternatives": [
         {
             "name": "short id",
-            "reason": "short summary with document anchor",
+            "reason": "short summary with claim ID or document path",
         }
     ],
 }
@@ -2233,10 +2231,6 @@ def _file_theory_index_errors(
         )
         if isinstance(row, Mapping)
     }
-    try:
-        documents = load_theory_workspace_documents(packet)
-    except (OSError, UnicodeError, ValueError):
-        documents = {}
     claim_rows = derivation.get("claim_index", [])
     if not isinstance(claim_rows, list) or not claim_rows:
         errors.append("theory_derivation_packet.claim_index must be non-empty")
@@ -2249,7 +2243,7 @@ def _file_theory_index_errors(
             continue
         missing = [
             field
-            for field in ("id", "kind", "document_path", "anchor", "status")
+            for field in ("id", "kind", "document_path", "status")
             if not str(row.get(field, "") or "").strip()
         ]
         if missing:
@@ -2283,9 +2277,6 @@ def _file_theory_index_errors(
         path = str(row.get("document_path", "") or "").strip()
         if path and path not in document_paths:
             errors.append(f"claim_index[{index}] references an unknown document")
-        anchor = str(row.get("anchor", "") or "").strip()
-        if path in documents and anchor and anchor not in documents[path]:
-            errors.append(f"claim_index[{index}] anchor is absent from its document")
         if str(row.get("kind", "") or "") not in {
             "definition",
             "assumption",
@@ -2341,7 +2332,7 @@ def _file_theory_index_errors(
             continue
         missing = [
             field
-            for field in ("id", "claim_ref", "document_path", "anchor", "status")
+            for field in ("id", "claim_ref", "document_path", "status")
             if not str(row.get(field, "") or "").strip()
         ]
         if missing:
@@ -2359,11 +2350,6 @@ def _file_theory_index_errors(
         if path and path not in document_paths:
             errors.append(
                 f"sanity_check_index[{index}] references an unknown document"
-            )
-        anchor = str(row.get("anchor", "") or "").strip()
-        if path in documents and anchor and anchor not in documents[path]:
-            errors.append(
-                f"sanity_check_index[{index}] anchor is absent from its document"
             )
         if str(row.get("status", "") or "") not in {
             "PASS",
@@ -3313,9 +3299,11 @@ def _initial_theory_workspace_prompt(
         "task-intent-required, shape-typed cross-agent handoff. The documents, "
         "not JSON rows, are the "
         "authority for definitions, assumptions, equation-by-equation derivations, "
-        "counterexamples, and unresolved arguments. Use stable headings or LaTeX "
-        "labels, then point the compact claim_index and sanity_check_index to those "
-        "anchors. Record only direct claim dependencies in claim_index.depends_on so "
+        "counterexamples, and unresolved arguments. Use stable claim IDs and document "
+        "paths in the compact claim_index and sanity_check_index. Headings and LaTeX "
+        "labels may help readers navigate, but runtime does not parse or require any "
+        "Markdown anchor syntax. Record only direct claim dependencies in "
+        "claim_index.depends_on so "
         "the resulting graph remains reviewable; keep the mathematical argument in "
         "the documents rather than copying it into the index. You may edit a "
         "coherent subset and use the raw validator observation to complete or revise the "
@@ -3334,7 +3322,7 @@ def _initial_theory_workspace_prompt(
         "definitions and claims rather "
         "than treating retrieval as an answer key. Keep assumptions, equations, "
         "every authored downstream handoff mutually consistent. Treat IDs and document "
-        "anchors as exact references. The required compact handoffs are: "
+        "paths as exact references. The required compact handoffs are: "
         + required_handoffs
         + ". Handoffs not required by this task intent may remain empty: "
         + optional_handoffs
@@ -4808,12 +4796,12 @@ def _theory_semantic_reference_catalog(
         (
             "claim_index",
             "id",
-            ("kind", "document_path", "anchor", "depends_on", "status"),
+            ("kind", "document_path", "depends_on", "status"),
         ),
         (
             "sanity_check_index",
             "id",
-            ("claim_ref", "document_path", "anchor", "status"),
+            ("claim_ref", "document_path", "status"),
         ),
     ):
         for raw_row in derivation.get(collection, []) or []:

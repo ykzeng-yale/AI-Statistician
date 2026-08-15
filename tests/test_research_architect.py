@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import shutil
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -1067,6 +1068,34 @@ def test_theory_validation_allows_model_selected_supporting_row_counts() -> None
     packet["kernel_verified"] = False
 
     assert validate_theory_core_packet(packet) == []
+
+
+def test_file_theory_index_does_not_require_markdown_anchor_syntax(
+    tmp_path: Path,
+) -> None:
+    packet, _documents = _file_authority_theory_fixture(
+        _sample_response(),
+        workspace_dir=tmp_path / "theory",
+    )
+    derivation = deepcopy(packet["theory_derivation_packet"])
+    for row in derivation["claim_index"]:
+        row.pop("anchor", None)
+    for row in derivation["sanity_check_index"]:
+        row.pop("anchor", None)
+    packet["theory_derivation_packet"] = derivation
+    packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
+    packet["kernel_verified"] = False
+
+    assert validate_theory_core_packet(packet) == []
+
+    wrong_document = deepcopy(packet)
+    wrong_derivation = deepcopy(wrong_document["theory_derivation_packet"])
+    wrong_derivation["claim_index"][0]["document_path"] = "missing.md"
+    wrong_document["theory_derivation_packet"] = wrong_derivation
+    assert any(
+        "references an unknown document" in error
+        for error in validate_theory_core_packet(wrong_document)
+    )
 
 
 def test_advisory_theory_can_omit_formalization_authoring_artifacts() -> None:

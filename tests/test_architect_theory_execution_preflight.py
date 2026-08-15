@@ -71,7 +71,7 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     prompt = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
 
     assert "authoritative Markdown or LaTeX" in prompt
-    assert "every active claim anchor" in prompt
+    assert "every line of every authoritative Markdown or LaTeX document" in prompt
     assert "reconstruct decisive algebraic or probabilistic transitions" in prompt
     assert "boundary case" in prompt
     assert "special case" in prompt
@@ -683,7 +683,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_document_inspection_and_task_bound_source_query_v11"
+        "client_tool_document_inspection_and_task_bound_source_query_v12"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
@@ -1420,7 +1420,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
     verdict_policy = prompt_payload["verdict_policy"]
     assert "checkable independent derivation" in verdict_policy
-    assert "exact inspected anchors" in verdict_policy
+    assert "exact inspected documents or indexed artifacts" in verdict_policy
     assert "prior reviewer prose is not independent support" in verdict_policy
     assert "downstream proof obligations" in verdict_policy
     packet, backend = _review(accept=True)
@@ -1429,7 +1429,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     protocol = " ".join(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL)
     for phrase in (
         "structured handoff is only an index",
-        "every non-REJECTED claim-index entry",
+        "every line of every authoritative theory document",
         "correct final statement does not cancel",
         "discriminating special case",
         "complete semantic chain",
@@ -1648,15 +1648,25 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
                 )
                 self.marker_line = search_result["hits"][0]["line_number"]
                 return _tool_response(
-                    ClientToolCall(
-                        "read-authoritative-document",
-                        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
-                        {
-                            "path": relative_path,
-                            "line_start": self.marker_line - 1,
-                            "line_end": self.marker_line + 1,
-                        },
-                    )
+                    *[
+                        ClientToolCall(
+                            f"read-authoritative-document-{index}",
+                            THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                            {
+                                "path": relative_path,
+                                "line_start": line_start,
+                                "line_end": line_end,
+                            },
+                        )
+                        for index, (line_start, line_end) in enumerate(
+                            (
+                                (1, 500),
+                                (501, 1000),
+                                (1001, len(content.splitlines())),
+                            ),
+                            start=1,
+                        )
+                    ]
                 )
             return _tool_response(
                 ClientToolCall(
@@ -1703,16 +1713,14 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
         backend.requests[2].messages[-1]["content"][0]["content"]
     )
     assert search_observation["hits"][0]["line"] == marker
-    read_observation = json.loads(
-        backend.requests[3].messages[-1]["content"][0]["content"]
-    )
-    assert marker in read_observation["content"]
     assert packet["theory_document_inspection_required"] is True
-    assert packet["theory_document_inspection_count"] == 2
+    assert packet["theory_document_inspection_count"] == 4
     assert [
         row["tool"] for row in packet["theory_document_inspection_refs"]
     ] == [
         THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     ]
     assert marker not in json.dumps(packet)
@@ -1728,7 +1736,7 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
     )
 
 
-def test_preflight_requires_reads_covering_every_active_claim_anchor(
+def test_preflight_requires_complete_authoritative_document_reads(
     tmp_path: Path,
 ) -> None:
     relative_path = "derivations/claim_chain.md"
@@ -1817,7 +1825,7 @@ This abandoned route is explicitly rejected.
                         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
                         {
                             "path": relative_path,
-                            "line_start": 2,
+                            "line_start": 1,
                             "line_end": 4,
                         },
                     )
@@ -1841,7 +1849,7 @@ This abandoned route is explicitly rejected.
                         {
                             "path": relative_path,
                             "line_start": 5,
-                            "line_end": 7,
+                            "line_end": len(content.splitlines()),
                         },
                     )
                 )
@@ -1861,11 +1869,8 @@ This abandoned route is explicitly rejected.
 
     assert backend.coverage_rejection["error"] == "preflight_submission_rejected"
     assert any(
-        "theorem_main" in error
-        for error in backend.coverage_rejection["validation_errors"]
-    )
-    assert all(
-        "rejected_route" not in error
+        relative_path in error
+        and "not fully read" in error
         for error in backend.coverage_rejection["validation_errors"]
     )
     assert packet["overall_verdict"] == "ACCEPT"

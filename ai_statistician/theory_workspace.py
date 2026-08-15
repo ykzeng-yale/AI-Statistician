@@ -39,7 +39,7 @@ THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
 THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND = (
     "TheoryDeveloperProgressCheckpoint"
 )
-THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "model_owned_documents_and_handoff_v1"
+THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "model_owned_documents_and_handoff_v2"
 THEORY_WORKSPACE_WRITE_TOOL = "write_theory_workspace"
 THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL = "write_theory_document"
 THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL = "edit_theory_document"

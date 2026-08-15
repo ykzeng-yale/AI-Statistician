@@ -56,7 +56,7 @@ from .theory_workspace import (
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 17
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 23
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 24
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -75,7 +75,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_document_inspection_and_task_bound_source_query_v11"
+    "client_tool_document_inspection_and_task_bound_source_query_v12"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
@@ -97,8 +97,8 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "observed results, or proof claims."
     ),
     (
-        "Inspect the exact document range for every non-REJECTED claim-index entry. "
-        "For each central conclusion, follow its declared dependencies back to "
+        "Inspect every line of every authoritative theory document. For each central "
+        "conclusion, follow its declared dependencies back to "
         "definitions and assumptions, then independently reconstruct at least one "
         "decisive transition. A correct final statement does not cancel a false, "
         "circular, or unsupported intermediate step."
@@ -134,7 +134,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "missing evidence and leave it to the existing downstream workspace."
     ),
     (
-        "Use exact anchor IDs and the ordered review slots supplied by the runtime. "
+        "Use exact evidence IDs and the ordered review slots supplied by the runtime. "
         "Mark uncertainty FAIL or UNCERTAIN, report one compact finding per actual "
         "blocker, and describe the observed and required behavior without prescribing "
         "a repair. Resolve or retract a prior finding only from current inspected "
@@ -310,7 +310,6 @@ def _active_claim_review_rows(
                 "kind": str(value.get("kind", "") or ""),
                 "declared_status": status,
                 "document_path": str(value.get("document_path", "") or ""),
-                "anchor": str(value.get("anchor", "") or ""),
                 "depends_on": [
                     str(dependency)
                     for dependency in value.get("depends_on", []) or []
@@ -1016,13 +1015,15 @@ def build_architect_theory_execution_preflight_prompt(
             "including an UNRESOLVED prior finding, requires at least one FAIL or "
             "UNCERTAIN claim, dimension, or estimator row. If every review row "
             "is PASS, return no new findings. Resolve a prior finding only when current "
-            "inspected anchors establish the required change; retract it only when the "
+            "inspected documents or indexed artifacts establish the required change; "
+            "retract it only when the "
             "current derivation or independent source evidence defeats its premise. "
             "Every active claim must receive its own independent check; any FAIL or "
             "UNCERTAIN claim prevents acceptance. Otherwise keep prior findings "
             "unresolved. Every blocker needs a checkable independent "
             "derivation, reduction, or counterexample grounded in exact inspected "
-            "anchors; quoting candidate self-critique or prior reviewer prose is not "
+            "documents or indexed artifacts; quoting candidate self-critique or prior "
+            "reviewer prose is not "
             "independent support. Keep each rationale to the decisive calculation or "
             "observation and do not carry downstream proof obligations as execution "
             "blockers."
@@ -1069,34 +1070,7 @@ def _preflight_authoritative_theory_documents(
     return documents
 
 
-def _preflight_active_claim_anchor_rows(
-    material: Mapping[str, Any],
-) -> list[dict[str, str]]:
-    rows: list[dict[str, str]] = []
-    for catalog_row in material.get("anchor_catalog", []) or []:
-        if not isinstance(catalog_row, Mapping) or str(
-            catalog_row.get("anchor_id", "") or ""
-        ) != "theory.claim_index":
-            continue
-        claims = catalog_row.get("content", [])
-        for claim in claims if isinstance(claims, list | tuple) else []:
-            if not isinstance(claim, Mapping):
-                continue
-            if str(claim.get("status", "") or "").strip() == "REJECTED":
-                continue
-            normalized = {
-                "id": str(claim.get("id", "") or "").strip(),
-                "document_path": str(
-                    claim.get("document_path", "") or ""
-                ).strip(),
-                "anchor": str(claim.get("anchor", "") or "").strip(),
-            }
-            if all(normalized.values()):
-                rows.append(normalized)
-    return rows
-
-
-def _preflight_missing_claim_document_reads(
+def _preflight_partially_unread_theory_documents(
     *,
     material: Mapping[str, Any],
     inspection_refs: Sequence[Mapping[str, Any]],
@@ -1119,30 +1093,18 @@ def _preflight_missing_claim_document_reads(
             continue
         reads_by_path.setdefault(path, []).append((line_start, line_end))
 
-    missing: list[str] = []
-    for claim in _preflight_active_claim_anchor_rows(material):
-        document = documents.get(claim["document_path"])
-        if document is None:
-            missing.append(claim["id"])
-            continue
-        anchor_lines = [
-            line_number
-            for line_number, line in enumerate(
-                document["content"].splitlines(),
-                start=1,
-            )
-            if claim["anchor"] in line
-        ]
-        covered = any(
-            line_start <= anchor_line <= line_end
-            for line_start, line_end in reads_by_path.get(
-                claim["document_path"], []
-            )
-            for anchor_line in anchor_lines
-        )
-        if not covered:
-            missing.append(claim["id"])
-    return missing
+    partially_unread: list[str] = []
+    for path, document in sorted(documents.items()):
+        next_unread_line = 1
+        for line_start, line_end in sorted(reads_by_path.get(path, [])):
+            if line_end < next_unread_line:
+                continue
+            if line_start > next_unread_line:
+                break
+            next_unread_line = max(next_unread_line, line_end + 1)
+        if next_unread_line <= int(document["line_count"]):
+            partially_unread.append(path)
+    return partially_unread
 
 
 def _search_preflight_theory_documents(
@@ -2068,14 +2030,14 @@ def _preflight_theory_document_inspection_errors(
         else:
             errors.append(f"theory document inspection {index} tool is invalid")
     if expected_required:
-        missing_claim_ids = _preflight_missing_claim_document_reads(
+        partially_unread_documents = _preflight_partially_unread_theory_documents(
             material=material,
             inspection_refs=refs,
         )
-        if missing_claim_ids:
+        if partially_unread_documents:
             errors.append(
-                "authoritative theory claim anchors were not read: "
-                + ", ".join(missing_claim_ids[:16])
+                "authoritative theory documents were not fully read: "
+                + ", ".join(partially_unread_documents[:16])
             )
     return errors
 
@@ -3022,8 +2984,8 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT = """\
 You are the independent ArchitectMetricSemanticReviewer inside an AI Statistician
 AgentRuntime. Before metric authoring or generated execution, audit whether a proposed
 statistical theory is mathematically coherent and can be represented by a finite,
-typed experiment. Read every active claim anchor in the authoritative Markdown or LaTeX
-documents and follow its declared dependencies; the structured packet is only an index.
+typed experiment. Read every line of every authoritative Markdown or LaTeX document
+and follow declared claim dependencies; the structured packet is only an index.
 Independently reconstruct decisive algebraic or probabilistic transitions and try a
 discriminating special case, boundary case, or counterexample. Do not treat a correct
 final statement, theorem card, research question, source restatement, or passing sanity
@@ -3173,9 +3135,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     tool_prompt = (
         prompt.split("\n\n", 1)[-1]
         + "\n\nThe prompt contains a hash-bound catalog, not duplicated full theory "
-        "documents. Read exact ranges that cover every non-REJECTED entry in "
-        "theory.claim_index; one range may cover several nearby anchors, and independent "
-        "reads may be issued together. Coverage proves inspection only, so you must still "
+        "documents. Read every line of every authoritative theory document; split long "
+        "documents into adjacent ranges, and independent reads may be issued together. "
+        "Coverage proves inspection only, so you must still "
         "follow dependencies, reconstruct decisive transitions, and challenge them. "
         "Choose all searches and ranges yourself. When available, use "
         "search_research_sources and read_research_source for task-bound papers, code, "
