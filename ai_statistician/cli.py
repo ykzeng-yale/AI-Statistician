@@ -3547,12 +3547,13 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
         print("=" * 72)
         print(f"- {exc}")
         return 2
-    if research_sources is not None and not callable(
-        getattr(provider, "generate_client_tool_turn", None)
-    ):
-        print("\nAI Statistician rejected research source snapshot")
+    if not callable(getattr(provider, "generate_client_tool_turn", None)):
+        print("\nAI Statistician Research Architect rejected provider")
         print("=" * 72)
-        print("- research sources require a provider with native client-tool turns")
+        print(
+            "- document-native theory development requires a provider with "
+            "native client-tool turns; JSON-only mathematical authoring is disabled"
+        )
         return 2
     context: dict[str, object] = {}
     if args.context_json:

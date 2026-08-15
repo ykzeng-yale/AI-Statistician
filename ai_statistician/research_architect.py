@@ -584,6 +584,7 @@ class ResearchArchitectAgent:
             packet = self.theory_developer.derive(
                 question,
                 architect_context=architect_context or {},
+                theory_workspace_root=self.out_dir / "theory_workspaces",
             )
             packets.append(packet)
             ledger_rows.append(_ledger_row_for_packet(packet, question))

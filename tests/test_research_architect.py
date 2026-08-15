@@ -966,7 +966,7 @@ def _metric_theory_revision_context(
     }
 
 
-def test_research_architect_records_llm_theory_packet_and_evidence_ledger() -> None:
+def test_research_architect_records_packet_in_document_workspace() -> None:
     out_dir = Path("runs/test_research_architect")
     shutil.rmtree(out_dir, ignore_errors=True)
     question = OpenResearchQuestion(
@@ -975,12 +975,28 @@ def test_research_architect_records_llm_theory_packet_and_evidence_ledger() -> N
         description="Derive an estimator and theorem for an observational ATE.",
         tags=("causal",),
     )
-    developer = LLMTheoryDeveloperAgent(
+    compatibility_developer = LLMTheoryDeveloperAgent(
         provider=StaticArchitectLLMProvider(_sample_response()),
         config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
     )
+    packet = compatibility_developer.derive(question)
+    captured: dict[str, object] = {}
+
+    class RecordingDeveloper:
+        def derive(
+            self,
+            selected_question,
+            *,
+            architect_context,
+            theory_workspace_root,
+        ):
+            captured["question"] = selected_question
+            captured["architect_context"] = architect_context
+            captured["theory_workspace_root"] = theory_workspace_root
+            return deepcopy(packet)
+
     manifest = ResearchArchitectAgent(
-        theory_developer=developer,
+        theory_developer=RecordingDeveloper(),  # type: ignore[arg-type]
         out_dir=out_dir,
     ).run_theory_development([question])
 
@@ -992,6 +1008,8 @@ def test_research_architect_records_llm_theory_packet_and_evidence_ledger() -> N
     assert packet_path.exists()
     assert ledger_path.exists()
     assert state_path.exists()
+    assert captured["question"] == question
+    assert captured["theory_workspace_root"] == out_dir / "theory_workspaces"
     packet = json.loads(packet_path.read_text(encoding="utf-8").splitlines()[0])
     ledger = json.loads(ledger_path.read_text(encoding="utf-8").splitlines()[0])
     assert packet["source_agent"] == "LLMTheoryDeveloperAgent"
@@ -3336,7 +3354,7 @@ def test_generator_theory_proposer_rejects_codex_provider_alias() -> None:
     assert provider.requests == []
 
 
-def test_research_architect_cli_static_provider_exports_artifacts() -> None:
+def test_research_architect_cli_rejects_json_only_static_provider() -> None:
     root = Path("runs/test_research_architect_cli")
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True, exist_ok=True)
@@ -3374,11 +3392,8 @@ def test_research_architect_cli_static_provider_exports_artifacts() -> None:
         ]
     )
 
-    assert code == 0
-    manifest = json.loads((out_dir / "research_architect_manifest.json").read_text())
-    assert manifest["n_questions"] == 1
-    assert manifest["all_packets_ok"]
-    assert Path(manifest["artifacts"]["evidence_ledger"]).exists()
+    assert code == 2
+    assert not (out_dir / "research_architect_manifest.json").exists()
 
 
 def test_research_architect_cli_binds_explicit_haiku_to_serious_mode(
@@ -3387,6 +3402,9 @@ def test_research_architect_cli_binds_explicit_haiku_to_serious_mode(
 ) -> None:
     class NoCallBackend:
         provider_name = "anthropic"
+
+        def generate_client_tool_turn(self, _request):
+            raise AssertionError("the bound model should not run in this CLI test")
 
     captured: dict[str, object] = {}
 
