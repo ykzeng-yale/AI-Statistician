@@ -604,6 +604,10 @@ def test_wilson_score_l0_single_live_draw_is_frozen_failed() -> None:
     assert evidence["operator_audit"] == (
         "docs/operator_audits/wilson_score_l0_v1.md"
     )
+    assert evidence["post_run_shared_fix_commit"] == (
+        "fe65d1f3fb3c5bbdb58e040c15e11fcc8bdc2fc8"
+    )
+    assert evidence["post_run_shared_fix_verification"] == "763 passed"
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["full_task_passed"] is False
     for field in (

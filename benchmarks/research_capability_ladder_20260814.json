@@ -369,6 +369,8 @@
         "simulation_executions": 0,
         "formalizer_executions": 0,
         "operator_audit": "docs/operator_audits/wilson_score_l0_v1.md",
+        "post_run_shared_fix_commit": "fe65d1f3fb3c5bbdb58e040c15e11fcc8bdc2fc8",
+        "post_run_shared_fix_verification": "763 passed",
         "primary_failure_diagnosis": "The independent reviewer read the complete Markdown theory and task-bound sources but could not serialize its substantive audit into the old repeated per-claim and per-dimension JSON packet. Operator audit independently found false active algebra, an incomplete containment proof, a wrong confidence-quantile ABI, and other mathematical defects, so simplifying transport does not make the frozen theory correct.",
         "formalization_requirement": "optional_nonblocking",
         "model_draw_resampling_blocked": true,
