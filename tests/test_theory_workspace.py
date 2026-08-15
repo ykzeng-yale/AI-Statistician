@@ -1370,6 +1370,19 @@ def test_document_authority_persists_exact_math_and_small_handoff(
     assert rejected_payload["error"] == "client_tool_input_rejected"
     assert "accepts only structured writes" in rejected_payload["detail"]
     assert "use write_theory_document" in rejected_payload["detail"]
+    valid_write_feedback = json.loads(
+        backend.requests[3].messages[-1]["content"][0]["content"]
+    )
+    assert valid_write_feedback["workspace_valid"] is True
+    assert valid_write_feedback["checkpoint_commit_ready"] is False
+    assert valid_write_feedback["checkpoint_blockers"] == [
+        "final_document_inspection_required"
+    ]
+    assert valid_write_feedback[
+        "missing_final_document_inspection_requirements"
+    ][0]["required_line_ranges"] == [
+        {"line_start": 1, "line_end": len(markdown.splitlines())}
+    ]
     write_schema = next(
         tool.input_schema
         for tool in backend.requests[0].tools
@@ -1461,6 +1474,16 @@ def test_document_authority_supports_hash_bound_local_model_edit(tmp_path) -> No
     assert load_theory_workspace_documents(result.core_packet) == {
         "derivations/C1.md": revised
     }
+    edit_feedback = json.loads(
+        backend.requests[2].messages[-1]["content"][0]["content"]
+    )
+    assert edit_feedback["checkpoint_commit_ready"] is False
+    assert edit_feedback["checkpoint_blockers"] == [
+        "final_document_inspection_required"
+    ]
+    assert edit_feedback[
+        "missing_final_document_inspection_requirements"
+    ][0]["required_line_ranges"] == [{"line_start": 3, "line_end": 3}]
     assert result.evidence["changed_artifact_names"] == []
     assert result.evidence["changed_document_paths"] == ["derivations/C1.md"]
     rejected_commit = json.loads(

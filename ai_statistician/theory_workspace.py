@@ -463,6 +463,29 @@ def run_theory_artifact_workspace(
                 inspected.add(path)
         return inspected
 
+    def final_document_inspection_status(
+        documents: Mapping[str, str],
+        document_paths: Sequence[str],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+        inspection_refs = final_document_inspection_refs(
+            documents,
+            document_paths,
+        )
+        requirements = final_document_inspection_requirements(
+            documents,
+            document_paths,
+        )
+        inspected_paths = completely_inspected_document_paths(
+            requirements,
+            inspection_refs,
+        )
+        missing = [
+            requirement
+            for requirement in requirements
+            if str(requirement.get("path", "") or "") not in inspected_paths
+        ]
+        return inspection_refs, requirements, missing
+
     def readable_artifact(name: str) -> Any:
         if name in read_only:
             return read_only[name]
@@ -609,6 +632,19 @@ def run_theory_artifact_workspace(
                 observation_key="theory-workspace-validation:"
                 + stable_hash([candidate_hash, errors]),
             )
+        final_inspections, final_inspection_requirements, missing_inspections = (
+            final_document_inspection_status(
+                candidate_documents,
+                changed_documents,
+            )
+            if require_document_authority and changed_documents
+            else ([], [], [])
+        )
+        checkpoint_blockers: list[str] = []
+        if require_document_authority and not changed_documents:
+            checkpoint_blockers.append("authoritative_document_change_required")
+        if missing_inspections:
+            checkpoint_blockers.append("final_document_inspection_required")
         return ClientToolExecutionResult(
             content={
                 **common_content,
@@ -616,6 +652,15 @@ def run_theory_artifact_workspace(
                 "workspace_valid": True,
                 "validation_errors": [],
                 "checkpoint_committed": False,
+                "checkpoint_commit_ready": not checkpoint_blockers,
+                "checkpoint_blockers": checkpoint_blockers,
+                "final_document_inspection_refs": final_inspections,
+                "final_document_inspection_requirements": (
+                    final_inspection_requirements
+                ),
+                "missing_final_document_inspection_requirements": (
+                    missing_inspections
+                ),
                 "proof_evidence_status": (
                     "THEORY_WORKSPACE_SUBMISSION_NOT_PROOF_EVIDENCE"
                 ),
@@ -1050,25 +1095,14 @@ def run_theory_artifact_workspace(
                     "theory checkpoint is not structurally valid: "
                     + "; ".join(errors[:6])
                 )
-            final_inspections = final_document_inspection_refs(
+            (
+                final_inspections,
+                final_inspection_requirements,
+                missing_final_inspections,
+            ) = final_document_inspection_status(
                 state["documents"],
                 changed_documents,
             )
-            final_inspection_requirements = (
-                final_document_inspection_requirements(
-                    state["documents"],
-                    changed_documents,
-                )
-            )
-            inspected_paths = completely_inspected_document_paths(
-                final_inspection_requirements,
-                final_inspections,
-            )
-            missing_final_inspections = [
-                requirement
-                for requirement in final_inspection_requirements
-                if str(requirement.get("path", "") or "") not in inspected_paths
-            ]
             if require_document_authority and missing_final_inspections:
                 raise ClientToolInputError(
                     "commit_theory_checkpoint requires model inspection at the final "
@@ -1707,8 +1741,13 @@ def run_theory_artifact_workspace(
                     "combined workspace still fails validation, so a validator "
                     "observation is not a rollback and later calls should contain only "
                     "artifacts that still need to be added or revised. "
-                    "The runtime returns "
-                    "validator observations to this same model context."
+                    "The runtime returns validator observations to this same model "
+                    "context. A valid write also returns checkpoint_commit_ready and "
+                    "the exact missing final-document inspection ranges. Inspect those "
+                    "ranges before commit; when the remaining turn budget cannot fit "
+                    "both inspection and commit, preserve the work with "
+                    "checkpoint_theory_progress instead of attempting a known-blocked "
+                    "commit."
                 ),
             },
         ),
