@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "dkw_ecdf_simultaneous_band_known_result",
+      "title": "Distribution-free simultaneous ECDF band from the DKW-Massart inequality",
+      "description": "Focused L0 known-result evaluation in empirical-process theory. Let X_1,...,X_n be iid from an arbitrary distribution function F and define the right-continuous empirical CDF F_n(x)=n^{-1} sum_i 1{X_i<=x}. Use the supplied sharp Dvoretzky-Kiefer-Wolfowitz-Massart inequality P(sup_x |F_n(x)-F(x)|>epsilon)<=2 exp(-2 n epsilon^2); proving that deep inequality itself is outside this task. In an authoritative Markdown/LaTeX theory workspace, solve the tail bound at confidence level 1-alpha, derive epsilon_{n,alpha}=sqrt(log(2/alpha)/(2n)), and prove carefully that L_n(x)=max(0,F_n(x)-epsilon_{n,alpha}) and U_n(x)=min(1,F_n(x)+epsilon_{n,alpha}) form a simultaneous confidence band with P(for all real x, L_n(x)<=F(x)<=U_n(x))>=1-alpha. Justify why clipping preserves containment, why no continuity assumption is needed, and how right continuity and ties are handled. Distinguish simultaneous from pointwise coverage, a lower bound from exact nominal coverage, and mathematical proof from simulation. The required algorithm artifact id is est_dkw_ecdf_band. Its run_estimator(request) input contains a nonempty finite numeric sample, a finite numeric query_points array, and confidence_level in (0,1). It must return JSON-finite estimate, lower, and upper arrays aligned with query_points plus scalar epsilon, using the <= empirical-CDF convention. Exploratory computation may diagnose the implementation. A separate frozen confirmatory assessment must use predeclared continuous and discrete DGPs, evaluate whole-function coverage rather than pointwise coverage, report Monte Carlo uncertainty and mean band width, and must not be represented as proof of the inequality. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "empirical process",
+        "empirical CDF",
+        "confidence band",
+        "DKW inequality",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
+    }
+  ]
+}
