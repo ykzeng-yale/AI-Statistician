@@ -1,5 +1,5 @@
 {
-  "schema_version": 79,
+  "schema_version": 80,
   "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -7,7 +7,7 @@
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Make long-horizon Markdown/LaTeX theory and independent mathematical review scientifically reliable before frontier claims: keep one document-backed claim DAG as mathematical authority, expose only task-selected consumer ABIs, activate expensive formal infrastructure only when task intent can use it, and evaluate on leakage-safe disjoint tasks without output repair or resampling.",
+  "current_goal_focus": "Make long-horizon Markdown/LaTeX theory and independent mathematical review scientifically reliable before frontier claims: keep one document-backed claim DAG as mathematical authority, expose only task-selected consumer ABIs, activate expensive formal infrastructure only when task intent can use it, and evaluate the frozen disjoint median-of-means known result exactly once without output repair or resampling.",
   "operating_principle": "Models own statistical, mathematical, Python, R, retrieval-query, and Lean content. The harness owns isolation, immutable identity, source visibility, budgets, checkpoints, independent review, result blinding, frozen evaluation authority, and proof promotion. It does not author substantive fixes.",
   "model_policy": {
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
@@ -167,6 +167,27 @@
     "runtime_authored_scientific_content": false,
     "boundary": "Runtime research completion and hidden executable passes are real component evidence, but they cannot override a false active derivation or contaminated evidence chronology. The apparent automated 1/1 is invalidated, the frozen task remains 0/1, and no rerun or manual repair is allowed."
   },
+  "pending_frozen_evaluation": {
+    "id": "research_l0_median_of_means_v1_document_theory_exact_haiku_20260814",
+    "task_id": "median_of_means_finite_variance_known_result",
+    "family": "robust_statistics",
+    "status": "gold_calibrated_pending_first_live_run",
+    "visible_questions_sha256": "8f3d55cdf681a3ca74143fc3955d0dcd49ba65947bab3ebc784a28271e669e07",
+    "source_snapshot_id": "median-of-means-finite-variance-known-result-v1",
+    "source_snapshot_hash": "ee9246ff4cd7e22c4f72f47212f92bc34e47b1d0567f5292681583d0d33526dc",
+    "gold_manifest_sha256": "d22b696f8aae1082a54e6577a1401823b6bc9d2b141d49622aeb865d6a36e817",
+    "gold_descriptor_hash": "e874af2de531daf340a95e5bf3496ead773d370aaedfd269d45bf14e6a94325b",
+    "algorithm_calibration": "reference 8/8 and four negative implementations rejected",
+    "empirical_calibration": "three 12,000-replicate finite-variance DGPs passed with maximum bound MCSE 0.004274471144641613",
+    "semantic_calibration": "exact Haiku classified 11/11 isolated proof cases correctly and accepted the seven-claim reference",
+    "preactivation_full_pytest": "757 passed in 62.81s",
+    "theory_authority": "model-authored Markdown/LaTeX documents; JSON is compact identity, claim-index, and consumer ABI only",
+    "formalization_status": "not_applicable by frozen task intent",
+    "first_runtime_model_call_occurred": false,
+    "fresh_live_runs": 0,
+    "full_task_passed": false,
+    "boundary": "All expected mathematics, executable references, calibration cases, DGPs, and acceptance checks remain in evaluator authority outside the repository and model workspace. The activation commit and push must precede the first and only runtime draw."
+  },
   "latest_authoritative_integrated_run": {
     "id": "v436",
     "path": "runs/main_worker_cross_family_development_20260814_v436_atomic_declaration_context_exact_haiku",
@@ -313,7 +334,7 @@
       "scientific execution has Pyodide/WebR foundations but live R, broad package support, and precision-driven confirmatory replication need integrated evidence",
       "Formalizer has real RAG, local Lean, source revision, and semantic review but still lacks reliable exact statistical theorem closure",
       "the atomic active-project declaration context has exact-Haiku component evidence but still needs a fresh integrated Formalizer run and cross-task ablation",
-      "the research-capability ladder now has nine active focused tasks but still lacks a passing paper replication or hidden rederivation full task; repeated bundled S13 runs cannot substitute for this diagnostic ladder",
+      "the research-capability ladder now has ten active focused tasks but still lacks a passing paper replication or hidden rederivation full task; repeated bundled S13 runs cannot substitute for this diagnostic ladder",
       "the active Lean foundation pins Statlib 6575d611 on Lean 4.30, while fetched Statlib origin/main 01d2a03 adds EVariable and DPI foundations on Lean 4.33. The active importable corpus and latest upstream discovery corpus must retain distinct snapshot identities until a deliberate compatibility migration succeeds",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
       "research_agent_runtime.py remains large at 24992 lines, while architect_theory_execution_preflight.py has grown to 3464 lines; legacy compact/formal source fusion should be simplified before adding another outer control feature"
@@ -328,7 +349,7 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 50-55%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "0/9 passed",
+    "fully_gold_covered_research_tasks": "0/10 passed",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
@@ -344,6 +365,7 @@
     "latest_runtime_manifest_bytes": 49939
   },
   "next_gates": [
+    "After the median-of-means activation identity is committed and pushed, execute exactly one fresh exact-Haiku run under the frozen visible question, source snapshot, task intent, evaluator manifest, and existing budgets. Do not resample, patch the generated documents, or change any criterion after observing the run; perform an independent operator audit of every active equation and evidence chronology before assigning full-task credit.",
     "Do not rerun normal-sample-variance L0, Horvitz-Thompson L0, Model-X L2, HC0, KM, DoubleML L1, quantile-CLT L0, James-Stein L0, or Student-t L0 merely for another model or evaluator draw. Keep every frozen failure as a capability diagnosis and do not manually complete, repair, or rescore any candidate artifact.",
     "Treat the normal-sample-variance automated 1/1 as an evaluator false positive, not a research success. Preserve the immutable run and operator audit; validate per-claim review, chronology separation, formal-not-applicable reporting, and runtime-argument review only through deterministic regression before selecting a new disjoint task.",
     "Treat Horvitz-Thompson v1 as a shared handoff failure, not a theory success: the document-native non-formal contract and lazy Lean topology are regression-fixed, while the unreviewed model-authored mathematics remains unaccepted. Validate both simplifications only on a future disjoint benchmark frozen before its first model call.",

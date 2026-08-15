@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "median_of_means_finite_variance_known_result",
+      "title": "Median-of-means concentration under finite variance",
+      "description": "Focused L0 known-result evaluation in robust statistics based on the median-of-means theorem. Let X_1,...,X_n be iid real random variables with mean mu and finite positive variance sigma^2. Assume n=m k, where k is an odd integer at least 3, and partition the observations into k disjoint consecutive blocks of equal size m. In an authoritative Markdown/LaTeX theory workspace, define the k block means and their median, derive Var(Z_j)=sigma^2/m, use Chebyshev's inequality to control each bad block at radius 2 sigma/sqrt(m), prove that a bad median requires at least half the block means to be bad, and derive P(|MOM-mu|>2 sigma/sqrt(m)) <= exp(-k/8) using independence and an appropriate concentration argument. Make every constant and inequality direction auditable. Distinguish stochastic domination from an unjustified claim that the bad-block count is exactly Binomial(k,1/4), state why disjoint blocks matter, and do not assume symmetry, Gaussianity, bounded support, or moments above order two. Explain that simulation is implementation evidence rather than proof. The required algorithm artifact id is est_median_of_means. Its run_estimator(request) input contains sample_values as a finite numeric array, n_blocks as an odd integer at least 3 that divides the sample length, and known_variance as a positive finite numeric scalar. It must split the input in original order into n_blocks contiguous equal-size blocks and return finite numeric estimate, deviation_radius, and failure_probability_bound, where estimate is the median of the block means and the two bound fields use the stated theorem. Use exploratory computation only for diagnosis, then run one separately frozen confirmatory assessment over repeated predeclared finite-variance distributions. The joint empirical target is that the observed frequency of |estimate-mu| exceeding deviation_radius is compatible with the predeclared failure_probability_bound with reported Monte Carlo uncertainty for every DGP. This task contains one concentration theorem, one executable estimator ABI, and one joint empirical target. Source-code replication, novelty, asymptotic efficiency comparisons, confidence intervals beyond the stated deviation event, and Lean formalization are not applicable.",
+      "tags": [
+        "robust statistics",
+        "median of means",
+        "finite variance",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
+    }
+  ]
+}
