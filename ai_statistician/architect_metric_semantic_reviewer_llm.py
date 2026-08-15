@@ -1576,7 +1576,6 @@ class LLMArchitectMetricSemanticReviewerAgent:
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
             provider_name=self.config.provider_name,
-            max_validation_retries=0,
             prior_finding_ledger=prior_finding_ledger,
             source_retriever=self.source_retriever,
             research_sources=self.research_sources,

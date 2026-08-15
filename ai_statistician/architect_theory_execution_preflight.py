@@ -16,17 +16,12 @@ from .client_tool_loop import (
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
-from .structured_output_retry import (
-    PacketValidationError,
-    extract_json_object,
-    generate_validated_json_packet,
-)
+from .structured_output_retry import PacketValidationError
 from .model_backend import (
     ClientToolCall,
     ClientToolDefinition,
     ClientToolTurnRequest,
     GeneratorBackend,
-    GeneratorRequest,
     resolve_generator_model,
 )
 from .metric_protocol_finding_ledger import (
@@ -530,340 +525,11 @@ def build_architect_theory_execution_preflight_material(
     }
 
 
-def architect_theory_execution_preflight_json_schema(
-    material: Mapping[str, Any],
-) -> dict[str, Any]:
-    anchor_ids = [
-        str(row.get("anchor_id", "") or "")
-        for row in material.get("anchor_catalog", []) or []
-        if isinstance(row, Mapping) and str(row.get("anchor_id", "") or "").strip()
-    ]
-    estimator_ids = [
-        str(value)
-        for value in material.get("required_estimator_ids", []) or []
-        if str(value).strip()
-    ]
-    claim_review_ids = [
-        str(value)
-        for value in material.get("required_claim_review_ids", []) or []
-        if str(value).strip()
-    ]
-    active_prior_finding_ids = [
-        str(value)
-        for value in material.get("active_prior_finding_ids", []) or []
-        if str(value).strip()
-    ]
-    evidence_refs = {
-        "type": "array",
-        "minItems": 1,
-        "maxItems": min(6, max(1, len(anchor_ids))),
-        "items": {"type": "string", "enum": anchor_ids},
-    }
-    required_fields = [
-        "dimension_reviews",
-        "estimator_execution_checks",
-        "findings",
-    ]
-    if claim_review_ids:
-        required_fields.append("claim_reviews")
-    if active_prior_finding_ids:
-        required_fields.append("prior_finding_reviews")
-    finding_properties: dict[str, Any] = {
-        "severity": {
-            "type": "string",
-            "enum": ["medium", "high", "critical"],
-        },
-        "category": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 100,
-        },
-        "summary": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 280,
-        },
-        "observed_behavior": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 360,
-        },
-        "expected_behavior": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 360,
-        },
-        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
-    }
-    finding_required_fields = [
-        "severity",
-        "category",
-        "summary",
-        "observed_behavior",
-        "expected_behavior",
-        "evidence_refs",
-    ]
-    if active_prior_finding_ids:
-        finding_properties["prior_finding_index"] = {
-            "type": "integer",
-            "minimum": -1,
-            "maximum": len(active_prior_finding_ids) - 1,
-            "description": (
-                "Select the ordered prior-finding slot with the same invariant or "
-                "required remedy. Use -1 only for a genuinely new defect."
-            ),
-        }
-        finding_required_fields.append("prior_finding_index")
-    finding_schema = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": list(finding_required_fields),
-        "properties": deepcopy(finding_properties),
-    }
-    dimension_review_schema = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["status", "rationale", "evidence_refs"],
-        "properties": {
-            "status": {
-                "type": "string",
-                "enum": ["PASS", "FAIL", "UNCERTAIN"],
-            },
-            "rationale": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 300,
-            },
-            "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
-        },
-    }
-    claim_review_schema = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": [
-            "status",
-            "independent_check",
-            "rationale",
-            "evidence_refs",
-        ],
-        "properties": {
-            "status": {
-                "type": "string",
-                "enum": ["PASS", "FAIL", "UNCERTAIN"],
-            },
-            "independent_check": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 700,
-                "description": (
-                    "State the independent derivation, reduction, boundary case, or "
-                    "counterexample used to audit this exact claim. A restatement of "
-                    "the candidate is not an independent check."
-                ),
-            },
-            "rationale": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 400,
-            },
-            "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
-        },
-    }
-    prior_finding_review_schema = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": [
-            "status",
-            "rationale",
-            "evidence_refs",
-        ],
-        "properties": {
-            "status": {
-                "type": "string",
-                "enum": [
-                    METRIC_PROTOCOL_FINDING_UNRESOLVED,
-                    METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
-                    METRIC_PROTOCOL_FINDING_RETRACTED_BY_CURRENT_EVIDENCE,
-                ],
-            },
-            "rationale": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 280,
-            },
-            "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
-        },
-    }
-
-    schema = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": required_fields,
-        "properties": {
-            "claim_reviews": {
-                "type": "array",
-                "minItems": len(claim_review_ids),
-                "maxItems": len(claim_review_ids),
-                "description": (
-                    "One independent audit per active claim keyed by its ordered "
-                    "review slot. AgentRuntime binds claim identity; do not copy IDs "
-                    "into model-authored rows."
-                ),
-                "items": {"$ref": "#/$defs/claim_review"},
-            },
-            "prior_finding_reviews": {
-                "type": "array",
-                "minItems": len(active_prior_finding_ids),
-                "maxItems": len(active_prior_finding_ids),
-                "description": (
-                    "One review per active prior finding in ordered_review_slots "
-                    "order. AgentRuntime binds each output slot to its canonical "
-                    "finding identity."
-                ),
-                "items": {"$ref": "#/$defs/prior_finding_review"},
-            },
-            "dimension_reviews": {
-                "type": "array",
-                "minItems": len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
-                "maxItems": len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
-                "description": (
-                    "One review per dimension keyed by its ordered_review_slots "
-                    "output slot. Do not copy dimension names into rows."
-                ),
-                "items": {"$ref": "#/$defs/dimension_review"},
-            },
-            "estimator_execution_checks": {
-                "type": "array",
-                "minItems": len(estimator_ids),
-                "maxItems": len(estimator_ids),
-                "description": (
-                    "One check per estimator keyed by its ordered_review_slots "
-                    "output slot. Do not copy estimator IDs into rows."
-                ),
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": [
-                        "audit_rationale",
-                        "identity_check",
-                        "blocking_gaps",
-                        "boundary_or_counterexample",
-                        "status",
-                        "evidence_refs",
-                    ],
-                    "properties": {
-                        "audit_rationale": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 900,
-                            "description": (
-                                "Audit the complete source-declared execution contract: "
-                                "procedure identity after adaptive choices, invoked theorem "
-                                "hypotheses under the conclusion law, executable mapping, "
-                                "typed boundary outcomes, and guarantee transport. The model "
-                                "owns this judgment; do not merely restate source prose."
-                            ),
-                        },
-                        "identity_check": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 900,
-                            "description": (
-                                "On one discriminating admitted case or regime, state the "
-                                "primitive recomputation, candidate executable output, and "
-                                "whether they agree. Include support, normalization, weights, "
-                                "sample-size powers, and data dependence that matter; avoid "
-                                "symmetry-only or source-authored sanity-check cases."
-                            ),
-                        },
-                        "blocking_gaps": {
-                            "type": "array",
-                            "maxItems": 6,
-                            "items": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 300,
-                            },
-                            "description": (
-                                "Source-level gaps that make this estimator FAIL or UNCERTAIN. "
-                                "Return an empty array only with PASS. Put each distinct "
-                                "blocking defect in findings as well."
-                            ),
-                        },
-                        "boundary_or_counterexample": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 360,
-                            "description": (
-                                "Give one source-scoped boundary check or counterexample. "
-                                "Do not add an out-of-scope robustness requirement."
-                            ),
-                        },
-                        "status": {
-                            "type": "string",
-                            "enum": ["PASS", "FAIL", "UNCERTAIN"],
-                        },
-                        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
-                    },
-                },
-            },
-            "findings": {
-                "type": "array",
-                "maxItems": max(3, len(active_prior_finding_ids)),
-                "description": (
-                    "Only genuinely new defects that block metric authoring or finite "
-                    "execution. AgentRuntime carries active prior defects from the "
-                    "ordered prior_finding_reviews status rows. Exclude downstream proof "
-                    "obligations and robustness outside the admitted DGP."
-                ),
-                "items": {"$ref": "#/$defs/finding"},
-            },
-        },
-    }
-    schema["$defs"] = {
-        "evidence_refs": evidence_refs,
-        "claim_review": claim_review_schema,
-        "dimension_review": dimension_review_schema,
-        "estimator_execution_check": deepcopy(
-            schema["properties"]["estimator_execution_checks"]["items"]
-        ),
-        "prior_finding_review": prior_finding_review_schema,
-        "finding": finding_schema,
-    }
-    ordered_slot_definitions = {
-        "claim_reviews": "claim_review",
-        "dimension_reviews": "dimension_review",
-        "estimator_execution_checks": "estimator_execution_check",
-    }
-    for field, definition in ordered_slot_definitions.items():
-        array_schema = schema["properties"][field]
-        count = int(array_schema["minItems"])
-        slots = [f"slot_{index}" for index in range(count)]
-        schema["properties"][field] = {
-            "type": "object",
-            "additionalProperties": False,
-            "required": slots,
-            "description": array_schema["description"],
-            "properties": {
-                slot: {"$ref": f"#/$defs/{definition}"}
-                for slot in slots
-            },
-        }
-    if not active_prior_finding_ids:
-        schema["properties"].pop("prior_finding_reviews", None)
-        schema["$defs"].pop("prior_finding_review", None)
-    if not claim_review_ids:
-        schema["properties"].pop("claim_reviews", None)
-        schema["$defs"].pop("claim_review", None)
-    return schema
-
-
 def build_architect_theory_execution_preflight_prompt(
     material: Mapping[str, Any],
     *,
     include_authoritative_document_content: bool = True,
     compact_source_search_available: bool = True,
-    compact_status_envelope: bool = False,
 ) -> str:
     anchor_catalog = [
         dict(row)
@@ -984,11 +650,7 @@ def build_architect_theory_execution_preflight_prompt(
         "review_protocol_version": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION,
         "review_protocol": list(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL),
         "ordered_review_slots": {
-            (
-                "claim_statuses"
-                if compact_status_envelope
-                else "claim_reviews"
-            ): [
+            "claim_statuses": [
                 {
                     "output_slot": f"slot_{index}",
                     **deepcopy(dict(claim)),
@@ -998,11 +660,7 @@ def build_architect_theory_execution_preflight_prompt(
                 )
                 if isinstance(claim, Mapping)
             ],
-            (
-                "dimension_statuses"
-                if compact_status_envelope
-                else "dimension_reviews"
-            ): [
+            "dimension_statuses": [
                 {
                     "output_slot": f"slot_{index}",
                     "dimension": dimension,
@@ -1020,11 +678,7 @@ def build_architect_theory_execution_preflight_prompt(
                     material.get("required_estimator_ids", []) or []
                 )
             ],
-            (
-                "prior_finding_statuses"
-                if compact_status_envelope
-                else "prior_finding_reviews"
-            ): [
+            "prior_finding_statuses": [
                 prior_review_slot(index, finding_id)
                 for index, finding_id in enumerate(
                     material.get("active_prior_finding_ids", []) or []
@@ -1060,13 +714,9 @@ def build_architect_theory_execution_preflight_prompt(
         },
         "verdict_policy": (
             "Do not return an overall verdict. AgentRuntime derives it from the "
-            + (
-                "ordered claim and dimension statuses, compact estimator checks, and "
-                "findings. Put the independent mathematical argument in one Markdown "
-                "referee report rather than repeating a rationale in every slot. "
-                if compact_status_envelope
-                else "complete claim, dimension, estimator, and finding rows. "
-            )
+            "ordered claim and dimension statuses, compact estimator checks, and "
+            "findings. Put the independent mathematical argument in one Markdown "
+            "referee report rather than repeating a rationale in every slot. "
             + "A blocking finding, "
             "including an UNRESOLVED prior finding, requires at least one FAIL or "
             "UNCERTAIN claim, dimension, or estimator row. If every review row "
@@ -1085,10 +735,14 @@ def build_architect_theory_execution_preflight_prompt(
             "blockers."
         ),
     }
-    return "Review the following typed packet. Return JSON only.\n\n" + json.dumps(
-        payload,
-        separators=(",", ":"),
-        default=str,
+    return (
+        "Review the following typed packet with the available client tools. "
+        "Submit the mathematical review only through the terminal review tool.\n\n"
+        + json.dumps(
+            payload,
+            separators=(",", ":"),
+            default=str,
+        )
     )
 
 
@@ -1211,11 +865,52 @@ def _read_preflight_theory_document(
     return observation, inspection_ref
 
 
+def _preflight_finding_submit_schema(
+    material: Mapping[str, Any],
+) -> dict[str, Any]:
+    active_prior_count = len(material.get("active_prior_finding_ids", []) or [])
+    properties: dict[str, Any] = {
+        "severity": {
+            "type": "string",
+            "enum": ["medium", "high", "critical"],
+        },
+        "category": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "observed_behavior": {"type": "string", "minLength": 1},
+        "expected_behavior": {"type": "string", "minLength": 1},
+        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
+        "source_evidence_refs": {"$ref": "#/$defs/source_evidence_refs"},
+    }
+    required = [
+        "severity",
+        "category",
+        "summary",
+        "observed_behavior",
+        "expected_behavior",
+        "evidence_refs",
+    ]
+    if active_prior_count:
+        properties["prior_finding_index"] = {
+            "type": "integer",
+            "minimum": -1,
+            "maximum": active_prior_count - 1,
+            "description": (
+                "Select the ordered prior-finding slot with the same invariant. "
+                "Use -1 only for a genuinely new defect."
+            ),
+        }
+        required.append("prior_finding_index")
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": required,
+        "properties": properties,
+    }
+
+
 def _architect_theory_execution_preflight_submit_schema(
     material: Mapping[str, Any],
 ) -> dict[str, Any]:
-    legacy_schema = architect_theory_execution_preflight_json_schema(material)
-    finding_schema = deepcopy(legacy_schema["$defs"]["finding"])
     source_evidence_refs = {
         "type": "array",
         "minItems": 1,
@@ -1232,9 +927,6 @@ def _architect_theory_execution_preflight_submit_schema(
             "resolves them to immutable source_hit_id values. The separate "
             "evidence_refs field accepts only theory anchor IDs from its enum."
         ),
-    }
-    finding_schema["properties"]["source_evidence_refs"] = {
-        "$ref": "#/$defs/source_evidence_refs"
     }
     anchor_ids = [
         str(row.get("anchor_id", "") or "")
@@ -1353,9 +1045,13 @@ def _architect_theory_execution_preflight_submit_schema(
         "required": required,
         "properties": properties,
         "$defs": {
-            "evidence_refs": deepcopy(legacy_schema["$defs"]["evidence_refs"]),
+            "evidence_refs": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"type": "string", "enum": anchor_ids},
+            },
             "source_evidence_refs": source_evidence_refs,
-            "finding": finding_schema,
+            "finding": _preflight_finding_submit_schema(material),
         },
     }
 
@@ -2387,6 +2083,55 @@ def _materialize_preflight_review_report(
     return materialized
 
 
+def _validate_compact_preflight_submission(
+    payload: Mapping[str, Any],
+    *,
+    material: Mapping[str, Any],
+) -> None:
+    required_fields = {
+        "review_report_markdown",
+        "report_evidence_refs",
+        "claim_statuses",
+        "dimension_statuses",
+        "estimator_execution_checks",
+        "findings",
+    }
+    if material.get("active_prior_finding_ids", []) or []:
+        required_fields.add("prior_finding_statuses")
+    observed_fields = set(payload)
+    missing = sorted(required_fields - observed_fields)
+    unknown = sorted(observed_fields - required_fields)
+    if missing or unknown:
+        raise ClientToolInputError(
+            "submit_theory_preflight_review requires the compact Markdown report "
+            f"envelope; missing={missing} unknown={unknown}"
+        )
+    if not str(payload.get("review_report_markdown", "") or "").strip():
+        raise ClientToolInputError(
+            "review_report_markdown must contain the mathematical referee report"
+        )
+    array_fields = required_fields - {"review_report_markdown"}
+    for field in sorted(array_fields):
+        if not isinstance(payload.get(field), list):
+            raise ClientToolInputError(f"{field} must be a JSON array")
+    for index, row in enumerate(
+        payload.get("estimator_execution_checks", []) or []
+    ):
+        if not isinstance(row, Mapping) or set(row) != {
+            "status",
+            "blocking_gaps",
+        }:
+            raise ClientToolInputError(
+                "estimator_execution_checks must contain only status and "
+                f"blocking_gaps; invalid row index={index}"
+            )
+    if any(
+        not isinstance(row, Mapping)
+        for row in payload.get("findings", []) or []
+    ):
+        raise ClientToolInputError("findings must contain JSON objects")
+
+
 def _normalize_packet(
     payload: Mapping[str, Any],
     *,
@@ -2396,89 +2141,65 @@ def _normalize_packet(
     model_tier: str,
     provider_name: str,
     raw_response: str,
-    source_grounding: Mapping[str, Any] | None = None,
+    source_grounding: Mapping[str, Any],
 ) -> dict[str, Any]:
+    _validate_compact_preflight_submission(payload, material=material)
     body = dict(payload)
-    grounding = deepcopy(dict(source_grounding or {}))
-    if grounding:
-        body.update(grounding)
-    else:
-        body.update(
-            {
-                "source_grounding_required": False,
-                "source_grounding_transport": (
-                    "legacy_structured_output_without_client_tools"
-                ),
-                "preflight_source_observations": [],
-                "preflight_source_observations_fingerprint": "",
-                "theory_document_inspection_required": False,
-                "theory_document_inspection_refs": [],
-                "theory_document_inspection_fingerprint": "",
-                "theory_document_inspection_count": 0,
-                "runtime_selected_review_semantics": False,
-            }
-        )
+    grounding = deepcopy(dict(source_grounding))
+    body.update(grounding)
     compact_report = str(body.get("review_report_markdown", "") or "")
     compact_report_refs = [
         str(value).strip()
         for value in body.get("report_evidence_refs", []) or []
         if str(value).strip()
     ]
-    if compact_report.strip():
-        body["review_transport"] = (
-            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT
-        )
-        body["review_report_markdown"] = compact_report
-        body["review_report"] = _preflight_review_report_manifest(
-            content=compact_report,
-            material=material,
-            evidence_refs=compact_report_refs,
-        )
-        report_ref = str(body["review_report"]["document_id"])
-        if "claim_statuses" in body:
-            body["claim_reviews"] = [
-                {
-                    "status": str(status or "").strip().upper(),
-                    "review_report_ref": report_ref,
-                }
-                for status in body.get("claim_statuses", []) or []
-            ]
-        if "dimension_statuses" in body:
-            body["dimension_reviews"] = [
-                {
-                    "status": str(status or "").strip().upper(),
-                    "review_report_ref": report_ref,
-                }
-                for status in body.get("dimension_statuses", []) or []
-            ]
-        compact_estimator_rows = body.get("estimator_execution_checks", [])
-        if isinstance(compact_estimator_rows, Sequence) and not isinstance(
-            compact_estimator_rows, (str, bytes)
-        ):
-            body["estimator_execution_checks"] = [
-                {
-                    **dict(row),
-                    "status": str(row.get("status", "") or "").strip().upper(),
-                    "review_report_ref": report_ref,
-                }
-                for row in compact_estimator_rows
-                if isinstance(row, Mapping)
-            ]
-        if "prior_finding_statuses" in body:
-            body["prior_finding_reviews"] = [
-                {
-                    "status": str(status or "").strip().upper(),
-                    "review_report_ref": report_ref,
-                }
-                for status in body.get("prior_finding_statuses", []) or []
-            ]
-        for field in (
-            "claim_statuses",
-            "dimension_statuses",
-            "prior_finding_statuses",
-            "report_evidence_refs",
-        ):
-            body.pop(field, None)
+    body["review_transport"] = (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT
+    )
+    body["review_report_markdown"] = compact_report
+    body["review_report"] = _preflight_review_report_manifest(
+        content=compact_report,
+        material=material,
+        evidence_refs=compact_report_refs,
+    )
+    report_ref = str(body["review_report"]["document_id"])
+    body["claim_reviews"] = [
+        {
+            "status": str(status or "").strip().upper(),
+            "review_report_ref": report_ref,
+        }
+        for status in body.get("claim_statuses", []) or []
+    ]
+    body["dimension_reviews"] = [
+        {
+            "status": str(status or "").strip().upper(),
+            "review_report_ref": report_ref,
+        }
+        for status in body.get("dimension_statuses", []) or []
+    ]
+    body["estimator_execution_checks"] = [
+        {
+            **dict(row),
+            "status": str(row.get("status", "") or "").strip().upper(),
+            "review_report_ref": report_ref,
+        }
+        for row in body.get("estimator_execution_checks", []) or []
+    ]
+    if "prior_finding_statuses" in body:
+        body["prior_finding_reviews"] = [
+            {
+                "status": str(status or "").strip().upper(),
+                "review_report_ref": report_ref,
+            }
+            for status in body.get("prior_finding_statuses", []) or []
+        ]
+    for field in (
+        "claim_statuses",
+        "dimension_statuses",
+        "prior_finding_statuses",
+        "report_evidence_refs",
+    ):
+        body.pop(field, None)
     raw_dimension_reviews = _ordered_review_slot_rows(
         body.get("dimension_reviews", {}),
         expected_count=len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
@@ -3400,8 +3121,8 @@ Reject a checkpoint that labels or uses pre-review scratch output as frozen conf
 evidence, even when its numbers happen to agree with the theory.
 If a judgment requires generated execution, state the missing evidence rather than
 inventing a result. Report findings, not repairs, and never claim proof evidence.
-In client-tool mode, write one coherent Markdown referee report containing the actual
-mathematics. Its tool envelope is only a compact identity and routing ABI: cite the
+Write one coherent Markdown referee report containing the actual mathematics. Its tool
+envelope is only a compact identity and routing ABI: cite the
 inspected anchors once, return ordered statuses, and list actual blockers without
 duplicating the report.
 """
@@ -3450,7 +3171,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     provider_name: str,
     max_tokens: int,
     temperature: float,
-    review_output_token_cap: int,
 ) -> dict[str, Any]:
     submit_schema = _architect_theory_execution_preflight_submit_schema(
         material
@@ -3530,7 +3250,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         material,
         include_authoritative_document_content=False,
         compact_source_search_available=compact_source_search_available,
-        compact_status_envelope=True,
     )
     tool_prompt = (
         prompt.split("\n\n", 1)[-1]
@@ -3898,7 +3617,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         messages=({"role": "user", "content": tool_prompt},),
         tools=tools,
         model=request_model,
-        max_tokens=min(max(1, int(max_tokens)), review_output_token_cap),
+        max_tokens=max(1, int(max_tokens)),
         temperature=temperature,
         tool_choice="any",
         disable_parallel_tool_use=False,
@@ -4040,11 +3759,15 @@ def review_architect_theory_execution_preflight(
     max_tokens: int,
     temperature: float,
     provider_name: str,
-    max_validation_retries: int,
     prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
     source_retriever: Any = None,
     research_sources: ResearchSourceSnapshot | None = None,
 ) -> dict[str, Any]:
+    if not callable(getattr(provider, "generate_client_tool_turn", None)):
+        raise ValueError(
+            "theory execution preflight requires native client-tool turns; "
+            "JSON-only mathematical review is disabled"
+        )
     material = build_architect_theory_execution_preflight_material(
         question=question,
         theory_protocol_material=theory_protocol_material,
@@ -4056,81 +3779,15 @@ def review_architect_theory_execution_preflight(
         requested_model=model,
         model_tier=model_tier,
     )
-    prompt = build_architect_theory_execution_preflight_prompt(material)
-    schema = architect_theory_execution_preflight_json_schema(material)
-    review_estimator_count = len(material.get("required_estimator_ids", []) or [])
-    review_prior_finding_count = len(
-        material.get("active_prior_finding_ids", []) or []
-    )
-    review_output_token_cap = min(
-        12000,
-        8000
-        + 1200 * max(0, review_estimator_count - 1)
-        + 900 * review_prior_finding_count,
-    )
-    if callable(getattr(provider, "generate_client_tool_turn", None)):
-        return _review_architect_theory_execution_preflight_with_source_tools(
-            provider=provider,
-            question=question,
-            material=material,
-            source_retriever=source_retriever,
-            research_sources=research_sources,
-            request_model=request_model,
-            model_tier=model_tier,
-            provider_name=provider_name,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            review_output_token_cap=review_output_token_cap,
-        )
-    request = GeneratorRequest(
-        system_prompt=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT,
-        user_prompt=prompt,
-        model=request_model,
-        max_tokens=min(max(1, int(max_tokens)), review_output_token_cap),
-        temperature=temperature,
-        schema=schema,
-        metadata={
-            "subsystem": "ArchitectMetricSemanticReviewer",
-            "agent": "LLMArchitectMetricSemanticReviewerAgent",
-            "review_stage": "theory_execution_preflight",
-            "provider_name": provider_name,
-            "model_tier": model_tier,
-            "resolved_model": request_model,
-            "provider_structured_output": True,
-            "review_input_fingerprint": stable_hash(material),
-            "review_protocol_version": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION,
-            "review_prompt_chars": len(prompt),
-            "review_schema_chars": len(json.dumps(schema, separators=(",", ":"))),
-            "review_estimator_count": review_estimator_count,
-            "review_prior_finding_count": review_prior_finding_count,
-            "review_output_token_cap": review_output_token_cap,
-        },
-    )
-
-    def build_packet(
-        payload: Mapping[str, Any],
-        response: Any,
-        raw_text: str,
-    ) -> dict[str, Any]:
-        return _normalize_packet(
-            payload,
-            question=question,
-            material=material,
-            model=response.model or request_model,
-            model_tier=model_tier,
-            provider_name=provider_name or response.provider,
-            raw_response=raw_text,
-        )
-
-    return generate_validated_json_packet(
+    return _review_architect_theory_execution_preflight_with_source_tools(
         provider=provider,
-        request=request,
-        extract_payload=extract_json_object,
-        build_packet=build_packet,
-        validate_packet=lambda packet: validate_architect_theory_execution_preflight_packet(
-            packet,
-            material=material,
-        ),
-        validation_label="Architect theory-to-execution preflight review packet",
-        max_validation_retries=max_validation_retries,
+        question=question,
+        material=material,
+        source_retriever=source_retriever,
+        research_sources=research_sources,
+        request_model=request_model,
+        model_tier=model_tier,
+        provider_name=provider_name,
+        max_tokens=max_tokens,
+        temperature=temperature,
     )

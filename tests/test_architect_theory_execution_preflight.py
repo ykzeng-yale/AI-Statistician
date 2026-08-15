@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
 from copy import deepcopy
 from pathlib import Path
 
@@ -24,7 +25,6 @@ from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT,
     _architect_theory_execution_preflight_submit_schema,
     _search_preflight_sources,
-    architect_theory_execution_preflight_json_schema,
     build_architect_theory_execution_preflight_material,
     build_architect_theory_execution_preflight_prompt,
     review_architect_theory_execution_preflight,
@@ -57,6 +57,20 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     theory_workspace_document_manifest,
 )
+
+
+_TEST_PREFLIGHT_WORKSPACES: list[tempfile.TemporaryDirectory[str]] = []
+_DEFAULT_PREFLIGHT_WORKSPACE = tempfile.TemporaryDirectory(
+    prefix="preflight-review-default-"
+)
+_TEST_PREFLIGHT_WORKSPACES.append(_DEFAULT_PREFLIGHT_WORKSPACE)
+_DEFAULT_THEORY_WORKSPACE_ROOT = (
+    Path(_DEFAULT_PREFLIGHT_WORKSPACE.name)
+    / "run"
+    / "theory_workspaces"
+    / "workspace"
+)
+_DEFAULT_THEORY_WORKSPACE_ROOT.mkdir(parents=True)
 
 
 TEST_HAIKU_MODEL = "claude-haiku-4-5-20251001"
@@ -256,44 +270,20 @@ class _Backend:
         self.payload = payload
         self.requests = []
 
+    def generate_client_tool_turn(self, request):
+        self.requests.append(request)
+        return _tool_response(
+            ClientToolCall(
+                "submit-review",
+                "submit_theory_preflight_review",
+                _compact_submission(self.payload),
+            )
+        )
+
     def generate(self, request):
         self.requests.append(request)
         return GeneratorResponse(
             text=json.dumps(self.payload),
-            provider="anthropic",
-            model=request.model,
-            metadata={
-                "provider_structured_output_requested": True,
-                "provider_structured_output_applied": True,
-            },
-        )
-
-
-class _SequencedBackend:
-    provider_name = "anthropic"
-
-    def __init__(self, initial_payload: dict[str, object]) -> None:
-        self.initial_payload = initial_payload
-        self.requests = []
-        self.repair_payload = {}
-
-    def generate(self, request):
-        self.requests.append(request)
-        if len(self.requests) == 1:
-            payload = self.initial_payload
-        else:
-            self.repair_payload = json.loads(
-                request.user_prompt.split("\n\n", 1)[1]
-            )
-            payload = deepcopy(self.initial_payload)
-            primitive_index = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS.index(
-                "primitive_mathematical_consistency"
-            )
-            payload["dimension_reviews"][primitive_index]["evidence_refs"] = [
-                "theory.estimator_specs"
-            ]
-        return GeneratorResponse(
-            text=json.dumps(payload),
             provider="anthropic",
             model=request.model,
             metadata={
@@ -325,6 +315,26 @@ def _tool_response(*calls: ClientToolCall) -> ClientToolTurnResponse:
             "provider_usage": {"input_tokens": 19, "output_tokens": 7},
         },
     )
+
+
+def _submit_schema(request) -> dict[str, object]:
+    return next(
+        tool.input_schema
+        for tool in request.tools
+        if tool.name == "submit_theory_preflight_review"
+    )
+
+
+def _last_tool_result(request) -> dict[str, object]:
+    for block in request.messages[-1].get("content", []):
+        if isinstance(block, dict) and "content" in block:
+            return json.loads(block["content"])
+    raise AssertionError("expected a client-tool result in the latest model turn")
+
+
+def _preflight_prompt_payload(request) -> dict[str, object]:
+    prompt = str(request.messages[0]["content"])
+    return json.loads(prompt.split("\n\n", 1)[0])
 
 
 class _PreflightToolBackend:
@@ -361,7 +371,7 @@ class _PreflightToolBackend:
                 finding["source_evidence_refs"] = [source_ref]
             for review in payload.get("prior_finding_reviews", []) or []:
                 review["source_evidence_refs"] = [source_ref]
-        return payload
+        return _compact_submission(payload)
 
     def generate_client_tool_turn(self, request):
         self.requests.append(request)
@@ -403,6 +413,8 @@ class _PreflightToolBackend:
             )
         result_blocks = request.messages[-1]["content"]
         for result_block in result_blocks:
+            if "content" not in result_block:
+                continue
             result = json.loads(result_block["content"])
             if result.get("hits"):
                 self.hit_id = result["hits"][0]["source_hit_id"]
@@ -442,6 +454,12 @@ def _question() -> OpenResearchQuestion:
 
 def _theory_material() -> dict[str, object]:
     semantic_material = {
+        "theory_workspace_manifest": {
+            "schema_version": 1,
+            "artifact_kind": "TheoryWorkspaceDocumentManifest",
+            "workspace_root": str(_DEFAULT_THEORY_WORKSPACE_ROOT),
+            "documents": [],
+        },
         "problem_card": {
             "observed_data": "A stream of observations from a declared sampling law.",
             "dgp": "Independent observations under two declared parameter regimes.",
@@ -619,12 +637,104 @@ def _payload(*, accept: bool) -> dict[str, object]:
     }
 
 
+def _compact_submission(payload: dict[str, object]) -> dict[str, object]:
+    if "review_report_markdown" in payload:
+        return deepcopy(payload)
+    rows = [
+        *payload.get("claim_reviews", []),
+        *payload.get("dimension_reviews", []),
+        *payload.get("estimator_execution_checks", []),
+        *payload.get("prior_finding_reviews", []),
+        *payload.get("findings", []),
+    ]
+    evidence_refs: list[str] = []
+    report_parts: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        for value in row.get("evidence_refs", []) or []:
+            ref = str(value)
+            if ref and ref not in evidence_refs:
+                evidence_refs.append(ref)
+        for field in (
+            "independent_check",
+            "audit_rationale",
+            "identity_check",
+            "boundary_or_counterexample",
+            "rationale",
+            "summary",
+            "observed_behavior",
+            "expected_behavior",
+        ):
+            value = str(row.get(field, "") or "").strip()
+            if value:
+                report_parts.append(value)
+    compact: dict[str, object] = {
+        "review_report_markdown": (
+            "# Independent theory preflight\n\n"
+            + "\n\n".join(report_parts or ["No additional blocker was identified."])
+        ),
+        "report_evidence_refs": evidence_refs or ["theory.estimator_specs"],
+        "claim_statuses": [
+            str(row.get("status", ""))
+            for row in payload.get("claim_reviews", [])
+            if isinstance(row, dict)
+        ],
+        "dimension_statuses": [
+            str(row.get("status", ""))
+            for row in payload.get("dimension_reviews", [])
+            if isinstance(row, dict)
+        ],
+        "estimator_execution_checks": [
+            {
+                "status": str(row.get("status", "")),
+                "blocking_gaps": deepcopy(row.get("blocking_gaps", [])),
+            }
+            for row in payload.get("estimator_execution_checks", [])
+            if isinstance(row, dict)
+        ],
+        "findings": deepcopy(payload.get("findings", [])),
+    }
+    if "prior_finding_reviews" in payload:
+        compact["prior_finding_statuses"] = [
+            str(row.get("status", ""))
+            for row in payload.get("prior_finding_reviews", [])
+            if isinstance(row, dict)
+        ]
+    return compact
+
+
+def _with_test_review_workspace(
+    theory_material: dict[str, object],
+) -> dict[str, object]:
+    material = deepcopy(theory_material)
+    semantic = material["theory_semantic_material"]
+    assert isinstance(semantic, dict)
+    manifest = semantic.get("theory_workspace_manifest", {})
+    if isinstance(manifest, dict) and manifest.get("workspace_root"):
+        return material
+    temporary = tempfile.TemporaryDirectory(prefix="preflight-review-")
+    _TEST_PREFLIGHT_WORKSPACES.append(temporary)
+    workspace_root = (
+        Path(temporary.name) / "run" / "theory_workspaces" / "workspace"
+    )
+    workspace_root.mkdir(parents=True)
+    semantic["theory_workspace_manifest"] = {
+        "schema_version": 1,
+        "artifact_kind": "TheoryWorkspaceDocumentManifest",
+        "workspace_root": str(workspace_root),
+        "documents": [],
+    }
+    material["source_theory_packet_hash"] = stable_hash(semantic)
+    return material
+
+
 def _review(*, accept: bool):
     backend = _Backend(_payload(accept=accept))
     packet = review_architect_theory_execution_preflight(
         provider=backend,
         question=_question(),
-        theory_protocol_material=_theory_material(),
+        theory_protocol_material=_with_test_review_workspace(_theory_material()),
         upstream_research_contract={
             "formal_targets": [],
             "simulation_targets": ["evaluate the declared risk"],
@@ -634,7 +744,6 @@ def _review(*, accept: bool):
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_validation_retries=0,
     )
     return packet, backend
 
@@ -648,13 +757,16 @@ def _tool_review(
     theory_protocol_material=None,
     upstream_research_contract=None,
 ):
+    selected_theory_material = (
+        theory_protocol_material
+        if theory_protocol_material is not None
+        else _theory_material()
+    )
     return review_architect_theory_execution_preflight(
         provider=backend,
         question=_question(),
-        theory_protocol_material=(
-            theory_protocol_material
-            if theory_protocol_material is not None
-            else _theory_material()
+        theory_protocol_material=_with_test_review_workspace(
+            selected_theory_material
         ),
         upstream_research_contract=(
             upstream_research_contract
@@ -669,7 +781,6 @@ def _tool_review(
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_validation_retries=0,
         source_retriever=source_retriever,
         research_sources=research_sources,
         prior_finding_ledger=prior_finding_ledger,
@@ -758,7 +869,12 @@ def test_preflight_canonicalizes_prior_finding_source_ref_before_binding() -> No
 
     continued = packet["findings"][0]
     assert continued["finding_id"] == prior_finding_id
-    assert continued["source_evidence_refs"] == [backend.hit_id]
+    assert "source_evidence_refs" not in continued
+    assert any(
+        hit.get("source_hit_id") == backend.hit_id
+        for observation in packet["preflight_source_observations"]
+        for hit in observation.get("hits", [])
+    )
     for field in (
         "severity",
         "category",
@@ -1201,7 +1317,7 @@ def test_preflight_client_tool_loop_returns_all_pass_finding_conflict_to_model()
                     ClientToolCall(
                         "submit-inconsistent",
                         "submit_theory_preflight_review",
-                        payload,
+                        _compact_submission(payload),
                     )
                 )
             assert result["error"] == "preflight_submission_rejected"
@@ -1213,7 +1329,7 @@ def test_preflight_client_tool_loop_returns_all_pass_finding_conflict_to_model()
                 ClientToolCall(
                     "submit-consistent",
                     "submit_theory_preflight_review",
-                    _payload(accept=True),
+                    _compact_submission(_payload(accept=True)),
                 )
             )
 
@@ -1401,14 +1517,35 @@ def test_preflight_client_tool_loop_failure_is_fail_closed() -> None:
     assert "repeated turns without a client tool call" in str(exc_info.value)
 
 
-def test_preflight_static_transport_is_explicitly_ungrounded() -> None:
-    packet, _backend = _review(accept=True)
+def test_preflight_json_only_transport_is_disabled() -> None:
+    class JSONOnlyBackend:
+        provider_name = "anthropic"
 
-    assert packet["source_grounding_required"] is False
-    assert packet["source_grounding_transport"] == (
-        "legacy_structured_output_without_client_tools"
-    )
-    assert packet["source_grounding_bindings"] == []
+        def generate(self, request):
+            return GeneratorResponse(
+                text=json.dumps(_payload(accept=True)),
+                provider="anthropic",
+                model=request.model,
+            )
+
+    with pytest.raises(
+        ValueError,
+        match="JSON-only mathematical review is disabled",
+    ):
+        review_architect_theory_execution_preflight(
+            provider=JSONOnlyBackend(),
+            question=_question(),
+            theory_protocol_material=_theory_material(),
+            upstream_research_contract={
+                "formal_targets": [],
+                "simulation_targets": ["evaluate the declared risk"],
+            },
+            model=TEST_HAIKU_MODEL,
+            model_tier="haiku",
+            max_tokens=7000,
+            temperature=0.0,
+            provider_name="anthropic",
+        )
 
 
 def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
@@ -1499,43 +1636,35 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert backend.requests[0].model == TEST_HAIKU_MODEL
     assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert backend.requests[0].max_tokens == 7000
-    assert backend.requests[0].metadata["review_output_token_cap"] == 8000
+    assert "review_output_token_cap" not in backend.requests[0].metadata
     assert "not theorem peer review" in backend.requests[0].system_prompt
-    assert "Exclude downstream proof obligations" in (
-        backend.requests[0].schema["properties"]["findings"]["description"]
+    submit_schema = _submit_schema(backend.requests[0])
+    assert "do not carry downstream proof obligations" in (
+        prompt_payload["verdict_policy"]
     )
-    dimension_schema = backend.requests[0].schema["properties"][
-        "dimension_reviews"
-    ]
-    assert dimension_schema["type"] == "object"
-    expected_dimension_slots = [
-        f"slot_{index}"
-        for index in range(len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS))
-    ]
-    assert dimension_schema["required"] == expected_dimension_slots
-    assert set(dimension_schema["properties"]) == set(expected_dimension_slots)
-    assert all(
-        row == {"$ref": "#/$defs/dimension_review"}
-        for row in dimension_schema["properties"].values()
+    dimension_schema = submit_schema["properties"]["dimension_statuses"]
+    assert dimension_schema["type"] == "array"
+    assert dimension_schema["minItems"] == len(
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
     )
-    estimator_schema = backend.requests[0].schema["properties"][
+    assert dimension_schema["maxItems"] == len(
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+    )
+    estimator_schema = submit_schema["properties"][
         "estimator_execution_checks"
     ]
-    assert estimator_schema["type"] == "object"
-    assert estimator_schema["required"] == ["slot_0"]
-    assert estimator_schema["properties"]["slot_0"] == {
-        "$ref": "#/$defs/estimator_execution_check"
+    assert estimator_schema["type"] == "array"
+    assert estimator_schema["minItems"] == 1
+    assert estimator_schema["maxItems"] == 1
+    assert set(estimator_schema["items"]["properties"]) == {
+        "status",
+        "blocking_gaps",
     }
-    assert "estimator_id" not in backend.requests[0].schema["$defs"][
-        "estimator_execution_check"
-    ]["properties"]
-    assert "repair_instructions" not in backend.requests[0].schema["properties"]
+    assert "repair_instructions" not in submit_schema["properties"]
     assert prompt_payload["ordered_review_slots"][
         "estimator_execution_checks"
     ] == [{"output_slot": "slot_0", "estimator_id": "generic_stream_method"}]
-    assert "prior_finding_reviews" not in backend.requests[0].schema[
-        "properties"
-    ]
+    assert "prior_finding_statuses" not in submit_schema["properties"]
     assert validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
@@ -2002,45 +2131,38 @@ Assert an unsupported transition.
     )
 
 
-def test_preflight_full_regeneration_returns_raw_validation_feedback() -> None:
-    initial_payload = _payload(accept=False)
-    primitive_index = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS.index(
-        "primitive_mathematical_consistency"
-    )
-    initial_payload["dimension_reviews"][primitive_index]["evidence_refs"] = [
-        "unknown.anchor"
-    ]
-    backend = _SequencedBackend(initial_payload)
+def test_preflight_returns_compact_envelope_error_to_same_model() -> None:
+    class CompactEnvelopeBackend:
+        provider_name = "anthropic"
 
-    packet = review_architect_theory_execution_preflight(
-        provider=backend,
-        question=_question(),
-        theory_protocol_material=_theory_material(),
-        upstream_research_contract={
-            "formal_targets": [],
-            "simulation_targets": ["evaluate the declared risk"],
-        },
-        model=TEST_HAIKU_MODEL,
-        model_tier="haiku",
-        max_tokens=7000,
-        temperature=0.0,
-        provider_name="anthropic",
-        max_validation_retries=1,
-    )
+        def __init__(self) -> None:
+            self.requests = []
+            self.rejection = {}
 
-    assert "subsystem_repair_context" not in backend.repair_payload
-    assert any(
-        "unknown evidence refs" in error
-        for error in backend.repair_payload["local_validation_errors"]
-    )
-    assert backend.repair_payload["original_request"] == (
-        backend.requests[0].user_prompt
-    )
-    assert "unknown.anchor" in backend.repair_payload["previous_candidate"]
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                submission = _payload(accept=False)
+            else:
+                self.rejection = _last_tool_result(request)
+                submission = _compact_submission(_payload(accept=False))
+            return _tool_response(
+                ClientToolCall(
+                    f"submit-{len(self.requests)}",
+                    "submit_theory_preflight_review",
+                    submission,
+                )
+            )
+
+    backend = CompactEnvelopeBackend()
+    packet = _tool_review(backend)
+
+    assert len(backend.requests) == 2
+    assert backend.rejection["error"] == "client_tool_input_rejected"
+    assert "compact Markdown report envelope" in backend.rejection["detail"]
     assert packet["overall_verdict"] == "REVISE"
-    assert packet["structured_output_retry_history"][1]["retry_mode"] == (
-        "full_packet_regeneration"
-    )
+    rejected = packet["client_tool_loop_history"][0]["tool_calls"][0]
+    assert rejected["is_error"] is True
 
 
 def test_preflight_prior_finding_schema_uses_compact_ordered_array() -> None:
@@ -2051,10 +2173,10 @@ def test_preflight_prior_finding_schema_uses_compact_ordered_array() -> None:
         ],
         "required_estimator_ids": ["generic_stream_method"],
     }
-    one_schema = architect_theory_execution_preflight_json_schema(
+    one_schema = _architect_theory_execution_preflight_submit_schema(
         {**base_material, "active_prior_finding_ids": ["finding:0"]}
     )
-    six_schema = architect_theory_execution_preflight_json_schema(
+    six_schema = _architect_theory_execution_preflight_submit_schema(
         {
             **base_material,
             "active_prior_finding_ids": [
@@ -2063,12 +2185,14 @@ def test_preflight_prior_finding_schema_uses_compact_ordered_array() -> None:
         }
     )
 
-    prior_schema = six_schema["properties"]["prior_finding_reviews"]
+    prior_schema = six_schema["properties"]["prior_finding_statuses"]
     assert prior_schema["type"] == "array"
     assert prior_schema["minItems"] == 6
     assert prior_schema["maxItems"] == 6
-    assert prior_schema["items"] == {
-        "$ref": "#/$defs/prior_finding_review"
+    assert set(prior_schema["items"]["enum"]) == {
+        "UNRESOLVED",
+        "RESOLVED_BY_CURRENT_THEORY",
+        "RETRACTED_BY_CURRENT_EVIDENCE",
     }
     assert len(json.dumps(six_schema, separators=(",", ":"))) - len(
         json.dumps(one_schema, separators=(",", ":"))
@@ -2093,7 +2217,6 @@ def test_preflight_client_submit_schema_stays_compact_with_sixteen_claims() -> N
         "finding:1",
         "finding:2",
     ]
-    expanded_schema = architect_theory_execution_preflight_json_schema(material)
     schema = _architect_theory_execution_preflight_submit_schema(material)
 
     expected_counts = {
@@ -2126,8 +2249,6 @@ def test_preflight_client_submit_schema_stays_compact_with_sixteen_claims() -> N
     assert "maxItems" not in schema["properties"]["findings"]
     assert "maxItems" not in estimator_properties["blocking_gaps"]
     compact_size = len(json.dumps(schema, separators=(",", ":")))
-    expanded_size = len(json.dumps(expanded_schema, separators=(",", ":")))
-    assert compact_size < expanded_size
     assert compact_size < 6_500
 
 
@@ -2260,28 +2381,25 @@ def test_client_tool_preflight_persists_markdown_referee_report(
 
 
 def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> None:
-    schema = architect_theory_execution_preflight_json_schema(
+    schema = _architect_theory_execution_preflight_submit_schema(
         {
             "anchor_catalog": [{"anchor_id": "theory.estimator_specs"}],
             "required_estimator_ids": ["estimator_0", "estimator_1"],
+            "required_claim_review_ids": [],
             "active_prior_finding_ids": [],
         }
     )
-    estimator_schema = schema["$defs"]["estimator_execution_check"]
+    estimator_schema = schema["properties"]["estimator_execution_checks"]
 
-    assert estimator_schema["required"] == [
-        "audit_rationale",
-        "identity_check",
-        "blocking_gaps",
-        "boundary_or_counterexample",
+    assert estimator_schema["minItems"] == 2
+    assert estimator_schema["maxItems"] == 2
+    assert estimator_schema["items"]["required"] == ["status", "blocking_gaps"]
+    assert set(estimator_schema["items"]["properties"]) == {
         "status",
-        "evidence_refs",
-    ]
-    assert set(estimator_schema["properties"]) == set(
-        estimator_schema["required"]
-    )
-    assert estimator_schema["properties"]["audit_rationale"]["maxLength"] == 900
-    assert estimator_schema["properties"]["blocking_gaps"]["maxItems"] == 6
+        "blocking_gaps",
+    }
+    assert "review_report_markdown" in schema["required"]
+    assert "report_evidence_refs" in schema["required"]
 
 
 def test_preflight_cannot_accept_a_failed_independent_identity_check() -> None:
@@ -2381,7 +2499,6 @@ def test_preflight_preserves_model_owned_dimension_and_estimator_judgments() -> 
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_validation_retries=1,
     )
     material = build_architect_theory_execution_preflight_material(
         question=_question(),
@@ -2434,20 +2551,20 @@ def test_preflight_returns_inconsistent_estimator_pass_to_same_model() -> None:
 
         def __init__(self) -> None:
             self.requests = []
+            self.rejection = {}
 
-        def generate(self, request):
+        def generate_client_tool_turn(self, request):
             self.requests.append(request)
             candidate = deepcopy(payload)
             if len(self.requests) > 1:
+                self.rejection = _last_tool_result(request)
                 candidate["estimator_execution_checks"][0]["status"] = "UNCERTAIN"
-            return GeneratorResponse(
-                text=json.dumps(candidate),
-                provider="anthropic",
-                model=request.model,
-                metadata={
-                    "provider_structured_output_requested": True,
-                    "provider_structured_output_applied": True,
-                },
+            return _tool_response(
+                ClientToolCall(
+                    f"submit-{len(self.requests)}",
+                    "submit_theory_preflight_review",
+                    _compact_submission(candidate),
+                )
             )
 
     backend = Backend()
@@ -2465,7 +2582,6 @@ def test_preflight_returns_inconsistent_estimator_pass_to_same_model() -> None:
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_validation_retries=1,
     )
     material = build_architect_theory_execution_preflight_material(
         question=_question(),
@@ -2487,7 +2603,11 @@ def test_preflight_returns_inconsistent_estimator_pass_to_same_model() -> None:
         "unestablished_theorem_hypothesis"
     )
     assert "runtime_estimator_status_normalizations" not in packet
-    assert packet["structured_output_retry_attempts"] == 1
+    assert backend.rejection["error"] == "preflight_submission_rejected"
+    assert any(
+        "status=PASS cannot report blocking_gaps" in error
+        for error in backend.rejection["validation_errors"]
+    )
     assert validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
@@ -2500,26 +2620,22 @@ def test_preflight_regenerates_all_pass_finding_conflict_with_same_model() -> No
 
         def __init__(self) -> None:
             self.requests = []
-            self.regeneration_payload = {}
+            self.rejection = {}
 
-        def generate(self, request):
+        def generate_client_tool_turn(self, request):
             self.requests.append(request)
             if len(self.requests) == 1:
                 payload = _payload(accept=True)
                 payload["findings"] = deepcopy(_payload(accept=False)["findings"])
             else:
-                self.regeneration_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
+                self.rejection = _last_tool_result(request)
                 payload = _payload(accept=True)
-            return GeneratorResponse(
-                text=json.dumps(payload),
-                provider="anthropic",
-                model=request.model,
-                metadata={
-                    "provider_structured_output_requested": True,
-                    "provider_structured_output_applied": True,
-                },
+            return _tool_response(
+                ClientToolCall(
+                    f"submit-{len(self.requests)}",
+                    "submit_theory_preflight_review",
+                    _compact_submission(payload),
+                )
             )
 
     backend = AllPassFindingBackend()
@@ -2537,17 +2653,15 @@ def test_preflight_regenerates_all_pass_finding_conflict_with_same_model() -> No
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_validation_retries=1,
     )
 
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["findings"] == []
-    assert packet["structured_output_retry_attempts"] == 1
     assert len(backend.requests) == 2
     assert {request.model for request in backend.requests} == {TEST_HAIKU_MODEL}
     assert any(
         "contradict the all-PASS" in error
-        for error in backend.regeneration_payload["local_validation_errors"]
+        for error in backend.rejection["validation_errors"]
     )
 
 
@@ -2594,27 +2708,18 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_validation_retries=0,
         prior_finding_ledger=prior_ledger,
     )
 
-    prior_review_schema = backend.requests[0].schema["properties"][
-        "prior_finding_reviews"
-    ]
+    submit_schema = _submit_schema(backend.requests[0])
+    prior_review_schema = submit_schema["properties"]["prior_finding_statuses"]
     assert prior_review_schema["type"] == "array"
     assert prior_review_schema["minItems"] == 1
     assert prior_review_schema["maxItems"] == 1
-    assert prior_review_schema["items"] == {
-        "$ref": "#/$defs/prior_finding_review"
-    }
-    prior_review_definition = backend.requests[0].schema["$defs"][
-        "prior_finding_review"
-    ]
-    prompt_payload = json.loads(
-        backend.requests[0].user_prompt.split("\n\n", 1)[1]
-    )
+    assert "RESOLVED_BY_CURRENT_THEORY" in prior_review_schema["items"]["enum"]
+    prompt_payload = _preflight_prompt_payload(backend.requests[0])
     prior_slot = prompt_payload["ordered_review_slots"][
-        "prior_finding_reviews"
+        "prior_finding_statuses"
     ][0]
     assert prior_slot["finding_id"] == prior_finding_ids[0]
     assert prior_slot["prior_obligation"]["summary"] == (
@@ -2622,24 +2727,16 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     )
     assert "observed_behavior" not in prior_slot["prior_obligation"]
     assert prior_ledger[0]["finding"]["observed_behavior"] not in (
-        backend.requests[0].user_prompt
+        str(backend.requests[0].messages[0]["content"])
     )
     assert prior_slot["prior_obligation"]["expected_behavior"] == (
         prior_ledger[0]["finding"]["expected_behavior"]
     )
     assert prior_slot["review_basis"] == "current_theory_anchors_only"
-    assert "finding_id" not in prior_review_definition["properties"]
-    assert "current_finding" not in prior_review_definition["properties"]
-    finding_definition = backend.requests[0].schema["$defs"]["finding"]
-    assert finding_definition["properties"]["prior_finding_index"] == {
-        "type": "integer",
-        "minimum": -1,
-        "maximum": 0,
-        "description": (
-            "Select the ordered prior-finding slot with the same invariant or "
-            "required remedy. Use -1 only for a genuinely new defect."
-        ),
-    }
+    finding_definition = submit_schema["$defs"]["finding"]
+    prior_index_schema = finding_definition["properties"]["prior_finding_index"]
+    assert prior_index_schema["minimum"] == -1
+    assert prior_index_schema["maximum"] == 0
     assert "prior_finding_index" in finding_definition["required"]
     assert accepted["overall_verdict"] == "ACCEPT"
     assert accepted["active_unresolved_finding_ids"] == []
@@ -2689,13 +2786,12 @@ def test_preflight_can_retract_prior_finding_from_current_evidence() -> None:
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_validation_retries=0,
         prior_finding_ledger=prior_ledger,
     )
 
-    prior_status_schema = backend.requests[0].schema["$defs"][
-        "prior_finding_review"
-    ]["properties"]["status"]
+    prior_status_schema = _submit_schema(backend.requests[0])["properties"][
+        "prior_finding_statuses"
+    ]["items"]
     assert "RETRACTED_BY_CURRENT_EVIDENCE" in prior_status_schema["enum"]
     assert accepted["overall_verdict"] == "ACCEPT"
     assert accepted["active_unresolved_finding_ids"] == []
@@ -2752,22 +2848,17 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_index() -> None:
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_validation_retries=0,
         prior_finding_ledger=prior_ledger,
     )
 
     assert len(backend.requests) == 1
-    finding_schema = backend.requests[0].schema["$defs"]["finding"]
+    submit_schema = _submit_schema(backend.requests[0])
+    finding_schema = submit_schema["$defs"]["finding"]
     assert "prior_finding_id" not in finding_schema["properties"]
     assert finding_schema["properties"]["prior_finding_index"]["maximum"] == 0
     assert "finding_id" not in finding_schema["properties"]
-    prior_schema = backend.requests[0].schema["properties"][
-        "prior_finding_reviews"
-    ]["items"]
-    assert prior_schema == {"$ref": "#/$defs/prior_finding_review"}
-    assert "current_finding" not in backend.requests[0].schema["$defs"][
-        "prior_finding_review"
-    ]["properties"]
+    prior_schema = submit_schema["properties"]["prior_finding_statuses"]["items"]
+    assert "UNRESOLVED" in prior_schema["enum"]
     assert packet["findings"][0]["prior_finding_id"] == prior_finding_id
     assert packet["findings"][0]["finding_id"] == prior_finding_id
     assert packet["findings"][0]["summary"] == prior_finding["summary"]
@@ -2898,13 +2989,12 @@ def test_preflight_binds_paraphrased_restatement_by_model_selected_prior_slot() 
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_validation_retries=1,
         prior_finding_ledger=prior_ledger,
     )
 
     assert len(backend.requests) == 1
-    assert "current_finding" not in backend.requests[0].schema["$defs"][
-        "prior_finding_review"
+    assert "current_finding" not in _submit_schema(backend.requests[0])["$defs"][
+        "finding"
     ]["properties"]
     assert packet["findings"][0]["prior_finding_id"] == prior_finding_id
     assert packet["findings"][0]["finding_id"] == prior_finding_id
@@ -2916,7 +3006,7 @@ def test_preflight_binds_paraphrased_restatement_by_model_selected_prior_slot() 
     assert packet["runtime_prior_finding_identity_bindings"][0][
         "runtime_selected_semantics"
     ] is False
-    assert packet["structured_output_retry_attempts"] == 0
+    assert packet["client_tool_loop_turns"] == 1
 
 
 def test_preflight_regenerates_missing_ordered_prior_row() -> None:
@@ -2947,25 +3037,22 @@ def test_preflight_regenerates_missing_ordered_prior_row() -> None:
 
         def __init__(self) -> None:
             self.requests = []
-            self.retry_payload = {}
+            self.rejection = {}
 
-        def generate(self, request):
+        def generate_client_tool_turn(self, request):
             self.requests.append(request)
             if len(self.requests) == 1:
                 payload = initial_payload
             else:
-                repair_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
-                self.retry_payload = repair_payload
+                self.rejection = _last_tool_result(request)
                 payload = deepcopy(initial_payload)
                 payload["prior_finding_reviews"] = deepcopy(resolved_rows)
-            return GeneratorResponse(
-                text=json.dumps(payload),
-                provider="anthropic",
-                model=request.model,
-                metadata={
-                    "provider_structured_output_requested": True,
-                    "provider_structured_output_applied": True,
-                },
+            return _tool_response(
+                ClientToolCall(
+                    f"submit-{len(self.requests)}",
+                    "submit_theory_preflight_review",
+                    _compact_submission(payload),
+                )
             )
 
     backend = MissingPriorRowBackend()
@@ -2982,21 +3069,19 @@ def test_preflight_regenerates_missing_ordered_prior_row() -> None:
         max_tokens=7000,
         temperature=0.0,
         provider_name="anthropic",
-        max_validation_retries=1,
         prior_finding_ledger=prior_ledger,
     )
 
     assert len(backend.requests) == 2
-    assert "subsystem_repair_context" not in backend.retry_payload
-    assert all(
-        finding_id in backend.retry_payload["original_request"]
-        for finding_id in prior_finding_ids
+    assert backend.rejection["error"] == "preflight_submission_rejected"
+    assert any(
+        "resolve every active prior finding_id exactly once" in error
+        for error in backend.rejection["validation_errors"]
     )
     assert [
         row["finding_id"] for row in packet["prior_finding_reviews"]
     ] == prior_finding_ids
     assert packet["overall_verdict"] == "ACCEPT"
-    assert packet["structured_output_retry_attempts"] == 1
 
 
 def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
