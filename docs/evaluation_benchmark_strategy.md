@@ -467,6 +467,15 @@ run records only a compact inactive descriptor. Neither change adds an agent, re
 budget, task formula, content repair, or model-tier escalation. All 750 tests pass;
 these fixes have regression evidence only and confer no credit on the frozen draw.
 
+The disjoint normal-sample-variance L0 task is frozen before its first runtime model
+call. It asks for one authoritative Markdown/LaTeX derivation of the Gaussian
+chi-square pivot, one sample-variance estimator ABI, and one joint confirmatory
+moment assessment; formalization is not applicable. The evaluator-only reference
+passed 8/8 direct and metamorphic checks and three 12,000-replicate normal DGPs.
+Four executable but statistically wrong variants were rejected by both hidden lanes,
+and exact Haiku classified 10/10 isolated semantic calibration cases correctly.
+These are evaluator calibration facts, not AI-Statistician capability evidence.
+
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same
 two broad tasks in hope of a better model draw. This is an evaluation-selection

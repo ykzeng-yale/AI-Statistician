@@ -303,3 +303,71 @@ def test_horvitz_thompson_l0_freezes_gold_without_embedding_evaluator() -> None:
         "semantic_calibration_cases.json",
     ):
         assert hidden_name not in runtime_visible
+
+
+def test_normal_sample_variance_l0_is_frozen_before_first_model_call() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "normal_sample_variance_chi_square_known_result"
+    )
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "mathematical_statistics"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_frozen_before_first_runtime_model_call"
+    )
+    evidence = candidate["activation_evidence"]
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["fresh_live_runtime_status"] == "NOT_STARTED"
+    assert evidence["algorithm_reference_checks"] == "8/8"
+    assert evidence["algorithm_negative_variants_rejected"] == 4
+    assert evidence["empirical_reference_dgps_passed"] == 3
+    assert evidence["semantic_calibration_cases"] == 10
+    assert evidence["semantic_calibration_cases_correct"] == 10
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["full_task_passed"] is False
+    assert candidate["task_intent"] == {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+    for field in (
+        "source_snapshot_hash",
+        "source_manifest_sha256",
+        "gold_manifest_sha256",
+        "gold_descriptor_hash",
+    ):
+        assert len(candidate[field]) == 64
+    visible_path = Path(candidate["visible_questions_path"])
+    assert visible_path.is_file()
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert "authoritative Markdown/LaTeX theory workspace" in question["description"]
+    assert "est_normal_sample_variance" in question["description"]
+    assert "Lean formalization" in question["description"]
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "reference_estimator.py",
+        "negative_divisor_n.py",
+        "negative_uncentered.py",
+        "negative_wrong_pivot.py",
+        "semantic_reference.md",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible

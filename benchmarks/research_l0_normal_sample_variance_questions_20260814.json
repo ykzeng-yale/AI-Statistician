@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "normal_sample_variance_chi_square_known_result",
+      "title": "Normal sample variance and its chi-square pivot",
+      "description": "Focused L0 known-result evaluation in mathematical statistics. Let X_1,...,X_n be iid N(mu,sigma^2), where n is at least 2 and sigma^2 is positive. Define Xbar and the sample variance S^2=(n-1)^{-1} sum_i (X_i-Xbar)^2. In an authoritative Markdown/LaTeX theory workspace, derive the orthogonal decomposition of the standardized Gaussian sample, show that (n-1)S^2/sigma^2 has a chi-square distribution with n-1 degrees of freedom, and derive E[S^2]=sigma^2 and Var(S^2)=2 sigma^4/(n-1). Make clear which conclusions use normality, why centering costs one degree of freedom, and why simulation is implementation evidence rather than proof. Do not add confidence-interval, hypothesis-test, asymptotic, or arbitrary-nonnormal claims. The required algorithm artifact id is est_normal_sample_variance. Its run_estimator(request) input contains sample_values as a finite numeric array of length at least 2 and population_variance as a positive finite numeric scalar. It must return finite numeric sample_variance and chi_square_pivot, using the divisor n-1. Use exploratory computation only for diagnosis, then run one separately frozen confirmatory assessment over repeated normal samples. That assessment has one joint empirical target: across predeclared normal DGPs, the Monte Carlo mean and variance of sample_variance agree with sigma^2 and 2 sigma^4/(n-1), and the Monte Carlo mean and variance of chi_square_pivot agree with n-1 and 2(n-1), with a pre-outcome precision rule or reported Monte Carlo uncertainty. This task contains one distribution theorem, one executable estimator ABI, and one joint empirical target. Exact source-code replication, novelty, confidence intervals, hypothesis tests, and Lean formalization are not applicable.",
+      "tags": [
+        "mathematical statistics",
+        "normal distribution",
+        "sample variance",
+        "chi-square",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "STAT 414 Lesson 26: Sampling Distribution of Sample Variance",
+        "authors": [
+          "Penn State Eberly College of Science"
+        ],
+        "venue": "STAT 414 Introduction to Probability Theory",
+        "year": 2026,
+        "url": "https://online.stat.psu.edu/stat414/Lesson26"
+      }
+    }
+  ]
+}
