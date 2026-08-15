@@ -795,7 +795,7 @@
       "gold_manifest_sha256": "d22b696f8aae1082a54e6577a1401823b6bc9d2b141d49622aeb865d6a36e817",
       "gold_descriptor_hash": "e874af2de531daf340a95e5bf3496ead773d370aaedfd269d45bf14e6a94325b",
       "gold_runtime_visibility": "evaluator_only_after_runtime",
-      "activation_status": "full_task_gold_calibrated_frozen_pending_first_live_run",
+      "activation_status": "full_task_gold_frozen_v1_failed_preflight_transport_and_operator_math_audit",
       "activation_evidence": {
         "public_reference": "Lugosi and Mendelson, arXiv:1906.04280v1, median-of-means theorem",
         "visible_questions_sha256": "8f3d55cdf681a3ca74143fc3955d0dcd49ba65947bab3ebc784a28271e669e07",
@@ -809,8 +809,26 @@
         "semantic_reference_candidate_passed": true,
         "hidden_gold_manifest_validated": true,
         "gold_frozen_before_first_runtime_model_call": true,
-        "first_runtime_model_call_occurred": false,
-        "fresh_live_runs": 0,
+        "first_runtime_model_call_occurred": true,
+        "fresh_live_runs": 1,
+        "fresh_v1_run_path": "runs/main_worker_research_l0_median_of_means_20260814_v1_document_theory_exact_haiku",
+        "fresh_v1_runtime_status": "FAILED",
+        "fresh_v1_runtime_research_eval": "0/1 complete",
+        "fresh_v1_runtime_manifest_sha256": "689f37286995c3d02faaa3177602817f2c0c24802d984b4a513ec1eaa5e5f5c9",
+        "fresh_v1_hidden_gold_report_sha256": "6f6b15de25b3737fd3e140bf2bead74957998eb7a8b039c1565e8f158c2007b8",
+        "fresh_v1_runtime_traces": 4,
+        "fresh_v1_authoritative_theory_documents": 1,
+        "fresh_v1_theory_document_sha256": "005a97b742777e3cc5097175633816ff7449e8626997370e26045857531cf691",
+        "fresh_v1_preflight_transport_failure": "Anthropic rejected the first independent-review turn before a model response because the six-tool strict schema was too complex for compilation.",
+        "fresh_v1_independent_preflight_verdict": "not produced",
+        "fresh_v1_algorithm_executions": 0,
+        "fresh_v1_simulation_executions": 0,
+        "fresh_v1_formalizer_executions": 0,
+        "operator_audit_path": "docs/operator_audits/median_of_means_l0_v1.md",
+        "operator_audit_disposition": "FAILED_CLOSED",
+        "operator_audit_math_defects": "The active Markdown proof contains strict-boundary, event-equivalence, rejected-Hoeffding-calculation, and odd-block-selection errors.",
+        "post_run_shared_mechanism_fix": "Preflight terminal input is runtime-validated without provider strict compilation, ordered reviews use compact arrays, and redundant compact-source search is omitted only when exact Markdown and research sources already cover a non-formal task.",
+        "post_run_transport_probe": "Exact Haiku accepted a neutral five-tool, sixteen-claim, 5201-character schema and returned tool_use; this was not a benchmark rerun.",
         "model_draw_resampling_blocked": true,
         "full_task_passed": false
       },
@@ -843,7 +861,7 @@
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "The normal-sample-variance L0 automated pass remains operator-invalidated and is not rerun. A disjoint robust-statistics median-of-means L0 task is now fully gold-configured and calibrated, with authoritative Markdown/LaTeX theory required, formalization not applicable, and zero runtime model calls before the frozen activation commit.",
-    "next_step": "Commit and push the frozen median-of-means visible question, ladder identity, and tests before its first runtime model call. Then execute exactly one exact-Haiku fresh run, preserve the result without resampling or output repair, and independently audit every active mathematical step and evidence chronology."
+    "latest_diagnostic": "The single frozen median-of-means run failed before an independent reviewer response because Anthropic could not compile its six-tool strict schema. Its unaccepted Markdown theory independently contains multiple active mathematical errors, so the task remains 0/1 and is closed without rerun or output repair. The shared transport was simplified generically and accepted by a neutral exact-Haiku probe.",
+    "next_step": "Keep the median-of-means and normal-sample-variance failures immutable. Use their negative evidence to strengthen model-owned long-horizon theory practice and claim-linked independent counterderivation on a future disjoint benchmark, without adding task formulas, more retries, or another review layer."
   }
 }
