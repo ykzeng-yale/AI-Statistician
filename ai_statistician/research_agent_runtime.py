@@ -4801,9 +4801,7 @@ class RetrievalMemoryRuntimeSubsystem:
     name = "RetrievalMemory"
 
     def __init__(self, *, formal_source_retriever: Any | None = None) -> None:
-        self.formal_source_retriever = (
-            formal_source_retriever or build_default_formal_source_retriever()
-        )
+        self.formal_source_retriever = formal_source_retriever
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -4825,6 +4823,10 @@ class RetrievalMemoryRuntimeSubsystem:
             or dimension_requirements["formal"] != "not_applicable"
         )
         if formal_source_retrieval_applicable:
+            if self.formal_source_retriever is None:
+                self.formal_source_retriever = (
+                    build_default_formal_source_retriever()
+                )
             formal_source_provider_topology = provider_descriptor(
                 self.formal_source_retriever
             )
@@ -13239,40 +13241,6 @@ def _algorithm_engineer_packet_validation_failure_result(
     )
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class FormalizerWorkspaceRuntimeSubsystem:
     """One model-owned Lean workspace exposed through two task entry names."""
 
@@ -19610,20 +19578,47 @@ def run_research_agent_runtime(
     artifact_store_index_paths: list[str] = []
     progress_path = out_dir / "runtime_progress.jsonl"
     progress_path.write_text("", encoding="utf-8")
-    shared_formal_source_retriever = (
-        formal_source_retriever or build_default_formal_source_retriever()
+    formal_providers_activated_for_selected_tasks = any(
+        not (requirements := research_dimension_requirements(question.task_intent))
+        or requirements["formal"] != "not_applicable"
+        for question in questions
     )
-    formal_source_provider_descriptor = provider_descriptor(
-        shared_formal_source_retriever
-    )
-    proof_search_provider_descriptor = (
-        provider_descriptor(proof_search_provider)
-        if proof_search_provider is not None
-        else {"configured": False}
-    )
-    proof_state_retrieval_descriptor = (
-        ai4slt_proof_state_trace_rag_descriptor()
-    )
+    if formal_providers_activated_for_selected_tasks:
+        shared_formal_source_retriever = (
+            formal_source_retriever or build_default_formal_source_retriever()
+        )
+        formal_source_provider_descriptor = provider_descriptor(
+            shared_formal_source_retriever
+        )
+        proof_search_provider_descriptor = (
+            provider_descriptor(proof_search_provider)
+            if proof_search_provider is not None
+            else {"configured": False}
+        )
+        proof_state_retrieval_descriptor = (
+            ai4slt_proof_state_trace_rag_descriptor()
+        )
+    else:
+        shared_formal_source_retriever = formal_source_retriever
+        inactive_descriptor = {
+            "activated_for_selected_tasks": False,
+            "activation_status": "all_selected_tasks_formal_not_applicable",
+        }
+        formal_source_provider_descriptor = {
+            **inactive_descriptor,
+            "configured": True,
+            "provider_instantiated": formal_source_retriever is not None,
+        }
+        proof_search_provider_descriptor = {
+            **inactive_descriptor,
+            "configured": proof_search_provider is not None,
+            "provider_instantiated": proof_search_provider is not None,
+        }
+        proof_state_retrieval_descriptor = {
+            **inactive_descriptor,
+            "configured": True,
+            "provider_instantiated": False,
+        }
     lean_provider_topology = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeLeanProviderTopology",
@@ -19638,6 +19633,9 @@ def run_research_agent_runtime(
         "formal_source_retriever": formal_source_provider_descriptor,
         "proof_search_provider": proof_search_provider_descriptor,
         "proof_state_retrieval": proof_state_retrieval_descriptor,
+        "activated_for_selected_tasks": bool(
+            formal_providers_activated_for_selected_tasks
+        ),
         "proof_evidence_status": "LEAN_PROVIDER_TOPOLOGY_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": LEAN_PROVIDER_BOUNDARY,
     }

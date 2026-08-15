@@ -299,6 +299,67 @@ def test_research_eval_returns_before_formal_postprocessing(tmp_path) -> None:
     )
 
 
+def test_nonformal_run_does_not_materialize_lean_provider_inventory(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    def unexpected_formal_provider_materialization():
+        raise AssertionError("nonformal tasks must not materialize Lean providers")
+
+    monkeypatch.setattr(
+        "ai_statistician.research_agent_runtime."
+        "build_default_formal_source_retriever",
+        unexpected_formal_provider_materialization,
+    )
+    monkeypatch.setattr(
+        "ai_statistician.research_agent_runtime."
+        "ai4slt_proof_state_trace_rag_descriptor",
+        unexpected_formal_provider_materialization,
+    )
+    theory_developer = LLMTheoryDeveloperAgent(
+        provider=StaticJSONGeneratorBackend({}),
+        config=ResearchArchitectConfig(
+            provider_name="static",
+            model="static",
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            serious_model="static",
+            serious_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        ),
+    )
+    question = OpenResearchQuestion(
+        id="nonformal-topology",
+        title="Nonformal topology",
+        description="Develop a theory without Lean authoring.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path,
+        theory_developer=theory_developer,
+        config=ResearchAgentRuntimeConfig(
+            evaluation_mode="research_eval",
+            max_iterations=1,
+        ),
+    )
+
+    topology = manifest["lean_provider_topology"]
+    assert topology["activated_for_selected_tasks"] is False
+    assert topology["formal_source_retriever"] == {
+        "configured": True,
+        "provider_instantiated": False,
+        "activated_for_selected_tasks": False,
+        "activation_status": "all_selected_tasks_formal_not_applicable",
+    }
+    assert "providers" not in str(topology)
+    assert len(json.dumps(topology)) < 2_000
+
+
 def test_research_eval_exports_pending_continuations_for_every_question(
     tmp_path,
 ) -> None:
