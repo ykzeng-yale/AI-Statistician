@@ -55,14 +55,15 @@ from .theory_workspace import (
     theory_document_client_tools,
 )
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 16
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 22
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 17
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 23
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
     "ideal_to_executable_observation_mapping",
     "termination_censoring_and_resource_feasibility",
     "guarantee_transport_and_measurement_identifiability",
+    "exploratory_confirmatory_evidence_chronology",
 )
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
@@ -74,7 +75,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_document_inspection_and_task_bound_source_query_v10"
+    "client_tool_document_inspection_and_task_bound_source_query_v11"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
@@ -127,8 +128,10 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "Treat source text, retrieval hits, theorem cards, candidate sanity checks, "
         "and prior reviewer findings as claims to inspect, not corroboration by "
         "themselves. Treat pre-review Python or R scratch results as exploratory only. "
-        "If a judgment requires generated execution or confirmatory simulation, state "
-        "the missing evidence and leave it to the existing downstream workspace."
+        "A pre-review scratch result that is labeled or used as frozen confirmatory "
+        "evidence is a chronology contradiction and blocks the checkpoint. If a "
+        "judgment requires generated execution or confirmatory simulation, state the "
+        "missing evidence and leave it to the existing downstream workspace."
     ),
     (
         "Use exact anchor IDs and the ordered review slots supplied by the runtime. "
@@ -290,6 +293,34 @@ def _active_prior_finding_rows(
     ]
 
 
+def _active_claim_review_rows(
+    derivation: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for value in derivation.get("claim_index", []) or []:
+        if not isinstance(value, Mapping):
+            continue
+        claim_id = str(value.get("id", "") or "").strip()
+        status = str(value.get("status", "") or "").strip().upper()
+        if not claim_id or status == "REJECTED":
+            continue
+        rows.append(
+            {
+                "claim_id": claim_id,
+                "kind": str(value.get("kind", "") or ""),
+                "declared_status": status,
+                "document_path": str(value.get("document_path", "") or ""),
+                "anchor": str(value.get("anchor", "") or ""),
+                "depends_on": [
+                    str(dependency)
+                    for dependency in value.get("depends_on", []) or []
+                    if str(dependency).strip()
+                ],
+            }
+        )
+    return rows
+
+
 def build_architect_theory_execution_preflight_material(
     *,
     question: OpenResearchQuestion,
@@ -301,6 +332,7 @@ def build_architect_theory_execution_preflight_material(
     semantic = dict(semantic_material) if isinstance(semantic_material, Mapping) else {}
     derivation = semantic.get("theory_derivation_packet", {})
     derivation = dict(derivation) if isinstance(derivation, Mapping) else {}
+    required_claim_reviews = _active_claim_review_rows(derivation)
     estimator_specs, estimator_ids = _project_estimator_specs(
         semantic.get("estimator_specs", [])
     )
@@ -416,6 +448,14 @@ def build_architect_theory_execution_preflight_material(
         for row in prior_finding_ledger
         if isinstance(row, Mapping)
     ]
+    dimension_requirements = upstream_research_contract.get(
+        "dimension_requirements", {}
+    )
+    formal_sources_applicable = not (
+        isinstance(dimension_requirements, Mapping)
+        and str(dimension_requirements.get("formal", "") or "").strip()
+        == "not_applicable"
+    )
     return {
         "schema_version": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION,
         "artifact_kind": "ArchitectTheoryExecutionPreflightMaterial",
@@ -428,6 +468,10 @@ def build_architect_theory_execution_preflight_material(
         ),
         "execution_results_available": False,
         "required_estimator_ids": estimator_ids,
+        "required_claim_reviews": required_claim_reviews,
+        "required_claim_review_ids": [
+            row["claim_id"] for row in required_claim_reviews
+        ],
         "active_prior_finding_ledger": active_prior_findings,
         "active_prior_finding_ids": [
             str(row.get("finding_id", "") or "")
@@ -446,6 +490,7 @@ def build_architect_theory_execution_preflight_material(
         "anchor_catalog": anchor_catalog,
         "anchor_catalog_fingerprint": stable_hash(anchor_catalog),
         "retrieval_context": retrieval_context,
+        "formal_sources_applicable": formal_sources_applicable,
         "proof_evidence_status": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE,
         "boundary": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_BOUNDARY,
     }
@@ -464,6 +509,11 @@ def architect_theory_execution_preflight_json_schema(
         for value in material.get("required_estimator_ids", []) or []
         if str(value).strip()
     ]
+    claim_review_ids = [
+        str(value)
+        for value in material.get("required_claim_review_ids", []) or []
+        if str(value).strip()
+    ]
     active_prior_finding_ids = [
         str(value)
         for value in material.get("active_prior_finding_ids", []) or []
@@ -480,6 +530,8 @@ def architect_theory_execution_preflight_json_schema(
         "estimator_execution_checks",
         "findings",
     ]
+    if claim_review_ids:
+        required_fields.append("claim_reviews")
     if active_prior_finding_ids:
         required_fields.append("prior_finding_reviews")
     finding_properties: dict[str, Any] = {
@@ -551,6 +603,38 @@ def architect_theory_execution_preflight_json_schema(
             "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
         },
     }
+    claim_review_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "status",
+            "independent_check",
+            "rationale",
+            "evidence_refs",
+        ],
+        "properties": {
+            "status": {
+                "type": "string",
+                "enum": ["PASS", "FAIL", "UNCERTAIN"],
+            },
+            "independent_check": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 700,
+                "description": (
+                    "State the independent derivation, reduction, boundary case, or "
+                    "counterexample used to audit this exact claim. A restatement of "
+                    "the candidate is not an independent check."
+                ),
+            },
+            "rationale": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400,
+            },
+            "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
+        },
+    }
     prior_finding_review_schema = {
         "type": "object",
         "additionalProperties": False,
@@ -582,6 +666,17 @@ def architect_theory_execution_preflight_json_schema(
         "additionalProperties": False,
         "required": required_fields,
         "properties": {
+            "claim_reviews": {
+                "type": "array",
+                "minItems": len(claim_review_ids),
+                "maxItems": len(claim_review_ids),
+                "description": (
+                    "One independent audit per active claim keyed by its ordered "
+                    "review slot. AgentRuntime binds claim identity; do not copy IDs "
+                    "into model-authored rows."
+                ),
+                "items": {"$ref": "#/$defs/claim_review"},
+            },
             "prior_finding_reviews": {
                 "type": "array",
                 "minItems": len(active_prior_finding_ids),
@@ -693,6 +788,7 @@ def architect_theory_execution_preflight_json_schema(
     }
     schema["$defs"] = {
         "evidence_refs": evidence_refs,
+        "claim_review": claim_review_schema,
         "dimension_review": dimension_review_schema,
         "estimator_execution_check": deepcopy(
             schema["properties"]["estimator_execution_checks"]["items"]
@@ -701,6 +797,7 @@ def architect_theory_execution_preflight_json_schema(
         "finding": finding_schema,
     }
     ordered_slot_definitions = {
+        "claim_reviews": "claim_review",
         "dimension_reviews": "dimension_review",
         "estimator_execution_checks": "estimator_execution_check",
     }
@@ -721,6 +818,9 @@ def architect_theory_execution_preflight_json_schema(
     if not active_prior_finding_ids:
         schema["properties"].pop("prior_finding_reviews", None)
         schema["$defs"].pop("prior_finding_review", None)
+    if not claim_review_ids:
+        schema["properties"].pop("claim_reviews", None)
+        schema["$defs"].pop("claim_review", None)
     return schema
 
 
@@ -800,11 +900,15 @@ def build_architect_theory_execution_preflight_prompt(
     retrieval_context = (
         retrieval_context if isinstance(retrieval_context, Mapping) else {}
     )
-    formal_source_groups = [
-        row
-        for row in retrieval_context.get("formal_source_hits", []) or []
-        if isinstance(row, Mapping)
-    ]
+    formal_source_groups = (
+        [
+            row
+            for row in retrieval_context.get("formal_source_hits", []) or []
+            if isinstance(row, Mapping)
+        ]
+        if _preflight_formal_sources_applicable(material)
+        else []
+    )
     active_prior_rows = {
         str(row.get("finding_id", "") or "").strip(): dict(row)
         for row in material.get("active_prior_finding_ledger", []) or []
@@ -843,6 +947,16 @@ def build_architect_theory_execution_preflight_prompt(
         "review_protocol_version": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION,
         "review_protocol": list(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL),
         "ordered_review_slots": {
+            "claim_reviews": [
+                {
+                    "output_slot": f"slot_{index}",
+                    **deepcopy(dict(claim)),
+                }
+                for index, claim in enumerate(
+                    material.get("required_claim_reviews", []) or []
+                )
+                if isinstance(claim, Mapping)
+            ],
             "dimension_reviews": [
                 {
                     "output_slot": f"slot_{index}",
@@ -882,18 +996,22 @@ def build_architect_theory_execution_preflight_prompt(
             ),
             "access_policy": (
                 "Use search_preflight_sources in client-tool mode. Retrieval rows "
-                "are context, not proof or automatic semantic authority."
+                "are context, not proof or automatic semantic authority. Formal "
+                "library retrieval is available only when the task evidence contract "
+                "marks formalization applicable."
             ),
         },
         "verdict_policy": (
             "Do not return an overall verdict. AgentRuntime derives it from the "
-            "complete dimension, estimator, and finding rows. A blocking finding, "
+            "complete claim, dimension, estimator, and finding rows. A blocking finding, "
             "including an UNRESOLVED prior finding, requires at least one FAIL or "
-            "UNCERTAIN dimension or estimator row. If every execution review row "
+            "UNCERTAIN claim, dimension, or estimator row. If every review row "
             "is PASS, return no new findings. Resolve a prior finding only when current "
             "inspected anchors establish the required change; retract it only when the "
             "current derivation or independent source evidence defeats its premise. "
-            "Otherwise keep it unresolved. Every blocker needs a checkable independent "
+            "Every active claim must receive its own independent check; any FAIL or "
+            "UNCERTAIN claim prevents acceptance. Otherwise keep prior findings "
+            "unresolved. Every blocker needs a checkable independent "
             "derivation, reduction, or counterexample grounded in exact inspected "
             "anchors; quoting candidate self-critique or prior reviewer prose is not "
             "independent support. Keep each rationale to the decisive calculation or "
@@ -1199,6 +1317,18 @@ def _formal_source_hit_row(value: Any) -> dict[str, Any] | None:
     )
 
 
+def _preflight_formal_sources_applicable(material: Mapping[str, Any]) -> bool:
+    return material.get("formal_sources_applicable") is not False
+
+
+def _preflight_allowed_source_scopes(
+    material: Mapping[str, Any],
+) -> tuple[str, ...]:
+    if _preflight_formal_sources_applicable(material):
+        return ("theory", "retrieval_memory", "formal_library", "all")
+    return ("theory", "retrieval_memory", "all")
+
+
 def _preflight_source_catalog(material: Mapping[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for anchor in material.get("anchor_catalog", []) or []:
@@ -1282,13 +1412,14 @@ def _preflight_source_catalog(material: Mapping[str, Any]) -> list[dict[str, Any
                     provenance=value.get("provenance", {}),
                 )
             )
-    for group in retrieval.get("formal_source_hits", []) or []:
-        if not isinstance(group, Mapping):
-            continue
-        for value in group.get("hits", []) or []:
-            row = _formal_source_hit_row(value)
-            if row is not None:
-                rows.append(row)
+    if _preflight_formal_sources_applicable(material):
+        for group in retrieval.get("formal_source_hits", []) or []:
+            if not isinstance(group, Mapping):
+                continue
+            for value in group.get("hits", []) or []:
+                row = _formal_source_hit_row(value)
+                if row is not None:
+                    rows.append(row)
     return rows
 
 
@@ -1308,19 +1439,33 @@ def _search_preflight_sources(
         raise ClientToolInputError(
             "query must contain at least one searchable word"
         )
+    allowed_scopes = _preflight_allowed_source_scopes(material)
+    if source_scope not in allowed_scopes:
+        raise ClientToolInputError(
+            "source_scope is unavailable for this task evidence contract"
+        )
+    formal_sources_applicable = _preflight_formal_sources_applicable(material)
     allowed_kinds = {
         "theory": {"theory_anchor"},
         "retrieval_memory": {
             "retrieval_knowledge_card",
             "retrieval_paper_source",
-            "formal_library_declaration",
+            *(
+                {"formal_library_declaration"}
+                if formal_sources_applicable
+                else set()
+            ),
         },
         "formal_library": {"formal_library_declaration"},
         "all": {
             "theory_anchor",
             "retrieval_knowledge_card",
             "retrieval_paper_source",
-            "formal_library_declaration",
+            *(
+                {"formal_library_declaration"}
+                if formal_sources_applicable
+                else set()
+            ),
         },
     }[source_scope]
     theory_ranked: list[tuple[float, dict[str, Any]]] = []
@@ -1344,7 +1489,11 @@ def _search_preflight_sources(
         ranked.append((float(len(overlap)) + phrase_bonus, row))
 
     provider_errors: list[dict[str, str]] = []
-    if source_scope in {"formal_library", "all"} and source_retriever is not None:
+    if (
+        formal_sources_applicable
+        and source_scope in {"formal_library", "all"}
+        and source_retriever is not None
+    ):
         search = getattr(source_retriever, "search", None)
         if callable(search):
             try:
@@ -1922,9 +2071,14 @@ def _canonical_preflight_source_refs(
 
 
 def _all_execution_review_rows_pass(packet: Mapping[str, Any]) -> bool:
+    claim_rows = packet.get("claim_reviews", [])
     dimension_rows = packet.get("dimension_reviews", [])
     estimator_rows = packet.get("estimator_execution_checks", [])
     return bool(dimension_rows) and bool(estimator_rows) and all(
+        isinstance(row, Mapping)
+        and str(row.get("status", "") or "").strip().upper() == "PASS"
+        for row in claim_rows
+    ) and all(
         isinstance(row, Mapping)
         and str(row.get("status", "") or "").strip().upper() == "PASS"
         for row in dimension_rows
@@ -2063,6 +2217,41 @@ def _normalize_packet(
         )
         if index in raw_dimension_reviews
     ]
+    required_claim_review_ids = list(
+        material.get("required_claim_review_ids", []) or []
+    )
+    raw_claim_reviews = _ordered_review_slot_rows(
+        body.get("claim_reviews", {}),
+        expected_count=len(required_claim_review_ids),
+    )
+    claim_reviews: list[dict[str, Any]] = []
+    claim_identity_bindings: list[dict[str, Any]] = []
+    for transport_index, raw_claim_id in enumerate(required_claim_review_ids):
+        if transport_index not in raw_claim_reviews:
+            continue
+        claim_id = str(raw_claim_id)
+        model_row = {
+            key: (
+                str(value or "").strip().upper()
+                if key == "status"
+                else value
+            )
+            for key, value in raw_claim_reviews[transport_index].items()
+            if key != "claim_id"
+        }
+        claim_reviews.append({"claim_id": claim_id, **model_row})
+        claim_identity_bindings.append(
+            {
+                "transport_index": transport_index,
+                "claim_id": claim_id,
+                "model_reported_status": model_row.get("status"),
+                "model_row_fingerprint": stable_hash(model_row),
+                "identity_source": "claim_reviews_ordered_index",
+                "runtime_selected_semantics": False,
+            }
+        )
+    body["claim_reviews"] = claim_reviews
+    body["runtime_claim_identity_bindings"] = claim_identity_bindings
     active_prior_finding_ids = list(
         material.get("active_prior_finding_ids", []) or []
     )
@@ -2437,6 +2626,21 @@ def validate_architect_theory_execution_preflight_packet(
             f"expected_count={len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS)} "
             f"observed_count={len(dimensions)} observed_dimensions={dimensions}"
         )
+    claim_rows = [
+        row
+        for row in packet.get("claim_reviews", []) or []
+        if isinstance(row, Mapping)
+    ]
+    claim_ids = [str(row.get("claim_id", "") or "") for row in claim_rows]
+    required_claim_ids = [
+        str(value)
+        for value in material.get("required_claim_review_ids", []) or []
+    ]
+    if claim_ids != required_claim_ids:
+        errors.append(
+            "theory execution preflight claim slot mismatch: "
+            f"expected_ids={required_claim_ids} observed_ids={claim_ids}"
+        )
     estimator_rows = [
         row
         for row in packet.get("estimator_execution_checks", []) or []
@@ -2519,6 +2723,34 @@ def validate_architect_theory_execution_preflight_packet(
                 f"estimator_execution_checks[{row_index}] estimator_id="
                 f"{estimator_id!r} status={status} requires a model-authored blocking gap"
             )
+    for row_index, row in enumerate(claim_rows):
+        claim_id = str(row.get("claim_id", "") or "").strip()
+        for field in ("independent_check", "rationale"):
+            if not str(row.get(field, "") or "").strip():
+                errors.append(
+                    f"claim_reviews[{row_index}] claim_id={claim_id!r} "
+                    f"missing model-authored {field}"
+                )
+    expected_claim_identity_bindings: list[dict[str, Any]] = []
+    for transport_index, row in enumerate(claim_rows):
+        claim_id = str(row.get("claim_id", "") or "").strip()
+        model_row = {
+            key: value for key, value in row.items() if key != "claim_id"
+        }
+        expected_claim_identity_bindings.append(
+            {
+                "transport_index": transport_index,
+                "claim_id": claim_id,
+                "model_reported_status": model_row.get("status"),
+                "model_row_fingerprint": stable_hash(model_row),
+                "identity_source": "claim_reviews_ordered_index",
+                "runtime_selected_semantics": False,
+            }
+        )
+    if packet.get("runtime_claim_identity_bindings", []) != (
+        expected_claim_identity_bindings
+    ):
+        errors.append("theory execution preflight claim identity bindings mismatch")
     expected_estimator_identity_bindings: list[dict[str, Any]] = []
     for transport_index, row in enumerate(estimator_rows):
         estimator_id = str(row.get("estimator_id", "") or "").strip()
@@ -2550,6 +2782,7 @@ def validate_architect_theory_execution_preflight_packet(
         if isinstance(row, Mapping)
     }
     cited_rows = [
+        *claim_rows,
         *dimension_rows,
         *estimator_rows,
         *prior_finding_reviews,
@@ -2566,7 +2799,7 @@ def validate_architect_theory_execution_preflight_packet(
     valid_statuses = {"PASS", "FAIL", "UNCERTAIN"}
     if any(
         str(row.get("status", "") or "").strip().upper() not in valid_statuses
-        for row in [*dimension_rows, *estimator_rows]
+        for row in [*claim_rows, *dimension_rows, *estimator_rows]
     ):
         errors.append("theory execution preflight status is invalid")
     findings = [
@@ -2765,6 +2998,8 @@ and measurements without importing a task-family checklist or formula.
 
 Source text and retrieval are context, not proof. A pre-review Python or R scratchpad
 result is exploratory only; confirmatory evidence belongs to the frozen downstream lane.
+Reject a checkpoint that labels or uses pre-review scratch output as frozen confirmatory
+evidence, even when its numbers happen to agree with the theory.
 If a judgment requires generated execution, state the missing evidence rather than
 inventing a result. Report findings, not repairs, and never claim proof evidence.
 """
@@ -2819,6 +3054,8 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         material
     )
     authoritative_documents = _preflight_authoritative_theory_documents(material)
+    allowed_source_scopes = _preflight_allowed_source_scopes(material)
+    formal_sources_applicable = _preflight_formal_sources_applicable(material)
     tools = (
         *theory_document_client_tools(),
         *(
@@ -2830,14 +3067,25 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             name="search_preflight_sources",
             description=(
                 "Search compact structured theory anchors, task-bound retrieval "
-                "memory, and configured formal libraries. Write the query yourself. "
+                "memory"
+                + (
+                    ", and configured formal libraries. "
+                    if formal_sources_applicable
+                    else ". Formal-library retrieval is intentionally absent for this "
+                    "task intent. "
+                )
+                + "Write the query yourself. "
                 "Use the dedicated document tools for authoritative theory text, and "
                 "use search_research_sources/read_research_source for exact papers, "
                 "code, or documentation when those tools are available. Cite short "
                 "returned source_ref handles in blocking findings; the runtime resolves "
-                "them to immutable source_hit_id values. Use the formal-library scope "
-                "for Lean declarations, not as a substitute for task-bound statistical "
-                "source material."
+                "them to immutable source_hit_id values."
+                + (
+                    " Use the formal-library scope for Lean declarations, not as a "
+                    "substitute for task-bound statistical source material."
+                    if formal_sources_applicable
+                    else ""
+                )
             ),
             input_schema={
                 "type": "object",
@@ -2851,12 +3099,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                     },
                     "source_scope": {
                         "type": "string",
-                        "enum": [
-                            "theory",
-                            "retrieval_memory",
-                            "formal_library",
-                            "all",
-                        ],
+                        "enum": list(allowed_source_scopes),
                     },
                     "k": {"type": "integer", "minimum": 1, "maximum": 8},
                 },
@@ -2886,8 +3129,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "follow dependencies, reconstruct decisive transitions, and challenge them. "
         "Choose all searches and ranges yourself. When available, use "
         "search_research_sources and read_research_source for task-bound papers, code, "
-        "and documentation; use search_preflight_sources for compact runtime context or "
-        "formal declarations. Cite only handles returned by those tools. Runtime binds "
+        "and documentation; use search_preflight_sources for compact runtime context"
+        + (" or formal declarations" if formal_sources_applicable else "")
+        + ". Cite only handles returned by those tools. Runtime binds "
         "identities but never chooses semantics. "
         "No generated-code or simulation results exist at this stage; mark a question "
         "UNCERTAIN when it genuinely requires that downstream evidence. Keep citation "
@@ -3088,12 +3332,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 raise ClientToolInputError(
                     "query length must be between 3 and 500 characters"
                 )
-            if source_scope not in {
-                "theory",
-                "retrieval_memory",
-                "formal_library",
-                "all",
-            }:
+            if source_scope not in allowed_source_scopes:
                 raise ClientToolInputError("source_scope is invalid")
             if not 1 <= k <= 8:
                 raise ClientToolInputError("k must be between 1 and 8")

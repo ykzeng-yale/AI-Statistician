@@ -305,7 +305,7 @@ def test_horvitz_thompson_l0_freezes_gold_without_embedding_evaluator() -> None:
         assert hidden_name not in runtime_visible
 
 
-def test_normal_sample_variance_l0_is_frozen_before_first_model_call() -> None:
+def test_normal_sample_variance_l0_records_operator_invalidated_single_draw() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -317,13 +317,19 @@ def test_normal_sample_variance_l0_is_frozen_before_first_model_call() -> None:
     assert candidate["family"] == "mathematical_statistics"
     assert candidate["status"] == "active_scored"
     assert candidate["activation_status"] == (
-        "fresh_live_v1_frozen_before_first_runtime_model_call"
+        "fresh_live_v1_operator_invalidated_theory_review_false_positive"
     )
     evidence = candidate["activation_evidence"]
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["hidden_gold_manifest_validated"] is True
-    assert evidence["fresh_live_runs"] == 0
-    assert evidence["fresh_live_runtime_status"] == "NOT_STARTED"
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["fresh_live_runtime_status"] == (
+        "ACCEPTED_AUTOMATED_FALSE_POSITIVE"
+    )
+    assert evidence["operator_audit_disposition"] == "INVALIDATED"
+    assert evidence["fresh_live_algorithm_executions"] == 1
+    assert evidence["fresh_live_simulation_executions"] == 1
+    assert evidence["fresh_live_formalizer_executions"] == 0
     assert evidence["algorithm_reference_checks"] == "8/8"
     assert evidence["algorithm_negative_variants_rejected"] == 4
     assert evidence["empirical_reference_dgps_passed"] == 3
@@ -331,6 +337,7 @@ def test_normal_sample_variance_l0_is_frozen_before_first_model_call() -> None:
     assert evidence["semantic_calibration_cases_correct"] == 10
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["full_task_passed"] is False
+    assert Path(evidence["operator_audit_path"]).is_file()
     assert candidate["task_intent"] == {
         "source_replication": "not_applicable",
         "theory": "required",

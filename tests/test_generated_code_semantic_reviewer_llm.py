@@ -140,6 +140,17 @@ def _trusted_lineage() -> dict[str, object]:
     }
 
 
+def test_semantic_review_traces_declared_runtime_arguments_into_source() -> None:
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question(),
+        review_material=_review_material(),
+    )
+
+    assert "trace every supplied runtime argument" in prompt
+    assert "replacing it with a source-local constant is a defect" in prompt
+    assert "runtime_argument_rule" in prompt
+
+
 def _dimension_rows(*, failed: str = "") -> dict[str, dict[str, object]]:
     return {
         dimension: {

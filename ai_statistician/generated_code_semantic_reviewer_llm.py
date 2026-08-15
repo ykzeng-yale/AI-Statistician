@@ -59,6 +59,13 @@ GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
         "units, and meaning; metric_semantics_alignment checks meaning. Neither "
         "adjudicates realized threshold pass or fail."
     ),
+    "runtime_argument_rule": (
+        "Every runtime argument with a declared semantic or resource role must affect "
+        "the executed artifact as declared, or the source must explicitly justify why "
+        "that argument is immaterial. Silently replacing a supplied replicate count, "
+        "seed, estimator set, or data binding with a source-local constant is an "
+        "execution_argument_alignment defect."
+    ),
     "prior_finding_rule": (
         "A prior finding is a claim to review, not evidence. Retract it as "
         "RETRACTED_RUNTIME_CONTRACT_CONFLICT when its claimed defect belongs only "
@@ -736,7 +743,12 @@ def build_generated_code_semantic_review_prompt(
         "efficiency belong exclusively to the empirical evaluator and cannot create a "
         "semantic source finding. Even when a frozen gate fails, reject source only "
         "when source, interface, arguments, or emitted statistic directly compute the "
-        "wrong object. For frozen_measurement_protocol_alignment, review the statistic "
+        "wrong object. "
+        "For execution_argument_alignment, trace every supplied runtime argument with "
+        "a declared semantic or resource role into the executed source. Silently "
+        "ignoring it or replacing it with a source-local constant is a defect; judge "
+        "the argument contract, not whether the realized result happened to pass. "
+        "For frozen_measurement_protocol_alignment, review the statistic "
         "binding, path, shape, units, and meaning, never the realized threshold result. "
         "For every emitted metric path, compare the source computation and returned "
         "field meaning with the exact bound requirement's metric semantics, measurement "

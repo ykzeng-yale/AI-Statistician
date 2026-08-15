@@ -467,14 +467,30 @@ run records only a compact inactive descriptor. Neither change adds an agent, re
 budget, task formula, content repair, or model-tier escalation. All 750 tests pass;
 these fixes have regression evidence only and confer no credit on the frozen draw.
 
-The disjoint normal-sample-variance L0 task is frozen before its first runtime model
-call. It asks for one authoritative Markdown/LaTeX derivation of the Gaussian
-chi-square pivot, one sample-variance estimator ABI, and one joint confirmatory
-moment assessment; formalization is not applicable. The evaluator-only reference
-passed 8/8 direct and metamorphic checks and three 12,000-replicate normal DGPs.
-Four executable but statistically wrong variants were rejected by both hidden lanes,
-and exact Haiku classified 10/10 isolated semantic calibration cases correctly.
-These are evaluator calibration facts, not AI-Statistician capability evidence.
+The disjoint normal-sample-variance L0 task was frozen before its first runtime model
+call. Its evaluator-only reference passed 8/8 direct and metamorphic checks and three
+12,000-replicate normal DGPs; four executable but statistically wrong variants were
+rejected, and exact Haiku classified 10/10 isolated semantic calibration cases
+correctly. Exactly one frozen exact-Haiku draw then reached runtime `ACCEPTED`, one
+generated algorithm execution, one generated simulation execution, research evaluation
+1/1, and hidden gold 1/1 without entering Formalizer.
+
+That apparent pass is invalid. Operator audit found that the active proof falsely
+claimed a difference of independent chi-square variables has the subtracted degrees of
+freedom; in the candidate decomposition, the total and removed mean component are not
+independent. The same theory document promoted pre-review scratch outcomes to `Frozen
+Confirmatory Simulation Results`, and the downstream simulation silently used 2,000
+replicates instead of its runtime argument. Both runtime preflight and hidden exact-Haiku
+semantic review missed the fatal proof step. The frozen draw therefore remains 0/1 and
+will not be rerun, repaired, or rescored. The immutable diagnosis is recorded in
+`docs/operator_audits/normal_sample_variance_l0_v1.md`.
+
+The shared post-run correction binds an independent audit row to every active claim,
+adds exploratory-versus-confirmatory chronology to preflight, excludes formal-library
+context and unverified counts for explicit `formal=not_applicable` tasks, and makes the
+existing generated-code reviewer trace declared runtime arguments into source. This
+does not add a repair agent, task formula, retry, or model escalation; the source-owning
+model still revises its own Markdown/LaTeX or executable source from observations.
 
 Another S13 live run should answer a specific shared-mechanism hypothesis that
 already has component or replay evidence; it should not merely resample the same

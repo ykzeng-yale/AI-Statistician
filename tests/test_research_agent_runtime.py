@@ -1344,6 +1344,29 @@ def test_zero_materialized_gap_rows_do_not_claim_formal_closure() -> None:
     assert summary["formal_closure_verified_for_all_questions"] is False
 
 
+def test_formal_not_applicable_is_not_reported_as_unverified() -> None:
+    summary = runtime_module._runtime_formal_closure_summary(
+        completion_summary={
+            "rows": [
+                {
+                    "question_id": "empirical-only",
+                    "formal_requirement": "not_applicable",
+                    "formal_satisfied": False,
+                }
+            ]
+        },
+        n_materialized_formal_gap_rows=0,
+    )
+
+    assert summary["n_questions_formal_applicable"] == 0
+    assert summary["n_questions_formal_not_applicable"] == 1
+    assert summary["n_questions_formal_unverified"] == 0
+    assert summary["formal_closure_status"] == (
+        "FORMAL_CLOSURE_NOT_APPLICABLE"
+    )
+    assert summary["formal_closure_verified_for_all_questions"] is False
+
+
 def test_formalizer_observation_summary_keeps_distinct_workspace_history() -> None:
     base_payload = {
         "model_owned_lean_code": True,

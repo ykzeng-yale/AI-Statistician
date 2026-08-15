@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from ai_statistician.agent_runtime import AgentTask
+from ai_statistician.client_tool_loop import ClientToolInputError
 from ai_statistician.architect_metric_contract_authoring import (
     ArchitectMetricContractAuthoringConfig,
     ArchitectMetricSemanticReviewRejected,
@@ -78,7 +79,11 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "final statement" in prompt
     assert "may be UNCERTAIN" in prompt
     assert "scratchpad" in prompt
+    assert "frozen confirmatory" in prompt
     assert "task-family checklist" in prompt
+    assert "exploratory_confirmatory_evidence_chronology" in (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+    )
 
 
 def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
@@ -356,6 +361,7 @@ class _PreflightToolBackend:
             for review in payload.get("prior_finding_reviews", []) or []:
                 review["source_evidence_refs"] = [source_ref]
         for field in (
+            "claim_reviews",
             "dimension_reviews",
             "estimator_execution_checks",
         ):
@@ -682,7 +688,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_document_inspection_and_task_bound_source_query_v10"
+        "client_tool_document_inspection_and_task_bound_source_query_v11"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
@@ -809,6 +815,65 @@ def test_preflight_client_tool_loop_can_query_configured_formal_retriever() -> N
     assert packet["findings"][0]["source_evidence_refs"] == [
         hit["source_hit_id"]
     ]
+
+
+def test_preflight_formal_not_applicable_excludes_formal_sources() -> None:
+    class ForbiddenFormalRetriever:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def search(self, query, *, k):
+            self.calls += 1
+            raise AssertionError("formal retriever must not run")
+
+    theory_material = _theory_material()
+    theory_material["retrieval_context"] = {
+        "formal_source_hits": [
+            {
+                "hits": [
+                    {
+                        "source_id": "statlib",
+                        "path": "Statlib/Hidden.lean",
+                        "name": "Statlib.hidden",
+                        "signature": "hidden_statement",
+                    }
+                ]
+            }
+        ]
+    }
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=theory_material,
+        upstream_research_contract={
+            "dimension_requirements": {"formal": "not_applicable"},
+        },
+    )
+    retriever = ForbiddenFormalRetriever()
+
+    observation = _search_preflight_sources(
+        material=material,
+        source_retriever=retriever,
+        query="finite observation procedure",
+        source_scope="all",
+        k=8,
+        search_index=1,
+    )
+
+    assert material["formal_sources_applicable"] is False
+    assert retriever.calls == 0
+    assert all(
+        hit["source_kind"] != "formal_library_declaration"
+        for hit in observation["hits"]
+    )
+    with pytest.raises(ClientToolInputError):
+        _search_preflight_sources(
+            material=material,
+            source_retriever=retriever,
+            query="hidden formal declaration",
+            source_scope="formal_library",
+            k=4,
+            search_index=2,
+        )
 
 
 def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
@@ -1681,7 +1746,26 @@ This abandoned route is explicitly rejected.
 
     class ClaimCoverageBackend(_PreflightToolBackend):
         def __init__(self) -> None:
-            super().__init__(accept=True, cite_sources=False)
+            payload = _payload(accept=True)
+            payload["claim_reviews"] = [
+                {
+                    "status": "PASS",
+                    "independent_check": (
+                        "Reconstructed the indexed claim directly from its declared "
+                        "definition and dependency."
+                    ),
+                    "rationale": "The inspected claim transition is coherent.",
+                    "evidence_refs": [
+                        f"theory.document:{relative_path}",
+                    ],
+                }
+                for _claim_id in ("definition_primitive", "theorem_main")
+            ]
+            super().__init__(
+                accept=True,
+                cite_sources=False,
+                payload=payload,
+            )
             self.coverage_rejection = {}
 
         def generate_client_tool_turn(self, request):
@@ -1747,6 +1831,124 @@ This abandoned route is explicitly rejected.
     )
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["theory_document_inspection_count"] == 2
+    assert [row["claim_id"] for row in packet["claim_reviews"]] == [
+        "definition_primitive",
+        "theorem_main",
+    ]
+    assert len(packet["runtime_claim_identity_bindings"]) == 2
+    claim_schema = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == "submit_theory_preflight_review"
+    ).input_schema["properties"]["claim_reviews"]
+    assert claim_schema["required"] == ["slot_0", "slot_1"]
+
+
+def test_one_failed_claim_review_blocks_preflight_acceptance(tmp_path: Path) -> None:
+    relative_path = "derivations/two_claims.md"
+    content = """# Two claims
+
+## Definition
+Define the primitive object.
+
+## Main theorem
+Assert an unsupported transition.
+"""
+    target = tmp_path / relative_path
+    target.parent.mkdir(parents=True)
+    target.write_text(content, encoding="utf-8")
+    theory_material = _theory_material()
+    semantic = theory_material["theory_semantic_material"]
+    semantic["theory_workspace_manifest"] = theory_workspace_document_manifest(
+        {relative_path: content}, workspace_dir=tmp_path
+    )
+    semantic["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
+    semantic["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
+    semantic["theory_derivation_packet"]["claim_index"] = [
+        {
+            "id": "definition_primitive",
+            "kind": "definition",
+            "document_path": relative_path,
+            "anchor": "## Definition",
+            "depends_on": [],
+            "status": "SUPPORTED",
+        },
+        {
+            "id": "theorem_main",
+            "kind": "theorem",
+            "document_path": relative_path,
+            "anchor": "## Main theorem",
+            "depends_on": ["definition_primitive"],
+            "status": "SUPPORTED",
+        },
+    ]
+    theory_material["source_theory_packet_hash"] = stable_hash(semantic)
+    payload = _payload(accept=True)
+    payload["claim_reviews"] = [
+        {
+            "status": "PASS",
+            "independent_check": "Expanded the primitive definition directly.",
+            "rationale": "The definition is internally coherent.",
+            "evidence_refs": [f"theory.document:{relative_path}"],
+        },
+        {
+            "status": "FAIL",
+            "independent_check": (
+                "Following the declared dependency yields no implication supporting "
+                "the theorem transition."
+            ),
+            "rationale": "The active theorem has an unsupported step.",
+            "evidence_refs": [f"theory.document:{relative_path}"],
+        },
+    ]
+    payload["findings"] = [
+        {
+            "severity": "critical",
+            "category": "invalid_active_claim_transition",
+            "summary": "An active theorem transition is unsupported.",
+            "observed_behavior": "The conclusion does not follow from its dependency.",
+            "expected_behavior": "Every active theorem has a valid derivation or gap.",
+            "evidence_refs": [f"theory.document:{relative_path}"],
+        }
+    ]
+
+    class ClaimFailureBackend(_PreflightToolBackend):
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "read-all-claims",
+                        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                        {
+                            "path": relative_path,
+                            "line_start": 1,
+                            "line_end": len(content.splitlines()),
+                        },
+                    )
+                )
+            return _tool_response(
+                ClientToolCall(
+                    "submit-failed-claim",
+                    "submit_theory_preflight_review",
+                    self._submission(source_ref=""),
+                )
+            )
+
+    packet = _tool_review(
+        ClaimFailureBackend(
+            accept=False,
+            payload=payload,
+            cite_sources=False,
+        ),
+        theory_protocol_material=theory_material,
+    )
+
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["claim_reviews"][1]["status"] == "FAIL"
+    assert packet["findings"][0]["category"] == (
+        "invalid_active_claim_transition"
+    )
 
 
 def test_preflight_full_regeneration_returns_raw_validation_feedback() -> None:

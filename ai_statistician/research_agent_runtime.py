@@ -22501,26 +22501,6 @@ def _bool_like(value: Any) -> bool:
     return bool(value)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def _runtime_context_requires_formalizer_contract_flag(
     context: Mapping[str, Any],
     flag: str,
@@ -22767,6 +22747,14 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
             terminal_kind = status.lower() or "unknown"
         if budget_exhausted_after_revision:
             counts["budget_exhausted_after_revision_request"] += 1
+        dimension_requirements = requested_evidence_contract.get(
+            "dimension_requirements"
+        )
+        if not isinstance(dimension_requirements, Mapping):
+            dimension_requirements = {}
+        formal_requirement = str(
+            dimension_requirements.get("formal", "") or ""
+        ).strip()
         rows.append(
             {
                 "question_id": str(question.get("id", "") or ""),
@@ -22788,6 +22776,7 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
                     )
                     or ""
                 ),
+                "formal_requirement": formal_requirement,
                 "recommended_research_path": str(
                     critic_decision.get("recommended_research_path", "")
                     or requested_evidence_contract.get(
@@ -22847,13 +22836,24 @@ def _runtime_formal_closure_summary(
         else []
     )
     n_questions = len(rows)
+    applicable_rows = [
+        row
+        for row in rows
+        if str(row.get("formal_requirement", "") or "").strip()
+        != "not_applicable"
+    ]
+    n_applicable = len(applicable_rows)
+    n_not_applicable = n_questions - n_applicable
     n_satisfied = sum(
-        1 for row in rows if _bool_like(row.get("formal_satisfied", False))
+        _bool_like(row.get("formal_satisfied", False))
+        for row in applicable_rows
     )
-    n_unverified = max(0, n_questions - n_satisfied)
+    n_unverified = max(0, n_applicable - n_satisfied)
     materialized_rows = max(0, int(n_materialized_formal_gap_rows or 0))
     if not n_questions:
         closure_status = "NO_QUESTION_ROWS"
+    elif not n_applicable:
+        closure_status = "FORMAL_CLOSURE_NOT_APPLICABLE"
     elif n_unverified:
         closure_status = "FORMAL_CLOSURE_UNVERIFIED"
     else:
@@ -22862,11 +22862,13 @@ def _runtime_formal_closure_summary(
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeFormalClosureSummary",
         "n_questions": n_questions,
+        "n_questions_formal_applicable": n_applicable,
+        "n_questions_formal_not_applicable": n_not_applicable,
         "n_questions_formal_satisfied": n_satisfied,
         "n_questions_formal_unverified": n_unverified,
         "n_materialized_formal_gap_rows": materialized_rows,
         "formal_closure_verified_for_all_questions": bool(
-            n_questions and not n_unverified
+            n_applicable and not n_unverified
         ),
         "formal_closure_status": closure_status,
         "formal_gap_inventory_status": (
@@ -22877,7 +22879,9 @@ def _runtime_formal_closure_summary(
         "boundary": (
             "Materialized formal-gap rows are an observed inventory, not an "
             "exhaustive complement of proof. Zero rows never imply formal closure; "
-            "closure requires each question's target-bound formal_satisfied gate."
+            "closure requires each formal-applicable question's target-bound "
+            "formal_satisfied gate. A task-intent dimension marked not_applicable is "
+            "reported separately and is neither formally satisfied nor unverified."
         ),
     }
 
