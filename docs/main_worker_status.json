@@ -1,9 +1,9 @@
 {
-  "schema_version": 87,
+  "schema_version": 88,
   "updated_at": "2026-08-15",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "94df076a",
+  "validated_code_head": "c9e3c3bf",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -53,8 +53,12 @@
     ]
   },
   "validated_change": {
-    "commit": "94df076a",
+    "commit": "c9e3c3bf",
     "changes": [
+      "The standalone research-architect-theory product entrypoint now supplies a persistent out/theory_workspaces root to TheoryDeveloper, so it uses the same model-authored Markdown/LaTeX workspace as canonical AgentRuntime instead of silently falling back to JSON mathematics.",
+      "The standalone CLI now rejects providers without native client-tool turns before a model call. Static JSON remains usable only as low-level parser and replay test material; it can no longer be presented as a product theory-development run.",
+      "Implementation audit confirmed that normal tasks can search and read hash-bound papers, execute one operator-pinned published source, preserve a Markdown replication report, continue theory in the same workspace, author Python or R through the generic source loop, separate exploratory scratch from frozen confirmatory evidence, and leave formalization optional by task intent. Optional Lean may still consume serial outer iterations when explicitly selected, but it is not a completion gate; no second scheduler was added in this change.",
+      "The standalone correction adds no model call, agent, retry, turn, write allowance, schema, content patch, statistical rule, or formal-prover rule. ResearchArchitect tests passed 62/62 and the full local suite passed 763/763 in 62.75 seconds without a live model call or frozen-task rerun.",
       "Every product theory-execution preflight now requires native client-tool turns. The JSON-only GeneratorRequest path, full-packet regeneration callback, dynamic review-output cap, and 332-line expanded per-row review schema were deleted rather than retained as disabled fallbacks.",
       "The independent model writes one coherent Markdown/LaTeX referee report and submits only ordered claim and dimension statuses, compact estimator blockers, prior-finding dispositions, and actual findings. Runtime persists and hash-binds the exact report, binds immutable identities, and returns raw structural or semantic validation observations to the same model without authoring a repair.",
       "The compact tool envelope has generic shape validation only; no statistical formula, theorem-family condition, mathematical correction, Lean grammar rule, tactic rule, new agent, retry, turn, or budget was added. The configured max_tokens now reaches the reviewing model unchanged instead of being silently reduced by a runtime-derived cap.",
@@ -142,9 +146,9 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, and execution boundaries. The model chooses every claim, dependency, research-source query, document path, line range, edit, metric semantics, progress summary, and next step. Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, and median-of-means expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, or task-specific metric count.",
     "verification": {
-      "full_pytest": "763 passed in 62.93s",
+      "full_pytest": "763 passed in 62.75s",
       "next_frozen_activation": "none selected or authorized; Wilson score L0 v1 consumed its only draw and is frozen failed at 0/1",
-      "affected_subsystem_pytest": "48/48 independent theory-preflight tests and 82/82 dependent semantic-reviewer and AgentRuntime tests passed; native client-tool rejection/resubmission, Markdown persistence, hash/path containment, compact ordered identity binding, and prior-finding lineage are covered",
+      "affected_subsystem_pytest": "62/62 ResearchArchitect tests passed after the standalone CLI was bound to document authority; the prior 48/48 theory-preflight and 82/82 dependent reviewer/runtime regressions also passed before this full-suite run",
       "neutral_exact_haiku_transport_probe": "Anthropic accepted five client tools with a 5,201-character sixteen-claim submit schema under claude-haiku-4-5-20251001, returned tool_use, and reported zero strict tools; no research content or frozen task was executed",
       "source_retrieval_ablation": "A representative query reconstructed from persisted L1 matched terms returned five distinct top-5 documents, including the exact DoubleMLIRM implementation. The failed live run did not persist its raw query text, so this is not an exact-query replay and provides no report-correctness credit.",
       "real_immutable_source_execution": "EXECUTED with return code 0, no errors, no source mutation, and frozen stdout SHA-256 ef1f1614e671a91b435e46e98126fb24c442faec198b19ab709788af32ab16d3",
@@ -155,7 +159,7 @@
       "fresh_live_result": "Wilson-score L0 v1 remained BLOCKED after complete source-grounded Markdown authoring and document inspection because the old preflight packet could not carry the review. Operator audit separately found multiple mathematical and estimator-ABI defects, so the immutable task remains 0/1 without rerun, output repair, or rescore.",
       "post_run_semantic_diagnostic": "Markdown authority made the 347-line candidate inspectable but did not make it correct. The independent reviewer read the complete candidate and sources but no packet was accepted; operator-detected defects remain negative evidence rather than inputs to a task-specific runtime fix.",
       "task_bound_referee_regression": "A real client-tool review writes one model-authored Markdown report, submits only ordered statuses and compact blockers, persists the exact report under the run review workspace, rejects path escape, and stores report-level evidence refs once.",
-      "runtime_core_growth": "research_agent_runtime.py remains 24996 lines and gained no branch; theory_workspace.py is 3316 lines; architect_theory_execution_preflight.py fell from 4138 to 3793 lines after legacy expanded transport deletion; and research_architect.py is 5233 lines."
+      "runtime_core_growth": "research_agent_runtime.py remains 24996 lines and gained no branch; theory_workspace.py is 3316 lines; architect_theory_execution_preflight.py fell from 4138 to 3793 lines after legacy expanded transport deletion; and research_architect.py is 5234 lines after passing the document workspace root from its standalone wrapper."
     },
     "evidence_boundary": "Fresh Benjamini-Hochberg v1 supplies live evidence that exact Haiku can search a frozen paper and write a substantive document-authoritative theory workspace, but not that it can complete or review the theorem correctly. Compact-index grammar blocked review, operator audit found independent mathematical defects, and no downstream scientific or formal lane ran. Grammar-free indexing and full-document reviewer inspection have regression evidence only; neither changes the frozen score or supplies mathematical correctness, and full-task credit remains zero."
   },
@@ -190,6 +194,7 @@
     "operator_audit": "docs/operator_audits/wilson_score_l0_v1.md",
     "post_run_shared_fix": "Commit fe65d1f3fb3c5bbdb58e040c15e11fcc8bdc2fc8 makes one model-authored Markdown referee report authoritative and keeps only compact identity-bound statuses and blockers in the transport envelope. It adds no content rule, model call, retry, agent, or fallback to the canonical client-tool path.",
     "post_run_transport_cleanup": "Commit 94df076a deletes the remaining JSON-only review generation path and expanded schema, so every product theory preflight now uses the same native client-tool Markdown review loop. This is regression evidence only and does not change the frozen result.",
+    "post_run_standalone_theory_cleanup": "Commit c9e3c3bf makes the standalone Research Architect CLI use the persistent document workspace and reject JSON-only providers. This is regression evidence only and does not change the frozen result.",
     "post_run_transport_evidence": "60 focused review/ladder tests and 763 full tests passed",
     "formalization_status": "optional and nonblocking by task intent; no Formalizer work ran",
     "component_result": "0/1 passed",
