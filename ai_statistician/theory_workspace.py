@@ -5,6 +5,7 @@ import json
 import tempfile
 from copy import deepcopy
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence
 
@@ -351,6 +352,117 @@ def run_theory_artifact_workspace(
             workspace_dir=resolved_workspace_dir,
         )
 
+    def final_document_inspection_refs(
+        documents: Mapping[str, str],
+        document_paths: Sequence[str],
+    ) -> list[dict[str, Any]]:
+        current_hashes = {
+            path: _text_sha256(documents[path])
+            for path in document_paths
+            if path in documents
+        }
+        return [
+            deepcopy(dict(ref))
+            for ref in state["document_inspection_refs"]
+            if isinstance(ref, Mapping)
+            and str(ref.get("tool", "") or "")
+            in {
+                "read_theory_workspace",
+                THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+            }
+            and current_hashes.get(str(ref.get("path", "") or ""))
+            == str(ref.get("document_sha256", "") or "")
+        ]
+
+    def final_document_inspection_requirements(
+        documents: Mapping[str, str],
+        document_paths: Sequence[str],
+    ) -> list[dict[str, Any]]:
+        locally_changed = set(current_changed_document_paths(documents))
+        requirements: list[dict[str, Any]] = []
+        for path in document_paths:
+            current_lines = documents[path].splitlines()
+            if path not in locally_changed:
+                changed_ranges = [(1, len(current_lines))]
+            else:
+                parent_lines = parent_documents.get(path, "").splitlines()
+                changed_ranges = []
+                for tag, _old_start, _old_end, new_start, new_end in (
+                    SequenceMatcher(
+                        None,
+                        parent_lines,
+                        current_lines,
+                    ).get_opcodes()
+                ):
+                    if tag == "equal":
+                        continue
+                    if new_start < new_end:
+                        changed_ranges.append((new_start + 1, new_end))
+                    else:
+                        adjacent_line = min(
+                            max(new_start + 1, 1),
+                            len(current_lines),
+                        )
+                        changed_ranges.append((adjacent_line, adjacent_line))
+            merged_ranges: list[tuple[int, int]] = []
+            for line_start, line_end in sorted(changed_ranges):
+                if merged_ranges and line_start <= merged_ranges[-1][1] + 1:
+                    merged_ranges[-1] = (
+                        merged_ranges[-1][0],
+                        max(merged_ranges[-1][1], line_end),
+                    )
+                else:
+                    merged_ranges.append((line_start, line_end))
+            requirements.append(
+                {
+                    "path": path,
+                    "document_sha256": _text_sha256(documents[path]),
+                    "line_count": len(current_lines),
+                    "required_line_ranges": [
+                        {"line_start": line_start, "line_end": line_end}
+                        for line_start, line_end in merged_ranges
+                    ],
+                    "proof_evidence_status": (
+                        "THEORY_DOCUMENT_INSPECTION_REQUIREMENT_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            )
+        return requirements
+
+    def completely_inspected_document_paths(
+        requirements: Sequence[Mapping[str, Any]],
+        inspection_refs: Sequence[Mapping[str, Any]],
+    ) -> set[str]:
+        inspected: set[str] = set()
+        for requirement in requirements:
+            path = str(requirement.get("path", "") or "")
+            intervals = sorted(
+                (
+                    int(ref.get("line_start", 0) or 0),
+                    int(ref.get("line_end", 0) or 0),
+                )
+                for ref in inspection_refs
+                if str(ref.get("path", "") or "") == path
+            )
+            all_ranges_inspected = True
+            for required in requirement.get("required_line_ranges", []) or []:
+                next_unread_line = int(required.get("line_start", 0) or 0)
+                required_end = int(required.get("line_end", 0) or 0)
+                for line_start, line_end in intervals:
+                    if line_end < next_unread_line:
+                        continue
+                    if line_start > next_unread_line:
+                        break
+                    next_unread_line = max(next_unread_line, line_end + 1)
+                    if next_unread_line > required_end:
+                        break
+                if next_unread_line <= required_end:
+                    all_ranges_inspected = False
+                    break
+            if all_ranges_inspected:
+                inspected.add(path)
+        return inspected
+
     def readable_artifact(name: str) -> Any:
         if name in read_only:
             return read_only[name]
@@ -574,6 +686,21 @@ def run_theory_artifact_workspace(
             ) > 55_000:
                 raise ClientToolInputError(
                     "selected theory material exceeds one observation; read less material"
+                )
+            for path, content in selected_documents.items():
+                state["document_inspection_refs"].append(
+                    {
+                        "tool": "read_theory_workspace",
+                        "path": path,
+                        "document_sha256": _text_sha256(content),
+                        "complete_document": True,
+                        "line_start": 1,
+                        "line_end": len(content.splitlines()),
+                        "content_sha256": _text_sha256(content),
+                        "proof_evidence_status": (
+                            "THEORY_DOCUMENT_INSPECTION_NOT_PROOF_EVIDENCE"
+                        ),
+                    }
                 )
             state["reads"] += 1
             return ClientToolExecutionResult(
@@ -923,6 +1050,35 @@ def run_theory_artifact_workspace(
                     "theory checkpoint is not structurally valid: "
                     + "; ".join(errors[:6])
                 )
+            final_inspections = final_document_inspection_refs(
+                state["documents"],
+                changed_documents,
+            )
+            final_inspection_requirements = (
+                final_document_inspection_requirements(
+                    state["documents"],
+                    changed_documents,
+                )
+            )
+            inspected_paths = completely_inspected_document_paths(
+                final_inspection_requirements,
+                final_inspections,
+            )
+            missing_final_inspections = [
+                requirement
+                for requirement in final_inspection_requirements
+                if str(requirement.get("path", "") or "") not in inspected_paths
+            ]
+            if require_document_authority and missing_final_inspections:
+                raise ClientToolInputError(
+                    "commit_theory_checkpoint requires model inspection at the final "
+                    "SHA-256 of every current line created or revised relative to the "
+                    "parent workspace; a new or prior-phase-only document requires full "
+                    "inspection. After the last document edit, use a complete "
+                    "read_theory_workspace document read or read_theory_document ranges "
+                    "covering these requirements: "
+                    + _compact_json(missing_final_inspections)
+                )
             rationale = readiness_rationale.strip()
             candidate_hash = stable_hash(candidate)
             return ClientToolExecutionResult(
@@ -953,6 +1109,10 @@ def run_theory_artifact_workspace(
                     ),
                     "changed_artifact_names": list(changed),
                     "changed_document_paths": list(changed_documents),
+                    "final_document_inspection_refs": final_inspections,
+                    "final_document_inspection_requirements": (
+                        final_inspection_requirements
+                    ),
                     "theory_workspace_manifest": document_manifest(
                         state["documents"]
                     ),
@@ -1391,7 +1551,12 @@ def run_theory_artifact_workspace(
         "a literal claim, heading, or LaTeX label and read_theory_document to inspect "
         "the exact current line range before editing. Both observations name the "
         "current document SHA-256. Whole-document reads remain available when the "
-        "selected material fits one observation. "
+        "selected material fits one observation. Before commit_theory_checkpoint, "
+        "inspect at the final SHA-256 every current line you created or revised relative "
+        "to the parent workspace. A new document, or one carried from a prior progress "
+        "phase, requires full inspection; a localized edit requires its changed lines. "
+        "For a long document, use exact ranges. An older read cannot support the final "
+        "checkpoint. "
         if require_document_authority
         else ""
     )
@@ -2020,6 +2185,14 @@ def run_theory_artifact_workspace(
         "document_inspection_refs": deepcopy(
             state["document_inspection_refs"]
         ),
+        "final_document_inspection_refs": deepcopy(
+            list(terminal.get("final_document_inspection_refs", []) or [])
+        ),
+        "final_document_inspection_requirements": deepcopy(
+            list(
+                terminal.get("final_document_inspection_requirements", []) or []
+            )
+        ),
         "theory_content_authority": (
             THEORY_WORKSPACE_CONTENT_AUTHORITY
             if require_document_authority
@@ -2453,8 +2626,11 @@ def _theory_workspace_tools(
             name=THEORY_WORKSPACE_COMMIT_TOOL,
             description=(
                 "Commit the current structurally valid, model-authored workspace as "
-                "ready for independent scientific review. This records your stopping "
-                "decision; it does not make the theory correct and is not proof evidence."
+                "ready for independent scientific review after inspecting at the final "
+                "SHA-256 every current line created or revised relative to the parent "
+                "workspace. New and prior-phase-only documents require full inspection. "
+                "This records your stopping decision; it does not make the theory correct "
+                "and is not proof evidence."
             ),
             input_schema={
                 "type": "object",

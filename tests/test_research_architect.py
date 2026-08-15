@@ -1591,6 +1591,13 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
                     ),
                 )
             ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="inspect-final-initial-theory-document",
+                    name="read_theory_workspace",
+                    input={"document_paths": [initial_document_path]},
+                )
+            ),
             _theory_checkpoint_response(
                 "The complete theory packet and corrected theorem reference are "
                 "ready for independent review."
@@ -1617,7 +1624,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     packet = developer.derive(question)
 
     assert validate_theory_packet(packet) == []
-    assert len(provider.tool_requests) == 6
+    assert len(provider.tool_requests) == 7
     assert len(provider.generator_requests) == 1
     first_request = provider.tool_requests[0]
     assert first_request.metadata["theory_developer_phase"] == (
@@ -1699,7 +1706,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert evidence["changed_document_paths"] == ["theory/workspace.md"]
     assert evidence["model_owned_theory"] is True
     assert evidence["runtime_edited_theory"] is False
-    assert evidence["reads"] == 2
+    assert evidence["reads"] == 3
     assert evidence["submissions"] == 3
     assert set(evidence["changed_artifact_names"]) == (
         set(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT) - optional_artifacts
@@ -1778,6 +1785,13 @@ def test_nonformal_initial_workspace_checkpoints_without_theorem_abi() -> None:
                     ),
                 )
             ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="inspect-final-nonformal-document",
+                    name="read_theory_workspace",
+                    input={"document_paths": [document_path]},
+                )
+            ),
             _theory_checkpoint_response(
                 "The document and claim index are ready for independent review."
             ),
@@ -1809,7 +1823,7 @@ def test_nonformal_initial_workspace_checkpoints_without_theorem_abi() -> None:
     assert packet["proof_plan"] == {}
     assert packet["formalization_requests"] == []
     assert provider.generator_requests == []
-    assert len(provider.tool_requests) == 4
+    assert len(provider.tool_requests) == 5
     first_request = provider.tool_requests[0]
     write_tool = next(
         tool
@@ -1957,12 +1971,8 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
             _theory_tool_response(
                 ClientToolCall(
                     call_id="read-preserved-document",
-                    name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
-                    input={
-                        "path": document_path,
-                        "line_start": 1,
-                        "line_end": 8,
-                    },
+                    name="read_theory_workspace",
+                    input={"document_paths": [document_path]},
                 )
             ),
             _theory_tool_response(
@@ -2337,6 +2347,13 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
                     ),
                 )
             ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="inspect-final-continued-revision",
+                    name="read_theory_workspace",
+                    input={"document_paths": ["theory/workspace.md"]},
+                )
+            ),
             _theory_checkpoint_response(),
         ],
         generator_responses=[],
@@ -2367,7 +2384,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
         "bounded_outcome_moment_control"
     )
     assert len(first_provider.tool_requests) == 3
-    assert len(second_provider.tool_requests) == 4
+    assert len(second_provider.tool_requests) == 5
     assert first_provider.generator_requests == []
     assert second_provider.generator_requests == []
     first_tool_request = first_provider.tool_requests[0]
@@ -2431,7 +2448,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     workspace_evidence = packet["llm_client_tool_loop"]
     assert workspace_evidence["model_owned_theory"] is True
     assert workspace_evidence["runtime_edited_theory"] is False
-    assert workspace_evidence["reads"] == 2
+    assert workspace_evidence["reads"] == 3
     assert workspace_evidence["submissions"] == 1
     assert workspace_evidence["n_model_document_writes"] == 0
     final_document = packet["theory_workspace_manifest"]["documents"][0]
@@ -2624,6 +2641,13 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged(
                     ),
                 )
             ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="inspect-final-document-for-abi-reuse",
+                    name="read_theory_workspace",
+                    input={"document_paths": ["theory/workspace.md"]},
+                )
+            ),
             _theory_checkpoint_response(),
         ],
         generator_responses=[],
@@ -2643,7 +2667,7 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged(
     packet = developer.derive(question, architect_context=context)
 
     assert validate_theory_packet(packet) == []
-    assert len(provider.tool_requests) == 3
+    assert len(provider.tool_requests) == 4
     assert provider.generator_requests == []
     assert packet["estimator_specs"][0][
         "estimator_interface_contract"
@@ -2771,6 +2795,13 @@ def test_theory_revision_resumes_interface_stage_from_validated_core(
                             "estimator_specs": revised_core["estimator_specs"],
                         }
                     ),
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="inspect-final-document-before-interface-stage",
+                    name="read_theory_workspace",
+                    input={"document_paths": ["theory/workspace.md"]},
                 )
             ),
             _theory_checkpoint_response(),

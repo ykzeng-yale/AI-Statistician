@@ -1321,6 +1321,13 @@ def test_document_authority_persists_exact_math_and_small_handoff(
                     ),
                 )
             ),
+            _response(
+                ClientToolCall(
+                    call_id="inspect-final-authoritative-document",
+                    name="read_theory_workspace",
+                    input={"document_paths": ["derivations/C1.md"]},
+                )
+            ),
             _response(_commit_checkpoint()),
         ]
     )
@@ -1329,6 +1336,7 @@ def test_document_authority_persists_exact_math_and_small_handoff(
         backend,
         workspace_dir=tmp_path / "theory",
         require_document_authority=True,
+        max_turns=5,
         build_candidate=lambda artifacts, changed, manifest, changed_documents: {
             "artifacts": dict(artifacts),
             "changed": list(changed),
@@ -1342,6 +1350,20 @@ def test_document_authority_persists_exact_math_and_small_handoff(
     assert (tmp_path / "theory" / "derivations" / "C1.md").read_text() == markdown
     assert result.evidence["changed_document_paths"] == ["derivations/C1.md"]
     assert result.evidence["n_model_document_writes"] == 1
+    assert result.evidence["final_document_inspection_refs"] == [
+        {
+            "tool": "read_theory_workspace",
+            "path": "derivations/C1.md",
+            "document_sha256": hashlib.sha256(markdown.encode("utf-8")).hexdigest(),
+            "complete_document": True,
+            "line_start": 1,
+            "line_end": len(markdown.splitlines()),
+            "content_sha256": hashlib.sha256(markdown.encode("utf-8")).hexdigest(),
+            "proof_evidence_status": (
+                "THEORY_DOCUMENT_INSPECTION_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    ]
     rejected_observation = backend.requests[1].messages[-1]["content"][0]
     assert rejected_observation["is_error"] is True
     rejected_payload = json.loads(rejected_observation["content"])
@@ -1403,6 +1425,18 @@ def test_document_authority_supports_hash_bound_local_model_edit(tmp_path) -> No
                 )
             ),
             _response(_commit_checkpoint()),
+            _response(
+                ClientToolCall(
+                    call_id="read-final-document",
+                    name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/C1.md",
+                        "line_start": 1,
+                        "line_end": len(revised.splitlines()),
+                    },
+                )
+            ),
+            _response(_commit_checkpoint()),
         ]
     )
 
@@ -1415,6 +1449,7 @@ def test_document_authority_supports_hash_bound_local_model_edit(tmp_path) -> No
             "lemma_cards": [{"id": "C1"}],
         },
         initial_documents={"derivations/C1.md": parent},
+        max_turns=5,
         build_candidate=lambda artifacts, changed, manifest, changed_documents: {
             "artifacts": dict(artifacts),
             "changed": list(changed),
@@ -1428,6 +1463,14 @@ def test_document_authority_supports_hash_bound_local_model_edit(tmp_path) -> No
     }
     assert result.evidence["changed_artifact_names"] == []
     assert result.evidence["changed_document_paths"] == ["derivations/C1.md"]
+    rejected_commit = json.loads(
+        backend.requests[3].messages[-1]["content"][0]["content"]
+    )
+    assert rejected_commit["error"] == "client_tool_input_rejected"
+    assert "every current line created or revised" in rejected_commit["detail"]
+    assert result.evidence["final_document_inspection_refs"][0][
+        "document_sha256"
+    ] == hashlib.sha256(revised.encode("utf-8")).hexdigest()
     assert result.evidence["model_document_writes"] == [
         {
             "submission_index": 0,
@@ -1449,6 +1492,134 @@ def test_document_authority_supports_hash_bound_local_model_edit(tmp_path) -> No
     prompt = str(backend.requests[0].messages[0]["content"])
     assert "current document SHA-256" in prompt
     assert "one exact, unique model-selected text span" in prompt
+
+
+def test_continuation_reinspects_prior_changed_document_before_commit(
+    tmp_path,
+) -> None:
+    document = "# Claim C1\n\nFor every admitted n, $a_n = b_n$.\n"
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="revise-continuation-handoff",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {"problem_card": {"claim": "revised claim"}}
+                    ),
+                )
+            ),
+            _response(_commit_checkpoint()),
+            _response(
+                ClientToolCall(
+                    call_id="inspect-continuation-document",
+                    name="read_theory_workspace",
+                    input={"document_paths": ["derivations/C1.md"]},
+                )
+            ),
+            _response(_commit_checkpoint()),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        workspace_dir=tmp_path / "theory",
+        require_document_authority=True,
+        initial_artifacts={
+            "problem_card": {"claim": "parent-private-claim"},
+            "lemma_cards": [{"id": "C1"}],
+        },
+        initial_documents={"derivations/C1.md": document},
+        prior_changed_document_paths=["derivations/C1.md"],
+        max_turns=4,
+        max_reads=1,
+    )
+
+    rejected_commit = json.loads(
+        backend.requests[2].messages[-1]["content"][0]["content"]
+    )
+    assert rejected_commit["error"] == "client_tool_input_rejected"
+    assert "prior-phase-only document requires full inspection" in (
+        rejected_commit["detail"]
+    )
+    assert result.evidence["changed_document_paths"] == ["derivations/C1.md"]
+    assert result.evidence["final_document_inspection_refs"][0][
+        "document_sha256"
+    ] == hashlib.sha256(document.encode("utf-8")).hexdigest()
+
+
+def test_partial_final_document_read_cannot_support_checkpoint(tmp_path) -> None:
+    parent = "# Claim C1\n\nFor all n, $a_n = b_n$.\n"
+    revised = "# Claim C1\n\nFor every admitted n, $a_n = b_n$.\n"
+    parent_sha256 = hashlib.sha256(parent.encode("utf-8")).hexdigest()
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="read-parent-document",
+                    name="read_theory_workspace",
+                    input={"document_paths": ["derivations/C1.md"]},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="edit-parent-document",
+                    name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/C1.md",
+                        "expected_sha256": parent_sha256,
+                        "old_text": "For all n, $a_n = b_n$.",
+                        "new_text": "For every admitted n, $a_n = b_n$.",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="read-only-final-heading",
+                    name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/C1.md",
+                        "line_start": 1,
+                        "line_end": 1,
+                    },
+                )
+            ),
+            _response(_commit_checkpoint()),
+            _response(
+                ClientToolCall(
+                    call_id="report-unfinished-review",
+                    name=THEORY_WORKSPACE_GAP_TOOL,
+                    input={
+                        "summary": "The final document review is incomplete.",
+                        "blocking_claims": ["claim-C1"],
+                        "evidence_refs": ["derivations/C1.md:1"],
+                        "next_step": "Inspect the remaining final document lines.",
+                    },
+                )
+            ),
+        ]
+    )
+
+    with pytest.raises(TheoryWorkspaceGapError):
+        _run_workspace(
+            backend,
+            workspace_dir=tmp_path / "theory",
+            require_document_authority=True,
+            initial_artifacts={
+                "problem_card": {"claim": "revised claim"},
+                "lemma_cards": [{"id": "C1"}],
+            },
+            initial_documents={"derivations/C1.md": parent},
+            max_turns=5,
+            max_reads=2,
+        )
+
+    rejected_commit = json.loads(
+        backend.requests[4].messages[-1]["content"][0]["content"]
+    )
+    assert rejected_commit["error"] == "client_tool_input_rejected"
+    assert "covering these requirements" in rejected_commit["detail"]
+    assert revised == (tmp_path / "theory" / "derivations" / "C1.md").read_text()
 
 
 def test_long_theory_document_supports_search_range_read_and_local_edit(
@@ -1502,6 +1673,18 @@ def test_long_theory_document_supports_search_range_read_and_local_edit(
                 )
             ),
             _response(_commit_checkpoint()),
+            _response(
+                ClientToolCall(
+                    call_id="read-final-long-document-edit-range",
+                    name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                    input={
+                        "path": "theory/workspace.md",
+                        "line_start": target_line,
+                        "line_end": target_line + 2,
+                    },
+                )
+            ),
+            _response(_commit_checkpoint()),
         ]
     )
 
@@ -1520,8 +1703,8 @@ def test_long_theory_document_supports_search_range_read_and_local_edit(
             "theory_workspace_manifest": dict(manifest),
             "changed_documents": list(changed_documents),
         },
-        max_turns=4,
-        max_reads=2,
+        max_turns=6,
+        max_reads=3,
         max_submissions=1,
     )
 
@@ -1544,12 +1727,25 @@ def test_long_theory_document_supports_search_range_read_and_local_edit(
         ["## claim-C-long", old_text, "Depends on claim-C0."]
     )
     assert range_observation["document_sha256"] == parent_sha256
+    rejected_commit = json.loads(
+        backend.requests[4].messages[-1]["content"][0]["content"]
+    )
+    assert rejected_commit["error"] == "client_tool_input_rejected"
+    assert "every current line created or revised" in rejected_commit["detail"]
     assert [
         row["tool"] for row in result.evidence["document_inspection_refs"]
     ] == [
         THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     ]
+    assert len(result.evidence["final_document_inspection_refs"]) == 1
+    assert result.evidence["final_document_inspection_refs"][0][
+        "line_start"
+    ] == target_line
+    assert result.evidence["final_document_inspection_requirements"][0][
+        "required_line_ranges"
+    ] == [{"line_start": target_line + 1, "line_end": target_line + 1}]
     assert old_text not in json.dumps(result.evidence)
     assert new_text not in json.dumps(result.evidence)
     documents = load_theory_workspace_documents(result.core_packet)
