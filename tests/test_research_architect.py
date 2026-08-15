@@ -196,11 +196,32 @@ def test_theory_handoff_requirements_follow_task_intent() -> None:
         "problem_card": True,
         "theory_derivation_packet": True,
         "estimator_specs": False,
-        "theorem_cards": True,
-        "proof_plan": True,
+        "theorem_cards": False,
+        "proof_plan": False,
         "simulation_ademp_spec": False,
         "formalization_requests": False,
     }
+
+    formal_question = OpenResearchQuestion(
+        id="formal-theory-handoff",
+        title="Formal theory",
+        description="Derive and formalize one result.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "required",
+        },
+    )
+
+    formal_requirements = theory_handoff_requirements(
+        formal_question,
+        formalization_authoring_required=True,
+    )
+
+    assert formal_requirements["theorem_cards"] is True
+    assert formal_requirements["proof_plan"] is True
+    assert formal_requirements["formalization_requests"] is True
 
 
 def test_source_only_workspace_bypasses_full_theory_packet_contract(
@@ -797,6 +818,55 @@ def test_file_authority_claim_dependencies_are_closed_and_acyclic(
         "claim_index dependency graph must be acyclic" in error
         for error in validate_theory_packet(cyclic)
     )
+
+
+def test_nonformal_document_theory_uses_claim_index_without_theorem_abi(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="document-theory-without-formalization",
+        title="Document theory without formalization",
+        description="Develop, implement, and simulate a known statistical result.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "required",
+            "empirical": "required",
+            "formal": "not_applicable",
+        },
+    )
+    packet, _ = _file_authority_theory_fixture(
+        _serious_sample_response(),
+        workspace_dir=tmp_path / "nonformal-claim-graph",
+    )
+    packet.update(
+        {
+            "theorem_cards": [],
+            "proof_plan": {},
+            "formalization_requests": [],
+            "runtime_formalization_authoring_required": False,
+            "runtime_theory_handoff_requirements": theory_handoff_requirements(
+                question,
+                formalization_authoring_required=False,
+            ),
+            "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            "kernel_verified": False,
+            "verified_theorem_count": 0,
+        }
+    )
+    packet["theory_derivation_packet"]["formalization_handoff"] = {}
+    for estimator in packet["estimator_specs"]:
+        estimator["estimator_interface_contract_id"] = (
+            estimator_interface_contract_id(
+                estimator["estimator_interface_contract"]
+            )
+        )
+
+    assert any(
+        claim["kind"] == "theorem"
+        for claim in packet["theory_derivation_packet"]["claim_index"]
+    )
+    assert validate_theory_packet(packet) == []
 
 
 def _metric_theory_revision_context(
@@ -1604,6 +1674,90 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert provider.generator_requests[0].metadata[
         "theory_developer_phase"
     ] == "estimator_interface_authoring"
+
+
+def test_nonformal_initial_workspace_checkpoints_without_theorem_abi() -> None:
+    question = OpenResearchQuestion(
+        id="nonformal-document-workspace",
+        title="Nonformal document workspace",
+        description="Derive one result without implementation or Lean authoring.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+    core_response, theory_documents = _file_authority_theory_fixture(
+        _sample_response()
+    )
+    derivation = dict(core_response["theory_derivation_packet"])
+    derivation["formalization_handoff"] = {}
+    document_path, document_content = next(iter(theory_documents.items()))
+    provider = ScriptedTheoryToolBackend(
+        tool_responses=[
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="read-nonformal-context",
+                    name="read_theory_workspace",
+                    input={"artifact_names": ["initial_authoring_context"]},
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="write-nonformal-document",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                    input={"path": document_path, "content": document_content},
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="write-nonformal-index",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_theory_artifact_writes(
+                        {
+                            "problem_card": core_response["problem_card"],
+                            "theory_derivation_packet": derivation,
+                        }
+                    ),
+                )
+            ),
+            _theory_checkpoint_response(
+                "The document and claim index are ready for independent review."
+            ),
+        ],
+        generator_responses=[],
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+
+    packet = developer.derive(
+        question,
+        architect_context={
+            "runtime_requested_evidence_contract": {
+                "evaluation_mode": "research_eval",
+                "formal_target_authoring_required": False,
+            }
+        },
+    )
+
+    assert validate_theory_packet(packet) == []
+    assert packet["theorem_cards"] == []
+    assert packet["proof_plan"] == {}
+    assert packet["formalization_requests"] == []
+    assert provider.generator_requests == []
+    assert len(provider.tool_requests) == 4
+    initial_prompt = str(provider.tool_requests[0].messages[0]["content"])
+    assert "required compact handoffs are: problem_card, theory_derivation_packet" in (
+        initial_prompt
+    )
 
 
 def test_initial_theory_progress_resumes_exact_document_workspace(

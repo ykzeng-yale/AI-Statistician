@@ -122,17 +122,17 @@ def theory_handoff_requirements(
         legacy_full_handoff
         or dimensions["scientific_code"] == "required"
     )
-    theorem_required = bool(
+    formal_handoff_required = bool(
         legacy_full_handoff
-        or dimensions["theory"] == "required"
+        or formalization_authoring_required
         or dimensions["formal"] == "required"
     )
     return {
         "problem_card": True,
         "theory_derivation_packet": True,
         "estimator_specs": implementation_required,
-        "theorem_cards": theorem_required,
-        "proof_plan": theorem_required,
+        "theorem_cards": formal_handoff_required,
+        "proof_plan": formal_handoff_required,
         "simulation_ademp_spec": bool(
             legacy_full_handoff or dimensions["empirical"] == "required"
         ),
