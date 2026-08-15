@@ -1,9 +1,9 @@
 {
-  "schema_version": 84,
+  "schema_version": 85,
   "updated_at": "2026-08-14",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "7fa52b2571b419d21bc55320d6fb5c15e3971b12",
+  "validated_code_head": "213ae4d925ac3da2eb07e987d3badcef73066945",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -53,8 +53,11 @@
     ]
   },
   "validated_change": {
-    "commit": "7fa52b2571b419d21bc55320d6fb5c15e3971b12",
+    "commit": "213ae4d925ac3da2eb07e987d3badcef73066945",
     "changes": [
+      "A new disjoint binomial-inference L0 benchmark is frozen before its first scored model call. The visible task asks for a document-authoritative derivation of Wilson score-test inversion, one estimator ABI, and one exact-binomial-referenced empirical calibration target; formalization is optional and nonblocking.",
+      "The hash-bound model-visible source snapshot contains a citation-bound Wilson 1927 transcription and a NIST reference note. Evaluator-only gold remains outside the repository and model workspace and passed 10/10 algorithm checks, rejected four negative implementations, passed three 12,000-replicate coverage/width DGPs, and calibrated exact Haiku on 11/11 theory cases plus the eight-claim reference.",
+      "Activation commit 213ae4d925ac3da2eb07e987d3badcef73066945 is frozen before the first runtime model call. The full suite passed 762/762. The task permits exactly one future fresh draw; no observed result may alter its source, rubric, hidden evaluator, task intent, or expected values.",
       "The single frozen Benjamini-Hochberg L0 exact-Haiku draw wrote one 192-line, 10,051-byte authoritative Markdown derivation after task-bound source search, but five compact-handoff submissions were rejected because eleven claim anchors and five sanity-check anchors were not literal document substrings. Runtime stopped after three outer traces; research_eval and hidden gold remained 0/1, and no algorithm, simulation, Critic, or Formalizer work ran.",
       "The frozen terminal report correctly preserved the model's explicit gap, but the harness had misclassified a Markdown/index spelling mismatch as a mathematical gap. Operator audit separately found incomplete step-up stability and all-null equality arguments plus an incorrect executable tie convention, so removing the transport blocker does not make the frozen theory correct or accepted.",
       "Document-authoritative theory packets now use stable claim IDs, exact document paths, statuses, and direct dependencies without requiring any Markdown anchor grammar. Runtime still rejects unknown paths, duplicate IDs, invalid statuses, missing dependencies, cycles, and inconsistent consumer ABIs, but it no longer parses prose syntax as scientific authority.",
@@ -127,9 +130,10 @@
       "TheoryDeveloper initial and revision prompts now describe the actual direct-document, hash-bound edit, and structured-handoff tools instead of instructing the model to use the removed combined batch shape. The executor no longer accepts document_writes through write_theory_workspace, and deterministic replay proves the same model receives a direct-tool correction rather than a runtime content patch.",
       "Canonical scripted theory sessions now write one complete mathematical document and one mutually consistent structured handoff instead of splitting the handoff into arbitrary two-artifact batches. This reduced the representative initial session from eight to six tool turns and from five to three accepted writes without increasing any budget."
     ],
-    "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, and execution boundaries. The model chooses every claim, dependency, research-source query, document path, line range, edit, metric semantics, progress summary, and next step. Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, and median-of-means expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, or task-specific metric count.",
+    "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, and execution boundaries. The model chooses every claim, dependency, research-source query, document path, line range, edit, metric semantics, progress summary, and next step. Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, and median-of-means expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, or task-specific metric count.",
     "verification": {
-      "full_pytest": "761 passed in 63.45s",
+      "full_pytest": "762 passed in 62.96s",
+      "next_frozen_activation": "Wilson score L0 v1 is frozen at commit 213ae4d925ac3da2eb07e987d3badcef73066945 with first_runtime_model_call_occurred=false and fresh_live_runs=0",
       "affected_subsystem_pytest": "131/131 ResearchArchitect, independent theory-preflight, and TheoryDeveloper workspace tests plus 107/107 central runtime, runtime-audit, hidden-gold, and terminal-Critic tests passed; grammar-free handoffs and full hash-bound document-range coverage are included",
       "neutral_exact_haiku_transport_probe": "Anthropic accepted five client tools with a 5,201-character sixteen-claim submit schema under claude-haiku-4-5-20251001, returned tool_use, and reported zero strict tools; no research content or frozen task was executed",
       "source_retrieval_ablation": "A representative query reconstructed from persisted L1 matched terms returned five distinct top-5 documents, including the exact DoubleMLIRM implementation. The failed live run did not persist its raw query text, so this is not an exact-query replay and provides no report-correctness credit.",
@@ -213,6 +217,29 @@
     "post_frozen_document_native_review_fix_commit": "7fa52b2571b419d21bc55320d6fb5c15e3971b12",
     "full_task_passed": false,
     "boundary": "The only permitted runtime draw is complete and immutable. Expected mathematics and executable gold stayed outside runtime context. Compact-index grammar failure and operator-detected mathematical defects are recorded separately; neither permits rerun, output repair, or rescore."
+  },
+  "next_frozen_evaluation": {
+    "id": "research_l0_wilson_score_v1_document_theory_exact_haiku_20260814",
+    "task_id": "wilson_score_binomial_interval_known_result",
+    "family": "binomial_inference",
+    "status": "frozen_before_first_runtime_draw",
+    "visible_questions_sha256": "256cbb9910a0e2921f721254d30151ae87cf3a91b31953fd6830bbc685e38e92",
+    "source_snapshot_id": "wilson-score-binomial-known-result-v1",
+    "source_snapshot_hash": "a3fed22897f8a84e7f9449e73088ae6aa3d9a7af02c5ad9503fd2c44cb894306",
+    "source_manifest_sha256": "df60bc5865c92c937e3c6aa0f1fca3f98c318503044b817be2dfe8c2a9991219",
+    "gold_manifest_sha256": "b58cb35fda02418c2a8faebd504e299efba3661d1f2b43c5073f489e4bb93de0",
+    "gold_descriptor_hash": "73f88b4ac3954bf16f4d169d558f867071911c65d2f8fea737b99cb6e99380c4",
+    "activation_commit": "213ae4d925ac3da2eb07e987d3badcef73066945",
+    "algorithm_calibration": "reference 10/10 and four negative implementations rejected",
+    "empirical_calibration": "three 12,000-replicate exact-binomial-referenced coverage and width DGPs passed with maximum coverage MCSE 0.0024541943117780836",
+    "semantic_calibration": "exact Haiku classified 11/11 isolated cases correctly and accepted the eight-claim reference",
+    "theory_authority": "model-authored Markdown/LaTeX documents; JSON is compact identity, path, claim-index, dependency, and consumer ABI only",
+    "formalization_status": "optional and nonblocking by frozen task intent",
+    "first_runtime_model_call_occurred": false,
+    "fresh_live_runs": 0,
+    "model_draw_resampling_blocked": true,
+    "full_task_passed": false,
+    "boundary": "All model-visible source and evaluator-only gold identities are frozen before the first runtime model call. Exactly one fresh exact-Haiku draw is permitted after this activation is pushed to both GitHub refs."
   },
   "latest_authoritative_integrated_run": {
     "id": "v436",
@@ -330,7 +357,7 @@
     ],
     "remaining_structural_problems": [
       "strict development exact source-theorem closure remains 0/2",
-      "the research ladder has eleven active gold-configured tasks but zero passing tasks",
+      "the research ladder has twelve active gold-configured tasks but zero passing tasks",
       "fresh Benjamini-Hochberg L0 v1 wrote a source-grounded 192-line Markdown derivation but spent all five compact submissions on a literal anchor-grammar mismatch, so it stopped before independent review, code, or simulation and scored 0/1; the post-run grammar-free document-native contract has regression evidence only",
       "the unaccepted Benjamini-Hochberg document has incomplete step-up stability and all-null equality arguments plus an incorrect executable tie convention; removing the anchor blocker does not repair, accept, or rescore those model-authored defects",
       "fresh normal-sample-variance L0 v1 reached runtime and hidden-gold automated 1/1, but operator audit invalidated it because an active proof used a false chi-square difference argument, exploratory scratch outcomes were promoted as frozen confirmation, and generated simulation ignored its runtime replicate argument",
@@ -370,7 +397,7 @@
       "scientific execution has Pyodide/WebR foundations but live R, broad package support, and precision-driven confirmatory replication need integrated evidence",
       "Formalizer has real RAG, local Lean, source revision, and semantic review but still lacks reliable exact statistical theorem closure",
       "the atomic active-project declaration context has exact-Haiku component evidence but still needs a fresh integrated Formalizer run and cross-task ablation",
-      "the research-capability ladder now has eleven active focused tasks but still lacks a passing paper replication or hidden rederivation full task; repeated bundled S13 runs cannot substitute for this diagnostic ladder",
+      "the research-capability ladder now has twelve active focused tasks but still lacks a passing paper replication or hidden rederivation full task; repeated bundled S13 runs cannot substitute for this diagnostic ladder",
       "the active Lean foundation pins Statlib 6575d611 on Lean 4.30, while fetched Statlib origin/main 01d2a03 adds EVariable and DPI foundations on Lean 4.33. The active importable corpus and latest upstream discovery corpus must retain distinct snapshot identities until a deliberate compatibility migration succeeds",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
       "research_agent_runtime.py remains large at 24996 lines, while architect_theory_execution_preflight.py is 3720 lines; the latest change removed Markdown-anchor validation and anchor-driven reviewer coverage, but further simplification must replace measured duplication rather than add an outer control feature"
@@ -385,7 +412,7 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 50-55%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "0/11 passed",
+    "fully_gold_covered_research_tasks": "0/12 passed",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
@@ -402,6 +429,8 @@
     "latest_runtime_manifest_bytes": 61127
   },
   "next_gates": [
+    "After activation commit 213ae4d925ac3da2eb07e987d3badcef73066945 is present on the work branch and main, execute exactly one fresh Wilson score exact-Haiku draw. Do not change its source, hidden rubric, evaluator, task intent, budgets, or expected values after observing the result.",
+    "Use Wilson only to test the current grammar-free TheoryDeveloper, complete independent document review, generated estimator, and exact-binomial-referenced empirical path. Any failure may justify only a content-independent shared mechanism change; the task itself cannot be rerun, patched, or rescored.",
     "Treat Benjamini-Hochberg v1 as two separate failures: literal Markdown-anchor validation was a shared transport mistake and is regression-fixed, while the model-authored proof defects remain unaccepted. Preserve the run at 0/1; never rerun, patch, or rescore it.",
     "Validate grammar-free claim indexes and complete hash-bound reviewer inspection only on a future unrelated benchmark frozen before its first model call. Full-document read coverage is provenance, not a proof or a reason to enlarge budgets.",
     "Treat median-of-means v1 as two independent failures: provider transport prevented a reviewer verdict, while operator audit found substantive model-authored mathematical defects. Preserve the run at 0/1; validate compact transport only through regression and neutral probes, never by rerunning or patching the frozen candidate.",
