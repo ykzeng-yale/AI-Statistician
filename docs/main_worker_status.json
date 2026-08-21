@@ -1,13 +1,13 @@
 {
-  "schema_version": 97,
+  "schema_version": 98,
   "updated_at": "2026-08-21",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "d64fd895893701c0a42e1f8862605da86a57af2b",
+  "validated_code_head": "a9754547a69bd44f0953dbd76d7f0bbb7d228c1d",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep converging on the Codex-style harness boundary: the model owns mathematical documents, retrieval queries, Python/R/Lean source, and iterative correction from raw observations; the harness owns stable tool identity, isolation, provenance, durable content-addressed checkpoints, independent review, frozen evaluation, and kernel promotion. Python/R, Lean, and the isolated theory-referee workspace now continue from exact environment observations under the existing outer AgentRuntime budget without routine Architect planning. TheoryDeveloper continues only while the immutable finding lineage makes scientific progress; repeated observations or unresolved findings stop as stagnation. The exact-sign-test draw remains immutable negative evidence at 0/1; do not rerun it or add a repair layer, task rule, retry, or budget.",
+  "current_goal_focus": "Keep converging on the Codex-style harness boundary: the model owns mathematical documents, retrieval queries, Python/R/Lean source, and iterative correction from raw observations; the harness owns stable tool identity, isolation, provenance, durable content-addressed checkpoints, independent review, frozen evaluation, and kernel promotion. Python/R, Lean, and the isolated theory-referee workspace now continue from exact environment observations under the existing outer AgentRuntime budget without routine Architect planning. TheoryDeveloper continues only while the immutable finding lineage makes scientific progress; repeated observations or unresolved findings stop as stagnation. Fourteen consumed draws remain immutable negative evidence. The disjoint jackknife-mean L0 task is hash-frozen and pushed before its first call; run it exactly once with exact Haiku, without a repair layer, task rule, retry, or larger budget.",
   "operating_principle": "Models own statistical, mathematical, Python, R, retrieval-query, and Lean content. The harness owns isolation, immutable identity, source visibility, budgets, checkpoints, independent review, result blinding, frozen evaluation authority, and proof promotion. It does not author substantive fixes.",
   "model_policy": {
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
@@ -54,8 +54,11 @@
     ]
   },
   "validated_change": {
-    "commit": "d64fd895893701c0a42e1f8862605da86a57af2b",
+    "commit": "a9754547a69bd44f0953dbd76d7f0bbb7d228c1d",
     "changes": [
+      "A fifteenth, disjoint resampling-family L0 task is frozen around one finite-sample delete-one jackknife identity, one run_estimator(request) ABI, and one cross-DGP confirmatory target. It does not require Lean and does not bundle general jackknife asymptotics, bias correction, confidence intervals, or nonlinear-statistic consistency.",
+      "The model-visible source snapshot contains three citation-bound Markdown notes. Evaluator-only authority outside the repository and model workspace contains the semantic reference, calibrated exact-Haiku claim rubric, reference estimator, four negative implementations, and algorithm plus empirical harnesses. The reference passed 10/10 algorithm checks and 12,000/12,000 cross-DGP identity comparisons; four negatives were rejected and exact Haiku classified 12/12 semantic calibration cases correctly.",
+      "Commit a9754547 freezes the visible question, source and gold hashes, explicit task intent, exact-Haiku policy, and zero-live-call state on both the work branch and main before the first product model call. Full regression passed 777/777. Calibration is evaluator evidence only and supplies no model, theory, code, empirical, formal, or E2E capability credit.",
       "The independent theory referee now persists one content-addressed workspace checkpoint when an inner client-tool segment ends after real document, source, scratch, or terminal-validator observations. The checkpoint binds the exact review material and source Theory packet, cumulative environment budgets, document coverage refs, source handles, scratch refs, and only the tool observations already visible to the isolated reviewer.",
       "A progressing referee checkpoint returns through one standard RuntimeArtifactRef to the same preflight operation. AgentRuntime resolves it from the blackboard, the same independent reviewer continues with the exact prior observations, and Architect propose is never called; runtime neither edits mathematics nor regenerates a review packet.",
       "Continuation requires a strict increase in unique environment-observation fingerprints and an exact predecessor/counter boundary. Tampered content, stale material or Theory bindings, an unbound predecessor, repeated observations, or an observation-free segment fail closed before another provider call. Partial referee work remains unaccepted and cannot authorize implementation, simulation, hidden evaluation, or proof promotion.",
@@ -188,8 +191,8 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model chooses every claim, dependency, research-source query, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, and median-of-means expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback.",
     "verification": {
-      "full_pytest": "776 passed in 72.25s",
-      "next_frozen_activation": "none selected or authorized; exact-sign-test L0 v1 consumed its only draw and is frozen failed at 0/1",
+      "full_pytest": "777 passed in 66.70s",
+      "next_frozen_activation": "jackknife-sample-mean L0 v1 is selected, calibrated, hash-frozen at commit a9754547, pushed to the work branch and main, and has zero runtime model calls",
       "affected_subsystem_pytest": "53/53 independent theory-preflight tests, 26/26 Architect/runtime routing tests, and 69/69 central AgentRuntime tests passed; earlier Python/R, TheoryDeveloper, and Lean continuation regressions remain valid",
       "openai_codex_harness_audit": "official openai/codex main pinned at 45a3edc02a59d845eba30794796c44e5f2377408; the six core harness file hashes are unchanged from e482cc66, and direct SDK/app-server adoption remains rejected because it would introduce a Responses transport or proxy plus a second thread and scheduling authority beside the required Claude and AgentRuntime path",
       "neutral_exact_haiku_transport_probe": "Anthropic accepted five client tools with a 5,201-character sixteen-claim submit schema under claude-haiku-4-5-20251001, returned tool_use, and reported zero strict tools; no research content or frozen task was executed",
@@ -208,7 +211,7 @@
       "theory_referee_workspace_continuation": "a two-segment independent review restores the exact prior Markdown read, task-bound source handle, document coverage, and terminal-validator observation; AgentRuntime uses one blackboard reference, calls the referee twice, calls Architect planning zero times, preserves cumulative source budgets, and blocks tamper or no-progress lineage before a provider call",
       "runtime_core_growth": "research_agent_runtime.py is 24990 lines because referee checkpoint sealing, validation, and state restoration remain in the owning preflight module; the unchanged 25000-line regression budget passes."
     },
-    "evidence_boundary": "Durable Python/R, Lean, and isolated theory-referee continuation has deterministic mechanism evidence only; it adds no model, scientific, hidden-gold, empirical, formal-proof, or E2E credit. Fresh exact-sign-test v1 supplies live evidence that exact Haiku can inspect frozen sources, write and checkpoint a document-authoritative theory workspace, and that an isolated referee will read the complete document, search sources, and use model-owned scratch. It does not show correct theory, accepted review, downstream code or simulation, or improved false-acceptance behavior. Every operator-detected defect remains unaccepted, full-task gold coverage remains 0/14, and exact development theorem closure remains 0/2."
+    "evidence_boundary": "Durable Python/R, Lean, and isolated theory-referee continuation has deterministic mechanism evidence only; it adds no model, scientific, hidden-gold, empirical, formal-proof, or E2E credit. Fresh exact-sign-test v1 supplies live evidence that exact Haiku can inspect frozen sources, write and checkpoint a document-authoritative theory workspace, and that an isolated referee will read the complete document, search sources, and use model-owned scratch. It does not show correct theory, accepted review, downstream code or simulation, or improved false-acceptance behavior. Every operator-detected defect remains unaccepted, the fourteen consumed full tasks remain 0/14, the fifteenth task has no runtime outcome, and exact development theorem closure remains 0/2."
   },
   "latest_component_evidence": {
     "id": "research_l0_exact_sign_test_v1_referee_scratch_exact_haiku_20260821",
@@ -281,22 +284,31 @@
     "boundary": "The only permitted runtime draw is complete and immutable. Expected mathematics and executable gold stayed outside runtime context. The runtime-owned scratch identity contradiction and operator-detected mathematical defects are recorded separately; fixing either mechanism cannot permit rerun, output repair, or rescore."
   },
   "next_frozen_evaluation": {
-    "id": "unselected_disjoint_known_result_after_exact_sign_test",
-    "status": "not_selected_or_frozen",
+    "id": "research_l0_jackknife_mean_v1_exact_haiku_20260821",
+    "task_id": "jackknife_sample_mean_variance_known_result",
+    "family": "resampling",
+    "status": "frozen_pushed_authorized_for_one_fresh_draw",
+    "activation_commit": "a9754547a69bd44f0953dbd76d7f0bbb7d228c1d",
+    "visible_questions_sha256": "26f1eee3ce5a6aa03ade00d310839ca1e02674da5f373ea9901f8384ace99cda",
+    "source_snapshot_id": "jackknife-sample-mean-variance-known-result-v1",
+    "source_snapshot_hash": "4b0c2fab4fef7da301f4864f5b27862f3c46b930bc88803ccc4e3586519face4",
+    "source_manifest_sha256": "062bbd2e519727935f05133edced3ac9ec755c815c4b252ab8850d2edc977b95",
+    "gold_manifest_sha256": "c8fc54e1f84072c207f93e6760edfccb1d0b996b41385d46121782e8de5e74a0",
+    "gold_descriptor_hash": "07de2cbbd74cd0e58cc2908f498ac5de24076e1f966c7dc3a1c43a288a874354",
     "required_selection_properties": [
-      "a family and result not previously exposed to a scored model draw",
+      "a resampling family and result not previously exposed to a scored model draw",
       "model-visible primary sources plus evaluator-only theory, algorithm, and empirical authority frozen before activation",
       "one principal theorem, one executable ABI, and one confirmatory target rather than a bundled research program",
       "formalization optional unless the task is explicitly a proof benchmark",
       "exact claude-haiku-4-5-20251001 for every test or live evaluation agent"
     ],
     "preactivation_gates": [
-      "select one disjoint known result with a single principal theorem, executable ABI, and confirmatory target; do not reactivate any consumed frozen task",
-      "calibrate hidden semantic negatives without exposing expected values to runtime or retrieval",
-      "push the full frozen identity to both the work branch and main before the first model call"
+      "passed: one disjoint known result with a single principal theorem, executable ABI, and confirmatory target selected without reactivating a consumed task",
+      "passed: hidden semantic and executable negatives calibrated without exposing expected values to runtime or retrieval",
+      "passed: full frozen identity pushed to both the work branch and main before the first product model call"
     ],
     "fresh_live_runs": 0,
-    "boundary": "No next task is selected, frozen, or authorized for a live draw. Exact sign test, DKW, Wilson, and every prior frozen task remain closed from rerun, repair, and rescore."
+    "boundary": "Exactly one fresh product draw is authorized for this hash-frozen task using claude-haiku-4-5-20251001 for every enabled role. No consumed task may be rerun, repaired, or rescored; hidden evaluation runs only after AgentRuntime termination and cannot generate runtime feedback."
   },
   "latest_authoritative_integrated_run": {
     "id": "v436",
@@ -423,7 +435,7 @@
     ],
     "remaining_structural_problems": [
       "strict development exact source-theorem closure remains 0/2",
-      "the research ladder has fourteen active gold-configured tasks but zero passing tasks",
+      "the research ladder has fifteen active gold-configured tasks, fourteen consumed outcomes, and zero passing tasks",
       "fresh exact-sign-test L0 v1 shows that exact Haiku will use the independent referee scratch tool, but the referee's second program violated the sandbox callable ABI and no review was accepted; live tool use does not establish correct counterexample choice, interpretation, or lower false-acceptance rate",
       "fresh exact-sign-test L0 v1 completed a source-grounded Markdown theory checkpoint but stopped at independent preflight because one runtime-owned failed scratch ref had no request hash; the shared provenance contradiction is regression-fixed, but the frozen task remains 0/1",
       "the unaccepted exact-sign-test document uses a circular or imprecise median-equality derivation, overstates zero-removal validity outside the continuous theorem model, and specifies the wrong estimator callable signature; no harness fix can repair, accept, or rescore those model-authored defects",
@@ -471,7 +483,7 @@
       "scientific execution has Pyodide/WebR foundations but live R, broad package support, and precision-driven confirmatory replication need integrated evidence",
       "Formalizer has real RAG, local Lean, source revision, and semantic review but still lacks reliable exact statistical theorem closure",
       "the atomic active-project declaration context has exact-Haiku component evidence but still needs a fresh integrated Formalizer run and cross-task ablation",
-      "the research-capability ladder now has fourteen active focused tasks but still lacks a passing paper replication or hidden rederivation full task; repeated bundled S13 runs cannot substitute for this diagnostic ladder",
+      "the research-capability ladder now has fifteen active focused tasks but still lacks a passing paper replication or hidden rederivation full task; the jackknife-mean task is frozen pre-activation and repeated bundled S13 runs cannot substitute for this diagnostic ladder",
       "the active Lean foundation pins Statlib 6575d611 on Lean 4.30, while fetched Statlib origin/main 01d2a03 adds EVariable and DPI foundations on Lean 4.33. The active importable corpus and latest upstream discovery corpus must retain distinct snapshot identities until a deliberate compatibility migration succeeds",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
       "research_agent_runtime.py remains large at 24972 lines even though the canonical review path is document-native and architect_theory_execution_preflight.py has fallen to 3793 lines; any further extraction must remove a measured central responsibility rather than add another outer interface"
@@ -486,7 +498,7 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 50-55%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "0/14 passed",
+    "fully_gold_covered_research_tasks": "0/14 consumed tasks passed; 1 additional task frozen before activation",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
@@ -507,7 +519,7 @@
     "Keep failed-tool request identity distinct from successful sandbox execution. Do not relax the independent-review validator, fabricate request files or results, add a repair worker, or give the model another draw; the fallback hash binds only the exact model request and fixed execution parameters.",
     "Treat DKW v1 as two separate failures: the author-side final-SHA line-coverage gate was a misplaced deterministic readiness proxy and is now removed, while the model-authored probability equality, empty-sample ABI, and clipped-boundary defects remain unaccepted. Preserve the run at 0/1; never rerun, patch, or rescore it.",
     "Use the earlier checkpoint-readiness fields only as generic same-model feedback. Do not add turns, retries, a repair worker, mathematical validators, or a DKW-specific prompt; deterministic regression is the only post-run evidence for this change.",
-    "Select another benchmark only after a materially different shared theory or replication capability improvement, then freeze and push its model-visible sources and evaluator-only theory, algorithm, and empirical authority before any call. It must be disjoint from all fourteen prior tasks, contain one main theorem and executable target, and use exact Haiku without larger budgets.",
+    "Run the already frozen jackknife-mean benchmark exactly once from activation commit a9754547. Use exact Haiku, unchanged budgets, the hash-bound source snapshot, and evaluator-only post-runtime gold; never alter the task or evaluator after observing the result.",
     "Treat Wilson-score v1 as two separate failures: the repeated-prose preflight packet was a shared transport mistake and is regression-fixed, while the model-authored algebra, containment argument, quantile ABI, rates, and boundary conventions remain unaccepted. Preserve the run at 0/1; never rerun, patch, or rescore it.",
     "Treat Benjamini-Hochberg v1 as two separate failures: literal Markdown-anchor validation was a shared transport mistake and is regression-fixed, while the model-authored proof defects remain unaccepted. Preserve the run at 0/1; never rerun, patch, or rescore it.",
     "Validate grammar-free claim indexes and complete hash-bound reviewer inspection only on a future unrelated benchmark frozen before its first model call. Full-document read coverage is provenance, not a proof or a reason to enlarge budgets.",
