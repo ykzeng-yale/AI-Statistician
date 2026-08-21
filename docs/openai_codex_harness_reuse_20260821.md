@@ -439,3 +439,20 @@ suite passed 809 tests in 64.45 seconds. `research_agent_runtime.py` remains 24,
 lines. No Claude call, consumed-task rerun, mathematical acceptance, empirical
 credit, Lean proof, or E2E credit was produced; Fisher-z remains `0/1` and the
 scored ladder remains `0/17`.
+
+The model-owned symbolic-scratch extension is regression-validated at code commit
+`c109cedb`. The existing Python/R theory scratch tool, used by both TheoryDeveloper
+and the isolated referee, now exposes SymPy 1.14.0 and its pinned mpmath dependency
+through Pyodide 314.0.2. Package preparation caches the exact wheels; generated
+execution still has no network, secrets, or general host filesystem. The same model
+authors the expression and complete source, receives the raw observation, and decides
+whether and how to revise its Markdown/LaTeX argument.
+
+The seven-part review protocol remains seven parts. Its existing counterexample
+clause now asks the model, when computation is useful, to challenge the disputed
+intermediate claim or dependency transition rather than treating a final estimator
+or output-distribution simulation as validation of upstream algebra. This is prompt
+and tool capacity, not a symbolic validator or mandatory ritual. A real isolated
+SymPy execution passed, the focused theory/scientific/referee panel passed 133 tests,
+and the full suite passed 810 tests in 67.07 seconds. No Claude call or frozen rerun
+occurred, so no theory, empirical, proof, or E2E credit is claimed.

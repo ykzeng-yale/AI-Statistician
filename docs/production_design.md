@@ -243,8 +243,8 @@ cited source is snapshot-verified. Prior findings remain immutable records but m
 be resolved or retracted by the independent model using current evidence; runtime
 only validates lineage.
 
-The independent reviewer may author an isolated Python/R scratch countercheck and interpret its raw result in the existing tool loop.
-Runtime stores hash-bound lineage only; the result is exploratory, never confirmatory/proof, and adds no reviewer, vote, repair worker, or route.
+The independent reviewer may author an isolated Python/R/SymPy scratch countercheck and interpret its raw result in the existing tool loop.
+When useful it targets the disputed intermediate claim; final-output agreement cannot establish that derivation. Runtime stores hash-bound lineage only: exploratory, never confirmatory/proof, with no added reviewer, vote, repair worker, or route.
 
 ## Lean formalization workspace
 

@@ -1,13 +1,13 @@
 {
-  "schema_version": 108,
+  "schema_version": 109,
   "updated_at": "2026-08-21",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "6c850df77acd674e38160e0e207d08089372988f",
+  "validated_code_head": "c109cedb145eddf598ac15ea10e95e3730214511",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. Commit 6c850df7 replaces the document-native TheoryDeveloper's truncated four-list downstream alignment with one exact claim-ID handoff shared by AlgorithmEngineer, SimulationEngineer, and Formalizer. The complete compact claim DAG is preserved, provider schemas bind exact IDs, and independent generated-code review receives selected claims plus their declared dependency closure. This improves cross-agent communication and provenance only: it does not validate the claims, repair the consumed Fisher-z derivation, or create a new live result. Fisher-z remains 0/1 and all seventeen scored tasks remain immutable 0/17. The next priority remains model-owned adversarial claim development and review, followed by reference-based document transport rather than more packet taxonomies or another scheduler.",
+  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. Commit c109cedb exposes pinned SymPy through the existing model-owned Python/R theory scratch tool and directs TheoryDeveloper and the independent referee to challenge a disputed intermediate claim or dependency transition when symbolic or numerical computation is useful. The model still chooses every expression, program, target, interpretation, and document revision; no symbolic call is mandatory and runtime validates no mathematics. This is executable tool-capacity evidence only: it does not repair the consumed Fisher-z derivation, prove that a future referee will choose the decisive claim, or create a new live result. Fisher-z remains 0/1 and all seventeen scored tasks remain immutable 0/17. The next priority remains a future unrelated evaluation of long-horizon claim development and adversarial review, followed by reference-based document transport rather than more packet taxonomies or another scheduler.",
   "operating_principle": "Models own statistical, mathematical, Python, R, retrieval-query, Lean, and confirmatory-precision content. The harness owns isolation, immutable identity, source visibility, safety capacity, checkpoints, independent review, result blinding, frozen evaluation authority, and proof promotion. It does not author substantive fixes or scientific precision.",
   "model_policy": {
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
@@ -57,8 +57,13 @@
     ]
   },
   "validated_change": {
-    "commit": "6c850df77acd674e38160e0e207d08089372988f",
+    "commit": "c109cedb145eddf598ac15ea10e95e3730214511",
     "changes": [
+      "The existing run_theory_scratchpad tool now supports pinned SymPy 1.14.0 with mpmath 1.4.1 through the same Pyodide 314.0.2 scientific_wasm executor used for model-authored Python. Preparation resolves and caches those exact packages before execution; candidate execution remains network-denied, secret-free, filesystem-restricted, and resource-bounded.",
+      "TheoryDeveloper and the independent theory referee are told that exact model-authored symbolic reductions are available when useful. The existing seven-part review protocol now distinguishes a claim-local symbolic reduction or discriminating numerical case from simulation of a final estimator or output distribution, which cannot establish an intermediate identity. The model chooses whether to use scratch and owns every mathematical expression and interpretation.",
+      "This adds no tool name, agent, reviewer, vote, retry, tool turn, outer iteration, scheduler, repair worker, formula, task-family branch, symbolic validator, Lean grammar rule, or automatic computation. Scratch remains exploratory and NOT_PROOF_EVIDENCE; runtime cannot convert SymPy output into mathematical acceptance.",
+      "A real isolated sandbox regression expanded a generic polynomial identity with SymPy and returned identity_zero=true while preserving exact JSON output and execution boundaries. The focused scientific workspace, TheoryDeveloper, and independent-referee panel passed 133/133, and the full local suite passed 810/810 in 67.07 seconds with research_agent_runtime.py unchanged at 24,999 lines.",
+      "No Claude call, consumed benchmark rerun, hidden evaluation, mathematical acceptance, empirical credit, Lean proof, or E2E credit was produced. Future live evidence must show that an independent model voluntarily targets a decisive intermediate claim and interprets the raw symbolic or numerical observation coherently; mere tool availability is not theory authority.",
       "Document-native TheoryDeveloper packets now preserve the complete compact claim_index and every declared dependency edge for downstream workers even when rich legacy derivation, equation, and assumption rows use a three- or five-row prompt cap. A row cap can no longer silently reduce the Fisher-z twelve-claim DAG to its first three definitions.",
       "AlgorithmEngineer, SimulationEngineer, and Formalizer now share one model-facing theory_trace_alignment envelope: referenced_claim_ids plus a short rationale. Provider-native schemas enumerate the exact current claim identities; runtime validation is case-sensitive and expands accepted roots to their declared prerequisite closure for independent generated-code review. Mathematical prose, formulas, task aliases, and repair instructions are not inferred by the harness.",
       "The historical four-list fuzzy anchor parser remains read compatibility for old packets only and is no longer emitted by document-native canonical prompts. No agent, model call, retry, turn, outer iteration, scheduler, repair worker, statistical rule, Lean grammar rule, or runtime fallback was added; research_agent_runtime.py remains 24,999 lines.",
@@ -610,6 +615,7 @@
       "the parent Theory body is now reference-only across revision persistence and resume, but revision bindings still copy routed reviewer feedback and downstream prompts still transport document bodies plus selected typed ABIs after choosing exact claim references",
       "hash-bound author and independent-reviewer document search and line reads now have live Wilson evidence through complete document inspection, but the reviewer produced no accepted packet and operator audit found substantive author errors, so they still do not establish correct derivation or judgment",
       "the independent preflight still ends in one compact runtime-validated verdict after model-owned document and source inspection; its mathematical protocol and scratchpad boundary remain model judgment, and no frozen task may be rerun merely to test prompt luck",
+      "pinned SymPy now executes through the shared model-owned theory scratch tool, but this has deterministic sandbox evidence only; no fresh unrelated model run shows that TheoryDeveloper or the referee selects the decisive intermediate claim, writes the correct symbolic reduction, or interprets its result coherently",
       "the corrected terminal Critic and exact-citation interface has regression and frozen-replay evidence only; exact-Haiku previously false-accepted the bad KM theory, and no fresh unrelated source-grounded draw has tested whether exact citations improve judgment",
       "the post-v5 confirmatory terminal-routing simplification has deterministic regression evidence but no fresh live capability evidence; another HC0 draw is not justified solely to validate routing",
       "live Crossref/GitHub scouting and the current model-visible source snapshot support bounded public discovery, exact local paper/code reading, and one real immutable rerun, but they do not yet form full paper/code/data acquisition, durable snapshot curation, or a general replication workspace",
@@ -639,15 +645,15 @@
   "current_structure": {
     "research_agent_runtime_lines": 24999,
     "scientific_code_workspace_lines": 2213,
-    "theory_workspace_lines": 3467,
+    "theory_workspace_lines": 3469,
     "research_architect_lines": 5237,
-    "architect_theory_execution_preflight_lines": 4761,
+    "architect_theory_execution_preflight_lines": 5225,
     "architect_metric_contract_authoring_lines": 2822,
     "formalizer_llm_lines": 2418,
     "agent_runtime_lines": 1207,
     "cli_lines": 7138,
     "top_level_python_modules": 142,
-    "top_level_package_lines": 147326,
+    "top_level_package_lines": 147339,
     "latest_runtime_manifest_bytes": 50953
   },
   "next_gates": [
@@ -679,7 +685,7 @@
     "Before activating the next source task, freeze separate evaluator authority for exact replication identity and calibrated report interpretation. The generic mechanism now exists, but a correct source rerun still must not imply that mathematical prose is correct and no authority may be added after observing a run.",
     "Evaluate the document-diverse source policy only on the next unrelated frozen source task, with separate source-identity and report-interpretation authority. Do not rerun DoubleML or add a task-specific literature router merely to validate the policy.",
     "Keep both theory-review failures as hard negatives: the KM judge calibrated only 4/5, while the James-Stein judge calibrated 7/7 yet false-accepted a mathematically incoherent candidate. Do not turn calibration, an ensemble vote, repeated sampling, or availability of a scratch tool into theory authority; require claim-linked equation inspection, dependency checks, and model-owned counterderivations before another capability claim.",
-    "On a future unrelated pre-frozen task, record whether the independent referee voluntarily uses its Python/R scratch tool, whether the program targets a decisive claim, and whether its report interprets the raw observation coherently. Do not require a scratch call, add tool turns, or rerun an old candidate merely to produce usage evidence.",
+    "On a future unrelated pre-frozen task, record whether the independent referee voluntarily uses its Python/R/SymPy scratch capacity, whether the program targets a decisive intermediate claim rather than only final behavior, and whether its report interprets the raw observation coherently. Do not require a scratch call, add tool turns, or rerun an old candidate merely to produce usage evidence.",
     "Continue content-addressing only where measured recursive payload duplication remains: next examine copied reviewer feedback and consumer-specific ABI handoffs, reusing the same blackboard references without a router, graph service, compatibility shape, or new agent.",
     "Now that document-native consumers select exact claim IDs, move large authoritative document bodies and remaining selected ABI payloads behind scoped hash-bound reads where this measurably reduces prompt duplication. Reuse the existing artifact store and workspace tools; do not add a graph service, router, compatibility packet, or repair layer.",
     "Preserve the fresh quantile evidence that not_applicable lanes stay absent and required theory stays fail-closed. Validate optional-lane Architect selection later on an unrelated frozen task without changing routing after observing outcomes.",
