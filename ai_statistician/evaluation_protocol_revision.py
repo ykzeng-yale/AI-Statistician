@@ -22,10 +22,8 @@ from .metric_protocol_stage import (
 )
 from .research_schema import OpenResearchQuestion
 from .theory_revision_lineage import (
-    RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY,
+    RUNTIME_THEORY_REVISION_PROGRESS_CONTEXT_KEY,
 )
-
-
 EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION = 1
 
 
@@ -95,15 +93,15 @@ def metric_protocol_preexecution_review_observation_errors(
         revision_count = int(
             feedback.get("upstream_theory_revision_count", 0) or 0
         )
-        max_revisions = int(feedback.get("max_upstream_theory_revisions", 0) or 0)
     except (TypeError, ValueError):
         revision_count = 0
-        max_revisions = 0
-        errors.append("feedback revision budget is not integer-valued")
+        errors.append("feedback theory revision count is not integer-valued")
     if revision_count <= 0:
         errors.append("feedback upstream theory revision count must be positive")
-    if max_revisions <= 0 or revision_count > max_revisions:
-        errors.append("feedback upstream theory revision budget is invalid")
+    if feedback.get("continuation_budget_authority") != (
+        "AgentRuntime.max_iterations"
+    ):
+        errors.append("feedback continuation budget authority is invalid")
 
     parent = parent_theory_packet or {}
     if not isinstance(parent, Mapping) or not parent:
@@ -206,7 +204,6 @@ def architect_metric_requirement_validation_failure_result(
     architect_context: Mapping[str, Any],
     blackboard: BlackboardState,
     exc: PacketValidationError,
-    max_upstream_theory_revisions: int,
     runtime_architect_control: Mapping[str, Any] | None = None,
 ) -> AgentStepResult:
     """Fail closed after exhausted authoring without laundering candidate choices."""
@@ -247,7 +244,6 @@ def architect_metric_requirement_validation_failure_result(
         0,
         int(metric_gate.get("upstream_theory_revision_count", 0) or 0),
     )
-    revision_limit = max(0, int(max_upstream_theory_revisions or 0))
     failure_id = "architect_metric_requirement_validation_failure:" + stable_hash(
         [
             question.id,
@@ -298,7 +294,7 @@ def architect_metric_requirement_validation_failure_result(
         "source_theory_packet_id": source_theory_packet_id,
         "source_theory_packet_hash": source_theory_packet_hash,
         "upstream_theory_revisions_used": revisions_used,
-        "max_upstream_theory_revisions": revision_limit,
+        "continuation_budget_authority": "AgentRuntime.max_iterations",
         "upstream_theory_revision_routed": False,
         "execution_authorized": False,
         "proof_evidence_status": (
@@ -619,7 +615,6 @@ def architect_preexecution_metric_protocol_rejection_result(
     question: OpenResearchQuestion,
     semantic_review_history: list[dict[str, Any]],
     architect_context: Mapping[str, Any] | None = None,
-    max_upstream_theory_revisions: int = 0,
 ) -> AgentStepResult:
     context = dict(architect_context or {})
     history = [dict(row) for row in semantic_review_history]
@@ -649,7 +644,6 @@ def architect_preexecution_metric_protocol_rejection_result(
     upstream_theory_revision_count = int(
         metric_gate.get("upstream_theory_revision_count", 0) or 0
     )
-    max_theory_revisions = max(0, int(max_upstream_theory_revisions or 0))
     prior_finding_resolution_summary = final_review.get(
         "prior_finding_resolution_summary", {}
     )
@@ -680,9 +674,9 @@ def architect_preexecution_metric_protocol_rejection_result(
         or not prior_active_finding_ids
         or prior_finding_progress_made
     )
-    theory_revision_budget_available = bool(
+    theory_revision_continuation_authorized = bool(
         theory_execution_preflight_rejected
-        and upstream_theory_revision_count < max_theory_revisions
+        and preflight_revision_progressed
     )
     source_theory_packet_id = str(
         final_review.get("source_theory_packet_id", "")
@@ -771,7 +765,7 @@ def architect_preexecution_metric_protocol_rejection_result(
         "rejected_lineage_preserved": True,
         "feedback_reusable_for_fresh_preexecution_authoring": True,
         "upstream_theory_revision_count": upstream_theory_revision_count,
-        "max_upstream_theory_revisions": max_theory_revisions,
+        "continuation_budget_authority": "AgentRuntime.max_iterations",
         "upstream_theory_revision_routed": False,
         "architect_route_requested": False,
         "runtime_selected_owner": False,
@@ -796,8 +790,8 @@ def architect_preexecution_metric_protocol_rejection_result(
         (
             "Independent theory-to-execution preflight rejected the current "
             "TheoryDeveloper handoff before metric authoring. Full review lineage "
-            "is preserved for a bounded theory revision; no coding or simulation "
-            "execution is authorized."
+            "is preserved for same-owner revision under the existing outer runtime "
+            "budget; no coding or simulation execution is authorized."
         )
         if theory_execution_preflight_rejected
         else (
@@ -811,15 +805,14 @@ def architect_preexecution_metric_protocol_rejection_result(
     if (
         theory_execution_preflight_rejected
         and not preflight_revision_progressed
-        and not theory_revision_budget_available
     ):
         failure_classification = "architect_theory_execution_preflight_stalled"
         rationale = (
             "Fresh independent review closed none of the prior theory-preflight "
-            "findings and the global theory-revision budget is exhausted. No coding "
-            "or simulation execution is authorized."
+            "findings, so the lineage is stagnant. No coding or simulation execution "
+            "is authorized."
         )
-    if theory_revision_budget_available:
+    if theory_revision_continuation_authorized:
         next_revision_count = upstream_theory_revision_count + 1
         observed_findings = [
             {
@@ -883,7 +876,7 @@ def architect_preexecution_metric_protocol_rejection_result(
             "source_theory_packet_id": source_theory_packet_id,
             "source_theory_packet_hash": source_theory_packet_hash,
             "upstream_theory_revision_count": next_revision_count,
-            "max_upstream_theory_revisions": max_theory_revisions,
+            "continuation_budget_authority": "AgentRuntime.max_iterations",
             "requirement_reviews": [
                 dict(row)
                 for row in final_review.get("requirement_reviews", []) or []
@@ -958,7 +951,7 @@ def architect_preexecution_metric_protocol_rejection_result(
                 dict.fromkeys([*prior_rejection_ids, manifest_id])
             ),
             "upstream_theory_revision_count": next_revision_count,
-            "max_upstream_theory_revisions": max_theory_revisions,
+            "continuation_budget_authority": "AgentRuntime.max_iterations",
             "required_disposition": (
                 "SOURCE_THEORY_WORKSPACE_REVISION_THEN_FRESH_PREEXECUTION_REVIEW"
             ),
@@ -968,13 +961,9 @@ def architect_preexecution_metric_protocol_rejection_result(
                 "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
             ),
         }
-        next_context[RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY] = {
+        next_context[RUNTIME_THEORY_REVISION_PROGRESS_CONTEXT_KEY] = {
             "revisions_used": next_revision_count,
-            "max_revisions": max_theory_revisions,
-            "budget_exhausted": bool(
-                max_theory_revisions <= 0
-                or next_revision_count >= max_theory_revisions
-            ),
+            "continuation_budget_authority": "AgentRuntime.max_iterations",
             "reset_scope": "fresh_question_runtime_only",
         }
         status = "REROUTE"
@@ -1014,8 +1003,8 @@ def architect_preexecution_metric_protocol_rejection_result(
         rationale = (
             "Independent theory preflight rejected the current source artifact. "
             "The exact observations return directly to the same TheoryDeveloper "
-            "workspace under the bounded revision budget; no Architect routing "
-            "model call or runtime-authored repair is used."
+            "workspace under the existing AgentRuntime iteration budget; no "
+            "Architect routing model call or runtime-authored repair is used."
         )
 
     evidence = EvidenceLedgerEntry(
@@ -1025,7 +1014,7 @@ def architect_preexecution_metric_protocol_rejection_result(
         evidence_type="metric_protocol_preexecution_rejection",
         status=(
             "THEORY_PREFLIGHT_REJECTED_SOURCE_WORKSPACE_REVISION_REQUESTED"
-            if theory_revision_budget_available
+            if theory_revision_continuation_authorized
             else "PREEXECUTION_PROTOCOL_REJECTED_SOURCE_WORKSPACE_EXHAUSTED"
             if not theory_execution_preflight_rejected
             else "PREEXECUTION_PROTOCOL_REJECTED_NO_EXECUTION_AUTHORIZED"

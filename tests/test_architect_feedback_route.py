@@ -147,7 +147,7 @@ def _post_result_theory_revision_context(
             },
             "execution_results_observed": execution_results_observed,
             "upstream_theory_revision_count": 1,
-            "max_upstream_theory_revisions": 1,
+            "continuation_budget_authority": "AgentRuntime.max_iterations",
         },
         revised_theory_packet_id=current_packet_id,
         revised_theory_packet_hash=current_packet_hash,
@@ -1037,7 +1037,7 @@ def test_exploratory_simulation_does_not_require_algorithm_handoff() -> None:
     assert "SimulationEvaluator" in payload["available_route_subsystems"]
 
 
-def test_question_theory_revision_budget_does_not_reset_on_new_feedback() -> None:
+def test_theory_revision_round_does_not_create_a_second_route_budget() -> None:
     feedback = {
         "feedback_id": "feedback:new-post-simulation-observation",
         "feedback_type": "generated_simulation_sandbox_execution_feedback",
@@ -1045,15 +1045,14 @@ def test_question_theory_revision_budget_does_not_reset_on_new_feedback() -> Non
         "runtime_errors": ["metric_path /estimate resolved no values"],
     }
     context = {
-        "runtime_theory_revision_budget": {
+        "runtime_theory_revision_progress": {
             "revisions_used": 1,
-            "max_revisions": 2,
-            "budget_exhausted": False,
+            "continuation_budget_authority": "AgentRuntime.max_iterations",
         },
         "architect_metric_protocol_gate": {
             "artifact_kind": "RuntimeArchitectMetricProtocolGate",
             "upstream_theory_revision_count": 2,
-            "max_upstream_theory_revisions": 2,
+            "continuation_budget_authority": "AgentRuntime.max_iterations",
             "source_theory_packet_id": "theory:second-revision",
         }
     }
@@ -1065,36 +1064,18 @@ def test_question_theory_revision_budget_does_not_reset_on_new_feedback() -> Non
     )
     payload = json.loads(prompt.rsplit("\n\n", 1)[1])
 
-    assert "TheoryDeveloper" not in payload["available_route_subsystems"]
-    assert "TheoryDeveloper" in payload["unavailable_route_subsystems"]
+    assert "TheoryDeveloper" in payload["available_route_subsystems"]
+    assert "TheoryDeveloper" not in payload["unavailable_route_subsystems"]
     assert payload["active_runtime_context"][
         "architect_metric_protocol_gate"
     ]["upstream_theory_revision_count"] == 2
     assert payload["active_runtime_context"][
-        "architect_metric_protocol_gate"
-    ]["max_upstream_theory_revisions"] == 2
-    assert payload["active_runtime_context"][
-        "runtime_theory_revision_budget"
+        "runtime_theory_revision_progress"
     ] == {
         "revisions_used": 2,
-        "max_revisions": 2,
-        "budget_exhausted": True,
+        "continuation_budget_authority": "AgentRuntime.max_iterations",
         "reset_scope": "fresh_question_runtime_only",
     }
-
-    reserved_feedback = {
-        **feedback,
-        "artifact_kind": "RuntimeMetricProtocolPreExecutionReviewObservation",
-        "upstream_theory_revision_count": 2,
-        "max_upstream_theory_revisions": 2,
-    }
-    reserved_prompt = build_architect_feedback_route_prompt(
-        question=_question(),
-        architect_context=context,
-        environment_feedback=reserved_feedback,
-    )
-    reserved_payload = json.loads(reserved_prompt.rsplit("\n\n", 1)[1])
-    assert "TheoryDeveloper" in reserved_payload["available_route_subsystems"]
 
 
 def test_terminal_critic_waits_for_routable_required_workspace() -> None:

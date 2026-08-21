@@ -332,7 +332,6 @@ class ResearchAgentRuntimeConfig:
     max_subsystem_retries: int = 1
     max_critic_revision_rounds: int = 1
     generated_code_semantic_review_max_revisions: int = 1
-    metric_protocol_max_upstream_theory_revisions: int = 1
     formal_target_semantic_review_required: bool = False
     formal_target_semantic_review_max_revisions: int = 1
     resume_through_architect: bool = False
@@ -898,14 +897,6 @@ def _architect_theory_preflight_accepted_result(
         0,
         int(prior_metric_gate.get("upstream_theory_revision_count", 0) or 0),
     )
-    max_upstream_theory_revisions = max(
-        0,
-        int(
-            prior_metric_gate.get("max_upstream_theory_revisions", 0)
-            or runtime_config.metric_protocol_max_upstream_theory_revisions
-            or 0
-        ),
-    )
     context["architect_metric_protocol_gate"] = {
         **{
             key: value
@@ -920,7 +911,7 @@ def _architect_theory_preflight_accepted_result(
         "source_theory_packet_id": theory_packet_id,
         "source_theory_packet_hash": theory_packet_hash,
         "upstream_theory_revision_count": upstream_theory_revision_count,
-        "max_upstream_theory_revisions": max_upstream_theory_revisions,
+        "continuation_budget_authority": "AgentRuntime.max_iterations",
         "required_disposition": (
             "IMPLEMENTATION_ACCEPTED_BEFORE_METRIC_AUTHORING"
         ),
@@ -1278,9 +1269,6 @@ class ArchitectCoordinatorRuntimeSubsystem:
                     question=question,
                     semantic_review_history=exc.semantic_review_history,
                     architect_context=context,
-                    max_upstream_theory_revisions=(
-                        self.runtime_config.metric_protocol_max_upstream_theory_revisions
-                    ),
                 )
             except PacketValidationError as exc:
                 return architect_metric_semantic_review_validation_failure_result(
@@ -1705,9 +1693,6 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 question=question,
                 semantic_review_history=exc.semantic_review_history,
                 architect_context=context,
-                max_upstream_theory_revisions=(
-                    self.runtime_config.metric_protocol_max_upstream_theory_revisions
-                ),
             )
         except PacketValidationError as exc:
             if exc.validation_label == "LLM Architect metric-requirement packet":
@@ -1717,9 +1702,6 @@ class ArchitectCoordinatorRuntimeSubsystem:
                     architect_context=context,
                     blackboard=blackboard,
                     exc=exc,
-                    max_upstream_theory_revisions=(
-                        self.runtime_config.metric_protocol_max_upstream_theory_revisions
-                    ),
                     runtime_architect_control=_architect_control_payload(
                         invalidate_metric_protocol_authorization(context),
                         "ArchitectCoordinator",
@@ -1962,7 +1944,7 @@ def _architect_context_with_bound_metric_protocol_theory_material(
                 in {
                     "rejection_manifest_ids",
                     "upstream_theory_revision_count",
-                    "max_upstream_theory_revisions",
+                    "continuation_budget_authority",
                     "source_theory_revision_feedback_id",
                 }
             },
@@ -5508,12 +5490,6 @@ class TheoryDeveloperRuntimeSubsystem:
                     )
                     or 0
                 ),
-                max_upstream_theory_revisions=int(
-                    metric_protocol_revision_feedback.get(
-                        "max_upstream_theory_revisions", 0
-                    )
-                    or 0
-                ),
                 execution_results_observed=False,
             )
             binding_errors = theory_developer_revision_binding_errors(
@@ -6014,9 +5990,6 @@ class TheoryDeveloperRuntimeSubsystem:
             upstream_theory_revision_count = int(
                 prior_metric_gate.get("upstream_theory_revision_count", 0) or 0
             )
-            max_upstream_theory_revisions = int(
-                prior_metric_gate.get("max_upstream_theory_revisions", 0) or 0
-            )
             rejection_manifest_ids = [
                 str(value)
                 for value in prior_metric_gate.get(
@@ -6045,7 +6018,7 @@ class TheoryDeveloperRuntimeSubsystem:
                 ),
                 "rejection_manifest_ids": rejection_manifest_ids,
                 "upstream_theory_revision_count": upstream_theory_revision_count,
-                "max_upstream_theory_revisions": max_upstream_theory_revisions,
+                "continuation_budget_authority": "AgentRuntime.max_iterations",
                 "required_disposition": (
                     "THEORY_EXECUTION_PREFLIGHT_ACCEPTED_BEFORE_IMPLEMENTATION"
                 ),

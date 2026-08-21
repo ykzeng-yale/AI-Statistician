@@ -1399,8 +1399,8 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
         "upstream_theory_revision_count": feedback.get(
             "upstream_theory_revision_count", ""
         ),
-        "max_upstream_theory_revisions": feedback.get(
-            "max_upstream_theory_revisions", ""
+        "continuation_budget_authority": feedback.get(
+            "continuation_budget_authority", ""
         ),
         "critic_revision_round": feedback.get("critic_revision_round", ""),
         "next_critic_revision_round": feedback.get("next_critic_revision_round", ""),
@@ -3056,8 +3056,8 @@ def build_theory_developer_revision_inputs(
         "upstream_theory_revision_count": binding.get(
             "upstream_theory_revision_count", 0
         ),
-        "max_upstream_theory_revisions": binding.get(
-            "max_upstream_theory_revisions", 0
+        "continuation_budget_authority": binding.get(
+            "continuation_budget_authority", ""
         ),
         "feedback": deepcopy(dict(feedback)),
         "transport_feedback": transport_feedback,
@@ -3536,8 +3536,8 @@ def _attach_theory_workspace_revision_transport(
         "upstream_theory_revision_count": revision_inputs.get(
             "upstream_theory_revision_count", 0
         ),
-        "max_upstream_theory_revisions": revision_inputs.get(
-            "max_upstream_theory_revisions", 0
+        "continuation_budget_authority": revision_inputs.get(
+            "continuation_budget_authority", ""
         ),
         "active_unresolved_finding_ids": [
             str(value)

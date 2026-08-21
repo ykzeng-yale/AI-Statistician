@@ -31,7 +31,6 @@ from .generated_metric_contract import (
 )
 from .structured_output_retry import extract_json_object, generate_validated_json_packet
 from .metric_protocol_stage import (
-    METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
     METRIC_PROTOCOL_PHASE_NOT_REQUIRED,
     METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
@@ -49,8 +48,8 @@ from .scientific_code_workspace import (
     SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY,
 )
 from .theory_revision_lineage import (
-    RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY,
-    runtime_theory_revision_budget,
+    RUNTIME_THEORY_REVISION_PROGRESS_CONTEXT_KEY,
+    runtime_theory_revision_count,
 )
 
 
@@ -586,22 +585,15 @@ def build_architect_feedback_route_prompt(
             "runtime_evaluation_mode",
             "empirical_evaluation_phase",
             "candidate_lineage_budget",
-            RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY,
+            RUNTIME_THEORY_REVISION_PROGRESS_CONTEXT_KEY,
             "runtime_progress_snapshot",
             "architect_metric_protocol_gate",
         )
         if key in architect_context
     }
-    effective_theory_revisions, effective_theory_revision_limit = (
-        runtime_theory_revision_budget(architect_context)
-    )
-    active_runtime_context[RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY] = {
-        "revisions_used": effective_theory_revisions,
-        "max_revisions": effective_theory_revision_limit,
-        "budget_exhausted": bool(
-            effective_theory_revision_limit <= 0
-            or effective_theory_revisions >= effective_theory_revision_limit
-        ),
+    active_runtime_context[RUNTIME_THEORY_REVISION_PROGRESS_CONTEXT_KEY] = {
+        "revisions_used": runtime_theory_revision_count(architect_context),
+        "continuation_budget_authority": "AgentRuntime.max_iterations",
         "reset_scope": "fresh_question_runtime_only",
     }
     active_runtime_context["active_artifact_refs"] = {
@@ -953,32 +945,6 @@ def _architect_feedback_route_subsystems(
         ).strip()
         if consumer_budget_exhausted and exhausted_owner:
             unavailable.add(exhausted_owner)
-    revisions_used, max_revisions = runtime_theory_revision_budget(
-        architect_context
-    )
-    reserved_preexecution_revision = bool(
-        environment_feedback.get("artifact_kind")
-        == METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND
-        and revisions_used > 0
-        and revisions_used
-        == _architect_gap_int(
-            environment_feedback.get("upstream_theory_revision_count", 0),
-            fallback=0,
-        )
-        and revisions_used <= max_revisions
-    )
-    if (
-        max_revisions <= 0
-        or (
-            revisions_used >= max_revisions
-            and not reserved_preexecution_revision
-        )
-    ):
-        available = [
-            subsystem
-            for subsystem in available
-            if subsystem != "TheoryDeveloper"
-        ]
     if isinstance(budget, Mapping):
         feedback_id = str(
             environment_feedback.get("active_observation_id", "")

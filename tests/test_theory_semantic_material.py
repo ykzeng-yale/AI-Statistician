@@ -258,7 +258,6 @@ def test_theory_revision_binding_uses_exact_nonproof_parent_reference() -> None:
         parent_theory_packet=packet,
         feedback_id=feedback["feedback_id"],
         upstream_theory_revision_count=1,
-        max_upstream_theory_revisions=1,
         execution_results_observed=True,
     )
 
@@ -266,6 +265,17 @@ def test_theory_revision_binding_uses_exact_nonproof_parent_reference() -> None:
         binding,
         question_id="question:consumer-neutral",
     ) == []
+    assert binding["continuation_budget_authority"] == (
+        "AgentRuntime.max_iterations"
+    )
+    tampered_binding = dict(binding)
+    tampered_binding["continuation_budget_authority"] = "local_revision_cap"
+    assert "theory revision binding has invalid budget authority" in (
+        theory_developer_revision_binding_errors(
+            tampered_binding,
+            question_id="question:consumer-neutral",
+        )
+    )
     assert binding["parent_theory_packet_ref"] == {
         "artifact_kind": "RuntimeArtifactRef",
         "reference_scope": "runtime_blackboard",

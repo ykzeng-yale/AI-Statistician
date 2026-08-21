@@ -3349,7 +3349,6 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
                 "execution_authorized": False,
             },
         },
-        max_upstream_theory_revisions=1,
     )
     manifest = next(
         artifact
@@ -3374,6 +3373,9 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
     assert result.next_task.inputs["environment_feedback"][
         "preexecution_evidence_authority"
     ] == authority
+    assert result.next_task.inputs["environment_feedback"][
+        "continuation_budget_authority"
+    ] == "AgentRuntime.max_iterations"
     assert "architect_route_required" not in result.next_task.inputs[
         "environment_feedback"
     ]
@@ -3469,7 +3471,6 @@ def test_metric_review_exhaustion_blocks_in_source_workspace() -> None:
                 "execution_authorized": False,
             },
         },
-        max_upstream_theory_revisions=2,
     )
 
     assert result.status == "BLOCKED"
@@ -3487,7 +3488,7 @@ def test_metric_review_exhaustion_blocks_in_source_workspace() -> None:
     )
 
 
-def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -> None:
+def test_preflight_stops_when_no_prior_finding_closes() -> None:
     rejected_packet, _backend = _review(accept=False)
     finding_id = rejected_packet["active_unresolved_finding_ids"][0]
     history = [
@@ -3550,49 +3551,19 @@ def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -
                 "execution_authorized": False,
             },
         },
-        max_upstream_theory_revisions=2,
     )
 
-    assert result.status == "REROUTE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "TheoryDeveloper"
-    assert result.next_task.inputs["architect_context"][
-        "runtime_theory_revision_budget"
-    ] == {
-        "revisions_used": 2,
-        "max_revisions": 2,
-        "budget_exhausted": True,
-        "reset_scope": "fresh_question_runtime_only",
-    }
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
     assert result.failure_classification == (
-        "theory_execution_preflight_returned_to_source_workspace"
+        "architect_theory_execution_preflight_stalled"
     )
     manifest = next(iter(result.produced_artifacts.values()))
     assert manifest["preflight_revision_stalled"] is True
-    assert manifest["upstream_theory_revision_routed"] is True
+    assert manifest["upstream_theory_revision_routed"] is False
     assert manifest["architect_route_requested"] is False
     assert "source_workspace_return_requested" not in manifest
     assert manifest["runtime_selected_owner"] is False
-    progress = result.next_task.inputs["environment_feedback"][
-        "progress_observation"
-    ]
-    assert progress["same_lineage_no_progress_observed"] is True
-    assert progress["runtime_selected_disposition"] is False
-    current_reviews = result.next_task.inputs["environment_feedback"][
-        "current_unresolved_finding_reviews"
-    ]
-    assert current_reviews == [
-        {
-            "finding_id": finding_id,
-            "status": "UNRESOLVED",
-            "rationale": (
-                "The current parent now covers the bounded branch, but its "
-                "unbounded branch still lacks a current derivation."
-            ),
-            "evidence_refs": ["theory.derivation_steps"],
-            "source_evidence_refs": ["preflight_source_hit:current"],
-        }
-    ]
 
 
 def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
@@ -3683,19 +3654,97 @@ def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
                 "execution_authorized": False,
             },
         },
-        max_upstream_theory_revisions=2,
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "architect_theory_execution_preflight_stalled"
+    )
+    manifest = next(iter(result.produced_artifacts.values()))
+    assert manifest["preflight_revision_progressed"] is False
+    assert manifest["preflight_revision_stalled"] is True
+    assert manifest["upstream_theory_revision_routed"] is False
+    assert manifest["architect_route_requested"] is False
+    assert "source_workspace_return_requested" not in manifest
+    assert manifest["runtime_selected_owner"] is False
+
+
+def test_preflight_progress_can_continue_after_many_revision_rounds() -> None:
+    rejected_packet, _backend = _review(accept=False)
+    prior_finding_id = rejected_packet["active_unresolved_finding_ids"][0]
+    new_finding_id = "theory:newly-discovered-gap"
+    history = [
+        {
+            "revision_index": 8,
+            "review_stage": "theory_execution_preflight",
+            "source_theory_packet_id": "theory_derivation:round-eight",
+            "source_theory_packet_hash": "round-eight-hash",
+            "semantic_review_packet_id": rejected_packet["packet_id"],
+            "overall_verdict": "REVISE",
+            "prior_finding_reviews": [
+                {
+                    "finding_id": prior_finding_id,
+                    "status": "RESOLVED",
+                    "rationale": "The revised document now supplies the argument.",
+                    "evidence_refs": ["theory_document:claim"],
+                }
+            ],
+            "findings": [
+                {
+                    "finding_id": new_finding_id,
+                    "severity": "medium",
+                    "category": "new_dependency_gap",
+                    "summary": "A newly introduced dependent claim needs support.",
+                    "observed_behavior": "The dependent claim has no cited step.",
+                    "expected_behavior": "The dependency is derived or withdrawn.",
+                    "evidence_refs": ["theory_document:new_claim"],
+                }
+            ],
+            "active_unresolved_finding_ids": [new_finding_id],
+            "prior_finding_resolution_summary": {
+                "prior_active_finding_ids": [prior_finding_id],
+                "resolved_prior_finding_ids": [prior_finding_id],
+                "still_unresolved_prior_finding_ids": [],
+                "new_finding_ids": [new_finding_id],
+                "progress_made": True,
+                "stalled": False,
+            },
+        }
+    ]
+
+    result = architect_preexecution_metric_protocol_rejection_result(
+        task=AgentTask(
+            task_id="architect:progressive-round-eight",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Continue a progressing theory lineage.",
+        ),
+        question=_question(),
+        semantic_review_history=history,
+        architect_context={
+            "theory_packet_id": "theory_derivation:round-eight",
+            "architect_metric_protocol_gate": {
+                "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                "source_theory_packet_id": "theory_derivation:round-eight",
+                "upstream_theory_revision_count": 8,
+                "execution_authorized": False,
+            },
+        },
     )
 
     assert result.status == "REROUTE"
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "TheoryDeveloper"
-    assert result.failure_classification == (
-        "theory_execution_preflight_returned_to_source_workspace"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["upstream_theory_revision_count"] == 9
+    assert feedback["continuation_budget_authority"] == (
+        "AgentRuntime.max_iterations"
     )
-    manifest = next(iter(result.produced_artifacts.values()))
-    assert manifest["preflight_revision_progressed"] is False
-    assert manifest["preflight_revision_stalled"] is True
-    assert manifest["upstream_theory_revision_routed"] is True
-    assert manifest["architect_route_requested"] is False
-    assert "source_workspace_return_requested" not in manifest
-    assert manifest["runtime_selected_owner"] is False
+    progress = result.next_task.inputs["architect_context"][
+        "runtime_theory_revision_progress"
+    ]
+    assert progress == {
+        "revisions_used": 9,
+        "continuation_budget_authority": "AgentRuntime.max_iterations",
+        "reset_scope": "fresh_question_runtime_only",
+    }

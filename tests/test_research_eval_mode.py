@@ -545,14 +545,12 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     assert args.serious_theory_max_tokens >= 16000
     assert args.llm_timeout_seconds == 360.0
     assert args.max_iterations == 24
-    assert args.architect_metric_protocol_max_upstream_theory_revisions == 2
 
     parsed = build_parser().parse_args(
         ["research-agent-runtime", "--research-eval"]
     )
     assert parsed.research_eval is True
     assert parsed.capability_eval is False
-    assert parsed.architect_metric_protocol_max_upstream_theory_revisions == 1
     with pytest.raises(SystemExit):
         build_parser().parse_args(
             [
@@ -563,7 +561,7 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
         )
 
 
-def test_full_live_safety_ceiling_does_not_preempt_bounded_revision_paths() -> None:
+def test_full_live_outer_iteration_ceiling_governs_revision_paths() -> None:
     args = build_parser().parse_args(
         [
             "research-agent-runtime",
@@ -576,7 +574,6 @@ def test_full_live_safety_ceiling_does_not_preempt_bounded_revision_paths() -> N
     _apply_research_agent_runtime_capability_eval_preset(args)
 
     assert args.max_iterations == 40
-    assert args.architect_metric_protocol_max_upstream_theory_revisions == 2
     assert args.generated_code_semantic_review_max_revisions == 2
 
 

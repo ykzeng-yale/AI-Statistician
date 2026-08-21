@@ -24,8 +24,8 @@ THEORY_DEVELOPER_REVISION_BINDING_KIND = (
 THEORY_DEVELOPER_REVISION_BINDING_NOT_PROOF_EVIDENCE = (
     "THEORY_DEVELOPER_REVISION_BINDING_NOT_PROOF_EVIDENCE"
 )
-RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY = (
-    "runtime_theory_revision_budget"
+RUNTIME_THEORY_REVISION_PROGRESS_CONTEXT_KEY = (
+    "runtime_theory_revision_progress"
 )
 THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY = (
     "runtime_resolved_theory_revision_parent_material"
@@ -255,42 +255,22 @@ def _theory_claim_reference_index(
     return claims
 
 
-def runtime_theory_revision_budget(
+def runtime_theory_revision_count(
     architect_context: Mapping[str, Any],
-    *,
-    default_max_revisions: int = 1,
-) -> tuple[int, int]:
-    """Return the strict question-level theory revision budget."""
+) -> int:
+    """Return revision lineage depth without creating a second loop budget."""
 
     context = dict(architect_context)
-    explicit_budget = _mapping(
-        context.get(RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY)
+    explicit_progress = _mapping(
+        context.get(RUNTIME_THEORY_REVISION_PROGRESS_CONTEXT_KEY)
     )
     metric_gate = _mapping(context.get("architect_metric_protocol_gate"))
-
-    revisions_used = max(
-        _nonnegative_int(explicit_budget.get("revisions_used", 0)),
+    return max(
+        _nonnegative_int(explicit_progress.get("revisions_used", 0)),
         _nonnegative_int(
             metric_gate.get("upstream_theory_revision_count", 0)
         ),
     )
-    declared_limits = []
-    if "max_revisions" in explicit_budget:
-        declared_limits.append(
-            _nonnegative_int(explicit_budget.get("max_revisions"))
-        )
-    if "max_upstream_theory_revisions" in metric_gate:
-        declared_limits.append(
-            _nonnegative_int(
-                metric_gate.get("max_upstream_theory_revisions")
-            )
-        )
-    max_revisions = (
-        min(declared_limits)
-        if declared_limits
-        else max(0, int(default_max_revisions or 0))
-    )
-    return revisions_used, max_revisions
 
 
 def build_theory_developer_revision_binding(
@@ -301,7 +281,6 @@ def build_theory_developer_revision_binding(
     parent_theory_packet: Mapping[str, Any],
     feedback_id: str,
     upstream_theory_revision_count: int,
-    max_upstream_theory_revisions: int,
     execution_results_observed: bool,
     source_review_packet_id: str = "",
     source_review_execution_id: str = "",
@@ -329,9 +308,7 @@ def build_theory_developer_revision_binding(
         "upstream_theory_revision_count": max(
             0, int(upstream_theory_revision_count or 0)
         ),
-        "max_upstream_theory_revisions": max(
-            0, int(max_upstream_theory_revisions or 0)
-        ),
+        "continuation_budget_authority": "AgentRuntime.max_iterations",
         "execution_results_observed": bool(execution_results_observed),
         "execution_authorized": False,
         "source_feedback": feedback,
@@ -519,11 +496,7 @@ def build_architect_routed_theory_revision_binding(
     review_execution_id = str(
         feedback.get("semantic_review_execution_id", "") or ""
     ).strip()
-    revisions_used, max_revisions = runtime_theory_revision_budget(context)
-    if max_revisions <= 0 or revisions_used >= max_revisions:
-        errors.append(
-            "question-level TheoryDeveloper revision budget is exhausted"
-        )
+    revisions_used = runtime_theory_revision_count(context)
     binding = build_theory_developer_revision_binding(
         revision_source="architect_routed_environment_observations",
         question_id=question_id,
@@ -531,7 +504,6 @@ def build_architect_routed_theory_revision_binding(
         parent_theory_packet=parent_packet,
         feedback_id=str(feedback.get("feedback_id", "") or ""),
         upstream_theory_revision_count=revisions_used + 1,
-        max_upstream_theory_revisions=max_revisions,
         execution_results_observed=bool(
             feedback.get("execution_results_observed", False)
         ),
@@ -617,15 +589,9 @@ def consume_architect_routed_theory_revision(
     revisions_used = _nonnegative_int(
         revision_binding.get("upstream_theory_revision_count", 0)
     )
-    max_revisions = _nonnegative_int(
-        revision_binding.get("max_upstream_theory_revisions", 0)
-    )
-    context[RUNTIME_THEORY_REVISION_BUDGET_CONTEXT_KEY] = {
+    context[RUNTIME_THEORY_REVISION_PROGRESS_CONTEXT_KEY] = {
         "revisions_used": revisions_used,
-        "max_revisions": max_revisions,
-        "budget_exhausted": bool(
-            max_revisions <= 0 or revisions_used >= max_revisions
-        ),
+        "continuation_budget_authority": "AgentRuntime.max_iterations",
         "reset_scope": "fresh_question_runtime_only",
     }
     metric_gate = _mapping(context.get("architect_metric_protocol_gate"))
@@ -633,7 +599,7 @@ def consume_architect_routed_theory_revision(
         context["architect_metric_protocol_gate"] = {
             **metric_gate,
             "upstream_theory_revision_count": revisions_used,
-            "max_upstream_theory_revisions": max_revisions,
+            "continuation_budget_authority": "AgentRuntime.max_iterations",
         }
     for key in (
         "environment_feedback",
@@ -683,6 +649,10 @@ def theory_developer_revision_binding_errors(
         errors.append("theory revision binding is not routed to TheoryDeveloper")
     if row.get("execution_authorized") is not False:
         errors.append("theory revision binding cannot authorize execution")
+    if row.get("continuation_budget_authority") != (
+        "AgentRuntime.max_iterations"
+    ):
+        errors.append("theory revision binding has invalid budget authority")
     if row.get("proof_evidence_status") != (
         THEORY_DEVELOPER_REVISION_BINDING_NOT_PROOF_EVIDENCE
     ):

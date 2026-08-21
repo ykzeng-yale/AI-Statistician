@@ -931,7 +931,7 @@ def _metric_theory_revision_context(
         "source_metric_protocol_rejection_manifest_id": "metric-rejection:targeted",
         "execution_authorized": False,
         "upstream_theory_revision_count": 1,
-        "max_upstream_theory_revisions": 2,
+        "continuation_budget_authority": "AgentRuntime.max_iterations",
         "architect_route_required": True,
         "runtime_selected_owner": False,
         "findings": [
@@ -956,7 +956,6 @@ def _metric_theory_revision_context(
         parent_theory_packet=parent_artifact,
         feedback_id=feedback["feedback_id"],
         upstream_theory_revision_count=1,
-        max_upstream_theory_revisions=2,
         execution_results_observed=False,
     )
     return {
@@ -2570,7 +2569,6 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
         parent_theory_packet=parent_artifact,
         feedback_id=feedback["feedback_id"],
         upstream_theory_revision_count=2,
-        max_upstream_theory_revisions=2,
         execution_results_observed=True,
         source_review_packet_id=feedback["semantic_review_packet_id"],
         source_review_execution_id=feedback["semantic_review_execution_id"],

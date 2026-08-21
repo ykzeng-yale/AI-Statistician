@@ -3915,14 +3915,6 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 )
                 or 0
             ),
-            metric_protocol_max_upstream_theory_revisions=int(
-                getattr(
-                    args,
-                    "architect_metric_protocol_max_upstream_theory_revisions",
-                    2,
-                )
-                or 0
-            ),
             formal_target_semantic_review_required=bool(
                 getattr(args, "formal_target_semantic_review_required", False)
             ),
@@ -4126,17 +4118,6 @@ def _apply_research_agent_runtime_research_eval_profile(
             or 0
         ),
     )
-    args.architect_metric_protocol_max_upstream_theory_revisions = max(
-        2,
-        int(
-            getattr(
-                args,
-                "architect_metric_protocol_max_upstream_theory_revisions",
-                0,
-            )
-            or 0
-        ),
-    )
     args.max_iterations = max(
         RESEARCH_EVAL_MIN_AGENT_RUNTIME_ITERATIONS,
         int(getattr(args, "max_iterations", 0) or 0),
@@ -4265,17 +4246,6 @@ def _apply_research_agent_runtime_capability_eval_preset(
         args.max_iterations = max(
             FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS,
             int(getattr(args, "max_iterations", 0) or 0),
-        )
-        args.architect_metric_protocol_max_upstream_theory_revisions = max(
-            2,
-            int(
-                getattr(
-                    args,
-                    "architect_metric_protocol_max_upstream_theory_revisions",
-                    0,
-                )
-                or 0
-            ),
         )
         args.min_task_families = max(
             2,
@@ -6545,15 +6515,6 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "maximum full metric-contract rewrites after independent "
             "pre-execution semantic review rejects a candidate"
-        ),
-    )
-    research_agent_runtime.add_argument(
-        "--architect-metric-protocol-max-upstream-theory-revisions",
-        type=int,
-        default=1,
-        help=(
-            "maximum TheoryDeveloper revisions routed from independent "
-            "pre-execution metric review before the task fails closed"
         ),
     )
     research_agent_runtime.add_argument(

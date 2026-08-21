@@ -1008,7 +1008,7 @@ def test_resumed_theory_revision_hydrates_compact_parent_reference_once() -> Non
         ),
         "execution_authorized": False,
         "upstream_theory_revision_count": 1,
-        "max_upstream_theory_revisions": 1,
+        "continuation_budget_authority": "AgentRuntime.max_iterations",
         "findings": [
             {
                 "finding_id": "metric-finding:compact-parent",
