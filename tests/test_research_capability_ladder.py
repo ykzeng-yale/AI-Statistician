@@ -814,7 +814,7 @@ def test_ar1_ols_l0_freezes_consumed_collaboration_failure_without_resampling() 
     }
 
 
-def test_fisher_z_l0_is_frozen_and_unconsumed_before_first_runtime_draw() -> None:
+def test_fisher_z_l0_is_consumed_closed_after_one_runtime_draw() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -825,12 +825,12 @@ def test_fisher_z_l0_is_frozen_and_unconsumed_before_first_runtime_draw() -> Non
     assert candidate["level"] == "L0"
     assert candidate["family"] == "correlation_multivariate"
     assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"] == "full_task_gold_frozen_unconsumed"
+    assert candidate["activation_status"] == "full_task_gold_consumed_closed"
     evidence = candidate["activation_evidence"]
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["algorithm_reference_contract_checks"] == "12/12"
     assert evidence["algorithm_negative_variants_rejected"] == 4
     assert evidence["empirical_reference_dgps_passed"] == 3
@@ -838,6 +838,21 @@ def test_fisher_z_l0_is_frozen_and_unconsumed_before_first_runtime_draw() -> Non
     assert evidence["semantic_calibration_cases"] == 12
     assert evidence["semantic_calibration_cases_correct"] == 12
     assert evidence["semantic_reference_claims"] == 10
+    assert evidence["fresh_live_runtime_status"] == "BLOCKED"
+    assert evidence["fresh_live_runtime_terminal_kind"] == "blocked"
+    assert evidence["fresh_live_runtime_terminal_classification"] == (
+        "architect_metric_requirement_packet_validation_failed"
+    )
+    assert evidence["fresh_live_theory_checkpoint_committed"] is True
+    assert evidence["fresh_live_independent_theory_review_accepted"] is True
+    assert evidence["fresh_live_hidden_theory_semantic_passed"] is False
+    assert evidence["fresh_live_algorithm_execution_passed"] is True
+    assert evidence["fresh_live_algorithm_semantic_review_accepted"] is True
+    assert evidence["fresh_live_metric_protocol_preexecution_review_accepted"] is False
+    assert evidence["fresh_live_simulation_accepted"] is False
+    assert evidence["fresh_live_critic_accepted"] is False
+    assert evidence["fresh_live_formalizer_executions"] == 0
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
     assert evidence["activation_commit"] == (
@@ -850,6 +865,14 @@ def test_fisher_z_l0_is_frozen_and_unconsumed_before_first_runtime_draw() -> Non
         "gold_descriptor_hash",
     ):
         assert len(candidate[field]) == 64
+    for field in (
+        "fresh_live_runtime_manifest_sha256",
+        "fresh_live_hidden_gold_report_sha256",
+        "fresh_live_runtime_failure_summary_sha256",
+        "fresh_live_runtime_completion_summary_sha256",
+    ):
+        assert len(evidence[field]) == 64
+    assert Path(evidence["operator_audit_path"]).is_file()
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
         evidence["visible_questions_sha256"]

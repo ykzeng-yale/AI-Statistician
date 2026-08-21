@@ -243,12 +243,42 @@ reports a hash-bound dependency defect. There is no deterministic content
 router, repair agent, task-specific exception table, new retry, or additional
 scheduler.
 
-The same boundary applies to confirmatory design. Runtime may verify that every
-metric row names one positive, shared execution count and that the sandbox can
-accept it, but it may not choose 80, 100, or any other scientific precision on
-the model's behalf. The planning model and independent reviewer own that
-decision before execution; a mismatch or unsupported precision fails closed
-without an outcome-informed rewrite.
+The same boundary applies to confirmatory design. Runtime may verify that the
+fresh portfolio names one positive execution count and that the sandbox can
+accept it, then copy that exact model decision into evaluator ABI rows. It may
+not choose 80, 100, or any other scientific precision on the model's behalf.
+The planning model and independent reviewer own that decision before execution;
+a mismatch or unsupported precision fails closed without an outcome-informed
+rewrite.
+
+### Fisher-z live validation
+
+The frozen Fisher-z L0 draw is the first direct live validation of the current
+Codex-style Theory and Algorithm loops together. TheoryDeveloper received a
+failed localized document edit as a raw observation and corrected the document
+in the same session. AlgorithmEngineer received a real sandbox traceback for a
+nonexistent SciPy import, submitted a new complete source in the same session,
+and reached independent code acceptance. Neither path invoked a RepairAgent or
+routine Architect route.
+
+The run also establishes the limit of harness reuse. The isolated exact-Haiku
+referee used six tool turns, read the complete theory document, ran one
+model-authored scratch program, searched the frozen source snapshot, and still
+false-accepted incorrect Gaussian moment covariances and an unsupported decisive
+delta-method step. Codex-style observation binding can make mathematical work
+inspectable and iterative; it cannot turn model judgment into proof or replace
+model capability. Adding a formula parser, another vote, or a post-hoc repair
+agent would violate the intended boundary. Production may use Sonnet, while
+frozen capability tests remain exact Haiku as required.
+
+The terminal metric failure exposed a separate interface defect. One
+portfolio-level model decision was repeated in every row, and exact Haiku chose
+5,000 replicates for six rows and 300 for two invariant rows. Commit
+`fbea1af3edee3de033f29dfd79e622ed213b8495` moves that choice to one top-level
+fresh response field and copies it unchanged into evaluator rows. The affected
+panel passed 129 tests and the full suite passed 805 tests. No retry, model call,
+statistical default, frozen-path change, rerun, or rescore was added; Fisher-z
+remains `0/1`.
 
 ### Reused collaboration semantics
 
@@ -310,9 +340,9 @@ unstated hidden-check semantics. A hidden empirical check must additionally cite
 one of the compact public `empirical_claims`; no general theory schema was added.
 Structural clause references remain provenance, not proof that a hidden check is
 scientifically entailed; that preactivation audit and independent harness
-calibration remain operator responsibilities. No new live draw is authorized
-until the code is committed, the full suite passes, and a future unrelated task
-is frozen under schema v2.
+calibration remain operator responsibilities. All seventeen scored tasks are
+consumed and closed. No new live draw is authorized until a future unrelated
+task is frozen and pushed under schema v2 before its first model call.
 
 The deterministic continuation regression is complete at code commit
 `9de34cf231b59f35985170775314834eeeebaf2d`: Algorithm and simulation both
