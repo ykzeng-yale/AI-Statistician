@@ -91,10 +91,34 @@ class ClientToolInputError(ValueError):
     """A caller-reviewed tool error whose bounded detail is safe for the model."""
 
 
+class ClientToolRuntimeError(RuntimeError):
+    """A non-model-actionable tool failure with secret-free diagnostics."""
+
+    def __init__(
+        self,
+        *,
+        tool_name: str,
+        turn_index: int,
+        call_index: int,
+        exception_type: str,
+    ) -> None:
+        self.tool_name = str(tool_name)
+        self.turn_index = int(turn_index)
+        self.call_index = int(call_index)
+        self.exception_type = str(exception_type)
+        super().__init__(
+            "client tool runtime failed outside the model-actionable boundary: "
+            f"{self.tool_name} raised {self.exception_type} at turn "
+            f"{self.turn_index}, call {self.call_index}; detail withheld"
+        )
+
+
 ClientToolExecutor = Callable[
     [ClientToolCall, ClientToolExecutionContext],
     ClientToolExecutionResult,
 ]
+
+
 def run_bounded_client_tool_loop(
     *,
     backend: Any,
@@ -442,6 +466,7 @@ def run_bounded_client_tool_loop(
             else:
                 executed_by_runtime = True
                 runtime_executed_tool_calls += 1
+                runtime_failure: ClientToolRuntimeError | None = None
                 with agent_runtime_substage(
                     "client_tool_execution",
                     metadata={
@@ -470,6 +495,12 @@ def run_bounded_client_tool_loop(
                             ),
                         )
                     except Exception as exc:
+                        runtime_failure = ClientToolRuntimeError(
+                            tool_name=call.name,
+                            turn_index=turn_index,
+                            call_index=call_index,
+                            exception_type=type(exc).__name__,
+                        )
                         execution = ClientToolExecutionResult(
                             content={
                                 "ok": False,
@@ -491,6 +522,8 @@ def run_bounded_client_tool_loop(
                                 "tool_terminal": bool(execution.terminal),
                             }
                         )
+                    if runtime_failure is not None:
+                        raise runtime_failure
             if execution.terminal and not tool_definitions[call.name].terminal:
                 execution = ClientToolExecutionResult(
                     content={

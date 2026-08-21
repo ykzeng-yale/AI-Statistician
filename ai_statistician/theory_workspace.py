@@ -1721,7 +1721,12 @@ def run_theory_artifact_workspace(
                     "independent review, call commit_theory_checkpoint and explain "
                     "your own readiness judgment. There is no required number of "
                     "reads, rewrites, scratch runs, or counterexample attempts: choose "
-                    "only actions that improve the mathematics. Structural validation "
+                    "only actions that improve the mathematics. Independent read, "
+                    "search, or inspection calls whose outputs do not depend on one "
+                    "another may be batched in one model turn. Keep any write, "
+                    "execution, or terminal action after the observations it depends "
+                    "on, and make a terminal action the final call of its turn. "
+                    "Structural validation "
                     "checks the handoff contract, not whether the theory is correct. "
                     "Before committing, edit the authoritative documents into a clean "
                     "current argument: no step you have already shown false may remain "
@@ -1756,7 +1761,7 @@ def run_theory_artifact_workspace(
         max_tokens=max_tokens,
         temperature=temperature,
         tool_choice="any",
-        disable_parallel_tool_use=True,
+        disable_parallel_tool_use=False,
         enable_prompt_caching=True,
         metadata={
             **dict(request_metadata or {}),

@@ -1347,6 +1347,7 @@ def test_document_authority_persists_exact_math_and_small_handoff(
         },
     )
 
+    assert backend.requests[0].disable_parallel_tool_use is False
     assert (tmp_path / "theory" / "derivations" / "C1.md").read_text() == markdown
     assert result.evidence["changed_document_paths"] == ["derivations/C1.md"]
     assert result.evidence["n_model_document_writes"] == 1

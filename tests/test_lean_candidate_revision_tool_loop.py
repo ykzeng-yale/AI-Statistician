@@ -262,7 +262,10 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
         LEAN_SOURCE_SUBMISSION_TOOL,
         "search_formal_environment",
     }
-    assert all(request.disable_parallel_tool_use for request in backend.requests)
+    assert all(
+        request.disable_parallel_tool_use is False
+        for request in backend.requests
+    )
     initial_workspace = _initial_workspace(backend.requests[0])
     assert initial_workspace["current_lean_source"] == initial
     assert initial_workspace["latest_check_observation"][
@@ -1158,7 +1161,10 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
         "search_formal_environment",
     ]
     assert backend.requests[1].tool_choice == "any"
-    assert all(request.disable_parallel_tool_use for request in backend.requests)
+    assert all(
+        request.disable_parallel_tool_use is False
+        for request in backend.requests
+    )
 
 
 def test_lean_candidate_workspace_keeps_stable_tools_and_linear_history() -> None:

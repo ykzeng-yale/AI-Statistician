@@ -10,6 +10,7 @@ from ai_statistician.client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    ClientToolRuntimeError,
     run_bounded_client_tool_loop,
 )
 from ai_statistician.model_backend import (
@@ -662,7 +663,7 @@ def test_bounded_client_tool_loop_never_executes_unknown_tool() -> None:
     assert exc.value.runtime_executed_tool_calls == 0
 
 
-def test_bounded_client_tool_loop_exposes_only_declared_safe_error_detail() -> None:
+def test_bounded_client_tool_loop_returns_only_declared_input_errors_to_model() -> None:
     safe_backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-safe", "edit", {})),
@@ -683,14 +684,11 @@ def test_bounded_client_tool_loop_exposes_only_declared_safe_error_detail() -> N
         )
 
     internal_backend = ScriptedToolTurnBackend(
-        [
-            _response(ClientToolCall("call-internal", "edit", {})),
-            _response(text="stop"),
-        ]
+        [_response(ClientToolCall("call-internal", "edit", {}))]
     )
     secret = "private-runtime-detail"
 
-    with pytest.raises(ClientToolLoopError):
+    with pytest.raises(ClientToolRuntimeError) as exc:
         run_bounded_client_tool_loop(
             backend=internal_backend,
             request=_request(),
@@ -703,10 +701,12 @@ def test_bounded_client_tool_loop_exposes_only_declared_safe_error_detail() -> N
         )
 
     safe_result = safe_backend.requests[1].messages[-1]["content"][0]
-    internal_result = internal_backend.requests[1].messages[-1]["content"][0]
     assert "safe validator detail" in safe_result["content"]
-    assert secret not in internal_result["content"]
-    assert '"detail_withheld":true' in internal_result["content"]
+    assert len(internal_backend.requests) == 1
+    assert exc.value.tool_name == "edit"
+    assert exc.value.exception_type == "RuntimeError"
+    assert secret not in str(exc.value)
+    assert exc.value.__context__ is None
 
 
 def test_bounded_client_tool_loop_uses_existing_runtime_substage(

@@ -649,7 +649,7 @@ def run_lean_candidate_revision_tool_loop(
         max_tokens=max_tokens,
         temperature=temperature,
         tool_choice="any",
-        disable_parallel_tool_use=True,
+        disable_parallel_tool_use=False,
         enable_prompt_caching=True,
         metadata={
             **dict(request_metadata or {}),
