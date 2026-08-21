@@ -1727,7 +1727,8 @@ def run_theory_artifact_workspace(
             "kernel_verified": False,
         }
 
-    max_tool_calls = max(
+    # Reserve one control-plane terminal disposition after the research-action budget.
+    max_tool_calls = 1 + max(
         max_turns,
         max_reads
         + max_submissions

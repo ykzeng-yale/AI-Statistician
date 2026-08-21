@@ -1388,6 +1388,60 @@ def test_document_authority_persists_exact_math_and_small_handoff(
         load_theory_workspace_documents(tampered)
 
 
+def test_theory_workspace_reserves_terminal_call_after_last_valid_write() -> None:
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="read-problem-card",
+                    name="read_theory_workspace",
+                    input={"artifact_names": ["problem_card"]},
+                ),
+                ClientToolCall(
+                    call_id="read-lemma-cards",
+                    name="read_theory_workspace",
+                    input={"artifact_names": ["lemma_cards"]},
+                ),
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-valid-final-workspace",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "L1"}],
+                        }
+                    ),
+                )
+            ),
+            _response(_commit_checkpoint()),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        max_turns=3,
+        max_reads=2,
+        max_submissions=1,
+    )
+
+    valid_write_feedback = json.loads(
+        backend.requests[2].messages[-1]["content"][0]["content"]
+    )
+    assert valid_write_feedback["workspace_valid"] is True
+    assert valid_write_feedback["checkpoint_commit_ready"] is True
+    assert valid_write_feedback["_client_tool_budget"] == {
+        "standard_turns_remaining_after_current_turn": 1,
+        "model_tool_calls_remaining_after_current_call": 1,
+        "final_disposition_required": False,
+    }
+    assert result.evidence["checkpoint_committed"] is True
+    assert result.evidence["turns"] == 3
+    assert result.evidence["tool_calls"] == 4
+    assert result.evidence["runtime_executed_tool_calls"] == 4
+
+
 def test_document_authority_supports_local_edit_without_forced_reread(
     tmp_path,
 ) -> None:
