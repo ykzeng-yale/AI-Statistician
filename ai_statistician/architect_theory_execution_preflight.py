@@ -88,10 +88,22 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
     "client_tool_document_inspection_and_model_directed_source_query_v14"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = (
-    "model_authored_markdown_referee_report_with_compact_status_envelope_v1"
+    "model_owned_markdown_referee_workspace_with_compact_status_envelope_v2"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY = (
     "model_authored_markdown_referee_report"
+)
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL = (
+    "write_theory_preflight_report"
+)
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL = (
+    "edit_theory_preflight_report"
+)
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL = (
+    "read_theory_preflight_report"
+)
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REPORT_DRAFT_KIND = (
+    "TheoryExecutionPreflightReviewDraft"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
@@ -961,14 +973,13 @@ def _architect_theory_execution_preflight_submit_schema(
             },
         }
     properties: dict[str, Any] = {
-        "review_report_markdown": {
+        "review_report_sha256": {
             "type": "string",
-            "minLength": 1,
+            "pattern": "^[0-9a-f]{64}$",
             "description": (
-                "The complete mathematical referee report in readable Markdown with "
-                "LaTeX equations where useful. Reconstruct decisive steps, identify "
-                "counterexamples or uncertainties, and explain the final judgment "
-                "here instead of duplicating prose in every status slot."
+                "Exact SHA-256 returned by write_theory_preflight_report or "
+                "edit_theory_preflight_report for the current model-owned Markdown "
+                "referee report. The terminal envelope never regenerates its body."
             ),
         },
         "report_evidence_refs": {
@@ -1025,7 +1036,7 @@ def _architect_theory_execution_preflight_submit_schema(
         },
     }
     required = [
-        "review_report_markdown",
+        "review_report_sha256",
         "report_evidence_refs",
         "claim_statuses",
         "dimension_statuses",
@@ -2179,6 +2190,111 @@ def _prior_finding_semantics(value: Mapping[str, Any]) -> dict[str, Any]:
             "source_evidence_refs",
         }
     }
+
+
+def _preflight_review_draft_path(material: Mapping[str, Any]) -> Path:
+    workspace_root = str(material.get("review_workspace_root", "") or "").strip()
+    if not workspace_root:
+        raise ValueError("theory preflight review workspace is unavailable")
+    return (Path(workspace_root).expanduser().resolve() / "review-draft.md")
+
+
+def _preflight_review_draft_manifest(
+    *,
+    content: str,
+    material: Mapping[str, Any],
+    version: int,
+) -> dict[str, Any]:
+    path = _preflight_review_draft_path(material)
+    return {
+        "schema_version": 1,
+        "artifact_kind": (
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REPORT_DRAFT_KIND
+        ),
+        "content_authority": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY,
+        "media_type": "text/markdown",
+        "relative_path": path.name,
+        "path": str(path),
+        "sha256": _preflight_text_sha256(content),
+        "byte_size": len(content.encode("utf-8")),
+        "version": version,
+        "persisted": True,
+        "proof_evidence_status": (
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE
+        ),
+    }
+
+
+def _preflight_review_draft_content(
+    draft: Mapping[str, Any],
+    *,
+    material: Mapping[str, Any],
+) -> str:
+    if (
+        draft.get("schema_version") != 1
+        or draft.get("artifact_kind")
+        != ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REPORT_DRAFT_KIND
+        or draft.get("content_authority")
+        != ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY
+        or draft.get("media_type") != "text/markdown"
+        or draft.get("persisted") is not True
+        or draft.get("proof_evidence_status")
+        != ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE
+        or isinstance(draft.get("version"), bool)
+        or not isinstance(draft.get("version"), int)
+        or int(draft.get("version", 0) or 0) < 1
+    ):
+        raise ValueError("theory preflight review draft identity is invalid")
+    expected_path = _preflight_review_draft_path(material)
+    observed_path = Path(str(draft.get("path", "") or "")).expanduser().resolve()
+    if (
+        observed_path != expected_path
+        or observed_path.parent != expected_path.parent
+        or str(draft.get("relative_path", "") or "") != expected_path.name
+    ):
+        raise ValueError("theory preflight review draft path is stale")
+    if not observed_path.is_file():
+        raise ValueError("theory preflight review draft file is missing")
+    content = observed_path.read_text(encoding="utf-8")
+    byte_size = draft.get("byte_size")
+    if (
+        not content.strip()
+        or _preflight_text_sha256(content) != str(draft.get("sha256", "") or "")
+        or isinstance(byte_size, bool)
+        or not isinstance(byte_size, int)
+        or len(content.encode("utf-8")) != byte_size
+    ):
+        raise ValueError("theory preflight review draft content is stale")
+    return content
+
+
+def _write_preflight_review_draft(
+    *,
+    content: str,
+    material: Mapping[str, Any],
+    prior_draft: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], bool]:
+    if not content.strip():
+        raise ClientToolInputError(
+            "theory preflight review report must be nonempty Markdown"
+        )
+    prior = dict(prior_draft) if isinstance(prior_draft, Mapping) else {}
+    if prior and str(prior.get("sha256", "") or "") == _preflight_text_sha256(
+        content
+    ):
+        _preflight_review_draft_content(prior, material=material)
+        return prior, False
+    path = _preflight_review_draft_path(material)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    version = int(prior.get("version", 0) or 0) + 1
+    draft = _preflight_review_draft_manifest(
+        content=content,
+        material=material,
+        version=version,
+    )
+    _preflight_review_draft_content(draft, material=material)
+    return draft, True
 
 
 def _preflight_review_report_manifest(
@@ -3343,6 +3459,15 @@ def _preflight_evidence_history(
                     "[exploratory scratch output omitted from persisted review "
                     "history; use hash-bound preflight scratch execution refs]"
                 )
+            elif tool_name in {
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL,
+            }:
+                tool_call["result_excerpt"] = (
+                    "[referee report text omitted from persisted client-tool "
+                    "history; use the hash-bound review_report_draft manifest]"
+                )
     return persisted
 
 
@@ -3369,6 +3494,7 @@ def _architect_theory_preflight_workspace_checkpoint_errors(
     review_material_fingerprint: str | None = None,
     source_theory_packet_id: str | None = None,
     source_theory_packet_hash: str | None = None,
+    review_workspace_root: str | None = None,
     require_resumable: bool = True,
 ) -> list[str]:
     errors: list[str] = []
@@ -3405,6 +3531,30 @@ def _architect_theory_preflight_workspace_checkpoint_errors(
         or checkpoint.get("kernel_verified") is not False
     ):
         errors.append("checkpoint crosses the referee evidence boundary")
+
+    observed_review_workspace_root = str(
+        checkpoint.get("review_workspace_root", "") or ""
+    ).strip()
+    if observed_review_workspace_root and review_workspace_root is not None and (
+        Path(observed_review_workspace_root).expanduser().resolve()
+        != Path(review_workspace_root).expanduser().resolve()
+    ):
+        errors.append("checkpoint review workspace binding is stale")
+    review_report_draft = checkpoint.get("review_report_draft", {})
+    if not isinstance(review_report_draft, Mapping):
+        errors.append("checkpoint referee report draft manifest is malformed")
+    elif review_report_draft and not observed_review_workspace_root:
+        errors.append("checkpoint report draft has no review workspace binding")
+    elif review_report_draft:
+        try:
+            _preflight_review_draft_content(
+                review_report_draft,
+                material={
+                    "review_workspace_root": observed_review_workspace_root,
+                },
+            )
+        except (OSError, ValueError) as exc:
+            errors.append(f"checkpoint referee report draft is stale: {exc}")
 
     counter_fields = (
         "searches",
@@ -3538,6 +3688,7 @@ def load_architect_theory_preflight_workspace_checkpoint(
     review_material_fingerprint: str,
     source_theory_packet_id: str,
     source_theory_packet_hash: str,
+    review_workspace_root: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Restore exact independent-referee observations without accepting them."""
 
@@ -3547,6 +3698,7 @@ def load_architect_theory_preflight_workspace_checkpoint(
         review_material_fingerprint=review_material_fingerprint,
         source_theory_packet_id=source_theory_packet_id,
         source_theory_packet_hash=source_theory_packet_hash,
+        review_workspace_root=review_workspace_root,
     )
     if errors:
         raise PacketValidationError(
@@ -3581,6 +3733,9 @@ def load_architect_theory_preflight_workspace_checkpoint(
         "scratch_runs": int(checkpoint.get("scratch_runs", 0) or 0),
         "scratch_execution_refs": deepcopy(
             list(checkpoint.get("preflight_scratch_execution_refs", []) or [])
+        ),
+        "review_report_draft": deepcopy(
+            dict(checkpoint.get("review_report_draft", {}) or {})
         ),
         "workspace_observations": deepcopy(
             list(checkpoint.get("workspace_observations", []) or [])
@@ -3753,9 +3908,66 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         *compact_source_tools,
         *((theory_scratchpad_client_tool(),) if theory_scratchpad else ()),
         ClientToolDefinition(
+            name=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+            description=(
+                "Write one complete model-owned Markdown referee report to the "
+                "isolated review workspace. The exact bytes remain available for "
+                "later hash-bound edits and compact submission."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["content"],
+                "properties": {
+                    "content": {"type": "string", "minLength": 1},
+                },
+            },
+        ),
+        ClientToolDefinition(
+            name=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
+            description=(
+                "Apply one exact hash-bound local replacement to the current "
+                "model-owned Markdown referee report."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["expected_sha256", "old_text", "new_text"],
+                "properties": {
+                    "expected_sha256": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$",
+                    },
+                    "old_text": {"type": "string", "minLength": 1},
+                    "new_text": {"type": "string"},
+                },
+            },
+        ),
+        ClientToolDefinition(
+            name=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL,
+            description=(
+                "Read an exact inclusive line range from the current model-owned "
+                "Markdown referee report, bound to its current SHA-256."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["expected_sha256", "line_start", "line_end"],
+                "properties": {
+                    "expected_sha256": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$",
+                    },
+                    "line_start": {"type": "integer", "minimum": 1},
+                    "line_end": {"type": "integer", "minimum": 1},
+                },
+            },
+        ),
+        ClientToolDefinition(
             name="submit_theory_preflight_review",
             description=(
-                "Submit the complete preflight review. Use source_evidence_refs only "
+                "Submit the current hash-bound Markdown report with only compact "
+                "ordered statuses and actual findings. Use source_evidence_refs only "
                 "when citing handles returned by an optional source tool."
             ),
             input_schema=submit_schema,
@@ -3805,10 +4017,14 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "UNCERTAIN when it genuinely requires that downstream evidence. Keep citation "
         "namespaces distinct: evidence_refs accepts theory anchor IDs, while "
         "source_evidence_refs accepts only S...H... source handles. "
-        "Call submit_theory_preflight_review with one complete Markdown referee "
-        "report plus the compact status and finding envelope. Do not duplicate a "
-        "separate prose rationale for every claim or dimension, and do not answer "
-        "outside the tool."
+        "Develop the mathematical judgment in the isolated Markdown review workspace: "
+        "use write_theory_preflight_report for a complete report, then read or edit "
+        "that exact hash when another reasoning step changes it. Finally call "
+        "submit_theory_preflight_review with the returned review_report_sha256 plus "
+        "only the compact status and finding envelope. A report write and terminal "
+        "submission may be issued in the same turn when the terminal call is last. "
+        "Do not regenerate the report body in the terminal JSON, duplicate a separate "
+        "prose rationale for every claim or dimension, or answer outside the tools."
     )
     state: dict[str, Any] = {
         "searches": 0,
@@ -3819,6 +4035,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "document_inspection_refs": [],
         "scratch_runs": 0,
         "scratch_execution_refs": [],
+        "review_report_draft": {},
         "workspace_observations": [],
         "workspace_observation_fingerprints": set(),
         "client_tool_loop_turns": 0,
@@ -3842,6 +4059,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 source_theory_packet_hash=str(
                     material.get("source_theory_packet_hash", "") or ""
                 ),
+                review_workspace_root=str(
+                    material.get("review_workspace_root", "") or ""
+                ),
             )
         )
         state.update(restored_state)
@@ -3855,6 +4075,17 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 "prior_model_visible_tool_observations": state[
                     "workspace_observations"
                 ],
+                "review_report_draft": {
+                    key: state["review_report_draft"].get(key)
+                    for key in (
+                        "relative_path",
+                        "sha256",
+                        "byte_size",
+                        "version",
+                    )
+                    if isinstance(state["review_report_draft"], Mapping)
+                    and state["review_report_draft"].get(key) is not None
+                },
                 "remaining_source_searches": (
                     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
                     - int(state["searches"])
@@ -3867,8 +4098,10 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 "continuation_instruction": (
                     "Continue the same independent review from these exact prior "
                     "client-tool observations. They are observations, not accepted "
-                    "review conclusions. Re-read only when genuinely needed, use "
-                    "the original tools directly, and submit one complete review."
+                    "review conclusions. Re-read only when genuinely needed. When a "
+                    "review_report_draft is present, read or edit that exact hash "
+                    "instead of regenerating its prose. Use the original tools "
+                    "directly, and submit one complete review."
                 ),
             },
             sort_keys=True,
@@ -4391,6 +4624,198 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 observation_key=observation_id,
             )
 
+        if call.name == (
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL
+        ):
+            if set(tool_input) != {"content"}:
+                raise ClientToolInputError(
+                    "write_theory_preflight_report requires exactly content"
+                )
+            content = str(tool_input.get("content", "") or "")
+            draft, changed = _write_preflight_review_draft(
+                content=content,
+                material=material,
+                prior_draft=state["review_report_draft"],
+            )
+            state["review_report_draft"] = draft
+            observation = {
+                "ok": True,
+                "written": True,
+                "relative_path": draft["relative_path"],
+                "sha256": draft["sha256"],
+                "byte_size": draft["byte_size"],
+                "version": draft["version"],
+                "changed": changed,
+                "proof_evidence_status": (
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE
+                ),
+            }
+            record_workspace_observation(
+                tool=call.name,
+                tool_input={
+                    "content_sha256": draft["sha256"],
+                    "byte_size": draft["byte_size"],
+                },
+                content=observation,
+            )
+            return ClientToolExecutionResult(
+                content=observation,
+                state_changed=changed,
+                observation_key=(
+                    "theory-preflight-report-write:" + str(draft["sha256"])
+                ),
+            )
+
+        if call.name == (
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL
+        ):
+            if set(tool_input) != {
+                "expected_sha256",
+                "old_text",
+                "new_text",
+            }:
+                raise ClientToolInputError(
+                    "edit_theory_preflight_report requires exactly expected_sha256, "
+                    "old_text, and new_text"
+                )
+            draft = state["review_report_draft"]
+            if not isinstance(draft, Mapping) or not draft:
+                raise ClientToolInputError(
+                    "edit_theory_preflight_report requires a current report draft"
+                )
+            expected_sha256 = str(
+                tool_input.get("expected_sha256", "") or ""
+            )
+            if expected_sha256 != str(draft.get("sha256", "") or ""):
+                raise ClientToolInputError(
+                    "edit_theory_preflight_report expected_sha256 is stale"
+                )
+            content = _preflight_review_draft_content(draft, material=material)
+            old_text = str(tool_input.get("old_text", "") or "")
+            new_text = str(tool_input.get("new_text", "") or "")
+            if not old_text:
+                raise ClientToolInputError(
+                    "edit_theory_preflight_report old_text must be nonempty"
+                )
+            occurrences = content.count(old_text)
+            if occurrences != 1:
+                raise ClientToolInputError(
+                    "edit_theory_preflight_report old_text must occur exactly once; "
+                    f"observed={occurrences}"
+                )
+            revised = content.replace(old_text, new_text, 1)
+            if not revised.strip() or revised == content:
+                raise ClientToolInputError(
+                    "edit_theory_preflight_report must leave changed nonempty Markdown"
+                )
+            updated, changed = _write_preflight_review_draft(
+                content=revised,
+                material=material,
+                prior_draft=draft,
+            )
+            state["review_report_draft"] = updated
+            observation = {
+                "ok": True,
+                "edited": True,
+                "relative_path": updated["relative_path"],
+                "sha256": updated["sha256"],
+                "byte_size": updated["byte_size"],
+                "version": updated["version"],
+                "proof_evidence_status": (
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE
+                ),
+            }
+            record_workspace_observation(
+                tool=call.name,
+                tool_input={
+                    "expected_sha256": expected_sha256,
+                    "old_text_sha256": _preflight_text_sha256(old_text),
+                    "new_text_sha256": _preflight_text_sha256(new_text),
+                },
+                content=observation,
+            )
+            return ClientToolExecutionResult(
+                content=observation,
+                state_changed=changed,
+                observation_key=(
+                    "theory-preflight-report-edit:" + str(updated["sha256"])
+                ),
+            )
+
+        if call.name == (
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL
+        ):
+            if set(tool_input) != {
+                "expected_sha256",
+                "line_start",
+                "line_end",
+            }:
+                raise ClientToolInputError(
+                    "read_theory_preflight_report requires exactly expected_sha256, "
+                    "line_start, and line_end"
+                )
+            draft = state["review_report_draft"]
+            if not isinstance(draft, Mapping) or not draft:
+                raise ClientToolInputError(
+                    "read_theory_preflight_report requires a current report draft"
+                )
+            expected_sha256 = str(
+                tool_input.get("expected_sha256", "") or ""
+            )
+            if expected_sha256 != str(draft.get("sha256", "") or ""):
+                raise ClientToolInputError(
+                    "read_theory_preflight_report expected_sha256 is stale"
+                )
+            content = _preflight_review_draft_content(draft, material=material)
+            lines = content.splitlines()
+            line_start = tool_input.get("line_start")
+            line_end = tool_input.get("line_end")
+            if (
+                isinstance(line_start, bool)
+                or not isinstance(line_start, int)
+                or isinstance(line_end, bool)
+                or not isinstance(line_end, int)
+                or line_start < 1
+                or line_end < line_start
+                or line_end > len(lines)
+            ):
+                raise ClientToolInputError(
+                    "read_theory_preflight_report line range is invalid; "
+                    f"line_count={len(lines)}"
+                )
+            selected = "\n".join(lines[line_start - 1 : line_end])
+            observation = {
+                "ok": True,
+                "relative_path": draft["relative_path"],
+                "sha256": draft["sha256"],
+                "line_start": line_start,
+                "line_end": line_end,
+                "line_count": len(lines),
+                "content": selected,
+                "content_sha256": _preflight_text_sha256(selected),
+                "proof_evidence_status": (
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE
+                ),
+            }
+            record_workspace_observation(
+                tool=call.name,
+                tool_input=tool_input,
+                content={
+                    key: value
+                    for key, value in observation.items()
+                    if key != "content"
+                },
+            )
+            return ClientToolExecutionResult(
+                content=observation,
+                observation_key=(
+                    "theory-preflight-report-read:"
+                    + stable_hash(
+                        [draft["sha256"], line_start, line_end, selected]
+                    )
+                ),
+            )
+
         if call.name == "submit_theory_preflight_review":
             if authoritative_documents and not any(
                 ref.get("tool") == THEORY_WORKSPACE_READ_DOCUMENT_TOOL
@@ -4424,9 +4849,29 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                     is_error=True,
                     observation_key="authoritative-theory-document-read-required",
                 )
+            draft = state["review_report_draft"]
+            if not isinstance(draft, Mapping) or not draft:
+                raise ClientToolInputError(
+                    "submit_theory_preflight_review requires a model-owned Markdown "
+                    "report written with write_theory_preflight_report"
+                )
+            submitted_report_sha256 = str(
+                tool_input.get("review_report_sha256", "") or ""
+            )
+            if submitted_report_sha256 != str(draft.get("sha256", "") or ""):
+                raise ClientToolInputError(
+                    "submit_theory_preflight_review review_report_sha256 is stale"
+                )
+            report_content = _preflight_review_draft_content(
+                draft,
+                material=material,
+            )
+            materialized_tool_input = dict(tool_input)
+            materialized_tool_input.pop("review_report_sha256", None)
+            materialized_tool_input["review_report_markdown"] = report_content
             source_grounding = source_grounding_payload()
             packet = normalize_submission(
-                tool_input,
+                materialized_tool_input,
                 source_grounding=source_grounding,
                 response_model=request_model,
                 response_provider=provider_name,
@@ -4472,7 +4917,10 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 }
                 record_workspace_observation(
                     tool=call.name,
-                    tool_input=tool_input,
+                    tool_input={
+                        **tool_input,
+                        "review_report_sha256": submitted_report_sha256,
+                    },
                     content=rejection,
                     is_error=True,
                 )
@@ -4496,7 +4944,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                     ),
                 },
                 terminal=True,
-                terminal_payload={"review_payload": tool_input},
+                terminal_payload={"review_payload": materialized_tool_input},
                 observation_key="preflight-submitted:" + stable_hash(packet),
             )
         raise ClientToolInputError("unsupported preflight client tool")
@@ -4579,6 +5027,14 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 ),
                 "source_theory_packet_hash": str(
                     material.get("source_theory_packet_hash", "") or ""
+                ),
+                "review_workspace_root": str(
+                    material.get("review_workspace_root", "") or ""
+                ),
+                "review_report_draft": deepcopy(
+                    dict(state["review_report_draft"])
+                    if isinstance(state["review_report_draft"], Mapping)
+                    else {}
                 ),
                 "resumed_from_checkpoint_id": str(
                     resume_metadata["resumed_from_checkpoint_id"]

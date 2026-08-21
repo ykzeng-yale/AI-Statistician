@@ -22,8 +22,11 @@ from ai_statistician.architect_metric_contract_authoring import (
 from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT,
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND,
     _architect_theory_execution_preflight_submit_schema,
     _preflight_scratchpad_evidence_errors,
@@ -92,6 +95,9 @@ PREFLIGHT_CLIENT_TOOL_NAMES = [
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     "search_preflight_sources",
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL,
     "submit_theory_preflight_review",
 ]
 
@@ -363,6 +369,29 @@ class _ScratchPreflightBackend:
 
 
 def _tool_response(*calls: ClientToolCall) -> ClientToolTurnResponse:
+    expanded_calls: list[ClientToolCall] = []
+    for call in calls:
+        tool_input = dict(call.input)
+        if (
+            call.name == "submit_theory_preflight_review"
+            and "review_report_markdown" in tool_input
+        ):
+            report = str(tool_input.pop("review_report_markdown") or "")
+            report_sha256 = hashlib.sha256(report.encode("utf-8")).hexdigest()
+            expanded_calls.append(
+                ClientToolCall(
+                    f"{call.call_id}-write-report",
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+                    {"content": report},
+                )
+            )
+            tool_input["review_report_sha256"] = report_sha256
+            expanded_calls.append(
+                ClientToolCall(call.call_id, call.name, tool_input)
+            )
+            continue
+        expanded_calls.append(call)
+    calls = tuple(expanded_calls)
     return ClientToolTurnResponse(
         content_blocks=tuple(
             {
@@ -395,7 +424,7 @@ def _submit_schema(request) -> dict[str, object]:
 
 
 def _last_tool_result(request) -> dict[str, object]:
-    for block in request.messages[-1].get("content", []):
+    for block in reversed(request.messages[-1].get("content", [])):
         if isinstance(block, dict) and "content" in block:
             return json.loads(block["content"])
     raise AssertionError("expected a client-tool result in the latest model turn")
@@ -773,6 +802,17 @@ def _compact_submission(payload: dict[str, object]) -> dict[str, object]:
     return compact
 
 
+def _hash_bound_submission(
+    payload: dict[str, object],
+    *,
+    report_sha256: str,
+) -> dict[str, object]:
+    compact = _compact_submission(payload)
+    compact.pop("review_report_markdown", None)
+    compact["review_report_sha256"] = report_sha256
+    return compact
+
+
 def _with_test_review_workspace(
     theory_material: dict[str, object],
 ) -> dict[str, object]:
@@ -874,8 +914,8 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
-    assert packet["client_tool_loop_tool_calls"] == 2
-    assert packet["client_tool_loop_runtime_executed_tool_calls"] == 2
+    assert packet["client_tool_loop_tool_calls"] == 3
+    assert packet["client_tool_loop_runtime_executed_tool_calls"] == 3
     assert packet["runtime_selected_review_semantics"] is False
     assert packet["findings"][0]["source_evidence_refs"] == [backend.hit_id]
     assert packet["source_grounding_bindings"] == [
@@ -974,7 +1014,7 @@ def test_preflight_referee_can_run_model_owned_exploratory_scratch(
         tool.name for tool in backend.requests[0].tools
     ]
     assert packet["client_tool_loop_turns"] == 2
-    assert packet["client_tool_loop_tool_calls"] == 2
+    assert packet["client_tool_loop_tool_calls"] == 3
     assert "scratch output omitted" in packet["client_tool_loop_history"][0][
         "tool_calls"
     ][0]["result_excerpt"]
@@ -1068,6 +1108,9 @@ def test_preflight_keeps_search_tool_visible_after_its_budget_is_spent() -> None
         THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         "search_preflight_sources",
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL,
         "submit_theory_preflight_review",
     }
     assert all(
@@ -1342,6 +1385,9 @@ def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         RESEARCH_SOURCE_SEARCH_TOOL,
         RESEARCH_SOURCE_READ_TOOL,
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL,
         "submit_theory_preflight_review",
     ]
     assert "search_preflight_sources" not in backend.requests[0].messages[0][
@@ -1350,9 +1396,10 @@ def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
     assert backend.requests[0].tools[-1].strict is False
     submit_schema = backend.requests[0].tools[-1].input_schema
     assert submit_schema["properties"]["dimension_statuses"]["type"] == "array"
-    assert submit_schema["properties"]["review_report_markdown"]["type"] == (
+    assert submit_schema["properties"]["review_report_sha256"]["type"] == (
         "string"
     )
+    assert "review_report_markdown" not in submit_schema["properties"]
     assert packet["preflight_source_search_count"] == 1
     assert [
         row["source_scope"]
@@ -1670,7 +1717,11 @@ def test_preflight_client_tool_loop_returns_unknown_ref_error_for_model_repair()
 
     assert len(backend.requests) == 3
     assert packet["findings"][0]["source_evidence_refs"] == [backend.hit_id]
-    failed_submit = packet["client_tool_loop_history"][1]["tool_calls"][0]
+    failed_submit = next(
+        row
+        for row in packet["client_tool_loop_history"][1]["tool_calls"]
+        if row["name"] == "submit_theory_preflight_review"
+    )
     assert failed_submit["name"] == "submit_theory_preflight_review"
     assert failed_submit["is_error"] is True
     assert "not returned by the runtime" in failed_submit["result_excerpt"]
@@ -1702,7 +1753,7 @@ def test_preflight_client_tool_loop_returns_all_pass_finding_conflict_to_model()
                         },
                     )
                 )
-            result = json.loads(request.messages[-1]["content"][0]["content"])
+            result = _last_tool_result(request)
             if result.get("hits"):
                 self.hit_id = result["hits"][0]["source_hit_id"]
                 self.source_ref = result["hits"][0]["source_ref"]
@@ -1738,7 +1789,11 @@ def test_preflight_client_tool_loop_returns_all_pass_finding_conflict_to_model()
     assert packet["findings"] == []
     assert len(backend.requests) == 3
     assert {request.model for request in backend.requests} == {TEST_HAIKU_MODEL}
-    rejected = packet["client_tool_loop_history"][1]["tool_calls"][0]
+    rejected = next(
+        row
+        for row in packet["client_tool_loop_history"][1]["tool_calls"]
+        if row["name"] == "submit_theory_preflight_review"
+    )
     assert rejected["name"] == "submit_theory_preflight_review"
     assert rejected["is_error"] is True
     assert "contradict the all-PASS" in rejected["result_excerpt"]
@@ -1761,7 +1816,7 @@ def test_preflight_repairs_swapped_citation_namespaces_from_structured_feedback(
                         },
                     )
                 )
-            result = json.loads(request.messages[-1]["content"][0]["content"])
+            result = _last_tool_result(request)
             if result.get("hits"):
                 self.hit_id = result["hits"][0]["source_hit_id"]
                 self.source_ref = result["hits"][0]["source_ref"]
@@ -1796,7 +1851,11 @@ def test_preflight_repairs_swapped_citation_namespaces_from_structured_feedback(
 
     assert packet["overall_verdict"] == "REVISE"
     assert packet["client_tool_loop_turns"] == 3
-    rejected = packet["client_tool_loop_history"][1]["tool_calls"][0]
+    rejected = next(
+        row
+        for row in packet["client_tool_loop_history"][1]["tool_calls"]
+        if row["name"] == "submit_theory_preflight_review"
+    )
     assert rejected["is_error"] is True
     rejection = json.loads(rejected["result_excerpt"])
     assert "theory execution preflight uses missing or unknown evidence refs" in (
@@ -1854,7 +1913,11 @@ def test_preflight_recovers_from_rejected_final_submission() -> None:
     assert backend.requests[4].metadata[
         "client_tool_loop_max_terminal_recovery_turns"
     ] == 1
-    failed_submit = packet["client_tool_loop_history"][3]["tool_calls"][0]
+    failed_submit = next(
+        row
+        for row in packet["client_tool_loop_history"][3]["tool_calls"]
+        if row["name"] == "submit_theory_preflight_review"
+    )
     assert failed_submit["is_error"] is True
     assert packet["client_tool_loop_turns"] == 5
 
@@ -1868,7 +1931,11 @@ def test_preflight_client_tool_loop_allows_model_to_submit_without_search() -> N
     packet = _tool_review(backend)
 
     assert len(backend.requests) == 1
-    first_submit = packet["client_tool_loop_history"][0]["tool_calls"][0]
+    first_submit = next(
+        row
+        for row in packet["client_tool_loop_history"][0]["tool_calls"]
+        if row["name"] == "submit_theory_preflight_review"
+    )
     assert first_submit["is_error"] is False
     assert packet["preflight_source_search_count"] == 0
     assert packet["source_grounding_required"] is False
@@ -1998,6 +2065,22 @@ def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
     assert checkpoint["kernel_verified"] is False
     assert checkpoint["searches"] == 1
     assert checkpoint["theory_document_inspection_refs"][0]["line_end"] == 4
+    report_draft = checkpoint["review_report_draft"]
+    assert set(report_draft) == {
+        "schema_version",
+        "artifact_kind",
+        "content_authority",
+        "media_type",
+        "relative_path",
+        "path",
+        "sha256",
+        "byte_size",
+        "version",
+        "persisted",
+        "proof_evidence_status",
+    }
+    assert Path(report_draft["path"]).is_file()
+    assert "review_report_markdown" not in json.dumps(checkpoint)
     assert any(
         row["tool"] == "submit_theory_preflight_review" and row["is_error"]
         for row in checkpoint["workspace_observations"]
@@ -2023,11 +2106,15 @@ def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
             assert checkpoint["checkpoint_id"] in prompt
             assert "Candidate derivation" in prompt
             assert source_ref in prompt
+            assert report_draft["sha256"] in prompt
             return _tool_response(
                 ClientToolCall(
                     "submit-from-restored-observations",
                     "submit_theory_preflight_review",
-                    _compact_submission(_payload(accept=True)),
+                    _hash_bound_submission(
+                        _payload(accept=True),
+                        report_sha256=report_draft["sha256"],
+                    ),
                 )
             )
 
@@ -2445,15 +2532,11 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
         row["artifact_role"] != "authoritative_theory_document"
         for row in prompt_payload["source_material"]["current_theory_anchors"]
     )
-    first_rejection = json.loads(
-        backend.requests[1].messages[-1]["content"][0]["content"]
-    )
+    first_rejection = _last_tool_result(backend.requests[1])
     assert first_rejection["error"] == (
         "authoritative_theory_document_read_required"
     )
-    search_observation = json.loads(
-        backend.requests[2].messages[-1]["content"][0]["content"]
-    )
+    search_observation = _last_tool_result(backend.requests[2])
     assert search_observation["hits"][0]["line"] == marker
     assert packet["theory_document_inspection_required"] is True
     assert packet["theory_document_inspection_count"] == 4
@@ -2581,9 +2664,7 @@ This abandoned route is explicitly rejected.
                     )
                 )
             if turn == 3:
-                self.coverage_rejection = json.loads(
-                    request.messages[-1]["content"][0]["content"]
-                )
+                self.coverage_rejection = _last_tool_result(request)
                 return _tool_response(
                     ClientToolCall(
                         "read-main-theorem",
@@ -2740,7 +2821,7 @@ Assert an unsupported transition.
     )
 
 
-def test_preflight_returns_compact_envelope_error_to_same_model() -> None:
+def test_preflight_requires_report_write_before_compact_submission() -> None:
     class CompactEnvelopeBackend:
         provider_name = "anthropic"
 
@@ -2768,7 +2849,7 @@ def test_preflight_returns_compact_envelope_error_to_same_model() -> None:
 
     assert len(backend.requests) == 2
     assert backend.rejection["error"] == "client_tool_input_rejected"
-    assert "compact Markdown report envelope" in backend.rejection["detail"]
+    assert "requires a model-owned Markdown report" in backend.rejection["detail"]
     assert packet["overall_verdict"] == "REVISE"
     rejected = packet["client_tool_loop_history"][0]["tool_calls"][0]
     assert rejected["is_error"] is True
@@ -2852,7 +2933,8 @@ def test_preflight_client_submit_schema_stays_compact_with_sixteen_claims() -> N
         "blocking_gaps",
         "status",
     }
-    assert "review_report_markdown" in schema["required"]
+    assert "review_report_sha256" in schema["required"]
+    assert "review_report_markdown" not in schema["properties"]
     assert "report_evidence_refs" in schema["required"]
     assert "maxItems" not in schema["properties"]["report_evidence_refs"]
     assert "maxItems" not in schema["properties"]["findings"]
@@ -2989,6 +3071,215 @@ def test_client_tool_preflight_persists_markdown_referee_report(
     assert "dimension_reviews" not in submit_schema["properties"]
 
 
+def test_preflight_referee_owns_hash_bound_report_iteration() -> None:
+    report_v1 = (
+        "# Independent referee report\n\n"
+        "The declared finite mapping is total, but the boundary argument is pending.\n"
+    )
+    report_v2 = report_v1.replace(
+        "the boundary argument is pending",
+        "I checked the boundary argument directly from the declared definition",
+    )
+    report_v1_sha = hashlib.sha256(report_v1.encode("utf-8")).hexdigest()
+    report_v2_sha = hashlib.sha256(report_v2.encode("utf-8")).hexdigest()
+
+    class ReportWorkspaceBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+            self.read_observation = {}
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "write-report-v1",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+                        {"content": report_v1},
+                    )
+                )
+            observation = _last_tool_result(request)
+            if turn == 2:
+                assert observation["sha256"] == report_v1_sha
+                return _tool_response(
+                    ClientToolCall(
+                        "read-report-v1",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL,
+                        {
+                            "expected_sha256": report_v1_sha,
+                            "line_start": 1,
+                            "line_end": len(report_v1.splitlines()),
+                        },
+                    )
+                )
+            if turn == 3:
+                self.read_observation = observation
+                return _tool_response(
+                    ClientToolCall(
+                        "edit-report-v2",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
+                        {
+                            "expected_sha256": report_v1_sha,
+                            "old_text": "the boundary argument is pending",
+                            "new_text": (
+                                "I checked the boundary argument directly from the "
+                                "declared definition"
+                            ),
+                        },
+                    )
+                )
+            assert observation["sha256"] == report_v2_sha
+            return _tool_response(
+                ClientToolCall(
+                    "submit-report-v2",
+                    "submit_theory_preflight_review",
+                    _hash_bound_submission(
+                        _payload(accept=True),
+                        report_sha256=report_v2_sha,
+                    ),
+                )
+            )
+
+    backend = ReportWorkspaceBackend()
+    packet = _tool_review(backend)
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert backend.read_observation["content"] == report_v1.rstrip("\n")
+    assert Path(packet["review_report"]["path"]).read_text(
+        encoding="utf-8"
+    ) == report_v2
+    assert packet["review_report"]["sha256"] == report_v2_sha
+    assert packet["client_tool_loop_turns"] == 4
+    assert packet["client_tool_loop_tool_calls"] == 4
+    assert {request.model for request in backend.requests} == {TEST_HAIKU_MODEL}
+    persisted_history = json.dumps(packet["client_tool_loop_history"])
+    assert report_v1 not in persisted_history
+    assert report_v2 not in persisted_history
+
+
+def test_preflight_returns_stale_report_hash_to_same_referee() -> None:
+    initial_report = "# Referee report\n\nA claim remains uncertain.\n"
+    revised_report = initial_report.replace("uncertain", "independently checked")
+    initial_sha = hashlib.sha256(initial_report.encode("utf-8")).hexdigest()
+    revised_sha = hashlib.sha256(revised_report.encode("utf-8")).hexdigest()
+
+    class StaleHashBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+            self.rejection = {}
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "write-initial-report",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+                        {"content": initial_report},
+                    )
+                )
+            if turn == 2:
+                return _tool_response(
+                    ClientToolCall(
+                        "edit-with-stale-hash",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
+                        {
+                            "expected_sha256": "0" * 64,
+                            "old_text": "uncertain",
+                            "new_text": "independently checked",
+                        },
+                    )
+                )
+            self.rejection = _last_tool_result(request)
+            return _tool_response(
+                ClientToolCall(
+                    "edit-with-current-hash",
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
+                    {
+                        "expected_sha256": initial_sha,
+                        "old_text": "uncertain",
+                        "new_text": "independently checked",
+                    },
+                ),
+                ClientToolCall(
+                    "submit-revised-report",
+                    "submit_theory_preflight_review",
+                    _hash_bound_submission(
+                        _payload(accept=True),
+                        report_sha256=revised_sha,
+                    ),
+                ),
+            )
+
+    backend = StaleHashBackend()
+    packet = _tool_review(backend)
+
+    assert backend.rejection["error"] == "client_tool_input_rejected"
+    assert "expected_sha256 is stale" in backend.rejection["detail"]
+    assert Path(packet["review_report"]["path"]).read_text(
+        encoding="utf-8"
+    ) == revised_report
+    assert packet["client_tool_loop_turns"] == 3
+    assert packet["client_tool_loop_tool_calls"] == 4
+
+
+def test_preflight_rejects_tampered_report_draft_before_model_call() -> None:
+    report = "# Referee report\n\nThis is an incomplete independent audit.\n"
+    theory_material = _with_test_review_workspace(_theory_material())
+
+    class WriteThenStopBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "write-report-before-checkpoint",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+                        {"content": report},
+                    )
+                )
+            return _tool_response()
+
+    with pytest.raises(PacketValidationError) as first_error:
+        _tool_review(
+            WriteThenStopBackend(),
+            theory_protocol_material=theory_material,
+        )
+    checkpoint = first_error.value.recovery_checkpoint
+    draft_path = Path(checkpoint["review_report_draft"]["path"])
+    draft_path.write_text(report + "tampered\n", encoding="utf-8")
+
+    class MustNotRun:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            raise AssertionError("tampered draft must fail before the model call")
+
+    blocked_backend = MustNotRun()
+    with pytest.raises(PacketValidationError, match="draft is stale"):
+        _tool_review(
+            blocked_backend,
+            theory_protocol_material=theory_material,
+            recovery_checkpoint=checkpoint,
+        )
+    assert blocked_backend.requests == []
+
+
 def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> None:
     schema = _architect_theory_execution_preflight_submit_schema(
         {
@@ -3007,7 +3298,8 @@ def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> No
         "status",
         "blocking_gaps",
     }
-    assert "review_report_markdown" in schema["required"]
+    assert "review_report_sha256" in schema["required"]
+    assert "review_report_markdown" not in schema["properties"]
     assert "report_evidence_refs" in schema["required"]
 
 
