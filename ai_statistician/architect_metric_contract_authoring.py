@@ -479,7 +479,6 @@ def _metric_authoring_model_requirement_schema(
             "metric_semantics",
             "metric_value_kind",
             "measurement_protocol",
-            "required_runtime_replicates",
             "operator",
             "aggregation",
             "predicate_authority",
@@ -499,16 +498,6 @@ def _metric_authoring_model_requirement_schema(
                 ),
             },
             "measurement_protocol": {"type": "string", "minLength": 1},
-            "required_runtime_replicates": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
-                "description": (
-                    "One pre-execution confirmatory replicate count shared by every "
-                    "row in the portfolio. Select it from quantitative Monte Carlo "
-                    "precision and feasibility reasoning, not a runtime default."
-                ),
-            },
             "operator": {
                 "type": "string",
                 "enum": list(GENERATED_METRIC_CONTRACT_OPERATORS),
@@ -550,6 +539,40 @@ def _metric_authoring_model_requirement_schema(
     }
 
 
+def _metric_authoring_model_response_schema(
+    *,
+    authority_anchor_ids: list[str],
+) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "required_runtime_replicates",
+            "empirical_metric_requirements",
+        ],
+        "properties": {
+            "required_runtime_replicates": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
+                "description": (
+                    "One pre-execution confirmatory replicate count for the whole "
+                    "portfolio. Select it from quantitative Monte Carlo precision "
+                    "and execution-feasibility reasoning, not a runtime default."
+                ),
+            },
+            "empirical_metric_requirements": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": MAX_CONFIRMATORY_METRIC_REQUIREMENTS,
+                "items": _metric_authoring_model_requirement_schema(
+                    authority_anchor_ids=authority_anchor_ids,
+                ),
+            },
+        },
+    }
+
+
 def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
     return {
         "requirement_id": "stable unique acceptance-gate id",
@@ -559,10 +582,6 @@ def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
             "operator == and no threshold/tolerance gate_fields"
         ),
         "measurement_protocol": "exact pre-execution measurement procedure",
-        "required_runtime_replicates": (
-            "one shared pre-execution count justified by Monte Carlo precision and "
-            "execution feasibility"
-        ),
         "operator": "<=|<|>=|>|==|between",
         "aggregation": (
             "identity|mean|min|max|all|any|at_least_count|at_least_fraction; "
@@ -592,6 +611,7 @@ def _materialize_metric_authoring_model_requirement(
     value: Mapping[str, Any],
     *,
     requirement_index: int,
+    required_runtime_replicates: int,
 ) -> tuple[dict[str, Any], list[str]]:
     """Expand one compact model row without selecting any model-owned semantics."""
 
@@ -632,7 +652,7 @@ def _materialize_metric_authoring_model_requirement(
         "measurement_protocol": str(
             row.get("measurement_protocol", "") or ""
         ).strip(),
-        "required_runtime_replicates": row.get("required_runtime_replicates"),
+        "required_runtime_replicates": required_runtime_replicates,
         "operator": str(row.get("operator", "") or "").strip(),
         "threshold": None,
         "lower": None,
@@ -1523,26 +1543,20 @@ def author_reviewed_architect_metric_requirements(
             "required": frozen_required_fields,
             "properties": frozen_properties,
         }
-    else:
-        response_requirement_schema = (
-            _metric_authoring_model_requirement_schema(
-                authority_anchor_ids=acceptance_authority_anchor_ids,
-            )
-        )
-    response_schema = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["empirical_metric_requirements"],
-        "properties": {
-            "empirical_metric_requirements": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": MAX_CONFIRMATORY_METRIC_REQUIREMENTS,
-                "items": response_requirement_schema,
-            }
-        },
-    }
     if frozen_rebinding:
+        response_schema = {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["empirical_metric_requirements"],
+            "properties": {
+                "empirical_metric_requirements": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": MAX_CONFIRMATORY_METRIC_REQUIREMENTS,
+                    "items": response_requirement_schema,
+                }
+            },
+        }
         frozen_row_count = len(
             frozen_rebinding.get("source_requirement_rows", []) or []
         )
@@ -1552,13 +1566,28 @@ def author_reviewed_architect_metric_requirements(
                 "maxItems": frozen_row_count,
             }
         )
+    else:
+        response_schema = _metric_authoring_model_response_schema(
+            authority_anchor_ids=acceptance_authority_anchor_ids,
+        )
     requirement_prompt_schema = (
         generated_metric_requirement_prompt_schema()
         if frozen_rebinding
         else _metric_authoring_model_requirement_prompt_schema()
     )
-    if frozen_rebinding:
-        requirement_prompt_schema.pop("required_runtime_replicates", None)
+    runtime_replicate_field_binding = (
+        {}
+        if frozen_rebinding
+        else {
+            "required_runtime_replicates": {
+                "source": "model_portfolio_field",
+                "model_authored_once": True,
+                "runtime_copies_to_evaluator_rows": True,
+                "runtime_selected_semantics": False,
+                "binding_stage": "before_hash_validation_and_review",
+            }
+        }
+    )
     required_target_rows = (
         []
         if frozen_rebinding
@@ -1596,6 +1625,20 @@ def author_reviewed_architect_metric_requirements(
         "confirmatory_portfolio_row_budget": (
             MAX_CONFIRMATORY_METRIC_REQUIREMENTS
         ),
+        "portfolio_schema": (
+            {
+                "required_runtime_replicates": (
+                    "one model-authored pre-execution count for the entire "
+                    "portfolio, justified by Monte Carlo precision and execution "
+                    "feasibility"
+                ),
+                "empirical_metric_requirements": [
+                    requirement_prompt_schema
+                ],
+            }
+            if not frozen_rebinding
+            else {}
+        ),
         "confirmatory_required_rows_only": confirmatory_required_rows_only,
         "runtime_owned_field_bindings": {
             "target_subsystems": {
@@ -1628,6 +1671,7 @@ def author_reviewed_architect_metric_requirements(
                 "runtime_selected_semantics": False,
                 "binding_stage": "before_hash_validation_and_review",
             },
+            **runtime_replicate_field_binding,
             "source_anchors": {
                 "source": (
                     "model_semantic_context_plus_gate_field_anchor_union"
@@ -2039,6 +2083,9 @@ def author_reviewed_architect_metric_requirements(
             )
             if frozen_rebinding:
                 return payload
+            required_runtime_replicates = payload.get(
+                "required_runtime_replicates"
+            )
             materialized_rows: list[dict[str, Any]] = []
             model_aci_errors: list[str] = []
             for requirement_index, row in enumerate(
@@ -2054,6 +2101,9 @@ def author_reviewed_architect_metric_requirements(
                     _materialize_metric_authoring_model_requirement(
                         row,
                         requirement_index=requirement_index,
+                        required_runtime_replicates=(
+                            required_runtime_replicates
+                        ),
                     )
                 )
                 materialized_rows.append(materialized)
@@ -2127,13 +2177,30 @@ def author_reviewed_architect_metric_requirements(
                     newly_omitted_nonrequired_rows
                 )
             (
-                model_authored_runtime_replicates,
+                shared_runtime_replicates,
                 replicate_design_errors,
             ) = generated_metric_shared_runtime_replicates(
                 requirement_rows,
                 max_runtime_replicates=max_runtime_replicates,
             )
             model_aci_errors.extend(replicate_design_errors)
+            declared_runtime_replicates = payload.get(
+                "required_runtime_replicates"
+            )
+            if (
+                not frozen_rebinding
+                and shared_runtime_replicates
+                != declared_runtime_replicates
+            ):
+                model_aci_errors.append(
+                    "portfolio required_runtime_replicates was not preserved "
+                    "when materializing evaluator rows"
+                )
+            model_authored_runtime_replicates = (
+                shared_runtime_replicates
+                if frozen_rebinding
+                else declared_runtime_replicates
+            )
             parent_packet_id = str(
                 prior_authoring_packet.get("packet_id", "") or ""
             )
@@ -2257,6 +2324,7 @@ def author_reviewed_architect_metric_requirements(
                             "before_hash_validation_and_review"
                         ),
                     },
+                    **runtime_replicate_field_binding,
                     "source_anchors": {
                         "source": (
                             "model_semantic_context_plus_"
@@ -2280,7 +2348,7 @@ def author_reviewed_architect_metric_requirements(
                     confirmatory_required_rows_only
                 ),
                 "model_requirement_transport": (
-                    "keyed_gate_fields_runtime_provenance_v3"
+                    "portfolio_replicates_keyed_gate_fields_runtime_provenance_v4"
                     if not frozen_rebinding
                     else "frozen_authority_rebinding"
                 ),

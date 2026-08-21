@@ -16,6 +16,7 @@ from ai_statistician.architect_metric_contract_authoring import (
     FRESH_METRIC_AUTHORING_AUTHORITY_KIND,
     _materialize_metric_authoring_model_requirement,
     _metric_authoring_model_requirement_schema,
+    _metric_authoring_model_response_schema,
     author_reviewed_architect_metric_requirements,
 )
 from ai_statistician.architect_theory_execution_preflight import (
@@ -132,8 +133,19 @@ def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
         "aggregation"
     ]["description"]
     assert "all and any never take a quorum field" in gate_schema["description"]
-    assert "required_runtime_replicates" in schema["required"]
-    assert schema["properties"]["required_runtime_replicates"]["maximum"] == 100_000
+    assert "required_runtime_replicates" not in schema["required"]
+    assert "required_runtime_replicates" not in schema["properties"]
+    portfolio_schema = _metric_authoring_model_response_schema(
+        authority_anchor_ids=[anchor_id]
+    )
+    assert "required_runtime_replicates" in portfolio_schema["required"]
+    assert portfolio_schema["properties"]["required_runtime_replicates"][
+        "maximum"
+    ] == 100_000
+    portfolio_row_schema = portfolio_schema["properties"][
+        "empirical_metric_requirements"
+    ]["items"]
+    assert "required_runtime_replicates" not in portfolio_row_schema["properties"]
 
     materialized, errors = _materialize_metric_authoring_model_requirement(
         {
@@ -141,7 +153,6 @@ def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
             "metric_semantics": "estimated risk of the generated procedure",
             "metric_value_kind": "numeric",
             "measurement_protocol": "return the empirical risk over fresh replicates",
-            "required_runtime_replicates": 7_300,
             "operator": "<=",
             "aggregation": "identity",
             "predicate_authority": {
@@ -157,6 +168,7 @@ def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
             },
         },
         requirement_index=0,
+        required_runtime_replicates=7_300,
     )
 
     assert errors == []
@@ -178,7 +190,6 @@ def test_fresh_metric_gate_object_has_unique_keys_and_runtime_order() -> None:
             "metric_semantics": "calibrated empirical risk",
             "metric_value_kind": "numeric",
             "measurement_protocol": "return one risk estimate",
-            "required_runtime_replicates": 7_300,
             "operator": "<=",
             "aggregation": "identity",
             "predicate_authority": {
@@ -199,6 +210,7 @@ def test_fresh_metric_gate_object_has_unique_keys_and_runtime_order() -> None:
             },
         },
         requirement_index=0,
+        required_runtime_replicates=7_300,
     )
 
     assert errors == []
@@ -213,7 +225,6 @@ def test_fresh_metric_gate_object_has_unique_keys_and_runtime_order() -> None:
                 "metric_semantics": "one scalar",
                 "metric_value_kind": "numeric",
                 "measurement_protocol": "return one scalar",
-                "required_runtime_replicates": 7_300,
                 "operator": "<=",
                 "aggregation": "identity",
                 "predicate_authority": {
@@ -234,6 +245,7 @@ def test_fresh_metric_gate_object_has_unique_keys_and_runtime_order() -> None:
                 },
             },
             requirement_index=0,
+            required_runtime_replicates=7_300,
         )
     )
     assert any("unsupported fields" in error for error in invalid_errors)
@@ -246,7 +258,6 @@ def test_fresh_boolean_all_rejects_redundant_quorum_field_without_repair() -> No
         "metric_semantics": "whether a declared identity holds on every replicate",
         "metric_value_kind": "boolean",
         "measurement_protocol": "return one boolean identity result per replicate",
-        "required_runtime_replicates": 7_300,
         "operator": "==",
         "aggregation": "all",
         "predicate_authority": {
@@ -266,6 +277,7 @@ def test_fresh_boolean_all_rejects_redundant_quorum_field_without_repair() -> No
             },
         },
         requirement_index=0,
+        required_runtime_replicates=7_300,
     )
 
     assert invalid["minimum_pass_fraction"] == 1.0
@@ -277,6 +289,7 @@ def test_fresh_boolean_all_rejects_redundant_quorum_field_without_repair() -> No
     valid, valid_errors = _materialize_metric_authoring_model_requirement(
         {**base, "gate_fields": {}},
         requirement_index=0,
+        required_runtime_replicates=7_300,
     )
     assert valid_errors == []
     assert valid["minimum_pass_fraction"] is None
@@ -3821,12 +3834,21 @@ def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> No
         )
 
     assert len(provider.requests) == 1
-    prompt = provider.requests[0].user_prompt
+    request = provider.requests[0]
+    prompt = request.user_prompt
     assert "quantitative uncertainty or sampling-error calculation" in prompt
     assert "'stringent but attainable' are not evidence" in prompt
     assert "does not alone justify a tight finite-run threshold" in prompt
     assert "Preserve the requested scientific claim granularity" in prompt
     assert "remain exploratory" in prompt
+    assert request.schema["required"] == [
+        "required_runtime_replicates",
+        "empirical_metric_requirements",
+    ]
+    assert "required_runtime_replicates" not in request.schema["properties"][
+        "empirical_metric_requirements"
+    ]["items"]["properties"]
+    assert "model-authored pre-execution count for the entire portfolio" in prompt
 
 
 def test_metric_review_exhaustion_blocks_in_source_workspace() -> None:
