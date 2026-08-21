@@ -110,6 +110,17 @@ placing another Codex thread manager around `AgentRuntime`.
    does not regenerate a Formalizer packet or route through Architect. A
    tampered, stale, overlapping, or observation-free continuation stops before
    another provider call.
+8. The independent theory referee now has the same durable-session semantics.
+   When one inner segment ends after real document inspection, task-bound source
+   retrieval, scratch execution, or terminal-validator feedback, AgentRuntime
+   stores one content-addressed checkpoint and returns it to the same isolated
+   reviewer in the next outer step. The checkpoint retains only exact
+   model-visible observations, cumulative environment budgets, coverage refs,
+   and immutable theory/material bindings; the task carries one
+   `RuntimeArtifactRef`. It never copies author reasoning, asks Architect to
+   replan, edits the referee report, or treats partial review work as acceptance.
+   Tampering, a stale predecessor, repeated observations, or an observation-free
+   segment stops before another reviewer call.
 
 These changes add no model call, retry, turn, agent, scheduler, model tier,
 statistical formula, Lean grammar rule, or repair recipe.
@@ -192,3 +203,14 @@ reference, while content tampering and no-new-observation lineage fail closed.
 The Lean/AgentRuntime panel passed 111 tests and the full local suite passed 773
 tests in 72.97 seconds. No model call, benchmark rerun, theorem proof, hidden
 evaluation, retry increase, turn increase, or new scheduling layer occurred.
+
+The independent-referee continuation is regression-validated at code commit
+`d64fd895`. A two-segment review restores the exact prior Markdown read, source
+handle, and terminal-validator observation, then permits the same reviewer to
+submit a complete review without rereading or regenerating its context. A real
+`AgentRuntime` integration resolves the checkpoint through the blackboard,
+calls the referee twice, and calls Architect planning zero times. Content
+tampering and no-new-observation lineage fail before a provider call. The full
+local suite passed 776 tests in 72.25 seconds. No live model call, frozen-task
+rerun, retry or turn increase, mathematical acceptance, hidden-gold credit,
+empirical credit, or proof credit was produced.
