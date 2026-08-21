@@ -1,14 +1,14 @@
 {
-  "schema_version": 102,
+  "schema_version": 103,
   "updated_at": "2026-08-21",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "dd3d09bfbf02565a97fcb588a573a5d178d9da34",
+  "validated_code_head": "5e637c0b7737e100e0158524a19a7b9587d5c0cb",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. The single frozen AR(1) draw is consumed at 0/1: its independently accepted theory and estimator passed every hidden theory, algorithm, and empirical check, but runtime changed callback exception semantics and automatically assigned a handled consumer rejection to AlgorithmEngineer until the outer budget exhausted. Commit dd3d09bf preserves Python/R callback behavior, returns raw errors to the same Simulation coding session, and permits cross-workspace transfer only after an explicit model-selected hash-bound handoff. All sixteen scored tasks remain immutable 0/16; no task is currently authorized for another draw.",
-  "operating_principle": "Models own statistical, mathematical, Python, R, retrieval-query, and Lean content. The harness owns isolation, immutable identity, source visibility, budgets, checkpoints, independent review, result blinding, frozen evaluation authority, and proof promotion. It does not author substantive fixes.",
+  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. Commit 5e637c0b removes the fixed 80/100 confirmatory-replicate decision: the pre-execution planning model now chooses one portfolio count from Monte Carlo precision and feasibility, an isolated reviewer judges it before outcomes, and Simulation source plus execution consume it exactly. Runtime owns only a high safety capacity, timeout, identity, and freezing. All sixteen scored tasks remain immutable 0/16; no task is currently authorized for another draw.",
+  "operating_principle": "Models own statistical, mathematical, Python, R, retrieval-query, Lean, and confirmatory-precision content. The harness owns isolation, immutable identity, source visibility, safety capacity, checkpoints, independent review, result blinding, frozen evaluation authority, and proof promotion. It does not author substantive fixes or scientific precision.",
   "model_policy": {
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
     "production_allowed_tiers": [
@@ -42,6 +42,7 @@
       "task-intent evidence contract",
       "independent semantic and theory review",
       "fresh confirmatory cohorts and pre-outcome gate freezing",
+      "model-authored confirmatory precision with independent pre-outcome review",
       "Lean kernel authority"
     ],
     "forbidden": [
@@ -55,8 +56,13 @@
     ]
   },
   "validated_change": {
-    "commit": "dd3d09bfbf02565a97fcb588a573a5d178d9da34",
+    "commit": "5e637c0b7737e100e0158524a19a7b9587d5c0cb",
     "changes": [
+      "The official OpenAI Codex repository was incrementally audited read-only at Apache-2.0 commit e6a3877e95788b52c3aa5e9a143dba87f04720dc. Its only change after 9949c9ea is remote plugin-cache reconciliation; all previously inspected session, tool-dispatch, multi-agent, app-server, provider, Guardian, thread, and executor-hook files remain byte-identical. No Codex SDK, app-server, Responses transport, thread manager, scheduler, or provider was imported.",
+      "Fresh confirmatory metric authoring now exposes the existing required_runtime_replicates field to the planning model instead of deleting it and writing a runtime-owned 80/100 value. The model selects one shared portfolio count before outcomes and must justify its Monte Carlo precision and feasibility in the existing requirement rationales.",
+      "An isolated metric reviewer sees the model-authored count, runtime timeout, and high sandbox safety capacity, and is explicitly required to treat capacity as a safety constraint rather than a statistical default. Inconsistent row counts, nonpositive counts, and counts above capacity fail closed without a content repair or result-informed rewrite.",
+      "The independently accepted count replaces only the confirmatory execution fallback and reaches Simulation planning, source feedback, and exact sandbox execution. Exploratory runs keep the operator-selected --runs fallback; runtime selects no statistical count, formula, threshold, repair owner, model tier, or workflow order.",
+      "Focused authoring, review, contract, research-evaluation, and AgentRuntime regressions passed 197/197; the full local suite passed 795/795 in 64.59 seconds with research_agent_runtime.py at 24,999 lines. No model call, frozen-task rerun, output inspection, rescore, empirical acceptance, theorem proof, or E2E credit was produced.",
       "The single frozen stationary AR(1) OLS draw used exact claude-haiku-4-5-20251001 for every enabled role and ended MAX_ITERATIONS_REACHED after 24 traces. TheoryDeveloper committed two Markdown/LaTeX documents, an isolated referee accepted the theory, generated estimator code executed and passed independent semantic review, and the metric protocol completed independent pre-execution review. Formalization was not applicable and did not run.",
       "Evaluator-only post-runtime checks passed all 7 accepted-theory semantic checks, all 11 accepted-source algorithm checks, and all 9 empirical checks over 7,500 estimator invocations. Full gold remains 0/1 because simulation and Critic never completed; hidden expected values and harness source remain outside repository, RAG, and model workspaces.",
       "The live loop exposed a shared harness defect: a generated simulation explicitly treated an all-zero-series ValueError as expected rejection, but the callback changed its exception class and marked any handled estimator exception as fatal. Runtime then inferred Algorithm ownership and repeatedly reopened an already reviewed estimator that hidden authority later confirmed was correct.",
@@ -209,13 +215,13 @@
       "Persisted review evidence stores ordered code, request, result, and metric hashes plus runtime-edit and NOT_PROOF_EVIDENCE boundaries. Raw scratch output is returned to the active referee but omitted from persisted transcript excerpts, and validator tamper regression rejects proof promotion or runtime-edited theory claims.",
       "Theory and preflight tool tests passed 71/71, the dependent coordinator, reviewer, Architect, AgentRuntime, and core budget panel passed 247/247, and the full suite passed 764/764 in 71.23 seconds, including existing live Python/R WASM sandbox coverage. No model call or frozen-task rerun occurred, so this supplies mechanism evidence only."
     ],
-    "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model chooses every claim, dependency, research-source query, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, and median-of-means expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback.",
+    "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model chooses every claim, dependency, research-source query, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, confirmatory replicate count, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, and median-of-means expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback.",
     "verification": {
-      "full_pytest": "793 passed in 64.55s",
+      "full_pytest": "795 passed in 64.59s",
       "next_frozen_activation": "none; all sixteen scored tasks are consumed and closed, and a future disjoint task requires a new fully frozen and pushed authority bundle before its first model call",
-      "affected_subsystem_pytest": "137/137 AgentRuntime, research-evaluation, scientific-sandbox, and scientific-workspace tests plus 14/14 capability-ladder tests passed; the full 793-test suite passed",
+      "affected_subsystem_pytest": "197/197 generated-metric, authoring, independent-review, research-evaluation, and AgentRuntime tests passed; the full 795-test suite passed",
       "visible_estimator_contract": "schema-v2 executable tasks fail closed unless every public ABI field has explicit semantics, hidden checks cite valid public clauses under one estimator identity, and each hidden empirical check also cites a compact public empirical claim; the exact contract reaches scientific model contexts without being copied into agent result packets",
-      "openai_codex_harness_audit": "official openai/codex main pinned at 9949c9eafae057110bbb23273b5b4be894ef7448; tool dispatch and multi-agent context-selection files are unchanged from 45a3edc0, while the incremental turn change preserves current-step stop context and new Guardian/internal-session/hook/provider changes reinforce isolated evidence, policy ownership, and secret redaction. Direct SDK/app-server adoption remains rejected because it would introduce a Responses transport or proxy plus a second thread and scheduling authority beside the required Claude and AgentRuntime path",
+      "openai_codex_harness_audit": "official openai/codex main pinned at e6a3877e95788b52c3aa5e9a143dba87f04720dc; its only change after 9949c9ea is remote plugin-cache reconciliation, and all inspected session, tool-dispatch, multi-agent, app-server, provider, Guardian, thread, and executor-hook files remain byte-identical. Direct SDK/app-server adoption remains rejected because it would introduce a Responses transport or proxy plus a second thread and scheduling authority beside the required Claude and AgentRuntime path",
       "neutral_exact_haiku_transport_probe": "Anthropic accepted five client tools with a 5,201-character sixteen-claim submit schema under claude-haiku-4-5-20251001, returned tool_use, and reported zero strict tools; no research content or frozen task was executed",
       "source_retrieval_ablation": "A representative query reconstructed from persisted L1 matched terms returned five distinct top-5 documents, including the exact DoubleMLIRM implementation. The failed live run did not persist its raw query text, so this is not an exact-query replay and provides no report-correctness credit.",
       "real_immutable_source_execution": "EXECUTED with return code 0, no errors, no source mutation, and frozen stdout SHA-256 ef1f1614e671a91b435e46e98126fb24c442faec198b19ab709788af32ab16d3",
@@ -230,7 +236,7 @@
       "theory_revision_continuation": "a progressing round-eight finding lineage continues to round nine under AgentRuntime.max_iterations; unresolved prior findings stop immediately, and revision count cannot act as a second budget",
       "lean_workspace_continuation": "the second tool-loop segment receives the exact failed source, compiler stderr, formal search observation, checked-candidate set, and predecessor identity; it does not recheck the parent, preserves the immutable original parent hash, and rejects tampering or no-new-observation continuation before a provider call",
       "theory_referee_workspace_continuation": "a two-segment independent review restores the exact prior Markdown read, task-bound source handle, document coverage, and terminal-validator observation; AgentRuntime uses one blackboard reference, calls the referee twice, calls Architect planning zero times, preserves cumulative source budgets, and blocks tamper or no-progress lineage before a provider call",
-      "runtime_core_growth": "research_agent_runtime.py is 24995 lines; dependency ownership remains one direct workspace tool plus the existing hash-bound handoff rather than a router or scheduler, and the unchanged 25000-line regression budget passes."
+      "runtime_core_growth": "research_agent_runtime.py is 24999 lines; confirmatory precision resolves through one shared contract helper and the existing Simulation path rather than a router, scheduler, or repair layer, and the unchanged strict-under-25000-line regression budget passes."
     },
     "evidence_boundary": "The visible estimator contract and schema-v2 hidden-check bindings make executable and empirical acceptance semantics inspectable before a model call, but clause references cannot prove scientific entailment or candidate correctness. The consumed AR(1) draw supplies accepted theory, algorithm, and hidden empirical component evidence but failed the full runtime contract. All sixteen scored tasks remain 0/16 full-task passes, no new draw is authorized, and exact development theorem closure remains 0/2."
   },
@@ -598,19 +604,20 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24995,
+    "research_agent_runtime_lines": 24999,
     "scientific_code_workspace_lines": 2213,
     "theory_workspace_lines": 3224,
     "research_architect_lines": 5225,
     "architect_theory_execution_preflight_lines": 4433,
     "formalizer_llm_lines": 2408,
     "agent_runtime_lines": 1207,
-    "cli_lines": 7040,
+    "cli_lines": 7048,
     "top_level_python_modules": 141,
-    "top_level_package_lines": 144914,
+    "top_level_package_lines": 145086,
     "latest_runtime_manifest_bytes": 63752
   },
   "next_gates": [
+    "On a future unrelated task frozen before its first call, verify that the planning model chooses confirmatory precision from explicit MCSE or sampling-error reasoning, that the independent reviewer can reject an underpowered or infeasible count, and that Simulation executes the accepted count unchanged. Do not use any consumed task to manufacture this live evidence.",
     "Treat exact-sign-test v1 as two separate failures: the blank request identity on a pre-materialization scratch rejection was a shared harness contradiction and is regression-fixed, while the median derivation, observed-zero scope, and estimator ABI remain unaccepted model-authored defects. Preserve the run at 0/1; never rerun, patch, or rescore it.",
     "Keep failed-tool request identity distinct from successful sandbox execution. Do not relax the independent-review validator, fabricate request files or results, add a repair worker, or give the model another draw; the fallback hash binds only the exact model request and fixed execution parameters.",
     "Treat DKW v1 as two separate failures: the author-side final-SHA line-coverage gate was a misplaced deterministic readiness proxy and is now removed, while the model-authored probability equality, empty-sample ABI, and clipped-boundary defects remain unaccepted. Preserve the run at 0/1; never rerun, patch, or rescore it.",
