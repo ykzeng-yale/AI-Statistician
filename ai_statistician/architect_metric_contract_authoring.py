@@ -23,12 +23,14 @@ from .generated_metric_contract import (
     GENERATED_METRIC_REQUIREMENT_BOUNDARY,
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
     GENERATED_METRIC_VALUE_KINDS,
+    GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
     generated_metric_acceptance_authority_catalog,
     generated_metric_acceptance_authority_prompt_catalog,
     generated_metric_evaluation_semantics_contract,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_prompt_schema,
     generated_metric_requirement_set_id,
+    generated_metric_shared_runtime_replicates,
     generated_metric_requirement_target_namespace_contract,
     materialize_generated_metric_gate_field_authorities,
     validate_generated_metric_requirements,
@@ -55,7 +57,7 @@ from .research_schema import OpenResearchQuestion, research_question_payload
 from .semantic_review_feedback import model_observations_without_repair_recipes
 
 
-ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 5
+ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 6
 _METRIC_AUTHORING_LARGE_PROMPT_CHARS = 60_000
 _METRIC_AUTHORING_LARGE_RESPONSE_TOKENS = 8_000
 MAX_CONFIRMATORY_METRIC_REQUIREMENTS = 8
@@ -477,6 +479,7 @@ def _metric_authoring_model_requirement_schema(
             "metric_semantics",
             "metric_value_kind",
             "measurement_protocol",
+            "required_runtime_replicates",
             "operator",
             "aggregation",
             "predicate_authority",
@@ -496,6 +499,16 @@ def _metric_authoring_model_requirement_schema(
                 ),
             },
             "measurement_protocol": {"type": "string", "minLength": 1},
+            "required_runtime_replicates": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
+                "description": (
+                    "One pre-execution confirmatory replicate count shared by every "
+                    "row in the portfolio. Select it from quantitative Monte Carlo "
+                    "precision and feasibility reasoning, not a runtime default."
+                ),
+            },
             "operator": {
                 "type": "string",
                 "enum": list(GENERATED_METRIC_CONTRACT_OPERATORS),
@@ -546,6 +559,10 @@ def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
             "operator == and no threshold/tolerance gate_fields"
         ),
         "measurement_protocol": "exact pre-execution measurement procedure",
+        "required_runtime_replicates": (
+            "one shared pre-execution count justified by Monte Carlo precision and "
+            "execution feasibility"
+        ),
         "operator": "<=|<|>=|>|==|between",
         "aggregation": (
             "identity|mean|min|max|all|any|at_least_count|at_least_fraction; "
@@ -615,6 +632,7 @@ def _materialize_metric_authoring_model_requirement(
         "measurement_protocol": str(
             row.get("measurement_protocol", "") or ""
         ).strip(),
+        "required_runtime_replicates": row.get("required_runtime_replicates"),
         "operator": str(row.get("operator", "") or "").strip(),
         "threshold": None,
         "lower": None,
@@ -1338,8 +1356,15 @@ def author_reviewed_architect_metric_requirements(
             "lineage with exact immutable gate rows"
         )
 
-    runtime_replicates = int(
-        runtime_contract.get("generated_sandbox_runtime_replicates", 0) or 0
+    max_runtime_replicates = int(
+        runtime_contract.get(
+            "generated_sandbox_max_runtime_replicates",
+            GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
+        )
+        or GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES
+    )
+    runtime_timeout_seconds = int(
+        runtime_contract.get("generated_simulation_timeout_seconds", 60) or 60
     )
     confirmatory_required_rows_only = True
     question_material = research_question_payload(question)
@@ -1393,16 +1418,9 @@ def author_reviewed_architect_metric_requirements(
     response_requirement_schema["required"] = [
         field
         for field in response_requirement_schema.get("required", [])
-        if field
-        not in {
-            "required_runtime_replicates",
-            "gate_field_authority_mode",
-        }
+        if field != "gate_field_authority_mode"
     ]
-    for runtime_owned_field in (
-        "required_runtime_replicates",
-        "gate_field_authority_mode",
-    ):
+    for runtime_owned_field in ("gate_field_authority_mode",):
         response_requirement_schema.get("properties", {}).pop(
             runtime_owned_field,
             None,
@@ -1539,7 +1557,8 @@ def author_reviewed_architect_metric_requirements(
         if frozen_rebinding
         else _metric_authoring_model_requirement_prompt_schema()
     )
-    requirement_prompt_schema.pop("required_runtime_replicates", None)
+    if frozen_rebinding:
+        requirement_prompt_schema.pop("required_runtime_replicates", None)
     required_target_rows = (
         []
         if frozen_rebinding
@@ -1569,7 +1588,11 @@ def author_reviewed_architect_metric_requirements(
         ),
         "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
         "acceptance_authority_catalog": acceptance_authority_prompt_catalog,
-        "runtime_owned_replicates": runtime_replicates,
+        "runtime_execution_capacity": {
+            "max_runtime_replicates": max_runtime_replicates,
+            "timeout_seconds": runtime_timeout_seconds,
+            "scientific_replicate_count_model_authored": True,
+        },
         "confirmatory_portfolio_row_budget": (
             MAX_CONFIRMATORY_METRIC_REQUIREMENTS
         ),
@@ -1584,14 +1607,6 @@ def author_reviewed_architect_metric_requirements(
             "required": {
                 "source": "confirmatory_acceptance_portfolio",
                 "value": True,
-                "model_authored": False,
-                "binding_stage": "before_hash_validation_and_review",
-            },
-            "required_runtime_replicates": {
-                "source": (
-                    "runtime_contract.generated_sandbox_runtime_replicates"
-                ),
-                "value": runtime_replicates,
                 "model_authored": False,
                 "binding_stage": "before_hash_validation_and_review",
             },
@@ -1683,17 +1698,23 @@ def author_reviewed_architect_metric_requirements(
                 "When a necessary finite-sample decision is not fixed upstream, the "
                 "Architect may preregister it as architect_preregistered_design and "
                 "must justify it from decision relevance, attainable behavior, the "
-                "fixed runtime budget, and Monte Carlo uncertainty. "
+                "available execution capacity, and Monte Carlo uncertainty. Choose one "
+                "required_runtime_replicates value for the whole portfolio before any "
+                "outcome is observed; derive it from the desired Monte Carlo error, tail "
+                "behavior, dependence, and joint decision, rather than copying a default. "
+                "The supplied maximum and timeout are safety constraints, not a suggested "
+                "replicate count or statistical justification. "
                 "Every stochastic gate must measure the target statistic at the declared "
                 "transformation and aggregation, with a tolerance attainable under its "
                 "replicate budget, uncertainty, and tail behavior. Compute the joint "
                 "acceptance behavior of the whole required portfolio, including dependence, "
                 "multiplicity, aggregation, and the probability of accepting a valid "
-                "candidate under the fixed budget. Put a quantitative uncertainty or "
+                "candidate under the preregistered count. Put a quantitative uncertainty or "
                 "sampling-error calculation in each stochastic gate's rationale; phrases "
                 "such as 'stringent but attainable' are not evidence. If the supplied "
-                "budget cannot support a defensible gate, use an uncertainty-aware returned "
-                "quantity or omit that nonessential gate instead of inventing precision. "
+                "capacity cannot support a defensible gate, use an uncertainty-aware returned "
+                "quantity, simplify a nonessential gate, or report the design infeasible "
+                "instead of inventing precision. "
                 "An expectation, consistency, or asymptotic theorem does not alone justify "
                 "a tight finite-run threshold. A DGP assumption imposed by construction "
                 "should be audited from that construction unless the objective explicitly "
@@ -1711,8 +1732,8 @@ def author_reviewed_architect_metric_requirements(
                 "only for an intrinsically boolean predicate."
             ),
             (
-                "Do not emit runtime-owned fields, diagnostics that cannot affect the "
-                "acceptance decision, execution claims, or unsupported thresholds."
+                "Do not emit runtime-owned provenance fields, diagnostics that cannot affect "
+                "the acceptance decision, execution claims, or unsupported thresholds."
             ),
             (
                 "The candidate is frozen before confirmatory execution and is empirical "
@@ -2091,13 +2112,9 @@ def author_reviewed_architect_metric_requirements(
                 for row in requirements:
                     if not isinstance(row, Mapping):
                         continue
-                    requirement = dict(row)
-                    requirement["required_runtime_replicates"] = (
-                        runtime_replicates
-                    )
                     requirement_rows.append(
                         materialize_generated_metric_gate_field_authorities(
-                            requirement
+                            dict(row)
                         )
                     )
                 (
@@ -2109,6 +2126,14 @@ def author_reviewed_architect_metric_requirements(
                 omitted_nonrequired_rows.extend(
                     newly_omitted_nonrequired_rows
                 )
+            (
+                model_authored_runtime_replicates,
+                replicate_design_errors,
+            ) = generated_metric_shared_runtime_replicates(
+                requirement_rows,
+                max_runtime_replicates=max_runtime_replicates,
+            )
+            model_aci_errors.extend(replicate_design_errors)
             parent_packet_id = str(
                 prior_authoring_packet.get("packet_id", "") or ""
             )
@@ -2208,17 +2233,6 @@ def author_reviewed_architect_metric_requirements(
                             "before_hash_validation_and_review"
                         ),
                     },
-                    "required_runtime_replicates": {
-                        "source": (
-                            "runtime_contract."
-                            "generated_sandbox_runtime_replicates"
-                        ),
-                        "value": runtime_replicates,
-                        "model_authored": False,
-                        "binding_stage": (
-                            "before_hash_validation_and_review"
-                        ),
-                    },
                     "acceptance_authority_kind": {
                         "source": "preexecution_architect_authorship",
                         "value": FRESH_METRIC_AUTHORING_AUTHORITY_KIND,
@@ -2254,6 +2268,13 @@ def author_reviewed_architect_metric_requirements(
                             "before_hash_validation_and_review"
                         ),
                     },
+                },
+                "model_authored_runtime_replicates": (
+                    model_authored_runtime_replicates
+                ),
+                "runtime_execution_capacity": {
+                    "max_runtime_replicates": max_runtime_replicates,
+                    "timeout_seconds": runtime_timeout_seconds,
                 },
                 "confirmatory_required_rows_only": (
                     confirmatory_required_rows_only
@@ -2296,6 +2317,21 @@ def author_reviewed_architect_metric_requirements(
                 )
                 if str(error).strip()
             ]
+            model_authored_runtime_replicates = packet.get(
+                "model_authored_runtime_replicates"
+            )
+            if (
+                isinstance(model_authored_runtime_replicates, bool)
+                or not isinstance(model_authored_runtime_replicates, int)
+                or model_authored_runtime_replicates <= 0
+            ):
+                errors.append(
+                    "metric portfolio requires one positive model-authored "
+                    "required_runtime_replicates value"
+                )
+                expected_runtime_replicates = None
+            else:
+                expected_runtime_replicates = model_authored_runtime_replicates
             if (
                 not frozen_rebinding
                 and len(
@@ -2346,7 +2382,7 @@ def author_reviewed_architect_metric_requirements(
                     required_target_subsystems=(
                         GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
                     ),
-                    expected_runtime_replicates=runtime_replicates,
+                    expected_runtime_replicates=expected_runtime_replicates,
                     require_acceptance_authority=True,
                     acceptance_authority_catalog=acceptance_authority_catalog,
                     require_gate_field_authorities=not bool(
@@ -2394,7 +2430,12 @@ def author_reviewed_architect_metric_requirements(
         review_material = {
             "review_stage": "pre_execution_metric_contract_review",
             "execution_results_available": False,
-            "runtime_owned_replicates": runtime_replicates,
+            "model_authored_runtime_replicates": authoring_packet.get(
+                "model_authored_runtime_replicates"
+            ),
+            "runtime_execution_capacity": dict(
+                authoring_packet.get("runtime_execution_capacity", {})
+            ),
             "target_namespace": (
                 generated_metric_requirement_target_namespace_contract()
             ),

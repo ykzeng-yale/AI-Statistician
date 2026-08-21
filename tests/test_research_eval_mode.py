@@ -9,6 +9,7 @@ import pytest
 from ai_statistician.agent_runtime import AgentTask, agent_task_reference
 from ai_statistician.architect_coordinator_llm import (
     _architect_metric_authoring_deferred_for_active_replan,
+    _architect_runtime_owned_evidence_contract,
     _architect_runtime_evaluation_contract,
     _required_architect_plan_subsystems,
 )
@@ -64,6 +65,9 @@ def test_research_eval_contract_requires_research_lane_without_formalizer() -> N
         "research_evaluation_requires_generated_code_semantic_review"
     ] is True
     assert research["research_evaluation_requires_typed_metric_contracts"] is True
+    assert research["generated_sandbox_runtime_replicates"] == 100
+    assert research["generated_sandbox_max_runtime_replicates"] == 100_000
+    assert research["generated_simulation_timeout_seconds"] == 60
     assert research["formal_evaluation_requires_formalizer_lean_candidate"] is False
     assert strict["formal_evaluation_requires_formalizer_lean_candidate"] is True
 
@@ -77,6 +81,43 @@ def test_research_eval_contract_requires_research_lane_without_formalizer() -> N
         "CriticEvaluator",
     } <= required
     assert "FormalizationEvaluator" not in required
+
+
+def test_accepted_metric_rows_replace_the_exploratory_replicate_fallback() -> None:
+    theory_material = {
+        "artifact_kind": "RuntimeTheoryInformedMetricProtocolMaterial",
+        "source_theory_packet_id": "theory:reviewed-precision",
+        "source_theory_packet_hash": "theory-hash:reviewed-precision",
+        "execution_results_available": False,
+        "theory_semantic_material": {"claim_index": [{"claim_id": "C1"}]},
+    }
+    contract = _architect_runtime_owned_evidence_contract(
+        architect_context={
+            "architect_metric_protocol_theory_material": theory_material,
+            "architect_metric_requirement_authoring": {
+                "empirical_metric_requirements": [
+                    {
+                        "requirement_id": "reviewed-precision",
+                        "target_subsystems": ["SimulationEngineer"],
+                        "required_runtime_replicates": 7_300,
+                    }
+                ],
+                "semantic_review_status": "ACCEPT",
+                "semantic_review_independent_agent": True,
+                "semantic_review_independent_invocation": True,
+                "source_theory_packet_id": theory_material["source_theory_packet_id"],
+                "source_theory_packet_hash": theory_material[
+                    "source_theory_packet_hash"
+                ],
+            },
+        },
+        runtime_config={"evaluation_mode": "research_eval", "n_runs": 11},
+    )
+
+    assert contract["generated_sandbox_runtime_replicates"] == 7_300
+    assert contract["generated_sandbox_runtime_replicates_source"] == (
+        "accepted_model_authored_metric_requirements"
+    )
 
 
 def test_explicit_theory_only_intent_does_not_require_unused_lanes() -> None:

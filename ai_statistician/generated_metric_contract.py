@@ -10,7 +10,7 @@ from .fingerprint import stable_hash
 
 GENERATED_METRIC_CONTRACT_SCHEMA_VERSION = 1
 GENERATED_METRIC_EVALUATOR_CERTIFICATE_SCHEMA_VERSION = 1
-GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES = 80
+GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES = 100_000
 GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE = (
     "GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE"
 )
@@ -137,9 +137,9 @@ GENERATED_METRIC_BINDING_FIELDS: tuple[str, ...] = (
 
 
 def generated_sandbox_runtime_replicates(n_runs: int) -> int:
-    """Return the runtime-owned work budget supplied to generated sandboxes."""
+    """Apply the sandbox safety ceiling without choosing scientific precision."""
 
-    return max(5, min(int(n_runs), GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES))
+    return max(1, min(int(n_runs), GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES))
 
 
 def generated_metric_requirement_target_namespace_contract() -> dict[str, Any]:
@@ -1325,8 +1325,8 @@ def validate_generated_metric_requirements(
             and runtime_replicates != expected_runtime_replicates
         ):
             errors.append(
-                f"{prefix}.required_runtime_replicates must equal the runtime-owned "
-                f"generated sandbox budget {expected_runtime_replicates}"
+                f"{prefix}.required_runtime_replicates must equal the accepted "
+                f"pre-execution portfolio count {expected_runtime_replicates}"
             )
         errors.extend(_metric_comparison_shape_errors(raw_requirement, prefix=prefix))
         required = raw_requirement.get("required")
@@ -2084,6 +2084,62 @@ def generated_metric_requirements_from_context(
         if relevant:
             return relevant
     return []
+
+
+def generated_metric_shared_runtime_replicates(
+    requirements: Sequence[Mapping[str, Any]],
+    *,
+    max_runtime_replicates: int = GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
+) -> tuple[int | None, list[str]]:
+    """Read one model-authored execution size for a shared metric portfolio."""
+
+    errors: list[str] = []
+    counts: set[int] = set()
+    for index, row in enumerate(requirements):
+        count = row.get("required_runtime_replicates")
+        if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
+            errors.append(
+                f"empirical_metric_requirements[{index}].required_runtime_replicates "
+                "must be a positive model-authored integer"
+            )
+        else:
+            counts.add(count)
+    if requirements and len(counts) != 1:
+        errors.append(
+            "one shared model-authored required_runtime_replicates value is required "
+            "because the confirmatory metric portfolio uses one execution cohort"
+        )
+    count = next(iter(counts)) if len(counts) == 1 else None
+    if count is not None and count > max_runtime_replicates:
+        errors.append(
+            "model-authored required_runtime_replicates exceeds the sandbox safety "
+            f"capacity {max_runtime_replicates}"
+        )
+    return count, errors
+
+
+def generated_metric_runtime_replicates_from_context(
+    value: Any,
+    *,
+    fallback: int,
+    use_requirements: bool = True,
+) -> int:
+    """Resolve reviewed confirmatory precision, or the exploratory fallback."""
+
+    requirements = (
+        generated_metric_requirements_from_context(
+            value,
+            target_subsystem="SimulationEngineer",
+        )
+        if use_requirements
+        else []
+    )
+    if not requirements:
+        return generated_sandbox_runtime_replicates(fallback)
+    count, errors = generated_metric_shared_runtime_replicates(requirements)
+    if errors or count is None:
+        raise ValueError("; ".join(errors) or "missing confirmatory replicate count")
+    return count
 
 
 def generated_metric_requirement_authority_policy_from_context(value: Any) -> str:

@@ -127,6 +127,8 @@ def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
         "aggregation"
     ]["description"]
     assert "all and any never take a quorum field" in gate_schema["description"]
+    assert "required_runtime_replicates" in schema["required"]
+    assert schema["properties"]["required_runtime_replicates"]["maximum"] == 100_000
 
     materialized, errors = _materialize_metric_authoring_model_requirement(
         {
@@ -134,6 +136,7 @@ def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
             "metric_semantics": "estimated risk of the generated procedure",
             "metric_value_kind": "numeric",
             "measurement_protocol": "return the empirical risk over fresh replicates",
+            "required_runtime_replicates": 7_300,
             "operator": "<=",
             "aggregation": "identity",
             "predicate_authority": {
@@ -153,6 +156,7 @@ def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
 
     assert errors == []
     assert materialized["threshold"] == 0.1
+    assert materialized["required_runtime_replicates"] == 7_300
     assert materialized["acceptance_authority_kind"] == (
         FRESH_METRIC_AUTHORING_AUTHORITY_KIND
     )
@@ -169,6 +173,7 @@ def test_fresh_metric_gate_object_has_unique_keys_and_runtime_order() -> None:
             "metric_semantics": "calibrated empirical risk",
             "metric_value_kind": "numeric",
             "measurement_protocol": "return one risk estimate",
+            "required_runtime_replicates": 7_300,
             "operator": "<=",
             "aggregation": "identity",
             "predicate_authority": {
@@ -203,6 +208,7 @@ def test_fresh_metric_gate_object_has_unique_keys_and_runtime_order() -> None:
                 "metric_semantics": "one scalar",
                 "metric_value_kind": "numeric",
                 "measurement_protocol": "return one scalar",
+                "required_runtime_replicates": 7_300,
                 "operator": "<=",
                 "aggregation": "identity",
                 "predicate_authority": {
@@ -235,6 +241,7 @@ def test_fresh_boolean_all_rejects_redundant_quorum_field_without_repair() -> No
         "metric_semantics": "whether a declared identity holds on every replicate",
         "metric_value_kind": "boolean",
         "measurement_protocol": "return one boolean identity result per replicate",
+        "required_runtime_replicates": 7_300,
         "operator": "==",
         "aggregation": "all",
         "predicate_authority": {

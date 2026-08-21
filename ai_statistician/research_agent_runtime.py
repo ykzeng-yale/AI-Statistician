@@ -74,6 +74,7 @@ from .generated_metric_contract import (
     generated_metric_contract_set_id,
     generated_metric_contracts_for_artifact,
     generated_metric_requirement_authority_policy_from_context,
+    generated_metric_runtime_replicates_from_context,
     generated_metric_requirement_set_id,
     generated_metric_requirement_target_namespace_contract,
     generated_metric_requirements_from_context,
@@ -9363,7 +9364,10 @@ class SimulationEvaluatorRuntimeSubsystem:
         problem = research_bundle.problem
         theorem_goals = list(research_bundle.theorem_goals)
         problem_authority = research_bundle.provenance()
-        n_runs = int(task.inputs.get("n_runs", 100))
+        n_runs = generated_metric_runtime_replicates_from_context(
+            effective_context, fallback=int(task.inputs.get("n_runs", 100)),
+            use_requirements=not exploratory_diagnostic,
+        )
         seed = int(task.inputs.get("seed", 20260528))
         proposal_packet: dict[str, Any] | None = None
         produced_artifacts: dict[str, Any] = {}

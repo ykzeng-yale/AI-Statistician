@@ -75,7 +75,11 @@ def _material(
     material: dict[str, object] = {
         "review_stage": "pre_execution_metric_contract_review",
         "execution_results_available": False,
-        "runtime_owned_replicates": 20,
+        "model_authored_runtime_replicates": 20,
+        "runtime_execution_capacity": {
+            "max_runtime_replicates": 100_000,
+            "timeout_seconds": 60,
+        },
         "metric_evaluation_semantics": (
             generated_metric_evaluation_semantics_contract()
         ),
@@ -495,6 +499,7 @@ def test_prompt_projects_semantic_inputs_without_long_derivation_replay() -> Non
     assert "metric_claim_check_contract" not in prompt
     assert "literally substitute the declared returned raw metric" in prompt
     assert "independently quantify or bound finite-run uncertainty" in prompt
+    assert "safety constraints, not a statistical default" in prompt
     assert "unsupported assertion that a threshold is attainable" in prompt
     assert "does not by itself localize a defect" in prompt
     assert "one declared empirical claim" in prompt
@@ -502,6 +507,11 @@ def test_prompt_projects_semantic_inputs_without_long_derivation_replay() -> Non
     assert "Runtime performs no implicit target subtraction" in prompt
     assert "semantic_positive_control" in prompt
     assert "implicit_transformations_applied" in prompt
+    assert payload["review_material"]["model_authored_runtime_replicates"] == 20
+    assert payload["review_material"]["runtime_execution_capacity"] == {
+        "max_runtime_replicates": 100_000,
+        "timeout_seconds": 60,
+    }
     comparison = payload["review_material"]["runtime_evaluator_certificate"][
         "certificates"
     ][0]["comparison_stage"]

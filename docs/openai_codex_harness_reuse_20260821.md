@@ -4,9 +4,9 @@
 
 - Repository: `https://github.com/openai/codex`
 - Audited branch: `main`
-- Audited commit: `9949c9eafae057110bbb23273b5b4be894ef7448`
+- Audited commit: `e6a3877e95788b52c3aa5e9a143dba87f04720dc`
 - License: Apache-2.0
-- Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex-9949c9ea`
+- Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex-e6a3877e`
 - License SHA-256: `d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc`
 
 The audit is commit-bound. A later Codex release is a different mechanism
@@ -22,6 +22,12 @@ allowlisted executor stop hooks, richer browser/computer-use policy, Bedrock
 setup, and redacted provider configuration values. They strengthen isolation,
 policy ownership, and secret handling but do not justify a second scheduler,
 scientific reviewer, or provider path in AI-Statistician.
+
+The latest incremental recheck from `9949c9ea` to `e6a3877e` contains one
+commit limited to remote installed-plugin cache reconciliation. Every core
+session, tool-dispatch, multi-agent, app-server, provider, Guardian, thread, and
+executor-hook file listed below remains byte-identical. It adds no reusable
+research-workspace or scientific-scheduling mechanism.
 
 ## What Codex actually contributes
 
@@ -142,6 +148,14 @@ placing another Codex thread manager around `AgentRuntime`.
     Agent outputs do not copy the full contract. This applies Codex's stable tool
     surface and exact observation-binding principle to scientific evaluation;
     it does not ask runtime to interpret statistics or repair model source.
+11. Confirmatory simulation precision is now model-owned. The pre-execution
+    metric-planning model selects one replicate count for the shared portfolio,
+    explains its Monte Carlo precision in the existing requirement rationales,
+    and an isolated reviewer checks that choice before outcomes are available.
+    AgentRuntime preserves the accepted count exactly through Simulation source
+    authoring and execution. Runtime supplies only a wall-clock limit and a high
+    sandbox safety ceiling; neither is a statistical default. Exploratory runs
+    retain their separate operator-selected fallback.
 
 These changes add no model call, retry, turn, agent, scheduler, model tier,
 statistical formula, Lean grammar rule, or repair recipe.
@@ -199,6 +213,13 @@ raw observations stay with the source-owning model unless that model explicitly
 reports a hash-bound dependency defect. There is no deterministic content
 router, repair agent, task-specific exception table, new retry, or additional
 scheduler.
+
+The same boundary applies to confirmatory design. Runtime may verify that every
+metric row names one positive, shared execution count and that the sandbox can
+accept it, but it may not choose 80, 100, or any other scientific precision on
+the model's behalf. The planning model and independent reviewer own that
+decision before execution; a mismatch or unsupported precision fails closed
+without an outcome-informed rewrite.
 
 ### Reused collaboration semantics
 
@@ -300,3 +321,13 @@ tampering and no-new-observation lineage fail before a provider call. The full
 local suite passed 776 tests in 72.25 seconds. No live model call, frozen-task
 rerun, retry or turn increase, mathematical acceptance, hidden-gold credit,
 empirical credit, or proof credit was produced.
+
+The model-authored confirmatory-precision correction is regression-validated:
+the compact author schema preserves a 7,300-replicate model choice, inconsistent
+portfolio counts and counts beyond the sandbox safety capacity fail closed, the
+independent review prompt distinguishes scientific precision from runtime
+capacity, the accepted contract replaces only the confirmatory execution count,
+and Simulation source plus execution receive that exact count. The focused panel
+passed 197 tests and the full local suite passed 795 tests in 64.59 seconds.
+No model call, frozen-task rerun, result inspection, new agent, retry, outer
+iteration, statistical formula, Lean rule, or capability credit was produced.

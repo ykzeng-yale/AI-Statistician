@@ -3291,6 +3291,11 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     )
     monkeypatch.setattr(
         runtime_module,
+        "generated_metric_runtime_replicates_from_context",
+        lambda *_args, **_kwargs: 7_300,
+    )
+    monkeypatch.setattr(
+        runtime_module,
         "_runtime_requires_generated_simulation_code",
         lambda *_args, **_kwargs: True,
     )
@@ -3345,6 +3350,7 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
 
     assert SimulationAgent.propose_calls == 1
     assert proposal_calls[0]["withhold_seed_from_model"] is True
+    assert proposal_calls[0]["n_runs"] == 7_300
     assert SimulationAgent.source_calls == 1
     assert source_checks[0]["accepted"] is True
     source_observation = source_checks[0]["prototype"]
@@ -3403,6 +3409,7 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     assert source_workspace_operations == ["initial_authoring"]
     assert len(source_initial_observations) == 1
     assert len(sandbox_calls) == 1
+    assert sandbox_calls[0]["n_runs"] == 7_300
     assert not any(
         isinstance(artifact, dict)
         and artifact.get("artifact_kind")

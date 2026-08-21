@@ -34,7 +34,7 @@ from .theory_workspace import TheoryScratchpadConfig
 
 
 ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 20
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 17
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 18
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -62,7 +62,11 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "aggregation, and source authority. Put any decisive recomputation directly "
         "in that requirement's rationale instead of expanding a second audit schema. "
         "For every stochastic row, independently quantify or bound finite-run "
-        "uncertainty from its declared replicate budget. An unsupported assertion that "
+        "uncertainty from its model-authored replicate count. Check that every row uses "
+        "the same pre-execution count and that the count is justified by the desired "
+        "Monte Carlo precision and the joint decision. The runtime maximum and timeout "
+        "are safety constraints, not a statistical default or justification. An "
+        "unsupported assertion that "
         "a threshold is attainable is not a calculation and must be UNCERTAIN or FAIL. "
         "Do not turn an expectation, consistency, or asymptotic theorem into a tight "
         "finite-run gate without a justified sampling distribution or error bound."
@@ -382,8 +386,11 @@ def _review_prompt_material(
         "execution_results_available": review_material.get(
             "execution_results_available"
         ),
-        "runtime_owned_replicates": review_material.get(
-            "runtime_owned_replicates"
+        "model_authored_runtime_replicates": review_material.get(
+            "model_authored_runtime_replicates"
+        ),
+        "runtime_execution_capacity": deepcopy(
+            review_material.get("runtime_execution_capacity", {})
         ),
         "upstream_research_contract": deepcopy(
             review_material.get("upstream_research_contract", {})

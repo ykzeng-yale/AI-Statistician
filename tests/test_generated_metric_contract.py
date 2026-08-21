@@ -25,6 +25,8 @@ from ai_statistician.generated_metric_contract import (
     generated_metric_requirement_prompt_schema,
     generated_metric_requirement_set_id,
     generated_metric_requirement_target_namespace_contract,
+    generated_metric_runtime_replicates_from_context,
+    generated_metric_shared_runtime_replicates,
     is_generated_metric_numeric_authority_error,
     materialize_generated_metric_contract_bindings,
     materialize_generated_metric_gate_field_authorities,
@@ -135,6 +137,36 @@ def test_metric_requirement_target_namespace_is_explicit_and_machine_readable() 
     assert "|" not in generated_metric_requirement_prompt_schema()[
         "target_subsystems"
     ][0]
+
+
+def test_confirmatory_replicates_are_model_authored_shared_and_context_bound() -> None:
+    requirements = [
+        _requirement(requirement_id="risk", required_runtime_replicates=7_300),
+        _requirement(requirement_id="coverage", required_runtime_replicates=7_300),
+    ]
+
+    count, errors = generated_metric_shared_runtime_replicates(requirements)
+
+    assert errors == []
+    assert count == 7_300
+    assert generated_metric_runtime_replicates_from_context(
+        {"architect_evidence_contract": {"empirical_metric_requirements": requirements}},
+        fallback=13,
+    ) == 7_300
+    assert generated_metric_runtime_replicates_from_context(
+        {"architect_evidence_contract": {"empirical_metric_requirements": requirements}},
+        fallback=13,
+        use_requirements=False,
+    ) == 13
+
+    _count, mismatch_errors = generated_metric_shared_runtime_replicates(
+        [requirements[0], {**requirements[1], "required_runtime_replicates": 2_000}]
+    )
+    assert any("one shared model-authored" in error for error in mismatch_errors)
+    _count, capacity_errors = generated_metric_shared_runtime_replicates(
+        [{**requirements[0], "required_runtime_replicates": 100_001}]
+    )
+    assert any("safety capacity" in error for error in capacity_errors)
 
 
 def test_typed_boolean_metric_uses_runtime_truth_representation() -> None:

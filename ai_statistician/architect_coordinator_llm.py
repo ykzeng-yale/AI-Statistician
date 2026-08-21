@@ -25,7 +25,9 @@ from .generated_metric_contract import (
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
     GENERATED_METRIC_REQUIREMENT_BOUNDARY,
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
+    GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
     generated_metric_requirement_set_id,
+    generated_metric_shared_runtime_replicates,
     generated_sandbox_runtime_replicates,
     validate_generated_metric_requirements,
 )
@@ -2344,14 +2346,25 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
         expected_runtime_replicates = evidence_contract.get(
             "generated_sandbox_runtime_replicates"
         )
+        max_runtime_replicates = evidence_contract.get(
+            "generated_sandbox_max_runtime_replicates"
+        )
         if research_evaluation and typed_required is True and (
             isinstance(expected_runtime_replicates, bool)
             or not isinstance(expected_runtime_replicates, int)
             or expected_runtime_replicates <= 0
         ):
             errors.append(
-                "research evaluation requires a positive runtime-owned "
+                "research evaluation requires a positive pre-execution "
                 "generated_sandbox_runtime_replicates value"
+            )
+        if research_evaluation and typed_required is True and (
+            isinstance(max_runtime_replicates, bool)
+            or not isinstance(max_runtime_replicates, int)
+            or max_runtime_replicates <= 0
+        ):
+            errors.append(
+                "research evaluation requires a positive sandbox replicate safety capacity"
             )
         if requirements not in (None, [], {}):
             if research_evaluation and typed_required is True and (
@@ -2363,6 +2376,23 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                     "research-evaluation metric requirements authorize execution only "
                     "after independent pre-execution review acceptance"
                 )
+            if research_evaluation and typed_required is True:
+                _shared_replicates, replicate_errors = (
+                    generated_metric_shared_runtime_replicates(
+                        [
+                            dict(row)
+                            for row in requirements
+                            if isinstance(row, Mapping)
+                        ],
+                        max_runtime_replicates=(
+                            max_runtime_replicates
+                            if isinstance(max_runtime_replicates, int)
+                            and not isinstance(max_runtime_replicates, bool)
+                            else GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES
+                        ),
+                    )
+                )
+                errors.extend(replicate_errors)
             errors.extend(
                 validate_generated_metric_requirements(
                     requirements,
@@ -2746,6 +2776,25 @@ def _architect_runtime_owned_evidence_contract(
     if requested_path:
         contract["recommended_research_path"] = requested_path
     contract.update(evaluation_contract)
+    accepted_metric_rows = [
+        dict(row)
+        for row in contract.get("empirical_metric_requirements", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if accepted_metric_rows:
+        reviewed_replicates, replicate_errors = (
+            generated_metric_shared_runtime_replicates(
+                accepted_metric_rows,
+                max_runtime_replicates=int(
+                    contract["generated_sandbox_max_runtime_replicates"]
+                ),
+            )
+        )
+        if reviewed_replicates is not None and not replicate_errors:
+            contract["generated_sandbox_runtime_replicates"] = reviewed_replicates
+            contract["generated_sandbox_runtime_replicates_source"] = (
+                "accepted_model_authored_metric_requirements"
+            )
     if not _research_evaluation_contract_flag(
         contract,
         "typed_metric_contracts",
@@ -2923,6 +2972,13 @@ def _architect_runtime_evaluation_contract(
             generated_sandbox_runtime_replicates(
                 int(runtime_config.get("n_runs", 100) or 100)
             )
+        ),
+        "generated_sandbox_max_runtime_replicates": (
+            GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES
+        ),
+        "generated_simulation_timeout_seconds": max(
+            1,
+            int(runtime_config.get("generated_simulation_timeout_seconds", 60) or 60),
         ),
         "generated_metric_contract_policy": (
             "typed_artifact_bound_required"

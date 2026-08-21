@@ -6855,7 +6855,15 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument("--local-lean", action="store_true", help="use local lake env lean for exact model-authored sources")
     research_agent_runtime.add_argument("--lean-project", default="", help="local Lake project used by --local-lean")
     research_agent_runtime.add_argument("--lean-timeout", type=int, default=90, help="timeout seconds for each local Lean check")
-    research_agent_runtime.add_argument("--runs", type=int, default=100)
+    research_agent_runtime.add_argument(
+        "--runs",
+        type=int,
+        default=100,
+        help=(
+            "exploratory/fallback simulation replicates; confirmatory runs use the "
+            "pre-execution model-authored, independently reviewed metric contract"
+        ),
+    )
     research_agent_runtime.add_argument("--seed", type=int, default=20260528)
     research_agent_runtime.add_argument(
         "--generated-simulation-timeout-seconds",
