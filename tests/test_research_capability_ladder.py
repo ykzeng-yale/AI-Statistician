@@ -762,3 +762,53 @@ def test_jackknife_mean_l0_freezes_invalid_design_and_terminal_budget_block() ->
         "semantic_calibration_cases.json",
     ):
         assert hidden_name not in runtime_visible
+
+
+def test_ar1_ols_l0_freezes_consumed_collaboration_failure_without_resampling() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "stationary_ar1_zero_mean_ols_known_result"
+    )
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "time_series"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == "full_task_gold_frozen_consumed_closed"
+    evidence = candidate["activation_evidence"]
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["fresh_live_runtime_status"] == "MAX_ITERATIONS_REACHED"
+    assert evidence["fresh_live_runtime_terminal_kind"] == (
+        "budget_exhausted_with_pending_next_task"
+    )
+    assert evidence["fresh_live_theory_checkpoint_committed"] is True
+    assert evidence["fresh_live_independent_theory_review_accepted"] is True
+    assert evidence["fresh_live_algorithm_execution_passed"] is True
+    assert evidence["fresh_live_algorithm_semantic_review_accepted"] is True
+    assert evidence["fresh_live_metric_protocol_preexecution_review_accepted"] is True
+    assert evidence["fresh_live_simulation_accepted"] is False
+    assert evidence["fresh_live_critic_accepted"] is False
+    assert evidence["fresh_live_formalizer_executions"] == 0
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["full_task_passed"] is False
+    assert Path(evidence["operator_audit_path"]).is_file()
+    for field in (
+        "fresh_live_runtime_manifest_sha256",
+        "fresh_live_hidden_gold_report_sha256",
+        "fresh_live_runtime_failure_summary_sha256",
+        "fresh_live_runtime_completion_summary_sha256",
+    ):
+        assert len(evidence[field]) == 64
+    assert candidate["task_intent"] == {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required",
+    }

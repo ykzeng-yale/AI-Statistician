@@ -4,20 +4,24 @@
 
 - Repository: `https://github.com/openai/codex`
 - Audited branch: `main`
-- Audited commit: `45a3edc02a59d845eba30794796c44e5f2377408`
+- Audited commit: `9949c9eafae057110bbb23273b5b4be894ef7448`
 - License: Apache-2.0
-- Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex-45a3edc0`
+- Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex-9949c9ea`
 - License SHA-256: `d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc`
 
 The audit is commit-bound. A later Codex release is a different mechanism
 snapshot and must not silently replace this identity.
 
-The prior audit was pinned at `e482cc66aeeedcb9f333a1f5a0a554eb5aea4b36`.
-The incremental recheck to `45a3edc0` found no byte changes in the six core
-files below. The intervening relevant changes preserve TUI event order, enforce
-remote-environment network policy, and retain MCP compatibility; they reinforce
-stable observation ordering and environment-owned policy but do not justify a
-second scheduler or provider path in AI-Statistician.
+The immediately prior audit was pinned at
+`45a3edc02a59d845eba30794796c44e5f2377408`. The 14-commit incremental
+recheck to `9949c9ea` leaves tool dispatch, multi-agent context selection, and
+child spawning byte-identical. The turn loop only switches stop-hook execution
+from turn context to the current step context. Other relevant changes add
+bounded Guardian-review evidence, fresh parent-linked internal sessions,
+allowlisted executor stop hooks, richer browser/computer-use policy, Bedrock
+setup, and redacted provider configuration values. They strengthen isolation,
+policy ownership, and secret handling but do not justify a second scheduler,
+scientific reviewer, or provider path in AI-Statistician.
 
 ## What Codex actually contributes
 
@@ -45,12 +49,15 @@ Primary inspected files and their SHA-256 identities:
 
 | Upstream file | Mechanism | SHA-256 |
 | --- | --- | --- |
-| `codex-rs/core/src/session/turn.rs` | same-session model/tool continuation | `dfaf8eed97c12916fb8d7c454c455bb6f6f4eb3c5fe8e5d2636e22f7a3a7263b` |
+| `codex-rs/core/src/session/turn.rs` | same-session model/tool continuation and current-step stop context | `7499497671f04186b7c31126dbdee38c5a34a022a51b55bdefca331f778e2c66` |
 | `codex-rs/core/src/tools/parallel.rs` | typed dispatch, ordering, cancellation, fatal boundary | `48380e25abaf9c52e7a5de9cecf82cc4ddb84197683f73a11719de3b78c90e5a` |
 | `codex-rs/core/src/session/multi_agents.rs` | context-selective child agents and mailbox guidance | `44197c5fb2b32ec158c5488b419141e9e626614c64d524b6a2a90500a272f53f` |
 | `codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs` | zero/N/all-turn fork policy | `3bb8b56b430c095bea3f7e1ccebb9a73d2c889786a281942bb0cd2ca676a1300` |
-| `codex-rs/app-server/README.md` | thread/turn/item protocol and dynamic tools | `6da52c64da3e6a7d1f6dcbc636d22aabc5d0935cb4f4f07951501236f84e5b98` |
-| `codex-rs/model-provider-info/src/lib.rs` | provider transport contract | `c3aa8df9ffd0ddc8010c7c2057b85f539ae5de92873549f2958e53149cb37dd4` |
+| `codex-rs/app-server/README.md` | thread/turn/item protocol, dynamic tools, and managed policy | `6255f38ce9fe1aaf6a19c79d0bccb00fbd35066267a410feec638ae504d387bd` |
+| `codex-rs/model-provider-info/src/lib.rs` | provider transport contract with redacted secret-bearing values | `2168b93576dff1d336f0c3d390b6ff8c38376340fc8ed2eea8da9857ddb1eeb7` |
+| `codex-rs/core/src/context/guardian_review_evidence.rs` | bounded, runtime-only, authorization-bound review evidence | `b0d5cafa5529dd0ae55a44d3933a175b4d0999d73e78dc7963c1d2781088279f` |
+| `codex-rs/core/src/thread_manager.rs` | fresh parent-linked internal sessions | `3bbbd6f2c68cacc1f652e57493ac15a560b2d7da2f93f797ad492d794f4e8c9d` |
+| `codex-rs/core-plugins/src/executor_hooks.rs` | identity-allowlisted executor cleanup hooks | `fbdc87934d9dae73014f626dd079989986c1b1e8bcc8d068cb6f1d4fc555463a` |
 
 ## Fit with AI-Statistician
 
@@ -153,6 +160,45 @@ own turn. AI-Statistician still retains `AgentRuntime` as the only outer
 scientific scheduler and Claude as the required provider path. Codex thread,
 app-server, Responses transport, and multi-agent persistence are not imported.
 The consumed task remains `0/1`; deterministic regression cannot rescore it.
+
+### AR1 live validation
+
+The frozen stationary-AR(1) L0 draw exposed a second, more general harness
+counterexample. Simulation source intentionally called the accepted estimator
+on an all-zero series and handled its `ValueError` as an expected domain
+rejection. The callback wrapper changed that exception into a runtime-specific
+type, and the outer runtime then classified every caught estimator exception as
+an AlgorithmEngineer defect. This overrode the consumer model's own executed
+program and caused repeated AlgorithmEngineer/SimulationEngineer handoffs until
+the outer iteration budget was exhausted.
+
+Code commit `dd3d09bfbf02565a97fcb588a573a5d178d9da34` applies the Codex-style
+boundary directly:
+
+- a bound Python or R dependency preserves its original exception inside the
+  consuming sandbox;
+- an exception handled by model-authored consumer source remains an ordinary
+  consumer program result;
+- only an exception escaping the sandbox is an unhandled execution failure and
+  returns as a raw observation to the same SimulationEngineer session;
+- cross-workspace handoff occurs only when that model explicitly invokes
+  `report_bound_dependency_failure` with the exact accepted source identity;
+- runtime verifies artifact IDs and hashes but does not infer scientific defect
+  ownership from exception syntax.
+
+The exact frozen estimator and third simulation source were replayed only as a
+deterministic mechanism check. The fixed callback executed 75 estimator calls,
+preserved the expected zero-series rejection, and left a separate failed
+constant-series assertion visible as a Simulation-owned source defect. The
+affected panel passed 137 tests, the ladder panel passed 14 tests, and the full
+suite passed 793 tests. The frozen draw remains `0/1`; the replay is not a
+rerun, rescore, or capability claim.
+
+This is also the collaboration rule for Theory, Python/R, Simulation, and Lean:
+raw observations stay with the source-owning model unless that model explicitly
+reports a hash-bound dependency defect. There is no deterministic content
+router, repair agent, task-specific exception table, new retry, or additional
+scheduler.
 
 ### Reused collaboration semantics
 
