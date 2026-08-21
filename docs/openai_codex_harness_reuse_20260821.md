@@ -4,13 +4,20 @@
 
 - Repository: `https://github.com/openai/codex`
 - Audited branch: `main`
-- Audited commit: `e482cc66aeeedcb9f333a1f5a0a554eb5aea4b36`
+- Audited commit: `45a3edc02a59d845eba30794796c44e5f2377408`
 - License: Apache-2.0
-- Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex-e482cc66`
+- Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex-45a3edc0`
 - License SHA-256: `d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc`
 
 The audit is commit-bound. A later Codex release is a different mechanism
 snapshot and must not silently replace this identity.
+
+The prior audit was pinned at `e482cc66aeeedcb9f333a1f5a0a554eb5aea4b36`.
+The incremental recheck to `45a3edc0` found no byte changes in the six core
+files below. The intervening relevant changes preserve TUI event order, enforce
+remote-environment network policy, and retain MCP compatibility; they reinforce
+stable observation ordering and environment-owned policy but do not justify a
+second scheduler or provider path in AI-Statistician.
 
 ## What Codex actually contributes
 
@@ -95,6 +102,14 @@ placing another Codex thread manager around `AgentRuntime`.
    findings marked resolved or retracted; merely adding a new finding while an
    old one remains unresolved is stagnation and stops before another theory
    model call. Revision count remains lineage telemetry, not a second budget.
+7. Lean source workspaces now survive an exhausted inner tool-loop segment as
+   one same-owner session. The checkpoint binds the immutable parent, exact
+   current source, declaration, raw Lean diagnostic, latest RAG/proof-state
+   observations, checked candidates, and observed-progress identities. The
+   next outer step carries only a content-addressed observation reference; it
+   does not regenerate a Formalizer packet or route through Architect. A
+   tampered, stale, overlapping, or observation-free continuation stops before
+   another provider call.
 
 These changes add no model call, retry, turn, agent, scheduler, model tier,
 statistical formula, Lean grammar rule, or repair recipe.
@@ -167,3 +182,13 @@ were deleted. A round-eight lineage that closes its prior finding continues to
 round nine, while a lineage that closes none stops immediately. The affected
 panel passed 229 tests and the full local suite passed 770 tests. No model call
 or frozen-task rerun occurred, so this supplies no mathematical or E2E credit.
+
+The Lean-continuation correction is regression-validated at code commit
+`a1f47e08`. A two-segment source session restores the exact failed source,
+compiler stderr, and formal-environment search result; the second segment does
+not recheck or reinterpret the parent and retains its original parent hash.
+Runtime continuation uses the same Formalizer and one hash-bound observation
+reference, while content tampering and no-new-observation lineage fail closed.
+The Lean/AgentRuntime panel passed 111 tests and the full local suite passed 773
+tests in 72.97 seconds. No model call, benchmark rerun, theorem proof, hidden
+evaluation, retry increase, turn increase, or new scheduling layer occurred.
