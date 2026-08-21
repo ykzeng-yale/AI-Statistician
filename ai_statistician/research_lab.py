@@ -7,6 +7,7 @@ import re
 import hashlib
 import inspect
 import itertools
+from copy import deepcopy
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,9 @@ from typing import Any
 import numpy as np
 
 from .fingerprint import stable_hash
+from .estimator_interface_contract import (
+    frozen_estimator_execution_contract_errors,
+)
 from .formal_source_index import FormalSourceHit, FormalSourceRetriever, build_formal_source_search_backend
 from .proof_bank import all_obligations, get_obligation, proof_bank_fingerprint
 from .research_knowledge import KNOWLEDGE_CARDS, retrieve_problem_knowledge
@@ -1121,6 +1125,16 @@ def load_open_research_questions(path: Path) -> list[OpenResearchQuestion]:
                 "research question task_intent requirements must be required, "
                 "optional, or not_applicable"
             )
+        estimator_execution_contract = row.get(
+            "estimator_execution_contract", {}
+        )
+        contract_errors = frozen_estimator_execution_contract_errors(
+            estimator_execution_contract,
+            label="research question estimator_execution_contract",
+            required="estimator_execution_contract" in row,
+        )
+        if contract_errors:
+            raise ValueError("; ".join(contract_errors))
         questions.append(
             OpenResearchQuestion(
                 id=str(row["id"]),
@@ -1128,6 +1142,11 @@ def load_open_research_questions(path: Path) -> list[OpenResearchQuestion]:
                 description=str(row["description"]),
                 tags=tuple(str(tag) for tag in row.get("tags", ())),
                 task_intent=task_intent,
+                estimator_execution_contract=(
+                    deepcopy(dict(estimator_execution_contract))
+                    if isinstance(estimator_execution_contract, dict)
+                    else {}
+                ),
             )
         )
     return questions

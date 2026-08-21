@@ -1,6 +1,6 @@
 # Evaluation Benchmark Strategy
 
-Updated: 2026-08-14
+Updated: 2026-08-21
 
 ## What evaluation must separate
 
@@ -54,6 +54,32 @@ their full orchestration stacks:
   paper understanding by executable reproduction, not textual similarity alone;
 - [LeanMarathon](https://arxiv.org/abs/2606.05400): use a durable statement/lemma
   DAG and verifier-backed checkpoints for long-horizon formal work.
+
+## Visible executable contract
+
+Every newly activated schema-v2 task with a hidden algorithm or empirical
+evaluator freezes one model-visible estimator contract before the first model
+call. The contract names the `run_estimator` identity and defines every request
+and response field by meaning, JSON type, shape, units, indexing, edge cases,
+normalization, and stable clause ID. This compact JSON is an execution ABI, not
+the mathematical authority: derivations and claims remain in model-authored
+Markdown/LaTeX documents.
+
+Each evaluator-only algorithm or empirical acceptance check must cite one or
+more public clause IDs, and its estimator identity must match the public
+contract. Expected values, hidden cases, seeds, tolerance values, and harness
+source remain evaluator-only. Clause references establish inspectable
+provenance; they do not mechanically prove semantic entailment. Before task
+activation, the operator still audits that every hidden assertion follows from
+the visible clauses and calibrates the hidden harness against independent valid
+and invalid implementations.
+
+The full public contract is supplied to the source-owning Theory, Python/R,
+Simulation, review, and Critic model contexts. Agent result artifacts do not
+recursively copy it; the frozen question and content-derived contract identity
+remain authoritative. Schema v1 stays read-compatible for immutable historical
+runs, while new executable benchmarks use schema v2. This adds no agent, route,
+repair layer, retry, research budget, statistical formula, or model escalation.
 
 ## Progressive research graph
 

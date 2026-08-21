@@ -51,7 +51,7 @@ from .metric_protocol_finding_ledger import (
     metric_protocol_finding_ledger_from_review_history,
     update_metric_protocol_finding_ledger,
 )
-from .research_schema import OpenResearchQuestion
+from .research_schema import OpenResearchQuestion, research_question_payload
 from .semantic_review_feedback import model_observations_without_repair_recipes
 
 
@@ -1342,12 +1342,7 @@ def author_reviewed_architect_metric_requirements(
         runtime_contract.get("generated_sandbox_runtime_replicates", 0) or 0
     )
     confirmatory_required_rows_only = True
-    question_material = {
-        "id": question.id,
-        "title": question.title,
-        "description": question.description,
-        "tags": list(question.tags),
-    }
+    question_material = research_question_payload(question)
     upstream_research_contract = build_architect_upstream_research_contract(
         runtime_contract
     )

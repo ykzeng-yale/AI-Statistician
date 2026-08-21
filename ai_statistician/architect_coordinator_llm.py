@@ -40,7 +40,11 @@ from .metric_protocol_stage import (
     theory_informed_metric_protocol_material,
 )
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
-from .research_schema import OpenResearchQuestion, research_dimension_requirements
+from .research_schema import (
+    OpenResearchQuestion,
+    research_dimension_requirements,
+    research_question_payload,
+)
 from .semantic_review_feedback import (
     architect_observations_without_runtime_routing,
 )
@@ -678,13 +682,10 @@ def build_architect_feedback_route_prompt(
             source_revision_assessment = assessment
             break
     payload = {
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-            "task_intent": dict(question.task_intent),
-        },
+        "question": research_question_payload(
+            question,
+            include_task_intent=True,
+        ),
         "available_route_subsystems": list(available_route_subsystems),
         "unavailable_route_subsystems": unavailable_route_subsystems,
         "current_source_owner": current_source_owner or "NONE",
@@ -1924,13 +1925,10 @@ def build_architect_coordinator_prompt(
         architect_observations_without_runtime_routing(architect_context)
     )
     payload = {
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-            "task_intent": dict(question.task_intent),
-        },
+        "question": research_question_payload(
+            question,
+            include_task_intent=True,
+        ),
         "architect_context": model_architect_context,
         "runtime_config": withhold_confirmatory_evaluation_seed(
             runtime_config,
@@ -2850,13 +2848,11 @@ def _normalize_architect_packet(
         "provider": provider_name,
         "model": model,
         "model_tier": model_tier,
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-            "task_intent": dict(question.task_intent),
-        },
+        "question": research_question_payload(
+            question,
+            include_task_intent=True,
+            include_estimator_execution_contract=False,
+        ),
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,
     }

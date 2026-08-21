@@ -126,6 +126,13 @@ placing another Codex thread manager around `AgentRuntime`.
    can therefore be followed by the same model's explicit checkpoint commit or
    gap report instead of being stranded by the tool-call counter. The reservation
    adds no research action, turn, retry, or runtime-authored stopping decision.
+10. Executable scientific tasks freeze one compact, model-visible estimator ABI
+    before the first model call. The same contract reaches the Theory, Python/R,
+    Simulation, review, and Critic contexts, while schema-v2 hidden checks cite
+    its stable public clauses and remain isolated after runtime termination.
+    Agent outputs do not copy the full contract. This applies Codex's stable tool
+    surface and exact observation-binding principle to scientific evaluation;
+    it does not ask runtime to interpret statistics or repair model source.
 
 These changes add no model call, retry, turn, agent, scheduler, model tier,
 statistical formula, Lean grammar rule, or repair recipe.
@@ -197,6 +204,15 @@ deterministic regression proving that:
 - all frozen research outcomes remain unchanged.
 
 No consumed benchmark may be rerun to claim that this mechanism works.
+
+The visible-executable-contract correction has focused regression evidence only.
+It validates stable public clauses, exact runtime and prompt propagation, legacy
+question compatibility, evaluator identity binding, and fail-closed rejection of
+unstated hidden-check semantics. Structural clause references remain provenance,
+not proof that a hidden check is scientifically entailed; that preactivation
+audit and independent harness calibration remain operator responsibilities. No
+new live draw is authorized until the code is committed, the full suite passes,
+and a future unrelated task is frozen under schema v2.
 
 The deterministic continuation regression is complete at code commit
 `9de34cf231b59f35985170775314834eeeebaf2d`: Algorithm and simulation both

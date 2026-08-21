@@ -279,6 +279,7 @@ from .research_schema import (
     FormalSubclaim,
     KnowledgeCard,
     OpenResearchQuestion,
+    research_question_payload,
     PaperSourceHit,
     ResearchProblemSpec,
     TheoremGoal,
@@ -24830,15 +24831,7 @@ def _metrics_are_finite(metrics: Mapping[str, Any]) -> bool:
 
 
 def _question_to_payload(question: OpenResearchQuestion) -> dict[str, Any]:
-    payload = {
-        "id": question.id,
-        "title": question.title,
-        "description": question.description,
-        "tags": list(question.tags),
-    }
-    if question.task_intent:
-        payload["task_intent"] = dict(question.task_intent)
-    return payload
+    return research_question_payload(question, include_task_intent=True)
 
 
 def _question_primary_task_family(question: OpenResearchQuestion) -> str:
@@ -24867,6 +24860,9 @@ def _question_from_payload(payload: Mapping[str, Any]) -> OpenResearchQuestion:
             str(key): str(value)
             for key, value in dict(payload.get("task_intent", {}) or {}).items()
         },
+        estimator_execution_contract=deepcopy(
+            dict(payload.get("estimator_execution_contract", {}) or {})
+        ),
     )
 
 

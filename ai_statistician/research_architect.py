@@ -34,7 +34,11 @@ from .structured_output_retry import (
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
 )
-from .research_schema import OpenResearchQuestion, research_dimension_requirements
+from .research_schema import (
+    OpenResearchQuestion,
+    research_dimension_requirements,
+    research_question_payload,
+)
 from .research_source_library import (
     ResearchSourceExecutionSpec,
     ResearchSourceSnapshot,
@@ -758,13 +762,10 @@ def build_theory_developer_prompt(
             ),
         }
     payload = {
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-            "task_intent": dict(question.task_intent),
-        },
+        "question": research_question_payload(
+            question,
+            include_task_intent=True,
+        ),
         "prompt_mode": prompt_mode,
         "architect_context": compact_context,
         "required_output_contract": required_output_contract,
@@ -2850,13 +2851,11 @@ def _normalize_theory_packet(
         "provider": provider_name,
         "model": model,
         "model_tier": model_tier,
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-            "task_intent": dict(question.task_intent),
-        },
+        "question": research_question_payload(
+            question,
+            include_task_intent=True,
+            include_estimator_execution_contract=False,
+        ),
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,
     }
@@ -3201,13 +3200,10 @@ def _initial_theory_workspace_read_only_artifacts(
         output_contract = required_output_contract
     return {
         "initial_authoring_context": {
-            "research_question": {
-                "id": question.id,
-                "title": question.title,
-                "description": question.description,
-                "tags": list(question.tags),
-                "task_intent": dict(question.task_intent),
-            },
+            "research_question": research_question_payload(
+                question,
+                include_task_intent=True,
+            ),
             "architect_context": _compact_architect_context_for_prompt(
                 architect_context
             ),
@@ -3365,12 +3361,7 @@ def _theory_workspace_revision_prompt(
     )
     reviewer_observations = read_only_observations["reviewer_observations"]
     payload: dict[str, Any] = {
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-        },
+        "question": research_question_payload(question),
         "revision_mode": "model_owned_document_workspace",
         "immutable_lineage": {
             "revision_binding_id": revision_inputs.get("revision_binding_id", ""),

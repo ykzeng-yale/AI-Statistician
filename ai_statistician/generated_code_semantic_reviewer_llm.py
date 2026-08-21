@@ -25,7 +25,7 @@ from .model_backend import (
     GeneratorRequest,
     resolve_generator_model,
 )
-from .research_schema import OpenResearchQuestion
+from .research_schema import OpenResearchQuestion, research_question_payload
 
 
 GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 21
@@ -490,12 +490,7 @@ def generated_code_semantic_review_prompt_projection(
 
 
 def _question_context(question: OpenResearchQuestion) -> dict[str, Any]:
-    return {
-        "id": question.id,
-        "title": question.title,
-        "description": question.description,
-        "tags": list(question.tags),
-    }
+    return research_question_payload(question)
 
 
 def _review_evidence_document(

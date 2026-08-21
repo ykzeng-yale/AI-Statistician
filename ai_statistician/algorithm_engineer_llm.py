@@ -23,7 +23,7 @@ from .generated_metric_contract import (
 )
 from .structured_output_retry import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
-from .research_schema import OpenResearchQuestion
+from .research_schema import OpenResearchQuestion, research_question_payload
 from .semantic_review_feedback import coding_agent_observations_only
 from .scientific_sandbox import (
     generated_code_draft_json_schema,
@@ -225,11 +225,7 @@ class LLMAlgorithmEngineerAgent:
                 "The runtime executes source unchanged and supplies no correction rule.\n"
                 + json.dumps(
                     {
-                        "question": {
-                            "id": question.id,
-                            "title": question.title,
-                            "description": question.description,
-                        },
+                        "question": research_question_payload(question),
                         "workspace_context": dict(workspace_context),
                     },
                     separators=(",", ":"),
@@ -275,12 +271,7 @@ def build_algorithm_engineer_prompt(
         runtime_environment_feedback
     )
     payload = {
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-        },
+        "question": research_question_payload(question),
         "theory_packet_summary": _compact_theory_packet_for_algorithm(theory_packet),
         "theory_trace_consumption_contract": theory_trace_consumption_contract(
             theory_packet,
@@ -1127,12 +1118,10 @@ def _normalize_algorithm_packet(
         "backend_provider": backend_provider_name,
         "model": model,
         "model_tier": model_tier,
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-        },
+        "question": research_question_payload(
+            question,
+            include_estimator_execution_contract=False,
+        ),
         "implementation_gaps": [dict(row) for row in implementation_gaps],
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,

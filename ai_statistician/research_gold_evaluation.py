@@ -11,6 +11,11 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from .fingerprint import stable_hash
+from .estimator_interface_contract import (
+    frozen_estimator_execution_contract_clause_ids,
+    frozen_estimator_execution_contract_errors,
+    frozen_estimator_execution_contract_id,
+)
 from .model_backend import AnthropicGeneratorBackend, GeneratorBackend
 from .scientific_sandbox import (
     ScientificEstimatorBinding,
@@ -39,6 +44,10 @@ def _visible_question_hash_payload(
     }
     if "task_intent" in question:
         payload["task_intent"] = question.get("task_intent")
+    if "estimator_execution_contract" in question:
+        payload["estimator_execution_contract"] = question.get(
+            "estimator_execution_contract"
+        )
     return payload
 
 
@@ -59,6 +68,13 @@ def validate_research_gold_benchmark_manifest(path: Path) -> dict[str, Any]:
         "active_task_ids": [
             str(task["task_id"]) for task in benchmark["active_tasks"]
         ],
+        "estimator_execution_contract_ids": {
+            str(task["task_id"]): str(
+                task.get("estimator_execution_contract_id", "") or ""
+            )
+            for task in benchmark["active_tasks"]
+            if str(task.get("estimator_execution_contract_id", "") or "")
+        },
         "n_full_task_gold_configured": sum(
             str(task.get("scoring_scope", "component") or "component")
             == "full_task"
@@ -239,6 +255,9 @@ def _evaluate_gold_task(
         "accepted_algorithm_handoff_hash": "",
         "required_estimator_id": str(
             algorithm_evaluator.get("required_estimator_id", "") or ""
+        ),
+        "estimator_execution_contract_id": str(
+            task.get("estimator_execution_contract_id", "") or ""
         ),
         "evaluated_source_hash": "",
         "hidden_evaluator_source_hash": str(
@@ -1744,6 +1763,14 @@ def _validate_benchmark_manifest(
     project_root: Path,
 ) -> None:
     errors: list[str] = []
+    schema_version = benchmark.get("schema_version")
+    if (
+        isinstance(schema_version, bool)
+        or not isinstance(schema_version, int)
+        or schema_version not in {1, 2}
+    ):
+        errors.append("schema_version must be 1 or 2")
+        schema_version = 0
     if benchmark.get("artifact_kind") != "ResearchCapabilityGoldBenchmark":
         errors.append("artifact_kind must be ResearchCapabilityGoldBenchmark")
     if not str(benchmark.get("benchmark_id", "") or "").strip():
@@ -1843,12 +1870,66 @@ def _validate_benchmark_manifest(
                 f"active task {index} task_intent does not match the "
                 "model-visible question"
             )
-        algorithm_evaluator = task.get("hidden_algorithm_evaluator", {})
-        algorithm_required = str(
+        scientific_code_required = str(
             intent.get("scientific_code", "not_applicable")
             if isinstance(intent, Mapping)
             else "not_applicable"
         ) == "required"
+        algorithm_evaluator = task.get("hidden_algorithm_evaluator", {})
+        empirical_evaluator = task.get("hidden_empirical_evaluator")
+        estimator_execution_contract = visible_question.get(
+            "estimator_execution_contract", {}
+        )
+        contract_required = bool(
+            schema_version >= 2
+            and (
+                scientific_code_required
+                or (
+                    isinstance(algorithm_evaluator, Mapping)
+                    and bool(algorithm_evaluator)
+                )
+                or (
+                    isinstance(empirical_evaluator, Mapping)
+                    and bool(empirical_evaluator)
+                )
+            )
+        )
+        contract_errors = frozen_estimator_execution_contract_errors(
+            estimator_execution_contract,
+            label=(
+                f"active task {index} model-visible "
+                "estimator_execution_contract"
+            ),
+            required=(
+                contract_required
+                or "estimator_execution_contract" in visible_question
+            ),
+        )
+        errors.extend(contract_errors)
+        contract_clause_ids = (
+            frozen_estimator_execution_contract_clause_ids(
+                estimator_execution_contract
+            )
+            if isinstance(estimator_execution_contract, Mapping)
+            and estimator_execution_contract
+            and not contract_errors
+            else set()
+        )
+        contract_id = (
+            frozen_estimator_execution_contract_id(
+                estimator_execution_contract
+            )
+            if contract_clause_ids
+            else ""
+        )
+        if contract_id and str(
+            task.get("estimator_execution_contract_id", "") or ""
+        ) != contract_id:
+            errors.append(
+                f"active task {index} estimator_execution_contract_id "
+                "does not match the model-visible contract"
+            )
+        algorithm_required = scientific_code_required
         if algorithm_evaluator is None:
             algorithm_evaluator = {}
         if not isinstance(algorithm_evaluator, Mapping):
@@ -1864,6 +1945,9 @@ def _validate_benchmark_manifest(
                     label="algorithm",
                     project_root=project_root,
                     require_estimator=True,
+                    allowed_contract_clause_ids=(
+                        contract_clause_ids if schema_version >= 2 else None
+                    ),
                 )
             )
         elif algorithm_required:
@@ -1873,6 +1957,20 @@ def _validate_benchmark_manifest(
         algorithm_estimator_id = str(
             algorithm_evaluator.get("required_estimator_id", "") or ""
         )
+        contract_estimator_id = (
+            str(estimator_execution_contract.get("estimator_id", "") or "")
+            if isinstance(estimator_execution_contract, Mapping)
+            else ""
+        )
+        if (
+            schema_version >= 2
+            and bool(algorithm_evaluator)
+            and algorithm_estimator_id != contract_estimator_id
+        ):
+            errors.append(
+                f"active task {index} algorithm evaluator estimator identity "
+                "must match the model-visible contract"
+            )
         source_replication_evaluator = task.get(
             "hidden_source_replication_evaluator"
         )
@@ -1898,6 +1996,7 @@ def _validate_benchmark_manifest(
                         label="source replication",
                         project_root=project_root,
                         require_estimator=False,
+                        allowed_contract_clause_ids=None,
                     )
                 )
         elif source_replication_required:
@@ -1923,6 +2022,11 @@ def _validate_benchmark_manifest(
                     label=label,
                     project_root=project_root,
                     require_estimator=require_estimator,
+                    allowed_contract_clause_ids=(
+                        contract_clause_ids
+                        if schema_version >= 2 and label == "empirical"
+                        else None
+                    ),
                 )
             )
             if require_estimator and str(
@@ -2118,6 +2222,7 @@ def _hidden_evaluator_validation_errors(
     label: str,
     project_root: Path,
     require_estimator: bool,
+    allowed_contract_clause_ids: set[str] | None,
 ) -> list[str]:
     errors: list[str] = []
     harness_path = _project_path(
@@ -2144,6 +2249,7 @@ def _hidden_evaluator_validation_errors(
             f"active task {task_index} {label} acceptance_checks are missing"
         )
         checks = []
+    check_ids: list[str] = []
     for check_index, check in enumerate(checks):
         if not isinstance(check, Mapping):
             errors.append(
@@ -2151,6 +2257,14 @@ def _hidden_evaluator_validation_errors(
                 "must be an object"
             )
             continue
+        check_id = str(check.get("check_id", "") or "").strip()
+        if check_id:
+            check_ids.append(check_id)
+        elif allowed_contract_clause_ids is not None:
+            errors.append(
+                f"active task {task_index} {label} check {check_index} "
+                "check_id is required by schema v2"
+            )
         if str(check.get("operator", "") or "") not in {
             "eq",
             "le",
@@ -2165,6 +2279,39 @@ def _hidden_evaluator_validation_errors(
             errors.append(
                 f"active task {task_index} {label} check {check_index} path is invalid"
             )
+        if allowed_contract_clause_ids is not None:
+            raw_refs = check.get("contract_clause_refs")
+            refs = (
+                [str(value).strip() for value in raw_refs]
+                if isinstance(raw_refs, list)
+                else []
+            )
+            if not refs or any(not value for value in refs):
+                errors.append(
+                    f"active task {task_index} {label} check {check_index} "
+                    "contract_clause_refs must be a nonempty string array"
+                )
+            unknown_refs = sorted(
+                {value for value in refs if value}
+                - allowed_contract_clause_ids
+            )
+            if unknown_refs:
+                errors.append(
+                    f"active task {task_index} {label} check {check_index} "
+                    "references unknown model-visible contract clauses: "
+                    + ", ".join(unknown_refs)
+                )
+            if len(refs) != len(set(refs)):
+                errors.append(
+                    f"active task {task_index} {label} check {check_index} "
+                    "contract_clause_refs repeat"
+                )
+    if allowed_contract_clause_ids is not None and len(check_ids) != len(
+        set(check_ids)
+    ):
+        errors.append(
+            f"active task {task_index} {label} check_id values must be unique"
+        )
     return errors
 
 

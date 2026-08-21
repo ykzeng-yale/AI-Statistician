@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Mapping
 
@@ -56,6 +57,31 @@ class OpenResearchQuestion:
     description: str
     tags: tuple[str, ...] = ()
     task_intent: dict[str, str] = field(default_factory=dict)
+    estimator_execution_contract: dict[str, Any] = field(default_factory=dict)
+
+
+def research_question_payload(
+    question: OpenResearchQuestion,
+    *,
+    include_task_intent: bool = False,
+    include_estimator_execution_contract: bool = True,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+    if include_task_intent and question.task_intent:
+        payload["task_intent"] = dict(question.task_intent)
+    if (
+        include_estimator_execution_contract
+        and question.estimator_execution_contract
+    ):
+        payload["estimator_execution_contract"] = deepcopy(
+            question.estimator_execution_contract
+        )
+    return payload
 
 
 @dataclass(frozen=True)

@@ -20,10 +20,115 @@ ESTIMATOR_SAMPLE_SIZE_RATE_SCALES = (
     "not_indexed",
     "other",
 )
+FROZEN_ESTIMATOR_EXECUTION_CONTRACT_SCHEMA_VERSION = 1
+FROZEN_ESTIMATOR_EXECUTION_FIELD_TEXT_KEYS = (
+    "clause_id",
+    "name",
+    "meaning",
+    "json_type",
+    "shape",
+    "units",
+    "indexing",
+    "edge_cases",
+)
 
 
 def estimator_interface_contract_id(value: Mapping[str, Any]) -> str:
     return "estimator_interface_contract:" + stable_hash(dict(value))[:20]
+
+
+def frozen_estimator_execution_contract_id(value: Mapping[str, Any]) -> str:
+    return "frozen_estimator_execution_contract:" + stable_hash(dict(value))[:20]
+
+
+def frozen_estimator_execution_contract_clause_ids(value: Any) -> set[str]:
+    if not isinstance(value, Mapping):
+        return set()
+    clause_ids: set[str] = set()
+    for collection in ("request_fields", "response_fields", "invariants"):
+        for row in value.get(collection, []) or []:
+            if not isinstance(row, Mapping):
+                continue
+            clause_id = str(row.get("clause_id", "") or "").strip()
+            if clause_id:
+                clause_ids.add(clause_id)
+    return clause_ids
+
+
+def frozen_estimator_execution_contract_errors(
+    value: Any,
+    *,
+    label: str,
+    required: bool,
+) -> list[str]:
+    """Validate operator-authored ABI semantics without interpreting statistics."""
+
+    if value in (None, "", [], {}):
+        return [f"{label} is required"] if required else []
+    if not isinstance(value, Mapping):
+        return [f"{label} is required"] if required else []
+    errors: list[str] = []
+    schema_version = value.get("schema_version")
+    if (
+        isinstance(schema_version, bool)
+        or schema_version
+        != FROZEN_ESTIMATOR_EXECUTION_CONTRACT_SCHEMA_VERSION
+    ):
+        errors.append(f"{label} has unsupported schema_version")
+    if not str(value.get("estimator_id", "") or "").strip():
+        errors.append(f"{label} missing estimator_id")
+    if str(value.get("entrypoint", "") or "").strip() != "run_estimator":
+        errors.append(f"{label} entrypoint must be run_estimator")
+
+    all_clause_ids: list[str] = []
+    for collection in ("request_fields", "response_fields"):
+        rows = value.get(collection)
+        if not isinstance(rows, list) or not rows:
+            errors.append(f"{label} {collection} must be a nonempty list")
+            continue
+        field_names: list[str] = []
+        for index, row in enumerate(rows):
+            row_label = f"{label} {collection}[{index}]"
+            if not isinstance(row, Mapping):
+                errors.append(f"{row_label} must be an object")
+                continue
+            for field in FROZEN_ESTIMATOR_EXECUTION_FIELD_TEXT_KEYS:
+                if not str(row.get(field, "") or "").strip():
+                    errors.append(f"{row_label} missing {field}")
+            clause_id = str(row.get("clause_id", "") or "").strip()
+            name = str(row.get("name", "") or "").strip()
+            if clause_id:
+                all_clause_ids.append(clause_id)
+            if name:
+                field_names.append(name)
+            if collection == "request_fields":
+                binding = str(row.get("binding", "") or "").strip()
+                if binding not in ESTIMATOR_REQUEST_BINDINGS:
+                    errors.append(f"{row_label} has invalid binding")
+            elif not str(row.get("normalization", "") or "").strip():
+                errors.append(f"{row_label} missing normalization")
+        if len(field_names) != len(set(field_names)):
+            errors.append(f"{label} {collection} field names must be unique")
+
+    invariants = value.get("invariants", [])
+    if not isinstance(invariants, list):
+        errors.append(f"{label} invariants must be a list")
+        invariants = []
+    for index, row in enumerate(invariants):
+        row_label = f"{label} invariants[{index}]"
+        if not isinstance(row, Mapping):
+            errors.append(f"{row_label} must be an object")
+            continue
+        clause_id = str(row.get("clause_id", "") or "").strip()
+        if not clause_id:
+            errors.append(f"{row_label} missing clause_id")
+        else:
+            all_clause_ids.append(clause_id)
+        if not str(row.get("meaning", "") or "").strip():
+            errors.append(f"{row_label} missing meaning")
+    if len(all_clause_ids) != len(set(all_clause_ids)):
+        errors.append(f"{label} clause_id values must be unique")
+    return errors
 
 
 def sample_size_rate_json_schema() -> dict[str, Any]:

@@ -33,7 +33,7 @@ from .metric_protocol_finding_ledger import (
     normalize_metric_protocol_findings,
     update_metric_protocol_finding_ledger,
 )
-from .research_schema import OpenResearchQuestion
+from .research_schema import OpenResearchQuestion, research_question_payload
 from .research_source_library import (
     RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
     RESEARCH_SOURCE_READ_TOOL,
@@ -372,12 +372,7 @@ def build_architect_theory_execution_preflight_material(
         (
             "question",
             "research_question",
-            {
-                "id": question.id,
-                "title": question.title,
-                "description": question.description,
-                "tags": list(question.tags),
-            },
+            research_question_payload(question),
         ),
         ("theory.problem_card", "problem_card", semantic.get("problem_card", {})),
         ("theory.estimator_specs", "estimator_specs", estimator_specs),

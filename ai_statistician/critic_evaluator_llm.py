@@ -9,7 +9,7 @@ from typing import Any, Mapping
 from .fingerprint import stable_hash
 from .structured_output_retry import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
-from .research_schema import OpenResearchQuestion
+from .research_schema import OpenResearchQuestion, research_question_payload
 from .research_source_library import ResearchSourceSnapshot
 from .theory_revision_lineage import THEORY_CLAIM_REVISION_DELTA_KIND
 from .theory_workspace import load_theory_workspace_document_rows
@@ -147,12 +147,7 @@ def build_critic_evaluator_prompt(
 ) -> str:
     evidence_view = deepcopy(dict(canonical_evidence_view or {}))
     payload = {
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-        },
+        "question": research_question_payload(question),
         "artifact_identities": {
             "retrieval": _artifact_identity(retrieval_manifest),
             "theory": _artifact_identity(theory_packet),
@@ -562,12 +557,10 @@ def _normalize_critic_packet(
         "provider": provider_name,
         "model": model,
         "model_tier": model_tier,
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-        },
+        "question": research_question_payload(
+            question,
+            include_estimator_execution_contract=False,
+        ),
         "raw_response_fingerprint": stable_hash(raw_response),
         "canonical_evidence_view_hash": canonical_evidence_view_hash,
         **body,

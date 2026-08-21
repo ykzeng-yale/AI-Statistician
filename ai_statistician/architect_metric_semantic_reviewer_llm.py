@@ -25,7 +25,7 @@ from .model_backend import (
     GeneratorRequest,
     resolve_generator_model,
 )
-from .research_schema import OpenResearchQuestion
+from .research_schema import OpenResearchQuestion, research_question_payload
 from .structured_output_retry import (
     extract_json_object,
     generate_validated_json_packet,
@@ -435,12 +435,7 @@ def build_architect_metric_semantic_review_prompt(
             ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION
         ),
         "review_protocol": list(ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL),
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-        },
+        "question": research_question_payload(question),
         "review_material": _review_prompt_material(review_material),
     }
     return (

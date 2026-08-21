@@ -7,6 +7,9 @@ from pathlib import Path
 import pytest
 
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.estimator_interface_contract import (
+    frozen_estimator_execution_contract_id,
+)
 from ai_statistician.research_gold_evaluation import (
     evaluate_research_gold_benchmark,
     validate_research_gold_benchmark_manifest,
@@ -1339,3 +1342,177 @@ def test_gold_evaluator_does_not_rescore_a_run_from_an_older_question(
     assert task["failure_reasons"] == [
         "runtime-visible question hash does not match the frozen gold task"
     ]
+
+
+def _schema_v2_gold_manifest(tmp_path: Path) -> Path:
+    contract = {
+        "schema_version": 1,
+        "estimator_id": "est_ols_hc0_covariance",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+            {
+                "clause_id": "request.design_and_outcome",
+                "name": "design_and_outcome",
+                "meaning": "One regression design matrix and outcome vector.",
+                "json_type": "object",
+                "shape": "X is n by p and y has length n",
+                "units": "as supplied by the benchmark DGP",
+                "indexing": "rows are observations and columns are regressors",
+                "edge_cases": "Reject nonfinite or dimension-mismatched inputs.",
+                "binding": "per_replicate_data",
+            }
+        ],
+        "response_fields": [
+            {
+                "clause_id": "response.covariance",
+                "name": "covariance",
+                "meaning": "HC0 covariance estimate for the coefficient vector.",
+                "json_type": "array[array[number]]",
+                "shape": "p by p",
+                "units": "coefficient units squared",
+                "indexing": "coefficient order matches design columns",
+                "edge_cases": "Every entry must be JSON-finite.",
+                "normalization": "finite-sample covariance scale, not n times covariance",
+            }
+        ],
+        "invariants": [
+            {
+                "clause_id": "invariant.symmetric",
+                "meaning": "The returned covariance matrix is symmetric.",
+            }
+        ],
+    }
+    manifest = json.loads(GOLD_MANIFEST.read_text(encoding="utf-8"))
+    visible_question = {
+        **VISIBLE_QUESTION,
+        "task_intent": dict(manifest["active_tasks"][0]["task_intent"]),
+        "estimator_execution_contract": contract,
+    }
+    visible_path = tmp_path / "schema-v2-visible.json"
+    visible_path.write_text(
+        json.dumps({"questions": [visible_question]}),
+        encoding="utf-8",
+    )
+    manifest["schema_version"] = 2
+    manifest["model_visible_questions_path"] = str(visible_path)
+    manifest["model_visible_questions_sha256"] = _fixture_sha256(visible_path)
+    task = manifest["active_tasks"][0]
+    task["visible_question_hash"] = stable_hash(
+        {
+            key: visible_question[key]
+            for key in (
+                "id",
+                "title",
+                "description",
+                "tags",
+                "task_intent",
+                "estimator_execution_contract",
+            )
+        }
+    )
+    task["estimator_execution_contract_id"] = (
+        frozen_estimator_execution_contract_id(contract)
+    )
+    for check in task["hidden_algorithm_evaluator"]["acceptance_checks"]:
+        check["contract_clause_refs"] = [
+            "request.design_and_outcome",
+            "response.covariance",
+            "invariant.symmetric",
+        ]
+    manifest_path = tmp_path / "schema-v2-gold.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return manifest_path
+
+
+def test_schema_v2_gold_binds_hidden_checks_to_visible_contract_clauses(
+    tmp_path: Path,
+) -> None:
+    path = _schema_v2_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    visible = json.loads(
+        Path(manifest["model_visible_questions_path"]).read_text(
+            encoding="utf-8"
+        )
+    )
+    contract = visible["questions"][0]["estimator_execution_contract"]
+    descriptor = validate_research_gold_benchmark_manifest(path)
+
+    assert descriptor["estimator_execution_contract_ids"] == {
+        QUESTION_ID: frozen_estimator_execution_contract_id(contract)
+    }
+    assert descriptor["estimator_execution_contract_ids"][QUESTION_ID].startswith(
+        "frozen_estimator_execution_contract:"
+    )
+
+
+def test_schema_v2_gold_rejects_ambiguous_visible_field_semantics(
+    tmp_path: Path,
+) -> None:
+    path = _schema_v2_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    visible_path = Path(manifest["model_visible_questions_path"])
+    visible = json.loads(visible_path.read_text(encoding="utf-8"))
+    question = visible["questions"][0]
+    question["estimator_execution_contract"]["response_fields"][0][
+        "meaning"
+    ] = ""
+    visible_path.write_text(json.dumps(visible), encoding="utf-8")
+    manifest["model_visible_questions_sha256"] = _fixture_sha256(visible_path)
+    task = manifest["active_tasks"][0]
+    task["visible_question_hash"] = stable_hash(
+        {
+            key: question[key]
+            for key in (
+                "id",
+                "title",
+                "description",
+                "tags",
+                "task_intent",
+                "estimator_execution_contract",
+            )
+        }
+    )
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="missing meaning"):
+        validate_research_gold_benchmark_manifest(path)
+
+
+def test_schema_v2_gold_requires_visible_contract_for_scientific_code(
+    tmp_path: Path,
+) -> None:
+    manifest = json.loads(GOLD_MANIFEST.read_text(encoding="utf-8"))
+    manifest["schema_version"] = 2
+    path = tmp_path / "schema-v2-missing-contract.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="estimator_execution_contract is required"):
+        validate_research_gold_benchmark_manifest(path)
+
+
+def test_schema_v2_gold_rejects_unknown_contract_clause_reference(
+    tmp_path: Path,
+) -> None:
+    path = _schema_v2_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["active_tasks"][0]["hidden_algorithm_evaluator"][
+        "acceptance_checks"
+    ][0]["contract_clause_refs"] = ["response.unstated_semantics"]
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unknown model-visible contract clauses"):
+        validate_research_gold_benchmark_manifest(path)
+
+
+def test_schema_v2_gold_rejects_evaluator_estimator_identity_drift(
+    tmp_path: Path,
+) -> None:
+    path = _schema_v2_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["active_tasks"][0]["hidden_algorithm_evaluator"][
+        "required_estimator_id"
+    ] = "est_other"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="model-visible contract"):
+        validate_research_gold_benchmark_manifest(path)
