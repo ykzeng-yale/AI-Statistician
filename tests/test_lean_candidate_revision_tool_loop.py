@@ -8,9 +8,12 @@ import pytest
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.lean_candidate_revision_tool_loop import (
+    LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND,
     LEAN_FORMAL_GAP_TOOL,
     LEAN_SOURCE_SUBMISSION_TOOL,
+    lean_candidate_workspace_continuation_errors,
     run_lean_candidate_revision_tool_loop,
+    seal_lean_candidate_workspace_checkpoint,
 )
 from ai_statistician.lean_candidate_identity import (
     TRUSTED_LEAN_AXIOMS,
@@ -87,6 +90,105 @@ def _initial_workspace(request: ClientToolTurnRequest) -> dict:
         "Initial authoritative Lean workspace state:\n", 1
     )[1]
     return json.loads(encoded)
+
+
+def _lean_workspace_checkpoint(
+    *,
+    parent_source: str,
+    current_source: str,
+    candidate_id: str = "target-candidate",
+    declaration: str = "target",
+    searches: int = 0,
+    resumed_from_checkpoint_id: str = "",
+    prior_checkpoint: dict | None = None,
+) -> dict:
+    check = {
+        "source_hash": stable_hash(current_source),
+        "compiled": False,
+        "local_lean_stderr": "type mismatch",
+    }
+    check_fingerprint = "lean-check:" + stable_hash(
+        {
+            "source_hash": stable_hash(current_source),
+            "candidate_lean_declaration": declaration,
+            "check_result": check,
+        }
+    )
+    prior_fingerprints = list(
+        (prior_checkpoint or {}).get("workspace_observation_fingerprints", [])
+    )
+    fingerprints = sorted(
+        set(prior_fingerprints)
+        | {check_fingerprint}
+        | ({"search:test-observation"} if searches else set())
+    )
+    prior_counters = {
+        field: int((prior_checkpoint or {}).get(field, 0) or 0)
+        for field in (
+            "source_updates",
+            "declaration_updates",
+            "searches",
+            "proof_searches",
+            "state_inspections",
+            "declaration_inspections",
+            "checks",
+        )
+    }
+    body = {
+        "schema_version": 2,
+        "artifact_kind": LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND,
+        "candidate_id": candidate_id,
+        "parent_candidate_lean_declaration": declaration,
+        "candidate_lean_declaration": declaration,
+        "workspace_phase": "revision" if parent_source else "initial_authoring",
+        "parent_source_hash": stable_hash(parent_source),
+        "rejected_source_hash": "",
+        "current_source_hash": stable_hash(current_source),
+        "current_source": current_source,
+        "checked_candidate_keys": [
+            {
+                "source_hash": stable_hash(current_source),
+                "candidate_lean_declaration": declaration,
+            }
+        ],
+        "workspace_observation_fingerprints": fingerprints,
+        "source_updates": max(1, prior_counters["source_updates"]),
+        "declaration_updates": prior_counters["declaration_updates"],
+        "searches": max(searches, prior_counters["searches"]),
+        "proof_searches": prior_counters["proof_searches"],
+        "state_inspections": prior_counters["state_inspections"],
+        "declaration_inspections": prior_counters["declaration_inspections"],
+        "checks": 1,
+        "segment_start_counters": prior_counters,
+        "segment_start_observation_count": len(prior_fingerprints),
+        "last_check": check,
+        "last_check_hash": stable_hash(check),
+        "latest_check_observation": check,
+        "latest_formal_environment_search": {},
+        "latest_proof_search": {},
+        "latest_state_inspection": {},
+        "latest_declaration_inspection": {},
+        "resumed_from_checkpoint_id": resumed_from_checkpoint_id,
+        "turns": 1,
+        "tool_calls": 1 + int(bool(searches)),
+        "max_terminal_recovery_turns": 1,
+        "transcript_fingerprint": "test-transcript",
+        "provider": "anthropic",
+        "model": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        "model_tier": "haiku",
+        "resumable": len(fingerprints) > len(prior_fingerprints),
+        "accepted": False,
+        "runtime_selected_lean_code": False,
+        "model_owned_lean_code": True,
+        "model_owned_workspace_actions": (
+            len(fingerprints) > len(prior_fingerprints)
+        ),
+        "kernel_verified": False,
+        "proof_evidence_status": (
+            "CLIENT_TOOL_WORKSPACE_CHECKPOINT_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    return seal_lean_candidate_workspace_checkpoint(body)
 
 
 def test_lean_axiom_audit_uses_lean_report_instead_of_source_grammar() -> None:
@@ -1861,6 +1963,182 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
         raise AssertionError("uncompiled final source was not checkpointed")
 
 
+def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift() -> None:
+    parent = "theorem target : True := by exact missing_parent\n"
+    failed = "theorem target : True := by exact missing_revision\n"
+    accepted = "theorem target : True := by exact True.intro\n"
+    exact_search_result = [
+        {
+            "qualified_declaration": "True.intro",
+            "signature": "True.intro : True",
+        }
+    ]
+    checked_sources: list[str] = []
+
+    def check(source: str, _declaration: str) -> dict:
+        checked_sources.append(source)
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": source == accepted,
+            "local_lean_stderr": (
+                "unknown identifier 'missing_revision'"
+                if source == failed
+                else "unknown identifier 'missing_parent'"
+                if source == parent
+                else ""
+            ),
+        }
+
+    first_backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "search-1",
+                    "search_formal_environment",
+                    {"query": "True introduction", "max_results": 3},
+                ),
+                ClientToolCall(
+                    "submit-failed",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": failed,
+                        "candidate_declaration_name": "target",
+                    },
+                ),
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-duplicate-recovery",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": failed,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-duplicate-final",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": failed,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+        ]
+    )
+    with pytest.raises(PacketValidationError) as raised:
+        run_lean_candidate_revision_tool_loop(
+            provider=first_backend,
+            system_prompt="Use tools.",
+            user_prompt="Prove the exact target.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            temperature=0.0,
+            max_tokens=1200,
+            max_turns=1,
+            max_no_progress_turns=1,
+            candidate_id="target-candidate",
+            candidate_lean_declaration="target",
+            initial_source=parent,
+            check_candidate=check,
+            search_formal_environment=lambda query, k: exact_search_result,
+        )
+    checkpoint = dict(raised.value.recovery_checkpoint or {})
+    assert checkpoint["resumable"] is True
+    assert checkpoint["parent_source_hash"] == stable_hash(parent)
+    assert checkpoint["current_source"] == failed
+    assert checkpoint["last_check"]["local_lean_stderr"] == (
+        "unknown identifier 'missing_revision'"
+    )
+    assert checkpoint["latest_formal_environment_search"]["results"] == (
+        exact_search_result
+    )
+    assert checkpoint["checks"] == 2
+
+    second_backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "submit-accepted",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": accepted,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            )
+        ]
+    )
+    result = run_lean_candidate_revision_tool_loop(
+        provider=second_backend,
+        system_prompt="Use tools.",
+        user_prompt="Continue the exact target.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=1,
+        max_no_progress_turns=1,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=parent,
+        check_candidate=check,
+        search_formal_environment=lambda query, k: exact_search_result,
+        recovery_checkpoint=checkpoint,
+    )
+
+    resumed_state = _initial_workspace(second_backend.requests[0])
+    assert resumed_state["current_lean_source"] == failed
+    assert resumed_state["latest_check_observation"]["local_lean_stderr"] == (
+        "unknown identifier 'missing_revision'"
+    )
+    assert resumed_state["latest_formal_environment_search"]["results"] == (
+        exact_search_result
+    )
+    assert checked_sources == [parent, failed, accepted]
+    assert result.evidence["parent_source_hash"] == stable_hash(parent)
+    assert result.evidence["resumed_from_checkpoint_id"] == checkpoint[
+        "checkpoint_id"
+    ]
+    assert result.evidence["local_lean_checks"] == 3
+    assert result.evidence["source_updates"] == 2
+
+
+def test_lean_candidate_workspace_rejects_tampered_checkpoint_before_model_call() -> None:
+    parent = "theorem target : True := by exact missing_parent\n"
+    current = "theorem target : True := by exact missing_current\n"
+    checkpoint = _lean_workspace_checkpoint(
+        parent_source=parent,
+        current_source=current,
+    )
+    checkpoint["last_check"]["local_lean_stderr"] = "tampered diagnostic"
+    backend = ScriptedLeanToolBackend([])
+
+    with pytest.raises(PacketValidationError) as raised:
+        run_lean_candidate_revision_tool_loop(
+            provider=backend,
+            system_prompt="Use tools.",
+            user_prompt="Continue the exact target.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            temperature=0.0,
+            max_tokens=1200,
+            max_turns=1,
+            max_no_progress_turns=1,
+            candidate_id="target-candidate",
+            candidate_lean_declaration="target",
+            initial_source=parent,
+            check_candidate=lambda source, declaration: {},
+            search_formal_environment=lambda query, k: [],
+            recovery_checkpoint=checkpoint,
+        )
+
+    assert raised.value.validation_label == "Lean workspace checkpoint lineage"
+    assert backend.requests == []
+
+
 def test_lean_candidate_prompt_leaves_current_workspace_state_to_snapshot() -> None:
     exact_error = (
         "type mismatch\n"
@@ -1981,16 +2259,10 @@ def test_lean_candidate_prompt_leaves_current_workspace_state_to_snapshot() -> N
                     "candidate_axiom_audit_clean": False,
                 }
             ],
-            "formalizer_recovery_checkpoint": {
-                "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
-                "candidate_id": "target-candidate",
-                "candidate_lean_declaration": "target",
-                "current_source_hash": stable_hash(initial_source),
-                "current_source": initial_source,
-                "model_owned_lean_code": True,
-                "runtime_selected_lean_code": False,
-                "kernel_verified": False,
-            },
+            "formalizer_recovery_checkpoint": _lean_workspace_checkpoint(
+                parent_source=initial_source,
+                current_source=initial_source,
+            ),
         },
     )
 
@@ -2125,28 +2397,12 @@ def test_formalizer_workspace_target_reuses_upstream_goal_without_model_call() -
     )
 
 
-def test_exhausted_formalizer_source_loop_blocks_without_duplicate_workspace() -> None:
+def test_exhausted_formalizer_source_loop_continues_same_workspace_by_ref() -> None:
     latest = "theorem target : True := by\n  exact True.intro\n"
-    checkpoint = {
-        "schema_version": 1,
-        "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
-        "candidate_id": "target-candidate",
-        "candidate_lean_declaration": "target",
-        "parent_source_hash": "parent-hash",
-        "current_source_hash": stable_hash(latest),
-        "current_source": latest,
-        "last_check": {
-            "source_hash": stable_hash(latest),
-            "compiled": False,
-            "local_lean_stderr": "type mismatch",
-        },
-        "model_owned_lean_code": True,
-        "runtime_selected_lean_code": False,
-        "kernel_verified": False,
-        "proof_evidence_status": (
-            "CLIENT_TOOL_ITERATION_CHECKPOINT_NOT_PROOF_EVIDENCE"
-        ),
-    }
+    checkpoint = _lean_workspace_checkpoint(
+        parent_source="theorem target : True := by exact missing\n",
+        current_source=latest,
+    )
     question = OpenResearchQuestion(
         id="checkpoint-routing",
         title="Route model source checkpoint",
@@ -2172,10 +2428,15 @@ def test_exhausted_formalizer_source_loop_blocks_without_duplicate_workspace() -
         ),
     )
 
-    assert result.status == "BLOCKED"
-    assert result.next_task is None
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    routed = result.next_task.inputs["environment_feedback"]
+    assert routed["artifact_kind"] == "RuntimeWorkspaceObservationRef"
+    assert routed["checkpoint_id"] == checkpoint["checkpoint_id"]
     assert result.failure_classification == "formalizer_client_tool_loop_exhausted"
-    failure = next(iter(result.produced_artifacts.values()))
+    failure_id = routed["source_artifact_id"]
+    failure = result.produced_artifacts[failure_id]
     assert failure["formalizer_recovery_checkpoint"]["current_source"] == latest
     assert failure["rejected_candidate_complete"] is False
     assert failure["complete_current_source_checkpoint_provided"] is True
@@ -2187,15 +2448,90 @@ def test_exhausted_formalizer_source_loop_blocks_without_duplicate_workspace() -
     ] is True
     assert failure["model_generation_attempts"] == 2
     assert failure["client_tool_turns"] == 0
-    assert "workspace_continuation_allowed" not in failure
+    assert failure["workspace_continuation_allowed"] is True
+    assert failure["workspace_continuation_errors"] == []
+    assert result.evidence_entries[0].payload["architect_routing_used"] is False
+    assert routed["source_artifact_hash"] == stable_hash(failure)
     assert "internal_json_regeneration_attempts" not in failure
-    assert "without launching a packet-regeneration session" in result.rationale
+    assert "same Formalizer" in result.rationale
     assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
+
+
+def test_formalizer_same_owner_continuation_stops_without_new_observation() -> None:
+    parent = "theorem target : True := by exact missing_parent\n"
+    current = "theorem target : True := by exact missing_current\n"
+    prior = _lean_workspace_checkpoint(
+        parent_source=parent,
+        current_source=current,
+    )
+    stalled_body = json.loads(json.dumps(prior))
+    stalled_body.pop("checkpoint_id")
+    stalled_body["resumed_from_checkpoint_id"] = prior["checkpoint_id"]
+    stalled_body["segment_start_counters"] = {
+        field: prior[field]
+        for field in (
+            "source_updates",
+            "declaration_updates",
+            "searches",
+            "proof_searches",
+            "state_inspections",
+            "declaration_inspections",
+            "checks",
+        )
+    }
+    stalled_body["segment_start_observation_count"] = len(
+        prior["workspace_observation_fingerprints"]
+    )
+    stalled_body["resumable"] = False
+    stalled_body["model_owned_workspace_actions"] = False
+    stalled = seal_lean_candidate_workspace_checkpoint(stalled_body)
+
+    errors = lean_candidate_workspace_continuation_errors(
+        stalled,
+        prior_checkpoint=prior,
+    )
+    assert any("no new" in error for error in errors)
+    result = runtime_module._formalizer_packet_validation_failure_result(
+        task=AgentTask(
+            task_id="formalizer-workspace-progress:no-progress",
+            owner_subsystem="FormalizationEvaluator",
+            objective="Continue only after new Lean environment evidence.",
+            inputs={"formalizer_workspace_continuation_count": 1},
+        ),
+        question=OpenResearchQuestion(
+            id="no-progress",
+            title="No-progress continuation",
+            description="Stop an observation-free Formalizer segment.",
+        ),
+        theory_packet_id="theory:no-progress",
+        simulation_manifest_id="",
+        algorithm_sandbox_manifest_id="",
+        exc=PacketValidationError(
+            validation_label="LLM Formalizer Lean candidate client-tool workspace",
+            attempts=1,
+            errors=["no new progress"],
+            history=[],
+            recovery_checkpoint=stalled,
+        ),
+        environment_feedback={"formalizer_recovery_checkpoint": prior},
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    failure = next(
+        value
+        for key, value in result.produced_artifacts.items()
+        if key.startswith("formalizer_validation_failure:")
+    )
+    assert failure["workspace_continuation_allowed"] is False
+    assert any(
+        "no new" in error
+        for error in failure["workspace_continuation_errors"]
+    )
 
 
 def test_formalizer_failure_preserves_workspace_refs_without_payload_copy() -> None:
     source = "theorem target : True := by\n  exact True.intro\n"
-    source_hash = stable_hash(source)
     packet_id = "formalizer_proposal:parent"
     materialization_id = "formalizer_lean_candidate_materialization:parent"
     parent_packet = {
@@ -2215,26 +2551,11 @@ def test_formalizer_failure_preserves_workspace_refs_without_payload_copy() -> N
         "source_formalizer_packet_id": packet_id,
         "candidate_rows": [],
     }
-    checkpoint = {
-        "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
-        "candidate_id": "target-candidate",
-        "candidate_lean_declaration": "target",
-        "parent_source_hash": stable_hash("older source"),
-        "current_source_hash": source_hash,
-        "current_source": source,
-        "source_updates": 1,
-        "checks": 1,
-        "provider": "anthropic",
-        "model": "claude-haiku-4-5-20251001",
-        "last_check": {
-            "source_hash": source_hash,
-            "compiled": False,
-            "local_lean_stdout": "raw Lean diagnostic",
-        },
-        "model_owned_lean_code": True,
-        "runtime_selected_lean_code": False,
-        "kernel_verified": False,
-    }
+    checkpoint = _lean_workspace_checkpoint(
+        parent_source="older source",
+        current_source=source,
+        searches=1,
+    )
     result = runtime_module._formalizer_packet_validation_failure_result(
         task=AgentTask(
             task_id="formalize:preserve-workspace",
@@ -2331,6 +2652,8 @@ def test_formalizer_failure_preserves_workspace_refs_without_payload_copy() -> N
     assert "result_excerpt" not in json.dumps(failure)
     assert failure["model_generation_attempts"] == 4
     assert failure["client_tool_turns"] == 1
+    assert result.status == "REVISE"
+    assert result.next_task is not None
     loop_evidence = result.evidence_entries[0].payload
     assert loop_evidence["model_owned_lean_code"] is True
     assert loop_evidence["runtime_selected_lean_code"] is False
@@ -2378,7 +2701,7 @@ def test_formalizer_packet_failure_blocks_without_regeneration_session() -> None
     failure = next(iter(result.produced_artifacts.values()))
     assert failure["model_generation_attempts"] == 2
     assert failure["client_tool_turns"] == 0
-    assert "workspace_continuation_allowed" not in failure
+    assert failure["workspace_continuation_allowed"] is False
     assert (
         "without launching another generation session" in result.rationale
     )
@@ -2392,42 +2715,42 @@ def test_formalizer_workspace_hydrates_observation_ref_before_source_loop(
         title="Hydrate a Formalizer checkpoint",
         description="Resume exact model-owned source from the artifact store.",
     )
-    source_artifact_id = "formalizer_validation_failure:checkpoint"
-    checkpoint = {
-        "schema_version": 1,
-        "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
-        "candidate_id": "target-candidate",
-        "candidate_lean_declaration": "target",
-        "parent_source_hash": "parent-hash",
-        "current_source_hash": stable_hash("theorem target : True"),
-        "current_source": "theorem target : True",
-        "model_owned_lean_code": True,
-        "runtime_selected_lean_code": False,
-        "kernel_verified": False,
-    }
-    stored_feedback = {
-        "artifact_kind": "RuntimeFormalizerValidationFailure",
-        "failure_id": source_artifact_id,
-        "failure_classification": "formalizer_client_tool_loop_exhausted",
-        "formalizer_recovery_checkpoint": checkpoint,
-        "candidate_materialization_id": "materialization:parent",
-    }
-    task = AgentTask(
-        task_id="formalizer-workspace-continuation:hydrate",
+    checkpoint = _lean_workspace_checkpoint(
+        parent_source="theorem target : True := by exact missing\n",
+        current_source="theorem target : True",
+    )
+    source_task = AgentTask(
+        task_id="formalize:hydrate-formalizer-checkpoint",
         owner_subsystem="FormalizationEvaluator",
-        objective="Continue the exact Lean workspace.",
+        objective="Author the exact Lean source.",
         inputs={
             "question": runtime_module._question_to_payload(question),
-            "environment_feedback": {
-                "artifact_kind": "RuntimeWorkspaceObservationRef",
-                "source_artifact_id": source_artifact_id,
-                "source_artifact_hash": stable_hash(stored_feedback),
-            },
         },
     )
+    progress = runtime_module._formalizer_packet_validation_failure_result(
+        task=source_task,
+        question=question,
+        theory_packet_id="",
+        simulation_manifest_id="",
+        algorithm_sandbox_manifest_id="",
+        exc=PacketValidationError(
+            validation_label="LLM Formalizer Lean candidate client-tool workspace",
+            attempts=1,
+            errors=["global client-tool turn budget exhausted"],
+            history=[],
+            recovery_checkpoint=checkpoint,
+        ),
+    )
+    assert progress.status == "REVISE"
+    assert progress.next_task is not None
+    task = progress.next_task
+    source_artifact_id = task.inputs["environment_feedback"][
+        "source_artifact_id"
+    ]
+    stored_feedback = progress.produced_artifacts[source_artifact_id]
     blackboard = BlackboardState(
         project_id="hydrate-formalizer-checkpoint",
-        artifacts={source_artifact_id: stored_feedback},
+        artifacts=dict(progress.produced_artifacts),
     )
     captured: dict[str, object] = {}
 
@@ -2453,8 +2776,13 @@ def test_formalizer_workspace_hydrates_observation_ref_before_source_loop(
         "evaluate_lean_kernel_promotion",
         lambda **kwargs: None,
     )
+
+    class SameSourceOwner:
+        def propose(self, **kwargs):
+            raise AssertionError("workspace continuation must not regenerate a packet")
+
     subsystem = runtime_module.FormalizerWorkspaceRuntimeSubsystem(
-        proposal_agent=object(),
+        proposal_agent=SameSourceOwner(),
     )
 
     result = subsystem.run(task, blackboard)
@@ -2464,6 +2792,8 @@ def test_formalizer_workspace_hydrates_observation_ref_before_source_loop(
         checkpoint
     )
     assert captured["task_environment_feedback"] == stored_feedback
+    assert task.owner_subsystem == source_task.owner_subsystem
+    assert task.inputs["formalizer_workspace_continuation_count"] == 1
 
 
 def test_kernel_verified_formalizer_source_skips_repeat_semantic_review(
@@ -2616,10 +2946,10 @@ def test_formalizer_workspace_rejects_mismatched_observation_ref() -> None:
     stored_feedback = {
         "artifact_kind": "RuntimeFormalizerValidationFailure",
         "failure_id": source_artifact_id,
-        "formalizer_recovery_checkpoint": {
-            "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
-            "current_source": "theorem target : True := by trivial",
-        },
+        "formalizer_recovery_checkpoint": _lean_workspace_checkpoint(
+            parent_source="theorem target : True := by exact missing\n",
+            current_source="theorem target : True := by trivial",
+        ),
     }
     task = AgentTask(
         task_id="formalizer-workspace-continuation:mismatch",
@@ -2729,26 +3059,31 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
 
         def __init__(
             self,
-            expected_source: str = source,
+            workspace_source: str = source,
             inspection_symbol: str = "Example.Source",
         ) -> None:
-            self.expected_source = expected_source
+            self.workspace_source = workspace_source
             self.inspection_symbol = inspection_symbol
             self.check_result = {}
             self.declaration_result = {}
 
         def run_lean_candidate_workspace_with_client_tools(self, **kwargs):
             assert kwargs["candidate_id"] == candidate_id
-            assert kwargs["initial_source"] == self.expected_source
+            assert kwargs["initial_source"] == source
             assert "reviewed_parent_source_hash" not in kwargs
+            checkpoint = kwargs["environment_feedback"].get(
+                "formalizer_recovery_checkpoint", {}
+            )
+            if self.workspace_source != source:
+                assert checkpoint["current_source"] == self.workspace_source
             self.check_result = dict(
-                    kwargs["check_candidate"](self.expected_source, "target")
+                    kwargs["check_candidate"](self.workspace_source, "target")
             )
             declaration_tool = kwargs.get("inspect_lean_declaration")
             assert callable(declaration_tool)
             self.declaration_result = dict(
-                declaration_tool(
-                    self.expected_source,
+                    declaration_tool(
+                        self.workspace_source,
                     self.inspection_symbol,
                     10,
                     self.check_result,
@@ -2761,7 +3096,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
                     "candidate_id": candidate_id,
                     "model": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
                     "model_tier": "haiku",
-                    "submitted_source_hash": stable_hash(self.expected_source),
+                    "submitted_source_hash": stable_hash(self.workspace_source),
                     "runtime_executed_tool_calls": 1,
                     "proof_evidence_status": (
                         "LEAN_CANDIDATE_CLIENT_TOOL_LOOP_RECORDED_NOT_PROOF_EVIDENCE"
@@ -2935,21 +3270,23 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     )
 
     resumed_source = "theorem target : True := by\n  exact True.intro\n"
+    resume_checkpoint = _lean_workspace_checkpoint(
+        parent_source=source,
+        current_source=resumed_source,
+        candidate_id=candidate_id,
+    )
+    resume_checkpoint.update(
+        {
+            "parent_formalizer_artifact_id": parent_packet_id,
+            "parent_formalizer_packet_id": parent_packet_id,
+        }
+    )
+    resume_checkpoint = seal_lean_candidate_workspace_checkpoint(
+        resume_checkpoint
+    )
     resume_feedback = {
         **feedback,
-        "formalizer_recovery_checkpoint": {
-            "schema_version": 1,
-            "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
-            "candidate_id": candidate_id,
-            "candidate_lean_declaration": "target",
-            "parent_source_hash": stable_hash(source),
-            "current_source_hash": stable_hash(resumed_source),
-            "current_source": resumed_source,
-            "transcript_fingerprint": "prior-model-transcript",
-            "runtime_selected_lean_code": False,
-            "model_owned_lean_code": True,
-            "kernel_verified": False,
-        },
+        "formalizer_recovery_checkpoint": resume_checkpoint,
     }
     resumed = runtime_module._runtime_formalizer_lean_candidate_client_tool_workspace(
         proposal_agent=FakeAgent(resumed_source),

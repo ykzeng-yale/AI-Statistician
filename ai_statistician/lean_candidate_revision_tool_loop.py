@@ -25,6 +25,25 @@ LeanDeclarationInspection = Callable[
 ]
 LEAN_SOURCE_SUBMISSION_TOOL = "submit_lean_source"
 LEAN_FORMAL_GAP_TOOL = "report_formal_gap"
+LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND = (
+    "LeanCandidateWorkspaceRecoveryCheckpoint"
+)
+_LEAN_WORKSPACE_COUNTER_FIELDS = (
+    "source_updates",
+    "declaration_updates",
+    "searches",
+    "proof_searches",
+    "state_inspections",
+    "declaration_inspections",
+    "checks",
+)
+_LEAN_WORKSPACE_OBSERVATION_FIELDS = (
+    "latest_check_observation",
+    "latest_formal_environment_search",
+    "latest_proof_search",
+    "latest_state_inspection",
+    "latest_declaration_inspection",
+)
 
 
 @dataclass(frozen=True)
@@ -38,69 +57,229 @@ class LeanCandidateRevisionToolLoopResult:
     evidence: Mapping[str, Any]
 
 
-def resolve_lean_workspace_start_source(
+def seal_lean_candidate_workspace_checkpoint(
+    checkpoint: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Bind a complete Lean workspace checkpoint to all of its exact fields."""
+
+    body = deepcopy(dict(checkpoint))
+    body.pop("checkpoint_id", None)
+    return {
+        **body,
+        "checkpoint_id": (
+            "lean_candidate_workspace_checkpoint:" + stable_hash(body)[:20]
+        ),
+    }
+
+
+def _lean_workspace_checkpoint_identity_errors(
+    checkpoint: Mapping[str, Any],
+    *,
+    candidate_id: str | None = None,
+    parent_candidate_lean_declaration: str | None = None,
+    parent_source: str | None = None,
+    rejected_source_hash: str | None = None,
+    require_resumable: bool = True,
+) -> list[str]:
+    errors: list[str] = []
+    if checkpoint.get("artifact_kind") != LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND:
+        errors.append("checkpoint artifact kind is not the canonical Lean workspace kind")
+    if checkpoint.get("schema_version") != 2:
+        errors.append("checkpoint schema version is not supported")
+    checkpoint_id = str(checkpoint.get("checkpoint_id", "") or "").strip()
+    expected_checkpoint = seal_lean_candidate_workspace_checkpoint(checkpoint)
+    if checkpoint_id != expected_checkpoint["checkpoint_id"]:
+        errors.append("checkpoint content identity is missing or stale")
+    if candidate_id is not None and str(
+        checkpoint.get("candidate_id", "") or ""
+    ) != str(candidate_id):
+        errors.append("checkpoint candidate id does not match the active workspace")
+    if not str(checkpoint.get("candidate_id", "") or "").strip():
+        errors.append("checkpoint candidate id is empty")
+    if parent_candidate_lean_declaration is not None and str(
+        checkpoint.get("parent_candidate_lean_declaration", "") or ""
+    ).strip() != str(parent_candidate_lean_declaration).strip():
+        errors.append("checkpoint parent declaration does not match the active workspace")
+    if parent_source is not None and str(
+        checkpoint.get("parent_source_hash", "") or ""
+    ) != stable_hash(parent_source):
+        errors.append("checkpoint parent source hash does not match the active workspace")
+    if rejected_source_hash is not None and str(
+        checkpoint.get("rejected_source_hash", "") or ""
+    ).strip() != str(rejected_source_hash or "").strip():
+        errors.append("checkpoint rejected-source binding changed across continuation")
+
+    source = str(checkpoint.get("current_source", "") or "")
+    source_hash = str(checkpoint.get("current_source_hash", "") or "")
+    declaration = str(
+        checkpoint.get("candidate_lean_declaration", "") or ""
+    ).strip()
+    workspace_phase = str(checkpoint.get("workspace_phase", "") or "")
+    if workspace_phase not in {"initial_authoring", "revision"}:
+        errors.append("checkpoint workspace phase is invalid")
+    if not str(checkpoint.get("parent_source_hash", "") or ""):
+        errors.append("checkpoint parent source hash is empty")
+    if parent_source is not None:
+        expected_phase = "revision" if parent_source.strip() else "initial_authoring"
+        if workspace_phase != expected_phase:
+            errors.append("checkpoint workspace phase changed across continuation")
+    empty_initial_checkpoint = bool(
+        not source.strip()
+        and source_hash == stable_hash("")
+        and workspace_phase == "initial_authoring"
+    )
+    if source_hash != stable_hash(source):
+        errors.append("checkpoint current source hash is stale")
+    if not source.strip() and not empty_initial_checkpoint:
+        errors.append("checkpoint current source is empty outside initial authoring")
+    if len(source) > 20000:
+        errors.append("checkpoint current source exceeds the artifact-size boundary")
+    if source.strip() and not declaration:
+        errors.append("checkpoint source has no model-selected Lean declaration")
+    if checkpoint.get("model_owned_lean_code") is not bool(source.strip()):
+        errors.append("checkpoint model-owned source boundary is inconsistent")
+    if (
+        checkpoint.get("runtime_selected_lean_code") is not False
+        or checkpoint.get("kernel_verified") is not False
+        or checkpoint.get("accepted") is not False
+    ):
+        errors.append("checkpoint crosses the runtime or proof-evidence boundary")
+
+    counters: dict[str, int] = {}
+    starts = checkpoint.get("segment_start_counters", {})
+    if not isinstance(starts, Mapping):
+        starts = {}
+        errors.append("checkpoint segment-start counters are malformed")
+    for field in _LEAN_WORKSPACE_COUNTER_FIELDS:
+        value = checkpoint.get(field, 0)
+        start = starts.get(field, 0)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or value < 0
+            or isinstance(start, bool)
+            or not isinstance(start, int)
+            or start < 0
+            or start > value
+        ):
+            errors.append(f"checkpoint {field} counter lineage is invalid")
+            continue
+        counters[field] = value
+
+    checked_rows = checkpoint.get("checked_candidate_keys", [])
+    checked_keys: set[tuple[str, str]] = set()
+    if not isinstance(checked_rows, list):
+        errors.append("checkpoint checked Lean candidates are malformed")
+    else:
+        for row in checked_rows:
+            if not isinstance(row, Mapping) or set(row) != {
+                "source_hash",
+                "candidate_lean_declaration",
+            }:
+                errors.append("checkpoint contains an invalid checked Lean candidate")
+                continue
+            key = (
+                str(row.get("source_hash", "") or ""),
+                str(row.get("candidate_lean_declaration", "") or "").strip(),
+            )
+            if not key[0] or not key[1] or key in checked_keys:
+                errors.append("checkpoint checked Lean candidate identity is invalid")
+                continue
+            checked_keys.add(key)
+    if "checks" in counters and counters["checks"] != len(checked_keys):
+        errors.append("checkpoint check count does not match checked candidates")
+
+    last_check = checkpoint.get("last_check", {})
+    if not isinstance(last_check, Mapping):
+        last_check = {}
+        errors.append("checkpoint last Lean check is malformed")
+    last_check = dict(last_check)
+    if stable_hash(last_check) != str(
+        checkpoint.get("last_check_hash", "") or ""
+    ):
+        errors.append("checkpoint last Lean check identity is stale")
+    if counters.get("checks", 0):
+        if (
+            str(last_check.get("source_hash", "") or "") != source_hash
+            or (source_hash, declaration) not in checked_keys
+        ):
+            errors.append("checkpoint last Lean check is not bound to current source")
+        latest_check = checkpoint.get("latest_check_observation", {})
+        if not isinstance(latest_check, Mapping) or stable_hash(dict(latest_check)) != (
+            stable_hash(last_check)
+        ):
+            errors.append("checkpoint latest Lean diagnostic is not exact")
+    elif last_check:
+        errors.append("checkpoint has a Lean check without a recorded check action")
+    fingerprints = checkpoint.get("workspace_observation_fingerprints", [])
+    if (
+        not isinstance(fingerprints, list)
+        or any(not isinstance(value, str) or not value for value in fingerprints)
+        or len(fingerprints) != len(set(fingerprints))
+    ):
+        errors.append("checkpoint workspace observation identities are malformed")
+        fingerprints = []
+    if counters.get("checks", 0):
+        check_fingerprint = "lean-check:" + stable_hash(
+            {
+                "source_hash": source_hash,
+                "candidate_lean_declaration": declaration,
+                "check_result": last_check,
+            }
+        )
+        if check_fingerprint not in fingerprints:
+            errors.append("checkpoint current Lean check observation is untracked")
+    segment_start = checkpoint.get("segment_start_observation_count", 0)
+    if (
+        isinstance(segment_start, bool)
+        or not isinstance(segment_start, int)
+        or segment_start < 0
+        or segment_start > len(fingerprints)
+    ):
+        errors.append("checkpoint segment observation boundary is invalid")
+        segment_start = len(fingerprints)
+    new_progress = len(fingerprints) > segment_start
+    if checkpoint.get("resumable") is not new_progress:
+        errors.append("checkpoint resumable status does not match observed progress")
+    if checkpoint.get("model_owned_workspace_actions") is not new_progress:
+        errors.append("checkpoint model-action status does not match observed progress")
+    if require_resumable and not new_progress:
+        errors.append("Lean workspace made no new environment-observed progress")
+    return errors
+
+
+def load_lean_candidate_workspace_checkpoint(
     *,
     candidate_id: str,
     candidate_lean_declaration: str,
     parent_source: str,
-    environment_feedback: Mapping[str, Any],
-) -> tuple[str, str, dict[str, Any]]:
-    """Resume an exact model-owned source checkpoint when its hashes still bind."""
+    rejected_source_hash: str,
+    checkpoint: Mapping[str, Any],
+    parent_formalizer_artifact_id: str | None = None,
+    initial_authoring: bool | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Restore exact Lean source, diagnostics, retrieval, and progress identities."""
 
-    parent_source_hash = stable_hash(parent_source)
-    checkpoint = environment_feedback.get("formalizer_recovery_checkpoint", {})
-    if not isinstance(checkpoint, Mapping) or not checkpoint:
-        return parent_source, candidate_lean_declaration, {
-            "resumed_from_model_checkpoint": False,
-            "parent_source_hash": parent_source_hash,
-        }
-
-    errors: list[str] = []
-    if str(checkpoint.get("artifact_kind", "") or "") not in {
-        "LeanCandidateWorkspaceRecoveryCheckpoint",
-        "LeanCandidateRevisionRecoveryCheckpoint",
-    }:
-        errors.append("checkpoint artifact kind is not a Lean workspace checkpoint")
-    if str(checkpoint.get("candidate_id", "") or "") != candidate_id:
-        errors.append("checkpoint candidate id does not match the active workspace")
-    checkpoint_declaration = str(
-        checkpoint.get("candidate_lean_declaration", "") or ""
-    ).strip()
-    if (
-        candidate_lean_declaration
-        and checkpoint_declaration != candidate_lean_declaration
-    ):
-        errors.append("checkpoint declaration does not match the active workspace")
-    if str(checkpoint.get("parent_source_hash", "") or "") != parent_source_hash:
-        errors.append("checkpoint parent source hash does not match the active workspace")
-
-    source = str(checkpoint.get("current_source", "") or "")
-    source_hash = str(checkpoint.get("current_source_hash", "") or "")
-    empty_initial_checkpoint = bool(
-        not parent_source.strip()
-        and not source.strip()
-        and source_hash == stable_hash("")
-        and str(checkpoint.get("workspace_phase", "") or "")
-        == "initial_authoring"
+    errors = _lean_workspace_checkpoint_identity_errors(
+        checkpoint,
+        candidate_id=candidate_id,
+        parent_candidate_lean_declaration=candidate_lean_declaration,
+        parent_source=parent_source,
+        rejected_source_hash=rejected_source_hash,
     )
-    if (
-        (not source.strip() and not empty_initial_checkpoint)
-        or source_hash != stable_hash(source)
-    ):
-        errors.append("checkpoint current source is empty or hash-stale")
-    if len(source) > 20000:
-        errors.append("checkpoint current source exceeds the artifact-size boundary")
-    if source.strip() and not checkpoint_declaration:
-        errors.append("checkpoint source has no model-selected Lean declaration")
-    if (
-        checkpoint.get("model_owned_lean_code") is not True
-        and not empty_initial_checkpoint
-    ):
-        errors.append("checkpoint is not marked as model-owned Lean source")
-    if checkpoint.get("runtime_selected_lean_code") is not False:
-        errors.append("checkpoint permits runtime-selected Lean source")
-    if checkpoint.get("kernel_verified") is not False:
-        errors.append("checkpoint incorrectly claims kernel verification")
+    if parent_formalizer_artifact_id is not None:
+        lane_binding = (
+            "parent_formalizer_workspace_target_id"
+            if initial_authoring
+            else "parent_formalizer_packet_id"
+        )
+        if (
+            str(checkpoint.get("parent_formalizer_artifact_id", "") or "")
+            != parent_formalizer_artifact_id
+            or str(checkpoint.get(lane_binding, "") or "")
+            != parent_formalizer_artifact_id
+        ):
+            errors.append("checkpoint parent Formalizer artifact is stale")
     if errors:
         raise PacketValidationError(
             validation_label="Lean workspace checkpoint lineage",
@@ -109,13 +288,123 @@ def resolve_lean_workspace_start_source(
             history=[],
             recovery_checkpoint=checkpoint,
         )
-    return source, checkpoint_declaration or candidate_lean_declaration, {
+    checked_keys = {
+        (
+            str(row["source_hash"]),
+            str(row["candidate_lean_declaration"]),
+        )
+        for row in checkpoint.get("checked_candidate_keys", [])
+    }
+    state = {
+        "source": str(checkpoint.get("current_source", "") or ""),
+        "source_hash": str(checkpoint.get("current_source_hash", "") or ""),
+        "candidate_lean_declaration": str(
+            checkpoint.get("candidate_lean_declaration", "") or ""
+        ).strip(),
+        "checked_candidate_keys": checked_keys,
+        "workspace_observation_fingerprints": set(
+            checkpoint.get("workspace_observation_fingerprints", [])
+        ),
+        **{
+            field: int(checkpoint.get(field, 0) or 0)
+            for field in _LEAN_WORKSPACE_COUNTER_FIELDS
+        },
+        "last_check": deepcopy(dict(checkpoint.get("last_check", {}) or {})),
+        **{
+            field: deepcopy(checkpoint.get(field, {}))
+            for field in _LEAN_WORKSPACE_OBSERVATION_FIELDS
+        },
+    }
+    metadata = {
         "resumed_from_model_checkpoint": True,
-        "parent_source_hash": parent_source_hash,
-        "resume_checkpoint_source_hash": source_hash,
+        "parent_source_hash": stable_hash(parent_source),
+        "resume_checkpoint_id": str(checkpoint.get("checkpoint_id", "") or ""),
+        "resume_checkpoint_source_hash": state["source_hash"],
         "resume_checkpoint_transcript_fingerprint": str(
             checkpoint.get("transcript_fingerprint", "") or ""
         ),
+    }
+    return state, metadata
+
+
+def lean_candidate_workspace_continuation_errors(
+    checkpoint: Mapping[str, Any],
+    *,
+    prior_checkpoint: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """Reject stale, overlapping, or observation-free outer continuations."""
+
+    errors = _lean_workspace_checkpoint_identity_errors(checkpoint)
+    predecessor = (
+        prior_checkpoint if isinstance(prior_checkpoint, Mapping) else {}
+    )
+    resumed_from = str(
+        checkpoint.get("resumed_from_checkpoint_id", "") or ""
+    )
+    if predecessor:
+        prior_errors = _lean_workspace_checkpoint_identity_errors(predecessor)
+        if prior_errors:
+            errors.append("prior Lean workspace checkpoint is invalid")
+        prior_id = str(predecessor.get("checkpoint_id", "") or "")
+        if resumed_from != prior_id:
+            errors.append("Lean workspace checkpoint predecessor is stale")
+        prior_fingerprints = set(
+            predecessor.get("workspace_observation_fingerprints", []) or []
+        )
+        current_fingerprints = set(
+            checkpoint.get("workspace_observation_fingerprints", []) or []
+        )
+        if not prior_fingerprints < current_fingerprints:
+            errors.append("Lean workspace continuation added no new observation")
+        if checkpoint.get("segment_start_observation_count") != len(
+            prior_fingerprints
+        ):
+            errors.append("Lean workspace continuation observation boundary is stale")
+        starts = checkpoint.get("segment_start_counters", {})
+        if not isinstance(starts, Mapping) or any(
+            starts.get(field) != predecessor.get(field)
+            for field in _LEAN_WORKSPACE_COUNTER_FIELDS
+        ):
+            errors.append("Lean workspace continuation counter boundary is stale")
+    elif resumed_from:
+        errors.append("Lean workspace checkpoint has an unbound predecessor")
+    return sorted(set(errors))
+
+
+def lean_candidate_workspace_checkpoint_summary(
+    checkpoint: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project checkpoint telemetry without copying source or observations."""
+
+    source_hash = str(checkpoint.get("current_source_hash", "") or "")
+    parent_hash = str(checkpoint.get("parent_source_hash", "") or "")
+    last_check = checkpoint.get("last_check", {})
+    last_check = last_check if isinstance(last_check, Mapping) else {}
+    searches = int(checkpoint.get("searches", 0) or 0)
+    proof_searches = int(checkpoint.get("proof_searches", 0) or 0)
+    return {
+        "candidate_source_hash": source_hash,
+        "parent_source_hash": parent_hash,
+        "source_changed": bool(
+            parent_hash and source_hash and parent_hash != source_hash
+        ),
+        "source_updates": int(checkpoint.get("source_updates", 0) or 0),
+        "local_lean_checks": int(checkpoint.get("checks", 0) or 0),
+        "latest_check_compiled": bool(last_check.get("compiled", False)),
+        "n_client_tool_calls": int(checkpoint.get("tool_calls", 0) or 0),
+        "n_formal_source_search_calls": searches,
+        "n_proof_candidate_search_calls": proof_searches,
+        "n_formal_rag_tool_calls": searches + proof_searches,
+        "provider": str(checkpoint.get("provider", "") or ""),
+        "model": str(checkpoint.get("model", "") or ""),
+        "checkpoint_id": str(checkpoint.get("checkpoint_id", "") or ""),
+        "resumed_from_checkpoint_id": str(
+            checkpoint.get("resumed_from_checkpoint_id", "") or ""
+        ),
+        "model_owned_lean_code": bool(
+            checkpoint.get("model_owned_lean_code", False)
+        ),
+        "runtime_selected_lean_code": False,
     }
 
 
@@ -141,6 +430,7 @@ def run_lean_candidate_revision_tool_loop(
     rejected_source_hash: str = "",
     allow_formal_gap: bool = False,
     request_metadata: Mapping[str, Any] | None = None,
+    recovery_checkpoint: Mapping[str, Any] | None = None,
 ) -> LeanCandidateRevisionToolLoopResult:
     """Let the model author or revise one immutable-bound Lean target."""
 
@@ -157,6 +447,7 @@ def run_lean_candidate_revision_tool_loop(
 
     parent_source = str(initial_source)
     parent_source_hash = stable_hash(parent_source)
+    parent_candidate_lean_declaration = candidate_lean_declaration.strip()
     rejected_source_hash = str(rejected_source_hash or "").strip()
     if rejected_source_hash and not parent_source.strip():
         raise ValueError("a rejected source hash requires an existing Lean source")
@@ -165,8 +456,9 @@ def run_lean_candidate_revision_tool_loop(
     state: dict[str, Any] = {
         "source": parent_source,
         "source_hash": parent_source_hash,
-        "candidate_lean_declaration": candidate_lean_declaration.strip(),
+        "candidate_lean_declaration": parent_candidate_lean_declaration,
         "checked_candidate_keys": set(),
+        "workspace_observation_fingerprints": set(),
         "source_updates": 0,
         "declaration_updates": 0,
         "searches": 0,
@@ -181,6 +473,19 @@ def run_lean_candidate_revision_tool_loop(
         "latest_state_inspection": {},
         "latest_declaration_inspection": {},
     }
+    resume_metadata = {
+        "resumed_from_model_checkpoint": False,
+        "parent_source_hash": parent_source_hash,
+        "resume_checkpoint_id": "",
+    }
+    if isinstance(recovery_checkpoint, Mapping) and recovery_checkpoint:
+        state, resume_metadata = load_lean_candidate_workspace_checkpoint(
+            candidate_id=candidate_id,
+            candidate_lean_declaration=parent_candidate_lean_declaration,
+            parent_source=parent_source,
+            rejected_source_hash=rejected_source_hash,
+            checkpoint=recovery_checkpoint,
+        )
     tools = _lean_candidate_revision_tools(
         include_proof_search=search_proof_candidates is not None,
         include_state_inspection=inspect_lean_state is not None,
@@ -210,13 +515,32 @@ def run_lean_candidate_revision_tool_loop(
                 str(state["candidate_lean_declaration"]),
             )
         )
+        state["workspace_observation_fingerprints"].add(
+            "lean-check:"
+            + stable_hash(
+                {
+                    "source_hash": state["source_hash"],
+                    "candidate_lean_declaration": state[
+                        "candidate_lean_declaration"
+                    ],
+                    "check_result": check_result,
+                }
+            )
+        )
         return check_result
 
     # A resumed source is rechecked in the active project before the first model
     # turn, so the initial message carries fresh diagnostics rather than a copied
     # observation from an earlier runtime packet.
-    if parent_source.strip():
+    if parent_source.strip() and not resume_metadata["resumed_from_model_checkpoint"]:
         check_current_source()
+
+    segment_start_counters = {
+        field: int(state[field] or 0) for field in _LEAN_WORKSPACE_COUNTER_FIELDS
+    }
+    segment_start_observation_count = len(
+        state["workspace_observation_fingerprints"]
+    )
 
     def current_workspace_observation() -> dict[str, Any]:
         return {
@@ -453,15 +777,13 @@ def run_lean_candidate_revision_tool_loop(
                 "proof_evidence_status": "FORMAL_SOURCE_SEARCH_NOT_PROOF_EVIDENCE",
             }
             state["latest_formal_environment_search"] = deepcopy(content)
+            observation_key = "search:" + stable_hash(
+                {"query": content["query"], "results": content["results"]}
+            )
+            state["workspace_observation_fingerprints"].add(observation_key)
             return ClientToolExecutionResult(
                 content=content,
-                observation_key="search:"
-                + stable_hash(
-                    {
-                        "query": content["query"],
-                        "results": content["results"],
-                    }
-                ),
+                observation_key=observation_key,
             )
 
         if call.name == "search_proof_candidates":
@@ -500,16 +822,17 @@ def run_lean_candidate_revision_tool_loop(
                 ),
             }
             state["latest_proof_search"] = deepcopy(content)
+            observation_key = "proof-search:" + stable_hash(
+                {
+                    "source_hash": state["source_hash"],
+                    "query": content["query"],
+                    "results": content["results"],
+                }
+            )
+            state["workspace_observation_fingerprints"].add(observation_key)
             return ClientToolExecutionResult(
                 content=content,
-                observation_key="proof-search:"
-                + stable_hash(
-                    {
-                        "source_hash": state["source_hash"],
-                        "query": content["query"],
-                        "results": content["results"],
-                    }
-                ),
+                observation_key=observation_key,
             )
 
         if call.name == "inspect_lean_state":
@@ -537,15 +860,16 @@ def run_lean_candidate_revision_tool_loop(
                     "LEAN_STATE_INSPECTION_NOT_PROOF_EVIDENCE"
                 ),
             }
+            observation_key = "lean-state:" + stable_hash(
+                {
+                    "source_hash": state["source_hash"],
+                    "observation": content["observation"],
+                }
+            )
+            state["workspace_observation_fingerprints"].add(observation_key)
             return ClientToolExecutionResult(
                 content=content,
-                observation_key="lean-state:"
-                + stable_hash(
-                    {
-                        "source_hash": state["source_hash"],
-                        "observation": content["observation"],
-                    }
-                ),
+                observation_key=observation_key,
             )
 
         if call.name == "inspect_lean_declaration":
@@ -588,17 +912,18 @@ def run_lean_candidate_revision_tool_loop(
                     "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
                 ),
             }
+            observation_key = "lean-declaration:" + stable_hash(
+                {
+                    "source_hash": state["source_hash"],
+                    "symbol": content["symbol"],
+                    "observation": content["observation"],
+                }
+            )
+            state["workspace_observation_fingerprints"].add(observation_key)
             return ClientToolExecutionResult(
                 content=content,
                 is_error=not content["ok"],
-                observation_key="lean-declaration:"
-                + stable_hash(
-                    {
-                        "source_hash": state["source_hash"],
-                        "symbol": content["symbol"],
-                        "observation": content["observation"],
-                    }
-                ),
+                observation_key=observation_key,
             )
 
         raise ClientToolInputError("unsupported Lean candidate client tool")
@@ -612,6 +937,15 @@ def run_lean_candidate_revision_tool_loop(
         "latest_check_observation": _compact_lean_check_observation(
             state["latest_check_observation"]
         ),
+        "latest_formal_environment_search": deepcopy(
+            state["latest_formal_environment_search"]
+        ),
+        "latest_proof_search": deepcopy(state["latest_proof_search"]),
+        "latest_state_inspection": deepcopy(state["latest_state_inspection"]),
+        "latest_declaration_inspection": deepcopy(
+            state["latest_declaration_inspection"]
+        ),
+        "resumed_from_checkpoint_id": resume_metadata["resume_checkpoint_id"],
         **(
             {
                 "revision_requirement": {
@@ -655,9 +989,12 @@ def run_lean_candidate_revision_tool_loop(
             **dict(request_metadata or {}),
             "model_tier": model_tier,
             "candidate_id": candidate_id,
-            "candidate_lean_declaration": candidate_lean_declaration,
+            "candidate_lean_declaration": state["candidate_lean_declaration"],
             "parent_source_hash": parent_source_hash,
             "rejected_source_hash": rejected_source_hash,
+            "resumed_from_checkpoint_id": resume_metadata[
+                "resume_checkpoint_id"
+            ],
         },
     )
 
@@ -673,63 +1010,79 @@ def run_lean_candidate_revision_tool_loop(
             max_terminal_recovery_turns=max_terminal_recovery_turns,
         )
     except ClientToolLoopError as exc:
+        new_progress = bool(
+            len(state["workspace_observation_fingerprints"])
+            > segment_start_observation_count
+        )
+        checkpoint_body = {
+            "schema_version": 2,
+            "artifact_kind": LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND,
+            "candidate_id": candidate_id,
+            "parent_candidate_lean_declaration": (
+                parent_candidate_lean_declaration
+            ),
+            "candidate_lean_declaration": state[
+                "candidate_lean_declaration"
+            ],
+            "workspace_phase": workspace_phase,
+            "parent_source_hash": parent_source_hash,
+            "rejected_source_hash": rejected_source_hash,
+            "current_source_hash": state["source_hash"],
+            "current_source": state["source"],
+            "checked_candidate_keys": [
+                {
+                    "source_hash": source_hash,
+                    "candidate_lean_declaration": declaration,
+                }
+                for source_hash, declaration in sorted(
+                    state["checked_candidate_keys"]
+                )
+            ],
+            "workspace_observation_fingerprints": sorted(
+                state["workspace_observation_fingerprints"]
+            ),
+            **{
+                field: int(state[field] or 0)
+                for field in _LEAN_WORKSPACE_COUNTER_FIELDS
+            },
+            "segment_start_counters": segment_start_counters,
+            "segment_start_observation_count": (
+                segment_start_observation_count
+            ),
+            "last_check": deepcopy(state["last_check"]),
+            "last_check_hash": stable_hash(state["last_check"]),
+            **{
+                field: deepcopy(state[field])
+                for field in _LEAN_WORKSPACE_OBSERVATION_FIELDS
+            },
+            "resumed_from_checkpoint_id": resume_metadata[
+                "resume_checkpoint_id"
+            ],
+            "turns": exc.turns,
+            "tool_calls": exc.tool_calls,
+            "max_terminal_recovery_turns": max_terminal_recovery_turns,
+            "transcript_fingerprint": exc.transcript_fingerprint,
+            "provider": exc.provider,
+            "model": exc.model or model,
+            "model_tier": model_tier,
+            "resumable": new_progress,
+            "accepted": False,
+            "runtime_selected_lean_code": False,
+            "model_owned_lean_code": bool(str(state["source"]).strip()),
+            "model_owned_workspace_actions": new_progress,
+            "kernel_verified": False,
+            "proof_evidence_status": (
+                "CLIENT_TOOL_WORKSPACE_CHECKPOINT_NOT_PROOF_EVIDENCE"
+            ),
+        }
         raise PacketValidationError(
             validation_label="LLM Formalizer Lean candidate client-tool workspace",
             attempts=exc.turns,
             errors=[exc.reason],
             history=[deepcopy(dict(row)) for row in exc.history],
-            recovery_checkpoint={
-                "schema_version": 1,
-                "artifact_kind": "LeanCandidateWorkspaceRecoveryCheckpoint",
-                "candidate_id": candidate_id,
-                "candidate_lean_declaration": state[
-                    "candidate_lean_declaration"
-                ],
-                "workspace_phase": workspace_phase,
-                "parent_source_hash": parent_source_hash,
-                "rejected_source_hash": rejected_source_hash,
-                "current_source_hash": state["source_hash"],
-                "current_source": state["source"],
-                "source_updates": state["source_updates"],
-                "declaration_updates": state["declaration_updates"],
-                "searches": state["searches"],
-                "proof_searches": state["proof_searches"],
-                "state_inspections": state["state_inspections"],
-                "declaration_inspections": state[
-                    "declaration_inspections"
-                ],
-                "checks": state["checks"],
-                "last_check": deepcopy(state["last_check"]),
-                "latest_check_observation": deepcopy(
-                    state["latest_check_observation"]
-                ),
-                "latest_formal_environment_search": deepcopy(
-                    state["latest_formal_environment_search"]
-                ),
-                "latest_proof_search": deepcopy(
-                    state["latest_proof_search"]
-                ),
-                "latest_state_inspection": deepcopy(
-                    state["latest_state_inspection"]
-                ),
-                "latest_declaration_inspection": deepcopy(
-                    state["latest_declaration_inspection"]
-                ),
-                "turns": exc.turns,
-                "tool_calls": exc.tool_calls,
-                "max_terminal_recovery_turns": max_terminal_recovery_turns,
-                "transcript_fingerprint": exc.transcript_fingerprint,
-                "provider": exc.provider,
-                "model": exc.model or model,
-                "model_tier": model_tier,
-                "runtime_selected_lean_code": False,
-                "model_owned_lean_code": bool(str(state["source"]).strip()),
-                "model_owned_workspace_actions": bool(exc.tool_calls),
-                "kernel_verified": False,
-                "proof_evidence_status": (
-                    "CLIENT_TOOL_WORKSPACE_CHECKPOINT_NOT_PROOF_EVIDENCE"
-                ),
-            },
+            recovery_checkpoint=seal_lean_candidate_workspace_checkpoint(
+                checkpoint_body
+            ),
         ) from exc
 
     terminal = dict(loop.terminal_payload)
@@ -773,6 +1126,13 @@ def run_lean_candidate_revision_tool_loop(
             history=loop.history,
             transcript_fingerprint=loop.transcript_fingerprint,
             workspace_phase=workspace_phase,
+            resumed_from_checkpoint_id=resume_metadata[
+                "resume_checkpoint_id"
+            ],
+            segment_start_counters=segment_start_counters,
+            segment_start_observation_count=(
+                segment_start_observation_count
+            ),
         )
     source = str(terminal.get("lean_source", "") or "")
     source_hash = str(terminal.get("source_hash", "") or "")
@@ -822,6 +1182,9 @@ def run_lean_candidate_revision_tool_loop(
         history=loop.history,
         transcript_fingerprint=loop.transcript_fingerprint,
         workspace_phase=workspace_phase,
+        resumed_from_checkpoint_id=resume_metadata["resume_checkpoint_id"],
+        segment_start_counters=segment_start_counters,
+        segment_start_observation_count=segment_start_observation_count,
     )
 
 
@@ -852,6 +1215,9 @@ def _lean_candidate_revision_success_result(
     history: Sequence[Mapping[str, Any]],
     transcript_fingerprint: str,
     workspace_phase: str,
+    resumed_from_checkpoint_id: str,
+    segment_start_counters: Mapping[str, int],
+    segment_start_observation_count: int,
 ) -> LeanCandidateRevisionToolLoopResult:
     source_hash = stable_hash(source)
     accepted_model_source = disposition == "AUTHOR_LEAN"
@@ -887,6 +1253,11 @@ def _lean_candidate_revision_success_result(
         "disposition": disposition,
         **({"formal_gap": deepcopy(dict(formal_gap))} if formal_gap else {}),
         "workspace_phase": workspace_phase,
+        "resumed_from_checkpoint_id": resumed_from_checkpoint_id,
+        "workspace_segment_start_counters": dict(segment_start_counters),
+        "workspace_segment_start_observation_count": (
+            segment_start_observation_count
+        ),
         "parent_source_hash": parent_source_hash,
         "submitted_source_hash": source_hash,
         "source_changed": source_hash != parent_source_hash,

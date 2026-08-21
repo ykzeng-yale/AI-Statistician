@@ -173,7 +173,11 @@ from .lean_candidate_identity import (
     run_lean_candidate_identity_probe,
 )
 from .lean_candidate_revision_tool_loop import (
-    resolve_lean_workspace_start_source,
+    LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND,
+    lean_candidate_workspace_checkpoint_summary,
+    lean_candidate_workspace_continuation_errors,
+    load_lean_candidate_workspace_checkpoint,
+    seal_lean_candidate_workspace_checkpoint,
 )
 from .lean_kernel_promotion import evaluate_lean_kernel_promotion
 from .formalizer_llm import (
@@ -15123,6 +15127,24 @@ def _formalizer_packet_validation_failure_result(
         if isinstance(exc.recovery_checkpoint, Mapping)
         else {}
     )
+    prior_checkpoint = prior_feedback.get("formalizer_recovery_checkpoint", {})
+    prior_checkpoint = prior_checkpoint if isinstance(prior_checkpoint, Mapping) else {}
+    workspace_continuation_errors = (
+        lean_candidate_workspace_continuation_errors(
+            recovery_checkpoint, prior_checkpoint=prior_checkpoint or None
+        )
+        if recovery_checkpoint.get("artifact_kind")
+        == LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND
+        else []
+    )
+    workspace_continuation_allowed = bool(
+        recovery_checkpoint.get("artifact_kind")
+        == LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND
+        and not workspace_continuation_errors
+    )
+    continuation_count = int(
+        task.inputs.get("formalizer_workspace_continuation_count", 0) or 0
+    ) + int(workspace_continuation_allowed)
     checkpoint_source = str(
         recovery_checkpoint.get("current_source", "") or ""
     )
@@ -15180,74 +15202,11 @@ def _formalizer_packet_validation_failure_result(
         "kernel_gate_unchanged": True,
     }
     lean_workspace_observation_available = bool(
-        str(recovery_checkpoint.get("artifact_kind", "") or "")
-        in {
-            "LeanCandidateWorkspaceRecoveryCheckpoint",
-            "LeanCandidateRevisionRecoveryCheckpoint",
-        }
-    )
-    history_tool_calls = [
-        dict(call)
-        for row in attempt_history_rows
-        for call in row.get("tool_calls", []) or []
-        if isinstance(call, Mapping)
-    ]
-    tool_name_counts = {
-        name: sum(
-            1
-            for call in history_tool_calls
-            if str(call.get("name", "") or "") == name
-        )
-        for name in {
-            str(call.get("name", "") or "")
-            for call in history_tool_calls
-            if str(call.get("name", "") or "")
-        }
-    }
-    last_check = recovery_checkpoint.get("last_check", {})
-    if not isinstance(last_check, Mapping):
-        last_check = recovery_checkpoint.get("latest_check_observation", {})
-    if not isinstance(last_check, Mapping):
-        last_check = {}
-    parent_source_hash = str(
-        recovery_checkpoint.get("parent_source_hash", "") or ""
+        recovery_checkpoint.get("artifact_kind")
+        == LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND
     )
     client_tool_loop_observation = (
-        {
-            "candidate_source_hash": checkpoint_source_hash,
-            "parent_source_hash": parent_source_hash,
-            "source_changed": bool(
-                parent_source_hash
-                and checkpoint_source_hash
-                and parent_source_hash != checkpoint_source_hash
-            ),
-            "source_updates": _int_like(
-                recovery_checkpoint.get("source_updates", 0)
-            ),
-            "local_lean_checks": _int_like(
-                recovery_checkpoint.get("checks", 0)
-            ),
-            "latest_check_compiled": _bool_like(
-                last_check.get("compiled", False)
-            ),
-            "n_client_tool_calls": len(history_tool_calls),
-            "n_formal_source_search_calls": tool_name_counts.get(
-                "search_formal_environment", 0
-            ),
-            "n_proof_candidate_search_calls": tool_name_counts.get(
-                "search_proof_candidates", 0
-            ),
-            "n_formal_rag_tool_calls": (
-                tool_name_counts.get("search_formal_environment", 0)
-                + tool_name_counts.get("search_proof_candidates", 0)
-            ),
-            "provider": str(recovery_checkpoint.get("provider", "") or ""),
-            "model": str(recovery_checkpoint.get("model", "") or ""),
-            "model_owned_lean_code": _bool_like(
-                recovery_checkpoint.get("model_owned_lean_code", False)
-            ),
-            "runtime_selected_lean_code": False,
-        }
+        lean_candidate_workspace_checkpoint_summary(recovery_checkpoint)
         if lean_workspace_observation_available
         else {}
     )
@@ -15271,6 +15230,9 @@ def _formalizer_packet_validation_failure_result(
         "rejected_candidate_complete": bool(last_invalid_packet),
         "rejected_candidate_fingerprint": rejected_candidate_fingerprint,
         "formalizer_recovery_checkpoint": recovery_checkpoint,
+        "workspace_continuation_allowed": workspace_continuation_allowed,
+        "workspace_continuation_errors": workspace_continuation_errors,
+        "formalizer_workspace_continuation_count": continuation_count,
         "complete_current_source_checkpoint_provided": (
             complete_current_source_checkpoint_provided
         ),
@@ -15309,11 +15271,39 @@ def _formalizer_packet_validation_failure_result(
             "reported separately; neither is a runtime source edit or proof artifact."
         ),
     }
+    next_task = None
+    if workspace_continuation_allowed:
+        next_inputs = deepcopy(dict(task.inputs))
+        next_inputs["environment_feedback"] = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeWorkspaceObservationRef",
+            "source_artifact_id": failure_id,
+            "source_artifact_hash": stable_hash(failure_artifact),
+            "source_task_id": task.task_id,
+            "source_subsystem": task.owner_subsystem,
+            "checkpoint_id": str(recovery_checkpoint["checkpoint_id"]),
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        }
+        next_inputs["formalizer_workspace_continuation_count"] = continuation_count
+        next_task = replace(
+            task,
+            task_id=(
+                f"formalizer-workspace-progress:{question.id}:"
+                f"{continuation_count}:{stable_hash(recovery_checkpoint)[:10]}"
+            ),
+            objective=(
+                "Continue the exact model-owned Lean workspace from its latest raw "
+                "compiler, retrieval, and proof-state observations."
+            ),
+            inputs=next_inputs,
+        )
     result_rationale = (
-        "The bounded model-owned Lean workspace exhausted its direct tool loop "
-        "without a valid exact-target source. The runtime preserved its complete "
-        "transcript, current source checkpoint, and raw observations as a blocker "
-        "without launching a packet-regeneration session."
+        "The same Formalizer will continue its content-addressed Lean workspace from "
+        "the exact source and raw observations; no Architect or packet regeneration "
+        "is involved."
+        if workspace_continuation_allowed
+        else "The bounded model-owned Lean workspace has no valid new progress for "
+        "same-owner continuation and remains blocked without packet regeneration."
         if lean_workspace_observation_available
         else "Formalizer packet validation exhausted its model-owned structured "
         "generation budget. The runtime recorded the rejected packet and raw "
@@ -15329,6 +15319,8 @@ def _formalizer_packet_validation_failure_result(
         payload={
             "validation_errors": validation_errors,
             "same_owner_subsystem": task.owner_subsystem,
+            "workspace_continuation_allowed": workspace_continuation_allowed,
+            "architect_routing_used": False,
             "runtime_edits_candidate": False,
             **client_tool_loop_observation,
             "proof_evidence_status": (
@@ -15355,7 +15347,7 @@ def _formalizer_packet_validation_failure_result(
         }
     produced_artifacts[failure_id] = failure_artifact
     return AgentStepResult(
-        status="BLOCKED",
+        status="REVISE" if workspace_continuation_allowed else "BLOCKED",
         rationale=result_rationale,
         produced_artifacts=produced_artifacts,
         observations=(
@@ -15366,6 +15358,8 @@ def _formalizer_packet_validation_failure_result(
                     "failure_id": failure_id,
                     "validation_errors": validation_errors,
                     "same_owner_subsystem": task.owner_subsystem,
+                    "workspace_continuation_allowed": workspace_continuation_allowed,
+                    "architect_routing_used": False,
                     "runtime_edits_candidate": False,
                     **client_tool_loop_observation,
                     "proof_evidence_status": (
@@ -15375,7 +15369,7 @@ def _formalizer_packet_validation_failure_result(
             ),
         ),
         evidence_entries=(evidence,),
-        next_task=None,
+        next_task=next_task,
         failure_classification=failure_classification,
     )
 
@@ -18065,14 +18059,31 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
         if isinstance(revision_context_payload, Mapping)
         else {}
     )
-    initial_source, candidate_declaration, revision_start = (
-        resolve_lean_workspace_start_source(
+    recovery_checkpoint = environment_feedback.get(
+        "formalizer_recovery_checkpoint", {}
+    )
+    recovery_checkpoint = (
+        recovery_checkpoint
+        if isinstance(recovery_checkpoint, Mapping)
+        else {}
+    )
+    if recovery_checkpoint:
+        _, revision_start = load_lean_candidate_workspace_checkpoint(
             candidate_id=candidate_id,
             candidate_lean_declaration=candidate_declaration,
             parent_source=parent_source,
-            environment_feedback=environment_feedback,
+            rejected_source_hash=str(
+                recovery_checkpoint.get("rejected_source_hash", "") or ""
+            ),
+            checkpoint=recovery_checkpoint,
+            parent_formalizer_artifact_id=parent_packet_id,
+            initial_authoring=initial_authoring,
         )
-    )
+    else:
+        revision_start = {
+            "resumed_from_model_checkpoint": False,
+            "parent_source_hash": stable_hash(parent_source),
+        }
 
     workspace_root = (
         Path(lean_candidate_root)
@@ -18649,7 +18660,7 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                 candidate_id=candidate_id,
                 candidate_source_field=source_field,
                 candidate_lean_declaration=candidate_declaration,
-                initial_source=initial_source,
+                initial_source=parent_source,
                 environment_feedback=environment_feedback,
                 check_candidate=check_candidate,
                 search_formal_environment=search_formal_environment,
@@ -18676,18 +18687,22 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             if isinstance(exc.recovery_checkpoint, Mapping)
             else {}
         )
-        checkpoint["parent_formalizer_artifact_id"] = parent_packet_id
-        if initial_authoring:
-            checkpoint.update(
-                {
-                    "parent_formalizer_workspace_target_id": parent_packet_id,
-                    "parent_formalizer_workspace_target_hash": stable_hash(
-                        parent_packet
-                    ),
-                }
-            )
-        else:
-            checkpoint["parent_formalizer_packet_id"] = parent_packet_id
+        if checkpoint.get("artifact_kind") == (
+            LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND
+        ):
+            checkpoint["parent_formalizer_artifact_id"] = parent_packet_id
+            if initial_authoring:
+                checkpoint.update(
+                    {
+                        "parent_formalizer_workspace_target_id": parent_packet_id,
+                        "parent_formalizer_workspace_target_hash": stable_hash(
+                            parent_packet
+                        ),
+                    }
+                )
+            else:
+                checkpoint["parent_formalizer_packet_id"] = parent_packet_id
+            checkpoint = seal_lean_candidate_workspace_checkpoint(checkpoint)
         raise PacketValidationError(
             validation_label=exc.validation_label,
             attempts=exc.attempts,

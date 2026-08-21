@@ -4,7 +4,6 @@ import json
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
@@ -338,7 +337,8 @@ class LLMFormalizerProofEngineerAgent:
                 f"This workspace has at most {workspace_turn_budget} model-tool "
                 "turns plus at most one rejected-disposition recovery turn. The "
                 "same tools remain available during standard turns. The initial "
-                "message contains the complete current source and fresh Lean check; "
+                "message contains the complete current source and latest exact "
+                "hash-bound Lean, retrieval, and inspection observations; "
                 "the full bounded model-tool transcript then retains every source, "
                 "raw check, search, and inspection observation. Make an "
                 "early compiler-grounded source attempt. Independent search and "
@@ -390,6 +390,16 @@ class LLMFormalizerProofEngineerAgent:
             inspect_lean_declaration=inspect_lean_declaration,
             rejected_source_hash=rejected_source_hash,
             allow_formal_gap=True,
+            recovery_checkpoint=(
+                environment_feedback.get("formalizer_recovery_checkpoint", {})
+                if isinstance(
+                    environment_feedback.get(
+                        "formalizer_recovery_checkpoint", {}
+                    ),
+                    Mapping,
+                )
+                else {}
+            ),
             request_metadata={
                 "subsystem": "FormalizerProofEngineer",
                 "agent": "LLMFormalizerProofEngineerAgent",
@@ -2180,9 +2190,15 @@ def _complete_lean_candidate_revision_feedback(
         "candidate_lean_declaration",
         "parent_source_hash",
         "current_source_hash",
+        "checkpoint_id",
+        "resumed_from_checkpoint_id",
+        "resumable",
         "source_updates",
+        "declaration_updates",
         "searches",
+        "proof_searches",
         "state_inspections",
+        "declaration_inspections",
         "checks",
         "turns",
         "tool_calls",
