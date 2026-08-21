@@ -1318,6 +1318,69 @@
         "novelty": "not_applicable",
         "unresolved_gaps": "required"
       }
+    },
+    {
+      "id": "bivariate_normal_fisher_z_known_result",
+      "level": "L0",
+      "family": "correlation_multivariate",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l0_fisher_z_questions_20260821.json",
+      "source_authority": "operator_provisioned_hash_bound_model_visible_snapshot",
+      "source_snapshot_id": "bivariate-normal-fisher-z-known-result-v1",
+      "source_snapshot_hash": "22835f39116048ee58394df80258118efd2dc5f96ddb9fbcbde3b8746cc9158a",
+      "source_manifest_sha256": "db816f3e126057972ef707252440e9abd0634b73f970317ad3ffc62e309016ed",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l0-fisher-z-20260821-v1",
+      "gold_manifest_sha256": "9711f300e7e98de0f6729ac610fc251896e14528cdeefec9a3f3d5c1d8d5f13e",
+      "gold_descriptor_hash": "7a98edc396b2e1a3e2edc32f1c93ef4380da12a60ec080f5b00182e90d7f4d24",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "full_task_gold_frozen_unconsumed",
+      "activation_evidence": {
+        "public_reference": "Fisher, Metron 1:3-32, 1921, University of Adelaide handle 2440/15169; NIST/SEMATECH Dataplot Correlation Confidence Limits; SciPy PearsonRResult.confidence_interval documentation",
+        "visible_questions_sha256": "1caacf16b7187c6c653627c882b1aad6a32230fe6c84544bbe6185a185afe41c",
+        "visible_question_hash": "06a62ad3c0befbde243e12203551fc014a8702ecd5fa6f28325042c310777e80",
+        "estimator_execution_contract_id": "frozen_estimator_execution_contract:4bf13783eddb93e777d8",
+        "source_snapshot_documents": 3,
+        "hidden_theory_harness_sha256": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+        "hidden_semantic_reference_sha256": "00d3620f02057f63a6f37eec3c8f2a90549cb3bba77544cd6513ace9790137b2",
+        "hidden_algorithm_harness_sha256": "56adb572fd964783f569770ee3c89890c73a4746e97fc7dc68bba7b8318d26ce",
+        "hidden_empirical_harness_sha256": "655d78e9adb2c077783e3fa1e90ef4fe1aba48c15008910e679b6221e527d0f4",
+        "reference_estimator_sha256": "a5527e80c4c9d00fd1e1917be3694c5b52c1671305aa5161f225a96b4f96c958",
+        "algorithm_reference_contract_checks": "12/12",
+        "algorithm_reference_maximum_relative_error": 0.0,
+        "algorithm_negative_variants_rejected": 4,
+        "empirical_reference_dgps_passed": 3,
+        "empirical_reference_replicates_per_dgp": 3000,
+        "empirical_reference_identity_agreements": 9000,
+        "empirical_reference_maximum_absolute_standardized_mean": 0.019035870682540784,
+        "empirical_reference_maximum_standardized_variance_error": 0.020093401410707257,
+        "empirical_reference_maximum_coverage_error": 0.005666666666666598,
+        "empirical_reference_maximum_mean_mcse": 0.01843993312904277,
+        "empirical_reference_maximum_coverage_mcse": 0.004186004016915132,
+        "semantic_calibration_cases": 12,
+        "semantic_calibration_cases_correct": 12,
+        "semantic_reference_claims": 10,
+        "semantic_reference_candidate_passed": true,
+        "semantic_reference_judgment_hash": "2b7f740baa2bf587601aa816365d67de2631fbf173cd747258278d0c26b9fa95",
+        "hidden_gold_manifest_validated": true,
+        "schema_v2_contract_entailment_audit": "Every hidden algorithm check cites exact public request, response, or invariant clauses. Every hidden empirical check cites one of two public empirical claims plus the exact estimator fields it consumes. The n-3 quantity is publicly and privately labeled approximate. Mathematical theory remains in the question and Markdown/LaTeX workspace; hidden DGPs and replicate totals are frozen evaluator configuration, not candidate correctness rules.",
+        "gold_frozen_before_first_runtime_model_call": true,
+        "activation_commit": "6b871aa078f61e08c495cdf1753c40c3b9867f43",
+        "activation_push_confirmed_on_work_branch_and_main": true,
+        "first_runtime_model_call_occurred": false,
+        "fresh_live_runs": 0,
+        "formalization_requirement": "not_applicable",
+        "full_task_passed": false
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
     }
   ],
   "activation_requirements": [
@@ -1331,15 +1394,15 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 16,
+    "active_scored_tasks": 17,
     "consumed_scored_tasks": 16,
-    "fully_gold_configured_tasks": 16,
+    "fully_gold_configured_tasks": 17,
     "fully_gold_passed_tasks": 0,
     "runtime_source_replication_components_ready": 1,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "All sixteen scored tasks are consumed and immutable at 0/16 full-task passes. The AR(1) draw produced independently accepted theory and algorithm artifacts that passed every hidden theory, algorithm, and empirical check, but a callback-semantics and model-ownership defect drove a repeated Algorithm-Simulation loop to MAX_ITERATIONS_REACHED. Commit dd3d09bf fixes only the shared future-task mechanism; the frozen draw remains 0/1.",
-    "next_step": "Do not rerun or rescore AR(1) or any earlier task. Freeze a new disjoint known-result task only after its visible contract, hidden authority, and exact-Haiku calibration are complete; use it to test transparent callback semantics and model-selected dependency handoff under unchanged budgets."
+    "latest_diagnostic": "Sixteen scored tasks are consumed and immutable at 0/16 full-task passes. A seventeenth disjoint Fisher-z task is frozen but unconsumed: its public schema-v2 estimator contract, three-document source snapshot, hidden theory/algorithm/empirical authority, four negative implementations, and 12/12 exact-Haiku semantic calibration were fixed before any product runtime model call.",
+    "next_step": "Push the Fisher-z activation metadata to the work branch and main, verify both remote heads contain freeze commit 6b871aa078f61e08c495cdf1753c40c3b9867f43, then authorize exactly one fresh exact-Haiku runtime draw. Do not rerun or rescore any earlier task."
   }
 }
