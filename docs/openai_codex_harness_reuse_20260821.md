@@ -185,6 +185,15 @@ placing another Codex thread manager around `AgentRuntime`.
     provider, horizon, revision, path, full-content hash, visible-content hash, and
     citation identity without copying the body. This reduces author source-selection
     bias without adding a reviewer, route, retry, automatic search, or proof claim.
+13. The independent referee's substantive report is now a model-owned Markdown
+    workspace rather than one large terminal JSON string. The same isolated model
+    can write the complete report, read exact line ranges, apply hash-bound local
+    edits after another reasoning step, and finally submit only the current report
+    SHA plus compact statuses and findings. A checkpoint carries only the draft
+    manifest and validates the file before continuation; it does not copy the report
+    body. A stale hash returns to the same referee as an actionable tool observation,
+    while a missing or tampered draft fails before acceptance. This adds no reviewer,
+    model turn allowance, retry, scheduler, or runtime-authored mathematical action.
 
 These changes add no model call, retry, turn, agent, scheduler, model tier,
 statistical formula, Lean grammar rule, or repair recipe.
@@ -279,6 +288,16 @@ fresh response field and copies it unchanged into evaluator rows. The affected
 panel passed 129 tests and the full suite passed 805 tests. No retry, model call,
 statistical default, frozen-path change, rerun, or rescore was added; Fisher-z
 remains `0/1`.
+
+The false acceptance also exposed a harness limitation in the old referee output
+surface: six turns of mathematical work ended by regenerating the entire report as
+one terminal JSON field. Commit `c2239ea9` gives that same referee an isolated,
+hash-bound Markdown report workspace and leaves only a compact SHA/status envelope
+at the terminal boundary. This makes long reasoning locally editable and resumable;
+it does not repair the Fisher mathematics, change the model, add another vote, or
+claim that document iteration improves correctness. The affected 139-test panel and
+the full 808-test suite pass; the consumed Fisher candidate remains `0/1` and all
+seventeen scored tasks remain `0/17`.
 
 ### Reused collaboration semantics
 
@@ -390,3 +409,13 @@ and Simulation source plus execution receive that exact count. The focused panel
 passed 197 tests and the full local suite passed 795 tests in 64.59 seconds.
 No model call, frozen-task rerun, result inspection, new agent, retry, outer
 iteration, statistical formula, Lean rule, or capability credit was produced.
+
+The model-owned referee-report workspace is regression-validated at code commit
+`c2239ea9`. One deterministic exact-Haiku transport fixture writes, reads, locally
+edits, and submits the same Markdown report by hash; another receives a stale-hash
+error and corrects the edit in the same session. A two-segment review submits the
+restored draft without rewriting it, report prose is omitted from checkpoint and
+persisted history, and external draft tampering stops before a provider call. The
+focused and adjacent panel passed 139 tests and the full local suite passed 808 tests
+in 64.54 seconds. No Claude call, benchmark rerun, task result, mathematical
+acceptance, empirical credit, or proof credit was produced.
