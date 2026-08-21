@@ -99,6 +99,7 @@ def test_generated_code_schema_uses_one_compact_runtime_validated_shape() -> Non
         "pandas",
         "scikit-learn",
         "statsmodels",
+        "sympy",
         "base",
         "stats",
         "utils",
@@ -106,7 +107,7 @@ def test_generated_code_schema_uses_one_compact_runtime_validated_shape() -> Non
     ]
     dependency_description = schema["properties"]["dependencies"]["description"]
     assert "language=python" in dependency_description
-    assert "numpy, scipy, pandas, scikit-learn, statsmodels" in (
+    assert "numpy, scipy, pandas, scikit-learn, statsmodels, sympy" in (
         dependency_description
     )
     assert "language=r" in dependency_description
@@ -1260,6 +1261,17 @@ def test_estimator_runtime_failure_preserves_typed_observation() -> None:
             "    values = rng.normal(size=replicates)\n"
             "    return {'mean': float(np.mean(values)), 'n': int(values.size)}\n",
             "mean",
+        ),
+        (
+            "python",
+            ["sympy"],
+            "import sympy as sp\n\n"
+            "def run_sandbox(seed, replicates):\n"
+            "    x, y = sp.symbols('x y')\n"
+            "    expected = x**3 + 3*x**2*y + 3*x*y**2 + y**3\n"
+            "    residual = sp.expand((x + y) ** 3 - expected)\n"
+            "    return {'identity_zero': bool(residual == 0), 'n': replicates}\n",
+            "identity_zero",
         ),
         (
             "r",

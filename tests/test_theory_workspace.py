@@ -1234,6 +1234,7 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
     ]
     first_prompt = str(backend.requests[0].messages[0]["content"])
     assert "Never promote finite scratch output" in first_prompt
+    assert "exact model-chosen SymPy reduction" in first_prompt
     observation = json.loads(
         backend.requests[1].messages[-1]["content"][0]["content"]
     )

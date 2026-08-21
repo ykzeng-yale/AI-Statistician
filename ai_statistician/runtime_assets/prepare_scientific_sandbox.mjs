@@ -6,6 +6,7 @@ const packages = [
   "pandas",
   "scikit-learn",
   "statsmodels",
+  "sympy",
 ];
 
 const pyodide = await loadPyodide();

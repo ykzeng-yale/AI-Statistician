@@ -2269,6 +2269,8 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         "every line of every authoritative theory document",
         "correct final statement does not cancel",
         "discriminating special case",
+        "exact symbolic reduction",
+        "final estimator or output distribution cannot establish",
         "complete semantic chain",
         "canned checklist",
         "mathematical coherence from proof completeness",
@@ -2334,6 +2336,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert backend.requests[0].max_tokens == 7000
     assert "review_output_token_cap" not in backend.requests[0].metadata
     assert "not theorem peer review" in backend.requests[0].system_prompt
+    assert "exact model-authored SymPy algebra" in backend.requests[0].system_prompt
     submit_schema = _submit_schema(backend.requests[0])
     assert "do not carry downstream proof obligations" in (
         prompt_payload["verdict_policy"]

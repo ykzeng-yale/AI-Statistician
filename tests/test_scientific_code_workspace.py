@@ -148,7 +148,7 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
         "description"
     ]
     assert "language=python" in dependency_description
-    assert "numpy, scipy, pandas, scikit-learn, statsmodels" in (
+    assert "numpy, scipy, pandas, scikit-learn, statsmodels, sympy" in (
         dependency_description
     )
     assert "language=r" in dependency_description

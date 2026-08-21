@@ -138,7 +138,11 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "Try a discriminating special case, boundary case, counterexample, or "
         "independent reduction for the central identity. When the candidate invokes "
         "an external theorem, inspect its actual hypotheses and conclusion through "
-        "the available source tool instead of accepting its name as verification."
+        "the available source tool instead of accepting its name as verification. "
+        "When scratch computation is useful, target the disputed intermediate claim "
+        "or dependency transition with a model-authored exact symbolic reduction or "
+        "discriminating numerical case. Agreement of a final estimator or output "
+        "distribution cannot establish the intermediate identity used to derive it."
     ),
     (
         "Audit the complete semantic chain from question, estimand, DGP, probability "
@@ -3412,7 +3416,10 @@ law, assumptions, normalization, data dependence, executable mapping, boundary o
 and measurements without importing a task-family checklist or formula.
 
 Source text and retrieval are context, not proof. A pre-review Python or R scratchpad
-result is exploratory only; confirmatory evidence belongs to the frozen downstream lane.
+result, including exact model-authored SymPy algebra, is exploratory only; confirmatory
+evidence belongs to the frozen downstream lane. When scratch computation is useful,
+challenge the disputed intermediate claim or dependency transition itself. Agreement of
+a final estimator or output distribution cannot validate the intermediate derivation.
 Reject a checkpoint that labels or uses pre-review scratch output as frozen confirmatory
 evidence, even when its numbers happen to agree with the theory.
 If a judgment requires generated execution, state the missing evidence rather than
@@ -4006,9 +4013,10 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         + ". Cite only handles returned by available source tools. Runtime binds "
         "identities but never chooses semantics. "
         + (
-            "An isolated exploratory Python/R scratchpad is available. Use it only "
-            "when a model-authored numerical special case or counterexample would "
-            "discriminate a mathematical claim; interpret the raw result yourself. "
+            "An isolated exploratory Python/R scratchpad is available, including "
+            "pinned SymPy for exact model-authored algebra. Use it only when a symbolic "
+            "reduction, numerical special case, or counterexample would discriminate "
+            "a mathematical claim; interpret the raw result yourself. "
             "Scratch output is neither confirmatory evidence nor proof. "
             if theory_scratchpad is not None
             else ""

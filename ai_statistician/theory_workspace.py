@@ -143,7 +143,8 @@ def theory_scratchpad_client_tool() -> ClientToolDefinition:
     return ClientToolDefinition(
         name=THEORY_SCRATCHPAD_TOOL,
         description=(
-            "Run one complete model-authored exploratory Python or R calculation "
+            "Run one complete model-authored exploratory Python or R calculation, "
+            "including exact symbolic algebra with SymPy when useful, "
             "in the isolated scientific sandbox. Define, but do not call, "
             "run_sandbox(seed, replicates); it must return a named JSON-finite "
             "metric object. Raw execution results return to this mathematical "
@@ -1673,8 +1674,9 @@ def run_theory_artifact_workspace(
         else ""
     )
     scratch_guidance = (
-        "Use run_theory_scratchpad when a small Python or R calculation, numerical "
-        "check, or counterexample would resolve a mathematical uncertainty. Submit "
+        "Use run_theory_scratchpad when a small Python or R calculation, exact "
+        "model-chosen SymPy reduction, numerical check, or counterexample would resolve "
+        "a mathematical uncertainty. Submit "
         "complete source defining run_sandbox(seed, replicates); the isolated runtime "
         "executes those exact bytes and returns the raw observation. Interpret the "
         "observation yourself before editing theory. Scratch output is exploratory, "

@@ -40,6 +40,7 @@ PYTHON_SCIENTIFIC_DEPENDENCIES = (
     "pandas",
     "scikit-learn",
     "statsmodels",
+    "sympy",
 )
 R_SCIENTIFIC_DEPENDENCIES = (
     "base",
@@ -53,6 +54,7 @@ _PYTHON_PACKAGE_IMPORT_ROOTS = {
     "pandas": {"pandas"},
     "scikit-learn": {"sklearn"},
     "statsmodels": {"statsmodels", "patsy"},
+    "sympy": {"sympy", "isympy"},
 }
 _PYTHON_PACKAGE_CACHE_PREFIXES = {
     "numpy": ("numpy-",),
@@ -60,6 +62,7 @@ _PYTHON_PACKAGE_CACHE_PREFIXES = {
     "pandas": ("pandas-", "python_dateutil-", "pytz-", "six-"),
     "scikit-learn": ("scikit_learn-", "joblib-", "threadpoolctl-"),
     "statsmodels": ("statsmodels-", "patsy-", "packaging-"),
+    "sympy": ("sympy-", "mpmath-"),
 }
 
 
