@@ -30,6 +30,7 @@ from .structured_output_retry import (
     extract_json_object,
     generate_validated_json_packet,
 )
+from .theory_workspace import TheoryScratchpadConfig
 
 
 ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 20
@@ -1565,6 +1566,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
         theory_protocol_material: Mapping[str, Any],
         upstream_research_contract: Mapping[str, Any],
         prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
+        theory_scratchpad: TheoryScratchpadConfig | None = None,
     ) -> dict[str, Any]:
         return review_architect_theory_execution_preflight(
             provider=self.provider,
@@ -1579,6 +1581,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             prior_finding_ledger=prior_finding_ledger,
             source_retriever=self.source_retriever,
             research_sources=self.research_sources,
+            theory_scratchpad=theory_scratchpad,
         )
 
     def review(

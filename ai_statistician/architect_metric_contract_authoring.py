@@ -1034,6 +1034,7 @@ def review_architect_theory_execution_preflight(
     runtime_contract: Mapping[str, Any],
     theory_protocol_material: Mapping[str, Any],
     prior_rejection_context: Mapping[str, Any] | None = None,
+    theory_scratchpad: Any = None,
 ) -> dict[str, Any]:
     """Run only the independent source-grounded theory/executability gate."""
 
@@ -1107,6 +1108,7 @@ def review_architect_theory_execution_preflight(
                 build_architect_upstream_research_contract(runtime_contract)
             ),
             prior_finding_ledger=prior_finding_ledger,
+            theory_scratchpad=theory_scratchpad,
         )
     if packet.get("overall_verdict") == "ACCEPT":
         return dict(packet)

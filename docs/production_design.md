@@ -244,6 +244,13 @@ cited source is snapshot-verified. Prior findings remain immutable records but m
 be resolved or retracted by the independent model using current evidence; runtime
 only validates lineage.
 
+The same independent reviewer may choose an isolated Python or R scratch calculation
+when a numerical special case or counterexample would discriminate a mathematical
+claim. The reviewer authors the complete source and interprets the raw sandbox result
+inside its existing tool loop. Runtime stores only hash-bound execution lineage; the
+result is exploratory, never confirmatory evidence or theorem proof, and it does not
+create another reviewer, vote, repair worker, or routing stage.
+
 ## Lean formalization workspace
 
 Formalization policy is `required`, `optional`, or `advisory` and scheduling is

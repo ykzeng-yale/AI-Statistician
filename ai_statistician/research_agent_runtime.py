@@ -1204,10 +1204,12 @@ class ArchitectCoordinatorRuntimeSubsystem:
         coordinator: LLMArchitectCoordinatorAgent,
         runtime_config: ResearchAgentRuntimeConfig,
         proof_search_tool_available: bool = False,
+        preflight_scratchpad: TheoryScratchpadConfig | None = None,
     ) -> None:
         self.coordinator = coordinator
         self.runtime_config = runtime_config
         self.proof_search_tool_available = bool(proof_search_tool_available)
+        self.preflight_scratchpad = preflight_scratchpad
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -1246,12 +1248,18 @@ class ArchitectCoordinatorRuntimeSubsystem:
             runtime_config_payload["proof_search_tool_available"] = (
                 self.proof_search_tool_available
             )
+            preflight_review_kwargs = (
+                {"theory_scratchpad": self.preflight_scratchpad}
+                if self.preflight_scratchpad is not None
+                else {}
+            )
             try:
                 preflight_packet = (
                     self.coordinator.review_theory_execution_preflight(
                         question=question,
                         architect_context=context,
                         runtime_config=runtime_config_payload,
+                        **preflight_review_kwargs,
                     )
                 )
             except ArchitectMetricSemanticReviewRejected as exc:
@@ -5410,16 +5418,12 @@ class TheoryDeveloperRuntimeSubsystem:
         theory_developer: LLMTheoryDeveloperAgent,
         n_runs: int,
         seed: int,
-        scratch_sandbox_root: Path | None = None,
-        scratch_timeout_s: int = 20,
-        scratch_max_runs: int = 3,
+        theory_scratchpad: TheoryScratchpadConfig | None = None,
     ) -> None:
         self.theory_developer = theory_developer
         self.n_runs = n_runs
         self.seed = seed
-        self.scratch_sandbox_root = scratch_sandbox_root
-        self.scratch_timeout_s = max(1, int(scratch_timeout_s))
-        self.scratch_max_runs = max(0, int(scratch_max_runs))
+        self.theory_scratchpad = theory_scratchpad
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -5630,27 +5634,12 @@ class TheoryDeveloperRuntimeSubsystem:
                     question,
                     architect_context=context,
                     theory_workspace_root=(
-                        self.scratch_sandbox_root.parent / "theory_workspaces"
-                        if self.scratch_sandbox_root is not None
+                        self.theory_scratchpad.sandbox_dir.parent
+                        / "theory_workspaces"
+                        if self.theory_scratchpad is not None
                         else None
                     ),
-                    theory_scratchpad=(
-                        TheoryScratchpadConfig(
-                            sandbox_dir=(
-                                self.scratch_sandbox_root
-                                / stable_hash(
-                                    [question.id, task.task_id]
-                                )[:16]
-                            ),
-                            seed=self.seed,
-                            replicates=max(1, self.n_runs),
-                            timeout_s=self.scratch_timeout_s,
-                            max_runs=self.scratch_max_runs,
-                        )
-                        if self.scratch_sandbox_root is not None
-                        and self.scratch_max_runs > 0
-                        else None
-                    ),
+                    theory_scratchpad=self.theory_scratchpad,
                 )
         except TheoryWorkspaceProgressError as exc:
             return _theory_developer_progress_result(
@@ -19774,6 +19763,17 @@ def run_research_agent_runtime(
         blackboard.artifacts[research_source_topology["manifest_id"]] = (
             research_source_topology
         )
+        theory_scratchpad = (
+            TheoryScratchpadConfig(
+                sandbox_dir=out_dir / "theory_scratch_sandbox",
+                seed=config.seed,
+                replicates=max(1, config.n_runs),
+                timeout_s=config.theory_scratch_timeout_seconds,
+                max_runs=config.theory_scratch_max_runs,
+            )
+            if config.theory_scratch_max_runs > 0
+            else None
+        )
         formalizer_workspace = FormalizerWorkspaceRuntimeSubsystem(
             proposal_agent=formalizer,
             proof_state_provider=proof_state_provider,
@@ -19804,9 +19804,7 @@ def run_research_agent_runtime(
                 theory_developer=theory_developer,
                 n_runs=config.n_runs,
                 seed=config.seed,
-                scratch_sandbox_root=out_dir / "theory_scratch_sandbox",
-                scratch_timeout_s=config.theory_scratch_timeout_seconds,
-                scratch_max_runs=config.theory_scratch_max_runs,
+                theory_scratchpad=theory_scratchpad,
             ),
             "SimulationEvaluator": SimulationEvaluatorRuntimeSubsystem(
                 proposal_agent=simulation_engineer,
@@ -19864,6 +19862,7 @@ def run_research_agent_runtime(
                     proof_search_tool_available=(
                         proof_search_provider is not None
                     ),
+                    preflight_scratchpad=theory_scratchpad,
                 ),
                 **subsystems,
             }

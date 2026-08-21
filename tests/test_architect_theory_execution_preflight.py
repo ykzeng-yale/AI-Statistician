@@ -24,6 +24,7 @@ from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT,
     _architect_theory_execution_preflight_submit_schema,
+    _preflight_scratchpad_evidence_errors,
     _search_preflight_sources,
     build_architect_theory_execution_preflight_material,
     build_architect_theory_execution_preflight_prompt,
@@ -50,11 +51,15 @@ from ai_statistician.research_source_library import (
     ResearchSourceDocument,
     ResearchSourceSnapshot,
 )
+from ai_statistician.scientific_sandbox import ScientificSandboxExecution
 from ai_statistician.theory_workspace import (
+    THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+    THEORY_SCRATCHPAD_TOOL,
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_HANDOFF_ROLE,
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+    TheoryScratchpadConfig,
     theory_workspace_document_manifest,
 )
 
@@ -290,6 +295,42 @@ class _Backend:
                 "provider_structured_output_requested": True,
                 "provider_structured_output_applied": True,
             },
+        )
+
+
+class _ScratchPreflightBackend:
+    provider_name = "anthropic"
+
+    def __init__(self) -> None:
+        self.requests = []
+        self.scratch_observation = {}
+
+    def generate_client_tool_turn(self, request):
+        self.requests.append(request)
+        if len(self.requests) == 1:
+            return _tool_response(
+                ClientToolCall(
+                    "run-referee-counterexample",
+                    THEORY_SCRATCHPAD_TOOL,
+                    {
+                        "language": "python",
+                        "execution_profile": "scientific_wasm",
+                        "dependencies": ["numpy"],
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed, replicates):\n"
+                            "    return {'counterexample_gap': 0.25, 'seed': seed}\n"
+                        ),
+                    },
+                )
+            )
+        self.scratch_observation = _last_tool_result(request)
+        return _tool_response(
+            ClientToolCall(
+                "submit-after-referee-counterexample",
+                "submit_theory_preflight_review",
+                _compact_submission(_payload(accept=True)),
+            )
         )
 
 
@@ -756,6 +797,7 @@ def _tool_review(
     prior_finding_ledger=(),
     theory_protocol_material=None,
     upstream_research_contract=None,
+    theory_scratchpad=None,
 ):
     selected_theory_material = (
         theory_protocol_material
@@ -784,6 +826,7 @@ def _tool_review(
         source_retriever=source_retriever,
         research_sources=research_sources,
         prior_finding_ledger=prior_finding_ledger,
+        theory_scratchpad=theory_scratchpad,
     )
 
 
@@ -824,6 +867,93 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
         backend.requests[1].messages[-1]["content"][0]["content"]
     )
     assert first_result["hits"][0]["source_ref"] == "S1H1"
+
+
+def test_preflight_referee_can_run_model_owned_exploratory_scratch(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    captured = {}
+
+    def fake_execute_scientific_sandbox(**kwargs):
+        captured.update(kwargs)
+        return ScientificSandboxExecution(
+            status="EXECUTED",
+            language="python",
+            execution_profile="scientific_wasm",
+            backend="pyodide",
+            isolation_provider="test-isolation",
+            dependencies=("numpy",),
+            execution_attempted=True,
+            returncode=0,
+            metrics={"counterexample_gap": 0.25, "seed": 29},
+            errors=(),
+            stdout_summary="referee scratch stdout",
+            stderr_summary="",
+            result_parse_error="",
+            code_path=str(tmp_path / "scratch.py"),
+            request_path=str(tmp_path / "request.json"),
+            result_path=str(tmp_path / "result.json"),
+            code_hash=stable_hash(kwargs["code"]),
+            request_hash="referee-scratch-request-hash",
+            result_hash=stable_hash({"counterexample_gap": 0.25, "seed": 29}),
+            subprocess_environment_keys=("HOME", "PATH"),
+            resource_limits={"cpu_seconds": 11},
+        )
+
+    monkeypatch.setattr(
+        "ai_statistician.theory_workspace.execute_scientific_sandbox",
+        fake_execute_scientific_sandbox,
+    )
+    backend = _ScratchPreflightBackend()
+
+    packet = _tool_review(
+        backend,
+        theory_scratchpad=TheoryScratchpadConfig(
+            sandbox_dir=tmp_path / "referee-scratch",
+            seed=29,
+            replicates=17,
+            timeout_s=11,
+            max_runs=1,
+        ),
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["preflight_scratchpad_enabled"] is True
+    assert packet["preflight_scratch_runs"] == 1
+    assert len(packet["preflight_scratch_execution_refs"]) == 1
+    scratch_ref = packet["preflight_scratch_execution_refs"][0]
+    assert scratch_ref["proof_evidence_status"] == (
+        THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE
+    )
+    assert scratch_ref["runtime_edited_source"] is False
+    assert scratch_ref["runtime_edited_theory"] is False
+    assert packet["preflight_scratch_execution_fingerprint"] == stable_hash(
+        [scratch_ref]
+    )
+    assert backend.scratch_observation["metrics"] == {
+        "counterexample_gap": 0.25,
+        "seed": 29,
+    }
+    assert captured["seed"] == 29
+    assert captured["replicates"] == 17
+    assert captured["timeout_s"] == 11
+    assert THEORY_SCRATCHPAD_TOOL in [
+        tool.name for tool in backend.requests[0].tools
+    ]
+    assert packet["client_tool_loop_turns"] == 2
+    assert packet["client_tool_loop_tool_calls"] == 2
+    assert "scratch output omitted" in packet["client_tool_loop_history"][0][
+        "tool_calls"
+    ][0]["result_excerpt"]
+    tampered = deepcopy(packet)
+    tampered["preflight_scratch_execution_refs"][0][
+        "proof_evidence_status"
+    ] = "KERNEL_VERIFIED"
+    assert any(
+        "proof boundary mismatch" in error
+        for error in _preflight_scratchpad_evidence_errors(tampered)
+    )
 
 
 def test_preflight_keeps_search_tool_visible_after_its_budget_is_spent() -> None:

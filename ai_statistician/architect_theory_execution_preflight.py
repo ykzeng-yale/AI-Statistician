@@ -42,17 +42,22 @@ from .research_source_library import (
 )
 from .theory_workspace import (
     MAX_THEORY_DOCUMENT_SEARCH_HITS,
+    THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+    THEORY_SCRATCHPAD_TOOL,
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+    TheoryScratchpadConfig,
+    execute_theory_scratchpad_tool,
     load_theory_workspace_document_rows,
     read_theory_document_lines,
     research_source_client_tools,
     search_theory_document_lines,
     theory_document_client_tools,
+    theory_scratchpad_client_tool,
 )
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 18
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 25
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 19
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 26
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -1749,6 +1754,57 @@ def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
     return errors
 
 
+def _preflight_scratchpad_evidence_errors(
+    packet: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    enabled = packet.get("preflight_scratchpad_enabled")
+    if not isinstance(enabled, bool):
+        errors.append("preflight scratchpad availability is invalid")
+        enabled = False
+    refs = [
+        dict(row)
+        for row in packet.get("preflight_scratch_execution_refs", []) or []
+        if isinstance(row, Mapping)
+    ]
+    run_count = packet.get("preflight_scratch_runs")
+    if isinstance(run_count, bool) or not isinstance(run_count, int):
+        errors.append("preflight scratch run count is invalid")
+    elif run_count != len(refs):
+        errors.append("preflight scratch run count mismatch")
+    expected_fingerprint = stable_hash(refs) if refs else ""
+    if str(
+        packet.get("preflight_scratch_execution_fingerprint", "") or ""
+    ) != expected_fingerprint:
+        errors.append("preflight scratch execution fingerprint mismatch")
+    if refs and not enabled:
+        errors.append("preflight scratch evidence exists while tool is unavailable")
+    for index, ref in enumerate(refs):
+        if ref.get("scratch_run") != index + 1:
+            errors.append(f"preflight scratch execution {index} order mismatch")
+        if not str(ref.get("code_hash", "") or "").strip():
+            errors.append(f"preflight scratch execution {index} code hash is missing")
+        if not str(ref.get("request_hash", "") or "").strip():
+            errors.append(
+                f"preflight scratch execution {index} request hash is missing"
+            )
+        if ref.get("runtime_edited_source") is not False:
+            errors.append(
+                f"preflight scratch execution {index} runtime source boundary failed"
+            )
+        if ref.get("runtime_edited_theory") is not False:
+            errors.append(
+                f"preflight scratch execution {index} runtime theory boundary failed"
+            )
+        if ref.get("proof_evidence_status") != (
+            THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE
+        ):
+            errors.append(
+                f"preflight scratch execution {index} proof boundary mismatch"
+            )
+    return errors
+
+
 def _preflight_theory_document_inspection_errors(
     packet: Mapping[str, Any],
     *,
@@ -3087,6 +3143,7 @@ def validate_architect_theory_execution_preflight_packet(
             "theory execution preflight finding ledger fingerprint mismatch"
         )
     errors.extend(_preflight_source_grounding_errors(packet))
+    errors.extend(_preflight_scratchpad_evidence_errors(packet))
     errors.extend(
         _preflight_theory_document_inspection_errors(
             packet,
@@ -3156,6 +3213,11 @@ def _preflight_evidence_history(
                     "[research-source text omitted from persisted review history; "
                     "use hash-bound preflight source observations]"
                 )
+            elif tool_name == THEORY_SCRATCHPAD_TOOL:
+                tool_call["result_excerpt"] = (
+                    "[exploratory scratch output omitted from persisted review "
+                    "history; use hash-bound preflight scratch execution refs]"
+                )
     return persisted
 
 
@@ -3166,6 +3228,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     material: Mapping[str, Any],
     source_retriever: Any,
     research_sources: ResearchSourceSnapshot | None,
+    theory_scratchpad: TheoryScratchpadConfig | None,
     request_model: str,
     model_tier: str,
     provider_name: str,
@@ -3235,6 +3298,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             else ()
         ),
         *compact_source_tools,
+        *((theory_scratchpad_client_tool(),) if theory_scratchpad else ()),
         ClientToolDefinition(
             name="submit_theory_preflight_review",
             description=(
@@ -3269,7 +3333,15 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         )
         + ". Cite only handles returned by available source tools. Runtime binds "
         "identities but never chooses semantics. "
-        "No generated-code or simulation results exist at this stage; mark a question "
+        + (
+            "An isolated exploratory Python/R scratchpad is available. Use it only "
+            "when a model-authored numerical special case or counterexample would "
+            "discriminate a mathematical claim; interpret the raw result yourself. "
+            "Scratch output is neither confirmatory evidence nor proof. "
+            if theory_scratchpad is not None
+            else ""
+        )
+        + "No generated-code or simulation results exist at this stage; mark a question "
         "UNCERTAIN when it genuinely requires that downstream evidence. Keep citation "
         "namespaces distinct: evidence_refs accepts theory anchor IDs, while "
         "source_evidence_refs accepts only S...H... source handles. "
@@ -3285,6 +3357,8 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "observation_ids": set(),
         "source_ref_by_hit_id": {},
         "document_inspection_refs": [],
+        "scratch_runs": 0,
+        "scratch_execution_refs": [],
     }
 
     def source_grounding_payload(**loop_metadata: Any) -> dict[str, Any]:
@@ -3301,6 +3375,16 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             "preflight_source_search_count": int(state["searches"]),
             "preflight_source_search_budget": (
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+            ),
+            "preflight_scratchpad_enabled": theory_scratchpad is not None,
+            "preflight_scratch_runs": int(state["scratch_runs"]),
+            "preflight_scratch_execution_refs": deepcopy(
+                list(state["scratch_execution_refs"])
+            ),
+            "preflight_scratch_execution_fingerprint": (
+                stable_hash(list(state["scratch_execution_refs"]))
+                if state["scratch_execution_refs"]
+                else ""
             ),
             "theory_document_inspection_required": bool(
                 authoritative_documents
@@ -3386,6 +3470,41 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 observation_key="preflight-theory-document-read:"
                 + stable_hash(inspection_ref),
             )
+
+        if call.name == THEORY_SCRATCHPAD_TOOL:
+            if theory_scratchpad is None:
+                raise ClientToolInputError(
+                    "independent theory referee scratchpad is unavailable"
+                )
+            if state["scratch_runs"] >= theory_scratchpad.max_runs:
+                raise ClientToolInputError(
+                    "independent theory referee scratchpad run budget is exhausted"
+                )
+            run_index = int(state["scratch_runs"]) + 1
+            execution_result, execution_ref = execute_theory_scratchpad_tool(
+                tool_input=tool_input,
+                scratchpad=theory_scratchpad,
+                sandbox_binding=[
+                    question.id,
+                    material.get("source_theory_packet_hash", ""),
+                    "independent_theory_referee",
+                ],
+                artifact_id=(
+                    "theory-referee-scratch-"
+                    + stable_hash(
+                        [
+                            question.id,
+                            material.get("source_theory_packet_hash", ""),
+                        ]
+                    )[:12]
+                    + f"-{run_index}"
+                ),
+                run_index=run_index,
+                owner_label="independent theory referee",
+            )
+            state["scratch_runs"] = run_index
+            state["scratch_execution_refs"].append(execution_ref)
+            return execution_result
 
         if call.name in {
             RESEARCH_SOURCE_SEARCH_TOOL,
@@ -3762,6 +3881,7 @@ def review_architect_theory_execution_preflight(
     prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
     source_retriever: Any = None,
     research_sources: ResearchSourceSnapshot | None = None,
+    theory_scratchpad: TheoryScratchpadConfig | None = None,
 ) -> dict[str, Any]:
     if not callable(getattr(provider, "generate_client_tool_turn", None)):
         raise ValueError(
@@ -3785,6 +3905,7 @@ def review_architect_theory_execution_preflight(
         material=material,
         source_retriever=source_retriever,
         research_sources=research_sources,
+        theory_scratchpad=theory_scratchpad,
         request_model=request_model,
         model_tier=model_tier,
         provider_name=provider_name,

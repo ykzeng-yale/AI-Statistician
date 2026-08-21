@@ -121,6 +121,126 @@ class TheoryScratchpadConfig:
     max_runs: int = 2
 
 
+def theory_scratchpad_client_tool() -> ClientToolDefinition:
+    """Return the shared exploratory Python/R tool used by theory agents."""
+
+    scratch_schema = generated_code_draft_json_schema(
+        artifact_properties={},
+        artifact_required=(),
+        code_max_length=100_000,
+    )
+    scratch_schema["properties"]["execution_profile"]["enum"] = [
+        SCIENTIFIC_WASM_SANDBOX_PROFILE
+    ]
+    return ClientToolDefinition(
+        name=THEORY_SCRATCHPAD_TOOL,
+        description=(
+            "Run one complete model-authored exploratory Python or R calculation "
+            "in the isolated scientific sandbox. Raw execution results return to "
+            "this mathematical session and never edit theory automatically."
+        ),
+        input_schema=scratch_schema,
+    )
+
+
+def execute_theory_scratchpad_tool(
+    *,
+    tool_input: Mapping[str, Any],
+    scratchpad: TheoryScratchpadConfig,
+    sandbox_binding: Sequence[Any],
+    artifact_id: str,
+    run_index: int,
+    owner_label: str,
+) -> tuple[ClientToolExecutionResult, dict[str, Any]]:
+    """Execute exact model-authored exploratory code and return compact lineage."""
+
+    language = str(tool_input.get("language", "") or "")
+    execution_profile = str(tool_input.get("execution_profile", "") or "")
+    dependencies = tool_input.get("dependencies", [])
+    code = str(tool_input.get("code", "") or "")
+    entrypoint = str(tool_input.get("entrypoint", "") or "")
+    if entrypoint != "run_sandbox":
+        raise ClientToolInputError(
+            "theory scratchpad entrypoint must be run_sandbox"
+        )
+    if execution_profile != SCIENTIFIC_WASM_SANDBOX_PROFILE:
+        raise ClientToolInputError(
+            "theory scratchpad execution_profile must be scientific_wasm"
+        )
+    if not isinstance(dependencies, list):
+        raise ClientToolInputError(
+            "theory scratchpad dependencies must be an array"
+        )
+    execution = execute_scientific_sandbox(
+        sandbox_dir=(
+            scratchpad.sandbox_dir / stable_hash(list(sandbox_binding))[:16]
+        ),
+        artifact_id=artifact_id,
+        language=language,
+        code=code,
+        dependencies=[str(value) for value in dependencies],
+        seed=int(scratchpad.seed),
+        replicates=int(scratchpad.replicates),
+        timeout_s=int(scratchpad.timeout_s),
+        max_output_bytes=64 * 1024,
+    )
+    execution_ref = {
+        "scratch_run": int(run_index),
+        "status": execution.status,
+        "language": execution.language,
+        "execution_attempted": execution.execution_attempted,
+        "returncode": execution.returncode,
+        "dependencies": list(execution.dependencies),
+        "errors": list(execution.errors),
+        "code_hash": execution.code_hash,
+        "request_hash": execution.request_hash,
+        "result_hash": execution.result_hash,
+        "metrics_hash": stable_hash(execution.metrics),
+        "code_path": execution.code_path,
+        "request_path": execution.request_path,
+        "result_path": execution.result_path,
+        "runtime_edited_source": False,
+        "runtime_edited_theory": False,
+        "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+    }
+    observation = {
+        "scratch_run": int(run_index),
+        "remaining_scratch_runs": max(0, scratchpad.max_runs - run_index),
+        **execution.to_json(),
+        "seed": int(scratchpad.seed),
+        "replicates": int(scratchpad.replicates),
+        "timeout_s": int(scratchpad.timeout_s),
+        "runtime_edited_source": False,
+        "runtime_edited_theory": False,
+        "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+        "boundary": (
+            "This is a model-authored exploratory calculation returned to the "
+            f"same {owner_label} session. It may expose a counterexample or "
+            "numerical inconsistency, but it is not confirmatory simulation "
+            "evidence and not theorem proof evidence."
+        ),
+    }
+    result = ClientToolExecutionResult(
+        content={"ok": True, **observation},
+        state_changed=True,
+        observation_key=(
+            "theory-scratchpad:"
+            + stable_hash(
+                [
+                    list(sandbox_binding),
+                    run_index,
+                    execution.code_hash,
+                    execution.request_hash,
+                    execution.status,
+                    execution.result_hash,
+                    list(execution.errors),
+                ]
+            )
+        ),
+    )
+    return result, execution_ref
+
+
 def run_theory_artifact_workspace(
     *,
     provider: Any,
@@ -1128,98 +1248,19 @@ def run_theory_artifact_workspace(
                     "theory scratchpad run budget is exhausted"
                 )
             run_index = state["scratch_runs"] + 1
-            language = str(tool_input.get("language", "") or "")
-            execution_profile = str(
-                tool_input.get("execution_profile", "") or ""
-            )
-            dependencies = tool_input.get("dependencies", [])
-            code = str(tool_input.get("code", "") or "")
-            entrypoint = str(tool_input.get("entrypoint", "") or "")
-            if entrypoint != "run_sandbox":
-                raise ClientToolInputError(
-                    "theory scratchpad entrypoint must be run_sandbox"
-                )
-            if execution_profile != SCIENTIFIC_WASM_SANDBOX_PROFILE:
-                raise ClientToolInputError(
-                    "theory scratchpad execution_profile must be scientific_wasm"
-                )
-            if not isinstance(dependencies, list):
-                raise ClientToolInputError(
-                    "theory scratchpad dependencies must be an array"
-                )
-            execution = execute_scientific_sandbox(
-                sandbox_dir=(
-                    scratchpad.sandbox_dir
-                    / stable_hash([workspace_id, authoring_binding_id])[:16]
-                ),
+            execution_result, execution_ref = execute_theory_scratchpad_tool(
+                tool_input=tool_input,
+                scratchpad=scratchpad,
+                sandbox_binding=[workspace_id, authoring_binding_id],
                 artifact_id=(
                     f"theory-scratch-{stable_hash(workspace_id)[:12]}-{run_index}"
                 ),
-                language=language,
-                code=code,
-                dependencies=[str(value) for value in dependencies],
-                seed=int(scratchpad.seed),
-                replicates=int(scratchpad.replicates),
-                timeout_s=int(scratchpad.timeout_s),
-                max_output_bytes=64 * 1024,
+                run_index=run_index,
+                owner_label="TheoryDeveloper",
             )
             state["scratch_runs"] = run_index
-            observation = {
-                "scratch_run": run_index,
-                "remaining_scratch_runs": scratchpad.max_runs - run_index,
-                **execution.to_json(),
-                "seed": int(scratchpad.seed),
-                "replicates": int(scratchpad.replicates),
-                "timeout_s": int(scratchpad.timeout_s),
-                "runtime_edited_source": False,
-                "runtime_edited_theory": False,
-                "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
-                "boundary": (
-                    "This is a model-authored exploratory calculation returned to "
-                    "the same TheoryDeveloper session. It may expose a counterexample "
-                    "or numerical inconsistency, but it is not confirmatory simulation "
-                    "evidence and not theorem proof evidence."
-                ),
-            }
-            state["scratch_execution_refs"].append(
-                {
-                    "scratch_run": run_index,
-                    "status": execution.status,
-                    "language": execution.language,
-                    "execution_attempted": execution.execution_attempted,
-                    "returncode": execution.returncode,
-                    "dependencies": list(execution.dependencies),
-                    "errors": list(execution.errors),
-                    "code_hash": execution.code_hash,
-                    "request_hash": execution.request_hash,
-                    "result_hash": execution.result_hash,
-                    "metrics_hash": stable_hash(execution.metrics),
-                    "code_path": execution.code_path,
-                    "request_path": execution.request_path,
-                    "result_path": execution.result_path,
-                    "runtime_edited_source": False,
-                    "runtime_edited_theory": False,
-                    "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
-                }
-            )
-            return ClientToolExecutionResult(
-                content={"ok": True, **observation},
-                state_changed=True,
-                observation_key=(
-                    "theory-scratchpad:"
-                    + stable_hash(
-                        [
-                            workspace_id,
-                            run_index,
-                            execution.code_hash,
-                            execution.request_hash,
-                            execution.status,
-                            execution.result_hash,
-                            list(execution.errors),
-                        ]
-                    )
-                ),
-            )
+            state["scratch_execution_refs"].append(execution_ref)
+            return execution_result
 
         if call.name == THEORY_WORKSPACE_PROGRESS_TOOL:
             if not require_document_authority:
@@ -2292,25 +2333,7 @@ def _theory_workspace_tools(
             )
         )
     if scratchpad_enabled:
-        scratch_schema = generated_code_draft_json_schema(
-            artifact_properties={},
-            artifact_required=(),
-            code_max_length=100_000,
-        )
-        scratch_schema["properties"]["execution_profile"]["enum"] = [
-            SCIENTIFIC_WASM_SANDBOX_PROFILE
-        ]
-        tools.append(
-            ClientToolDefinition(
-                name=THEORY_SCRATCHPAD_TOOL,
-                description=(
-                    "Run one complete model-authored exploratory Python or R "
-                    "calculation in the isolated scientific sandbox. Raw execution "
-                    "results return to this session and never edit theory automatically."
-                ),
-                input_schema=scratch_schema,
-            )
-        )
+        tools.append(theory_scratchpad_client_tool())
     if document_authority_enabled:
         tools.append(
             ClientToolDefinition(
