@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "bivariate_normal_fisher_z_known_result",
+      "title": "Fisher transformation of the sample Pearson correlation",
+      "description": "Focused L0 known-result evaluation in correlation and multivariate statistics. Let (X_i,Y_i), i=1,...,n, be iid from a nondegenerate bivariate normal distribution with arbitrary finite means, positive marginal variances, and population correlation rho in (-1,1). Let r_n be the ordinary centered sample Pearson correlation. Develop one authoritative Markdown/LaTeX derivation from a joint multivariate CLT and the delta method: identify the needed Gaussian fourth moments and covariance matrix, derive sqrt(n)(r_n-rho) converging in distribution to N(0,(1-rho^2)^2), and then derive sqrt(n)(atanh(r_n)-atanh(rho)) converging in distribution to N(0,1). Explain why estimating the means does not change the first-order gradient at the standardized population point. Clearly distinguish this asymptotic theorem from the classical finite-sample normal approximation with standard error 1/sqrt(n-3); do not call that approximation exact, claim finite-sample unbiasedness, or use simulation as proof. The required model-authored artifact is est_fisher_pearson_z and must implement the frozen run_estimator(request) contract exactly. Exploratory computation may diagnose implementation or finite-sample behavior. A separate frozen confirmatory assessment uses independently generated bivariate-normal samples at predeclared negative, moderate, and high correlations to test the exact centered-sum identities and approximate centered unit-normal Fisher-z behavior with Monte Carlo uncertainty. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "correlation",
+        "multivariate_statistics",
+        "pearson_correlation",
+        "fisher_transformation",
+        "delta_method",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_fisher_pearson_z",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.x",
+            "name": "x",
+            "meaning": "The first finite real-valued sample, paired by position with y.",
+            "json_type": "array[number]",
+            "shape": "length n with n>=4, equal to len(y), and positive centered square sum",
+            "units": "one common measurement unit within x",
+            "indexing": "zero-based entries x[j] and y[j] form observation pair j",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, fewer than four observations, unequal sample lengths, and a zero centered square sum.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.y",
+            "name": "y",
+            "meaning": "The second finite real-valued sample, paired by position with x.",
+            "json_type": "array[number]",
+            "shape": "length n with n>=4, equal to len(x), and positive centered square sum",
+            "units": "one common measurement unit within y",
+            "indexing": "zero-based entries x[j] and y[j] form observation pair j",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, fewer than four observations, unequal sample lengths, a zero centered square sum, and samples whose computed correlation is not strictly between -1 and 1 because a finite Fisher transform would not exist.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n_observations",
+            "name": "n_observations",
+            "meaning": "The number n of paired observations used by every returned quantity.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "count",
+            "indexing": "equals len(x) and len(y)",
+            "edge_cases": "Must be an integer at least four.",
+            "normalization": "No normalization; count each pair exactly once."
+          },
+          {
+            "clause_id": "response.mean_x",
+            "name": "mean_x",
+            "meaning": "The arithmetic mean of the supplied x sample.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "x measurement units",
+            "indexing": "uses all n entries of x",
+            "edge_cases": "Must be JSON-finite.",
+            "normalization": "sum(x)/n."
+          },
+          {
+            "clause_id": "response.mean_y",
+            "name": "mean_y",
+            "meaning": "The arithmetic mean of the supplied y sample.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "y measurement units",
+            "indexing": "uses all n entries of y",
+            "edge_cases": "Must be JSON-finite.",
+            "normalization": "sum(y)/n."
+          },
+          {
+            "clause_id": "response.centered_cross_sum",
+            "name": "centered_cross_sum",
+            "meaning": "The paired centered cross-product sum.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "x units times y units",
+            "indexing": "sum_j (x[j]-mean_x)*(y[j]-mean_y) over all n pairs",
+            "edge_cases": "Must be JSON-finite.",
+            "normalization": "Unnormalized centered sum; do not divide by n or n-1."
+          },
+          {
+            "clause_id": "response.centered_x_square_sum",
+            "name": "centered_x_square_sum",
+            "meaning": "The centered square sum of x.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "squared x units",
+            "indexing": "sum_j (x[j]-mean_x)^2 over all n observations",
+            "edge_cases": "Must be JSON-finite and strictly positive.",
+            "normalization": "Unnormalized centered sum; do not divide by n or n-1."
+          },
+          {
+            "clause_id": "response.centered_y_square_sum",
+            "name": "centered_y_square_sum",
+            "meaning": "The centered square sum of y.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "squared y units",
+            "indexing": "sum_j (y[j]-mean_y)^2 over all n observations",
+            "edge_cases": "Must be JSON-finite and strictly positive.",
+            "normalization": "Unnormalized centered sum; do not divide by n or n-1."
+          },
+          {
+            "clause_id": "response.sample_correlation",
+            "name": "sample_correlation",
+            "meaning": "The ordinary centered Pearson sample correlation for the supplied pairs.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "dimensionless",
+            "indexing": "uses every paired observation exactly once",
+            "edge_cases": "Must be JSON-finite and strictly between -1 and 1; clipping is not allowed.",
+            "normalization": "centered_cross_sum divided by sqrt(centered_x_square_sum*centered_y_square_sum)."
+          },
+          {
+            "clause_id": "response.fisher_z",
+            "name": "fisher_z",
+            "meaning": "The Fisher transform of the returned sample correlation.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "dimensionless",
+            "indexing": "computed from sample_correlation",
+            "edge_cases": "Must be JSON-finite; do not transform a clipped or absolute correlation.",
+            "normalization": "atanh(sample_correlation)=0.5*log((1+sample_correlation)/(1-sample_correlation))."
+          },
+          {
+            "clause_id": "response.fisher_z_standard_error_approx",
+            "name": "fisher_z_standard_error_approx",
+            "meaning": "The classical finite-sample normal-approximation standard error for Fisher z under bivariate normal sampling.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "dimensionless",
+            "indexing": "depends only on n_observations",
+            "edge_cases": "Must be JSON-finite and positive for n>=4, and must not be described as an exact finite-sample standard deviation.",
+            "normalization": "1/sqrt(n_observations-3)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.exact_identities",
+            "meaning": "The returned sample_correlation is the exact ratio of the three returned centered sums, fisher_z is atanh(sample_correlation), and fisher_z_standard_error_approx is 1/sqrt(n_observations-3)."
+          },
+          {
+            "clause_id": "invariant.positive_affine_rescaling",
+            "meaning": "Adding arbitrary finite constants to x and y and multiplying each sample by its own positive finite scale leaves sample_correlation and fisher_z unchanged; the centered cross sum scales by the product and each centered square sum by its scale squared."
+          },
+          {
+            "clause_id": "invariant.single_sign_reversal",
+            "meaning": "Multiplying exactly one sample by a negative finite scale reverses the signs of centered_cross_sum, sample_correlation, and fisher_z while leaving n and the approximate standard error unchanged."
+          },
+          {
+            "clause_id": "invariant.swap_symmetry",
+            "meaning": "Swapping x and y swaps their means and centered square sums while preserving centered_cross_sum, sample_correlation, fisher_z, n, and the approximate standard error."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.standardized_fisher_z",
+            "meaning": "The frozen confirmatory assessment compares independently generated bivariate-normal samples at predeclared negative, moderate, and high correlations using (fisher_z-atanh(rho))/fisher_z_standard_error_approx, reports Monte Carlo uncertainty, and treats approximate centered unit-normal behavior as empirical support rather than proof."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory estimator call must use the exact predeclared paired sample and contract, and the assessment separately verifies the returned centered-sum, correlation, transform, and approximate-standard-error identities before aggregating standardized errors."
+          }
+        ]
+      }
+    }
+  ]
+}
