@@ -88,6 +88,13 @@ placing another Codex thread manager around `AgentRuntime`.
    authorized only after a new sandbox check. A stale checkpoint, changed hash,
    overlapping continuation, or no-progress lineage fails closed before a model
    call; ordinary source continuation never routes through Architect.
+6. Referee-driven TheoryDeveloper revision no longer has a separate one- or
+   two-round cap. The independent reviewer and TheoryDeveloper can continue
+   through the existing outer AgentRuntime budget while the immutable finding
+   ledger shows scientific progress. Runtime derives progress from prior
+   findings marked resolved or retracted; merely adding a new finding while an
+   old one remains unresolved is stagnation and stops before another theory
+   model call. Revision count remains lineage telemetry, not a second budget.
 
 These changes add no model call, retry, turn, agent, scheduler, model tier,
 statistical formula, Lean grammar rule, or repair recipe.
@@ -152,3 +159,11 @@ tampering and no-progress lineage are rejected. The focused workspace/runtime
 panel passed 121 tests and the full local suite passed 769 tests. This is
 mechanism evidence only: no model call, frozen-task rerun, scientific acceptance,
 hidden-gold credit, or Lean proof credit was produced.
+
+The theory-continuation correction is regression-validated at code commit
+`fbc59a5fea8fca5bd99852d995ae68057ffddb83`. The redundant runtime config,
+CLI flag, prompt budget, binding limit, and special reserved-revision exception
+were deleted. A round-eight lineage that closes its prior finding continues to
+round nine, while a lineage that closes none stops immediately. The affected
+panel passed 229 tests and the full local suite passed 770 tests. No model call
+or frozen-task rerun occurred, so this supplies no mathematical or E2E credit.
