@@ -1234,7 +1234,7 @@
       "id": "stationary_ar1_zero_mean_ols_known_result",
       "level": "L0",
       "family": "time_series",
-      "status": "proposed_pending_freeze_push",
+      "status": "active_scored",
       "visible_questions_path": "benchmarks/research_l0_ar1_ols_questions_20260821.json",
       "source_authority": "operator_provisioned_hash_bound_model_visible_snapshot",
       "source_snapshot_id": "stationary-ar1-zero-mean-ols-known-result-v1",
@@ -1245,7 +1245,7 @@
       "gold_manifest_sha256": "6f1bca4ed6293502351cdd759483d197cf57ba745e148ba4a1baf8bb2b04d2d8",
       "gold_descriptor_hash": "f9a590b702a620508a8235297afa36604445963244b50373302f4f5cea29ccde",
       "gold_runtime_visibility": "evaluator_only_after_runtime",
-      "activation_status": "schema_v2_calibrated_pending_freeze_push_no_runtime_calls",
+      "activation_status": "full_task_gold_frozen_pushed_authorized_for_one_fresh_exact_haiku_draw",
       "activation_evidence": {
         "public_reference": "Anderson, Annals of Mathematical Statistics 30(3):676-687, 1959, DOI 10.1214/aoms/1177706198; Hyndman and Athanasopoulos, Forecasting: Principles and Practice, 3rd ed., Section 9.3; statsmodels 0.14.6 AutoReg documentation",
         "visible_questions_sha256": "23a25639e6b2ac4526922999644ec23c5802eed13e767890e03fec20cec291ff",
@@ -1276,7 +1276,8 @@
         "hidden_gold_manifest_validated": true,
         "schema_v2_contract_entailment_audit": "Every hidden algorithm check cites exact public request, response, or invariant clauses. Every hidden empirical check cites at least one of two public empirical claims plus the exact estimator fields it consumes. Mathematical theory remains in the question and Markdown/LaTeX workspace; hidden harness counts and replicate totals are frozen configuration, not candidate correctness checks.",
         "gold_frozen_before_first_runtime_model_call": true,
-        "activation_push_confirmed_on_work_branch_and_main": false,
+        "activation_commit": "8feebce9aa68f86ec940fb8bd928e1ed60953455",
+        "activation_push_confirmed_on_work_branch_and_main": true,
         "first_runtime_model_call_occurred": false,
         "fresh_live_runs": 0,
         "formalization_requirement": "not_applicable",
@@ -1304,14 +1305,14 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 15,
-    "fully_gold_configured_tasks": 15,
+    "active_scored_tasks": 16,
+    "fully_gold_configured_tasks": 16,
     "fully_gold_passed_tasks": 0,
     "runtime_source_replication_components_ready": 1,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "All fifteen consumed tasks remain immutable 0/15. A disjoint time-series L0 task now has a schema-v2 public estimator ABI and two explicit public empirical claim IDs, three hash-bound model-visible sources, isolated theory/code/empirical gold, a 10/10 reference identity result, four rejected algorithm negatives, three calibrated AR(1) DGPs, and 12/12 exact-Haiku semantic calibration. It has zero product runtime model calls and remains unauthorized until its freeze commit is pushed.",
-    "next_step": "Do not rerun or rescore any consumed task. Validate and push the schema-v2 mechanism plus AR(1) public artifacts, record that exact freeze commit on both remote branches, and only then authorize one exact-Haiku draw."
+    "latest_diagnostic": "All fifteen consumed tasks remain immutable 0/15. A disjoint time-series L0 task has a schema-v2 public estimator ABI and two explicit public empirical claim IDs, three hash-bound model-visible sources, isolated theory/code/empirical gold, a 10/10 reference identity result, four rejected algorithm negatives, three calibrated AR(1) DGPs, and 12/12 exact-Haiku semantic calibration. Freeze commit 8feebce9aa68f86ec940fb8bd928e1ed60953455 is present on both remote branches before any product runtime call.",
+    "next_step": "Run exactly one fresh stationary_ar1_zero_mean_ols_known_result draw with claude-haiku-4-5-20251001 for every enabled role. Never rerun or rescore any of the fifteen consumed tasks; after this draw, freeze its result regardless of outcome."
   }
 }
