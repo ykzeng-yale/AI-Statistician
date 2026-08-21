@@ -233,6 +233,7 @@ class LLMArchitectCoordinatorAgent:
         ) = None,
         preflight_source_retriever: Any = None,
         preflight_research_sources: Any = None,
+        preflight_research_source_discovery: Any = None,
     ) -> None:
         self.provider = provider
         self.config = config
@@ -253,6 +254,9 @@ class LLMArchitectCoordinatorAgent:
                     ),
                     source_retriever=preflight_source_retriever,
                     research_sources=preflight_research_sources,
+                    research_source_discovery=(
+                        preflight_research_source_discovery
+                    ),
                 )
             )
 

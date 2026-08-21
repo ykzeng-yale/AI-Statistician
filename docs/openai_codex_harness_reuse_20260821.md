@@ -176,6 +176,15 @@ placing another Codex thread manager around `AgentRuntime`.
     bounded error observation, so it can choose another source or continue with
     an honest gap. Unknown provider exceptions still terminate as harness faults;
     there is no automatic retry, fallback query, or source-repair agent.
+    The independent theory referee receives the same optional two-tool surface in
+    a separate provider session whose opaque handles are not shared with the author.
+    The referee chooses its own query and source; search metadata has no citation
+    handle, and only exact content the referee elects to read becomes a hash-bound
+    `S#H#` observation. The source body stays in the active model transcript (and an
+    exact resumable checkpoint when needed), while final review evidence retains the
+    provider, horizon, revision, path, full-content hash, visible-content hash, and
+    citation identity without copying the body. This reduces author source-selection
+    bias without adding a reviewer, route, retry, automatic search, or proof claim.
 
 These changes add no model call, retry, turn, agent, scheduler, model tier,
 statistical formula, Lean grammar rule, or repair recipe.

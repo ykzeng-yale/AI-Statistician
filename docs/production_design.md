@@ -136,12 +136,12 @@ exact candidate; the model then continues useful work, reports a gap, or calls
 `commit_theory_checkpoint`. No fixed review ritual is required. A commit is only a
 proposal for independent review, never scientific acceptance or proof evidence.
 
-When prior work is permitted, one model-visible, hash-bound snapshot gives the same
-TheoryDeveloper session direct source search/read tools without a LiteratureAgent.
-The model cites returned `citation_ref` values in authoritative documents. Runtime
-persists refs and resolves exact cited ranges transiently for the independent Critic;
-uncited text is not copied. Sources are provenance, not proof or referee acceptance,
-and evaluator gold is excluded. PDF/OCR and repository acquisition remain upstream.
+When prior work is permitted, the same TheoryDeveloper session can inspect a frozen
+snapshot or model-selected public paper/repository text without a LiteratureAgent.
+An independent referee gets a separate opaque-handle session and chooses its own
+queries; search metadata is not citable, while exact reads become hash-bound refs.
+Runtime persists identities, not source bodies. Sources are provenance, not proof or
+referee acceptance, and evaluator gold remains excluded from all live discovery.
 
 ## Scientific coding workspace
 

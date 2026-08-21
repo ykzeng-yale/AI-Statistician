@@ -1555,11 +1555,13 @@ class LLMArchitectMetricSemanticReviewerAgent:
         ),
         source_retriever: Any = None,
         research_sources: Any = None,
+        research_source_discovery: Any = None,
     ) -> None:
         self.provider = provider
         self.config = config
         self.source_retriever = source_retriever
         self.research_sources = research_sources
+        self.research_source_discovery = research_source_discovery
 
     def review_theory_execution_preflight(
         self,
@@ -1584,6 +1586,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             prior_finding_ledger=prior_finding_ledger,
             source_retriever=self.source_retriever,
             research_sources=self.research_sources,
+            research_source_discovery=self.research_source_discovery,
             theory_scratchpad=theory_scratchpad,
             recovery_checkpoint=recovery_checkpoint,
         )

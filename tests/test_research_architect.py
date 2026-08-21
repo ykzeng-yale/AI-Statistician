@@ -3562,11 +3562,13 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     runtime_default_model = default_generator_model(runtime_args.provider, model_tier="sonnet")
     preflight_source_retriever = object()
     preflight_research_sources = object()
+    preflight_research_source_discovery = object()
     architect = _build_architect_coordinator_agent_from_args(
         runtime_args,
         default_model=runtime_default_model,
         formal_source_retriever=preflight_source_retriever,
         research_sources=preflight_research_sources,
+        research_source_discovery=preflight_research_source_discovery,
     )
     assert architect.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert architect.metric_semantic_reviewer.source_retriever is (
@@ -3574,6 +3576,9 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     )
     assert architect.metric_semantic_reviewer.research_sources is (
         preflight_research_sources
+    )
+    assert architect.metric_semantic_reviewer.research_source_discovery is (
+        preflight_research_source_discovery
     )
     algorithm_engineer = _build_algorithm_engineer_agent_from_args(
         runtime_args,

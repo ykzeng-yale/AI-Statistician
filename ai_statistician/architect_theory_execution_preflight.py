@@ -40,6 +40,14 @@ from .research_source_library import (
     RESEARCH_SOURCE_SEARCH_TOOL,
     ResearchSourceSnapshot,
 )
+from .research_source_discovery import (
+    RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE,
+    RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+    RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+    ResearchSourceDiscovery,
+    ResearchSourceDiscoveryError,
+    ResearchSourceDiscoveryInputError,
+)
 from .theory_workspace import (
     MAX_THEORY_DOCUMENT_SEARCH_HITS,
     THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
@@ -51,13 +59,14 @@ from .theory_workspace import (
     load_theory_workspace_document_rows,
     read_theory_document_lines,
     research_source_client_tools,
+    research_source_discovery_client_tools,
     search_theory_document_lines,
     theory_document_client_tools,
     theory_scratchpad_client_tool,
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 19
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 26
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 27
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -76,7 +85,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_document_inspection_and_task_bound_source_query_v13"
+    "client_tool_document_inspection_and_model_directed_source_query_v14"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = (
     "model_authored_markdown_referee_report_with_compact_status_envelope_v1"
@@ -1624,6 +1633,122 @@ def _research_source_preflight_observation(
     }
     if operation == RESEARCH_SOURCE_READ_TOOL:
         visible_result.update(visible_hits[0] if visible_hits else {})
+    return persisted, visible_result
+
+
+def _public_research_source_preflight_read_observation(
+    *,
+    visible: Mapping[str, Any],
+    descriptor: Mapping[str, Any],
+    source_index: int,
+    exclude_hit_ids: set[str] | None = None,
+    prior_source_refs: Mapping[str, str] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    content = str(visible.get("content", "") or "")
+    provider = str(
+        visible.get("provider", "") or descriptor.get("provider", "") or ""
+    ).strip()
+    source_handle = str(visible.get("source_handle", "") or "").strip()
+    revision = str(visible.get("revision", "") or "").strip()
+    path = str(visible.get("path", "") or "").strip()
+    content_sha256 = str(visible.get("content_sha256", "") or "").strip()
+    observed_content_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    if not all((provider, source_handle, revision, path, content_sha256)):
+        raise RuntimeError(
+            "public research source read omitted an immutable source identity"
+        )
+    if (
+        visible.get("content_truncated") is not True
+        and content_sha256 != observed_content_sha256
+    ):
+        raise RuntimeError("public research source read content hash mismatch")
+
+    source_identity = ":".join(
+        (
+            provider,
+            source_handle,
+            revision,
+            path,
+            content_sha256,
+            observed_content_sha256,
+        )
+    )
+    row = _preflight_source_row(
+        source_kind="public_research_source_exact_read",
+        source_identity=source_identity,
+        title=str(visible.get("title", "") or source_handle),
+        location=str(visible.get("url", "") or path),
+        content={
+            "provider": provider,
+            "source_handle": source_handle,
+            "source_kind": str(visible.get("source_kind", "") or ""),
+            "revision": revision,
+            "path": path,
+            "content_sha256": content_sha256,
+            "observed_content_sha256": observed_content_sha256,
+            "content_truncated": bool(visible.get("content_truncated", False)),
+            "citation_ref": str(visible.get("citation_ref", "") or ""),
+        },
+        provenance={
+            "source_horizon": str(descriptor.get("source_horizon", "") or ""),
+            "citation": str(visible.get("citation", "") or ""),
+            "url": str(visible.get("url", "") or ""),
+            "publication_date": str(
+                visible.get("publication_date", "") or ""
+            ),
+            "model_selected_query_and_source": True,
+            "independent_referee_session": True,
+        },
+        content_max_depth=4,
+        content_list_limit=12,
+        content_text_limit=500,
+    )
+    hit_id = str(row["source_hit_id"])
+    excluded = set(exclude_hit_ids or set())
+    prior_ref = str(dict(prior_source_refs or {}).get(hit_id, "") or "").strip()
+    if hit_id in excluded and prior_ref:
+        compact_hits: list[dict[str, Any]] = []
+        duplicate_source_refs_reused = [prior_ref]
+        source_ref = prior_ref
+    else:
+        source_ref = f"S{source_index}H1"
+        compact_hits = [
+            {
+                **row,
+                "source_ref": source_ref,
+                "retrieval_channel": "public_research_source",
+                "retrieval_rank_within_channel": 1,
+                "retrieval_score": 1.0,
+            }
+        ]
+        duplicate_source_refs_reused = []
+    observation_core = {
+        "query": f"{source_handle}:{revision}:{path}",
+        "source_scope": "public_research_source_read",
+        "hits": compact_hits,
+        "duplicate_source_refs_reused": duplicate_source_refs_reused,
+        "provider_errors": [],
+        "retrieval_fusion": "model_directed_public_source_exact_read_v1",
+    }
+    persisted = {
+        "observation_id": (
+            "preflight_source_observation:"
+            + stable_hash(observation_core)[:20]
+        ),
+        **observation_core,
+        "boundary": (
+            "This hash-bound public-source passage was independently selected and "
+            "read by the reviewing model. It is literature or code evidence, not "
+            "replication evidence, mathematical proof, or kernel evidence."
+        ),
+    }
+    visible_result = {
+        **dict(visible),
+        "source_hit_id": hit_id,
+        "source_ref": source_ref,
+        "duplicate_source_refs_reused": duplicate_source_refs_reused,
+        "proof_evidence_status": RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE,
+    }
     return persisted, visible_result
 
 
@@ -3206,6 +3331,8 @@ def _preflight_evidence_history(
             elif tool_name in {
                 RESEARCH_SOURCE_SEARCH_TOOL,
                 RESEARCH_SOURCE_READ_TOOL,
+                RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+                RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
             }:
                 tool_call["result_excerpt"] = (
                     "[research-source text omitted from persisted review history; "
@@ -3539,6 +3666,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     material: Mapping[str, Any],
     source_retriever: Any,
     research_sources: ResearchSourceSnapshot | None,
+    research_source_discovery: ResearchSourceDiscovery | None,
     theory_scratchpad: TheoryScratchpadConfig | None,
     request_model: str,
     model_tier: str,
@@ -3553,6 +3681,14 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     authoritative_documents = _preflight_authoritative_theory_documents(material)
     allowed_source_scopes = _preflight_allowed_source_scopes(material)
     formal_sources_applicable = _preflight_formal_sources_applicable(material)
+    public_source_descriptor: dict[str, Any] = {}
+    if research_source_discovery is not None:
+        descriptor = research_source_discovery.descriptor()
+        if not isinstance(descriptor, Mapping):
+            raise RuntimeError(
+                "public research source discovery returned an invalid descriptor"
+            )
+        public_source_descriptor = dict(descriptor)
     compact_source_search_available = not (
         authoritative_documents
         and research_sources is not None
@@ -3609,6 +3745,11 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             if research_sources is not None
             else ()
         ),
+        *(
+            research_source_discovery_client_tools()
+            if research_source_discovery is not None
+            else ()
+        ),
         *compact_source_tools,
         *((theory_scratchpad_client_tool(),) if theory_scratchpad else ()),
         ClientToolDefinition(
@@ -3637,6 +3778,13 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "Choose all searches and ranges yourself. When available, use "
         "search_research_sources and read_research_source for task-bound papers, code, "
         "and documentation"
+        + (
+            ". You also have an isolated public-source session: independently choose "
+            "queries with discover_research_sources, then read a selected result "
+            "before citing it. Search metadata alone is not citable"
+            if research_source_discovery is not None
+            else ""
+        )
         + (
             "; use search_preflight_sources for compact runtime context"
             + (" or formal declarations" if formal_sources_applicable else "")
@@ -3767,6 +3915,16 @@ def _review_architect_theory_execution_preflight_with_source_tools(
 
     def source_grounding_payload(**loop_metadata: Any) -> dict[str, Any]:
         observations = deepcopy(list(state["observations"]))
+        public_search_count = sum(
+            row.get("tool") == RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL
+            for row in state["workspace_observations"]
+            if isinstance(row, Mapping) and row.get("is_error") is not True
+        )
+        public_read_count = sum(
+            row.get("tool") == RESEARCH_SOURCE_DISCOVERY_READ_TOOL
+            for row in state["workspace_observations"]
+            if isinstance(row, Mapping) and row.get("is_error") is not True
+        )
         return {
             "source_grounding_required": bool(observations),
             "source_grounding_transport": (
@@ -3780,6 +3938,11 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             "preflight_source_search_budget": (
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
             ),
+            "preflight_public_research_source_discovery": deepcopy(
+                public_source_descriptor
+            ),
+            "preflight_public_research_source_search_count": public_search_count,
+            "preflight_public_research_source_read_count": public_read_count,
             "preflight_scratchpad_enabled": theory_scratchpad is not None,
             "preflight_scratch_runs": int(state["scratch_runs"]),
             "preflight_scratch_execution_refs": deepcopy(
@@ -3931,6 +4094,167 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 is_error=execution_result.is_error,
             )
             return execution_result
+
+        if call.name == RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL:
+            if research_source_discovery is None:
+                raise ClientToolInputError(
+                    "public research source discovery is unavailable"
+                )
+            if state["searches"] >= (
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+            ):
+                raise ClientToolInputError(
+                    "preflight source-search budget exhausted"
+                )
+            if set(tool_input) - {"query", "source_kind", "top_k"}:
+                raise ClientToolInputError(
+                    "discover_research_sources accepts query, source_kind, and top_k"
+                )
+            try:
+                result = research_source_discovery.search(
+                    tool_input.get("query", ""),
+                    source_kind=tool_input.get("source_kind", "all"),
+                    top_k=tool_input.get("top_k", 5),
+                )
+            except ResearchSourceDiscoveryInputError as exc:
+                raise ClientToolInputError(str(exc)) from exc
+            except ResearchSourceDiscoveryError as exc:
+                failure = {
+                    "ok": False,
+                    "error": "public_research_source_discovery_failed",
+                    "detail": str(exc)[:1_200],
+                    "model_may_continue_without_this_source": True,
+                }
+                record_workspace_observation(
+                    tool=call.name,
+                    tool_input=tool_input,
+                    content=failure,
+                    is_error=True,
+                )
+                return ClientToolExecutionResult(
+                    content=failure,
+                    is_error=True,
+                    observation_key=(
+                        "preflight-public-source-discovery-failed:"
+                        + stable_hash([call.name, type(exc).__name__, str(exc)])
+                    ),
+                )
+            if not isinstance(result, Mapping):
+                raise RuntimeError(
+                    "public research source discovery returned a non-object result"
+                )
+            state["searches"] += 1
+            state["source_operations"] += 1
+            model_observation = {
+                **dict(result),
+                "remaining_searches": (
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+                    - state["searches"]
+                ),
+                "citation_instruction": (
+                    "Search metadata has no source_ref. Read a selected source before "
+                    "citing it in a finding."
+                ),
+            }
+            record_workspace_observation(
+                tool=call.name,
+                tool_input=tool_input,
+                content=model_observation,
+            )
+            return ClientToolExecutionResult(
+                content=model_observation,
+                state_changed=True,
+                observation_key=(
+                    "preflight-public-source-search:"
+                    + stable_hash(
+                        {
+                            "query_hash": result.get("query_hash", ""),
+                            "source_kind": result.get("source_kind", ""),
+                            "results": result.get("results", []),
+                        }
+                    )
+                ),
+            )
+
+        if call.name == RESEARCH_SOURCE_DISCOVERY_READ_TOOL:
+            if research_source_discovery is None:
+                raise ClientToolInputError(
+                    "public research source discovery is unavailable"
+                )
+            if set(tool_input) - {"source_handle", "path", "revision"}:
+                raise ClientToolInputError(
+                    "read_discovered_research_source accepts source_handle, path, "
+                    "and revision"
+                )
+            try:
+                result = research_source_discovery.read(
+                    tool_input.get("source_handle", ""),
+                    path=tool_input.get("path", ""),
+                    revision=tool_input.get("revision", ""),
+                )
+            except ResearchSourceDiscoveryInputError as exc:
+                raise ClientToolInputError(str(exc)) from exc
+            except ResearchSourceDiscoveryError as exc:
+                failure = {
+                    "ok": False,
+                    "error": "public_research_source_discovery_failed",
+                    "detail": str(exc)[:1_200],
+                    "model_may_continue_without_this_source": True,
+                }
+                record_workspace_observation(
+                    tool=call.name,
+                    tool_input=tool_input,
+                    content=failure,
+                    is_error=True,
+                )
+                return ClientToolExecutionResult(
+                    content=failure,
+                    is_error=True,
+                    observation_key=(
+                        "preflight-public-source-read-failed:"
+                        + stable_hash([call.name, type(exc).__name__, str(exc)])
+                    ),
+                )
+            if not isinstance(result, Mapping):
+                raise RuntimeError(
+                    "public research source discovery read returned a non-object result"
+                )
+            observation, model_observation = (
+                _public_research_source_preflight_read_observation(
+                    visible=result,
+                    descriptor=public_source_descriptor,
+                    source_index=int(state["source_operations"]) + 1,
+                    exclude_hit_ids=set(state["source_ref_by_hit_id"]),
+                    prior_source_refs=state["source_ref_by_hit_id"],
+                )
+            )
+            state["source_operations"] += 1
+            for hit in observation.get("hits", []) or []:
+                if not isinstance(hit, Mapping):
+                    continue
+                hit_id = str(hit.get("source_hit_id", "") or "").strip()
+                source_ref = str(hit.get("source_ref", "") or "").strip()
+                if hit_id and source_ref:
+                    state["source_ref_by_hit_id"][hit_id] = source_ref
+            observation_id = str(observation["observation_id"])
+            if observation_id not in state["observation_ids"]:
+                state["observation_ids"].add(observation_id)
+                state["observations"].append(observation)
+            model_observation = {
+                "ok": True,
+                **model_observation,
+                "observation_id": observation_id,
+            }
+            record_workspace_observation(
+                tool=call.name,
+                tool_input=tool_input,
+                content=model_observation,
+            )
+            return ClientToolExecutionResult(
+                content=model_observation,
+                state_changed=True,
+                observation_key=observation_id,
+            )
 
         if call.name in {
             RESEARCH_SOURCE_SEARCH_TOOL,
@@ -4180,8 +4504,10 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     request = ClientToolTurnRequest(
         system_prompt=(
             ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
-            + "\nThis live review can query task-bound sources when useful. Do not "
-            "cite an external source you did not receive from the client tool."
+            + "\nThis live review can query task-bound sources and, when configured, "
+            "an isolated public-source session. The reviewing model chooses every "
+            "query and source. Do not cite search metadata or an external source you "
+            "did not read through a client tool."
         ),
         messages=({"role": "user", "content": tool_prompt},),
         tools=tools,
@@ -4398,6 +4724,7 @@ def review_architect_theory_execution_preflight(
     prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
     source_retriever: Any = None,
     research_sources: ResearchSourceSnapshot | None = None,
+    research_source_discovery: ResearchSourceDiscovery | None = None,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
     recovery_checkpoint: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -4423,6 +4750,7 @@ def review_architect_theory_execution_preflight(
         material=material,
         source_retriever=source_retriever,
         research_sources=research_sources,
+        research_source_discovery=research_source_discovery,
         theory_scratchpad=theory_scratchpad,
         request_model=request_model,
         model_tier=model_tier,

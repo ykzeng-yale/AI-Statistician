@@ -113,6 +113,12 @@ API response as gold or exact replication: permitted materials are frozen before
 activation, and target-paper blocklists and evaluator-only artifacts remain outside
 the discovery provider, RAG, and model workspace.
 
+When live discovery is allowed, the independent theory referee may use a separate
+opaque-handle session to seek contrary papers or implementations. The harness never
+chooses a query or source. Search metadata is not citable; only content the referee
+explicitly reads is hash-bound into review evidence, and it remains non-proof
+literature evidence. Frozen and historical benchmarks keep this capability disabled.
+
 TheoryDeveloper is a persistent workspace, not one JSON answer. It maintains
 definitions, assumptions, equation lineage, a lemma/claim DAG, counterexamples,
 sanity checks, and unresolved gaps. Independent review and empirical or formal

@@ -129,6 +129,15 @@ class PublicResearchSourceDiscovery:
             ),
         }
 
+    def new_session(self) -> PublicResearchSourceDiscovery:
+        """Return the same provider policy with isolated model-visible handles."""
+
+        return PublicResearchSourceDiscovery(
+            config=self.config,
+            github_token=self._github_token,
+            json_fetcher=self._json_fetcher,
+        )
+
     def search(
         self,
         query: str,

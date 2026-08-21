@@ -54,6 +54,11 @@ from ai_statistician.research_source_library import (
     ResearchSourceDocument,
     ResearchSourceSnapshot,
 )
+from ai_statistician.research_source_discovery import (
+    RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE,
+    RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+    RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+)
 from ai_statistician.scientific_sandbox import ScientificSandboxExecution
 from ai_statistician.theory_workspace import (
     THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
@@ -804,6 +809,7 @@ def _tool_review(
     *,
     source_retriever=None,
     research_sources=None,
+    research_source_discovery=None,
     prior_finding_ledger=(),
     theory_protocol_material=None,
     upstream_research_contract=None,
@@ -836,6 +842,7 @@ def _tool_review(
         provider_name="anthropic",
         source_retriever=source_retriever,
         research_sources=research_sources,
+        research_source_discovery=research_source_discovery,
         prior_finding_ledger=prior_finding_ledger,
         theory_scratchpad=theory_scratchpad,
         recovery_checkpoint=recovery_checkpoint,
@@ -850,7 +857,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_document_inspection_and_task_bound_source_query_v13"
+        "client_tool_document_inspection_and_model_directed_source_query_v14"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
@@ -1363,6 +1370,175 @@ def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
         for call in turn["tool_calls"]
         if call["name"]
         in {RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL}
+    )
+
+
+def test_preflight_referee_independently_discovers_reads_and_cites_public_source() -> None:
+    source_body = (
+        "# Contrary finite-sample result\n\n"
+        "The displayed normalization fails when the support contains a boundary atom."
+    )
+    source_hash = hashlib.sha256(source_body.encode("utf-8")).hexdigest()
+
+    class PublicSourceDiscovery:
+        def __init__(self) -> None:
+            self.search_calls = []
+            self.read_calls = []
+
+        def descriptor(self):
+            return {
+                "schema_version": 1,
+                "provider": "test_crossref",
+                "source_horizon": "2025-12-31",
+                "model_selects_queries": True,
+                "model_selects_sources": True,
+                "proof_evidence_status": (
+                    RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE
+                ),
+            }
+
+        def search(self, query, *, source_kind="all", top_k=5):
+            self.search_calls.append((query, source_kind, top_k))
+            return {
+                "ok": True,
+                "provider": "test_crossref",
+                "source_horizon": "2025-12-31",
+                "query": query,
+                "query_hash": stable_hash(query),
+                "source_kind": source_kind,
+                "results": [
+                    {
+                        "source_handle": "public-source:opaque",
+                        "source_kind": "paper",
+                        "title": "Contrary finite-sample result",
+                        "url": "https://doi.org/10.0000/example",
+                        "publication_date": "2024-06-01",
+                        "citation": "Example (2024)",
+                        "summary": "A possible boundary-case conflict.",
+                    }
+                ],
+                "proof_evidence_status": (
+                    RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE
+                ),
+            }
+
+        def read(self, source_handle, *, path="", revision=""):
+            self.read_calls.append((source_handle, path, revision))
+            return {
+                "ok": True,
+                "provider": "test_crossref",
+                "source_handle": source_handle,
+                "source_kind": "paper",
+                "title": "Contrary finite-sample result",
+                "url": "https://doi.org/10.0000/example",
+                "publication_date": "2024-06-01",
+                "citation": "Example (2024)",
+                "revision": "crossref-record:immutable",
+                "path": "metadata.md",
+                "content": source_body,
+                "content_sha256": source_hash,
+                "content_truncated": False,
+                "citation_ref": "public-research-source-ref:immutable",
+                "proof_evidence_status": (
+                    RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE
+                ),
+            }
+
+    class PublicSourceBackend(_PreflightToolBackend):
+        def __init__(self) -> None:
+            super().__init__(accept=False)
+            self.search_result = {}
+            self.read_result = {}
+            self.read_hit_id = ""
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "discover-independent-source",
+                        RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+                        {
+                            "query": "finite support boundary normalization",
+                            "source_kind": "paper",
+                            "top_k": 3,
+                        },
+                    )
+                )
+            result = _last_tool_result(request)
+            if turn == 2:
+                self.search_result = result
+                return _tool_response(
+                    ClientToolCall(
+                        "read-independent-source",
+                        RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+                        {
+                            "source_handle": result["results"][0][
+                                "source_handle"
+                            ]
+                        },
+                    )
+                )
+            self.read_result = result
+            self.read_hit_id = str(result["source_hit_id"])
+            return _tool_response(
+                ClientToolCall(
+                    "submit-independent-source-review",
+                    "submit_theory_preflight_review",
+                    self._submission(source_ref=str(result["source_ref"])),
+                )
+            )
+
+    discovery = PublicSourceDiscovery()
+    backend = PublicSourceBackend()
+    packet = _tool_review(
+        backend,
+        research_source_discovery=discovery,
+    )
+
+    tool_names = [tool.name for tool in backend.requests[0].tools]
+    assert RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL in tool_names
+    assert RESEARCH_SOURCE_DISCOVERY_READ_TOOL in tool_names
+    assert discovery.search_calls == [
+        ("finite support boundary normalization", "paper", 3)
+    ]
+    assert discovery.read_calls == [("public-source:opaque", "", "")]
+    assert all(
+        "source_ref" not in result
+        for result in backend.search_result["results"]
+    )
+    assert backend.read_result["source_ref"] == "S2H1"
+    assert packet["preflight_public_research_source_search_count"] == 1
+    assert packet["preflight_public_research_source_read_count"] == 1
+    assert packet["preflight_public_research_source_discovery"][
+        "source_horizon"
+    ] == "2025-12-31"
+    assert len(packet["preflight_source_observations"]) == 1
+    observation = packet["preflight_source_observations"][0]
+    assert observation["source_scope"] == "public_research_source_read"
+    hit = observation["hits"][0]
+    assert hit["source_kind"] == "public_research_source_exact_read"
+    assert hit["content"]["content_sha256"] == source_hash
+    assert hit["content"]["observed_content_sha256"] == source_hash
+    assert packet["findings"][0]["source_evidence_refs"] == [
+        backend.read_hit_id
+    ]
+    assert source_body not in json.dumps(packet)
+    public_history_calls = [
+        call
+        for turn in packet["client_tool_loop_history"]
+        for call in turn["tool_calls"]
+        if call["name"]
+        in {
+            RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+            RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+        }
+    ]
+    assert len(public_history_calls) == 2
+    assert all(
+        "research-source text omitted" in call["result_excerpt"]
+        for call in public_history_calls
     )
 
 

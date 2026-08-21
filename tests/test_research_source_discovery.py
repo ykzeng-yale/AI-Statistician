@@ -74,6 +74,12 @@ def test_public_paper_discovery_is_horizon_bound_and_handle_scoped() -> None:
     assert query["mailto"] == ["research@example.org"]
     assert "secret-token" not in str(provider.descriptor())
 
+    referee_session = provider.new_session()
+    assert referee_session is not provider
+    assert referee_session.descriptor() == provider.descriptor()
+    with pytest.raises(ResearchSourceDiscoveryInputError, match="search first"):
+        referee_session.read(result["source_handle"])
+
     read = provider.read(result["source_handle"])
 
     assert "Finite variance result." in read["content"]
