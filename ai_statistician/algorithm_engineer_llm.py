@@ -41,6 +41,9 @@ from .scientific_code_workspace import (
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
     theory_trace_alignment_contract,
+    theory_trace_alignment_json_schema,
+    theory_trace_alignment_output_contract,
+    theory_trace_alignment_prompt_instruction,
     theory_trace_consumption_contract,
 )
 from .theory_workspace import load_theory_workspace_document_rows
@@ -122,6 +125,7 @@ class LLMAlgorithmEngineerAgent:
             implementation_gaps=implementation_gaps,
             requires_generated_code=requires_generated_code,
             defer_source_authoring=defer_source_authoring,
+            theory_packet=theory_packet,
         )
         provider_name = str(
             getattr(self.provider, "provider_name", self.config.provider_name)
@@ -323,6 +327,7 @@ def build_algorithm_engineer_prompt(
         "required_output_contract": _algorithm_engineer_output_contract(
             requires_generated_code=requires_generated_code,
             defer_source_authoring=defer_source_authoring,
+            theory_packet=theory_packet,
         ),
         "boundary": ALGORITHM_ENGINEER_BOUNDARY,
     }
@@ -401,10 +406,8 @@ def build_algorithm_engineer_prompt(
         "you must not claim you executed code, wrote files, promoted a production algorithm, or proved "
         "any theorem. "
         "Use theory_packet_summary.theory_derivation_trace to align generated code, validation metrics, "
-        "and risk controls with the derivation assumptions and equation-chain quantities. "
-        "Populate theory_trace_alignment with exact referenced_derivation_steps, "
-        "referenced_equation_steps, referenced_assumptions, and referenced_formalization_targets "
-        "from the supplied trace anchors. "
+        "and risk controls with the authoritative theory. "
+        + theory_trace_alignment_prompt_instruction(theory_packet)
         + source_stage_instruction
         + "\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str)
@@ -595,11 +598,8 @@ def _truncate_text(value: Any, *, limit: int = 360) -> str:
 
 ALGORITHM_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
     "theory_trace_alignment": {
-        "referenced_derivation_steps": ["derivation step ids from theory trace"],
-        "referenced_equation_steps": ["equation step_ids from theory trace"],
-        "referenced_assumptions": ["assumption names from theory trace"],
-        "referenced_formalization_targets": ["formalization targets from theory trace"],
-        "rationale": "short string",
+        "referenced_claim_ids": ["exact claim_index ids consumed by this artifact"],
+        "rationale": "short reason these claims are directly consumed",
     },
     "implementation_targets": [
         {
@@ -620,8 +620,12 @@ def _algorithm_engineer_output_contract(
     *,
     requires_generated_code: bool,
     defer_source_authoring: bool = False,
+    theory_packet: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     contract = dict(ALGORITHM_ENGINEER_OUTPUT_CONTRACT)
+    contract["theory_trace_alignment"] = theory_trace_alignment_output_contract(
+        theory_packet or {}
+    )
     if requires_generated_code:
         draft_contract = {
             "estimator_id": (
@@ -656,11 +660,16 @@ def _algorithm_engineer_response_schema(
     implementation_gaps: list[Mapping[str, Any]],
     requires_generated_code: bool,
     defer_source_authoring: bool = False,
+    theory_packet: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a compact provider-native envelope for generated-code mode."""
 
     if not requires_generated_code:
-        return ALGORITHM_ENGINEER_JSON_SCHEMA
+        schema = deepcopy(ALGORITHM_ENGINEER_JSON_SCHEMA)
+        schema["properties"]["theory_trace_alignment"] = (
+            theory_trace_alignment_json_schema(theory_packet or {})
+        )
+        return schema
     gap_ids = _canonical_implementation_gap_ids(implementation_gaps)
     estimator_id_schema: dict[str, Any] = {"type": "string", "minLength": 1}
     if gap_ids:
@@ -678,7 +687,9 @@ def _algorithm_engineer_response_schema(
             "next_actions",
         ],
         "properties": {
-            "theory_trace_alignment": _theory_trace_alignment_json_schema(),
+            "theory_trace_alignment": theory_trace_alignment_json_schema(
+                theory_packet or {}
+            ),
             "implementation_targets": {
                 "type": "array",
                 "minItems": required_artifact_rows,
@@ -723,27 +734,6 @@ def _algorithm_engineer_response_schema(
                 "maxItems": 0,
             },
             "next_actions": _next_actions_json_schema(),
-        },
-    }
-
-
-def _theory_trace_alignment_json_schema() -> dict[str, Any]:
-    return {
-        "type": "object",
-        "additionalProperties": False,
-        "required": [
-            "referenced_derivation_steps",
-            "referenced_equation_steps",
-            "referenced_assumptions",
-            "referenced_formalization_targets",
-            "rationale",
-        ],
-        "properties": {
-            "referenced_derivation_steps": _string_array_json_schema(),
-            "referenced_equation_steps": _string_array_json_schema(),
-            "referenced_assumptions": _string_array_json_schema(),
-            "referenced_formalization_targets": _string_array_json_schema(),
-            "rationale": {"type": "string"},
         },
     }
 

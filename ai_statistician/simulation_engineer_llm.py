@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping
@@ -41,6 +42,9 @@ from .scientific_code_workspace import (
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
     theory_trace_alignment_contract,
+    theory_trace_alignment_json_schema,
+    theory_trace_alignment_output_contract,
+    theory_trace_alignment_prompt_instruction,
     theory_trace_consumption_contract,
 )
 from .theory_workspace import load_theory_workspace_document_rows
@@ -160,6 +164,7 @@ class LLMSimulationEngineerAgent:
             requires_typed_metric_contracts=requires_typed_metric_contracts,
             upstream_estimator_ids=upstream_estimator_ids,
             defer_source_authoring=defer_source_authoring,
+            theory_packet=theory_packet,
         )
         provider_name = str(
             getattr(self.provider, "provider_name", self.config.provider_name)
@@ -433,6 +438,7 @@ def build_simulation_engineer_prompt(
             requires_generated_code=requires_generated_code,
             requires_typed_metric_contracts=requires_typed_metric_contracts,
             defer_source_authoring=defer_source_authoring,
+            theory_packet=theory_packet,
         ),
         "boundary": SIMULATION_ENGINEER_BOUNDARY,
     }
@@ -570,11 +576,9 @@ def build_simulation_engineer_prompt(
         "name one runtime diagnostic, but do not claim that simulations "
         "were run or passed. Execution is owned by AgentRuntime. Use "
         "theory_packet_summary.theory_derivation_trace to align DGPs, estimands, "
-        "metrics, and stress tests with the derivation assumptions and equation-chain "
-        "quantities. Populate theory_trace_alignment with exact "
-        "referenced_derivation_steps, referenced_equation_steps, "
-        "referenced_assumptions, and referenced_formalization_targets from the "
-        "supplied trace anchors.\n\n"
+        "metrics, and stress tests with the authoritative theory. "
+        + theory_trace_alignment_prompt_instruction(theory_packet)
+        + "\n\n"
         + generated_simulation_instruction
         + feedback_regeneration_instruction
         + algorithm_handoff_instruction
@@ -877,11 +881,8 @@ def _truncate_text(value: Any, *, limit: int = 360) -> str:
 
 SIMULATION_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
     "theory_trace_alignment": {
-        "referenced_derivation_steps": ["derivation step ids from theory trace"],
-        "referenced_equation_steps": ["equation step_ids from theory trace"],
-        "referenced_assumptions": ["assumption names from theory trace"],
-        "referenced_formalization_targets": ["formalization targets from theory trace"],
-        "rationale": "short string",
+        "referenced_claim_ids": ["exact claim_index ids consumed by this artifact"],
+        "rationale": "short reason these claims are directly consumed",
     },
     "simulation_targets": [
         {
@@ -923,8 +924,12 @@ def _simulation_engineer_output_contract(
     requires_generated_code: bool,
     requires_typed_metric_contracts: bool = True,
     defer_source_authoring: bool = False,
+    theory_packet: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     contract = dict(SIMULATION_ENGINEER_OUTPUT_CONTRACT)
+    contract["theory_trace_alignment"] = theory_trace_alignment_output_contract(
+        theory_packet or {}
+    )
     if requires_generated_code and defer_source_authoring:
         contract["simulation_code_drafts"] = [
             {
@@ -952,11 +957,16 @@ def _simulation_engineer_response_schema(
     requires_typed_metric_contracts: bool = True,
     upstream_estimator_ids: tuple[str, ...] = (),
     defer_source_authoring: bool = False,
+    theory_packet: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a compact provider-native envelope for generated simulation code."""
 
     if not requires_generated_code:
-        return SIMULATION_ENGINEER_JSON_SCHEMA
+        schema = deepcopy(SIMULATION_ENGINEER_JSON_SCHEMA)
+        schema["properties"]["theory_trace_alignment"] = (
+            theory_trace_alignment_json_schema(theory_packet or {})
+        )
+        return schema
     requirement_ids = [
         str(row.get("requirement_id", "") or "").strip()
         for row in authoritative_metric_requirements
@@ -977,7 +987,9 @@ def _simulation_engineer_response_schema(
             "next_actions",
         ],
         "properties": {
-            "theory_trace_alignment": _simulation_trace_alignment_json_schema(),
+            "theory_trace_alignment": theory_trace_alignment_json_schema(
+                theory_packet or {}
+            ),
             "simulation_targets": {
                 "type": "array",
                 "minItems": 1,
@@ -1083,27 +1095,6 @@ def _simulation_code_descriptor_json_schema(
         artifact_required=["simulation_id", "required_estimator_ids"],
         artifact_properties=artifact_properties,
     )
-
-
-def _simulation_trace_alignment_json_schema() -> dict[str, Any]:
-    return {
-        "type": "object",
-        "additionalProperties": False,
-        "required": [
-            "referenced_derivation_steps",
-            "referenced_equation_steps",
-            "referenced_assumptions",
-            "referenced_formalization_targets",
-            "rationale",
-        ],
-        "properties": {
-            "referenced_derivation_steps": _simulation_string_array_schema(),
-            "referenced_equation_steps": _simulation_string_array_schema(),
-            "referenced_assumptions": _simulation_string_array_schema(),
-            "referenced_formalization_targets": _simulation_string_array_schema(),
-            "rationale": {"type": "string"},
-        },
-    }
 
 
 def _simulation_next_actions_json_schema() -> dict[str, Any]:

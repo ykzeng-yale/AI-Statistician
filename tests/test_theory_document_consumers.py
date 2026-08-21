@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from ai_statistician.algorithm_engineer_llm import (
+    _algorithm_engineer_response_schema,
     _compact_theory_packet_for_algorithm,
 )
 from ai_statistician.architect_theory_execution_preflight import (
@@ -14,6 +15,7 @@ from ai_statistician.generated_code_semantic_review_scope import (
 )
 from ai_statistician.formalizer_llm import (
     _build_lean_candidate_workspace_tool_prompt,
+    _formalizer_json_schema,
     build_formalizer_prompt,
 )
 from ai_statistician.metric_protocol_stage import (
@@ -22,8 +24,10 @@ from ai_statistician.metric_protocol_stage import (
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.simulation_engineer_llm import (
     _compact_theory_packet_for_simulation,
+    _simulation_engineer_response_schema,
 )
 from ai_statistician.theory_derivation_trace import (
+    theory_trace_alignment_contract,
     theory_trace_consumption_contract,
 )
 from ai_statistician.theory_revision_lineage import (
@@ -247,3 +251,157 @@ def test_every_theory_consumer_reads_the_same_hash_bound_document(
     assert revision_delta_anchor["content"]["changed_claim_refs"][0][
         "claim_id"
     ] == "C1"
+
+
+def test_document_claim_dag_is_complete_and_exact_across_subagents(
+    tmp_path: Path,
+) -> None:
+    packet, _ = _document_theory_packet(tmp_path)
+    content = "\n".join(
+        f"# C{index}\n\nClaim C{index}.\n" for index in range(6)
+    )
+    document_path = "derivations/C1.md"
+    (tmp_path / document_path).write_text(content, encoding="utf-8")
+    packet["theory_workspace_manifest"] = theory_workspace_document_manifest(
+        {document_path: content},
+        workspace_dir=tmp_path,
+    )
+    packet["theory_derivation_packet"]["derivation_steps"] = [
+        {
+            "id": f"D{index}",
+            "claim": f"legacy claim {index}",
+            "depends_on": [],
+        }
+        for index in range(6)
+    ]
+    packet["theory_derivation_packet"]["claim_index"] = [
+        {
+            "id": "C0",
+            "kind": "assumption",
+            "document_path": document_path,
+            "anchor": "C0",
+            "depends_on": [],
+            "status": "SUPPORTED",
+        },
+        {
+            "id": "C1",
+            "kind": "lemma",
+            "document_path": document_path,
+            "anchor": "C1",
+            "depends_on": ["C0"],
+            "status": "SUPPORTED",
+        },
+        {
+            "id": "C2",
+            "kind": "theorem",
+            "document_path": document_path,
+            "anchor": "C2",
+            "depends_on": ["C1"],
+            "status": "SUPPORTED",
+        },
+        {
+            "id": "C3",
+            "kind": "assumption",
+            "document_path": document_path,
+            "anchor": "C3",
+            "depends_on": [],
+            "status": "SUPPORTED",
+        },
+        {
+            "id": "C4",
+            "kind": "lemma",
+            "document_path": document_path,
+            "anchor": "C4",
+            "depends_on": ["C3"],
+            "status": "SUPPORTED",
+        },
+        {
+            "id": "C5",
+            "kind": "theorem",
+            "document_path": document_path,
+            "anchor": "C5",
+            "depends_on": ["C4"],
+            "status": "SUPPORTED",
+        },
+    ]
+
+    algorithm = _compact_theory_packet_for_algorithm(packet)
+    simulation = _compact_theory_packet_for_simulation(packet)
+    assert len(algorithm["theory_derivation_trace"]["derivation_steps"]) == 3
+    assert [
+        row["id"] for row in algorithm["theory_derivation_trace"]["claim_index"]
+    ] == ["C0", "C1", "C2", "C3", "C4", "C5"]
+    assert simulation["theory_derivation_trace"]["claim_index"] == algorithm[
+        "theory_derivation_trace"
+    ]["claim_index"]
+
+    consumption = theory_trace_consumption_contract(
+        packet,
+        consumer_subsystem="AlgorithmEngineer",
+        max_rows=3,
+    )
+    assert consumption["n_claim_index_rows_supplied"] == 6
+    assert consumption["n_claim_dependency_edges_supplied"] == 4
+
+    alignment = theory_trace_alignment_contract(
+        packet,
+        {
+            "referenced_claim_ids": ["C2"],
+            "rationale": "The generated estimator directly realizes C2.",
+        },
+        consumer_subsystem="AlgorithmEngineer",
+        max_rows=3,
+    )
+    assert alignment["alignment_mode"] == "exact_claim_id_v1"
+    assert alignment["structured_alignment_observed"] is True
+    assert alignment["supported_claim_ids"] == ["C2"]
+    assert alignment["claim_dependency_closure"] == ["C0", "C1", "C2"]
+
+    fuzzy_alias = theory_trace_alignment_contract(
+        packet,
+        {
+            "referenced_claim_ids": ["c2"],
+            "rationale": "Case-changing an identity must not bind it.",
+        },
+        consumer_subsystem="AlgorithmEngineer",
+        max_rows=3,
+    )
+    assert fuzzy_alias["structured_alignment_observed"] is False
+    assert fuzzy_alias["unsupported_claim_ids"] == ["c2"]
+
+    algorithm_schema = _algorithm_engineer_response_schema(
+        implementation_gaps=[{"estimator_id": "candidate-a"}],
+        requires_generated_code=True,
+        theory_packet=packet,
+    )
+    simulation_schema = _simulation_engineer_response_schema(
+        authoritative_metric_requirements=[],
+        requires_generated_code=True,
+        requires_typed_metric_contracts=False,
+        theory_packet=packet,
+    )
+    formalizer_schema = _formalizer_json_schema(theory_packet=packet)
+    for schema in (algorithm_schema, simulation_schema, formalizer_schema):
+        alignment_schema = schema["properties"]["theory_trace_alignment"]
+        assert set(alignment_schema["properties"]) == {
+            "referenced_claim_ids",
+            "rationale",
+        }
+        assert alignment_schema["properties"]["referenced_claim_ids"]["items"][
+            "enum"
+        ] == ["C0", "C1", "C2", "C3", "C4", "C5"]
+
+    review = generated_code_semantic_review_theory_projection(
+        theory_packet=packet,
+        proposal_packet={
+            "theory_trace_alignment_contract": alignment,
+            "implementation_targets": [],
+        },
+    )
+    assert [
+        row["id"]
+        for row in review["theory_derivation_packet"]["claim_index"]
+    ] == ["C0", "C1", "C2"]
+    projection = review["theory_review_projection"]
+    assert projection["supported_claim_ids"] == ["C2"]
+    assert projection["claim_dependency_closure"] == ["C0", "C1", "C2"]

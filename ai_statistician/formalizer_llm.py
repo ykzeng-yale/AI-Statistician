@@ -37,6 +37,9 @@ from .semantic_review_feedback import (
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
     theory_trace_alignment_contract,
+    theory_trace_alignment_json_schema,
+    theory_trace_alignment_output_contract,
+    theory_trace_alignment_prompt_instruction,
     theory_trace_consumption_contract,
 )
 from .theory_workspace import load_theory_workspace_document_rows
@@ -188,7 +191,7 @@ class LLMFormalizerProofEngineerAgent:
             model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
-            schema=_formalizer_json_schema(),
+            schema=_formalizer_json_schema(theory_packet=theory_packet),
             metadata={
                 "subsystem": "FormalizerProofEngineer",
                 "agent": "LLMFormalizerProofEngineerAgent",
@@ -1465,7 +1468,7 @@ def build_formalizer_prompt(
             )
         ),
         "required_output_contract": _formalizer_output_contract_for_prompt(
-            has_theory_trace=bool(theory_derivation_trace),
+            theory_packet=theory_packet,
         ),
         "boundary": FORMALIZER_BOUNDARY,
     }
@@ -1521,6 +1524,7 @@ def build_formalizer_prompt(
         "unresolved source target with no Lean source. Leave retrieval_queries and "
         "gap_taxonomy empty unless the current workspace has a concrete need; never "
         "invent work orders or routing scaffolding. "
+        + theory_trace_alignment_prompt_instruction(theory_packet)
         + lean_candidate_instruction
         + "\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
@@ -1552,11 +1556,8 @@ Lean/kernel evidence.
 
 FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
     "theory_trace_alignment": {
-        "referenced_derivation_steps": ["trace step ids"],
-        "referenced_equation_steps": ["trace equation step_ids"],
-        "referenced_assumptions": ["trace assumption names"],
-        "referenced_formalization_targets": ["trace formalization targets"],
-        "rationale": "short string",
+        "referenced_claim_ids": ["exact claim_index ids consumed by this artifact"],
+        "rationale": "short reason these claims are directly consumed",
     },
     "formal_targets": [
         {
@@ -1595,14 +1596,14 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
 
 def _formalizer_output_contract_for_prompt(
     *,
-    has_theory_trace: bool,
+    theory_packet: Mapping[str, Any],
 ) -> dict[str, Any]:
     contract = deepcopy(FORMALIZER_OUTPUT_CONTRACT)
     contract.pop("theory_trace_alignment", None)
-    if has_theory_trace:
-        contract["theory_trace_alignment"] = FORMALIZER_OUTPUT_CONTRACT[
-            "theory_trace_alignment"
-        ]
+    if compact_theory_derivation_trace(theory_packet):
+        contract["theory_trace_alignment"] = theory_trace_alignment_output_contract(
+            theory_packet
+        )
     return contract
 
 
@@ -1681,8 +1682,17 @@ FORMALIZER_JSON_SCHEMA: dict[str, Any] = {
 }
 
 
-def _formalizer_json_schema() -> dict[str, Any]:
-    return deepcopy(FORMALIZER_JSON_SCHEMA)
+def _formalizer_json_schema(
+    *,
+    theory_packet: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    schema = deepcopy(FORMALIZER_JSON_SCHEMA)
+    if compact_theory_derivation_trace(theory_packet or {}):
+        schema["properties"]["theory_trace_alignment"] = (
+            theory_trace_alignment_json_schema(theory_packet or {})
+        )
+        schema["required"].append("theory_trace_alignment")
+    return schema
 
 
 def _formal_target_role(row: Mapping[str, Any]) -> str:

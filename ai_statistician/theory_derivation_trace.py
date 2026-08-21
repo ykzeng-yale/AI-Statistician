@@ -60,11 +60,12 @@ def compact_theory_derivation_trace(
     max_rows: int = 5,
     text_limit: int = 360,
 ) -> dict[str, Any]:
-    """Return a bounded derivation trace for downstream LLM workers.
+    """Return compact theory provenance for downstream LLM workers.
 
-    The trace is proposal context only. It helps coding and proof agents align
-    generated artifacts to assumptions, equations, and theorem targets without
-    upgrading any LLM derivation into execution or proof evidence.
+    Rich legacy rows remain bounded, while the document-native claim index is
+    complete so a row limit cannot silently sever claim identities or dependency
+    edges. The trace is proposal context only and does not upgrade an LLM
+    derivation into execution or proof evidence.
     """
 
     if not isinstance(theory_packet, Mapping):
@@ -95,10 +96,8 @@ def compact_theory_derivation_trace(
             limit=max_rows,
             text_limit=text_limit,
         ),
-        "claim_index": _compact_rows(
+        "claim_index": _compact_claim_index_rows(
             raw_derivation.get("claim_index", []),
-            keys=CLAIM_INDEX_KEYS,
-            limit=max_rows,
             text_limit=text_limit,
         ),
         "sanity_check_index": _compact_rows(
@@ -117,6 +116,98 @@ def compact_theory_derivation_trace(
         for key, value in compact.items()
         if value not in (None, "", [], {})
     }
+
+
+def theory_trace_claim_ids(theory_packet: Mapping[str, Any]) -> list[str]:
+    """Return complete, exact document-claim identities in source order."""
+
+    trace = compact_theory_derivation_trace(theory_packet)
+    return _exact_unique_strings(
+        row.get("id", "")
+        for row in trace.get("claim_index", [])
+        if isinstance(row, Mapping)
+    )
+
+
+def theory_trace_alignment_output_contract(
+    theory_packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return the smallest model-facing provenance envelope for this packet."""
+
+    if theory_trace_claim_ids(theory_packet):
+        return {
+            "referenced_claim_ids": [
+                "one or more exact ids selected from theory_derivation_trace.claim_index"
+            ],
+            "rationale": "short reason these claims are directly consumed",
+        }
+    return {
+        "referenced_derivation_steps": ["derivation step ids from theory trace"],
+        "referenced_equation_steps": ["equation step_ids from theory trace"],
+        "referenced_assumptions": ["assumption names from theory trace"],
+        "referenced_formalization_targets": [
+            "formalization targets from theory trace"
+        ],
+        "rationale": "short string",
+    }
+
+
+def theory_trace_alignment_json_schema(
+    theory_packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Bind model-authored provenance to exact claim IDs when available."""
+
+    claim_ids = theory_trace_claim_ids(theory_packet)
+    if claim_ids:
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["referenced_claim_ids", "rationale"],
+            "properties": {
+                "referenced_claim_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": True,
+                    "items": {"type": "string", "enum": claim_ids},
+                },
+                "rationale": {"type": "string"},
+            },
+        }
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "referenced_derivation_steps",
+            "referenced_equation_steps",
+            "referenced_assumptions",
+            "referenced_formalization_targets",
+            "rationale",
+        ],
+        "properties": {
+            "referenced_derivation_steps": _string_array_json_schema(),
+            "referenced_equation_steps": _string_array_json_schema(),
+            "referenced_assumptions": _string_array_json_schema(),
+            "referenced_formalization_targets": _string_array_json_schema(),
+            "rationale": {"type": "string"},
+        },
+    }
+
+
+def theory_trace_alignment_prompt_instruction(
+    theory_packet: Mapping[str, Any],
+) -> str:
+    if theory_trace_claim_ids(theory_packet):
+        return (
+            "Populate theory_trace_alignment.referenced_claim_ids with the exact "
+            "claim_index IDs directly implemented, tested, or formalized by this "
+            "artifact. Select claims rather than copying prose; AgentRuntime resolves "
+            "their declared dependency closure for independent review. "
+        )
+    return (
+        "Populate theory_trace_alignment with exact referenced_derivation_steps, "
+        "referenced_equation_steps, referenced_assumptions, and "
+        "referenced_formalization_targets from the supplied legacy trace anchors. "
+    )
 
 
 def theory_trace_consumption_contract(
@@ -227,6 +318,11 @@ def theory_trace_anchor_summary(
             _lean_declaration_names(request.get("lean_statement_sketch", ""))
         )
     return {
+        "claim_ids": _exact_unique_strings(
+            row.get("id", "")
+            for row in trace.get("claim_index", [])
+            if isinstance(row, Mapping)
+        ),
         "derivation_step_ids": _unique_strings(
             [
                 row.get("id", "")
@@ -259,6 +355,11 @@ def theory_trace_anchor_summary(
             ]
         ),
         "formalization_targets": _unique_strings(formalization_targets),
+        "n_claim_dependency_edges": sum(
+            _safe_list_len(row.get("depends_on", []))
+            for row in trace.get("claim_index", [])
+            if isinstance(row, Mapping)
+        ),
     }
 
 
@@ -276,6 +377,14 @@ def theory_trace_alignment_contract(
         text_limit=text_limit,
     )
     raw_alignment = alignment if isinstance(alignment, Mapping) else {}
+    referenced_claim_ids = _exact_unique_strings(
+        raw_alignment.get("referenced_claim_ids", [])
+    )
+    claim_id_alignment = "referenced_claim_ids" in raw_alignment
+    supported_claim_ids, unsupported_claim_ids = _split_exact_supported_refs(
+        referenced_claim_ids,
+        anchors.get("claim_ids", []),
+    )
     referenced_derivation_steps = _unique_strings(
         raw_alignment.get("referenced_derivation_steps", [])
     )
@@ -306,20 +415,25 @@ def theory_trace_alignment_contract(
             anchors.get("formalization_targets", []),
         )
     )
-    n_supported_anchor_references = (
-        len(supported_derivation_steps)
-        + len(supported_equation_steps)
-        + len(supported_assumptions)
-        + len(supported_formalization_targets)
-    )
-    n_unsupported_anchor_references = (
-        len(unsupported_derivation_steps)
-        + len(unsupported_equation_steps)
-        + len(unsupported_assumptions)
-        + len(unsupported_formalization_targets)
-    )
+    if claim_id_alignment:
+        n_supported_anchor_references = len(supported_claim_ids)
+        n_unsupported_anchor_references = len(unsupported_claim_ids)
+    else:
+        n_supported_anchor_references = (
+            len(supported_derivation_steps)
+            + len(supported_equation_steps)
+            + len(supported_assumptions)
+            + len(supported_formalization_targets)
+        )
+        n_unsupported_anchor_references = (
+            len(unsupported_derivation_steps)
+            + len(unsupported_equation_steps)
+            + len(unsupported_assumptions)
+            + len(unsupported_formalization_targets)
+        )
     llm_alignment_claimed = any(
         (
+            referenced_claim_ids,
             referenced_derivation_steps,
             referenced_equation_steps,
             referenced_assumptions,
@@ -327,15 +441,27 @@ def theory_trace_alignment_contract(
             str(raw_alignment.get("rationale", "") or "").strip(),
         )
     )
-    structured_alignment_observed = bool(
-        llm_alignment_claimed
-        and supported_assumptions
-        and (
-            supported_derivation_steps
-            or supported_equation_steps
-            or supported_formalization_targets
+    structured_alignment_observed = (
+        bool(
+            llm_alignment_claimed
+            and supported_claim_ids
+            and n_unsupported_anchor_references == 0
         )
-        and n_unsupported_anchor_references == 0
+        if claim_id_alignment
+        else bool(
+            llm_alignment_claimed
+            and supported_assumptions
+            and (
+                supported_derivation_steps
+                or supported_equation_steps
+                or supported_formalization_targets
+            )
+            and n_unsupported_anchor_references == 0
+        )
+    )
+    claim_dependency_closure = _claim_dependency_closure(
+        theory_packet,
+        supported_claim_ids,
     )
     return {
         "artifact_kind": "TheoryTraceAlignmentContract",
@@ -343,8 +469,15 @@ def theory_trace_alignment_contract(
         if isinstance(theory_packet, Mapping)
         else "",
         "consumer_subsystem": consumer_subsystem,
+        "alignment_mode": (
+            "exact_claim_id_v1" if claim_id_alignment else "legacy_anchor_v1"
+        ),
         "llm_alignment_claimed": llm_alignment_claimed,
         "structured_alignment_observed": structured_alignment_observed,
+        "referenced_claim_ids": referenced_claim_ids,
+        "supported_claim_ids": supported_claim_ids,
+        "unsupported_claim_ids": unsupported_claim_ids,
+        "claim_dependency_closure": claim_dependency_closure,
         "referenced_derivation_steps": referenced_derivation_steps,
         "referenced_equation_steps": referenced_equation_steps,
         "referenced_assumptions": referenced_assumptions,
@@ -360,6 +493,10 @@ def theory_trace_alignment_contract(
         "n_supported_anchor_references": n_supported_anchor_references,
         "n_unsupported_anchor_references": n_unsupported_anchor_references,
         "source_anchor_counts": {
+            "claim_ids": _safe_list_len(anchors.get("claim_ids")),
+            "claim_dependency_edges": int(
+                anchors.get("n_claim_dependency_edges", 0) or 0
+            ),
             "derivation_step_ids": _safe_list_len(anchors.get("derivation_step_ids")),
             "equation_step_ids": _safe_list_len(anchors.get("equation_step_ids")),
             "assumption_names": _safe_list_len(anchors.get("assumption_names")),
@@ -376,7 +513,7 @@ def _compact_rows(
     value: Any,
     *,
     keys: tuple[str, ...],
-    limit: int,
+    limit: int | None,
     text_limit: int,
 ) -> list[dict[str, Any]]:
     if not isinstance(value, list):
@@ -394,8 +531,36 @@ def _compact_rows(
                 row[key] = compact
         if row:
             rows.append(row)
-        if len(rows) >= limit:
+        if limit is not None and len(rows) >= limit:
             break
+    return rows
+
+
+def _compact_claim_index_rows(
+    value: Any,
+    *,
+    text_limit: int,
+) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for raw_row in value:
+        if not isinstance(raw_row, Mapping):
+            continue
+        row: dict[str, Any] = {}
+        for key in CLAIM_INDEX_KEYS:
+            if key not in raw_row:
+                continue
+            if key == "depends_on":
+                compact = _exact_unique_strings(raw_row.get(key, []))
+            elif key in {"id", "document_path"}:
+                compact = str(raw_row.get(key, "") or "").strip()
+            else:
+                compact = _compact_value(raw_row.get(key), text_limit=text_limit)
+            if compact not in (None, "", [], {}):
+                row[key] = compact
+        if row:
+            rows.append(row)
     return rows
 
 
@@ -413,6 +578,61 @@ def _unique_strings(values: Any) -> list[str]:
         seen.add(normalized)
         strings.append(value)
     return strings
+
+
+def _exact_unique_strings(values: Any) -> list[str]:
+    seen: set[str] = set()
+    strings: list[str] = []
+    for value in _string_values(values):
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        strings.append(value)
+    return strings
+
+
+def _split_exact_supported_refs(
+    refs: list[str],
+    anchors: Any,
+) -> tuple[list[str], list[str]]:
+    allowed = set(_exact_unique_strings(anchors))
+    return (
+        [ref for ref in refs if ref in allowed],
+        [ref for ref in refs if ref not in allowed],
+    )
+
+
+def _claim_dependency_closure(
+    theory_packet: Mapping[str, Any],
+    root_claim_ids: list[str],
+) -> list[str]:
+    trace = compact_theory_derivation_trace(theory_packet)
+    rows = [
+        row
+        for row in trace.get("claim_index", [])
+        if isinstance(row, Mapping) and str(row.get("id", "") or "")
+    ]
+    dependencies = {
+        str(row.get("id", "")): _exact_unique_strings(row.get("depends_on", []))
+        for row in rows
+    }
+    selected: set[str] = set()
+    frontier = list(root_claim_ids)
+    while frontier:
+        claim_id = frontier.pop()
+        if claim_id in selected or claim_id not in dependencies:
+            continue
+        selected.add(claim_id)
+        frontier.extend(dependencies[claim_id])
+    return [
+        str(row.get("id", ""))
+        for row in rows
+        if str(row.get("id", "")) in selected
+    ]
+
+
+def _string_array_json_schema() -> dict[str, Any]:
+    return {"type": "array", "items": {"type": "string"}}
 
 
 def _string_values(values: Any) -> list[str]:

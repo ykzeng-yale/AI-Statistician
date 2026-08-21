@@ -142,20 +142,41 @@ def generated_code_semantic_review_theory_projection(
             fallback_reason="canonical_theory_derivation_trace_unavailable",
         )
 
-    supported_derivation_steps = _string_set(
-        alignment_contract.get("supported_derivation_steps", [])
+    claim_id_alignment = (
+        str(alignment_contract.get("alignment_mode", "") or "")
+        == "exact_claim_id_v1"
     )
-    supported_equation_steps = _string_set(
-        alignment_contract.get("supported_equation_steps", [])
+    supported_claim_ids = _string_set(
+        alignment_contract.get("supported_claim_ids", [])
     )
-    supported_assumptions = _string_set(
-        alignment_contract.get("supported_assumptions", [])
+    claim_dependency_closure = _string_set(
+        alignment_contract.get("claim_dependency_closure", [])
+    ).union(supported_claim_ids)
+    supported_derivation_steps = (
+        set()
+        if claim_id_alignment
+        else _string_set(alignment_contract.get("supported_derivation_steps", []))
     )
-    supported_formalization_targets = _string_set(
-        alignment_contract.get("supported_formalization_targets", [])
+    supported_equation_steps = (
+        set()
+        if claim_id_alignment
+        else _string_set(alignment_contract.get("supported_equation_steps", []))
+    )
+    supported_assumptions = (
+        set()
+        if claim_id_alignment
+        else _string_set(alignment_contract.get("supported_assumptions", []))
+    )
+    supported_formalization_targets = (
+        set()
+        if claim_id_alignment
+        else _string_set(
+            alignment_contract.get("supported_formalization_targets", [])
+        )
     )
     if not any(
         (
+            supported_claim_ids,
             supported_derivation_steps,
             supported_equation_steps,
             supported_assumptions,
@@ -168,10 +189,13 @@ def generated_code_semantic_review_theory_projection(
         )
         return unscoped
 
+    selected_claim_ids = (
+        claim_dependency_closure if claim_id_alignment else supported_derivation_steps
+    )
     derivation_steps = _rows_selected_by_field(
         raw_trace.get("derivation_steps", []),
         field="id",
-        allowed=supported_derivation_steps,
+        allowed=selected_claim_ids,
     )
     equation_chain = _rows_selected_by_field(
         raw_trace.get("equation_chain", []),
@@ -189,10 +213,10 @@ def generated_code_semantic_review_theory_projection(
         if isinstance(row, Mapping)
         and (
             str(row.get("claim_ref", "") or "")
-            in supported_derivation_steps
+            in selected_claim_ids
             or bool(
                 _string_set(row.get("depends_on", [])).intersection(
-                    supported_derivation_steps
+                    selected_claim_ids
                 )
             )
         )
@@ -200,14 +224,14 @@ def generated_code_semantic_review_theory_projection(
     claim_index = _rows_selected_by_field(
         raw_trace.get("claim_index", []),
         field="id",
-        allowed=supported_derivation_steps,
+        allowed=selected_claim_ids,
     )
     sanity_check_index = [
         deepcopy(row)
         for row in raw_trace.get("sanity_check_index", []) or []
         if isinstance(row, Mapping)
         and str(row.get("claim_ref", "") or "")
-        in supported_derivation_steps
+        in selected_claim_ids
     ]
     formalization_handoff = _formalization_handoff_projection(
         raw_trace.get("formalization_handoff", {}),
@@ -248,8 +272,20 @@ def generated_code_semantic_review_theory_projection(
         if field in theory_packet
     }
     projected["theory_derivation_packet"] = projected_trace
+    authoritative_documents = load_theory_workspace_document_rows(theory_packet)
+    selected_document_paths = {
+        str(row.get("document_path", "") or "")
+        for row in claim_index
+        if isinstance(row, Mapping) and str(row.get("document_path", "") or "")
+    }
     projected["authoritative_theory_documents"] = (
-        load_theory_workspace_document_rows(theory_packet)
+        [
+            row
+            for row in authoritative_documents
+            if str(row.get("path", "") or "") in selected_document_paths
+        ]
+        if claim_id_alignment and selected_document_paths
+        else authoritative_documents
     )
 
     implementation_target_ids = {
@@ -275,6 +311,12 @@ def generated_code_semantic_review_theory_projection(
         "theory_trace_alignment_contract_fingerprint": stable_hash(
             alignment_contract
         ),
+        "alignment_mode": str(
+            alignment_contract.get("alignment_mode", "legacy_anchor_v1")
+            or "legacy_anchor_v1"
+        ),
+        "supported_claim_ids": sorted(supported_claim_ids),
+        "claim_dependency_closure": sorted(claim_dependency_closure),
         "supported_derivation_steps": sorted(supported_derivation_steps),
         "supported_equation_steps": sorted(supported_equation_steps),
         "supported_assumptions": sorted(supported_assumptions),
@@ -289,11 +331,11 @@ def generated_code_semantic_review_theory_projection(
         "content_outside_projection_cannot_gate_current_artifact": True,
         "system_theory_coverage_owner": "CriticEvaluator",
         "boundary": (
-            "This per-artifact projection contains only theory anchors that the "
-            "coding proposal's validated trace-alignment contract consumed. "
-            "Unreferenced derivation branches, critic findings, and future work "
-            "remain available to system-level theory review but cannot create a "
-            "repair obligation for this generated-code artifact."
+            "This per-artifact projection contains the exact claims selected by the "
+            "coding proposal and their declared dependency closure, or the historical "
+            "legacy anchors for an older packet. Unreferenced branches, critic "
+            "findings, and future work remain available to system-level theory review "
+            "but cannot create a repair obligation for this generated-code artifact."
         ),
         "proof_evidence_status": (
             "GENERATED_CODE_THEORY_REVIEW_PROJECTION_NOT_PROOF_EVIDENCE"
