@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "exact_paired_sign_test_known_result",
+      "title": "Finite-sample exact paired sign test for a zero median",
+      "description": "Focused L0 known-result evaluation in nonparametric inference. Let D_1,...,D_n be independent paired differences from a continuous distribution having median zero. In an authoritative Markdown/LaTeX theory workspace, derive that S=sum_i 1{D_i>0} has the Binomial(n,1/2) null law without assuming normality, symmetry, moments, or using magnitudes. For B~Binomial(n,1/2), study the inclusive-tail two-sided p-value p_2(s;n)=min(1,2 min{P(B<=s),P(B>=s)}). Prove finite-sample validity P_0(p_2(S;n)<=alpha)<=alpha, explain why discreteness usually prevents exact size alpha, and distinguish this claim from asymptotic approximation and simulation. State precisely how observed zero differences are removed from the effective sample, why continuity makes zeros probability-zero in the theorem, and why median zero plus continuity gives equal sign probabilities. The required algorithm artifact id is est_exact_paired_sign_test. Its run_estimator(request) input contains a nonempty finite numeric differences array with at least one nonzero value and alpha in (0,1). It must discard exact zeros and return JSON-finite scalar fields n_effective, n_positive, n_negative, lower_tail, upper_tail, p_value, and reject, where tails include the observed count and reject is exactly p_value<=alpha. Exploratory computation may diagnose the implementation. A separate frozen confirmatory assessment must use predeclared symmetric and asymmetric continuous median-zero null DGPs plus a shifted alternative, evaluate type-I rejection and power with Monte Carlo uncertainty, and must not be represented as proof of the binomial law or p-value validity. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "nonparametric inference",
+        "paired sign test",
+        "exact test",
+        "binomial distribution",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
+    }
+  ]
+}

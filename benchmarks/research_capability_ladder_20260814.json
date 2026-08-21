@@ -1054,6 +1054,63 @@
         "novelty": "not_applicable",
         "unresolved_gaps": "required"
       }
+    },
+    {
+      "id": "exact_paired_sign_test_known_result",
+      "level": "L0",
+      "family": "nonparametric_inference",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l0_exact_sign_test_questions_20260821.json",
+      "source_authority": "operator_provisioned_hash_bound_model_visible_snapshot",
+      "source_snapshot_id": "exact-paired-sign-test-known-result-v1",
+      "source_snapshot_hash": "2b988eb24edf36beef716c402fd283d83258dea05817b0c381747fcf96b81662",
+      "source_manifest_sha256": "8ce84d8085ba24288930b6d516572402f8eb3e39012041e3c9e15ff5c1631db6",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l0-exact-sign-test-20260821-v1",
+      "gold_manifest_sha256": "6e76e783eda2ce56925f94fc4ef56568e6cffeac70e4fd31b76095e8a1044337",
+      "gold_descriptor_hash": "246f27681f213a3236f928beb54ea4d4acce3762e80a1f65237a3749e2be617e",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "full_task_gold_frozen_v1_ready_for_single_fresh_draw",
+      "activation_evidence": {
+        "public_reference": "Dixon and Mood, JASA 41(236):557-566, 1946, DOI 10.1080/01621459.1946.10501898",
+        "visible_questions_sha256": "0eb0acabfd890f78d7a12bd4e0843e2e8f1a13ca2fc2c00ff894c8cff62d4007",
+        "source_snapshot_documents": 3,
+        "hidden_theory_harness_sha256": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+        "hidden_semantic_reference_sha256": "09ccbbc988eff11383ca8e155b99492a20de86eabfbb6e9d4bb909908699e80d",
+        "hidden_algorithm_harness_sha256": "fb4c337252535f7c313c0432a01e9b8aad9f62561d556dfb294808f0e93d8adb",
+        "hidden_empirical_harness_sha256": "1238f2f4da16d9d2e28cd4e23c0114df66760469c6ac4ff9268075be26090af5",
+        "reference_estimator_sha256": "09f41f885f866fcb0d0f0e75bc09a82240474ae0f3d9acbb98d965a5180a80e2",
+        "independent_scipy_binomial_cases": 5150,
+        "independent_scipy_maximum_error": 1.3322676295501878e-15,
+        "algorithm_reference_checks": "10/10",
+        "algorithm_negative_variants_rejected": 4,
+        "empirical_reference_dgps_passed": 4,
+        "empirical_reference_replicates_per_dgp": 6000,
+        "empirical_reference_decision_agreements": 24000,
+        "empirical_reference_maximum_mcse": 0.005744794745390532,
+        "empirical_reference_alternative_rejection_rate": 0.728,
+        "semantic_calibration_cases": 12,
+        "semantic_calibration_cases_correct": 12,
+        "semantic_reference_candidate_passed": true,
+        "semantic_calibration_judgment_hash": "606fecd85ce4ace09b4e98ff028ab023edfbef93498f2a7f2bf5525891e09e5c",
+        "hidden_gold_manifest_validated": true,
+        "gold_frozen_before_first_runtime_model_call": true,
+        "first_runtime_model_call_occurred": false,
+        "fresh_live_runs": 0,
+        "activation_commit_pending": true,
+        "model_draw_resampling_blocked": false,
+        "formalization_requirement": "not_applicable",
+        "full_task_passed": false
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
     }
   ],
   "activation_requirements": [
@@ -1067,14 +1124,14 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 13,
-    "fully_gold_configured_tasks": 13,
+    "active_scored_tasks": 14,
+    "fully_gold_configured_tasks": 14,
     "fully_gold_passed_tasks": 0,
     "runtime_source_replication_components_ready": 1,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "The single frozen DKW empirical-process draw ended BLOCKED at TheoryDeveloper after 12 document-workspace turns and scored 0/1. The model produced a 255-line Markdown derivation but neither inspected its final SHA before commit nor avoided substantive probability, empty-sample, and clipped-boundary errors. Algorithm, simulation, hidden semantic gold, Critic, and Formalizer did not run. A shared no-extra-turn fix now exposes commit readiness and exact missing inspection ranges on every valid write; the frozen candidate remains failed and closed from resampling.",
-    "next_step": "Validate the earlier checkpoint feedback only through deterministic regression. Preserve all thirteen frozen outcomes at 0/13 and select another disjoint benchmark only after a materially different shared capability improvement; do not rerun DKW or manually repair its Markdown."
+    "latest_diagnostic": "A disjoint nonparametric exact-sign-test L0 task is fully calibrated and frozen before its first runtime model call. It has one finite-sample theorem, one estimator ABI, one MCSE-aware empirical target, model-visible Dixon-Mood/NIST/SciPy source context, exact-Haiku semantic calibration at 12/12, a 10/10 reference algorithm with four negative variants rejected, and 24,000 reference simulation decisions. Formalization is not applicable. The preceding thirteen outcomes remain immutable at 0/13.",
+    "next_step": "Push the activation identity to the work branch and main, then consume exactly one fresh exact-Haiku draw under unchanged product budgets. Do not rerun any prior candidate or alter the sign-test source, rubric, hidden evaluators, intent, or expected values after the activation commit."
   }
 }
