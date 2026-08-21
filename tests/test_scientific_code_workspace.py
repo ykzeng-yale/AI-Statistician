@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
@@ -11,9 +13,11 @@ from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
     SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
     SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+    load_scientific_code_workspace_checkpoint,
     run_scientific_code_workspace,
     scientific_workspace_prototype_observation,
 )
+from ai_statistician.structured_output_retry import PacketValidationError
 
 
 class ScriptedScientificBackend:
@@ -651,6 +655,127 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
         == [SCIENTIFIC_SOURCE_SUBMISSION_TOOL]
         for request in backend.requests
     )
+
+
+def test_scientific_workspace_resumes_exact_progress_checkpoint() -> None:
+    initial = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates):\n    return missing\n",
+    }
+    first_revision = {
+        **initial,
+        "code": "def run_sandbox(seed, replicates):\n    return {'value': missing}\n",
+    }
+    accepted_revision = {
+        **initial,
+        "code": "def run_sandbox(seed, replicates):\n    return {'value': 1.0}\n",
+    }
+    first_backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="submit-first",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=first_revision,
+                )
+            )
+        ]
+    )
+
+    def check(candidate):
+        candidate = dict(candidate)
+        return {
+            "code_draft_hash": stable_hash(candidate),
+            "accepted": candidate == accepted_revision,
+            "stderr": "" if candidate == accepted_revision else "NameError: missing",
+        }
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        run_scientific_code_workspace(
+            provider=first_backend,
+            system_prompt="Use tools.",
+            user_prompt="Repair from exact execution feedback.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            temperature=0.0,
+            max_tokens=1200,
+            max_turns=1,
+            max_no_progress_turns=1,
+            artifact_id="question:durable-source",
+            initial_code_draft=initial,
+            initial_check_result={
+                "code_draft_hash": stable_hash(initial),
+                "accepted": False,
+                "stderr": "NameError: missing",
+            },
+            check_candidate=check,
+        )
+
+    checkpoint = exc_info.value.recovery_checkpoint
+    checkpoint_draft, checkpoint_observation = (
+        load_scientific_code_workspace_checkpoint(
+            checkpoint,
+            artifact_id="question:durable-source",
+        )
+    )
+    assert checkpoint_draft == first_revision
+    assert checkpoint_observation["stderr"] == "NameError: missing"
+    assert checkpoint["source_updates"] == 1
+    assert checkpoint["checks"] == 1
+    assert checkpoint["resumable"] is True
+
+    second_backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="submit-accepted",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=accepted_revision,
+                )
+            )
+        ]
+    )
+    executed: list[dict] = []
+
+    def resumed_check(candidate):
+        executed.append(dict(candidate))
+        return check(candidate)
+
+    result = run_scientific_code_workspace(
+        provider=second_backend,
+        system_prompt="Use tools.",
+        user_prompt="Continue the exact workspace.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=1,
+        max_no_progress_turns=1,
+        artifact_id="question:durable-source",
+        initial_code_draft=checkpoint_draft,
+        initial_check_result=checkpoint_observation,
+        check_candidate=resumed_check,
+        recovery_checkpoint=checkpoint,
+    )
+
+    assert executed == [accepted_revision]
+    assert dict(result.code_draft) == accepted_revision
+    assert result.evidence["resumed_from_checkpoint_id"] == checkpoint[
+        "checkpoint_id"
+    ]
+    assert result.evidence["source_updates"] == 2
+    assert result.evidence["sandbox_checks"] == 2
+    assert checkpoint["checkpoint_id"] in str(second_backend.requests[0].messages)
+
+    tampered = {**checkpoint, "current_code_draft_hash": "tampered"}
+    with pytest.raises(ValueError, match="identity mismatch"):
+        load_scientific_code_workspace_checkpoint(
+            tampered,
+            artifact_id="question:durable-source",
+        )
 
 
 def test_execution_observation_omits_stale_callback_samples_after_binding_passes() -> None:

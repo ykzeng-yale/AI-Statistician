@@ -117,9 +117,19 @@ from .scientific_code_workspace import (
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
     advance_scientific_consumer_revision_budget,
     complete_scientific_source_draft,
+    incomplete_scientific_source_ids,
     scientific_consumer_dependency_context,
     scientific_consumer_replay_drafts,
     scientific_consumer_revision_sources,
+    reusable_scientific_source_rows,
+    resumed_scientific_code_drafts,
+    run_source_owner_scientific_workspace as _run_source_owner_scientific_workspace,
+    runtime_scientific_workspace_resume_plan,
+    scientific_source_candidate_accepted as _scientific_source_candidate_accepted,
+    scientific_workspace_progress_continuation,
+    scientific_workspace_progress_rejected_result,
+    scientific_workspace_progress_result,
+    scientific_workspace_resume_observation,
     scientific_workspace_measurement_interface_failures,
     scientific_workspace_prototype_observation,
 )
@@ -9470,7 +9480,78 @@ class SimulationEvaluatorRuntimeSubsystem:
                 },
             )
         ]
-        if raw_consumer_resume_manifest:
+        def simulation_source_accepted(row: Mapping[str, Any]) -> bool:
+            return _scientific_source_candidate_accepted(
+                row,
+                confirmatory_result_blind=not exploratory_diagnostic,
+            )
+
+        scientific_progress, scientific_progress_errors = (
+            runtime_scientific_workspace_resume_plan(
+                task,
+                blackboard,
+                question_id=question.id,
+                theory_packet_id=packet_id,
+                expected_manifest_kind="RuntimeSimulationManifest",
+                proposal_id_field="llm_simulation_engineer_proposal_id",
+                row_id_field="simulation_id",
+                expected_source_ids=(),
+                source_accepted=simulation_source_accepted,
+            )
+        )
+        scientific_progress_mode = bool(scientific_progress)
+        progress_parent_rows_by_id: dict[str, dict[str, Any]] = {}
+        progress_checkpoints: dict[str, dict[str, Any]] = {}
+        if scientific_progress_mode and (
+            raw_consumer_resume_manifest
+            or str(environment_feedback.get("feedback_type", "") or "")
+            == "confirmatory_simulation_outcome"
+        ):
+            scientific_progress_errors.append(
+                "scientific progress cannot overlap another simulation source "
+                "continuation"
+            )
+        if scientific_progress_errors:
+            return scientific_workspace_progress_rejected_result(
+                task=task,
+                validation_errors=scientific_progress_errors,
+                prior_observations=observations,
+            )
+        if scientific_progress_mode:
+            proposal_packet = scientific_progress["proposal_packet"]
+            parent_manifest = scientific_progress["parent_manifest"]
+            progress_parent_rows_by_id = scientific_progress["rows"]
+            progress_checkpoints = scientific_progress["checkpoints"]
+            proposal_source_ids = {
+                str(row.get("simulation_id", "") or "").strip()
+                for row in _simulation_code_drafts(proposal_packet)
+                if str(row.get("simulation_id", "") or "").strip()
+            }
+            if proposal_source_ids != set(progress_parent_rows_by_id):
+                return scientific_workspace_progress_rejected_result(
+                    task=task,
+                    validation_errors=[
+                        "simulation proposal targets do not match progress manifest"
+                    ],
+                    prior_observations=observations,
+                )
+            theory_trace_contracts = _runtime_theory_trace_consumption_contracts(
+                proposal_packet
+            )
+            simulation_theory_trace_contract = (
+                theory_trace_contracts[0] if theory_trace_contracts else {}
+            )
+            simulation_theory_trace_alignment_contract = dict(
+                proposal_packet.get("theory_trace_alignment_contract", {}) or {}
+            )
+            observations.append(
+                scientific_workspace_resume_observation(
+                    source_owner="SimulationEngineer",
+                    parent_manifest=parent_manifest,
+                    checkpoints=progress_checkpoints,
+                )
+            )
+        elif raw_consumer_resume_manifest:
             proposal_id, consumer_resume_code_drafts, resume_errors = (
                 scientific_consumer_replay_drafts(
                     consumer_resume_manifest,
@@ -9842,6 +9923,14 @@ class SimulationEvaluatorRuntimeSubsystem:
             "task-family simulator registries are not a product execution path."
         )
         generated_simulation_rows: list[dict[str, Any]] = []
+        if scientific_progress_mode:
+            generated_simulation_rows.extend(
+                reusable_scientific_source_rows(
+                    parent_manifest=parent_manifest,
+                    rows_by_id=progress_parent_rows_by_id,
+                    checkpoints=progress_checkpoints,
+                )
+            )
         generated_simulation_tool_calls: list[ToolCallRecord] = []
         generated_simulation_dir = (
             self.sandbox_root
@@ -9864,13 +9953,21 @@ class SimulationEvaluatorRuntimeSubsystem:
                 GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
             )
             simulation_metric_authority_required = False
-        simulation_code_drafts = (
-            consumer_resume_code_drafts
-            if consumer_resume_manifest_id
-            else confirmatory_source_revision_code_drafts
-            if confirmatory_source_revision_code_drafts
-            else _simulation_code_drafts(proposal_packet)
-        )
+        if scientific_progress_mode:
+            simulation_code_drafts = resumed_scientific_code_drafts(
+                proposal_drafts=_simulation_code_drafts(proposal_packet),
+                checkpoints=progress_checkpoints,
+                source_id_field="simulation_id",
+                retained_fields=("required_estimator_ids",),
+            )
+        else:
+            simulation_code_drafts = (
+                consumer_resume_code_drafts
+                if consumer_resume_manifest_id
+                else confirmatory_source_revision_code_drafts
+                if confirmatory_source_revision_code_drafts
+                else _simulation_code_drafts(proposal_packet)
+            )
         if (
             requires_generated_simulation_code
             and self.proposal_agent is not None
@@ -10068,7 +10165,8 @@ class SimulationEvaluatorRuntimeSubsystem:
                     artifact_id=f"{question.id}:{simulation_id}",
                     code_draft=draft,
                     source_deferred=(
-                        not consumer_resume_manifest_id
+                        not scientific_progress_mode
+                        and not consumer_resume_manifest_id
                         and not confirmatory_source_revision_code_drafts
                         and _proposal_defers_scientific_source(proposal_packet)
                     ),
@@ -10135,6 +10233,11 @@ class SimulationEvaluatorRuntimeSubsystem:
                     confirmatory_result_blind=not exploratory_diagnostic,
                     disallowed_unchanged_source_hashes=(
                         (parent_source_hash,) if parent_source_hash else ()
+                    ),
+                    recovery_checkpoint=(
+                        progress_checkpoints.get(simulation_id)
+                        if scientific_progress_mode
+                        else None
                     ),
                 )
             )
@@ -10245,10 +10348,7 @@ class SimulationEvaluatorRuntimeSubsystem:
         generated_simulation_rows_all_source_valid = bool(
             generated_simulation_rows
         ) and all(
-            _scientific_source_candidate_accepted(
-                row,
-                confirmatory_result_blind=not exploratory_diagnostic,
-            )
+            simulation_source_accepted(row)
             for row in generated_simulation_rows
         )
         generated_simulation_revision_required = bool(
@@ -10610,6 +10710,40 @@ class SimulationEvaluatorRuntimeSubsystem:
             },
         )
         if generated_simulation_revision_required:
+            incomplete_simulation_ids = incomplete_scientific_source_ids(
+                generated_simulation_rows,
+                source_id_field="simulation_id",
+                source_accepted=simulation_source_accepted,
+            )
+            (
+                progress_next_task,
+                progress_evidence,
+                progress_observation,
+                progress_errors,
+            ) = scientific_workspace_progress_continuation(
+                task=task,
+                question_id=question.id,
+                manifest=manifest,
+                proposal_packet=proposal_packet,
+                rows=generated_simulation_rows,
+                row_id_field="simulation_id",
+                incomplete_source_ids=incomplete_simulation_ids,
+            )
+            if progress_next_task is not None:
+                if progress_observation is not None:
+                    observations.append(progress_observation)
+                return scientific_workspace_progress_result(
+                    source_owner="SimulationEngineer",
+                    produced_artifacts=produced_artifacts,
+                    observations=observations,
+                    tool_calls=[
+                        *registered_simulator_tool_calls,
+                        *generated_simulation_tool_calls,
+                    ],
+                    evidence_entries=(proposal_evidence, evidence, progress_evidence),
+                    next_task=progress_next_task,
+                    failure_classification="simulation_source_workspace_progress_checkpoint",
+                )
             generated_simulation_failure_classification = (
                 "accepted_algorithm_estimator_abi_failed"
                 if n_generated_simulation_estimator_binding_failed > 0
@@ -10955,6 +11089,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         ),
                         "n_open_implementation_gaps": len(implementation_gaps),
                         "runtime_edited_source": False,
+                        "same_owner_progress_errors": progress_errors,
                         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                     },
                 )
@@ -11633,7 +11768,58 @@ class AlgorithmEngineerRuntimeSubsystem:
         algorithm_theory_trace_alignment_contract: dict[str, Any] = {}
         produced_artifacts: dict[str, Any] = {}
         observations: list[EnvironmentObservation] = []
-        if consumer_revision_mode:
+        expected_estimator_ids = [
+            str(row.get("estimator_id", "") or "").strip()
+            for row in implementation_gaps
+            if str(row.get("estimator_id", "") or "").strip()
+        ]
+        scientific_progress, scientific_progress_errors = (
+            runtime_scientific_workspace_resume_plan(
+                task,
+                blackboard,
+                question_id=question.id,
+                theory_packet_id=packet_id,
+                expected_manifest_kind="RuntimeAlgorithmSandboxManifest",
+                proposal_id_field="llm_algorithm_engineer_proposal_id",
+                row_id_field="estimator_id",
+                expected_source_ids=expected_estimator_ids,
+                source_accepted=lambda row: row.get("smoke_passed") is True,
+            )
+        )
+        scientific_progress_mode = bool(scientific_progress)
+        progress_parent_rows_by_id: dict[str, dict[str, Any]] = {}
+        progress_checkpoints: dict[str, dict[str, Any]] = {}
+        if scientific_progress_mode and consumer_revision_mode:
+            scientific_progress_errors.append(
+                "scientific progress cannot overlap a consumer dependency revision"
+            )
+        if scientific_progress_errors:
+            return scientific_workspace_progress_rejected_result(
+                task=task,
+                validation_errors=scientific_progress_errors,
+            )
+        if scientific_progress_mode:
+            proposal_packet = scientific_progress["proposal_packet"]
+            parent_manifest = scientific_progress["parent_manifest"]
+            progress_parent_rows_by_id = scientific_progress["rows"]
+            progress_checkpoints = scientific_progress["checkpoints"]
+            theory_trace_contracts = _runtime_theory_trace_consumption_contracts(
+                proposal_packet
+            )
+            algorithm_theory_trace_contract = (
+                theory_trace_contracts[0] if theory_trace_contracts else {}
+            )
+            algorithm_theory_trace_alignment_contract = dict(
+                proposal_packet.get("theory_trace_alignment_contract", {}) or {}
+            )
+            observations.append(
+                scientific_workspace_resume_observation(
+                    source_owner="AlgorithmEngineer",
+                    parent_manifest=parent_manifest,
+                    checkpoints=progress_checkpoints,
+                )
+            )
+        elif consumer_revision_mode:
             consumer_errors: list[str] = []
             if not self.semantic_reviewer_available:
                 consumer_errors.append(
@@ -11913,7 +12099,19 @@ class AlgorithmEngineerRuntimeSubsystem:
             )
         sandbox_dir = self.out_dir / _safe_identifier(question.id) / stable_hash([task.task_id, packet_id])[:12]
         sandbox_dir.mkdir(parents=True, exist_ok=True)
-        if consumer_revision_mode:
+        if scientific_progress_mode:
+            reused_prototype_rows = reusable_scientific_source_rows(
+                parent_manifest=parent_manifest,
+                rows_by_id=progress_parent_rows_by_id,
+                checkpoints=progress_checkpoints,
+            )
+            execution_gaps = [
+                row
+                for row in implementation_gaps
+                if str(row.get("estimator_id", "") or "")
+                in progress_checkpoints
+            ]
+        elif consumer_revision_mode:
             reused_prototype_rows = []
             for estimator_id, source_row in consumer_source_rows_by_id.items():
                 if estimator_id in source_revision_artifact_ids:
@@ -11988,17 +12186,30 @@ class AlgorithmEngineerRuntimeSubsystem:
                     ),
                 }
             else:
-                code_draft = deepcopy(
-                    theory_revision_source_seeds.get(estimator_id, {})
-                )
-                if not code_draft:
-                    code_draft = _algorithm_code_draft_for_estimator(
-                        proposal_packet,
-                        estimator_id,
+                if scientific_progress_mode:
+                    code_draft = deepcopy(
+                        dict(
+                            progress_checkpoints[estimator_id][
+                                "current_code_draft"
+                            ]
+                        )
                     )
+                    external_initial_observation = deepcopy(
+                        dict(progress_checkpoints[estimator_id]["last_check"])
+                    )
+                else:
+                    code_draft = deepcopy(
+                        theory_revision_source_seeds.get(estimator_id, {})
+                    )
+                    if not code_draft:
+                        code_draft = _algorithm_code_draft_for_estimator(
+                            proposal_packet,
+                            estimator_id,
+                        )
             if code_draft:
                 source_seed_replayed = bool(
-                    not consumer_revision_mode
+                    not scientific_progress_mode
+                    and not consumer_revision_mode
                     and estimator_id in theory_revision_source_seeds
                 )
                 execution_kwargs = {
@@ -12106,7 +12317,8 @@ class AlgorithmEngineerRuntimeSubsystem:
                         artifact_id=f"{question.id}:{estimator_id}",
                         code_draft=code_draft,
                         source_deferred=(
-                            not consumer_revision_mode
+                            not scientific_progress_mode
+                            and not consumer_revision_mode
                             and not source_seed_replayed
                             and _proposal_defers_scientific_source(proposal_packet)
                         ),
@@ -12156,6 +12368,11 @@ class AlgorithmEngineerRuntimeSubsystem:
                         ),
                         confirmatory_result_blind=consumer_revision_mode,
                         allow_current_source_run=dependency_environment_changed,
+                        recovery_checkpoint=(
+                            progress_checkpoints.get(estimator_id)
+                            if scientific_progress_mode
+                            else None
+                        ),
                     )
                 )
                 tool_calls.extend(source_tool_calls)
@@ -12582,6 +12799,32 @@ class AlgorithmEngineerRuntimeSubsystem:
             else "algorithm_sandbox_no_executable_prototype"
         )
         if revision_required:
+            (
+                progress_next_task,
+                progress_evidence,
+                progress_observation,
+                progress_errors,
+            ) = scientific_workspace_progress_continuation(
+                task=task,
+                question_id=question.id,
+                manifest=manifest,
+                proposal_packet=proposal_packet,
+                rows=prototype_rows,
+                row_id_field="estimator_id",
+                incomplete_source_ids=incomplete_estimator_ids,
+            )
+            if progress_next_task is not None:
+                if progress_observation is not None:
+                    observations.append(progress_observation)
+                return scientific_workspace_progress_result(
+                    source_owner="AlgorithmEngineer",
+                    produced_artifacts=produced_artifacts,
+                    observations=observations,
+                    tool_calls=tool_calls,
+                    evidence_entries=(proposal_evidence, evidence, progress_evidence),
+                    next_task=progress_next_task,
+                    failure_classification="algorithm_source_workspace_progress_checkpoint",
+                )
             feedback = _algorithm_sandbox_revision_feedback(
                 manifest=manifest,
                 boundary=str(manifest["boundary"]),
@@ -12608,6 +12851,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                             if isinstance(row, Mapping)
                         ),
                         "runtime_edited_source": False,
+                        "same_owner_progress_errors": progress_errors,
                         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                     },
                 )
@@ -23788,246 +24032,6 @@ def _run_algorithm_candidate_against_frozen_consumers(
         prototype.pop("source_iteration_disposition", None)
         prototype.pop("source_owner", None)
     return prototype, tool_calls, observations_by_dependency
-
-
-def _scientific_source_candidate_accepted(
-    prototype: Mapping[str, Any],
-    *,
-    confirmatory_result_blind: bool,
-) -> bool:
-    """Use one source-validity predicate before and after model iteration."""
-
-    if confirmatory_result_blind:
-        return bool(
-            prototype.get("execution_smoke_passed") is True
-            and not scientific_workspace_measurement_interface_failures(
-                prototype
-            )
-        )
-    return prototype.get("smoke_passed") is True
-
-
-def _run_source_owner_scientific_workspace(
-    *,
-    proposal_agent: Any,
-    question: OpenResearchQuestion,
-    artifact_id: str,
-    code_draft: Mapping[str, Any],
-    source_deferred: bool,
-    workspace_context: Mapping[str, Any],
-    execute_candidate: Callable[
-        [Mapping[str, Any]],
-        tuple[dict[str, Any], ToolCallRecord | Sequence[ToolCallRecord]],
-    ],
-    failure_identity: Mapping[str, Any],
-    external_initial_observation: Mapping[str, Any] | None = None,
-    confirmatory_result_blind: bool = False,
-    allow_current_source_run: bool = False,
-    disallowed_unchanged_source_hashes: Sequence[str] = (),
-) -> tuple[dict[str, Any], list[ToolCallRecord]]:
-    """Execute one initial or revision source loop without a second scheduler."""
-
-    can_use_workspace = bool(
-        proposal_agent is not None
-        and callable(
-            getattr(
-                getattr(proposal_agent, "provider", None),
-                "generate_client_tool_turn",
-                None,
-            )
-        )
-        and callable(getattr(proposal_agent, "iterate_code_with_tools", None))
-    )
-    tool_calls: list[ToolCallRecord] = []
-    last_checked_prototype: dict[str, Any] = {}
-    bound_execution_fields = {
-        "required_estimator_ids": deepcopy(
-            list(code_draft.get("required_estimator_ids", []) or [])
-        )
-    } if "required_estimator_ids" in code_draft else {}
-
-    def record_tool_calls(
-        value: ToolCallRecord | Sequence[ToolCallRecord],
-    ) -> None:
-        if isinstance(value, ToolCallRecord):
-            tool_calls.append(value)
-            return
-        tool_calls.extend(value)
-
-    def source_candidate_accepted(prototype: Mapping[str, Any]) -> bool:
-        return _scientific_source_candidate_accepted(
-            prototype,
-            confirmatory_result_blind=confirmatory_result_blind,
-        )
-
-    def source_observation(prototype: Mapping[str, Any]) -> dict[str, Any]:
-        return scientific_workspace_prototype_observation(
-            prototype,
-            include_empirical_outcomes=not confirmatory_result_blind,
-        )
-
-    def check_candidate(candidate: Mapping[str, Any]) -> Mapping[str, Any]:
-        execution_candidate = {
-            **dict(candidate),
-            **bound_execution_fields,
-        }
-        candidate_source = str(execution_candidate.get("code", "") or "")
-        candidate_source_hash = stable_hash(candidate_source)
-        if (
-            candidate_source
-            and candidate_source_hash in disallowed_unchanged_source_hashes
-        ):
-            prototype = {
-                **dict(failure_identity),
-                "prototype_status": "UNCHANGED_SOURCE_REJECTED",
-                "source_code": candidate_source,
-                "script_hash": candidate_source_hash,
-                "parent_script_hash": candidate_source_hash,
-                "execution_attempted": False,
-                "execution_smoke_passed": False,
-                "smoke_passed": False,
-                "runtime_errors": [
-                    "The candidate source hash matches a released parent source; "
-                    "an unchanged candidate cannot consume a fresh evaluation cohort."
-                ],
-                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-            }
-        else:
-            prototype, tool_call = execute_candidate(execution_candidate)
-            record_tool_calls(tool_call)
-        last_checked_prototype.clear()
-        last_checked_prototype.update(deepcopy(dict(prototype)))
-        check = {
-            "code_draft_hash": stable_hash(dict(candidate)),
-            "accepted": source_candidate_accepted(prototype),
-            "prototype": source_observation(prototype),
-        }
-        disposition = str(
-            prototype.get("source_iteration_disposition", "") or ""
-        ).strip()
-        if disposition:
-            check["source_iteration_disposition"] = disposition
-        source_owner = prototype.get("source_owner", {})
-        if isinstance(source_owner, Mapping) and source_owner:
-            check["source_owner"] = deepcopy(dict(source_owner))
-        return check
-
-    if source_deferred:
-        if not can_use_workspace:
-            return (
-                {
-                    **dict(failure_identity),
-                    "prototype_status": "MODEL_SOURCE_WORKSPACE_UNAVAILABLE",
-                    "smoke_passed": False,
-                    "execution_smoke_passed": False,
-                    "reason": (
-                        "The planning envelope deferred source to native client "
-                        "tools, but the source-owning provider has no callable "
-                        "workspace."
-                    ),
-                },
-                tool_calls,
-            )
-        workspace_draft: Mapping[str, Any] | None = None
-        workspace_operation = "initial_authoring"
-        initial_observation = {
-            "artifact_kind": "ScientificSourceAuthoringRequired",
-            "accepted": False,
-            "artifact_id": artifact_id,
-            "execution_attempted": False,
-            "observation": (
-                "No source exists yet; author and run the complete candidate in "
-                "this workspace."
-            ),
-        }
-        prototype = {
-            **dict(failure_identity),
-            "prototype_status": "MODEL_SOURCE_WORKSPACE_FAILED",
-            "smoke_passed": False,
-            "execution_smoke_passed": False,
-        }
-    elif external_initial_observation and can_use_workspace:
-        workspace_draft = {
-            key: deepcopy(code_draft[key])
-            for key in (
-                "language",
-                "execution_profile",
-                "dependencies",
-                "entrypoint",
-                "code",
-            )
-            if key in code_draft
-        }
-        workspace_operation = "targeted_revision"
-        initial_observation = {
-            **deepcopy(dict(external_initial_observation)),
-            "code_draft_hash": stable_hash(workspace_draft),
-            "accepted": False,
-        }
-        prototype = {
-            **dict(failure_identity),
-            "prototype_status": "MODEL_SOURCE_WORKSPACE_FAILED",
-            "smoke_passed": False,
-            "execution_smoke_passed": False,
-        }
-    else:
-        prototype, tool_call = execute_candidate(code_draft)
-        record_tool_calls(tool_call)
-        if (
-            source_candidate_accepted(prototype)
-            or prototype.get("source_iteration_disposition")
-            == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
-            or not can_use_workspace
-        ):
-            return prototype, tool_calls
-        workspace_draft = {
-            key: deepcopy(code_draft[key])
-            for key in (
-                "language",
-                "execution_profile",
-                "dependencies",
-                "entrypoint",
-                "code",
-            )
-            if key in code_draft
-        }
-        workspace_operation = "targeted_revision"
-        initial_observation = {
-            "code_draft_hash": stable_hash(workspace_draft),
-            "accepted": False,
-            "prototype": source_observation(prototype),
-        }
-
-    try:
-        workspace_result = proposal_agent.iterate_code_with_tools(
-            question=question,
-            artifact_id=artifact_id,
-            code_draft=workspace_draft,
-            initial_observation=initial_observation,
-            workspace_context=dict(workspace_context),
-            check_candidate=check_candidate,
-            workspace_operation=workspace_operation,
-            allow_current_source_run=allow_current_source_run,
-        )
-    except PacketValidationError as exc:
-        if last_checked_prototype:
-            prototype = deepcopy(last_checked_prototype)
-        prototype["scientific_code_workspace_failure"] = {
-            "validation_errors": list(exc.errors),
-            "attempts": exc.attempts,
-            "history": [dict(row) for row in exc.history],
-            "recovery_checkpoint": dict(exc.recovery_checkpoint or {}),
-            "runtime_edited_source": False,
-        }
-        return prototype, tool_calls
-
-    if not last_checked_prototype:
-        raise RuntimeError(
-            "scientific workspace accepted without a persisted sandbox result"
-        )
-    prototype = deepcopy(last_checked_prototype)
-    prototype["scientific_code_workspace"] = dict(workspace_result.evidence)
-    return prototype, tool_calls
 
 
 def _scientific_workspace_algorithm_handoff(

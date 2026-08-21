@@ -2,9 +2,17 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping, Sequence
 
+from .agent_runtime import (
+    AgentStepResult,
+    AgentTask,
+    BlackboardState,
+    EnvironmentObservation,
+    EvidenceLedgerEntry,
+    runtime_artifact_reference,
+)
 from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
@@ -36,6 +44,7 @@ SCIENTIFIC_SOURCE_REVISE_CURRENT = "revise_current_source"
 SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER = (
     "return_to_bound_dependency_owner"
 )
+SCIENTIFIC_CODE_WORKSPACE_CHECKPOINT_KIND = "ScientificCodeWorkspaceCheckpoint"
 SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY = "scientific_consumer_revision"
 _SCIENTIFIC_PACKAGES = (
     PYTHON_SCIENTIFIC_DEPENDENCIES + R_SCIENTIFIC_DEPENDENCIES
@@ -50,6 +59,836 @@ class ScientificCodeWorkspaceResult:
     code_draft: Mapping[str, Any]
     check_result: Mapping[str, Any]
     evidence: Mapping[str, Any]
+
+
+def load_scientific_code_workspace_checkpoint(
+    checkpoint: Mapping[str, Any],
+    *,
+    artifact_id: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Verify exact model-owned source and its last execution observation."""
+
+    if checkpoint.get("artifact_kind") != SCIENTIFIC_CODE_WORKSPACE_CHECKPOINT_KIND:
+        raise ValueError("scientific code workspace checkpoint kind mismatch")
+    if str(checkpoint.get("artifact_id", "") or "") != str(artifact_id):
+        raise ValueError("scientific code workspace checkpoint artifact mismatch")
+    if (
+        checkpoint.get("resumable") is not True
+        or checkpoint.get("accepted") is not False
+        or checkpoint.get("model_owned_source") is not True
+        or checkpoint.get("runtime_edited_source") is not False
+    ):
+        raise ValueError("scientific code workspace checkpoint boundary mismatch")
+    checkpoint_id = str(checkpoint.get("checkpoint_id", "") or "").strip()
+    checkpoint_body = deepcopy(dict(checkpoint))
+    checkpoint_body.pop("checkpoint_id", None)
+    expected_checkpoint_id = "scientific_code_workspace_checkpoint:" + stable_hash(
+        checkpoint_body
+    )[:20]
+    if not checkpoint_id or checkpoint_id != expected_checkpoint_id:
+        raise ValueError("scientific code workspace checkpoint identity mismatch")
+
+    draft = _complete_code_draft(checkpoint.get("current_code_draft", {}))
+    draft_hash = stable_hash(draft)
+    if draft_hash != str(
+        checkpoint.get("current_code_draft_hash", "") or ""
+    ):
+        raise ValueError("scientific code workspace checkpoint source hash mismatch")
+    observed_hashes = checkpoint.get("observed_code_draft_hashes", [])
+    if (
+        not isinstance(observed_hashes, list)
+        or draft_hash not in observed_hashes
+        or any(not str(value or "").strip() for value in observed_hashes)
+    ):
+        raise ValueError("scientific code workspace observed source hashes are invalid")
+    last_check = checkpoint.get("last_check", {})
+    if not isinstance(last_check, Mapping) or not last_check:
+        raise ValueError("scientific code workspace last check is missing")
+    last_check = deepcopy(dict(last_check))
+    if str(last_check.get("code_draft_hash", "") or "") != draft_hash:
+        raise ValueError("scientific code workspace last check source hash mismatch")
+    if stable_hash(last_check) != str(
+        checkpoint.get("last_check_hash", "") or ""
+    ):
+        raise ValueError("scientific code workspace last check identity mismatch")
+    source_updates = int(checkpoint.get("source_updates", 0) or 0)
+    checks = int(checkpoint.get("checks", 0) or 0)
+    segment_start_source_updates = int(
+        checkpoint.get("segment_start_source_updates", 0) or 0
+    )
+    segment_start_checks = int(checkpoint.get("segment_start_checks", 0) or 0)
+    if (
+        source_updates < segment_start_source_updates
+        or checks <= segment_start_checks
+        or checks < 1
+    ):
+        raise ValueError("scientific code workspace checkpoint made no executable progress")
+    return draft, last_check
+
+
+def scientific_workspace_resume_plan(
+    *,
+    manifest: Mapping[str, Any],
+    proposal_packet: Mapping[str, Any],
+    question_id: str,
+    theory_packet_id: str,
+    expected_manifest_kind: str,
+    proposal_id_field: str,
+    row_id_field: str,
+    expected_source_ids: Sequence[str],
+    source_accepted: Callable[[Mapping[str, Any]], bool],
+) -> tuple[dict[str, Any], list[str]]:
+    """Validate reusable rows and resumable checkpoints in one source manifest."""
+
+    errors: list[str] = []
+    question = manifest.get("question", {})
+    if (
+        manifest.get("artifact_kind") != expected_manifest_kind
+        or not str(manifest.get("manifest_id", "") or "").strip()
+        or str(manifest.get("theory_packet_id", "") or "")
+        != theory_packet_id
+        or not isinstance(question, Mapping)
+        or str(question.get("id", "") or "") != question_id
+    ):
+        errors.append("scientific workspace progress manifest lineage is invalid")
+    proposal_id = str(manifest.get(proposal_id_field, "") or "").strip()
+    if (
+        not proposal_id
+        or str(proposal_packet.get("packet_id", "") or "") != proposal_id
+    ):
+        errors.append("scientific workspace proposal packet is missing or stale")
+    row_container = (
+        "prototypes"
+        if expected_manifest_kind == "RuntimeAlgorithmSandboxManifest"
+        else "generated_simulation_sandbox_prototypes"
+    )
+    rows = {
+        str(row.get(row_id_field, "") or "").strip(): deepcopy(dict(row))
+        for row in manifest.get(row_container, []) or []
+        if isinstance(row, Mapping)
+        and str(row.get(row_id_field, "") or "").strip()
+    }
+    expected_ids = {
+        str(value or "").strip()
+        for value in expected_source_ids
+        if str(value or "").strip()
+    } or set(rows)
+    checkpoints: dict[str, dict[str, Any]] = {}
+    reusable_rows: dict[str, dict[str, Any]] = {}
+    for source_id in expected_ids:
+        row = rows.get(source_id, {})
+        if not row:
+            errors.append(f"{source_id}: scientific source row is missing")
+            continue
+        if source_accepted(row):
+            reusable_rows[source_id] = row
+            continue
+        failure = row.get("scientific_code_workspace_failure", {})
+        checkpoint = (
+            deepcopy(dict(failure.get("recovery_checkpoint", {})))
+            if isinstance(failure, Mapping)
+            and isinstance(failure.get("recovery_checkpoint", {}), Mapping)
+            else {}
+        )
+        try:
+            load_scientific_code_workspace_checkpoint(
+                checkpoint,
+                artifact_id=f"{question_id}:{source_id}",
+            )
+        except ValueError as exc:
+            errors.append(f"{source_id}: {exc}")
+            continue
+        checkpoints[source_id] = checkpoint
+    if set(rows) - expected_ids:
+        errors.append("scientific workspace manifest contains unknown source ids")
+    if expected_ids != set(reusable_rows) | set(checkpoints):
+        errors.append(
+            "accepted parent sources and resumable checkpoints do not cover targets"
+        )
+    if errors:
+        return {}, sorted(set(errors))
+    return {
+        "parent_manifest": deepcopy(dict(manifest)),
+        "proposal_packet": deepcopy(dict(proposal_packet)),
+        "rows": rows,
+        "reusable_rows": reusable_rows,
+        "checkpoints": checkpoints,
+    }, []
+
+
+def runtime_scientific_workspace_resume_plan(
+    task: AgentTask,
+    blackboard: BlackboardState,
+    *,
+    question_id: str,
+    theory_packet_id: str,
+    expected_manifest_kind: str,
+    proposal_id_field: str,
+    row_id_field: str,
+    expected_source_ids: Sequence[str],
+    source_accepted: Callable[[Mapping[str, Any]], bool],
+) -> tuple[dict[str, Any], list[str]]:
+    """Resolve one blackboard manifest ref, then validate its source state."""
+
+    raw_manifest = task.inputs.get(
+        "scientific_code_workspace_progress_manifest", {}
+    )
+    if not raw_manifest:
+        return {}, []
+    if not isinstance(raw_manifest, Mapping):
+        return {}, ["scientific workspace progress manifest must be an object"]
+    manifest = deepcopy(dict(raw_manifest))
+    manifest_id = str(manifest.get("manifest_id", "") or "").strip()
+    authoritative = blackboard.artifacts.get(manifest_id, {})
+    if (
+        not isinstance(authoritative, Mapping)
+        or stable_hash(dict(authoritative)) != stable_hash(manifest)
+    ):
+        return {}, ["scientific workspace progress manifest is missing or stale"]
+    proposal_id = str(manifest.get(proposal_id_field, "") or "").strip()
+    proposal = blackboard.artifacts.get(proposal_id, {})
+    if not isinstance(proposal, Mapping):
+        proposal = {}
+    return scientific_workspace_resume_plan(
+        manifest=manifest,
+        proposal_packet=proposal,
+        question_id=question_id,
+        theory_packet_id=theory_packet_id,
+        expected_manifest_kind=expected_manifest_kind,
+        proposal_id_field=proposal_id_field,
+        row_id_field=row_id_field,
+        expected_source_ids=expected_source_ids,
+        source_accepted=source_accepted,
+    )
+
+
+def scientific_workspace_progress_continuation(
+    *,
+    task: AgentTask,
+    question_id: str,
+    manifest: Mapping[str, Any],
+    proposal_packet: Mapping[str, Any] | None,
+    rows: Sequence[Mapping[str, Any]],
+    row_id_field: str,
+    incomplete_source_ids: Sequence[str],
+) -> tuple[
+    AgentTask | None,
+    EvidenceLedgerEntry | None,
+    EnvironmentObservation | None,
+    list[str],
+]:
+    """Spend an outer iteration only after new executed model-source progress."""
+
+    incomplete_ids = {
+        str(value or "").strip()
+        for value in incomplete_source_ids
+        if str(value or "").strip()
+    }
+    if not incomplete_ids:
+        return None, None, None, []
+    manifest_id = str(manifest.get("manifest_id", "") or "").strip()
+    proposal_id = str((proposal_packet or {}).get("packet_id", "") or "").strip()
+    if not manifest_id or not proposal_id:
+        return None, None, None, [
+            "scientific progress requires bound proposal and manifest identities"
+        ]
+    prior_manifest = task.inputs.get(
+        "scientific_code_workspace_progress_manifest", {}
+    )
+    row_container = (
+        "prototypes"
+        if task.owner_subsystem == "AlgorithmEngineer"
+        else "generated_simulation_sandbox_prototypes"
+    )
+    prior_rows = {
+        str(row.get(row_id_field, "") or "").strip(): row
+        for row in (
+            prior_manifest.get(row_container, [])
+            if isinstance(prior_manifest, Mapping)
+            else []
+        )
+        or []
+        if isinstance(row, Mapping)
+        and str(row.get(row_id_field, "") or "").strip()
+    }
+    rows_by_id = {
+        str(row.get(row_id_field, "") or "").strip(): row
+        for row in rows
+        if isinstance(row, Mapping)
+        and str(row.get(row_id_field, "") or "").strip()
+    }
+    checkpoints: dict[str, dict[str, Any]] = {}
+    errors: list[str] = []
+    for source_id in incomplete_ids:
+        failure = rows_by_id.get(source_id, {}).get(
+            "scientific_code_workspace_failure", {}
+        )
+        checkpoint = (
+            deepcopy(dict(failure.get("recovery_checkpoint", {})))
+            if isinstance(failure, Mapping)
+            and isinstance(failure.get("recovery_checkpoint", {}), Mapping)
+            else {}
+        )
+        try:
+            load_scientific_code_workspace_checkpoint(
+                checkpoint,
+                artifact_id=f"{question_id}:{source_id}",
+            )
+        except ValueError as exc:
+            errors.append(f"{source_id}: {exc}")
+            continue
+        prior_failure = prior_rows.get(source_id, {}).get(
+            "scientific_code_workspace_failure", {}
+        )
+        prior_checkpoint = (
+            prior_failure.get("recovery_checkpoint", {})
+            if isinstance(prior_failure, Mapping)
+            else {}
+        )
+        if isinstance(prior_checkpoint, Mapping) and prior_checkpoint:
+            if (
+                str(checkpoint.get("resumed_from_checkpoint_id", "") or "")
+                != str(prior_checkpoint.get("checkpoint_id", "") or "")
+                or int(checkpoint.get("checks", 0) or 0)
+                <= int(prior_checkpoint.get("checks", 0) or 0)
+            ):
+                errors.append(
+                    f"{source_id}: scientific workspace made no new executed progress"
+                )
+                continue
+        elif str(checkpoint.get("resumed_from_checkpoint_id", "") or ""):
+            errors.append(
+                f"{source_id}: scientific checkpoint has an unbound predecessor"
+            )
+            continue
+        checkpoints[source_id] = checkpoint
+    if errors or set(checkpoints) != incomplete_ids:
+        if set(checkpoints) != incomplete_ids:
+            errors.append(
+                "not every incomplete scientific source has resumable progress"
+            )
+        return None, None, None, sorted(set(errors))
+
+    continuation_count = int(
+        task.inputs.get("scientific_code_workspace_continuation_count", 0)
+        or 0
+    ) + 1
+    checkpoint_ids = {
+        source_id: str(checkpoint["checkpoint_id"])
+        for source_id, checkpoint in checkpoints.items()
+    }
+    next_inputs = deepcopy(dict(task.inputs))
+    next_inputs["scientific_code_workspace_progress_manifest"] = (
+        runtime_artifact_reference(manifest_id, manifest)
+    )
+    next_inputs["scientific_code_workspace_continuation_count"] = (
+        continuation_count
+    )
+    next_task = replace(
+        task,
+        task_id=(
+            f"scientific-progress:{task.owner_subsystem}:{question_id}:"
+            f"{continuation_count}:{stable_hash(checkpoint_ids)[:10]}"
+        ),
+        objective=(
+            "Continue exact model-owned scientific source from its latest raw "
+            "execution observation."
+        ),
+        inputs=next_inputs,
+    )
+    boundary = (
+        "The manifest preserves exact model-authored Python/R source and raw "
+        "sandbox observations for the same owner. It is not accepted code, "
+        "empirical confirmation, formal proof, or kernel evidence."
+    )
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:"
+        + stable_hash([task.task_id, manifest_id, checkpoint_ids])[:20],
+        task_id=task.task_id,
+        artifact_id=manifest_id,
+        evidence_type="scientific_workspace_progress_checkpoint",
+        status="SCIENTIFIC_SOURCE_PROGRESS_RECORDED_NOT_ACCEPTED",
+        boundary=boundary,
+        payload={
+            "source_subsystem": task.owner_subsystem,
+            "continuation_count": continuation_count,
+            "checkpoint_ids": checkpoint_ids,
+            "runtime_edited_source": False,
+            "kernel_verified": False,
+        },
+    )
+    observation = EnvironmentObservation(
+        observation_type="scientific_workspace_progress_checkpoint",
+        summary=(
+            f"same-owner continuation for {len(checkpoints)} exact scientific "
+            "source workspace(s)"
+        ),
+        payload={
+            "source_subsystem": task.owner_subsystem,
+            "parent_manifest_id": manifest_id,
+            "continuation_count": continuation_count,
+            "source_ids": sorted(checkpoints),
+            "architect_routing_used": False,
+            "runtime_edited_source": False,
+            "proof_evidence_status": (
+                "SCIENTIFIC_WORKSPACE_PROGRESS_NOT_PROOF_EVIDENCE"
+            ),
+        },
+    )
+    return next_task, evidence, observation, []
+
+
+def scientific_workspace_progress_rejected_result(
+    *,
+    task: AgentTask,
+    validation_errors: Sequence[str],
+    prior_observations: Sequence[EnvironmentObservation] = (),
+) -> AgentStepResult:
+    """Fail closed before a model call when a continuation ref is stale."""
+
+    errors = sorted({str(value) for value in validation_errors if str(value)})
+    return AgentStepResult(
+        status="BLOCKED",
+        rationale=(
+            f"{task.owner_subsystem} rejected an invalid scientific workspace "
+            "continuation before any planning, source, or sandbox call."
+        ),
+        observations=tuple(prior_observations)
+        + (
+            EnvironmentObservation(
+                observation_type="scientific_workspace_progress_rejected",
+                summary="; ".join(errors)[:500],
+                payload={
+                    "validation_errors": errors,
+                    "planning_model_call_authorized": False,
+                    "source_model_call_authorized": False,
+                    "runtime_edited_source": False,
+                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                },
+            ),
+        ),
+        failure_classification="scientific_workspace_progress_invalid",
+    )
+
+
+def scientific_workspace_progress_result(
+    *,
+    source_owner: str,
+    produced_artifacts: Mapping[str, Any],
+    observations: Sequence[EnvironmentObservation],
+    tool_calls: Sequence[Any],
+    evidence_entries: Sequence[EvidenceLedgerEntry | None],
+    next_task: AgentTask,
+    failure_classification: str,
+) -> AgentStepResult:
+    """Return a same-owner continuation through the existing outer runtime."""
+
+    return AgentStepResult(
+        status="REVISE",
+        rationale=(
+            f"{source_owner} made new executed source progress. The exact "
+            "checkpoint returns to the same coding owner under the existing "
+            "outer iteration budget, without Architect routing."
+        ),
+        produced_artifacts=dict(produced_artifacts),
+        observations=tuple(observations),
+        tool_calls=tuple(tool_calls),
+        evidence_entries=tuple(
+            row for row in evidence_entries if row is not None
+        ),
+        next_task=next_task,
+        failure_classification=failure_classification,
+    )
+
+
+def scientific_workspace_resume_observation(
+    *,
+    source_owner: str,
+    parent_manifest: Mapping[str, Any],
+    checkpoints: Mapping[str, Mapping[str, Any]],
+) -> EnvironmentObservation:
+    """Describe a same-owner resume without copying source into the trace."""
+
+    owner_label = str(source_owner or "scientific source owner")
+    owner_key = owner_label.removesuffix("Engineer").removesuffix("Evaluator").lower()
+    return EnvironmentObservation(
+        observation_type=f"{owner_key}_source_workspace_resumed",
+        summary=(
+            f"{owner_label} resumed exact source checkpoints without regenerating "
+            "its planning envelope."
+        ),
+        payload={
+            "parent_manifest_id": str(
+                parent_manifest.get("manifest_id", "") or ""
+            ),
+            "checkpoint_source_ids": sorted(checkpoints),
+            "planning_model_call_used": False,
+            "architect_routing_used": False,
+            "runtime_edited_source": False,
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        },
+    )
+
+
+def reusable_scientific_source_rows(
+    *,
+    parent_manifest: Mapping[str, Any],
+    rows_by_id: Mapping[str, Mapping[str, Any]],
+    checkpoints: Mapping[str, Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Project accepted peer sources without executing or editing them again."""
+
+    result: list[dict[str, Any]] = []
+    for source_id, source_row in rows_by_id.items():
+        if source_id in checkpoints:
+            continue
+        reused_row = deepcopy(dict(source_row))
+        reused_row["prototype_status"] = "REUSED_WORKSPACE_SOURCE"
+        reused_row["source_reused_without_execution"] = True
+        reused_row["source_reuse_lineage"] = {
+            "parent_manifest_id": str(
+                parent_manifest.get("manifest_id", "") or ""
+            ),
+            "parent_manifest_hash": stable_hash(parent_manifest),
+            "parent_script_hash": str(
+                source_row.get("script_hash", "") or ""
+            ),
+            "runtime_edited_source": False,
+            "proof_evidence_status": "SOURCE_REUSE_NOT_PROOF_EVIDENCE",
+        }
+        result.append(reused_row)
+    return result
+
+
+def incomplete_scientific_source_ids(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    source_id_field: str,
+    source_accepted: Callable[[Mapping[str, Any]], bool],
+) -> tuple[str, ...]:
+    """Return stable identities for rows that have not passed their lane gate."""
+
+    return tuple(
+        sorted(
+            {
+                source_id
+                for row in rows
+                if (source_id := str(row.get(source_id_field, "") or "").strip())
+                and not source_accepted(row)
+            }
+        )
+    )
+
+
+def resumed_scientific_code_drafts(
+    *,
+    proposal_drafts: Sequence[Mapping[str, Any]],
+    checkpoints: Mapping[str, Mapping[str, Any]],
+    source_id_field: str,
+    retained_fields: Sequence[str] = (),
+) -> list[dict[str, Any]]:
+    """Restore exact source while retaining only bound execution metadata."""
+
+    proposals_by_id = {
+        str(row.get(source_id_field, "") or "").strip(): row
+        for row in proposal_drafts
+        if str(row.get(source_id_field, "") or "").strip()
+    }
+    drafts: list[dict[str, Any]] = []
+    for source_id, checkpoint in checkpoints.items():
+        proposal = proposals_by_id.get(source_id, {})
+        draft = {source_id_field: source_id}
+        draft.update(
+            {
+                field: deepcopy(proposal[field])
+                for field in retained_fields
+                if field in proposal
+            }
+        )
+        draft.update(deepcopy(dict(checkpoint["current_code_draft"])))
+        drafts.append(draft)
+    return drafts
+
+
+def scientific_source_candidate_accepted(
+    prototype: Mapping[str, Any],
+    *,
+    confirmatory_result_blind: bool,
+) -> bool:
+    """Apply the scientific source gate without interpreting its content."""
+
+    if confirmatory_result_blind:
+        return bool(
+            prototype.get("execution_smoke_passed") is True
+            and not scientific_workspace_measurement_interface_failures(
+                prototype
+            )
+        )
+    return prototype.get("smoke_passed") is True
+
+
+def run_source_owner_scientific_workspace(
+    *,
+    proposal_agent: Any,
+    question: Any,
+    artifact_id: str,
+    code_draft: Mapping[str, Any],
+    source_deferred: bool,
+    workspace_context: Mapping[str, Any],
+    execute_candidate: Callable[
+        [Mapping[str, Any]],
+        tuple[dict[str, Any], Any | Sequence[Any]],
+    ],
+    failure_identity: Mapping[str, Any],
+    external_initial_observation: Mapping[str, Any] | None = None,
+    confirmatory_result_blind: bool = False,
+    allow_current_source_run: bool = False,
+    disallowed_unchanged_source_hashes: Sequence[str] = (),
+    recovery_checkpoint: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, Any], list[Any]]:
+    """Run one source owner's direct model/tool feedback loop."""
+
+    can_use_workspace = bool(
+        proposal_agent is not None
+        and callable(
+            getattr(
+                getattr(proposal_agent, "provider", None),
+                "generate_client_tool_turn",
+                None,
+            )
+        )
+        and callable(getattr(proposal_agent, "iterate_code_with_tools", None))
+    )
+    tool_calls: list[Any] = []
+    last_checked_prototype: dict[str, Any] = {}
+    bound_execution_fields = (
+        {
+            "required_estimator_ids": deepcopy(
+                list(code_draft.get("required_estimator_ids", []) or [])
+            )
+        }
+        if "required_estimator_ids" in code_draft
+        else {}
+    )
+
+    def record_tool_calls(value: Any | Sequence[Any]) -> None:
+        if isinstance(value, (list, tuple)):
+            tool_calls.extend(value)
+        else:
+            tool_calls.append(value)
+
+    def source_candidate_accepted(prototype: Mapping[str, Any]) -> bool:
+        return scientific_source_candidate_accepted(
+            prototype,
+            confirmatory_result_blind=confirmatory_result_blind,
+        )
+
+    def source_observation(prototype: Mapping[str, Any]) -> dict[str, Any]:
+        return scientific_workspace_prototype_observation(
+            prototype,
+            include_empirical_outcomes=not confirmatory_result_blind,
+        )
+
+    def check_candidate(candidate: Mapping[str, Any]) -> Mapping[str, Any]:
+        execution_candidate = {**dict(candidate), **bound_execution_fields}
+        candidate_source = str(execution_candidate.get("code", "") or "")
+        candidate_source_hash = stable_hash(candidate_source)
+        if (
+            candidate_source
+            and candidate_source_hash in disallowed_unchanged_source_hashes
+        ):
+            prototype = {
+                **dict(failure_identity),
+                "prototype_status": "UNCHANGED_SOURCE_REJECTED",
+                "source_code": candidate_source,
+                "script_hash": candidate_source_hash,
+                "parent_script_hash": candidate_source_hash,
+                "execution_attempted": False,
+                "execution_smoke_passed": False,
+                "smoke_passed": False,
+                "runtime_errors": [
+                    "The candidate source hash matches a released parent source; "
+                    "an unchanged candidate cannot consume a fresh evaluation cohort."
+                ],
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+        else:
+            prototype, tool_call = execute_candidate(execution_candidate)
+            record_tool_calls(tool_call)
+        last_checked_prototype.clear()
+        last_checked_prototype.update(deepcopy(dict(prototype)))
+        check = {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": source_candidate_accepted(prototype),
+            "prototype": source_observation(prototype),
+        }
+        disposition = str(
+            prototype.get("source_iteration_disposition", "") or ""
+        ).strip()
+        if disposition:
+            check["source_iteration_disposition"] = disposition
+        source_owner = prototype.get("source_owner", {})
+        if isinstance(source_owner, Mapping) and source_owner:
+            check["source_owner"] = deepcopy(dict(source_owner))
+        return check
+
+    active_recovery_checkpoint = (
+        deepcopy(dict(recovery_checkpoint))
+        if isinstance(recovery_checkpoint, Mapping) and recovery_checkpoint
+        else {}
+    )
+    if active_recovery_checkpoint:
+        try:
+            workspace_draft, initial_observation = (
+                load_scientific_code_workspace_checkpoint(
+                    active_recovery_checkpoint,
+                    artifact_id=artifact_id,
+                )
+            )
+        except ValueError as exc:
+            return (
+                {
+                    **dict(failure_identity),
+                    "prototype_status": "SCIENTIFIC_WORKSPACE_CHECKPOINT_INVALID",
+                    "smoke_passed": False,
+                    "execution_smoke_passed": False,
+                    "scientific_code_workspace_failure": {
+                        "validation_errors": [str(exc)],
+                        "recovery_checkpoint": active_recovery_checkpoint,
+                        "runtime_edited_source": False,
+                    },
+                },
+                tool_calls,
+            )
+        workspace_operation = str(
+            active_recovery_checkpoint.get(
+                "workspace_operation", "targeted_revision"
+            )
+            or "targeted_revision"
+        )
+        prototype = {
+            **dict(failure_identity),
+            "prototype_status": "MODEL_SOURCE_WORKSPACE_FAILED",
+            "smoke_passed": False,
+            "execution_smoke_passed": False,
+        }
+    elif source_deferred:
+        if not can_use_workspace:
+            return (
+                {
+                    **dict(failure_identity),
+                    "prototype_status": "MODEL_SOURCE_WORKSPACE_UNAVAILABLE",
+                    "smoke_passed": False,
+                    "execution_smoke_passed": False,
+                    "reason": (
+                        "The planning envelope deferred source to native client "
+                        "tools, but the source-owning provider has no callable "
+                        "workspace."
+                    ),
+                },
+                tool_calls,
+            )
+        workspace_draft: Mapping[str, Any] | None = None
+        workspace_operation = "initial_authoring"
+        initial_observation = {
+            "artifact_kind": "ScientificSourceAuthoringRequired",
+            "accepted": False,
+            "artifact_id": artifact_id,
+            "execution_attempted": False,
+            "observation": (
+                "No source exists yet; author and run the complete candidate in "
+                "this workspace."
+            ),
+        }
+        prototype = {
+            **dict(failure_identity),
+            "prototype_status": "MODEL_SOURCE_WORKSPACE_FAILED",
+            "smoke_passed": False,
+            "execution_smoke_passed": False,
+        }
+    elif external_initial_observation and can_use_workspace:
+        workspace_draft = {
+            key: deepcopy(code_draft[key])
+            for key in (
+                "language",
+                "execution_profile",
+                "dependencies",
+                "entrypoint",
+                "code",
+            )
+            if key in code_draft
+        }
+        workspace_operation = "targeted_revision"
+        initial_observation = {
+            **deepcopy(dict(external_initial_observation)),
+            "code_draft_hash": stable_hash(workspace_draft),
+            "accepted": False,
+        }
+        prototype = {
+            **dict(failure_identity),
+            "prototype_status": "MODEL_SOURCE_WORKSPACE_FAILED",
+            "smoke_passed": False,
+            "execution_smoke_passed": False,
+        }
+    else:
+        prototype, tool_call = execute_candidate(code_draft)
+        record_tool_calls(tool_call)
+        if (
+            source_candidate_accepted(prototype)
+            or prototype.get("source_iteration_disposition")
+            == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+            or not can_use_workspace
+        ):
+            return prototype, tool_calls
+        workspace_draft = {
+            key: deepcopy(code_draft[key])
+            for key in (
+                "language",
+                "execution_profile",
+                "dependencies",
+                "entrypoint",
+                "code",
+            )
+            if key in code_draft
+        }
+        workspace_operation = "targeted_revision"
+        initial_observation = {
+            "code_draft_hash": stable_hash(workspace_draft),
+            "accepted": False,
+            "prototype": source_observation(prototype),
+        }
+
+    try:
+        workspace_result = proposal_agent.iterate_code_with_tools(
+            question=question,
+            artifact_id=artifact_id,
+            code_draft=workspace_draft,
+            initial_observation=initial_observation,
+            workspace_context=dict(workspace_context),
+            check_candidate=check_candidate,
+            workspace_operation=workspace_operation,
+            allow_current_source_run=allow_current_source_run,
+            recovery_checkpoint=(active_recovery_checkpoint or None),
+        )
+    except PacketValidationError as exc:
+        if last_checked_prototype:
+            prototype = deepcopy(last_checked_prototype)
+        prototype["scientific_code_workspace_failure"] = {
+            "validation_errors": list(exc.errors),
+            "attempts": exc.attempts,
+            "history": [dict(row) for row in exc.history],
+            "recovery_checkpoint": dict(exc.recovery_checkpoint or {}),
+            "runtime_edited_source": False,
+        }
+        return prototype, tool_calls
+
+    if not last_checked_prototype:
+        raise RuntimeError(
+            "scientific workspace accepted without a persisted sandbox result"
+        )
+    prototype = deepcopy(last_checked_prototype)
+    prototype["scientific_code_workspace"] = dict(workspace_result.evidence)
+    return prototype, tool_calls
 
 
 def _outcome_blind_request_shape(value: Any) -> Any:
@@ -671,6 +1510,7 @@ def run_scientific_code_workspace(
     workspace_operation: str = "targeted_revision",
     allow_current_source_run: bool = False,
     request_metadata: Mapping[str, Any] | None = None,
+    recovery_checkpoint: Mapping[str, Any] | None = None,
 ) -> ScientificCodeWorkspaceResult:
     """Let one model own complete scientific source across raw sandbox feedback."""
 
@@ -690,16 +1530,58 @@ def run_scientific_code_workspace(
         if isinstance(initial_code_draft, Mapping) and initial_code_draft
         else {}
     )
+    resumed_checkpoint = (
+        deepcopy(dict(recovery_checkpoint))
+        if isinstance(recovery_checkpoint, Mapping) and recovery_checkpoint
+        else {}
+    )
+    resumed_checkpoint_id = ""
+    prior_source_updates = 0
+    prior_checks = 0
+    prior_observed_hashes: set[str] = set()
+    if resumed_checkpoint:
+        resumed_draft, resumed_last_check = (
+            load_scientific_code_workspace_checkpoint(
+                resumed_checkpoint,
+                artifact_id=artifact_id,
+            )
+        )
+        if parent_draft and stable_hash(parent_draft) != stable_hash(resumed_draft):
+            raise ValueError(
+                "scientific code workspace resume source does not match initial source"
+            )
+        if stable_hash(dict(initial_check_result)) != stable_hash(resumed_last_check):
+            raise ValueError(
+                "scientific code workspace resume observation does not match checkpoint"
+            )
+        parent_draft = resumed_draft
+        resumed_checkpoint_id = str(
+            resumed_checkpoint.get("checkpoint_id", "") or ""
+        )
+        prior_source_updates = int(
+            resumed_checkpoint.get("source_updates", 0) or 0
+        )
+        prior_checks = int(resumed_checkpoint.get("checks", 0) or 0)
+        prior_observed_hashes = {
+            str(value)
+            for value in resumed_checkpoint.get(
+                "observed_code_draft_hashes", []
+            )
+            or []
+            if str(value or "").strip()
+        }
     if workspace_operation == "targeted_revision" and not parent_draft:
         raise ValueError("targeted scientific source revision requires parent source")
     parent_hash = stable_hash(parent_draft) if parent_draft else ""
-    observed_draft_hashes = {parent_hash} if parent_hash else set()
+    observed_draft_hashes = set(prior_observed_hashes)
+    if parent_hash:
+        observed_draft_hashes.add(parent_hash)
     state: dict[str, Any] = {
         "code_draft": parent_draft,
         "code_draft_hash": parent_hash,
-        "source_updates": 0,
+        "source_updates": prior_source_updates,
         "current_source_run_requests": 0,
-        "checks": 0,
+        "checks": prior_checks,
         "last_check": deepcopy(dict(initial_check_result)),
     }
     tools = _scientific_code_tools(
@@ -882,8 +1764,8 @@ def run_scientific_code_workspace(
                 "content": (
                     user_prompt
                     + "\n\nThis workspace has at most "
-                    + str(max_turns)
-                    + " total model/tool turns. Retain the observed source hashes, "
+                + str(max_turns)
+                + " total model/tool turns. Retain the observed source hashes, "
                     "sandbox results, and attempted changes across those turns. Do "
                     "not resubmit a previously observed byte-identical candidate."
                 )
@@ -897,6 +1779,14 @@ def run_scientific_code_workspace(
                 )
                 + "\n\nInitial workspace observation:\n"
                 + _compact_json(initial_check_result)
+                + (
+                    "\n\nThis is a hash-bound continuation of checkpoint "
+                    + resumed_checkpoint_id
+                    + ". Continue from the exact current source and observation; "
+                    "do not regenerate the planning envelope."
+                    if resumed_checkpoint_id
+                    else ""
+                )
                 + (
                     "\n\nThe current candidate has a failed consumer observation. "
                     "Diagnose that exact observation. If this source owns the defect, "
@@ -931,6 +1821,7 @@ def run_scientific_code_workspace(
             "artifact_id": artifact_id,
             "parent_code_draft_hash": parent_hash,
             "workspace_operation": workspace_operation,
+            "resumed_from_checkpoint_id": resumed_checkpoint_id,
         },
     )
 
@@ -944,25 +1835,54 @@ def run_scientific_code_workspace(
             max_no_progress_turns=max_no_progress_turns,
         )
     except ClientToolLoopError as exc:
+        last_check = deepcopy(dict(state["last_check"]))
+        current_draft = deepcopy(dict(state["code_draft"]))
+        current_draft_hash = str(state["code_draft_hash"] or "")
+        last_check_bound = bool(
+            current_draft
+            and current_draft_hash
+            and str(last_check.get("code_draft_hash", "") or "")
+            == current_draft_hash
+        )
+        checkpoint_body = {
+            "schema_version": 2,
+            "artifact_kind": SCIENTIFIC_CODE_WORKSPACE_CHECKPOINT_KIND,
+            "artifact_id": artifact_id,
+            "workspace_operation": workspace_operation,
+            "parent_code_draft_hash": parent_hash,
+            "current_code_draft_hash": current_draft_hash,
+            "current_code_draft": current_draft,
+            "observed_code_draft_hashes": sorted(observed_draft_hashes),
+            "source_updates": state["source_updates"],
+            "checks": state["checks"],
+            "segment_start_source_updates": prior_source_updates,
+            "segment_start_checks": prior_checks,
+            "last_check": last_check,
+            "last_check_hash": stable_hash(last_check),
+            "resumed_from_checkpoint_id": resumed_checkpoint_id,
+            "resumable": bool(
+                last_check_bound and state["checks"] > prior_checks
+            ),
+            "accepted": False,
+            "model_owned_source": True,
+            "runtime_edited_source": False,
+            "proof_evidence_status": (
+                "SCIENTIFIC_CODE_WORKSPACE_CHECKPOINT_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        checkpoint = {
+            **checkpoint_body,
+            "checkpoint_id": (
+                "scientific_code_workspace_checkpoint:"
+                + stable_hash(checkpoint_body)[:20]
+            ),
+        }
         raise PacketValidationError(
             validation_label="LLM scientific code workspace",
             attempts=exc.turns,
             errors=[exc.reason],
             history=[deepcopy(dict(row)) for row in exc.history],
-            recovery_checkpoint={
-                "schema_version": 1,
-                "artifact_kind": "ScientificCodeWorkspaceCheckpoint",
-                "artifact_id": artifact_id,
-                "workspace_operation": workspace_operation,
-                "parent_code_draft_hash": parent_hash,
-                "current_code_draft_hash": state["code_draft_hash"],
-                "current_code_draft": deepcopy(dict(state["code_draft"])),
-                "source_updates": state["source_updates"],
-                "checks": state["checks"],
-                "last_check": deepcopy(dict(state["last_check"])),
-                "model_owned_source": True,
-                "runtime_edited_source": False,
-            },
+            recovery_checkpoint=checkpoint,
         ) from exc
 
     terminal = dict(loop.terminal_payload)
@@ -995,6 +1915,7 @@ def run_scientific_code_workspace(
         "artifact_id": artifact_id,
         "transport": "native_client_tools",
         "workspace_operation": workspace_operation,
+        "resumed_from_checkpoint_id": resumed_checkpoint_id,
         "parent_code_draft_hash": parent_hash,
         "initial_check_result_hash": stable_hash(dict(initial_check_result)),
         "initial_check_accepted": initial_check_result.get("accepted") is True,

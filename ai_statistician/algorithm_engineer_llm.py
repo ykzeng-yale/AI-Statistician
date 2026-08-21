@@ -206,6 +206,7 @@ class LLMAlgorithmEngineerAgent:
         check_candidate: Callable[[Mapping[str, Any]], Mapping[str, Any]],
         workspace_operation: str = "targeted_revision",
         allow_current_source_run: bool = False,
+        recovery_checkpoint: Mapping[str, Any] | None = None,
     ) -> ScientificCodeWorkspaceResult:
         """Run one direct model -> sandbox -> same-model source loop."""
 
@@ -249,6 +250,7 @@ class LLMAlgorithmEngineerAgent:
             check_candidate=check_candidate,
             workspace_operation=workspace_operation,
             allow_current_source_run=allow_current_source_run,
+            recovery_checkpoint=recovery_checkpoint,
             request_metadata={
                 "subsystem": "AlgorithmEngineer",
                 "agent": "LLMAlgorithmEngineerAgent",
