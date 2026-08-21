@@ -13,6 +13,7 @@ from typing import Any, Callable, Mapping, Sequence
 from .fingerprint import stable_hash
 from .estimator_interface_contract import (
     frozen_estimator_execution_contract_clause_ids,
+    frozen_estimator_execution_contract_empirical_claim_ids,
     frozen_estimator_execution_contract_errors,
     frozen_estimator_execution_contract_id,
 )
@@ -1915,6 +1916,23 @@ def _validate_benchmark_manifest(
             and not contract_errors
             else set()
         )
+        empirical_claim_clause_ids = (
+            frozen_estimator_execution_contract_empirical_claim_ids(
+                estimator_execution_contract
+            )
+            if contract_clause_ids
+            else set()
+        )
+        if (
+            schema_version >= 2
+            and isinstance(empirical_evaluator, Mapping)
+            and empirical_evaluator
+            and not empirical_claim_clause_ids
+        ):
+            errors.append(
+                f"active task {index} model-visible estimator_execution_contract "
+                "requires an empirical claim for the hidden empirical evaluator"
+            )
         contract_id = (
             frozen_estimator_execution_contract_id(
                 estimator_execution_contract
@@ -2024,6 +2042,11 @@ def _validate_benchmark_manifest(
                     require_estimator=require_estimator,
                     allowed_contract_clause_ids=(
                         contract_clause_ids
+                        if schema_version >= 2 and label == "empirical"
+                        else None
+                    ),
+                    required_contract_clause_ids=(
+                        empirical_claim_clause_ids
                         if schema_version >= 2 and label == "empirical"
                         else None
                     ),
@@ -2223,6 +2246,7 @@ def _hidden_evaluator_validation_errors(
     project_root: Path,
     require_estimator: bool,
     allowed_contract_clause_ids: set[str] | None,
+    required_contract_clause_ids: set[str] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     harness_path = _project_path(
@@ -2305,6 +2329,13 @@ def _hidden_evaluator_validation_errors(
                 errors.append(
                     f"active task {task_index} {label} check {check_index} "
                     "contract_clause_refs repeat"
+                )
+            if required_contract_clause_ids is not None and not (
+                set(refs) & required_contract_clause_ids
+            ):
+                errors.append(
+                    f"active task {task_index} {label} check {check_index} "
+                    "must cite a model-visible empirical claim"
                 )
     if allowed_contract_clause_ids is not None and len(check_ids) != len(
         set(check_ids)

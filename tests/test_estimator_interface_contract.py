@@ -4,6 +4,7 @@ import json
 
 from ai_statistician.estimator_interface_contract import (
     frozen_estimator_execution_contract_clause_ids,
+    frozen_estimator_execution_contract_empirical_claim_ids,
     frozen_estimator_execution_contract_errors,
     frozen_estimator_execution_contract_id,
 )
@@ -60,6 +61,12 @@ def _frozen_contract() -> dict:
                 "meaning": "Adding c to every observation adds c to estimate.",
             }
         ],
+        "empirical_claims": [
+            {
+                "clause_id": "claim.empirical.mean_behavior",
+                "meaning": "A frozen empirical assessment checks the mean behavior with Monte Carlo uncertainty.",
+            }
+        ],
     }
 
 
@@ -75,7 +82,11 @@ def test_frozen_estimator_execution_contract_has_stable_public_clauses() -> None
         "request.sample",
         "response.estimate",
         "invariant.translation",
+        "claim.empirical.mean_behavior",
     }
+    assert frozen_estimator_execution_contract_empirical_claim_ids(
+        contract
+    ) == {"claim.empirical.mean_behavior"}
     assert frozen_estimator_execution_contract_id(contract).startswith(
         "frozen_estimator_execution_contract:"
     )
@@ -94,6 +105,19 @@ def test_frozen_estimator_execution_contract_rejects_ambiguous_field_semantics()
 
     assert "contract response_fields[0] missing meaning" in errors
     assert "contract clause_id values must be unique" in errors
+
+
+def test_frozen_estimator_execution_contract_rejects_invalid_empirical_claim() -> None:
+    contract = _frozen_contract()
+    del contract["empirical_claims"][0]["meaning"]
+
+    errors = frozen_estimator_execution_contract_errors(
+        contract,
+        label="contract",
+        required=True,
+    )
+
+    assert "contract empirical_claims[0] missing meaning" in errors
 
 
 def test_question_loader_preserves_frozen_estimator_execution_contract(

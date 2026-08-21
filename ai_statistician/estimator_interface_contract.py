@@ -45,7 +45,12 @@ def frozen_estimator_execution_contract_clause_ids(value: Any) -> set[str]:
     if not isinstance(value, Mapping):
         return set()
     clause_ids: set[str] = set()
-    for collection in ("request_fields", "response_fields", "invariants"):
+    for collection in (
+        "request_fields",
+        "response_fields",
+        "invariants",
+        "empirical_claims",
+    ):
         for row in value.get(collection, []) or []:
             if not isinstance(row, Mapping):
                 continue
@@ -53,6 +58,21 @@ def frozen_estimator_execution_contract_clause_ids(value: Any) -> set[str]:
             if clause_id:
                 clause_ids.add(clause_id)
     return clause_ids
+
+
+def frozen_estimator_execution_contract_empirical_claim_ids(
+    value: Any,
+) -> set[str]:
+    if not isinstance(value, Mapping):
+        return set()
+    claim_ids: set[str] = set()
+    for row in value.get("empirical_claims", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        clause_id = str(row.get("clause_id", "") or "").strip()
+        if clause_id:
+            claim_ids.add(clause_id)
+    return claim_ids
 
 
 def frozen_estimator_execution_contract_errors(
@@ -116,6 +136,23 @@ def frozen_estimator_execution_contract_errors(
         invariants = []
     for index, row in enumerate(invariants):
         row_label = f"{label} invariants[{index}]"
+        if not isinstance(row, Mapping):
+            errors.append(f"{row_label} must be an object")
+            continue
+        clause_id = str(row.get("clause_id", "") or "").strip()
+        if not clause_id:
+            errors.append(f"{row_label} missing clause_id")
+        else:
+            all_clause_ids.append(clause_id)
+        if not str(row.get("meaning", "") or "").strip():
+            errors.append(f"{row_label} missing meaning")
+
+    empirical_claims = value.get("empirical_claims", [])
+    if not isinstance(empirical_claims, list):
+        errors.append(f"{label} empirical_claims must be a list")
+        empirical_claims = []
+    for index, row in enumerate(empirical_claims):
+        row_label = f"{label} empirical_claims[{index}]"
         if not isinstance(row, Mapping):
             errors.append(f"{row_label} must be an object")
             continue

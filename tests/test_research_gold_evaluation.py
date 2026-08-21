@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -1344,7 +1345,11 @@ def test_gold_evaluator_does_not_rescore_a_run_from_an_older_question(
     ]
 
 
-def _schema_v2_gold_manifest(tmp_path: Path) -> Path:
+def _schema_v2_gold_manifest(
+    tmp_path: Path,
+    *,
+    include_empirical: bool = False,
+) -> Path:
     contract = {
         "schema_version": 1,
         "estimator_id": "est_ols_hc0_covariance",
@@ -1381,6 +1386,12 @@ def _schema_v2_gold_manifest(tmp_path: Path) -> Path:
                 "meaning": "The returned covariance matrix is symmetric.",
             }
         ],
+        "empirical_claims": [
+            {
+                "clause_id": "claim.empirical.covariance_behavior",
+                "meaning": "The frozen empirical assessment checks the stated covariance behavior with Monte Carlo uncertainty.",
+            }
+        ],
     }
     manifest = json.loads(GOLD_MANIFEST.read_text(encoding="utf-8"))
     visible_question = {
@@ -1413,12 +1424,22 @@ def _schema_v2_gold_manifest(tmp_path: Path) -> Path:
     task["estimator_execution_contract_id"] = (
         frozen_estimator_execution_contract_id(contract)
     )
+    if include_empirical:
+        task["hidden_empirical_evaluator"] = deepcopy(
+            task["hidden_algorithm_evaluator"]
+        )
     for check in task["hidden_algorithm_evaluator"]["acceptance_checks"]:
         check["contract_clause_refs"] = [
             "request.design_and_outcome",
             "response.covariance",
             "invariant.symmetric",
         ]
+    if include_empirical:
+        for check in task["hidden_empirical_evaluator"]["acceptance_checks"]:
+            check["contract_clause_refs"] = [
+                "response.covariance",
+                "claim.empirical.covariance_behavior",
+            ]
     manifest_path = tmp_path / "schema-v2-gold.json"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     return manifest_path
@@ -1427,7 +1448,7 @@ def _schema_v2_gold_manifest(tmp_path: Path) -> Path:
 def test_schema_v2_gold_binds_hidden_checks_to_visible_contract_clauses(
     tmp_path: Path,
 ) -> None:
-    path = _schema_v2_gold_manifest(tmp_path)
+    path = _schema_v2_gold_manifest(tmp_path, include_empirical=True)
     manifest = json.loads(path.read_text(encoding="utf-8"))
     visible = json.loads(
         Path(manifest["model_visible_questions_path"]).read_text(
@@ -1448,7 +1469,7 @@ def test_schema_v2_gold_binds_hidden_checks_to_visible_contract_clauses(
 def test_schema_v2_gold_rejects_ambiguous_visible_field_semantics(
     tmp_path: Path,
 ) -> None:
-    path = _schema_v2_gold_manifest(tmp_path)
+    path = _schema_v2_gold_manifest(tmp_path, include_empirical=True)
     manifest = json.loads(path.read_text(encoding="utf-8"))
     visible_path = Path(manifest["model_visible_questions_path"])
     visible = json.loads(visible_path.read_text(encoding="utf-8"))
@@ -1515,4 +1536,54 @@ def test_schema_v2_gold_rejects_evaluator_estimator_identity_drift(
     path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ValueError, match="model-visible contract"):
+        validate_research_gold_benchmark_manifest(path)
+
+
+def test_schema_v2_gold_requires_public_empirical_claim(
+    tmp_path: Path,
+) -> None:
+    path = _schema_v2_gold_manifest(tmp_path, include_empirical=True)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    visible_path = Path(manifest["model_visible_questions_path"])
+    visible = json.loads(visible_path.read_text(encoding="utf-8"))
+    question = visible["questions"][0]
+    question["estimator_execution_contract"]["empirical_claims"] = []
+    visible_path.write_text(json.dumps(visible), encoding="utf-8")
+    manifest["model_visible_questions_sha256"] = _fixture_sha256(visible_path)
+    task = manifest["active_tasks"][0]
+    task["visible_question_hash"] = stable_hash(
+        {
+            key: question[key]
+            for key in (
+                "id",
+                "title",
+                "description",
+                "tags",
+                "task_intent",
+                "estimator_execution_contract",
+            )
+        }
+    )
+    task["estimator_execution_contract_id"] = (
+        frozen_estimator_execution_contract_id(
+            question["estimator_execution_contract"]
+        )
+    )
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="requires an empirical claim"):
+        validate_research_gold_benchmark_manifest(path)
+
+
+def test_schema_v2_empirical_check_must_cite_public_empirical_claim(
+    tmp_path: Path,
+) -> None:
+    path = _schema_v2_gold_manifest(tmp_path, include_empirical=True)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["active_tasks"][0]["hidden_empirical_evaluator"][
+        "acceptance_checks"
+    ][0]["contract_clause_refs"] = ["response.covariance"]
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must cite a model-visible empirical claim"):
         validate_research_gold_benchmark_manifest(path)

@@ -129,7 +129,9 @@ placing another Codex thread manager around `AgentRuntime`.
 10. Executable scientific tasks freeze one compact, model-visible estimator ABI
     before the first model call. The same contract reaches the Theory, Python/R,
     Simulation, review, and Critic contexts, while schema-v2 hidden checks cite
-    its stable public clauses and remain isolated after runtime termination.
+    its stable public clauses and remain isolated after runtime termination. A
+    task with hidden empirical assessment adds only public `empirical_claims`;
+    general theory remains Markdown/LaTeX rather than an ABI claim taxonomy.
     Agent outputs do not copy the full contract. This applies Codex's stable tool
     surface and exact observation-binding principle to scientific evaluation;
     it does not ask runtime to interpret statistics or repair model source.
@@ -208,11 +210,13 @@ No consumed benchmark may be rerun to claim that this mechanism works.
 The visible-executable-contract correction has focused regression evidence only.
 It validates stable public clauses, exact runtime and prompt propagation, legacy
 question compatibility, evaluator identity binding, and fail-closed rejection of
-unstated hidden-check semantics. Structural clause references remain provenance,
-not proof that a hidden check is scientifically entailed; that preactivation
-audit and independent harness calibration remain operator responsibilities. No
-new live draw is authorized until the code is committed, the full suite passes,
-and a future unrelated task is frozen under schema v2.
+unstated hidden-check semantics. A hidden empirical check must additionally cite
+one of the compact public `empirical_claims`; no general theory schema was added.
+Structural clause references remain provenance, not proof that a hidden check is
+scientifically entailed; that preactivation audit and independent harness
+calibration remain operator responsibilities. No new live draw is authorized
+until the code is committed, the full suite passes, and a future unrelated task
+is frozen under schema v2.
 
 The deterministic continuation regression is complete at code commit
 `9de34cf231b59f35985170775314834eeeebaf2d`: Algorithm and simulation both

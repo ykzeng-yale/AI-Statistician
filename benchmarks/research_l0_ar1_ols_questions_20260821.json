@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "stationary_ar1_zero_mean_ols_known_result",
+      "title": "Least-squares inference for a stationary zero-mean AR(1)",
+      "description": "Focused L0 known-result evaluation in time-series statistics. Let X_t=phi X_{t-1}+epsilon_t for t=1,...,T, with |phi|<1, a stationary zero-mean initialization, and iid innovations independent of the past with mean zero, variance sigma_epsilon^2>0, and enough moments for the law of large numbers and martingale central limit theorem. For the no-intercept least-squares estimator phi_hat=[sum_{t=1}^T X_{t-1}X_t]/[sum_{t=1}^T X_{t-1}^2], develop one authoritative Markdown/LaTeX derivation of the exact error decomposition, the stationary variance gamma_0=sigma_epsilon^2/(1-phi^2), consistency, and sqrt(T)(phi_hat-phi) converging in distribution to N(0,1-phi^2). State why the numerator is a martingale sum, identify its limiting quadratic variance, justify the denominator limit, use Slutsky explicitly, and do not claim finite-sample unbiasedness or use simulation as proof. The required model-authored artifact is est_ar1_zero_mean_ols and must implement the frozen run_estimator(request) contract exactly. Exploratory computation may diagnose implementation or finite-sample behavior. A separate frozen confirmatory assessment uses independently generated stationary Gaussian AR(1) paths at predeclared negative, moderate, and persistent coefficients to test the exact estimator identity and the standardized asymptotic error with Monte Carlo uncertainty. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "time_series",
+        "autoregression",
+        "AR1",
+        "least_squares",
+        "martingale_clt",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_ar1_zero_mean_ols",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.series",
+            "name": "series",
+            "meaning": "One finite real-valued time-series path in chronological order, containing X_0 through X_T.",
+            "json_type": "array[number]",
+            "shape": "length T+1 with T>=2 and sum_{t=1}^T X_{t-1}^2>0",
+            "units": "one common measurement unit for every observation",
+            "indexing": "zero-based element j is X_j; adjacent pair (series[t-1], series[t]) represents transition t for t=1,...,T",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, fewer than three observations, and a zero lag-square denominator.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n_transitions",
+            "name": "n_transitions",
+            "meaning": "The number T of adjacent chronological transitions used by the estimator.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "count",
+            "indexing": "equals len(series)-1",
+            "edge_cases": "Must be an integer at least two.",
+            "normalization": "No normalization; count every transition t=1,...,T exactly once."
+          },
+          {
+            "clause_id": "response.lag_cross_sum",
+            "name": "lag_cross_sum",
+            "meaning": "The chronological lag-one cross-product sum from X_0 X_1 through X_{T-1} X_T.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "squared measurement units",
+            "indexing": "sum_{t=1}^T series[t-1]*series[t]",
+            "edge_cases": "Must be JSON-finite.",
+            "normalization": "Unnormalized sum over all T adjacent transitions."
+          },
+          {
+            "clause_id": "response.lag_square_sum",
+            "name": "lag_square_sum",
+            "meaning": "The sum of squared lagged regressors X_0 through X_{T-1}.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "squared measurement units",
+            "indexing": "sum_{t=1}^T series[t-1]^2",
+            "edge_cases": "Must be JSON-finite and strictly positive.",
+            "normalization": "Unnormalized sum over the T lagged values used as regressors."
+          },
+          {
+            "clause_id": "response.phi_hat",
+            "name": "phi_hat",
+            "meaning": "The no-intercept least-squares estimate of the AR(1) coefficient for the supplied path.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "dimensionless",
+            "indexing": "uses every transition t=1,...,T in chronological order",
+            "edge_cases": "Must be JSON-finite; no clipping to the stationary interval is allowed.",
+            "normalization": "lag_cross_sum divided by lag_square_sum."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.ratio_identity",
+            "meaning": "phi_hat equals lag_cross_sum/lag_square_sum for the exact returned sums."
+          },
+          {
+            "clause_id": "invariant.common_rescaling",
+            "meaning": "Multiplying every series value by the same nonzero finite constant leaves phi_hat unchanged and multiplies both returned sums by the constant squared."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.standardized_error",
+            "meaning": "The frozen confirmatory assessment compares independently generated stationary Gaussian AR(1) paths at predeclared negative, moderate, and persistent coefficients using z=sqrt(T)*(phi_hat-phi)/sqrt(1-phi^2), reports Monte Carlo uncertainty, and treats approximate centered unit-normal behavior as empirical support rather than proof."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory estimator call must use the exact predeclared path and contract, and the assessment separately verifies the returned finite-sample ratio identity before aggregating standardized errors."
+          }
+        ]
+      }
+    }
+  ]
+}

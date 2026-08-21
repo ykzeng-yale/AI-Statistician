@@ -61,18 +61,20 @@ Every newly activated schema-v2 task with a hidden algorithm or empirical
 evaluator freezes one model-visible estimator contract before the first model
 call. The contract names the `run_estimator` identity and defines every request
 and response field by meaning, JSON type, shape, units, indexing, edge cases,
-normalization, and stable clause ID. This compact JSON is an execution ABI, not
-the mathematical authority: derivations and claims remain in model-authored
-Markdown/LaTeX documents.
+normalization, and stable clause ID. When an empirical evaluator exists, the
+same compact contract also names the public empirical claims that evaluator is
+allowed to assess. It does not encode general theory claims or derivations:
+those remain in the question and model-authored Markdown/LaTeX documents.
 
 Each evaluator-only algorithm or empirical acceptance check must cite one or
-more public clause IDs, and its estimator identity must match the public
-contract. Expected values, hidden cases, seeds, tolerance values, and harness
-source remain evaluator-only. Clause references establish inspectable
-provenance; they do not mechanically prove semantic entailment. Before task
-activation, the operator still audits that every hidden assertion follows from
-the visible clauses and calibrates the hidden harness against independent valid
-and invalid implementations.
+more public clause IDs, and every empirical check must cite a public empirical
+claim. Its estimator identity must match the public contract. Expected values,
+hidden cases, seeds, tolerance values, and harness source remain evaluator-only.
+Clause references establish inspectable provenance; they do not mechanically
+prove semantic entailment or become runtime guardrails. Before task activation,
+the operator still audits that every hidden assertion follows from the visible
+clauses and calibrates the hidden harness against independent valid and invalid
+implementations.
 
 The full public contract is supplied to the source-owning Theory, Python/R,
 Simulation, review, and Critic model contexts. Agent result artifacts do not
