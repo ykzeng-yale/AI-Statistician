@@ -74,6 +74,12 @@ placing another Codex thread manager around `AgentRuntime`.
    or R program must see the prior execution result before another candidate
    is generated; parallel speculative submissions would spend execution
    evidence without feedback.
+4. Theory author stopping is model-owned. The complete document write and its
+   exact tool result already remain in the same client-tool session, so runtime
+   no longer forces the author to reread every line at the final document hash
+   before requesting independent review. Model-chosen reads remain recorded,
+   while the isolated referee still has to inspect every authoritative document
+   under its separate hash-bound coverage gate.
 
 These changes add no model call, retry, turn, agent, scheduler, model tier,
 statistical formula, Lean grammar rule, or repair recipe.
