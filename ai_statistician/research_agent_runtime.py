@@ -1264,6 +1264,9 @@ class ArchitectCoordinatorRuntimeSubsystem:
                         question=question,
                         architect_context=context,
                         runtime_config=runtime_config_payload,
+                        recovery_checkpoint=task.inputs.get(
+                            "theory_preflight_workspace_checkpoint"
+                        ),
                         **preflight_review_kwargs,
                     )
                 )

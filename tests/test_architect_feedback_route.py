@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import json
 
-from ai_statistician.agent_runtime import AgentTask, BlackboardState
+from ai_statistician.agent_runtime import AgentRuntime, AgentTask, BlackboardState
+from ai_statistician.architect_theory_execution_preflight import (
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND,
+    seal_architect_theory_preflight_workspace_checkpoint,
+)
 from ai_statistician.architect_coordinator_llm import (
     ARCHITECT_COORDINATOR_JSON_SCHEMA,
     ARCHITECT_FEEDBACK_ROUTE_JSON_SCHEMA,
@@ -31,6 +35,7 @@ from ai_statistician.model_backend import GeneratorResponse
 from ai_statistician.research_agent_runtime import (
     ArchitectCoordinatorRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
+    RUNTIME_ARCHITECT_OPERATION_THEORY_PREFLIGHT,
     _runtime_requested_evidence_contract,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
@@ -43,6 +48,7 @@ from ai_statistician.metric_protocol_stage import (
 from ai_statistician.theory_revision_lineage import (
     consume_architect_routed_theory_revision,
 )
+from ai_statistician.structured_output_retry import PacketValidationError
 
 
 EXACT_HAIKU_MODEL = "claude-haiku-4-5-20251001"
@@ -1528,3 +1534,153 @@ def test_runtime_routes_formal_feedback_to_critic_without_restarting_theory() ->
     for key, value in artifact_ids.items():
         assert result.next_task.inputs[key] == value
     assert result.observations[0].payload["full_research_plan_regenerated"] is False
+
+
+def test_agent_runtime_resumes_same_theory_referee_without_architect_replanning() -> None:
+    question = _question()
+    observation_body = {
+        "tool": "read_theory_document",
+        "tool_input": {
+            "path": "theory/workspace.md",
+            "line_start": 1,
+            "line_end": 3,
+        },
+        "content": {
+            "ok": True,
+            "path": "theory/workspace.md",
+            "content": "# Exact prior theory observation",
+        },
+        "is_error": False,
+    }
+    observation = {
+        **observation_body,
+        "observation_fingerprint": (
+            "theory-preflight-workspace-observation:"
+            + stable_hash(observation_body)[:20]
+        ),
+    }
+    checkpoint = seal_architect_theory_preflight_workspace_checkpoint(
+        {
+            "schema_version": 1,
+            "artifact_kind": (
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND
+            ),
+            "question_id": question.id,
+            "review_material_fingerprint": "review-material-hash",
+            "source_theory_packet_id": "theory:generic",
+            "source_theory_packet_hash": "theory-packet-hash",
+            "resumed_from_checkpoint_id": "",
+            "searches": 0,
+            "source_operations": 0,
+            "scratch_runs": 0,
+            "client_tool_loop_turns": 1,
+            "client_tool_loop_tool_calls": 1,
+            "client_tool_loop_runtime_executed_tool_calls": 1,
+            "client_tool_loop_transcript_fingerprint": "transcript-hash",
+            "segment_start_counters": {
+                "searches": 0,
+                "source_operations": 0,
+                "scratch_runs": 0,
+                "client_tool_loop_turns": 0,
+                "client_tool_loop_tool_calls": 0,
+                "client_tool_loop_runtime_executed_tool_calls": 0,
+            },
+            "preflight_source_observations": [],
+            "source_ref_by_hit_id": {},
+            "theory_document_inspection_refs": [
+                {
+                    "tool": "read_theory_document",
+                    "path": "theory/workspace.md",
+                    "line_start": 1,
+                    "line_end": 3,
+                }
+            ],
+            "preflight_scratch_execution_refs": [],
+            "workspace_observations": [observation],
+            "workspace_observation_fingerprints": [
+                observation["observation_fingerprint"]
+            ],
+            "segment_start_observation_count": 0,
+            "resumable": True,
+            "model_owned_workspace_actions": True,
+            "independent_reviewer_workspace": True,
+            "runtime_selected_review_semantics": False,
+            "implementation_authorized": False,
+            "accepted": False,
+            "kernel_verified": False,
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        }
+    )
+
+    class RefereeCoordinator:
+        def __init__(self) -> None:
+            self.review_calls = 0
+            self.plan_calls = 0
+
+        def review_theory_execution_preflight(self, **kwargs):  # type: ignore[no-untyped-def]
+            self.review_calls += 1
+            if self.review_calls == 1:
+                assert kwargs["recovery_checkpoint"] is None
+                raise PacketValidationError(
+                    validation_label="independent theory referee",
+                    attempts=1,
+                    errors=["outer segment exhausted after exact document read"],
+                    history=[],
+                    recovery_checkpoint=checkpoint,
+                )
+            assert kwargs["recovery_checkpoint"] == checkpoint
+            raise PacketValidationError(
+                validation_label="independent theory referee",
+                attempts=1,
+                errors=["no new exact observation"],
+                history=[],
+            )
+
+        def propose(self, **_kwargs):  # type: ignore[no-untyped-def]
+            self.plan_calls += 1
+            raise AssertionError("referee continuation must not replan")
+
+    coordinator = RefereeCoordinator()
+    blackboard = BlackboardState(project_id=question.id)
+    runtime = AgentRuntime(
+        subsystems={
+            "ArchitectCoordinator": ArchitectCoordinatorRuntimeSubsystem(
+                coordinator=coordinator,  # type: ignore[arg-type]
+                runtime_config=ResearchAgentRuntimeConfig(),
+            )
+        },
+        blackboard=blackboard,
+    )
+    result = runtime.run(
+        AgentTask(
+            task_id="theory-preflight:generic",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Run the independent theory preflight.",
+            inputs={
+                "question": {
+                    "id": question.id,
+                    "title": question.title,
+                    "description": question.description,
+                    "tags": list(question.tags),
+                },
+                "architect_context": {},
+                "runtime_architect_operation": (
+                    RUNTIME_ARCHITECT_OPERATION_THEORY_PREFLIGHT
+                ),
+            },
+        ),
+        max_iterations=3,
+    )
+
+    assert result.status == "BLOCKED"
+    assert coordinator.review_calls == 2
+    assert coordinator.plan_calls == 0
+    assert len(result.traces) == 2
+    assert result.traces[0].status == "REVISE"
+    assert result.traces[0].failure_classification == (
+        "architect_theory_execution_preflight_workspace_progress"
+    )
+    assert result.traces[1].failure_classification == (
+        "architect_theory_execution_preflight_packet_validation_failed"
+    )
+    assert checkpoint["checkpoint_id"] in blackboard.artifacts

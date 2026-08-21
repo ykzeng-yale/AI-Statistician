@@ -23,12 +23,15 @@ from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT,
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND,
     _architect_theory_execution_preflight_submit_schema,
     _preflight_scratchpad_evidence_errors,
     _search_preflight_sources,
+    architect_theory_preflight_workspace_continuation_errors,
     build_architect_theory_execution_preflight_material,
     build_architect_theory_execution_preflight_prompt,
     review_architect_theory_execution_preflight,
+    seal_architect_theory_preflight_workspace_checkpoint,
     validate_architect_theory_execution_preflight_packet,
 )
 from ai_statistician.fingerprint import stable_hash
@@ -798,6 +801,7 @@ def _tool_review(
     theory_protocol_material=None,
     upstream_research_contract=None,
     theory_scratchpad=None,
+    recovery_checkpoint=None,
 ):
     selected_theory_material = (
         theory_protocol_material
@@ -827,6 +831,7 @@ def _tool_review(
         research_sources=research_sources,
         prior_finding_ledger=prior_finding_ledger,
         theory_scratchpad=theory_scratchpad,
+        recovery_checkpoint=recovery_checkpoint,
     )
 
 
@@ -1711,6 +1716,218 @@ def test_preflight_client_tool_loop_failure_is_fail_closed() -> None:
         "client_tool_loop_terminal_decision_reason"
     ] == "repeated turns without a client tool call"
     assert "repeated turns without a client tool call" in str(exc_info.value)
+
+
+def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
+    tmp_path,
+) -> None:
+    document = (
+        "# Candidate derivation\n"
+        "Define a finite observation and its target risk.\n"
+        "The central identity follows by conditioning on the observed branch.\n"
+        "A boundary case remains available for independent inspection.\n"
+    )
+    workspace = tmp_path / "theory-workspace"
+    document_path = workspace / "theory" / "workspace.md"
+    document_path.parent.mkdir(parents=True)
+    document_path.write_text(document, encoding="utf-8")
+    material = _theory_material()
+    semantic = material["theory_semantic_material"]
+    assert isinstance(semantic, dict)
+    semantic["theory_workspace_manifest"] = theory_workspace_document_manifest(
+        {"theory/workspace.md": document},
+        workspace_dir=workspace,
+    )
+    material["source_theory_packet_hash"] = stable_hash(semantic)
+
+    class FirstSegmentBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "read-authoritative-derivation",
+                        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                        {
+                            "path": "theory/workspace.md",
+                            "line_start": 1,
+                            "line_end": 4,
+                        },
+                    )
+                )
+            if turn == 2:
+                return _tool_response(
+                    ClientToolCall(
+                        "search-task-bound-source",
+                        "search_preflight_sources",
+                        {
+                            "query": "finite observation target risk",
+                            "source_scope": "theory",
+                            "k": 2,
+                        },
+                    )
+                )
+            if turn == 3:
+                invalid = _compact_submission(_payload(accept=True))
+                invalid["dimension_statuses"] = []
+                return _tool_response(
+                    ClientToolCall(
+                        "submit-structurally-incomplete-review",
+                        "submit_theory_preflight_review",
+                        invalid,
+                    )
+                )
+            return _tool_response()
+
+    first_backend = FirstSegmentBackend()
+    with pytest.raises(PacketValidationError) as first_error:
+        _tool_review(
+            first_backend,
+            theory_protocol_material=material,
+        )
+
+    checkpoint = first_error.value.recovery_checkpoint
+    assert checkpoint["artifact_kind"] == (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND
+    )
+    assert checkpoint["resumable"] is True
+    assert checkpoint["runtime_selected_review_semantics"] is False
+    assert checkpoint["implementation_authorized"] is False
+    assert checkpoint["kernel_verified"] is False
+    assert checkpoint["searches"] == 1
+    assert checkpoint["theory_document_inspection_refs"][0]["line_end"] == 4
+    assert any(
+        row["tool"] == "submit_theory_preflight_review" and row["is_error"]
+        for row in checkpoint["workspace_observations"]
+    )
+    assert any(
+        isinstance(row["content"], dict)
+        and row["content"].get("content") == document.strip()
+        for row in checkpoint["workspace_observations"]
+    )
+    source_ref = next(
+        iter(checkpoint["source_ref_by_hit_id"].values())
+    )
+
+    class SecondSegmentBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            prompt = str(request.messages[0]["content"])
+            assert checkpoint["checkpoint_id"] in prompt
+            assert "Candidate derivation" in prompt
+            assert source_ref in prompt
+            return _tool_response(
+                ClientToolCall(
+                    "submit-from-restored-observations",
+                    "submit_theory_preflight_review",
+                    _compact_submission(_payload(accept=True)),
+                )
+            )
+
+    second_backend = SecondSegmentBackend()
+    packet = _tool_review(
+        second_backend,
+        theory_protocol_material=material,
+        recovery_checkpoint=checkpoint,
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["workspace_resumed_from_model_checkpoint"] is True
+    assert packet["workspace_resumed_from_checkpoint_id"] == (
+        checkpoint["checkpoint_id"]
+    )
+    assert packet["preflight_source_search_count"] == 1
+    assert packet["theory_document_inspection_refs"] == (
+        checkpoint["theory_document_inspection_refs"]
+    )
+    assert packet["client_tool_loop_turns"] == (
+        checkpoint["client_tool_loop_turns"] + 1
+    )
+    assert len(second_backend.requests) == 1
+
+
+def test_preflight_referee_rejects_tampered_and_stalled_checkpoints() -> None:
+    with pytest.raises(PacketValidationError) as first_error:
+        class OneObservationThenStop:
+            provider_name = "anthropic"
+
+            def __init__(self) -> None:
+                self.requests = []
+
+            def generate_client_tool_turn(self, request):
+                self.requests.append(request)
+                if len(self.requests) == 1:
+                    return _tool_response(
+                        ClientToolCall(
+                            "search-once",
+                            "search_preflight_sources",
+                            {
+                                "query": "finite observation target",
+                                "source_scope": "theory",
+                                "k": 1,
+                            },
+                        )
+                    )
+                return _tool_response()
+
+        _tool_review(OneObservationThenStop())
+
+    checkpoint = first_error.value.recovery_checkpoint
+    tampered = deepcopy(checkpoint)
+    tampered["searches"] = 0
+
+    class MustNotRun:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            raise AssertionError("tampered checkpoint must fail before model call")
+
+    blocked_backend = MustNotRun()
+    with pytest.raises(PacketValidationError, match="checkpoint"):
+        _tool_review(blocked_backend, recovery_checkpoint=tampered)
+    assert blocked_backend.requests == []
+
+    stalled_body = deepcopy(checkpoint)
+    stalled_body.pop("checkpoint_id")
+    stalled_body["resumed_from_checkpoint_id"] = checkpoint["checkpoint_id"]
+    stalled_body["segment_start_observation_count"] = len(
+        checkpoint["workspace_observation_fingerprints"]
+    )
+    stalled_body["segment_start_counters"] = {
+        field: checkpoint[field]
+        for field in (
+            "searches",
+            "source_operations",
+            "scratch_runs",
+            "client_tool_loop_turns",
+            "client_tool_loop_tool_calls",
+            "client_tool_loop_runtime_executed_tool_calls",
+        )
+    }
+    stalled_body["resumable"] = False
+    stalled_body["model_owned_workspace_actions"] = False
+    stalled = seal_architect_theory_preflight_workspace_checkpoint(stalled_body)
+    errors = architect_theory_preflight_workspace_continuation_errors(
+        stalled,
+        prior_checkpoint=checkpoint,
+    )
+    assert "referee workspace continuation added no new observation" in errors
+    assert "referee workspace made no new environment-observed progress" in errors
 
 
 def test_preflight_json_only_transport_is_disabled() -> None:

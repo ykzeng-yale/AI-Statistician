@@ -257,6 +257,7 @@ class LLMArchitectCoordinatorAgent:
         architect_context: Mapping[str, Any],
         runtime_config: Mapping[str, Any],
         theory_scratchpad: Any = None,
+        recovery_checkpoint: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Run the independent pre-code gate without authoring metrics."""
 
@@ -283,6 +284,7 @@ class LLMArchitectCoordinatorAgent:
                 else {}
             ),
             theory_scratchpad=theory_scratchpad,
+            recovery_checkpoint=recovery_checkpoint,
         )
 
     def propose(

@@ -88,6 +88,9 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TERMINAL_RECOVERY_TURNS = 1
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS = 2
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND = (
+    "ArchitectTheoryExecutionPreflightWorkspaceCheckpoint"
+)
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_BOUNDARY = (
     "This independent pre-execution review can reject a TheoryDeveloper handoff "
     "that is mathematically inconsistent or cannot be represented by a finite "
@@ -3221,6 +3224,319 @@ def _preflight_evidence_history(
     return persisted
 
 
+def seal_architect_theory_preflight_workspace_checkpoint(
+    checkpoint: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Content-address one exact independent-referee workspace checkpoint."""
+
+    body = deepcopy(dict(checkpoint))
+    body.pop("checkpoint_id", None)
+    return {
+        **body,
+        "checkpoint_id": (
+            "architect_theory_preflight_workspace_checkpoint:"
+            + stable_hash(body)[:20]
+        ),
+    }
+
+
+def _architect_theory_preflight_workspace_checkpoint_errors(
+    checkpoint: Mapping[str, Any],
+    *,
+    question_id: str | None = None,
+    review_material_fingerprint: str | None = None,
+    source_theory_packet_id: str | None = None,
+    source_theory_packet_hash: str | None = None,
+    require_resumable: bool = True,
+) -> list[str]:
+    errors: list[str] = []
+    if checkpoint.get("artifact_kind") != (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND
+    ):
+        errors.append("checkpoint artifact kind is not the referee workspace kind")
+    if checkpoint.get("schema_version") != 1:
+        errors.append("checkpoint schema version is not supported")
+    checkpoint_id = str(checkpoint.get("checkpoint_id", "") or "").strip()
+    expected = seal_architect_theory_preflight_workspace_checkpoint(checkpoint)
+    if checkpoint_id != expected["checkpoint_id"]:
+        errors.append("checkpoint content identity is missing or stale")
+    for expected_value, field, label in (
+        (question_id, "question_id", "question"),
+        (
+            review_material_fingerprint,
+            "review_material_fingerprint",
+            "review material",
+        ),
+        (source_theory_packet_id, "source_theory_packet_id", "theory packet"),
+        (source_theory_packet_hash, "source_theory_packet_hash", "theory hash"),
+    ):
+        observed = str(checkpoint.get(field, "") or "")
+        if not observed:
+            errors.append(f"checkpoint {label} binding is empty")
+        if expected_value is not None and observed != str(expected_value):
+            errors.append(f"checkpoint {label} binding is stale")
+    if (
+        checkpoint.get("independent_reviewer_workspace") is not True
+        or checkpoint.get("runtime_selected_review_semantics") is not False
+        or checkpoint.get("implementation_authorized") is not False
+        or checkpoint.get("accepted") is not False
+        or checkpoint.get("kernel_verified") is not False
+    ):
+        errors.append("checkpoint crosses the referee evidence boundary")
+
+    counter_fields = (
+        "searches",
+        "source_operations",
+        "scratch_runs",
+        "client_tool_loop_turns",
+        "client_tool_loop_tool_calls",
+        "client_tool_loop_runtime_executed_tool_calls",
+    )
+    segment_starts = checkpoint.get("segment_start_counters", {})
+    if not isinstance(segment_starts, Mapping):
+        segment_starts = {}
+        errors.append("checkpoint segment-start counters are malformed")
+    for field in counter_fields:
+        value = checkpoint.get(field, 0)
+        start = segment_starts.get(field, 0)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or value < 0
+            or isinstance(start, bool)
+            or not isinstance(start, int)
+            or start < 0
+            or start > value
+        ):
+            errors.append(f"checkpoint {field} counter lineage is invalid")
+    if int(checkpoint.get("searches", 0) or 0) > (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+    ):
+        errors.append("checkpoint source-search budget was exceeded")
+    if int(checkpoint.get("source_operations", 0) or 0) < int(
+        checkpoint.get("searches", 0) or 0
+    ):
+        errors.append("checkpoint source-operation count is inconsistent")
+
+    observations = checkpoint.get("preflight_source_observations", [])
+    if not isinstance(observations, list) or any(
+        not isinstance(row, Mapping) for row in observations
+    ):
+        observations = []
+        errors.append("checkpoint source observations are malformed")
+    observation_ids = [
+        str(row.get("observation_id", "") or "") for row in observations
+    ]
+    if any(not value for value in observation_ids) or len(observation_ids) != len(
+        set(observation_ids)
+    ):
+        errors.append("checkpoint source observation identities are invalid")
+    refs = checkpoint.get("source_ref_by_hit_id", {})
+    if not isinstance(refs, Mapping) or any(
+        not str(key).strip() or not str(value).strip()
+        for key, value in (refs.items() if isinstance(refs, Mapping) else ())
+    ):
+        refs = {}
+        errors.append("checkpoint source handles are malformed")
+    derived_refs: dict[str, str] = {}
+    for observation in observations:
+        for hit in observation.get("hits", []) or []:
+            if not isinstance(hit, Mapping):
+                continue
+            hit_id = str(hit.get("source_hit_id", "") or "").strip()
+            source_ref = str(hit.get("source_ref", "") or "").strip()
+            if hit_id and source_ref:
+                derived_refs[hit_id] = source_ref
+    if dict(refs) != derived_refs:
+        errors.append("checkpoint source handles do not match exact observations")
+
+    for field in (
+        "theory_document_inspection_refs",
+        "preflight_scratch_execution_refs",
+    ):
+        rows = checkpoint.get(field, [])
+        if not isinstance(rows, list) or any(
+            not isinstance(row, Mapping) for row in rows
+        ):
+            errors.append(f"checkpoint {field} are malformed")
+    scratch_refs = checkpoint.get("preflight_scratch_execution_refs", [])
+    if isinstance(scratch_refs, list) and int(
+        checkpoint.get("scratch_runs", 0) or 0
+    ) != len(scratch_refs):
+        errors.append("checkpoint scratch count does not match exact executions")
+
+    workspace_observations = checkpoint.get("workspace_observations", [])
+    if not isinstance(workspace_observations, list) or any(
+        not isinstance(row, Mapping) for row in workspace_observations
+    ):
+        workspace_observations = []
+        errors.append("checkpoint model-visible observations are malformed")
+    observed_fingerprints: list[str] = []
+    for row in workspace_observations:
+        body = deepcopy(dict(row))
+        fingerprint = str(body.pop("observation_fingerprint", "") or "")
+        expected_fingerprint = (
+            "theory-preflight-workspace-observation:" + stable_hash(body)[:20]
+        )
+        if fingerprint != expected_fingerprint:
+            errors.append("checkpoint model-visible observation identity is stale")
+        observed_fingerprints.append(fingerprint)
+    fingerprints = checkpoint.get("workspace_observation_fingerprints", [])
+    if (
+        not isinstance(fingerprints, list)
+        or fingerprints != observed_fingerprints
+        or any(not value for value in fingerprints)
+        or len(fingerprints) != len(set(fingerprints))
+    ):
+        fingerprints = []
+        errors.append("checkpoint workspace observation lineage is malformed")
+    segment_start = checkpoint.get("segment_start_observation_count", 0)
+    if (
+        isinstance(segment_start, bool)
+        or not isinstance(segment_start, int)
+        or segment_start < 0
+        or segment_start > len(fingerprints)
+    ):
+        segment_start = len(fingerprints)
+        errors.append("checkpoint segment observation boundary is invalid")
+    made_progress = len(fingerprints) > segment_start
+    if checkpoint.get("resumable") is not made_progress:
+        errors.append("checkpoint resumable status does not match observed progress")
+    if checkpoint.get("model_owned_workspace_actions") is not made_progress:
+        errors.append("checkpoint model-action status does not match observed progress")
+    if require_resumable and not made_progress:
+        errors.append("referee workspace made no new environment-observed progress")
+    return sorted(set(errors))
+
+
+def load_architect_theory_preflight_workspace_checkpoint(
+    checkpoint: Mapping[str, Any],
+    *,
+    question_id: str,
+    review_material_fingerprint: str,
+    source_theory_packet_id: str,
+    source_theory_packet_hash: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Restore exact independent-referee observations without accepting them."""
+
+    errors = _architect_theory_preflight_workspace_checkpoint_errors(
+        checkpoint,
+        question_id=question_id,
+        review_material_fingerprint=review_material_fingerprint,
+        source_theory_packet_id=source_theory_packet_id,
+        source_theory_packet_hash=source_theory_packet_hash,
+    )
+    if errors:
+        raise PacketValidationError(
+            validation_label="Architect theory preflight workspace checkpoint",
+            attempts=1,
+            errors=errors,
+            history=[],
+            recovery_checkpoint=checkpoint,
+        )
+    state = {
+        "searches": int(checkpoint.get("searches", 0) or 0),
+        "source_operations": int(
+            checkpoint.get("source_operations", 0) or 0
+        ),
+        "observations": deepcopy(
+            list(checkpoint.get("preflight_source_observations", []) or [])
+        ),
+        "observation_ids": {
+            str(row.get("observation_id", "") or "")
+            for row in checkpoint.get("preflight_source_observations", []) or []
+            if isinstance(row, Mapping)
+        },
+        "source_ref_by_hit_id": {
+            str(key): str(value)
+            for key, value in dict(
+                checkpoint.get("source_ref_by_hit_id", {}) or {}
+            ).items()
+        },
+        "document_inspection_refs": deepcopy(
+            list(checkpoint.get("theory_document_inspection_refs", []) or [])
+        ),
+        "scratch_runs": int(checkpoint.get("scratch_runs", 0) or 0),
+        "scratch_execution_refs": deepcopy(
+            list(checkpoint.get("preflight_scratch_execution_refs", []) or [])
+        ),
+        "workspace_observations": deepcopy(
+            list(checkpoint.get("workspace_observations", []) or [])
+        ),
+        "workspace_observation_fingerprints": set(
+            checkpoint.get("workspace_observation_fingerprints", []) or []
+        ),
+        "client_tool_loop_turns": int(
+            checkpoint.get("client_tool_loop_turns", 0) or 0
+        ),
+        "client_tool_loop_tool_calls": int(
+            checkpoint.get("client_tool_loop_tool_calls", 0) or 0
+        ),
+        "client_tool_loop_runtime_executed_tool_calls": int(
+            checkpoint.get(
+                "client_tool_loop_runtime_executed_tool_calls", 0
+            )
+            or 0
+        ),
+        "transcript_fingerprint": str(
+            checkpoint.get("client_tool_loop_transcript_fingerprint", "") or ""
+        ),
+    }
+    return state, {
+        "resumed_from_checkpoint_id": str(
+            checkpoint.get("checkpoint_id", "") or ""
+        ),
+        "resumed_from_model_checkpoint": True,
+    }
+
+
+def architect_theory_preflight_workspace_continuation_errors(
+    checkpoint: Mapping[str, Any],
+    *,
+    prior_checkpoint: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """Reject stale, unbound, or observation-free referee continuations."""
+
+    errors = _architect_theory_preflight_workspace_checkpoint_errors(checkpoint)
+    predecessor = prior_checkpoint if isinstance(prior_checkpoint, Mapping) else {}
+    resumed_from = str(checkpoint.get("resumed_from_checkpoint_id", "") or "")
+    if predecessor:
+        if _architect_theory_preflight_workspace_checkpoint_errors(predecessor):
+            errors.append("prior referee workspace checkpoint is invalid")
+        prior_id = str(predecessor.get("checkpoint_id", "") or "")
+        if resumed_from != prior_id:
+            errors.append("referee workspace checkpoint predecessor is stale")
+        prior_fingerprints = set(
+            predecessor.get("workspace_observation_fingerprints", []) or []
+        )
+        current_fingerprints = set(
+            checkpoint.get("workspace_observation_fingerprints", []) or []
+        )
+        if not prior_fingerprints < current_fingerprints:
+            errors.append("referee workspace continuation added no new observation")
+        if checkpoint.get("segment_start_observation_count") != len(
+            prior_fingerprints
+        ):
+            errors.append("referee workspace observation boundary is stale")
+        starts = checkpoint.get("segment_start_counters", {})
+        for field in (
+            "searches",
+            "source_operations",
+            "scratch_runs",
+            "client_tool_loop_turns",
+            "client_tool_loop_tool_calls",
+            "client_tool_loop_runtime_executed_tool_calls",
+        ):
+            if not isinstance(starts, Mapping) or starts.get(field) != (
+                predecessor.get(field)
+            ):
+                errors.append("referee workspace counter boundary is stale")
+                break
+    elif resumed_from:
+        errors.append("referee workspace checkpoint has an unbound predecessor")
+    return sorted(set(errors))
+
+
 def _review_architect_theory_execution_preflight_with_source_tools(
     *,
     provider: GeneratorBackend,
@@ -3234,6 +3550,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     provider_name: str,
     max_tokens: int,
     temperature: float,
+    recovery_checkpoint: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     submit_schema = _architect_theory_execution_preflight_submit_schema(
         material
@@ -3359,7 +3676,99 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "document_inspection_refs": [],
         "scratch_runs": 0,
         "scratch_execution_refs": [],
+        "workspace_observations": [],
+        "workspace_observation_fingerprints": set(),
+        "client_tool_loop_turns": 0,
+        "client_tool_loop_tool_calls": 0,
+        "client_tool_loop_runtime_executed_tool_calls": 0,
+        "transcript_fingerprint": "",
     }
+    resume_metadata = {
+        "resumed_from_checkpoint_id": "",
+        "resumed_from_model_checkpoint": False,
+    }
+    if isinstance(recovery_checkpoint, Mapping) and recovery_checkpoint:
+        restored_state, resume_metadata = (
+            load_architect_theory_preflight_workspace_checkpoint(
+                recovery_checkpoint,
+                question_id=question.id,
+                review_material_fingerprint=stable_hash(material),
+                source_theory_packet_id=str(
+                    material.get("source_theory_packet_id", "") or ""
+                ),
+                source_theory_packet_hash=str(
+                    material.get("source_theory_packet_hash", "") or ""
+                ),
+            )
+        )
+        state.update(restored_state)
+        tool_prompt += "\n\n" + json.dumps(
+            {
+                "artifact_kind": "ArchitectTheoryPreflightWorkspaceContinuation",
+                "checkpoint_id": resume_metadata[
+                    "resumed_from_checkpoint_id"
+                ],
+                "review_material_fingerprint": stable_hash(material),
+                "prior_model_visible_tool_observations": state[
+                    "workspace_observations"
+                ],
+                "remaining_source_searches": (
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+                    - int(state["searches"])
+                ),
+                "remaining_scratch_runs": (
+                    max(0, theory_scratchpad.max_runs - int(state["scratch_runs"]))
+                    if theory_scratchpad is not None
+                    else 0
+                ),
+                "continuation_instruction": (
+                    "Continue the same independent review from these exact prior "
+                    "client-tool observations. They are observations, not accepted "
+                    "review conclusions. Re-read only when genuinely needed, use "
+                    "the original tools directly, and submit one complete review."
+                ),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+    segment_start_observation_count = len(
+        state["workspace_observation_fingerprints"]
+    )
+    segment_start_counters = {
+        field: int(state[field])
+        for field in (
+            "searches",
+            "source_operations",
+            "scratch_runs",
+            "client_tool_loop_turns",
+            "client_tool_loop_tool_calls",
+            "client_tool_loop_runtime_executed_tool_calls",
+        )
+    }
+
+    def record_workspace_observation(
+        *,
+        tool: str,
+        tool_input: Mapping[str, Any],
+        content: Any,
+        is_error: bool = False,
+    ) -> None:
+        body = {
+            "tool": str(tool),
+            "tool_input": deepcopy(dict(tool_input)),
+            "content": deepcopy(content),
+            "is_error": bool(is_error),
+        }
+        fingerprint = (
+            "theory-preflight-workspace-observation:" + stable_hash(body)[:20]
+        )
+        if fingerprint in state["workspace_observation_fingerprints"]:
+            return
+        state["workspace_observation_fingerprints"].add(fingerprint)
+        state["workspace_observations"].append(
+            {**body, "observation_fingerprint": fingerprint}
+        )
 
     def source_grounding_payload(**loop_metadata: Any) -> dict[str, Any]:
         observations = deepcopy(list(state["observations"]))
@@ -3401,6 +3810,12 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 state["document_inspection_refs"]
             ),
             "runtime_selected_review_semantics": False,
+            "workspace_resumed_from_checkpoint_id": str(
+                resume_metadata["resumed_from_checkpoint_id"]
+            ),
+            "workspace_resumed_from_model_checkpoint": bool(
+                resume_metadata["resumed_from_model_checkpoint"]
+            ),
             **loop_metadata,
         }
 
@@ -3447,6 +3862,11 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 ),
             )
             state["document_inspection_refs"].append(inspection_ref)
+            record_workspace_observation(
+                tool=call.name,
+                tool_input=tool_input,
+                content=observation,
+            )
             return ClientToolExecutionResult(
                 content=observation,
                 observation_key="preflight-theory-document-search:"
@@ -3465,6 +3885,11 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 line_end=tool_input.get("line_end"),
             )
             state["document_inspection_refs"].append(inspection_ref)
+            record_workspace_observation(
+                tool=call.name,
+                tool_input=tool_input,
+                content=observation,
+            )
             return ClientToolExecutionResult(
                 content=observation,
                 observation_key="preflight-theory-document-read:"
@@ -3504,6 +3929,12 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             )
             state["scratch_runs"] = run_index
             state["scratch_execution_refs"].append(execution_ref)
+            record_workspace_observation(
+                tool=call.name,
+                tool_input=tool_input,
+                content=execution_result.content,
+                is_error=execution_result.is_error,
+            )
             return execution_result
 
         if call.name in {
@@ -3556,16 +3987,22 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             if observation_id not in state["observation_ids"]:
                 state["observation_ids"].add(observation_id)
                 state["observations"].append(observation)
+            model_observation = {
+                "ok": True,
+                **visible_result,
+                "observation_id": observation_id,
+                "remaining_searches": (
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+                    - state["searches"]
+                ),
+            }
+            record_workspace_observation(
+                tool=call.name,
+                tool_input=tool_input,
+                content=model_observation,
+            )
             return ClientToolExecutionResult(
-                content={
-                    "ok": True,
-                    **visible_result,
-                    "observation_id": observation_id,
-                    "remaining_searches": (
-                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-                        - state["searches"]
-                    ),
-                },
+                content=model_observation,
                 state_changed=True,
                 observation_key=observation_id,
             )
@@ -3616,15 +4053,21 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             if observation_id not in state["observation_ids"]:
                 state["observation_ids"].add(observation_id)
                 state["observations"].append(observation)
+            model_observation = {
+                "ok": True,
+                **observation,
+                "remaining_searches": (
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+                    - state["searches"]
+                ),
+            }
+            record_workspace_observation(
+                tool=call.name,
+                tool_input=tool_input,
+                content=model_observation,
+            )
             return ClientToolExecutionResult(
-                content={
-                    "ok": True,
-                    **observation,
-                    "remaining_searches": (
-                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-                        - state["searches"]
-                    ),
-                },
+                content=model_observation,
                 state_changed=True,
                 observation_key=observation_id,
             )
@@ -3651,6 +4094,12 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                         "or derivation, then independently submit the complete review."
                     ),
                 }
+                record_workspace_observation(
+                    tool=call.name,
+                    tool_input=tool_input,
+                    content=rejection,
+                    is_error=True,
+                )
                 return ClientToolExecutionResult(
                     content=rejection,
                     is_error=True,
@@ -3702,6 +4151,12 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                         "validation observation. Do not swap the citation namespaces."
                     ),
                 }
+                record_workspace_observation(
+                    tool=call.name,
+                    tool_input=tool_input,
+                    content=rejection,
+                    is_error=True,
+                )
                 return ClientToolExecutionResult(
                     content=rejection,
                     is_error=True,
@@ -3778,6 +4233,84 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             ),
         )
     except ClientToolLoopError as exc:
+        cumulative_turns = int(state["client_tool_loop_turns"]) + exc.turns
+        cumulative_tool_calls = (
+            int(state["client_tool_loop_tool_calls"]) + exc.tool_calls
+        )
+        cumulative_runtime_tool_calls = (
+            int(state["client_tool_loop_runtime_executed_tool_calls"])
+            + exc.runtime_executed_tool_calls
+        )
+        fingerprints = [
+            str(row["observation_fingerprint"])
+            for row in state["workspace_observations"]
+        ]
+        checkpoint = seal_architect_theory_preflight_workspace_checkpoint(
+            {
+                "schema_version": 1,
+                "artifact_kind": (
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND
+                ),
+                "question_id": question.id,
+                "review_material_fingerprint": stable_hash(material),
+                "source_theory_packet_id": str(
+                    material.get("source_theory_packet_id", "") or ""
+                ),
+                "source_theory_packet_hash": str(
+                    material.get("source_theory_packet_hash", "") or ""
+                ),
+                "resumed_from_checkpoint_id": str(
+                    resume_metadata["resumed_from_checkpoint_id"]
+                ),
+                "searches": int(state["searches"]),
+                "source_operations": int(state["source_operations"]),
+                "scratch_runs": int(state["scratch_runs"]),
+                "client_tool_loop_turns": cumulative_turns,
+                "client_tool_loop_tool_calls": cumulative_tool_calls,
+                "client_tool_loop_runtime_executed_tool_calls": (
+                    cumulative_runtime_tool_calls
+                ),
+                "client_tool_loop_transcript_fingerprint": stable_hash(
+                    [state["transcript_fingerprint"], exc.transcript_fingerprint]
+                ),
+                "segment_start_counters": segment_start_counters,
+                "preflight_source_observations": deepcopy(
+                    list(state["observations"])
+                ),
+                "source_ref_by_hit_id": dict(state["source_ref_by_hit_id"]),
+                "theory_document_inspection_refs": deepcopy(
+                    list(state["document_inspection_refs"])
+                ),
+                "preflight_scratch_execution_refs": deepcopy(
+                    list(state["scratch_execution_refs"])
+                ),
+                "workspace_observations": deepcopy(
+                    list(state["workspace_observations"])
+                ),
+                "workspace_observation_fingerprints": fingerprints,
+                "segment_start_observation_count": (
+                    segment_start_observation_count
+                ),
+                "resumable": len(fingerprints) > segment_start_observation_count,
+                "model_owned_workspace_actions": (
+                    len(fingerprints) > segment_start_observation_count
+                ),
+                "independent_reviewer_workspace": True,
+                "runtime_selected_review_semantics": False,
+                "implementation_authorized": False,
+                "accepted": False,
+                "kernel_verified": False,
+                "proof_evidence_status": (
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE
+                ),
+                "boundary": (
+                    "This content-addressed checkpoint preserves exact observations "
+                    "already seen by the independent theory referee. It is not a "
+                    "review verdict, implementation authority, empirical evidence, "
+                    "formal proof, or kernel evidence."
+                ),
+            }
+        )
         raise PacketValidationError(
             validation_label=(
                 "Architect theory-to-execution source-grounded preflight review"
@@ -3785,25 +4318,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             attempts=exc.turns,
             errors=[exc.reason],
             history=_preflight_evidence_history(exc.history),
-            recovery_checkpoint={
-                "artifact_kind": (
-                    "ArchitectTheoryExecutionPreflightSourceToolCheckpoint"
-                ),
-                "question_id": question.id,
-                **source_grounding_payload(
-                    client_tool_loop_turns=exc.turns,
-                    client_tool_loop_tool_calls=exc.tool_calls,
-                    client_tool_loop_runtime_executed_tool_calls=(
-                        exc.runtime_executed_tool_calls
-                    ),
-                    client_tool_loop_transcript_fingerprint=(
-                        exc.transcript_fingerprint
-                    ),
-                ),
-                "proof_evidence_status": (
-                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE
-                ),
-            },
+            recovery_checkpoint=checkpoint,
         ) from exc
 
     terminal = dict(loop.terminal_payload)
@@ -3820,13 +4335,20 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     packet = normalize_submission(
         review_payload,
         source_grounding=source_grounding_payload(
-            client_tool_loop_turns=loop.turns,
-            client_tool_loop_tool_calls=loop.tool_calls,
+            client_tool_loop_turns=(
+                int(state["client_tool_loop_turns"]) + loop.turns
+            ),
+            client_tool_loop_tool_calls=(
+                int(state["client_tool_loop_tool_calls"]) + loop.tool_calls
+            ),
             client_tool_loop_runtime_executed_tool_calls=(
-                loop.runtime_executed_tool_calls
+                int(state["client_tool_loop_runtime_executed_tool_calls"])
+                + loop.runtime_executed_tool_calls
             ),
             client_tool_loop_transcript_fingerprint=(
-                loop.transcript_fingerprint
+                stable_hash(
+                    [state["transcript_fingerprint"], loop.transcript_fingerprint]
+                )
             ),
             client_tool_loop_provider_usage=dict(loop.provider_usage),
             client_tool_loop_response_metadata=dict(
@@ -3882,6 +4404,7 @@ def review_architect_theory_execution_preflight(
     source_retriever: Any = None,
     research_sources: ResearchSourceSnapshot | None = None,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
+    recovery_checkpoint: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not callable(getattr(provider, "generate_client_tool_turn", None)):
         raise ValueError(
@@ -3911,4 +4434,5 @@ def review_architect_theory_execution_preflight(
         provider_name=provider_name,
         max_tokens=max_tokens,
         temperature=temperature,
+        recovery_checkpoint=recovery_checkpoint,
     )

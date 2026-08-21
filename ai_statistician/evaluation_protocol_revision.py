@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
@@ -10,6 +11,10 @@ from .agent_runtime import (
     BlackboardState,
     EnvironmentObservation,
     EvidenceLedgerEntry,
+    runtime_artifact_reference,
+)
+from .architect_theory_execution_preflight import (
+    architect_theory_preflight_workspace_continuation_errors,
 )
 from .fingerprint import stable_hash
 from .structured_output_retry import PacketValidationError
@@ -372,6 +377,41 @@ def architect_metric_semantic_review_validation_failure_result(
 
     context = invalidate_metric_protocol_authorization(architect_context)
     theory_preflight = review_stage == "theory_execution_preflight"
+    recovery_checkpoint_value = getattr(exc, "recovery_checkpoint", None)
+    recovery_checkpoint = (
+        deepcopy(dict(recovery_checkpoint_value))
+        if theory_preflight and isinstance(recovery_checkpoint_value, Mapping)
+        else {}
+    )
+    prior_checkpoint_value = task.inputs.get(
+        "theory_preflight_workspace_checkpoint", {}
+    )
+    prior_checkpoint = (
+        dict(prior_checkpoint_value)
+        if isinstance(prior_checkpoint_value, Mapping)
+        else {}
+    )
+    workspace_continuation_errors = (
+        architect_theory_preflight_workspace_continuation_errors(
+            recovery_checkpoint,
+            prior_checkpoint=prior_checkpoint or None,
+        )
+        if recovery_checkpoint
+        else ["independent referee returned no workspace checkpoint"]
+    ) if theory_preflight else []
+    workspace_continuation_allowed = bool(
+        theory_preflight
+        and recovery_checkpoint
+        and not workspace_continuation_errors
+    )
+    checkpoint_id = (
+        str(recovery_checkpoint.get("checkpoint_id", "") or "")
+        if workspace_continuation_allowed
+        else ""
+    )
+    continuation_count = int(
+        task.inputs.get("theory_preflight_workspace_continuation_count", 0) or 0
+    ) + int(workspace_continuation_allowed)
     validation_errors = [str(error) for error in exc.errors if str(error)]
     authoring_packet_value = getattr(exc, "authoring_packet", None)
     authoring_packet = (
@@ -467,6 +507,7 @@ def architect_metric_semantic_review_validation_failure_result(
                 observed_authoring_packet_hash,
                 int(getattr(exc, "revision_index", 0) or 0),
                 str(getattr(exc, "review_material_fingerprint", "") or ""),
+                checkpoint_id,
             ]
         )[:20]
     )
@@ -523,6 +564,28 @@ def architect_metric_semantic_review_validation_failure_result(
             stable_hash(last_invalid_packet) if last_invalid_packet else ""
         ),
         "last_invalid_review_projection": review_projection,
+        **(
+            {
+                "referee_workspace_checkpoint_available": bool(
+                    recovery_checkpoint
+                ),
+                "referee_workspace_checkpoint_id": checkpoint_id,
+                "referee_workspace_checkpoint_hash": (
+                    stable_hash(recovery_checkpoint)
+                    if recovery_checkpoint
+                    else ""
+                ),
+                "referee_workspace_continuation_allowed": (
+                    workspace_continuation_allowed
+                ),
+                "referee_workspace_continuation_errors": (
+                    workspace_continuation_errors
+                ),
+                "referee_workspace_continuation_count": continuation_count,
+            }
+            if theory_preflight
+            else {}
+        ),
         "metric_protocol_execution_authorized": False,
         "implementation_authorized": False,
         "runtime_architect_control": {
@@ -539,6 +602,8 @@ def architect_metric_semantic_review_validation_failure_result(
     produced_artifacts = {}
     if authoring_packet_persisted:
         produced_artifacts[authoring_packet_id] = authoring_packet
+    if workspace_continuation_allowed:
+        produced_artifacts[checkpoint_id] = recovery_checkpoint
     produced_artifacts[failure_id] = artifact
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
@@ -559,15 +624,50 @@ def architect_metric_semantic_review_validation_failure_result(
             "authoring_packet_persisted": authoring_packet_persisted,
             "metric_protocol_execution_authorized": False,
             "implementation_authorized": False,
+            **(
+                {
+                    "referee_workspace_checkpoint_id": checkpoint_id,
+                    "referee_workspace_continuation_allowed": (
+                        workspace_continuation_allowed
+                    ),
+                }
+                if theory_preflight
+                else {}
+            ),
             "kernel_verified": False,
         },
     )
+    next_task = None
+    if workspace_continuation_allowed:
+        next_inputs = deepcopy(dict(task.inputs))
+        next_inputs["theory_preflight_workspace_checkpoint"] = (
+            runtime_artifact_reference(checkpoint_id, recovery_checkpoint)
+        )
+        next_inputs["theory_preflight_workspace_continuation_count"] = (
+            continuation_count
+        )
+        next_task = replace(
+            task,
+            task_id=(
+                f"theory-preflight-progress:{question.id}:"
+                f"{continuation_count}:{checkpoint_id.rsplit(':', 1)[-1][:10]}"
+            ),
+            objective=(
+                "Continue the same independent theory-referee workspace from its "
+                "exact document, source, scratch, and validator observations."
+            ),
+            inputs=next_inputs,
+        )
     return AgentStepResult(
-        status="BLOCKED",
+        status="REVISE" if workspace_continuation_allowed else "BLOCKED",
         rationale=(
-            "The independent theory/executability preflight exhausted its bounded "
-            "source-review turns; its exact lineage was preserved without "
-            "authorizing implementation or simulation."
+            "The independent theory referee made new environment-observed progress; "
+            "its content-addressed workspace returns to the same reviewer through "
+            "the existing outer runtime without Architect replanning."
+            if theory_preflight and workspace_continuation_allowed
+            else "The independent theory/executability preflight exhausted its "
+            "bounded source-review turns without new resumable progress; its exact "
+            "lineage was preserved without authorizing implementation or simulation."
             if theory_preflight
             else (
                 "The independent metric reviewer exhausted bounded packet repair; "
@@ -593,6 +693,19 @@ def architect_metric_semantic_review_validation_failure_result(
                     "authoring_packet_persisted": authoring_packet_persisted,
                     "metric_protocol_execution_authorized": False,
                     "implementation_authorized": False,
+                    **(
+                        {
+                            "referee_workspace_checkpoint_id": checkpoint_id,
+                            "referee_workspace_continuation_allowed": (
+                                workspace_continuation_allowed
+                            ),
+                            "referee_workspace_continuation_errors": (
+                                workspace_continuation_errors
+                            ),
+                        }
+                        if theory_preflight
+                        else {}
+                    ),
                     "proof_evidence_status": artifact[
                         "proof_evidence_status"
                     ],
@@ -600,9 +713,11 @@ def architect_metric_semantic_review_validation_failure_result(
             ),
         ),
         evidence_entries=(evidence,),
-        next_task=None,
+        next_task=next_task,
         failure_classification=(
-            "architect_theory_execution_preflight_packet_validation_failed"
+            "architect_theory_execution_preflight_workspace_progress"
+            if theory_preflight and workspace_continuation_allowed
+            else "architect_theory_execution_preflight_packet_validation_failed"
             if theory_preflight
             else "architect_metric_semantic_review_packet_validation_failed"
         ),

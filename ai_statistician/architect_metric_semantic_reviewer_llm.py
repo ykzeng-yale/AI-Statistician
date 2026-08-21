@@ -1567,6 +1567,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
         upstream_research_contract: Mapping[str, Any],
         prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
         theory_scratchpad: TheoryScratchpadConfig | None = None,
+        recovery_checkpoint: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         return review_architect_theory_execution_preflight(
             provider=self.provider,
@@ -1582,6 +1583,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             source_retriever=self.source_retriever,
             research_sources=self.research_sources,
             theory_scratchpad=theory_scratchpad,
+            recovery_checkpoint=recovery_checkpoint,
         )
 
     def review(
