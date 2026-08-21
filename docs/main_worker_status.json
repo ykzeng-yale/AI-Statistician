@@ -1,13 +1,13 @@
 {
-  "schema_version": 99,
+  "schema_version": 100,
   "updated_at": "2026-08-21",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "0d8a01e5a2af00a3223df413f1909a11a56e6997",
+  "validated_code_head": "7b170830b902132861a406b429a8df505324baa2",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. The single frozen jackknife draw is now closed at raw 0/1: a final valid Markdown write was stranded before the same model's terminal commit, and the visible output-field semantics did not entail all hidden algorithm authority. The shared terminal-disposition accounting is regression-fixed at 0d8a01e5, but the task is never rerun or rescored. All fifteen consumed tasks remain immutable negative evidence. Before selecting task sixteen, require explicit visible semantics for every ABI field and prove that hidden evaluator assertions are entailed by that contract.",
+  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. Commit 7b170830 now freezes explicit model-visible semantics for every estimator ABI field and requires schema-v2 hidden algorithm and empirical checks to cite those public clauses under the same estimator identity. The full contract reaches the source-owning and reviewing model contexts but is not recursively copied into agent result artifacts. Structural clause references are provenance, not automatic proof of scientific entailment, so task sixteen remains unselected until an operator audits and calibrates every hidden assertion against the public contract. All fifteen consumed tasks remain immutable 0/15 evidence and are never rerun or rescored.",
   "operating_principle": "Models own statistical, mathematical, Python, R, retrieval-query, and Lean content. The harness owns isolation, immutable identity, source visibility, budgets, checkpoints, independent review, result blinding, frozen evaluation authority, and proof promotion. It does not author substantive fixes.",
   "model_policy": {
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
@@ -54,11 +54,16 @@
     ]
   },
   "validated_change": {
-    "commit": "0d8a01e5a2af00a3223df413f1909a11a56e6997",
+    "commit": "7b170830b902132861a406b429a8df505324baa2",
     "changes": [
+      "A frozen estimator execution contract now gives every request and response field a stable public clause ID plus explicit meaning, JSON type, shape, units, indexing, edge cases, binding, and normalization before any schema-v2 task can activate. This is a compact executable ABI; model-authored Markdown/LaTeX remains the mathematical authority.",
+      "The exact public contract is carried by the immutable research question and reaches TheoryDeveloper, AlgorithmEngineer, SimulationEngineer, Architect metric/preflight work, independent source review, and terminal Critic prompts. Agent result packets retain question identity without recursively copying the full contract.",
+      "Schema-v2 gold validation now requires every hidden algorithm and empirical acceptance check to have a stable check ID, cite only existing model-visible contract clauses, and use the same estimator identity. Hidden expected values, cases, seeds, tolerances, and harness source remain evaluator-only after AgentRuntime termination. Historical schema-v1 manifests remain read-compatible.",
+      "Clause-reference validation is an inspectable provenance gate, not a semantic theorem prover. A preactivation operator audit and independent valid/invalid harness calibration are still required to establish that hidden assertions follow from the visible semantics; no new agent, router, retry, research budget, content repair, statistical formula, Lean rule, provider, or model tier was added.",
+      "The affected contract, gold-evaluator, Theory, review, Architect, and AgentRuntime panel passed 266/266; the full local suite passed 788/788 in 63.34 seconds and git diff validation passed. No model call, frozen-task rerun, hidden candidate execution, scientific acceptance, theorem proof, or E2E credit was produced.",
       "The single hash-frozen jackknife-mean L0 draw used exact claude-haiku-4-5-20251001 and stopped after three outer traces. TheoryDeveloper searched and read all three task-bound sources and wrote a 240-line Markdown/LaTeX derivation in eleven model turns and twelve executed tools, but no independent review, algorithm, simulation, Critic, hidden execution, or Formalizer lane ran. The immutable raw outcome remains 0/1.",
       "The last successful theory write was structurally valid and checkpoint-commit-ready with no blockers, yet the model-tool counter reached zero while one provider turn remained. The next model-selected terminal tool was rejected before execution. Commit 0d8a01e5 reserves one control-plane terminal disposition after the unchanged research-action budget; it adds no research turn, read, write, scratch run, retry, agent, outer iteration, model tier, or content rule.",
-      "Operator audit found that the unaccepted principal jackknife algebra is coherent but never independently accepted. Separately, the visible field named estimate lacked explicit statistical semantics while hidden algorithm authority imposed an unstated interpretation, making the benchmark evaluation-design-invalid for code attribution. Future evaluator activation must prove every hidden ABI assertion follows from the visible field semantics; no hidden expected value enters runtime RAG.",
+      "Operator audit found that the unaccepted principal jackknife algebra is coherent but never independently accepted. Separately, the visible field named estimate lacked explicit statistical semantics while hidden algorithm authority imposed an unstated interpretation, making the benchmark evaluation-design-invalid for code attribution. Future evaluator activation must document and calibrate that every hidden ABI assertion follows from the visible field semantics; no hidden expected value enters runtime RAG.",
       "The affected TheoryDeveloper, client-tool, Architect, and AgentRuntime panel passed 169/169 and the full local suite passed 778/778 in 65.02 seconds. Both remote main and the work branch contain the mechanism commit. Deterministic regression supplies no theory, code, empirical, proof, or E2E credit and cannot change the frozen task.",
       "A fifteenth, disjoint resampling-family L0 task is frozen around one finite-sample delete-one jackknife identity, one run_estimator(request) ABI, and one cross-DGP confirmatory target. It does not require Lean and does not bundle general jackknife asymptotics, bias correction, confidence intervals, or nonlinear-statistic consistency.",
       "The model-visible source snapshot contains three citation-bound Markdown notes. Evaluator-only authority outside the repository and model workspace contains the semantic reference, calibrated exact-Haiku claim rubric, reference estimator, four negative implementations, and algorithm plus empirical harnesses. The reference passed 10/10 algorithm checks and 12,000/12,000 cross-DGP identity comparisons; four negatives were rejected and exact Haiku classified 12/12 semantic calibration cases correctly.",
@@ -195,9 +200,10 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model chooses every claim, dependency, research-source query, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, and median-of-means expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback.",
     "verification": {
-      "full_pytest": "777 passed in 66.70s",
-      "next_frozen_activation": "jackknife-sample-mean L0 v1 is selected, calibrated, hash-frozen at commit a9754547, pushed to the work branch and main, and has zero runtime model calls",
-      "affected_subsystem_pytest": "53/53 independent theory-preflight tests, 26/26 Architect/runtime routing tests, and 69/69 central AgentRuntime tests passed; earlier Python/R, TheoryDeveloper, and Lean continuation regressions remain valid",
+      "full_pytest": "788 passed in 63.34s",
+      "next_frozen_activation": "none; task sixteen is unselected and no model draw is authorized until a schema-v2 public ABI, hidden-check clause audit, independent harness calibration, source policy, and all identities are frozen and pushed",
+      "affected_subsystem_pytest": "266/266 estimator-contract, gold-evaluator, TheoryDeveloper, review, Architect, and AgentRuntime tests passed; earlier Python/R, TheoryDeveloper, Lean, and referee continuation regressions remain valid",
+      "visible_estimator_contract": "schema-v2 executable tasks fail closed unless every public ABI field has explicit semantics, hidden algorithm and empirical checks cite valid public clauses under one estimator identity, and the exact contract reaches all scientific model contexts without being copied into agent result packets",
       "openai_codex_harness_audit": "official openai/codex main pinned at 45a3edc02a59d845eba30794796c44e5f2377408; the six core harness file hashes are unchanged from e482cc66, and direct SDK/app-server adoption remains rejected because it would introduce a Responses transport or proxy plus a second thread and scheduling authority beside the required Claude and AgentRuntime path",
       "neutral_exact_haiku_transport_probe": "Anthropic accepted five client tools with a 5,201-character sixteen-claim submit schema under claude-haiku-4-5-20251001, returned tool_use, and reported zero strict tools; no research content or frozen task was executed",
       "source_retrieval_ablation": "A representative query reconstructed from persisted L1 matched terms returned five distinct top-5 documents, including the exact DoubleMLIRM implementation. The failed live run did not persist its raw query text, so this is not an exact-query replay and provides no report-correctness credit.",
@@ -213,9 +219,9 @@
       "theory_revision_continuation": "a progressing round-eight finding lineage continues to round nine under AgentRuntime.max_iterations; unresolved prior findings stop immediately, and revision count cannot act as a second budget",
       "lean_workspace_continuation": "the second tool-loop segment receives the exact failed source, compiler stderr, formal search observation, checked-candidate set, and predecessor identity; it does not recheck the parent, preserves the immutable original parent hash, and rejects tampering or no-new-observation continuation before a provider call",
       "theory_referee_workspace_continuation": "a two-segment independent review restores the exact prior Markdown read, task-bound source handle, document coverage, and terminal-validator observation; AgentRuntime uses one blackboard reference, calls the referee twice, calls Architect planning zero times, preserves cumulative source budgets, and blocks tamper or no-progress lineage before a provider call",
-      "runtime_core_growth": "research_agent_runtime.py is 24990 lines because referee checkpoint sealing, validation, and state restoration remain in the owning preflight module; the unchanged 25000-line regression budget passes."
+      "runtime_core_growth": "research_agent_runtime.py is 24986 lines; the estimator contract lives in the existing question and evaluator boundaries rather than a new scheduler, and the unchanged 25000-line regression budget passes."
     },
-    "evidence_boundary": "Durable Python/R, Lean, and isolated theory-referee continuation has deterministic mechanism evidence only. Fresh jackknife v1 shows that exact Haiku can inspect three frozen sources and write a coherent 240-line Markdown theory artifact, but shared terminal-call accounting prevented explicit commit and no independent or downstream evidence ran. The benchmark is also invalid for code attribution because visible output semantics did not entail all hidden authority. All fifteen consumed tasks remain 0/15, and exact development theorem closure remains 0/2."
+    "evidence_boundary": "The visible estimator contract and schema-v2 hidden-check bindings have deterministic mechanism evidence only. They make executable semantics inspectable before a model call and prevent hidden checks from citing unstated fields, but clause references cannot prove scientific entailment or candidate correctness. Fresh jackknife v1 remains invalid for code attribution and raw 0/1; all fifteen consumed tasks remain 0/15, no task-sixteen draw is authorized, and exact development theorem closure remains 0/2."
   },
   "latest_component_evidence": {
     "id": "research_l0_jackknife_mean_v1_codex_terminal_disposition_exact_haiku_20260821",
@@ -367,24 +373,26 @@
     "id": "unselected_after_jackknife_v1",
     "task_id": "",
     "family": "disjoint_known_result_required",
-    "status": "unselected_requires_visible_abi_entailment",
+    "status": "unselected_requires_schema_v2_preactivation_audit",
     "required_selection_properties": [
       "a scientific family and result not previously exposed to a scored model draw",
       "one principal theorem or empirical claim, one executable ABI, and one confirmatory target rather than a bundled research program",
       "every visible input and output field has explicit statistical meaning, shape, units, indexing, and edge-case semantics",
-      "evaluator preactivation proves every hidden algorithm assertion is entailed by the visible contract without disclosing expected values",
+      "a schema-v2 public contract is frozen before the first model call and every hidden algorithm or empirical check cites the exact public clauses it evaluates",
+      "operator preactivation documents that every hidden assertion follows from the visible contract without disclosing expected values and calibrates the harness against independent valid and invalid implementations",
       "model-visible primary sources plus evaluator-only authority are frozen and pushed before activation",
       "formalization is required only when task intent explicitly makes proof an authority gate",
       "exact claude-haiku-4-5-20251001 for every test or live evaluation agent"
     ],
     "preactivation_gates": [
+      "passed mechanism gate: schema-v2 contract identity, prompt propagation, clause-reference validation, and schema-v1 compatibility are regression-tested and pushed at 7b170830",
       "pending: select a disjoint task",
-      "pending: audit visible ABI semantics against hidden evaluator assertions",
+      "pending: author and audit the selected task's visible ABI semantics against every hidden evaluator assertion",
       "pending: calibrate theory and executable negative controls outside repository and model context",
       "pending: freeze and push all identities before authorizing one draw"
     ],
     "fresh_live_runs": 0,
-    "boundary": "No next model draw is authorized. All fifteen consumed tasks are closed. A future task receives exactly one exact-Haiku draw only after its visible contract, hidden authority, source policy, and hashes are frozen and pushed."
+    "boundary": "No next model draw is authorized. All fifteen consumed tasks are closed. Schema-v2 structural validation supplies provenance, not semantic correctness. A future task receives exactly one exact-Haiku draw only after its visible contract, operator entailment audit, calibrated hidden authority, source policy, and hashes are frozen and pushed."
   },
   "previous_authorized_evaluation": {
     "id": "research_l0_jackknife_mean_v1_exact_haiku_20260821",
@@ -452,6 +460,7 @@
       "exact target-bound Lean kernel promotion"
     ],
     "fixed_in_validated_head": [
+      "hidden algorithm or empirical checks being able to impose estimator-field semantics that were absent from the model-visible question, with no stable public clause provenance or estimator-identity binding",
       "a theory scratch call rejected before sandbox request-file materialization persisting a blank request hash that the independent-review validator then required, making every model submission impossible even though the field was runtime-owned",
       "the generic theory scratch tool exposing an entrypoint name without telling the model the existing run_sandbox(seed, replicates) callable ABI or that the isolated runner invokes it",
       "the independent theory referee being instructed to try numerical special cases and counterexamples while having only document and retrieval tools and no model-owned Python/R execution feedback",
@@ -537,6 +546,7 @@
       "a valid same-owner theory continuation being rejected because transient runtime scheduling task_id was included in immutable scientific workspace identity"
     ],
     "remaining_structural_problems": [
+      "no live task has yet been activated under schema v2; public clause references make hidden-check provenance auditable but cannot establish scientific entailment without the separate operator audit and independent harness calibration",
       "strict development exact source-theorem closure remains 0/2",
       "the research ladder has fifteen active gold-configured tasks, fifteen consumed outcomes, and zero passing tasks",
       "fresh exact-sign-test L0 v1 shows that exact Haiku will use the independent referee scratch tool, but the referee's second program violated the sandbox callable ABI and no review was accepted; live tool use does not establish correct counterexample choice, interpretation, or lower false-acceptance rate",
@@ -606,15 +616,15 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24990,
+    "research_agent_runtime_lines": 24986,
     "theory_workspace_lines": 3224,
-    "research_architect_lines": 5234,
-    "architect_theory_execution_preflight_lines": 4438,
+    "research_architect_lines": 5225,
+    "architect_theory_execution_preflight_lines": 4433,
     "formalizer_llm_lines": 2408,
     "agent_runtime_lines": 1207,
     "cli_lines": 7040,
     "top_level_python_modules": 141,
-    "top_level_package_lines": 142610,
+    "top_level_package_lines": 144680,
     "latest_runtime_manifest_bytes": 48421
   },
   "next_gates": [
@@ -623,7 +633,7 @@
     "Treat DKW v1 as two separate failures: the author-side final-SHA line-coverage gate was a misplaced deterministic readiness proxy and is now removed, while the model-authored probability equality, empty-sample ABI, and clipped-boundary defects remain unaccepted. Preserve the run at 0/1; never rerun, patch, or rescore it.",
     "Use the earlier checkpoint-readiness fields only as generic same-model feedback. Do not add turns, retries, a repair worker, mathematical validators, or a DKW-specific prompt; deterministic regression is the only post-run evidence for this change.",
     "Preserve jackknife-mean v1 as raw 0/1 without rerun or rescore. Keep the shared terminal-disposition correction as deterministic mechanism evidence only, and do not attribute hidden code failure because the visible output-field semantics did not entail every hidden assertion.",
-    "Before selecting task sixteen, require explicit statistical semantics for every ABI input and output field and a preactivation entailment audit showing that hidden evaluator assertions follow from the visible contract without exposing expected values.",
+    "Before selecting task sixteen, instantiate schema v2 with explicit statistical semantics for every ABI field, bind each hidden code and empirical assertion to public clause IDs, and complete an operator entailment audit plus independent valid/invalid harness calibration without exposing expected values. Treat clause references as provenance rather than semantic proof.",
     "Treat Wilson-score v1 as two separate failures: the repeated-prose preflight packet was a shared transport mistake and is regression-fixed, while the model-authored algebra, containment argument, quantile ABI, rates, and boundary conventions remain unaccepted. Preserve the run at 0/1; never rerun, patch, or rescore it.",
     "Treat Benjamini-Hochberg v1 as two separate failures: literal Markdown-anchor validation was a shared transport mistake and is regression-fixed, while the model-authored proof defects remain unaccepted. Preserve the run at 0/1; never rerun, patch, or rescore it.",
     "Validate grammar-free claim indexes and complete hash-bound reviewer inspection only on a future unrelated benchmark frozen before its first model call. Full-document read coverage is provenance, not a proof or a reason to enlarge budgets.",
