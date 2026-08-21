@@ -80,6 +80,14 @@ placing another Codex thread manager around `AgentRuntime`.
    before requesting independent review. Model-chosen reads remain recorded,
    while the isolated referee still has to inspect every authoritative document
    under its separate hash-bound coverage gate.
+5. Python and R source workspaces now survive an exhausted inner tool-loop
+   segment without regenerating their planning envelope. The next outer-runtime
+   step returns the exact content-addressed source and its raw execution
+   observation to the same AlgorithmEngineer or SimulationEngineer. Accepted
+   sibling sources are referenced without re-execution, and a continuation is
+   authorized only after a new sandbox check. A stale checkpoint, changed hash,
+   overlapping continuation, or no-progress lineage fails closed before a model
+   call; ordinary source continuation never routes through Architect.
 
 These changes add no model call, retry, turn, agent, scheduler, model tier,
 statistical formula, Lean grammar rule, or repair recipe.
@@ -136,3 +144,11 @@ deterministic regression proving that:
 - all frozen research outcomes remain unchanged.
 
 No consumed benchmark may be rerun to claim that this mechanism works.
+
+The deterministic continuation regression is complete at code commit
+`9de34cf231b59f35985170775314834eeeebaf2d`: Algorithm and simulation both
+resume with zero new planning calls and one same-owner source call; checkpoint
+tampering and no-progress lineage are rejected. The focused workspace/runtime
+panel passed 121 tests and the full local suite passed 769 tests. This is
+mechanism evidence only: no model call, frozen-task rerun, scientific acceptance,
+hidden-gold credit, or Lean proof credit was produced.
