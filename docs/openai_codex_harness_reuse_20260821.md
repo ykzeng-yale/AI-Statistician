@@ -121,9 +121,29 @@ placing another Codex thread manager around `AgentRuntime`.
    replan, edits the referee report, or treats partial review work as acceptance.
    Tampering, a stale predecessor, repeated observations, or an observation-free
    segment stops before another reviewer call.
+9. A TheoryDeveloper session reserves one control-plane terminal disposition
+   after its unchanged environment-action budget. A final valid document write
+   can therefore be followed by the same model's explicit checkpoint commit or
+   gap report instead of being stranded by the tool-call counter. The reservation
+   adds no research action, turn, retry, or runtime-authored stopping decision.
 
 These changes add no model call, retry, turn, agent, scheduler, model tier,
 statistical formula, Lean grammar rule, or repair recipe.
+
+### Live implication
+
+The frozen jackknife-mean L0 draw provided a direct harness counterexample. Its
+last successful theory write was valid and commit-ready, but the shared tool-call
+counter reached zero while one provider turn remained. The next model-selected
+terminal action was rejected before execution. Code commit `0d8a01e5` now keeps
+one terminal disposition outside the unchanged research-action allowance.
+
+This is the narrow Codex-style principle worth reusing: one same-session model
+receives exact environment observations and remains responsible for ending its
+own turn. AI-Statistician still retains `AgentRuntime` as the only outer
+scientific scheduler and Claude as the required provider path. Codex thread,
+app-server, Responses transport, and multi-agent persistence are not imported.
+The consumed task remains `0/1`; deterministic regression cannot rescore it.
 
 ### Reused collaboration semantics
 

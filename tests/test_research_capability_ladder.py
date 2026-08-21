@@ -661,7 +661,7 @@ def test_wilson_score_l0_single_live_draw_is_frozen_failed() -> None:
         assert hidden_name not in runtime_visible
 
 
-def test_jackknife_mean_l0_is_frozen_before_its_first_live_draw() -> None:
+def test_jackknife_mean_l0_freezes_invalid_design_and_terminal_budget_block() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -672,12 +672,14 @@ def test_jackknife_mean_l0_is_frozen_before_its_first_live_draw() -> None:
     assert candidate["level"] == "L0"
     assert candidate["family"] == "resampling"
     assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"] == "full_task_gold_frozen_v1_pre_activation"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_invalid_evaluation_design_and_theory_terminal_budget_blocked"
+    )
     evidence = candidate["activation_evidence"]
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["algorithm_reference_checks"] == "10/10"
     assert evidence["algorithm_negative_variants_rejected"] == 4
     assert evidence["empirical_reference_dgps_passed"] == 3
@@ -685,8 +687,41 @@ def test_jackknife_mean_l0_is_frozen_before_its_first_live_draw() -> None:
     assert evidence["semantic_calibration_cases"] == 12
     assert evidence["semantic_calibration_cases_correct"] == 12
     assert evidence["semantic_reference_claims"] == 7
+    assert evidence["fresh_live_runtime_status"] == "BLOCKED"
+    assert evidence["fresh_live_terminal_classification"] == (
+        "theory_developer_packet_validation_failed"
+    )
+    assert evidence["fresh_live_runtime_traces"] == 3
+    assert evidence["fresh_live_theory_model_turns"] == 11
+    assert evidence["fresh_live_theory_tool_executions"] == 12
+    assert evidence["fresh_live_theory_document_lines"] == 240
+    assert evidence["fresh_live_theory_document_bytes"] == 8521
+    assert evidence["fresh_live_last_write_workspace_valid"] is True
+    assert evidence["fresh_live_last_write_checkpoint_commit_ready"] is True
+    assert evidence["fresh_live_last_write_model_tool_calls_remaining"] == 0
+    assert evidence["fresh_live_last_write_standard_turns_remaining"] == 1
+    assert evidence["fresh_live_next_model_tool_blocked_before_execution"] is True
+    assert evidence["fresh_live_independent_theory_review_attempted"] is False
+    assert evidence["fresh_live_accepted_theory_packet"] is False
+    assert evidence["fresh_live_algorithm_executions"] == 0
+    assert evidence["fresh_live_simulation_executions"] == 0
+    assert evidence["fresh_live_formalizer_executions"] == 0
+    assert evidence["evaluator_design_valid"] is False
+    assert evidence["hidden_algorithm_failure_attribution_allowed"] is False
+    assert evidence["post_run_shared_mechanism_fix_commit"] == (
+        "0d8a01e5a2af00a3223df413f1909a11a56e6997"
+    )
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
+    for field in (
+        "fresh_live_runtime_manifest_sha256",
+        "fresh_live_hidden_gold_report_sha256",
+        "fresh_live_runtime_failure_summary_sha256",
+        "fresh_live_theory_document_sha256",
+    ):
+        assert len(evidence[field]) == 64
+    assert Path(evidence["operator_audit_path"]).is_file()
     assert candidate["task_intent"] == {
         "source_replication": "not_applicable",
         "theory": "required",
