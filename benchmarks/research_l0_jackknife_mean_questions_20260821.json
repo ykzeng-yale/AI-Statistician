@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "jackknife_sample_mean_variance_known_result",
+      "title": "Delete-one jackknife variance identity for the sample mean",
+      "description": "Focused L0 known-result evaluation in resampling theory. For arbitrary finite real values x_1,...,x_n with n>=2, let x_bar be their mean, let x_bar_(-i) be the mean after deleting observation i, let x_bar_(.) be the mean of the n delete-one estimates, and define V_J=((n-1)/n) sum_i (x_bar_(-i)-x_bar_(.))^2. In an authoritative Markdown/LaTeX theory workspace, derive from the definitions that x_bar_(-i)=(n x_bar-x_i)/(n-1), x_bar_(.)=x_bar, and V_J=[1/(n(n-1))] sum_i (x_i-x_bar)^2=s^2/n when s^2 uses denominator n-1. Separate this deterministic finite-sample identity from the probabilistic statement that, for iid observations with finite variance sigma^2, E(s^2)=sigma^2 and hence E(V_J)=Var(x_bar)=sigma^2/n. Do not require normality and do not present simulation as proof. The required algorithm artifact id is est_jackknife_mean_variance. Its run_estimator(request) input contains a finite numeric sample array of length at least two. It must return JSON-finite fields n, estimate, leave_one_out_estimates in omitted-index order, leave_one_out_mean, jackknife_variance, sample_variance using denominator n-1, and mean_variance_estimate equal to sample_variance/n. Exploratory computation may diagnose the implementation. A separate frozen confirmatory assessment must compare the implementation with independently computed finite-sample identities over predeclared normal, centered exponential, and centered uniform iid DGPs, and assess the mean variance estimate against the known Var(X)/n target with Monte Carlo uncertainty. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "resampling",
+        "jackknife",
+        "sample mean",
+        "variance estimation",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
+    }
+  ]
+}

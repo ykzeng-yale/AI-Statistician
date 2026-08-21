@@ -1134,6 +1134,63 @@
         "novelty": "not_applicable",
         "unresolved_gaps": "required"
       }
+    },
+    {
+      "id": "jackknife_sample_mean_variance_known_result",
+      "level": "L0",
+      "family": "resampling",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l0_jackknife_mean_questions_20260821.json",
+      "source_authority": "operator_provisioned_hash_bound_model_visible_snapshot",
+      "source_snapshot_id": "jackknife-sample-mean-variance-known-result-v1",
+      "source_snapshot_hash": "4b0c2fab4fef7da301f4864f5b27862f3c46b930bc88803ccc4e3586519face4",
+      "source_manifest_sha256": "062bbd2e519727935f05133edced3ac9ec755c815c4b252ab8850d2edc977b95",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l0-jackknife-mean-20260821-v1",
+      "gold_manifest_sha256": "c8fc54e1f84072c207f93e6760edfccb1d0b996b41385d46121782e8de5e74a0",
+      "gold_descriptor_hash": "07de2cbbd74cd0e58cc2908f498ac5de24076e1f966c7dc3a1c43a288a874354",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "full_task_gold_frozen_v1_pre_activation",
+      "activation_evidence": {
+        "public_reference": "Quenouille, JRSSB 11(1):68-84, 1949, DOI 10.1111/j.2517-6161.1949.tb00023.x; Tukey, Annals of Mathematical Statistics 29(2):614, 1958, DOI 10.1214/aoms/1177706647",
+        "visible_questions_sha256": "26f1eee3ce5a6aa03ade00d310839ca1e02674da5f373ea9901f8384ace99cda",
+        "source_snapshot_documents": 3,
+        "hidden_theory_harness_sha256": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+        "hidden_semantic_reference_sha256": "259c58652032efd1ce8c738c0233713e088cd5b777344b8f83fa12baddd63ae8",
+        "hidden_algorithm_harness_sha256": "997219265939e0aa34d1e75a4bf2565f798b11c171da63d7666dcf875745256d",
+        "hidden_empirical_harness_sha256": "f2f092d2818d08f6bc12bd56f04d911c0bb83f555b73e18f0dcee533cd1bb3bb",
+        "reference_estimator_sha256": "a2cef48cfa2cd0b2d3fe78aa70e8a06f0941718e2128d0b354cefa5c4bc20e32",
+        "algorithm_reference_checks": "10/10",
+        "algorithm_reference_maximum_relative_error": 0.0,
+        "algorithm_negative_variants_rejected": 4,
+        "empirical_reference_dgps_passed": 3,
+        "empirical_reference_replicates_per_dgp": 4000,
+        "empirical_reference_identity_agreements": 12000,
+        "empirical_reference_maximum_relative_error": 2.865940264298144e-16,
+        "empirical_reference_maximum_standardized_mean_error": 1.535111926473017,
+        "empirical_reference_maximum_mcse": 0.004139490684078,
+        "semantic_calibration_cases": 12,
+        "semantic_calibration_cases_correct": 12,
+        "semantic_reference_claims": 7,
+        "semantic_reference_candidate_passed": true,
+        "semantic_calibration_judgment_hash": "2128e9bec68ac3aefc0025876825d249589c3a1b77c52226d4df02b47835bdde",
+        "hidden_gold_manifest_validated": true,
+        "gold_frozen_before_first_runtime_model_call": true,
+        "first_runtime_model_call_occurred": false,
+        "fresh_live_runs": 0,
+        "model_draw_resampling_blocked": false,
+        "formalization_requirement": "not_applicable",
+        "full_task_passed": false
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
     }
   ],
   "activation_requirements": [
@@ -1147,14 +1204,14 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 14,
-    "fully_gold_configured_tasks": 14,
+    "active_scored_tasks": 15,
+    "fully_gold_configured_tasks": 15,
     "fully_gold_passed_tasks": 0,
     "runtime_source_replication_components_ready": 1,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "The single frozen exact-sign-test draw is complete and immutable at 0/1. TheoryDeveloper used source search/read, Markdown authority, and two exploratory scratch calculations; the independent referee read the full document, searched sources, and used scratch twice, but a failed pre-materialization scratch ref with no request hash made all three review submissions structurally impossible. Operator audit separately found median-derivation, zero-scope, and estimator-ABI defects, so the shared provenance fix cannot turn this run into a success. All fourteen gold-configured tasks remain 0/14.",
-    "next_step": "Do not rerun or rescore the exact-sign-test task. Validate the shared failed-tool request identity through regression only, preserve all fourteen frozen outcomes, and make no further live draw until a materially different shared scientific capability improvement has deterministic evidence and a disjoint benchmark is frozen and pushed before its first call."
+    "latest_diagnostic": "The single frozen exact-sign-test draw is complete and immutable at 0/1. A materially different shared capability improvement now preserves an independent theory referee session across same-owner continuation with hash-bound Markdown/source/scratch observations and cumulative budgets. A disjoint resampling-family jackknife-mean task has been calibrated and frozen before its first runtime model call. The fourteen consumed tasks remain 0/14; the fifteenth task has no runtime outcome yet.",
+    "next_step": "Do not rerun or rescore any consumed task. Push the frozen jackknife-mean benchmark identities before its first call, then execute exactly one fresh exact-Haiku research-evaluation draw and evaluate only accepted terminal artifacts against the hidden post-runtime gold."
   }
 }
