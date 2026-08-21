@@ -136,8 +136,10 @@ def theory_scratchpad_client_tool() -> ClientToolDefinition:
         name=THEORY_SCRATCHPAD_TOOL,
         description=(
             "Run one complete model-authored exploratory Python or R calculation "
-            "in the isolated scientific sandbox. Raw execution results return to "
-            "this mathematical session and never edit theory automatically."
+            "in the isolated scientific sandbox. Define, but do not call, "
+            "run_sandbox(seed, replicates); it must return a named JSON-finite "
+            "metric object. Raw execution results return to this mathematical "
+            "session and never edit theory automatically."
         ),
         input_schema=scratch_schema,
     )
@@ -184,6 +186,28 @@ def execute_theory_scratchpad_tool(
         timeout_s=int(scratchpad.timeout_s),
         max_output_bytes=64 * 1024,
     )
+    request_hash = execution.request_hash or stable_hash(
+        {
+            "schema_version": 1,
+            "artifact_kind": "TheoryScratchpadModelToolRequest",
+            "artifact_id": artifact_id,
+            "language": language,
+            "execution_profile": execution_profile,
+            "dependencies": [str(value) for value in dependencies],
+            "entrypoint": entrypoint,
+            "code_hash": execution.code_hash or stable_hash(code),
+            "seed": int(scratchpad.seed),
+            "replicates": int(scratchpad.replicates),
+            "timeout_s": int(scratchpad.timeout_s),
+            "max_output_bytes": 64 * 1024,
+            "sandbox_binding_hash": stable_hash(list(sandbox_binding)),
+        }
+    )
+    request_identity_source = (
+        "scientific_sandbox_request"
+        if execution.request_hash
+        else "model_tool_request"
+    )
     execution_ref = {
         "scratch_run": int(run_index),
         "status": execution.status,
@@ -193,7 +217,8 @@ def execute_theory_scratchpad_tool(
         "dependencies": list(execution.dependencies),
         "errors": list(execution.errors),
         "code_hash": execution.code_hash,
-        "request_hash": execution.request_hash,
+        "request_hash": request_hash,
+        "request_identity_source": request_identity_source,
         "result_hash": execution.result_hash,
         "metrics_hash": stable_hash(execution.metrics),
         "code_path": execution.code_path,
@@ -207,6 +232,8 @@ def execute_theory_scratchpad_tool(
         "scratch_run": int(run_index),
         "remaining_scratch_runs": max(0, scratchpad.max_runs - run_index),
         **execution.to_json(),
+        "request_hash": request_hash,
+        "request_identity_source": request_identity_source,
         "seed": int(scratchpad.seed),
         "replicates": int(scratchpad.replicates),
         "timeout_s": int(scratchpad.timeout_s),
@@ -230,7 +257,7 @@ def execute_theory_scratchpad_tool(
                     list(sandbox_binding),
                     run_index,
                     execution.code_hash,
-                    execution.request_hash,
+                    request_hash,
                     execution.status,
                     execution.result_hash,
                     list(execution.errors),

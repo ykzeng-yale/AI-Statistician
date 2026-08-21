@@ -956,6 +956,72 @@ def test_preflight_referee_can_run_model_owned_exploratory_scratch(
     )
 
 
+def test_preflight_failed_scratch_keeps_model_request_identity(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    def fake_execute_scientific_sandbox(**kwargs):
+        return ScientificSandboxExecution(
+            status="REJECTED_CONTRACT",
+            language="python",
+            execution_profile="scientific_wasm",
+            backend="pyodide",
+            isolation_provider="test-isolation",
+            dependencies=("numpy",),
+            execution_attempted=False,
+            returncode=-1,
+            metrics={},
+            errors=("model-authored source violates the sandbox ABI",),
+            stdout_summary="",
+            stderr_summary="model-authored source violates the sandbox ABI",
+            result_parse_error="",
+            code_path="",
+            request_path="",
+            result_path="",
+            code_hash=stable_hash(kwargs["code"]),
+            request_hash="",
+            result_hash="",
+            subprocess_environment_keys=("HOME", "PATH"),
+            resource_limits={"cpu_seconds": 11},
+        )
+
+    monkeypatch.setattr(
+        "ai_statistician.theory_workspace.execute_scientific_sandbox",
+        fake_execute_scientific_sandbox,
+    )
+    backend = _ScratchPreflightBackend()
+
+    packet = _tool_review(
+        backend,
+        theory_scratchpad=TheoryScratchpadConfig(
+            sandbox_dir=tmp_path / "referee-scratch",
+            seed=29,
+            replicates=17,
+            timeout_s=11,
+            max_runs=1,
+        ),
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    scratch_ref = packet["preflight_scratch_execution_refs"][0]
+    assert scratch_ref["status"] == "REJECTED_CONTRACT"
+    assert scratch_ref["execution_attempted"] is False
+    assert scratch_ref["request_hash"]
+    assert scratch_ref["request_identity_source"] == "model_tool_request"
+    assert backend.scratch_observation["request_hash"] == scratch_ref["request_hash"]
+    assert backend.scratch_observation["request_identity_source"] == (
+        "model_tool_request"
+    )
+    assert _preflight_scratchpad_evidence_errors(packet) == []
+    scratch_tool = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == THEORY_SCRATCHPAD_TOOL
+    )
+    assert "run_sandbox(seed, replicates)" in scratch_tool.description
+    assert "do not call" in scratch_tool.description
+
+
 def test_preflight_keeps_search_tool_visible_after_its_budget_is_spent() -> None:
     backend = _PreflightToolBackend(
         accept=False,
