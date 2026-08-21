@@ -10,6 +10,7 @@ from ai_statistician.model_backend import (
     ClientToolTurnResponse,
 )
 from ai_statistician.scientific_code_workspace import (
+    SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL,
     SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
     SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
     SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
@@ -216,7 +217,7 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
     assert len(backend.requests) == 1
 
 
-def test_dependency_owner_failure_terminates_without_more_local_edits() -> None:
+def test_model_selects_dependency_handoff_after_raw_consumer_failure() -> None:
     initial = {
         "language": "python",
         "execution_profile": "stdlib",
@@ -227,10 +228,6 @@ def test_dependency_owner_failure_terminates_without_more_local_edits() -> None:
     submitted = {
         **initial,
         "code": "def run_sandbox(seed, replicates):\n    return {'value': 1}\n",
-    }
-    unused = {
-        **initial,
-        "code": "def run_sandbox(seed, replicates):\n    return {'value': 2}\n",
     }
     backend = ScriptedScientificBackend(
         [
@@ -243,9 +240,14 @@ def test_dependency_owner_failure_terminates_without_more_local_edits() -> None:
             ),
             _response(
                 ClientToolCall(
-                    call_id="must-not-run",
-                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
-                    input=unused,
+                    call_id="report-dependency",
+                    name=SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL,
+                    input={
+                        "reason": (
+                            "The exact bound estimator returned a non-finite response "
+                            "for a valid request; the current consumer cannot repair it."
+                        )
+                    },
                 )
             ),
         ]
@@ -278,12 +280,16 @@ def test_dependency_owner_failure_terminates_without_more_local_edits() -> None:
         check_candidate=lambda candidate: {
             "code_draft_hash": stable_hash(dict(candidate)),
             "accepted": False,
-            "source_iteration_disposition": (
-                SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
-            ),
             "source_owner": source_owner,
+            "prototype": {
+                "estimator_runtime_failure_ids": ["estimator-a"],
+                "estimator_runtime_errors": [
+                    "accepted estimator returned a non-finite response"
+                ],
+            },
             "stderr": "bound dependency failed in consumer execution",
         },
+        allow_dependency_handoff=True,
     )
 
     assert dict(result.code_draft) == submitted
@@ -293,9 +299,14 @@ def test_dependency_owner_failure_terminates_without_more_local_edits() -> None:
         SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
     )
     assert result.evidence["source_owner"] == source_owner
+    assert result.check_result["dependency_failure_report"]["model_selected"] is True
     assert result.evidence["source_updates"] == 1
     assert result.evidence["sandbox_checks"] == 1
-    assert len(backend.requests) == 1
+    assert len(backend.requests) == 2
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+        SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL,
+    ]
 
 
 def test_byte_identical_replacement_is_returned_to_same_model_as_noop() -> None:

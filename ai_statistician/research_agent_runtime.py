@@ -10725,11 +10725,21 @@ class SimulationEvaluatorRuntimeSubsystem:
                     next_task=progress_next_task,
                     failure_classification="simulation_source_workspace_progress_checkpoint",
                 )
+            model_selected_dependency_handoff = any(
+                row.get("source_iteration_disposition")
+                == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+                and isinstance(row.get("dependency_failure_report", {}), Mapping)
+                and row["dependency_failure_report"].get("model_selected") is True
+                for row in generated_simulation_rows
+                if isinstance(row, Mapping)
+            )
             generated_simulation_failure_classification = (
                 "accepted_algorithm_estimator_abi_failed"
-                if n_generated_simulation_estimator_binding_failed > 0
+                if model_selected_dependency_handoff
+                and n_generated_simulation_estimator_binding_failed > 0
                 else "accepted_algorithm_estimator_runtime_failed"
-                if n_generated_simulation_estimator_runtime_failed > 0
+                if model_selected_dependency_handoff
+                and n_generated_simulation_estimator_runtime_failed > 0
                 else "generated_simulation_sandbox_metric_gate_failed"
                 if n_generated_simulation_metric_gate_failed > 0
                 else "generated_simulation_typed_metric_contract_missing"
@@ -10748,8 +10758,11 @@ class SimulationEvaluatorRuntimeSubsystem:
                 failure_classification=generated_simulation_failure_classification,
             )
             algorithm_dependency_failed = bool(
-                n_generated_simulation_estimator_binding_failed > 0
-                or n_generated_simulation_estimator_runtime_failed > 0
+                model_selected_dependency_handoff
+                and (
+                    n_generated_simulation_estimator_binding_failed > 0
+                    or n_generated_simulation_estimator_runtime_failed > 0
+                )
             )
             source_algorithm_manifest_id = str(
                 upstream_algorithm_handoff.get(
@@ -24333,10 +24346,6 @@ def _run_generated_simulation_sandbox(
                 for artifact_id in bound_dependency_ids
             },
         }
-        if dependency_failure_ids:
-            prototype["source_iteration_disposition"] = (
-                SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
-            )
     tool_language = normalized_generated_code_language(code_draft.get("language"))
     wrapped_tool_call = ToolCallRecord(
         tool_name=(

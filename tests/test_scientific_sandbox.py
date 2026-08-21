@@ -26,7 +26,6 @@ from ai_statistician.scientific_sandbox import (
     scientific_python_safety_errors,
 )
 from ai_statistician.scientific_code_workspace import (
-    SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
     advance_scientific_consumer_revision_budget,
     scientific_consumer_dependency_context,
@@ -894,7 +893,7 @@ def test_runtime_simulation_dispatch_records_mechanical_estimator_reuse(
     assert receipt["all_handoff_estimators_invoked"] is False
 
 
-def test_runtime_simulation_dependency_failure_names_exact_source_owner(
+def test_runtime_simulation_failure_preserves_source_refs_without_routing(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -971,9 +970,8 @@ def test_runtime_simulation_dependency_failure_names_exact_source_owner(
         timeout_s=5,
     )
 
-    assert prototype["source_iteration_disposition"] == (
-        SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
-    )
+    assert "source_iteration_disposition" not in prototype
+    assert "dependency_failure_report" not in prototype
     assert prototype["source_owner"] == {
         "owner_subsystem": "AlgorithmEngineer",
         "source_manifest_id": "algorithm:accepted",
@@ -1688,7 +1686,7 @@ def test_nonfinite_estimator_request_remains_consumer_source_feedback(
     assert "outcomes" in envelope["error_message"]
 
 
-def test_live_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
+def test_live_estimator_failure_caught_by_simulation_remains_consumer_result(
     tmp_path: Path,
 ) -> None:
     runtime = discover_scientific_sandbox_runtime()
@@ -1729,13 +1727,11 @@ def test_live_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
         ),
     )
 
-    assert result.status == "FAILED"
+    assert result.status == "EXECUTED"
     assert result.metrics["caught"] is True
-    assert result.estimator_invocation_counts == {"candidate": 0}
-    assert result.estimator_runtime_failure_ids == ("candidate",)
-    assert len(result.estimator_runtime_errors) == 1
-    assert "request_shape=" in result.estimator_runtime_errors[0]
-    assert "withheld-threshold-name" not in result.estimator_runtime_errors[0]
+    assert result.estimator_invocation_counts == {"candidate": 1}
+    assert result.estimator_runtime_failure_ids == ()
+    assert result.estimator_runtime_errors == ()
     assert result.estimator_invocation_samples["candidate"] == [
         {
             "invocation_index": 1,
@@ -1755,7 +1751,60 @@ def test_live_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
     ]
 
 
-def test_live_r_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
+def test_live_estimator_bound_preserves_expected_exception_type(
+    tmp_path: Path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Pyodide runtime is not installed on this host")
+    algorithm = (
+        "def run_estimator(request):\n"
+        "    values = request['values']\n"
+        "    if not any(values):\n"
+        "        raise ValueError('positive denominator required')\n"
+        "    return {'estimate': sum(values) / len(values)}\n"
+    )
+    simulation = (
+        "def run_sandbox(seed, replicates, estimators):\n"
+        "    rejected = False\n"
+        "    try:\n"
+        "        estimators['candidate']({'values': [0.0, 0.0]})\n"
+        "    except ValueError:\n"
+        "        rejected = True\n"
+        "    fitted = estimators['candidate']({'values': [2.0, 4.0]})\n"
+        "    return {'expected_rejection': rejected, 'estimate': fitted['estimate']}\n"
+    )
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="bound-expected-estimator-rejection",
+        language="python",
+        code=simulation,
+        dependencies=[],
+        seed=7,
+        replicates=5,
+        timeout_s=60,
+        estimator_bindings=(
+            ScientificEstimatorBinding(
+                artifact_id="candidate",
+                language="python",
+                code=algorithm,
+                code_hash=stable_hash(algorithm),
+            ),
+        ),
+    )
+
+    assert result.status == "EXECUTED"
+    assert result.metrics == {"estimate": 3, "expected_rejection": True}
+    assert result.estimator_invocation_counts == {"candidate": 2}
+    assert result.estimator_runtime_failure_ids == ()
+    assert result.estimator_runtime_errors == ()
+    assert result.estimator_invocation_samples["candidate"][0]["error_type"] == (
+        "ValueError"
+    )
+
+
+def test_live_r_estimator_failure_caught_by_simulation_remains_consumer_result(
     tmp_path: Path,
 ) -> None:
     runtime = discover_scientific_sandbox_runtime()
@@ -1796,13 +1845,11 @@ def test_live_r_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
         ),
     )
 
-    assert result.status == "FAILED"
+    assert result.status == "EXECUTED"
     assert result.metrics["caught"] is True
-    assert result.estimator_invocation_counts == {"candidate": 0}
-    assert result.estimator_runtime_failure_ids == ("candidate",)
-    assert len(result.estimator_runtime_errors) == 1
-    assert "finite JSON-compatible values" in result.estimator_runtime_errors[0]
-    assert "request_shape=" in result.estimator_runtime_errors[0]
+    assert result.estimator_invocation_counts == {"candidate": 1}
+    assert result.estimator_runtime_failure_ids == ()
+    assert result.estimator_runtime_errors == ()
     assert result.estimator_invocation_samples["candidate"] == [
         {
             "invocation_index": 1,

@@ -40,6 +40,7 @@ SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS = "native_client_tools"
 SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET = "structured_packet"
 SCIENTIFIC_SOURCE_SUBMISSION_TOOL = "submit_scientific_source"
 SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL = "run_current_scientific_source"
+SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL = "report_bound_dependency_failure"
 SCIENTIFIC_SOURCE_REVISE_CURRENT = "revise_current_source"
 SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER = (
     "return_to_bound_dependency_owner"
@@ -887,6 +888,20 @@ def run_source_owner_scientific_workspace(
             "scientific workspace accepted without a persisted sandbox result"
         )
     prototype = deepcopy(last_checked_prototype)
+    terminal_check = dict(workspace_result.check_result)
+    if (
+        terminal_check.get("source_iteration_disposition")
+        == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+    ):
+        prototype["source_iteration_disposition"] = (
+            SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+        )
+        prototype["source_owner"] = deepcopy(
+            dict(terminal_check.get("source_owner", {}))
+        )
+        prototype["dependency_failure_report"] = deepcopy(
+            dict(terminal_check.get("dependency_failure_report", {}))
+        )
     prototype["scientific_code_workspace"] = dict(workspace_result.evidence)
     return prototype, tool_calls
 
@@ -1509,6 +1524,7 @@ def run_scientific_code_workspace(
     check_candidate: ScientificCodeCheck,
     workspace_operation: str = "targeted_revision",
     allow_current_source_run: bool = False,
+    allow_dependency_handoff: bool = False,
     request_metadata: Mapping[str, Any] | None = None,
     recovery_checkpoint: Mapping[str, Any] | None = None,
 ) -> ScientificCodeWorkspaceResult:
@@ -1587,7 +1603,8 @@ def run_scientific_code_workspace(
     tools = _scientific_code_tools(
         allow_current_source_run=(
             bool(parent_draft) and allow_current_source_run
-        )
+        ),
+        allow_dependency_handoff=allow_dependency_handoff,
     )
 
     def execute_checked_draft(
@@ -1752,6 +1769,82 @@ def run_scientific_code_workspace(
                 state["code_draft"],
                 source_changed=False,
                 current_source_reexecuted=True,
+            )
+
+        if call.name == SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL:
+            if not allow_dependency_handoff:
+                raise ClientToolInputError(
+                    "bound dependency handoff is unavailable in this workspace"
+                )
+            if set(tool_input) != {"reason"} or not str(
+                tool_input.get("reason", "") or ""
+            ).strip():
+                raise ClientToolInputError(
+                    "report_bound_dependency_failure requires one nonempty reason"
+                )
+            check = deepcopy(dict(state["last_check"]))
+            prototype = check.get("prototype", {})
+            source_owner = check.get("source_owner", {})
+            runtime_failure_ids = (
+                list(prototype.get("estimator_runtime_failure_ids", []) or [])
+                if isinstance(prototype, Mapping)
+                else []
+            )
+            binding_errors = (
+                list(prototype.get("estimator_binding_errors", []) or [])
+                if isinstance(prototype, Mapping)
+                else []
+            )
+            if not runtime_failure_ids and not binding_errors:
+                raise ClientToolInputError(
+                    "no exact bound dependency failure is present in the latest "
+                    "sandbox observation"
+                )
+            if not (
+                isinstance(source_owner, Mapping)
+                and str(source_owner.get("owner_subsystem", "") or "").strip()
+                and str(source_owner.get("source_manifest_id", "") or "").strip()
+                and str(source_owner.get("source_manifest_hash", "") or "").strip()
+                and source_owner.get("artifact_ids")
+                and isinstance(source_owner.get("artifact_hashes"), Mapping)
+            ):
+                raise ClientToolInputError(
+                    "latest sandbox observation has no exact dependency source refs"
+                )
+            report = {
+                "artifact_kind": "ModelSelectedScientificDependencyHandoff",
+                "model_selected": True,
+                "reason": str(tool_input["reason"]).strip(),
+                "source_manifest_id": source_owner["source_manifest_id"],
+                "source_manifest_hash": source_owner["source_manifest_hash"],
+                "runtime_edited_source": False,
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+            check["source_iteration_disposition"] = (
+                SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+            )
+            check["dependency_failure_report"] = report
+            state["last_check"] = check
+            return ClientToolExecutionResult(
+                content={
+                    "ok": False,
+                    "accepted": False,
+                    "source_iteration_disposition": (
+                        SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
+                    ),
+                    "source_owner": deepcopy(dict(source_owner)),
+                    "dependency_failure_report": report,
+                },
+                is_error=False,
+                state_changed=True,
+                terminal=True,
+                terminal_payload={
+                    "code_draft": deepcopy(dict(state["code_draft"])),
+                    "code_draft_hash": state["code_draft_hash"],
+                    "check_result": check,
+                },
+                observation_key="scientific-dependency-handoff:"
+                + stable_hash(report),
             )
 
         raise ClientToolInputError("unsupported scientific code workspace tool")
@@ -1991,6 +2084,7 @@ def _complete_code_draft(value: Mapping[str, Any] | Any) -> dict[str, Any]:
 def _scientific_code_tools(
     *,
     allow_current_source_run: bool,
+    allow_dependency_handoff: bool,
 ) -> tuple[ClientToolDefinition, ...]:
     tools = [
         ClientToolDefinition(
@@ -2069,6 +2163,36 @@ def _scientific_code_tools(
                             "description": (
                                 "Why executing the current bytes in the changed bound "
                                 "environment is the next useful diagnostic action."
+                            ),
+                        }
+                    },
+                },
+                terminal=True,
+            )
+        )
+    if allow_dependency_handoff:
+        tools.append(
+            ClientToolDefinition(
+                name=SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL,
+                description=(
+                    "After a raw sandbox observation shows an exact bound estimator "
+                    "binding or runtime failure, use this only when you judge the "
+                    "current consumer call valid under the supplied interface and the "
+                    "bound dependency source owns the defect. The runtime transfers "
+                    "the hash-bound observation unchanged and does not edit either "
+                    "source. Otherwise revise the current source instead."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["reason"],
+                    "properties": {
+                        "reason": {
+                            "type": "string",
+                            "description": (
+                                "Why the observed valid consumer call demonstrates a "
+                                "defect in the exact bound dependency rather than in "
+                                "the current source."
                             ),
                         }
                     },

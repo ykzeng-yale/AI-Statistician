@@ -425,6 +425,32 @@ def _metric_protocol_accepted(packet: Mapping[str, Any]) -> bool:
     )
 
 
+def _latest_metric_protocol_packet(
+    artifacts: Mapping[str, Mapping[str, Any]],
+    *,
+    theory_packet_id: str,
+    theory_packet: Mapping[str, Any],
+) -> tuple[str, Mapping[str, Any]]:
+    if not theory_packet_id or not theory_packet:
+        return "", {}
+    theory_packet_hash = stable_hash(dict(theory_packet))
+    for artifact_id, artifact in reversed(list(artifacts.items())):
+        if (
+            artifact.get("artifact_kind") != "ArchitectCoordinatorProposalPacket"
+            or not _metric_protocol_accepted(artifact)
+        ):
+            continue
+        authoring = artifact.get("metric_requirement_authoring", {})
+        if not isinstance(authoring, Mapping):
+            continue
+        if (
+            authoring.get("source_theory_packet_id") == theory_packet_id
+            and authoring.get("source_theory_packet_hash") == theory_packet_hash
+        ):
+            return str(artifact_id), artifact
+    return "", {}
+
+
 def _simulation_has_bound_nonvacuous_metric_evidence(
     simulation_manifest: Mapping[str, Any],
     *,
@@ -578,6 +604,12 @@ def build_research_evaluation_summary(
             else ""
         )
         architect_packet = artifacts.get(architect_packet_id, {})
+        if not _metric_protocol_accepted(architect_packet):
+            architect_packet_id, architect_packet = _latest_metric_protocol_packet(
+                artifacts,
+                theory_packet_id=theory_packet_id,
+                theory_packet=theory_packet,
+            )
         architect_contract = architect_packet.get("evidence_contract", {})
         final_requirement_set_id = (
             str(

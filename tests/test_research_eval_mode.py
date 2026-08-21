@@ -1100,6 +1100,27 @@ def test_research_summary_preserves_reviewed_theory_and_code_before_critic() -> 
             "reviewer_model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
             "confirmatory_empirical_evidence_eligible": False,
         },
+        "architect": {
+            "artifact_kind": "ArchitectCoordinatorProposalPacket",
+            "packet_id": "architect",
+            "metric_requirement_authoring": {
+                "source_theory_packet_id": "theory",
+                "source_theory_packet_hash": stable_hash(theory),
+            },
+            "evidence_contract": {
+                "empirical_metric_protocol_phase": "preexecution_review_accepted",
+                "metric_protocol_execution_authorized": True,
+                "empirical_metric_requirement_set_id": "metric-set:1",
+                "empirical_metric_requirements": [
+                    {"requirement_id": "metric:1"}
+                ],
+                "empirical_metric_requirements_preexecution_review": {
+                    "overall_verdict": "ACCEPT",
+                    "independent_agent": True,
+                    "independent_invocation": True,
+                },
+            },
+        },
     }
     result = {
         "status": "BLOCKED",
@@ -1126,6 +1147,7 @@ def test_research_summary_preserves_reviewed_theory_and_code_before_critic() -> 
         "generated_algorithm_executed_and_passed"
     ] is True
     assert row["requirements"]["algorithm_semantic_review_accepted"] is True
+    assert row["requirements"]["metric_protocol_independently_accepted"] is True
     assert row["requirements"][
         "generated_simulation_executed_and_passed"
     ] is False

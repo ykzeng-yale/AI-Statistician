@@ -306,6 +306,7 @@ class LLMSimulationEngineerAgent:
             check_candidate=check_candidate,
             workspace_operation=workspace_operation,
             allow_current_source_run=allow_current_source_run,
+            allow_dependency_handoff=True,
             recovery_checkpoint=recovery_checkpoint,
             request_metadata={
                 "subsystem": "SimulationEvaluator",
