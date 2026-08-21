@@ -244,12 +244,8 @@ cited source is snapshot-verified. Prior findings remain immutable records but m
 be resolved or retracted by the independent model using current evidence; runtime
 only validates lineage.
 
-The same independent reviewer may choose an isolated Python or R scratch calculation
-when a numerical special case or counterexample would discriminate a mathematical
-claim. The reviewer authors the complete source and interprets the raw sandbox result
-inside its existing tool loop. Runtime stores only hash-bound execution lineage; the
-result is exploratory, never confirmatory evidence or theorem proof, and it does not
-create another reviewer, vote, repair worker, or routing stage.
+The independent reviewer may author an isolated Python/R scratch countercheck and interpret its raw result in the existing tool loop.
+Runtime stores hash-bound lineage only; the result is exploratory, never confirmatory/proof, and adds no reviewer, vote, repair worker, or route.
 
 ## Lean formalization workspace
 
@@ -385,10 +381,8 @@ New work must not reintroduce:
 - proof-bank candidates as the default live proving policy;
 - additional framework wrappers before the current graph is smaller.
 
-Repository tests enforce coarse size budgets for the canonical runtime, package,
-and design document. Those budgets are regression alarms, not architecture goals;
-the preferred response is deletion and consolidation, not moving code behind a
-new interface.
+Repository tests enforce coarse canonical-runtime, package, and design-document size budgets as regression alarms.
+The preferred response is deletion and consolidation, not moving code behind a new interface.
 
 ## Current implementation map
 
@@ -402,5 +396,4 @@ new interface.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 
-Priorities are model-owned theory counterchecks, execution timing, independent
-gap review, and fresh evidence. Never add repair agents or theorem-specific rules.
+Priorities are model-owned counterchecks, execution timing, independent gap review, and fresh evidence; never add repair agents or theorem-specific rules.
