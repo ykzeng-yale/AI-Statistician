@@ -1,13 +1,13 @@
 {
-  "schema_version": 103,
+  "schema_version": 104,
   "updated_at": "2026-08-21",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "5e637c0b7737e100e0158524a19a7b9587d5c0cb",
+  "validated_code_head": "a1caf64a9d671af68e76b84036399df4c6149520",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. Commit 5e637c0b removes the fixed 80/100 confirmatory-replicate decision: the pre-execution planning model now chooses one portfolio count from Monte Carlo precision and feasibility, an isolated reviewer judges it before outcomes, and Simulation source plus execution consume it exactly. Runtime owns only a high safety capacity, timeout, identity, and freezing. All sixteen scored tasks remain immutable 0/16; no task is currently authorized for another draw.",
+  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. Commit a1caf64a gives the existing TheoryDeveloper session optional model-directed Crossref and GitHub discovery: the model chooses every query, source, interpretation, and next action, while runtime owns fixed hosts, source horizon, secret isolation, bounded observations, commit identity, hashes, and the frozen-evaluation boundary. This is source-scouting mechanism evidence only. Full paper/code/data acquisition, immutable replication promotion, independent contrary-source review, mathematical correctness, and E2E completion remain open; all sixteen scored tasks stay immutable 0/16 and no task is authorized for another draw.",
   "operating_principle": "Models own statistical, mathematical, Python, R, retrieval-query, Lean, and confirmatory-precision content. The harness owns isolation, immutable identity, source visibility, safety capacity, checkpoints, independent review, result blinding, frozen evaluation authority, and proof promotion. It does not author substantive fixes or scientific precision.",
   "model_policy": {
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
@@ -43,6 +43,7 @@
       "independent semantic and theory review",
       "fresh confirmatory cohorts and pre-outcome gate freezing",
       "model-authored confirmatory precision with independent pre-outcome review",
+      "same-session model-directed public source discovery under explicit network and source-horizon policy",
       "Lean kernel authority"
     ],
     "forbidden": [
@@ -56,8 +57,13 @@
     ]
   },
   "validated_change": {
-    "commit": "5e637c0b7737e100e0158524a19a7b9587d5c0cb",
+    "commit": "a1caf64a9d671af68e76b84036399df4c6149520",
     "changes": [
+      "The official OpenAI Codex repository remains pinned to the read-only Apache-2.0 audit at e6a3877e95788b52c3aa5e9a143dba87f04720dc. AI-Statistician reuses its same-context model-to-tool-to-observation principle and dynamic-tool boundary, but does not import Codex app-server, Responses transport, thread manager, provider, persistence, or a second scheduler beside AgentRuntime.",
+      "PublicResearchSourceDiscovery exposes exactly two optional tools inside the existing TheoryDeveloper client-tool transcript: model-authored search over Crossref paper metadata and public GitHub repositories, followed by exact bounded reads through opaque session handles. There is no Scout agent, source router, fallback query, repair worker, automatic retry, or runtime-selected literature.",
+      "GitHub reads first resolve a concrete commit no later than the explicit source horizon and then use the official Contents API at that revision. Persisted evidence binds the complete file hash, path, revision, citation ref, and source identity while omitting source bodies and secrets. Crossref and GitHub are fixed API hosts; arbitrary URL fetching, cloning, command construction, and author-code execution remain outside discovery.",
+      "A declared secret-free public API failure returns as a raw error observation to the same TheoryDeveloper, which may change its action or report a gap. Unknown executor failures still terminate through the fatal client-tool boundary. Frozen cross-family evaluation rejects live discovery and continues to require operator-frozen ResearchSourceSnapshot and execution manifests for exact replication.",
+      "Source/Theory/Architect regressions passed 93/93; shared client-tool and scientific-code tests passed 26/26, Lean formalizer tests 8/8, and theory preflight tests 53/53. The full local suite passed 803/803 in 64.60 seconds. Separate read-only provider smokes reached Crossref and GitHub, pinned YuanheZ/lean-stat-learning-theory at d0f506f0a695018265dccb33bcb05e2f5ca1c876, and read README.md by full content hash. No Claude call, frozen-task rerun, source execution, scientific acceptance, theorem proof, or E2E credit was produced.",
       "The official OpenAI Codex repository was incrementally audited read-only at Apache-2.0 commit e6a3877e95788b52c3aa5e9a143dba87f04720dc. Its only change after 9949c9ea is remote plugin-cache reconciliation; all previously inspected session, tool-dispatch, multi-agent, app-server, provider, Guardian, thread, and executor-hook files remain byte-identical. No Codex SDK, app-server, Responses transport, thread manager, scheduler, or provider was imported.",
       "Fresh confirmatory metric authoring now exposes the existing required_runtime_replicates field to the planning model instead of deleting it and writing a runtime-owned 80/100 value. The model selects one shared portfolio count before outcomes and must justify its Monte Carlo precision and feasibility in the existing requirement rationales.",
       "An isolated metric reviewer sees the model-authored count, runtime timeout, and high sandbox safety capacity, and is explicitly required to treat capacity as a safety constraint rather than a statistical default. Inconsistent row counts, nonpositive counts, and counts above capacity fail closed without a content repair or result-informed rewrite.",
@@ -531,7 +537,8 @@
       "explicit task intent being omitted from visible-question identity and therefore able to drift relative to frozen evaluator requirements",
       "canonical TheoryDeveloper authoring overloading one nested batch tool with both long Markdown/LaTeX bodies and structured handoff values instead of giving the model a direct file-like write operation",
       "a theory-only task with real hidden theory execution being omitted from n_tasks_evaluated solely because no algorithm harness was configured, and not-applicable dimensions naming evaluator authorities that never ran",
-      "a valid same-owner theory continuation being rejected because transient runtime scheduling task_id was included in immutable scientific workspace identity"
+      "a valid same-owner theory continuation being rejected because transient runtime scheduling task_id was included in immutable scientific workspace identity",
+      "ordinary product TheoryDeveloper sessions being limited to operator-preloaded source snapshots with no model-directed public paper or repository discovery, while strict historical evaluation still requires a frozen corpus"
     ],
     "remaining_structural_problems": [
       "task sixteen is the first consumed schema-v2 draw; public clause references made hidden-check provenance auditable, accepted theory/code passed all hidden component checks, and the full task still failed runtime completion",
@@ -573,13 +580,13 @@
       "fresh KM v2 produced a correct hidden-tested estimator but its theory contains substantive errors that runtime author, preflight, and terminal acceptance all failed to reject",
       "the calibrated single-Haiku semantic theory judge false-accepted the frozen bad KM candidate and passed only 4/5 hidden calibration cases; it is correctly fail-closed and cannot serve as theory authority",
       "the file-backed TheoryDeveloper handoff no longer embeds client-tool history, empty legacy derivation arrays, or non-formal theorem/proof-plan duplicates, but selected estimator, simulation, and formalization consumers still receive larger typed ABI payloads rather than mostly content-addressed claim references",
-      "TheoryDeveloper now has a closed acyclic within-packet claim graph, an exact reference-only multi-revision delta chain, and same-task resumable document checkpoints, but it still lacks claim-specific section hashes, a mature cross-task research-memory view, autonomous source acquisition, and independent search for uncited contrary sources",
+      "TheoryDeveloper now has a closed acyclic within-packet claim graph, an exact reference-only multi-revision delta chain, same-task resumable document checkpoints, and optional same-session public paper/repository scouting, but it still lacks claim-specific section hashes, a mature cross-task research-memory view, full-text/data acquisition, immutable discovered-source promotion, and independent search for uncited contrary sources",
       "the parent Theory body is now reference-only across revision persistence and resume, but revision bindings still copy routed reviewer feedback and several downstream handoffs still carry larger typed ABI payloads rather than selecting only required artifact references",
       "hash-bound author and independent-reviewer document search and line reads now have live Wilson evidence through complete document inspection, but the reviewer produced no accepted packet and operator audit found substantive author errors, so they still do not establish correct derivation or judgment",
       "the independent preflight still ends in one compact runtime-validated verdict after model-owned document and source inspection; its mathematical protocol and scratchpad boundary remain model judgment, and no frozen task may be rerun merely to test prompt luck",
       "the corrected terminal Critic and exact-citation interface has regression and frozen-replay evidence only; exact-Haiku previously false-accepted the bad KM theory, and no fresh unrelated source-grounded draw has tested whether exact citations improve judgment",
       "the post-v5 confirmatory terminal-routing simplification has deterministic regression evidence but no fresh live capability evidence; another HC0 draw is not justified solely to validate routing",
-      "the current model-visible source snapshot supports exact local paper/code reading and one real immutable rerun, but it is not a complete live web/GitHub acquisition or paper-code-data replication workspace; the proposed ruptures task was not activated because its official notebook has no fixed seed or saved result and its deterministic assertions are pytest entrypoints outside the current direct-script source runner",
+      "live Crossref/GitHub scouting and the current model-visible source snapshot support bounded public discovery, exact local paper/code reading, and one real immutable rerun, but they do not yet form full paper/code/data acquisition, durable snapshot curation, or a general replication workspace",
       "ordinary source errors stay local, callback semantics are transparent, and cross-workspace dependency transfer is model-selected and hash-validated; generic global lineage and stagnation semantics remain incomplete",
       "scientific execution has Pyodide/WebR foundations but live R, broad package support, and precision-driven confirmatory replication need integrated evidence",
       "Formalizer has real RAG, local Lean, source revision, and semantic review but still lacks reliable exact statistical theorem closure",
@@ -606,14 +613,14 @@
   "current_structure": {
     "research_agent_runtime_lines": 24999,
     "scientific_code_workspace_lines": 2213,
-    "theory_workspace_lines": 3224,
-    "research_architect_lines": 5225,
+    "theory_workspace_lines": 3467,
+    "research_architect_lines": 5237,
     "architect_theory_execution_preflight_lines": 4433,
     "formalizer_llm_lines": 2408,
     "agent_runtime_lines": 1207,
-    "cli_lines": 7048,
-    "top_level_python_modules": 141,
-    "top_level_package_lines": 145086,
+    "cli_lines": 7130,
+    "top_level_python_modules": 142,
+    "top_level_package_lines": 146197,
     "latest_runtime_manifest_bytes": 63752
   },
   "next_gates": [
@@ -649,11 +656,11 @@
     "The existing independent preflight now enforces model-chosen exact-read coverage for every authoritative theory document and asks the model to challenge dependency steps and counterchecks under a compact general protocol. Validate this only on the next unrelated task frozen before its first model call; line coverage is inspection provenance, not mathematical correctness, and must not be promoted from regression tests alone.",
     "Extend the now-real exact replication lane to a disjoint paper with pinned data and an original deterministic script or supported immutable entrypoint before claiming paper-to-code or frontier research ability. Do not disguise an operator-written wrapper as author source or extend the runner for one candidate.",
     "Ablate progressive theory and exploratory simulation on a future unrelated known result: code may start after stable interfaces, but every scratchpad outcome remains exploratory and confirmatory execution waits for independent theory/source acceptance and a frozen precision rule.",
-    "Implement model-authored, task-appropriate Monte Carlo precision contracts selected and independently reviewed before outcomes instead of treating n_runs=100 as a scientific default.",
+    "On a future ordinary product task, exercise same-session public discovery without treating metadata or source text as replication evidence. Convert only an operator-approved paper/code/data set into an immutable source and execution snapshot before author-code execution; do not enable live discovery inside a frozen historical benchmark.",
     "Run a product research_eval known-result panel where formalization is optional or advisory by task intent and report the full evidence vector without Lean blocking accepted empirical dimensions.",
     "Do not spend another live strict S13 run merely to resample the same broad tasks. Run it under unchanged budgets only after a relevant shared mechanism change has component or replay evidence and require exact target-bound kernel closure on both development families before opening held-out PCA/extremes.",
     "Keep the active Statlib pin as the only importable authority while indexing newer upstream Statlib snapshots under a separate non-importable discovery identity; migrate the project pin only after whole-project compile and declaration-compatibility checks.",
-    "Use the existing same-task resumable document checkpoint on a future unrelated frozen task before extending memory further. Later add durable cross-task definition/assumption/equation/claim references and independent source discovery for novelty or contradiction without turning either into a memory service or literature-router hierarchy.",
+    "Use the existing same-task resumable document checkpoint on a future unrelated frozen task before extending memory further. Later add durable cross-task definition/assumption/equation/claim references and independent contrary-source review without turning discovery into a memory service or literature-router hierarchy.",
     "Improve Formalizer through direct proof-state retrieval and source iteration, but keep it parallel or downstream for non-formal product tasks and mandatory only when frozen task intent requires proof.",
     "Delete or extract existing central runtime responsibilities before adding any new outer control feature."
   ]
