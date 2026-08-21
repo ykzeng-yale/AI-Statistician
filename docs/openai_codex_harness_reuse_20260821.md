@@ -419,3 +419,23 @@ persisted history, and external draft tampering stops before a provider call. Th
 focused and adjacent panel passed 139 tests and the full local suite passed 808 tests
 in 64.54 seconds. No Claude call, benchmark rerun, task result, mathematical
 acceptance, empirical credit, or proof credit was produced.
+
+The exact claim-DAG handoff is regression-validated at code commit `6c850df7`.
+Document-native TheoryDeveloper packets now retain their complete compact claim
+index when rich legacy prose rows are capped. AlgorithmEngineer,
+SimulationEngineer, and Formalizer receive one shared model-facing envelope,
+`referenced_claim_ids` plus rationale, whose provider schema enumerates exact
+current identities. The runtime resolves declared prerequisites for independent
+generated-code review; it does not infer mathematics or repair an unsupported
+reference. Historical four-list fuzzy alignment remains old-artifact read
+compatibility and is absent from canonical document-native prompts.
+
+An immutable replay of the consumed Fisher-z Theory packet now exposes all 12
+claims and 12 dependency edges instead of the first three definitions. Selecting
+`est_fisher_pearson_z` resolves to that claim and its two declared definitions. The
+focused document/scientific-schema panel passed 41 tests, Formalizer/reviewer
+compatibility passed 31, runtime/estimator compatibility passed 75, and the full
+suite passed 809 tests in 64.45 seconds. `research_agent_runtime.py` remains 24,999
+lines. No Claude call, consumed-task rerun, mathematical acceptance, empirical
+credit, Lean proof, or E2E credit was produced; Fisher-z remains `0/1` and the
+scored ladder remains `0/17`.
