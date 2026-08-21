@@ -26,6 +26,14 @@ from .research_source_library import (
     ResearchSourceSnapshot,
     execute_research_source,
 )
+from .research_source_discovery import (
+    RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE,
+    RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+    RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+    ResearchSourceDiscovery,
+    ResearchSourceDiscoveryError,
+    ResearchSourceDiscoveryInputError,
+)
 from .scientific_sandbox import (
     SCIENTIFIC_WASM_SANDBOX_PROFILE,
     execute_scientific_sandbox,
@@ -293,6 +301,7 @@ def run_theory_artifact_workspace(
     request_metadata: Mapping[str, Any] | None = None,
     scratchpad: TheoryScratchpadConfig | None = None,
     research_sources: ResearchSourceSnapshot | None = None,
+    research_source_discovery: ResearchSourceDiscovery | None = None,
     research_source_execution: ResearchSourceExecutionSpec | None = None,
     allow_source_replication_checkpoint: bool = False,
     task_intent: Mapping[str, str] | None = None,
@@ -439,6 +448,8 @@ def run_theory_artifact_workspace(
         "scratch_execution_refs": [],
         "source_search_refs": [],
         "source_read_refs": [],
+        "source_discovery_search_refs": [],
+        "source_discovery_read_refs": [],
         "source_replication_runs": 0,
         "source_replication_manifests": [],
     }
@@ -447,6 +458,7 @@ def run_theory_artifact_workspace(
         writable_artifact_shapes,
         scratchpad_enabled=scratchpad is not None,
         research_sources_enabled=research_sources is not None,
+        research_source_discovery_enabled=research_source_discovery is not None,
         research_source_execution_enabled=research_source_execution is not None,
         source_replication_checkpoint_enabled=allow_source_replication_checkpoint,
         document_authority_enabled=require_document_authority,
@@ -497,6 +509,21 @@ def run_theory_artifact_workspace(
             documents,
             workspace_dir=resolved_workspace_dir,
         )
+
+    def source_discovery_evidence() -> dict[str, Any]:
+        return {
+            "research_source_discovery": (
+                dict(research_source_discovery.descriptor())
+                if research_source_discovery is not None
+                else {"configured": False}
+            ),
+            "source_discovery_search_refs": deepcopy(
+                state["source_discovery_search_refs"]
+            ),
+            "source_discovery_read_refs": deepcopy(
+                state["source_discovery_read_refs"]
+            ),
+        }
 
     def readable_artifact(name: str) -> Any:
         if name in read_only:
@@ -922,6 +949,142 @@ def run_theory_artifact_workspace(
             return ClientToolExecutionResult(
                 content=observation,
                 observation_key="research-source-read:" + stable_hash(source_ref),
+            )
+
+        if call.name == RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL:
+            if research_source_discovery is None:
+                raise ClientToolInputError(
+                    "public research source discovery is unavailable"
+                )
+            if set(tool_input) - {"query", "source_kind", "top_k"}:
+                raise ClientToolInputError(
+                    "discover_research_sources accepts query, source_kind, and top_k"
+                )
+            try:
+                observation = research_source_discovery.search(
+                    tool_input.get("query", ""),
+                    source_kind=tool_input.get("source_kind", "all"),
+                    top_k=tool_input.get("top_k", 5),
+                )
+            except ResearchSourceDiscoveryInputError as exc:
+                raise ClientToolInputError(str(exc)) from exc
+            except ResearchSourceDiscoveryError as exc:
+                return ClientToolExecutionResult(
+                    content={
+                        "ok": False,
+                        "error": "public_research_source_discovery_failed",
+                        "detail": str(exc)[:1_200],
+                        "model_may_continue_without_this_source": True,
+                    },
+                    is_error=True,
+                    observation_key=(
+                        "public-research-source-discovery-failed:"
+                        + stable_hash([call.name, type(exc).__name__, str(exc)])
+                    ),
+                )
+            if not isinstance(observation, Mapping):
+                raise RuntimeError(
+                    "research source discovery returned a non-object observation"
+                )
+            results = observation.get("results", [])
+            source_ref = {
+                "tool": RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+                "provider": str(observation.get("provider", "") or ""),
+                "source_horizon": str(
+                    observation.get("source_horizon", "") or ""
+                ),
+                "query_hash": str(observation.get("query_hash", "") or ""),
+                "source_kind": str(observation.get("source_kind", "") or ""),
+                "results": [
+                    {
+                        key: row[key]
+                        for key in (
+                            "source_handle",
+                            "source_kind",
+                            "title",
+                            "url",
+                            "publication_date",
+                        )
+                        if key in row
+                    }
+                    for row in results
+                    if isinstance(row, Mapping)
+                ],
+                "proof_evidence_status": (
+                    RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE
+                ),
+            }
+            state["source_discovery_search_refs"].append(source_ref)
+            return ClientToolExecutionResult(
+                content=dict(observation),
+                observation_key="research-source-discovery-search:"
+                + stable_hash(source_ref),
+            )
+
+        if call.name == RESEARCH_SOURCE_DISCOVERY_READ_TOOL:
+            if research_source_discovery is None:
+                raise ClientToolInputError(
+                    "public research source discovery is unavailable"
+                )
+            if set(tool_input) - {"source_handle", "path", "revision"}:
+                raise ClientToolInputError(
+                    "read_discovered_research_source accepts source_handle, path, "
+                    "and revision"
+                )
+            try:
+                observation = research_source_discovery.read(
+                    tool_input.get("source_handle", ""),
+                    path=tool_input.get("path", ""),
+                    revision=tool_input.get("revision", ""),
+                )
+            except ResearchSourceDiscoveryInputError as exc:
+                raise ClientToolInputError(str(exc)) from exc
+            except ResearchSourceDiscoveryError as exc:
+                return ClientToolExecutionResult(
+                    content={
+                        "ok": False,
+                        "error": "public_research_source_discovery_failed",
+                        "detail": str(exc)[:1_200],
+                        "model_may_continue_without_this_source": True,
+                    },
+                    is_error=True,
+                    observation_key=(
+                        "public-research-source-discovery-failed:"
+                        + stable_hash([call.name, type(exc).__name__, str(exc)])
+                    ),
+                )
+            if not isinstance(observation, Mapping):
+                raise RuntimeError(
+                    "research source discovery read returned a non-object observation"
+                )
+            source_ref = {
+                "tool": RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+                **{
+                    key: observation[key]
+                    for key in (
+                        "provider",
+                        "source_handle",
+                        "source_kind",
+                        "title",
+                        "url",
+                        "publication_date",
+                        "revision",
+                        "path",
+                        "content_sha256",
+                        "content_truncated",
+                        "citation_ref",
+                    )
+                    if key in observation
+                },
+                "proof_evidence_status": (
+                    RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE
+                ),
+            }
+            state["source_discovery_read_refs"].append(source_ref)
+            return ClientToolExecutionResult(
+                content=dict(observation),
+                observation_key="research-source-discovery-read:"
+                + stable_hash(source_ref),
             )
 
         if call.name == RESEARCH_SOURCE_RUN_TOOL:
@@ -1398,6 +1561,8 @@ def run_theory_artifact_workspace(
                 or state["scratch_runs"]
                 or state["source_search_refs"]
                 or state["source_read_refs"]
+                or state["source_discovery_search_refs"]
+                or state["source_discovery_read_refs"]
             ):
                 raise ClientToolInputError(
                     "report_theory_gap requires a prior workspace read, write "
@@ -1534,6 +1699,20 @@ def run_theory_artifact_workspace(
         if research_sources is not None
         else ""
     )
+    source_discovery_guidance = (
+        "Live public paper and repository discovery is available in this same "
+        "TheoryDeveloper session. Use discover_research_sources with your own query, "
+        "then read_discovered_research_source only for results worth inspecting. For "
+        "GitHub repositories, an empty path returns the root listing at a commit no "
+        "later than the configured source horizon; use the returned revision for exact "
+        "subsequent file reads. Cite the returned citation_ref when your Markdown/LaTeX "
+        "depends on an inspected source. Discovery metadata, source text, and repository "
+        "code are research evidence only: they are not independent review, execution, "
+        "replication, or proof. Strict historical benchmarks must use their frozen "
+        "source snapshot instead of this live provider. "
+        if research_source_discovery is not None
+        else ""
+    )
     source_execution_guidance = (
         "An operator-bound immutable author-source execution is available through "
         "run_research_source. The tool accepts no command, path, argument, or code from "
@@ -1583,6 +1762,15 @@ def run_theory_artifact_workspace(
                             ),
                             **(
                                 {
+                                    "public_research_source_discovery": dict(
+                                        research_source_discovery.descriptor()
+                                    )
+                                }
+                                if research_source_discovery is not None
+                                else {}
+                            ),
+                            **(
+                                {
                                     "research_source_execution": (
                                         research_source_execution.descriptor(
                                             research_sources
@@ -1601,6 +1789,7 @@ def run_theory_artifact_workspace(
                         }
                     )
                     + "\n\nRead the artifacts needed for mathematical judgment. "
+                    + source_discovery_guidance
                     + source_guidance
                     + source_execution_guidance
                     + source_checkpoint_guidance
@@ -1714,6 +1903,7 @@ def run_theory_artifact_workspace(
             ),
             "source_search_refs": deepcopy(state["source_search_refs"]),
             "source_read_refs": deepcopy(state["source_read_refs"]),
+            **source_discovery_evidence(),
             "source_replication_runs": state["source_replication_runs"],
             "source_replication_manifests": deepcopy(
                 state["source_replication_manifests"]
@@ -1847,6 +2037,7 @@ def run_theory_artifact_workspace(
             ),
             "source_search_refs": deepcopy(state["source_search_refs"]),
             "source_read_refs": deepcopy(state["source_read_refs"]),
+            **source_discovery_evidence(),
             "turns": loop.turns,
             "tool_calls": loop.tool_calls,
             "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
@@ -2015,6 +2206,7 @@ def run_theory_artifact_workspace(
             ),
             "source_search_refs": deepcopy(state["source_search_refs"]),
             "source_read_refs": deepcopy(state["source_read_refs"]),
+            **source_discovery_evidence(),
             "source_replication_runs": state["source_replication_runs"],
             "source_replication_manifests": deepcopy(
                 state["source_replication_manifests"]
@@ -2142,6 +2334,7 @@ def run_theory_artifact_workspace(
         ),
         "source_search_refs": deepcopy(state["source_search_refs"]),
         "source_read_refs": deepcopy(state["source_read_refs"]),
+        **source_discovery_evidence(),
         "source_replication_runs": state["source_replication_runs"],
         "source_replication_manifests": deepcopy(
             state["source_replication_manifests"]
@@ -2182,6 +2375,8 @@ def _theory_workspace_evidence_history(
         RESEARCH_SOURCE_SEARCH_TOOL,
         RESEARCH_SOURCE_READ_TOOL,
         RESEARCH_SOURCE_RUN_TOOL,
+        RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+        RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
     }
     for turn in persisted:
         tool_calls = turn.get("tool_calls", [])
@@ -2298,12 +2493,58 @@ def research_source_client_tools() -> tuple[ClientToolDefinition, ...]:
     )
 
 
+def research_source_discovery_client_tools() -> tuple[ClientToolDefinition, ...]:
+    return (
+        ClientToolDefinition(
+            name=RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+            description=(
+                "Search public scholarly metadata and GitHub repositories under the "
+                "operator-configured source horizon. You choose the query and source "
+                "kind; use the returned opaque handle to inspect a promising result."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["query"],
+                "properties": {
+                    "query": {"type": "string", "minLength": 1, "maxLength": 500},
+                    "source_kind": {
+                        "type": "string",
+                        "enum": ["all", "paper", "repository"],
+                    },
+                    "top_k": {"type": "integer", "minimum": 1, "maximum": 10},
+                },
+            },
+        ),
+        ClientToolDefinition(
+            name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+            description=(
+                "Read exact bounded metadata or repository text from a handle returned "
+                "by discover_research_sources. For a repository, first omit path and "
+                "revision to resolve a horizon-bound commit and list root entries, then "
+                "read a selected text path at that returned revision."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["source_handle"],
+                "properties": {
+                    "source_handle": {"type": "string", "minLength": 1},
+                    "path": {"type": "string"},
+                    "revision": {"type": "string"},
+                },
+            },
+        ),
+    )
+
+
 def _theory_workspace_tools(
     artifact_names: Sequence[str],
     writable_artifact_shapes: Mapping[str, str],
     *,
     scratchpad_enabled: bool = False,
     research_sources_enabled: bool = False,
+    research_source_discovery_enabled: bool = False,
     research_source_execution_enabled: bool = False,
     source_replication_checkpoint_enabled: bool = False,
     document_authority_enabled: bool = False,
@@ -2343,6 +2584,8 @@ def _theory_workspace_tools(
         tools.extend(theory_document_client_tools())
     if research_sources_enabled:
         tools.extend(research_source_client_tools())
+    if research_source_discovery_enabled:
+        tools.extend(research_source_discovery_client_tools())
     if research_source_execution_enabled:
         tools.append(
             ClientToolDefinition(

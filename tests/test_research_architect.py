@@ -123,6 +123,9 @@ def test_research_source_snapshot_is_an_explicit_theory_workspace_input() -> Non
             "research-agent-runtime",
             "--research-source-manifest",
             "sources.json",
+            "--public-research-source-discovery",
+            "--research-source-horizon",
+            "2025-12-31",
         ]
     )
     theory_args = parser.parse_args(
@@ -130,11 +133,57 @@ def test_research_source_snapshot_is_an_explicit_theory_workspace_input() -> Non
             "research-architect-theory",
             "--research-source-manifest",
             "sources.json",
+            "--public-research-source-discovery",
+            "--research-source-horizon",
+            "2025-12-31",
         ]
     )
 
     assert runtime_args.research_source_manifest == "sources.json"
     assert theory_args.research_source_manifest == "sources.json"
+    assert runtime_args.public_research_source_discovery is True
+    assert theory_args.public_research_source_discovery is True
+    assert runtime_args.research_source_horizon == "2025-12-31"
+    assert theory_args.research_source_horizon == "2025-12-31"
+
+
+def test_public_source_discovery_requires_horizon_and_rejects_frozen_eval(
+    monkeypatch,
+) -> None:
+    parser = build_parser()
+    missing_horizon = parser.parse_args(
+        ["research-agent-runtime", "--public-research-source-discovery"]
+    )
+    with pytest.raises(ValueError, match="requires --research-source-horizon"):
+        cli_module._public_research_source_discovery_from_args(missing_horizon)
+
+    frozen = parser.parse_args(
+        [
+            "research-agent-runtime",
+            "--public-research-source-discovery",
+            "--research-source-horizon",
+            "2025-12-31",
+            "--cross-family-eval-protocol",
+            "protocol.json",
+        ]
+    )
+    with pytest.raises(ValueError, match="disabled for frozen cross-family"):
+        cli_module._public_research_source_discovery_from_args(frozen)
+
+    monkeypatch.setenv("GITHUB_TOKEN", "private-token")
+    product = parser.parse_args(
+        [
+            "research-agent-runtime",
+            "--public-research-source-discovery",
+            "--research-source-horizon",
+            "2025-12-31",
+        ]
+    )
+    provider = cli_module._public_research_source_discovery_from_args(product)
+
+    assert provider is not None
+    assert provider.descriptor()["source_horizon"] == "2025-12-31"
+    assert "private-token" not in json.dumps(provider.descriptor())
 
 
 def test_theory_core_contract_exposes_finite_execution_semantics() -> None:
@@ -303,6 +352,7 @@ def test_source_only_workspace_bypasses_full_theory_packet_contract(
         tool_responses=[],
         generator_responses=[],
     )
+    source_discovery = object()
     developer = LLMTheoryDeveloperAgent(
         provider=provider,
         config=ResearchArchitectConfig(
@@ -311,6 +361,7 @@ def test_source_only_workspace_bypasses_full_theory_packet_contract(
             model_tier="haiku",
         ),
         research_sources=object(),  # type: ignore[arg-type]
+        research_source_discovery=source_discovery,  # type: ignore[arg-type]
         research_source_execution=object(),  # type: ignore[arg-type]
     )
 
@@ -322,6 +373,7 @@ def test_source_only_workspace_bypasses_full_theory_packet_contract(
     )
     assert captured["allow_source_replication_checkpoint"] is True
     assert captured["task_intent"] == question.task_intent
+    assert captured["research_source_discovery"] is source_discovery
     assert "do not fabricate theory" in str(captured["user_prompt"])
     assert provider.generator_requests == []
 

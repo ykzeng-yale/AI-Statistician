@@ -109,6 +109,10 @@ from .research_source_library import (
     load_research_source_execution_spec,
     load_research_source_snapshot,
 )
+from .research_source_discovery import (
+    PublicResearchSourceDiscovery,
+    PublicResearchSourceDiscoveryConfig,
+)
 from .research_architect import (
     AnthropicArchitectLLMProvider,
     LLMTheoryDeveloperAgent,
@@ -3497,6 +3501,37 @@ def _list(args: argparse.Namespace) -> int:
     return 0
 
 
+def _public_research_source_discovery_from_args(
+    args: argparse.Namespace,
+) -> PublicResearchSourceDiscovery | None:
+    if not bool(getattr(args, "public_research_source_discovery", False)):
+        return None
+    if str(getattr(args, "cross_family_eval_protocol", "") or "").strip():
+        raise ValueError(
+            "live public source discovery is disabled for frozen cross-family evaluation; "
+            "use its operator-frozen --research-source-manifest"
+        )
+    source_horizon = str(
+        getattr(args, "research_source_horizon", "") or ""
+    ).strip()
+    if not source_horizon:
+        raise ValueError(
+            "--public-research-source-discovery requires --research-source-horizon"
+        )
+    return PublicResearchSourceDiscovery(
+        config=PublicResearchSourceDiscoveryConfig(
+            source_horizon=source_horizon,
+            contact_email=str(
+                getattr(args, "research_source_contact_email", "") or ""
+            ).strip(),
+        ),
+        github_token=str(
+            os.environ.get("GITHUB_TOKEN", "")
+            or os.environ.get("GH_TOKEN", "")
+        ).strip(),
+    )
+
+
 def _research_architect_theory_develop(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -3542,6 +3577,7 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
             if research_source_execution_manifest and research_sources is not None
             else None
         )
+        research_source_discovery = _public_research_source_discovery_from_args(args)
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
         print("\nAI Statistician rejected research source snapshot")
         print("=" * 72)
@@ -3567,6 +3603,7 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
     theory_developer = LLMTheoryDeveloperAgent(
         provider=provider,
         research_sources=research_sources,
+        research_source_discovery=research_source_discovery,
         research_source_execution=research_source_execution,
         config=ResearchArchitectConfig(
             model=model,
@@ -3767,14 +3804,16 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             if research_source_execution_manifest and research_sources is not None
             else None
         )
+        research_source_discovery = _public_research_source_discovery_from_args(args)
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
         print("\nAI Statistician Agent Runtime rejected research source snapshot")
         print("=" * 72)
         print(f"- {exc}")
         return 2
-    if research_sources is not None and not callable(
-        getattr(provider, "generate_client_tool_turn", None)
-    ):
+    if (
+        research_sources is not None
+        or research_source_discovery is not None
+    ) and not callable(getattr(provider, "generate_client_tool_turn", None)):
         print("\nAI Statistician Agent Runtime rejected research source snapshot")
         print("=" * 72)
         print("- research sources require a provider with native client-tool turns")
@@ -3806,6 +3845,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     theory_developer = LLMTheoryDeveloperAgent(
         provider=provider,
         research_sources=research_sources,
+        research_source_discovery=research_source_discovery,
         research_source_execution=research_source_execution,
         config=ResearchArchitectConfig(
             model=theory_model,
@@ -6265,6 +6305,27 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_architect_theory.add_argument(
+        "--public-research-source-discovery",
+        action="store_true",
+        help=(
+            "expose model-directed Crossref paper and public GitHub repository search/read "
+            "tools in the existing TheoryDeveloper session"
+        ),
+    )
+    research_architect_theory.add_argument(
+        "--research-source-horizon",
+        default="",
+        help=(
+            "required ISO date for --public-research-source-discovery; public observations "
+            "are scouting evidence, not a frozen benchmark snapshot"
+        ),
+    )
+    research_architect_theory.add_argument(
+        "--research-source-contact-email",
+        default="",
+        help="optional contact email used for Crossref polite-pool requests",
+    )
+    research_architect_theory.add_argument(
         "--llm-model",
         default="",
         help="model name for the TheoryDeveloper provider; Anthropic defaults to Claude Sonnet 4.6",
@@ -6369,6 +6430,27 @@ def build_parser() -> argparse.ArgumentParser:
             "optional operator-bound immutable Python entrypoint and environment; "
             "requires --research-source-manifest and never exposes a model-owned command"
         ),
+    )
+    research_agent_runtime.add_argument(
+        "--public-research-source-discovery",
+        action="store_true",
+        help=(
+            "expose model-directed Crossref paper and public GitHub repository search/read "
+            "tools inside TheoryDeveloper; disabled for frozen cross-family evaluation"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--research-source-horizon",
+        default="",
+        help=(
+            "required ISO date for --public-research-source-discovery; strict benchmarks "
+            "must use an operator-frozen source manifest instead"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--research-source-contact-email",
+        default="",
+        help="optional contact email used for Crossref polite-pool requests",
     )
     research_agent_runtime.add_argument(
         "--resume-runtime-manifest",

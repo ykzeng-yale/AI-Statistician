@@ -21,6 +21,11 @@ from ai_statistician.research_source_library import (
     ResearchSourceExecutionSpec,
     load_research_source_snapshot,
 )
+from ai_statistician.research_source_discovery import (
+    RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+    RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+    ResearchSourceDiscoveryError,
+)
 from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.theory_workspace import (
     SOURCE_REPLICATION_CHECKPOINT_KIND,
@@ -266,6 +271,200 @@ def test_same_theory_model_searches_and_reads_hash_bound_sources_without_copying
     persisted_evidence = json.dumps(result.evidence)
     assert "The estimating equation has zero expectation" not in persisted_evidence
     assert "research source text omitted" in persisted_evidence
+
+
+def test_same_theory_model_discovers_and_reads_public_source_without_a_scout_agent() -> None:
+    source_handle = "public-source:" + "a" * 28
+    source_content = "# Public result\n\nThe exact asymptotic variance is finite.\n"
+
+    class FakeDiscovery:
+        provider_name = "fake_public_source_provider"
+
+        def descriptor(self):
+            return {
+                "artifact_kind": "PublicResearchSourceDiscoveryDescriptor",
+                "provider": self.provider_name,
+                "source_horizon": "2025-12-31",
+                "strict_historical_benchmark_authority": False,
+            }
+
+        def search(self, query, *, source_kind="all", top_k=5):
+            assert query == "asymptotic variance reference implementation"
+            assert source_kind == "all"
+            assert top_k == 3
+            return {
+                "ok": True,
+                "provider": self.provider_name,
+                "source_horizon": "2025-12-31",
+                "query_hash": stable_hash(query),
+                "source_kind": source_kind,
+                "results": [
+                    {
+                        "source_handle": source_handle,
+                        "source_kind": "paper",
+                        "title": "Public result",
+                        "url": "https://doi.org/10.1000/example",
+                        "publication_date": "2024-01-01",
+                        "citation": "Example (2024)",
+                        "summary": "Exact public abstract text.",
+                    }
+                ],
+            }
+
+        def read(self, handle, *, path="", revision=""):
+            assert handle == source_handle
+            assert path == ""
+            assert revision == ""
+            return {
+                "ok": True,
+                "provider": self.provider_name,
+                "source_handle": source_handle,
+                "source_kind": "paper",
+                "title": "Public result",
+                "url": "https://doi.org/10.1000/example",
+                "publication_date": "2024-01-01",
+                "citation": "Example (2024)",
+                "revision": "crossref-record:abc",
+                "path": "metadata.md",
+                "content": source_content,
+                "content_sha256": hashlib.sha256(
+                    source_content.encode("utf-8")
+                ).hexdigest(),
+                "content_truncated": False,
+                "citation_ref": "public-research-source-ref:abc",
+            }
+
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="discover-public-source",
+                    name=RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+                    input={
+                        "query": "asymptotic variance reference implementation",
+                        "source_kind": "all",
+                        "top_k": 3,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="read-public-source",
+                    name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+                    input={"source_handle": source_handle},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-public-source-grounded-theory",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "public-source-lemma"}],
+                        }
+                    ),
+                )
+            ),
+            _response(_commit_checkpoint()),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        research_source_discovery=FakeDiscovery(),
+    )
+
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        "read_theory_workspace",
+        RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+        RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+        THEORY_WORKSPACE_WRITE_TOOL,
+        THEORY_WORKSPACE_COMMIT_TOOL,
+        THEORY_WORKSPACE_GAP_TOOL,
+    ]
+    initial_prompt = str(backend.requests[0].messages[0]["content"])
+    assert "2025-12-31" in initial_prompt
+    assert "same TheoryDeveloper session" in initial_prompt
+    assert "strict historical benchmarks" in initial_prompt.lower()
+    assert "Exact public abstract text" in str(backend.requests[1].messages)
+    read_observation = json.loads(
+        backend.requests[2].messages[-1]["content"][0]["content"]
+    )
+    assert read_observation["content"] == source_content
+    assert len(result.evidence["source_discovery_search_refs"]) == 1
+    assert len(result.evidence["source_discovery_read_refs"]) == 1
+    read_ref = result.evidence["source_discovery_read_refs"][0]
+    assert read_ref["content_sha256"] == hashlib.sha256(
+        source_content.encode("utf-8")
+    ).hexdigest()
+    assert "content" not in read_ref
+    persisted_evidence = json.dumps(result.evidence)
+    assert "exact asymptotic variance is finite" not in persisted_evidence.lower()
+    assert "research source text omitted" in persisted_evidence
+
+
+def test_public_discovery_failure_returns_to_same_theory_model_without_retry_layer() -> None:
+    class UnavailableDiscovery:
+        provider_name = "unavailable_public_source_provider"
+
+        def descriptor(self):
+            return {
+                "provider": self.provider_name,
+                "source_horizon": "2025-12-31",
+            }
+
+        def search(self, query, *, source_kind="all", top_k=5):
+            del query, source_kind, top_k
+            raise ResearchSourceDiscoveryError(
+                "public research API returned HTTP 503"
+            )
+
+        def read(self, source_handle, *, path="", revision=""):
+            raise AssertionError((source_handle, path, revision))
+
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="discover-unavailable-source",
+                    name=RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+                    input={"query": "robust estimator"},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="continue-after-source-failure",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "source-unavailable-lemma"}],
+                        }
+                    ),
+                )
+            ),
+            _response(_commit_checkpoint()),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        research_source_discovery=UnavailableDiscovery(),
+    )
+
+    failure = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert failure["ok"] is False
+    assert failure["error"] == "public_research_source_discovery_failed"
+    assert failure["detail"] == "public research API returned HTTP 503"
+    assert failure["model_may_continue_without_this_source"] is True
+    assert failure["_client_tool_budget"]["final_disposition_required"] is False
+    assert result.core_packet["artifacts"]["problem_card"]["claim"] == (
+        "revised claim"
+    )
+    assert result.evidence["source_discovery_search_refs"] == []
 
 
 def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(

@@ -106,6 +106,13 @@ artifact. Reimplementation follows only after the environment and claimed target
 are understood. The manifest distinguishes author code, model code, and reused
 library code by source snapshot and hash.
 
+Ordinary product tasks may let the same TheoryDeveloper model search Crossref and
+public GitHub through opaque-handle tools under an explicit source horizon. Those
+live observations support scouting only. L1-L5 evaluation never treats a mutable
+API response as gold or exact replication: permitted materials are frozen before
+activation, and target-paper blocklists and evaluator-only artifacts remain outside
+the discovery provider, RAG, and model workspace.
+
 TheoryDeveloper is a persistent workspace, not one JSON answer. It maintains
 definitions, assumptions, equation lineage, a lemma/claim DAG, counterexamples,
 sanity checks, and unresolved gaps. Independent review and empirical or formal

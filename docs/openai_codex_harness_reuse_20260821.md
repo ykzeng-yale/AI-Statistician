@@ -84,8 +84,10 @@ placing another Codex thread manager around `AgentRuntime`.
 1. Unknown tool-runtime exceptions fail immediately through a secret-free
    `ClientToolRuntimeError`. They are not converted into a fake observation
    that asks TheoryDeveloper, AlgorithmEngineer, Simulator, or Formalizer to
-   repair runtime code. Only declared `ClientToolInputError` observations are
-   returned to the model.
+   repair runtime code. Declared model-actionable input errors and explicitly
+   classified, secret-free environment failures may return as tool observations;
+   the owning model can change its action or report a gap, but no repair layer
+   edits the harness.
 2. Read-heavy Theory and Lean workspaces permit multiple independent model
    tool calls in one provider turn. The model may batch independent reads,
    searches, or inspections; runtime still processes side effects in stable
@@ -156,6 +158,24 @@ placing another Codex thread manager around `AgentRuntime`.
     authoring and execution. Runtime supplies only a wall-clock limit and a high
     sandbox safety ceiling; neither is a statistical default. Exploratory runs
     retain their separate operator-selected fallback.
+12. Public literature and repository discovery now follows Codex's dynamic-tool
+    boundary without adding a Scout agent. The existing TheoryDeveloper model
+    chooses a query, receives bounded Crossref or GitHub metadata, selects an
+    opaque result handle, and reads exact source text in the same transcript.
+    GitHub file reads are pinned to a concrete commit no later than the explicit
+    source horizon. Runtime owns the two fixed API hosts, secret isolation,
+    horizon, byte bounds, hashes, and citation refs; it does not choose the query,
+    source, interpretation, or next research action. The implementation uses the
+    official [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/)
+    and [GitHub REST API](https://docs.github.com/en/rest) directly behind the
+    existing model-neutral client-tool executor. Live discovery is scouting
+    evidence only and is rejected for the frozen cross-family protocol; strict
+    historical evaluation and exact replication still require an operator-frozen
+    `ResearchSourceSnapshot` and execution manifest.
+    A declared public-API failure is returned to the same TheoryDeveloper as a
+    bounded error observation, so it can choose another source or continue with
+    an honest gap. Unknown provider exceptions still terminate as harness faults;
+    there is no automatic retry, fallback query, or source-repair agent.
 
 These changes add no model call, retry, turn, agent, scheduler, model tier,
 statistical formula, Lean grammar rule, or repair recipe.

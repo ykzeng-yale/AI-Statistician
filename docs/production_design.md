@@ -59,19 +59,18 @@ continuation refs, and resume hash-verifies and restores that task without
 rewriting its inputs. Substantive failures remain terminal.
 
 The inner mechanism follows [Numina-Lean-Agent](https://github.com/project-numina/numina-lean-agent)
-and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general source
-agent, real feedback, optional search, and bounded context. Long-horizon work uses
-the durable blueprint/lemma-DAG idea from
-[LeanMarathon](https://github.com/YuanheZ/LeanMarathon), not its whole agent stack.
-Scientific search may use ERA's `generate -> execute -> score` interface only
-inside an existing source workspace.
+and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general source agent,
+real feedback, optional search, and bounded context. Long work may use LeanMarathon's
+blueprint/DAG; ERA search stays inside an existing executable source workspace.
 
 ## Progressive commitment
 
-The graph does not impose one universal research order. Literature and repository
-search starts early when external sources are allowed. If exact public code and
-data exist, the system first reruns that immutable snapshot before reimplementation;
-replication evidence stays distinct from model-authored research.
+The graph imposes no universal research order. The current TheoryDeveloper, not a
+Scout agent, chooses early Crossref/GitHub queries and source handles. The harness
+owns fixed hosts, source horizon, secrets, byte bounds, commit identity, hashes, and
+citations, but never source choice or interpretation. Exact code is frozen and rerun
+before reimplementation; live discovery is not historical gold or replication proof,
+which require immutable operator-curated source and execution manifests.
 
 Theory remains long-horizon and iterative. As soon as the estimand, DGP,
 procedure interface, and a testable claim are stable enough, exploratory coding

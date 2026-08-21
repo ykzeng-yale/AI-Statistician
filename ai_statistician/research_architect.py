@@ -43,6 +43,7 @@ from .research_source_library import (
     ResearchSourceExecutionSpec,
     ResearchSourceSnapshot,
 )
+from .research_source_discovery import ResearchSourceDiscovery
 from .semantic_review_feedback import model_observations_without_repair_recipes
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
@@ -258,11 +259,13 @@ class LLMTheoryDeveloperAgent:
         provider: GeneratorBackend | None = None,
         config: ResearchArchitectConfig = ResearchArchitectConfig(),
         research_sources: ResearchSourceSnapshot | None = None,
+        research_source_discovery: ResearchSourceDiscovery | None = None,
         research_source_execution: ResearchSourceExecutionSpec | None = None,
     ) -> None:
         self.provider = provider or AnthropicArchitectLLMProvider()
         self.config = config
         self.research_sources = research_sources
+        self.research_source_discovery = research_source_discovery
         self.research_source_execution = research_source_execution
         if research_source_execution is not None and research_sources is None:
             raise ValueError(
@@ -343,7 +346,10 @@ class LLMTheoryDeveloperAgent:
                 history=[],
             )
         if (
-            self.research_sources is not None
+            (
+                self.research_sources is not None
+                or self.research_source_discovery is not None
+            )
             and recovered_core_packet is None
             and not callable(
                 getattr(self.provider, "generate_client_tool_turn", None)
@@ -411,6 +417,7 @@ class LLMTheoryDeveloperAgent:
                 ),
                 theory_scratchpad=theory_scratchpad,
                 research_sources=self.research_sources,
+                research_source_discovery=self.research_source_discovery,
                 research_source_execution=self.research_source_execution,
                 theory_workspace_root=theory_workspace_root,
                 progress_checkpoint_state=progress_checkpoint_state,
@@ -442,6 +449,7 @@ class LLMTheoryDeveloperAgent:
                 ),
                 theory_scratchpad=theory_scratchpad,
                 research_sources=self.research_sources,
+                research_source_discovery=self.research_source_discovery,
                 research_source_execution=self.research_source_execution,
                 theory_workspace_root=theory_workspace_root,
                 progress_checkpoint_state=progress_checkpoint_state,
@@ -3704,6 +3712,7 @@ def _generate_initial_theory_artifact_workspace(
     formalization_authoring_required: bool,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
     research_sources: ResearchSourceSnapshot | None = None,
+    research_source_discovery: ResearchSourceDiscovery | None = None,
     research_source_execution: ResearchSourceExecutionSpec | None = None,
     theory_workspace_root: Path | None = None,
     progress_checkpoint_state: (
@@ -3863,6 +3872,7 @@ def _generate_initial_theory_artifact_workspace(
         validate_candidate=validate_theory_core_packet,
         scratchpad=theory_scratchpad,
         research_sources=research_sources,
+        research_source_discovery=research_source_discovery,
         research_source_execution=research_source_execution,
         allow_source_replication_checkpoint=allow_source_checkpoint,
         task_intent=question.task_intent,
@@ -3962,6 +3972,7 @@ def _generate_theory_workspace_revision(
     formalization_authoring_required: bool,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
     research_sources: ResearchSourceSnapshot | None = None,
+    research_source_discovery: ResearchSourceDiscovery | None = None,
     research_source_execution: ResearchSourceExecutionSpec | None = None,
     theory_workspace_root: Path | None = None,
     progress_checkpoint_state: (
@@ -4137,6 +4148,7 @@ def _generate_theory_workspace_revision(
         ),
         scratchpad=theory_scratchpad,
         research_sources=research_sources,
+        research_source_discovery=research_source_discovery,
         research_source_execution=research_source_execution,
         workspace_dir=workspace_dir,
         require_document_authority=True,
