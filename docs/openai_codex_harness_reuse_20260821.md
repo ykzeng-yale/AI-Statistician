@@ -972,3 +972,13 @@ assumption, `sorry`, and a custom axiom (`5/5`). Repo tests passed `848/848` in
 external authority was bound to it. No product model call, theorem attempt,
 runtime proof, score, or capability credit has yet occurred; the prior 23 tasks
 remain immutable at `0/23`.
+
+Commit `c4289cdb210b993aba04e44aa357010c52888653` closes one
+pre-execution profile inconsistency: `research_eval` now enables the existing
+Formalizer and independent target reviewer when a selected question explicitly
+declares `formal=required`, while ordinary research tasks still keep the formal
+lane optional. This is task-intent dispatch, not Lean content logic. It adds no
+agent, scheduler, repair action, tactic, or retry. The focused profile/runtime
+panel passed `103/103`, the complete suite passed `849/849` in 68.25 seconds,
+and the unchanged hidden gold/negative set recalibrated `5/5` after binding the
+new code identity. No product call has occurred.
