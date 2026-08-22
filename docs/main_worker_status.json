@@ -1,13 +1,13 @@
 {
-  "schema_version": 140,
+  "schema_version": 141,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "6598ed348152999c317b83b9b2d48d1582231321",
+  "validated_code_head": "9a224b534cc8cce2fce48a8834810e2ac502b257",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all twenty-six consumed tasks and treat commits 8ef61b0b and 6598ed34 as future-task mechanism evidence only. The next disjoint frozen evaluation must measure model-owned long-horizon theory, isolated referee judgment, and any task-selected downstream workspace without routine Architect resampling, mathematical rules, a reviewer, repair agent, scheduler, model retry, or mandatory Formalizer work. The capability ladder is 0/26.",
+  "current_goal_focus": "Preserve all twenty-six consumed tasks and treat commit 9a224b53 as future-task harness evidence only. Continue removing routine planning/router calls so each Theory, Python/R, Simulation, review, or Lean source owner uses one model-tool session, while task intent, independent review, confirmatory blinding, and kernel authority remain outer evidence boundaries. The next disjoint evaluation must not add scientific rules, a repair agent, scheduler, model retry, or mandatory Formalizer work. The capability ladder is 0/26.",
   "latest_its_time_source_execution_calibration": {
     "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
@@ -233,8 +233,11 @@
     ]
   },
   "validated_change": {
-    "commit": "6598ed348152999c317b83b9b2d48d1582231321",
+    "commit": "9a224b534cc8cce2fce48a8834810e2ac502b257",
     "changes": [
+      "Commit 9a224b53 applies the official OpenAI Codex same-session model/tool principle to fresh exploratory SimulationEngineer work. The existing propose boundary emits only a deterministic intent envelope with planning_model_call_used=false; the same source-owning model chooses the DGP and diagnostics, authors Python/R, receives raw sandbox observations, and revises source without a separate planning sample.",
+      "Confirmatory simulation is unchanged: frozen metric contracts, accepted estimator lineage, cohort blinding, and independent evidence authority remain mandatory. Source-owned continuation loads an exact bound intent packet when present and rejects stale identity before another model call. No app-server, thread manager, provider transport, subagent scheduler, repair worker, scientific formula, or task-family branch was added.",
+      "The focused source/runtime/cross-task panel passed 96/96 and the complete repository passed 863/863 in 72.26 seconds. Compile-all and diff checks passed; research_agent_runtime.py is 24,962 lines, the Python package is 149,992 lines, and production_design.md is 399 lines. No product model call, benchmark draw, rerun, rescore, proof, or capability credit occurred.",
       "Commit 6598ed34 removes the routine post-Theory Architect model call when independent theory acceptance is not required. AgentRuntime compiles the original validated Architect plan directly into the next applicable workspace; required-theory preflight and theory-revision dependency rebuild paths remain unchanged.",
       "The integrated optional-Theory/required-code regression preserves the exact theory artifact, n_runs, seed, task intent, and original plan while routing directly to AlgorithmEngineer with no runtime_architect_operation. Runtime chooses no scientific content and adds no agent, scheduler, retry, repair action, or task-family rule.",
       "The focused collaboration panel passed 135/135 and the complete repository passed 862/862 in 72.47 seconds. Compile-all and diff checks passed. Product runtime changed by one net line and remains below 25,000 lines; no model call or consumed-task score changed.",

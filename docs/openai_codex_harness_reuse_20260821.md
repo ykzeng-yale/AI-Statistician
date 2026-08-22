@@ -1142,3 +1142,29 @@ collaboration panel passed `135/135`; the complete repository passed `862/862` i
 72.47 seconds. Product runtime changed by one net line and remains below its
 25,000-line guard. No model call, task rerun, reviewer, repair action, scheduler,
 scientific rule, or capability credit was added; the ladder remains `0/26`.
+
+### One exploratory Simulation session
+
+Code commit `9a224b534cc8cce2fce48a8834810e2ac502b257` removes the
+remaining routine two-call split for fresh exploratory simulation. Previously the
+SimulationEngineer sampled a structured planning packet and then opened a second
+source session. When native client tools are available, generated source is
+required, no upstream estimator is bound, and the phase is exploratory, `propose()`
+now emits only a deterministic, hash-stable intent envelope without a provider
+call. The same SimulationEngineer session chooses the DGP and diagnostics, writes
+Python or R, executes the exact source, reads raw observations, and revises it.
+
+The envelope contains identity and transport facts, not a runtime-authored
+simulation design. Confirmatory work remains unchanged: frozen metric authority,
+accepted estimator lineage, cohort blinding, and independent review still govern
+execution. A failed source-owned session resumes from its exact intent and source
+checkpoint; a missing or stale bound packet fails before another model call.
+
+This adopts Codex's same-turn model/tool continuation without importing its
+app-server, thread manager, Responses provider, permission system, or subagent
+scheduler. Theory Markdown/LaTeX, Algorithm Python/R, independent review, and Lean
+already use the shared provider-neutral loop; no new framework layer is needed.
+The full repository passed `863/863` in 72.26 seconds, compile-all and diff checks
+passed, and architecture budgets remain below 25,000 runtime lines, 150,000 package
+lines, and 400 production-design lines. No product model call, benchmark draw,
+rerun, rescore, scientific rule, proof, or capability credit occurred.
