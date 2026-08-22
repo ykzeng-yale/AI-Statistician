@@ -1,13 +1,13 @@
 {
-  "schema_version": 134,
+  "schema_version": 135,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "c0065450d8d8e0b0b79ca79a74444391f9394857",
+  "validated_code_head": "e2ef191a4d243f3e81223945f5f83333cb7ebec3",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Measure the corrected long-horizon TheoryDeveloper and isolated referee on one newly frozen, disjoint, theory-only known result. The visible scalar score-information task was pushed at 15e982d4; external grammar-free identity authority passed 7/7 checks and rejected six corruptions, and exact Haiku calibrated 12/12 semantic cases with an eight-claim reference. Public authority binding c0065450 is pushed on both refs and authorizes exactly one future product draw. The first twenty-four tasks remain immutable 0/24; no prior task may be rerun or rescored.",
+  "current_goal_focus": "Correct the shared evidence topology exposed by the consumed score-information draw. Its substantial Markdown Theory checkpoint went directly from Architect to terminal Critic without the existing isolated referee, so visible research_eval false-completed while hidden gold correctly withheld theory credit. Require artifact-only independent review for every theory-required task without adding mathematical rules, a repair agent, another scheduler, or any rerun of the now-immutable 0/25 ladder.",
   "latest_its_time_source_execution_calibration": {
     "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
@@ -735,11 +735,11 @@
     "full_task_passed": false,
     "boundary": "The single authorized draw is consumed and permanently 0/1. The exact Lean target and active Statlib environment were visible; the human proof and evaluator remained outside repository and model context. Post-run generic observation fixes apply only to future tasks and cannot permit rerun, resume, repair, rescore, or proof credit."
   },
-  "next_frozen_evaluation": {
+  "latest_score_information_bound_evaluation": {
     "id": "research_l0_score_information_bound_v1_exact_haiku_20260822",
     "task_id": "scalar_score_information_bound_known_result",
     "family": "parametric_information_bounds",
-    "status": "frozen_activated_unconsumed",
+    "status": "frozen_consumed_closed_hidden_gold_failed",
     "visible_question_commit": "15e982d4ec177781c7eac3eb8e90714a14fefcc3",
     "authority_binding_commit": "c0065450d8d8e0b0b79ca79a74444391f9394857",
     "visible_questions_sha256": "6dfeec011237ada2ae549cd60dd9cee1bd9d7c8e321ce098ba49b0953ba23996",
@@ -747,8 +747,16 @@
     "gold_descriptor_hash": "bee7c09d177c635a82d17784eb830a21757721298984fd664bf7bc112b4208dd",
     "model": "claude-haiku-4-5-20251001",
     "fresh_live_runs_authorized": 1,
-    "product_model_calls_so_far": 0,
-    "boundary": "Exactly one fresh product draw and one post-termination hidden evaluation are authorized. The first twenty-four tasks remain consumed at 0/24. This task may not be rerun, resumed, repaired, or rescored after its first product call."
+    "fresh_live_runs_consumed": 1,
+    "run_path": "runs/main_worker_research_l0_score_information_bound_20260822_v1_codex_harness_exact_haiku",
+    "runtime_status": "ACCEPTED",
+    "visible_research_evaluation": "1/1_complete_conformant_ready",
+    "hidden_gold_full_task_result": "0/1",
+    "independent_theory_review_attempted": false,
+    "runtime_manifest_sha256": "7431cd7af241a48712eab0f18128aa23ac5119c0b01d32f2c0ca1439b50f2a8c",
+    "hidden_gold_report_sha256": "908efc77f125bbe44e779bf0a353881ca1b22f57ffbf53fedcc067d346f12e59",
+    "operator_audit": "docs/operator_audits/score_information_bound_l0_v1.md",
+    "boundary": "The single fresh product draw and post-termination hidden evaluation are consumed. Runtime Critic acceptance is not independent theory authority. This task remains 0/1 and may never be rerun, resumed, repaired, or rescored."
   },
   "previous_authorized_evaluation": {
     "id": "research_l0_scalar_control_variate_v1_exact_haiku_20260821",
