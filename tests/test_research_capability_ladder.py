@@ -1741,6 +1741,18 @@ def test_huber_location_l0_draw_is_consumed_after_review_packet_failure() -> Non
     )
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["full_task_passed"] is False
+    assert evidence["post_run_shared_mechanism_fix_commits"] == [
+        "82083807eb29b57453a9819f308a60e9b27feeda",
+        "f5822f58",
+        "a73be809",
+    ]
+    assert "No second model draw occurred" in evidence[
+        "post_run_generic_transport_calibration"
+    ]
+    assert "remains 0/1" in evidence["post_run_shared_mechanism_boundary"]
+    assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
+        "a73be809"
+    )
     assert evidence["algorithm_reference_contract_checks"] == "7/7"
     assert evidence["algorithm_negative_variants_rejected"] == 4
     assert evidence["empirical_negative_variants_rejected"] == 3

@@ -2392,6 +2392,15 @@
         "runtime_observations_sha256": "710fc2c128418fd4977c4d8b156798461bc88fb8b6f7e6974688a95ac8524175",
         "runtime_result_sha256": "fa26b9cfeddfba7e2fb8c453184a9de8be752249e537ac1b0661bcca4f35c657",
         "runtime_diagnosis": "Theory used a durable Markdown workspace and independent scratch-backed review, while AlgorithmEngineer revised its own source from raw execution feedback. The run then blocked because GeneratedCodeSemanticReviewer regenerated a large ordered JSON packet three times and never returned every dimension in the required order. Hidden theory independently found empirical_targets inconclusive; no accepted algorithm handoff existed, so hidden algorithm and empirical evaluators did not execute.",
+        "post_run_shared_mechanism_fix_commits": [
+          "82083807eb29b57453a9819f308a60e9b27feeda",
+          "f5822f58",
+          "a73be809"
+        ],
+        "post_run_shared_mechanism_fix": "GeneratedCodeSemanticReviewer now makes one model call with a compact ACCEPT-or-REVISE envelope and a model-authored Markdown review. Fixed ordered dimensions, per-pointer schema enums, and full-packet regeneration are absent from the live provider contract. Runtime retains exact source lineage, validates cited evidence against the supplied document, persists the review by SHA-256, and fails closed before promotion.",
+        "post_run_generic_transport_calibration": "One unrelated generic exact-Haiku calibration compiled provider-native structured output with zero provider fallback and zero transport retry. Its substantive packet was rejected because Haiku used unambiguous bracket array references such as artifacts[0]; the shared reference canonicalizer now maps numeric bracket indices to RFC 6901 segments before ordinary existence validation. No second model draw occurred.",
+        "post_run_shared_mechanism_verification": "105 focused tests and the full 867-test suite passed after the final compact-runtime correction; compile-all, diff, model-policy, provider-schema-size, legacy-replay, artifact-hash, and control-plane line-budget checks passed.",
+        "post_run_shared_mechanism_boundary": "These commits and the generic calibration are future-task harness evidence only. They did not rerun, resume, repair, or rescore Huber; the task remains 0/1 and the ladder remains 0/28.",
         "operator_audit_path": "docs/operator_audits/huber_location_l0_v1.md",
         "model_draw_resampling_blocked": true,
         "formalization_requirement": "not_applicable",
@@ -2427,8 +2436,8 @@
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_shared_mechanism_head": "778b2aac",
-    "latest_diagnostic": "All twenty-eight consumed tasks remain immutable at 0/28 full-task passes. Huber location produced durable Markdown theory, scratch-backed independent review, and model-owned code revision from raw execution feedback. It blocked before simulation because a large ordered generated-code review packet remained invalid after three full regenerations; hidden theory was independently 7/7 mechanical and 8/9 semantic with empirical_targets inconclusive.",
-    "next_step": "Preserve Huber at 0/1. Replace the generated-code reviewer's large ordered JSON packet and full-packet repair loop with a small model-authored verdict envelope plus an artifact-backed review document, while retaining exact source identity, independent review, raw observations, and fail-closed promotion. Verify only with deterministic replay and regression; never rerun or rescore Huber."
+    "latest_shared_mechanism_head": "a73be809",
+    "latest_diagnostic": "All twenty-eight consumed tasks remain immutable at 0/28 full-task passes. Huber produced durable Markdown theory, scratch-backed independent review, and same-owner code revision, but stopped before simulation and hidden theory found empirical_targets inconclusive. The post-run generated-code reviewer transport is now compact, one-shot, artifact-backed, provider-calibrated on a generic fixture, and regression-tested; that mechanical correction creates no Huber or end-to-end credit.",
+    "next_step": "Return focus to model-owned long-horizon theory and adversarial independent review. Before any new exact-Haiku draw, freeze and push a disjoint known-result task and hidden authority; use the unchanged canonical workspaces to measure derivation fidelity, executable ABI, confirmatory evidence, and optional formal status without adding task formulas, repair agents, retries, or another scheduler."
   }
 }

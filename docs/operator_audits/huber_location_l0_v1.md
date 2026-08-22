@@ -84,6 +84,31 @@ dimensions, deterministic content patches, a RepairAgent, a second scheduler,
 hidden feedback, another model draw, or post-hoc capability credit. Huber remains
 0/1 regardless of later shared-mechanism improvements.
 
+## Post-consumption shared correction
+
+Commits `82083807`, `f5822f58`, and `a73be809` implement the permitted shared
+correction. The live reviewer now makes one model call, returns a compact
+`ACCEPT|REVISE` envelope, and authors the scientific analysis as a separately
+hashed Markdown artifact. The provider schema contains no fixed ordered
+dimensions or dynamic evidence-pointer enum, and invalid output is not sent
+back to the model for full-packet regeneration. Runtime still validates exact
+source lineage, reviewer independence, evidence references, document identity,
+and promotion authority, and still fails closed.
+
+One unrelated generic exact-Haiku calibration then confirmed that Anthropic
+applied native structured output with zero provider fallback and zero transport
+retry. The one response used bracket notation for array references, so it was
+correctly rejected; the shared transport now canonicalizes only unambiguous
+numeric brackets such as `[0]` to RFC 6901 `/0` before ordinary target-existence
+validation. A deterministic regression covers that observed representation. No
+second model draw occurred.
+
+The final focused panel passed 105 tests and the complete repository passed
+867 tests. Compile-all, diff, model-policy, provider-schema-size, legacy replay,
+artifact-hash, and control-plane size checks passed. This is future-task harness
+evidence only: no Huber artifact was changed or fed back, and its score remains
+0/1 within the unchanged 0/28 ladder.
+
 ## Immutable artifact hashes
 
 - Progress: `357cc7582112e4cfbf37b1c3bf0a761db5fc8a56c8600fcec7f1ee2795f45e9b`
