@@ -5,6 +5,7 @@ import json
 from copy import deepcopy
 from dataclasses import asdict, fields, replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -778,6 +779,133 @@ def test_source_only_checkpoint_ends_runtime_without_fixed_pipeline_handoff() ->
     )
     assert result.evidence_entries[0].status == (
         "SOURCE_EXECUTION_RECORDED_REQUIRES_HIDDEN_EVALUATION"
+    )
+
+
+def test_full_runtime_honors_required_source_replication_before_model_route(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="integrated-source-only-runtime",
+        title="Integrated source-only runtime",
+        description="Run and report one immutable published source.",
+        task_intent={
+            "source_replication": "required",
+            "theory": "not_applicable",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+            "novelty": "not_applicable",
+            "unresolved_gaps": "required",
+        },
+    )
+    exact_haiku_config = SimpleNamespace(
+        provider_name="anthropic",
+        model=LIVE_EVALUATION_CLAUDE_MODEL,
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        serious_model=LIVE_EVALUATION_CLAUDE_MODEL,
+        serious_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        max_tokens=1_000,
+        serious_max_tokens=1_000,
+        temperature=0.0,
+    )
+
+    class Provider:
+        provider_name = "anthropic"
+
+    class SimulationRequestingArchitect:
+        config = exact_haiku_config
+        provider = Provider()
+        metric_semantic_reviewer = None
+
+        @staticmethod
+        def propose(*, question, architect_context, runtime_config):  # type: ignore[no-untyped-def]
+            del question, runtime_config
+            evidence_contract = dict(
+                architect_context["runtime_requested_evidence_contract"]
+            )
+            return {
+                "packet_id": "architect:integrated-source-only",
+                "problem_analysis": {},
+                "evidence_contract": evidence_contract,
+                "subsystem_execution_plan": [
+                    {
+                        "subsystem": "TheoryDeveloper",
+                        "objective": "Execute and report the immutable source.",
+                        "expected_artifacts": [
+                            "source_replication_checkpoint"
+                        ],
+                        "acceptance_gate": (
+                            "a source-replication checkpoint is recorded"
+                        ),
+                    }
+                ],
+                "retrieval_strategy": {},
+                "iteration_policy": {},
+                "next_actions": [
+                    {
+                        "owner_agent": "SimulationEvaluator",
+                        "action": "Run an unrelated simulation lane.",
+                        "acceptance_gate": "simulation evidence is recorded",
+                    }
+                ],
+                "evidence_boundary": "Architect routing is not scientific evidence.",
+            }
+
+    class SourceOnlyTheoryDeveloper:
+        config = exact_haiku_config
+        provider = Provider()
+        research_sources = None
+        research_source_execution = object()
+
+        @staticmethod
+        def derive(question, **_kwargs):  # type: ignore[no-untyped-def]
+            return _source_replication_checkpoint_packet(question)
+
+    manifest = runtime_module.run_research_agent_runtime(
+        [question],
+        tmp_path,
+        theory_developer=SourceOnlyTheoryDeveloper(),  # type: ignore[arg-type]
+        architect_coordinator=SimulationRequestingArchitect(),  # type: ignore[arg-type]
+        config=ResearchAgentRuntimeConfig(
+            evaluation_mode="research_eval",
+            formal_verification_policy="optional",
+            max_iterations=4,
+            theory_scratch_max_runs=0,
+        ),
+    )
+
+    runtime_result = json.loads(
+        Path(manifest["artifacts"]["per_question_results"][0]).read_text(
+            encoding="utf-8"
+        )
+    )
+    traces = runtime_result["traces"]
+    assert [(row["subsystem"], row["status"]) for row in traces] == [
+        ("ArchitectCoordinator", "REROUTE"),
+        ("TheoryDeveloper", "ACCEPTED"),
+    ]
+    initial_routing = traces[0]["observations"][0]["payload"][
+        "initial_routing"
+    ]
+    assert initial_routing["requested_subsystem"] == "SimulationEvaluator"
+    assert initial_routing["selected_subsystem"] == "TheoryDeveloper"
+    assert initial_routing["model_route_honored_exactly"] is False
+    assert manifest["status_counts"] == {"ACCEPTED": 1}
+    assert manifest["research_evaluation_summary"][
+        "all_questions_research_eval_complete"
+    ] is True
+    row = manifest["research_evaluation_summary"]["rows"][0]
+    assert row["required_capability_checks"] == [
+        "source_replication_checkpoint_recorded",
+        "source_replication_unresolved_gap_disclosure_present",
+    ]
+    assert row["requirements"]["critic_research_acceptance"] is False
+    assert manifest["n_runtime_architect_coordinator_traces"] == 1
+    assert manifest["n_generated_simulation_sandbox_executed"] == 0
+    assert manifest["n_kernel_verified_subclaims"] == 0
+    assert manifest["formal_closure_summary"]["formal_closure_status"] == (
+        "FORMAL_CLOSURE_NOT_APPLICABLE"
     )
 
 

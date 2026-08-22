@@ -1699,21 +1699,9 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         for tool in first_request.tools
         if tool.name == THEORY_WORKSPACE_WRITE_TOOL
     )
-    writable_names = set(
-        write_tool.input_schema["properties"]["writes"]["items"][
-            "properties"
-        ]["artifact_name"]["enum"]
-    )
-    assert {
-        "problem_card",
-        "theory_derivation_packet",
-        "estimator_specs",
-        "theorem_cards",
-        "lemma_cards",
-        "proof_plan",
-        "formalization_requests",
-        "simulation_ademp_spec",
-    } == writable_names
+    assert write_tool.input_schema["properties"]["writes"]["items"][
+        "properties"
+    ]["artifact_name"] == {"type": "string", "minLength": 1}
     initial_prompt = str(first_request.messages[0]["content"])
     assert core_response["problem_card"]["dgp"] not in initial_prompt
     assert "Authoritative theory workspace catalog" in initial_prompt
@@ -1892,10 +1880,9 @@ def test_nonformal_initial_workspace_checkpoints_without_theorem_abi() -> None:
         for tool in first_request.tools
         if tool.name == THEORY_WORKSPACE_WRITE_TOOL
     )
-    writable_names = write_tool.input_schema["properties"]["writes"]["items"][
+    assert write_tool.input_schema["properties"]["writes"]["items"][
         "properties"
-    ]["artifact_name"]["enum"]
-    assert writable_names == ["problem_card", "theory_derivation_packet"]
+    ]["artifact_name"] == {"type": "string", "minLength": 1}
     initial_prompt = str(first_request.messages[0]["content"])
     assert "required compact handoffs are: problem_card, theory_derivation_packet" in (
         initial_prompt

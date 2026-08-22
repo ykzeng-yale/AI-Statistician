@@ -175,6 +175,44 @@ def test_client_tool_session_rejects_contract_drift_and_tampering(tmp_path) -> N
             request=changed_tools,
         )
 
+    changed_tool_description = replace(
+        request,
+        tools=(
+            replace(request.tools[0], description="Use a changed edit contract."),
+            *request.tools[1:],
+        ),
+    )
+    with pytest.raises(ValueError, match="identity mismatch"):
+        load_client_tool_session(
+            reference,
+            session_dir=tmp_path,
+            session_id="theory:q1",
+            request=changed_tool_description,
+        )
+
+    changed_tool_schema = replace(
+        request,
+        tools=(
+            replace(
+                request.tools[0],
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {"value": {"type": "integer"}},
+                    "required": ["value"],
+                },
+            ),
+            *request.tools[1:],
+        ),
+    )
+    with pytest.raises(ValueError, match="identity mismatch"):
+        load_client_tool_session(
+            reference,
+            session_dir=tmp_path,
+            session_id="theory:q1",
+            request=changed_tool_schema,
+        )
+
     with pytest.raises(ValueError, match="identity mismatch"):
         load_client_tool_session(
             reference,

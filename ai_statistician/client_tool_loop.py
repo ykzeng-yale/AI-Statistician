@@ -132,11 +132,14 @@ def client_tool_session_contract_fingerprint(
 
     return stable_hash(
         {
+            "contract_schema_version": 2,
             "model": request.model,
             "system_prompt": request.system_prompt,
             "tools": [
                 {
                     "name": tool.name,
+                    "description": tool.description,
+                    "input_schema": deepcopy(dict(tool.input_schema)),
                     "terminal": tool.terminal,
                     "strict": tool.strict,
                 }

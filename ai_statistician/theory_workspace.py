@@ -469,8 +469,6 @@ def run_theory_artifact_workspace(
         "source_replication_manifests": [],
     }
     tools = _theory_workspace_tools(
-        artifact_names,
-        writable_artifact_shapes,
         scratchpad_enabled=scratchpad is not None,
         research_sources_enabled=research_sources is not None,
         research_source_discovery_enabled=research_source_discovery is not None,
@@ -2615,8 +2613,6 @@ def research_source_discovery_client_tools() -> tuple[ClientToolDefinition, ...]
 
 
 def _theory_workspace_tools(
-    artifact_names: Sequence[str],
-    writable_artifact_shapes: Mapping[str, str],
     *,
     scratchpad_enabled: bool = False,
     research_sources_enabled: bool = False,
@@ -2625,7 +2621,6 @@ def _theory_workspace_tools(
     source_replication_checkpoint_enabled: bool = False,
     document_authority_enabled: bool = False,
 ) -> tuple[ClientToolDefinition, ...]:
-    name_schema = {"type": "string", "enum": list(artifact_names)}
     read_tool = ClientToolDefinition(
         name="read_theory_workspace",
         description=(
@@ -2639,7 +2634,7 @@ def _theory_workspace_tools(
                 "artifact_names": {
                     "type": "array",
                     "uniqueItems": True,
-                    "items": name_schema,
+                    "items": {"type": "string", "minLength": 1},
                 },
                 **(
                     {
@@ -2731,7 +2726,6 @@ def _theory_workspace_tools(
                     "writes": {
                         "type": "array",
                         "minItems": 1,
-                        "maxItems": len(writable_artifact_shapes),
                         "items": {
                             "type": "object",
                             "additionalProperties": False,
@@ -2739,7 +2733,7 @@ def _theory_workspace_tools(
                             "properties": {
                                 "artifact_name": {
                                     "type": "string",
-                                    "enum": sorted(writable_artifact_shapes),
+                                    "minLength": 1,
                                 },
                                 "value": {
                                     "anyOf": [

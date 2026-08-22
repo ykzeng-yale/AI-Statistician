@@ -804,10 +804,10 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
     assert write_schema["required"] == ["writes"]
     assert writes_schema["minItems"] == 1
     assert item_schema["required"] == ["artifact_name", "value"]
-    assert item_schema["properties"]["artifact_name"]["enum"] == [
-        "lemma_cards",
-        "problem_card",
-    ]
+    assert item_schema["properties"]["artifact_name"] == {
+        "type": "string",
+        "minLength": 1,
+    }
     assert item_schema["properties"]["value"]["anyOf"] == [
         {"type": "object"},
         {"type": "array"},
@@ -1481,21 +1481,16 @@ def test_targeted_revision_rejects_duplicate_artifact_names_atomically() -> None
 
 def test_theory_workspace_accepts_one_coherent_complete_write_batch() -> None:
     tools = _theory_workspace_tools(
-        {
-            "problem_card": "object",
-            "lemma_cards": "array",
-            "theorem_cards": "array",
-        },
-        {
-            "problem_card": "object",
-            "lemma_cards": "array",
-            "theorem_cards": "array",
-        },
         scratchpad_enabled=False,
     )
     write_tool = next(tool for tool in tools if tool.name == THEORY_WORKSPACE_WRITE_TOOL)
 
-    assert write_tool.input_schema["properties"]["writes"]["maxItems"] == 3
+    writes_schema = write_tool.input_schema["properties"]["writes"]
+    assert "maxItems" not in writes_schema
+    assert writes_schema["items"]["properties"]["artifact_name"] == {
+        "type": "string",
+        "minLength": 1,
+    }
 
     artifacts, writes = _replace_theory_workspace_artifacts(
         {
@@ -1525,6 +1520,12 @@ def test_theory_workspace_accepts_one_coherent_complete_write_batch() -> None:
         "lemma_cards",
         "theorem_cards",
     ]
+    with pytest.raises(ClientToolInputError, match="unknown writable artifact"):
+        _replace_theory_workspace_artifacts(
+            artifacts,
+            [{"artifact_name": "unbound_artifact", "value": {}}],
+            writable_artifact_shapes={"problem_card": "object"},
+        )
 
 
 def test_document_authority_persists_exact_math_and_small_handoff(

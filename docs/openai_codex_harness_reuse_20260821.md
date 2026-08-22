@@ -824,3 +824,49 @@ No Claude call, benchmark draw, rerun, resume, output repair, research turn,
 budget increase, agent, scheduler, provider, statistical rule, Lean rule, hidden
 evaluation, proof, score, or E2E capability credit was produced. The consumed
 ladder remains immutable `0/21`.
+
+### Exact session-contract implication
+
+The official `openai/codex` checkout was fetched again on 2026-08-22 and remains
+exactly at Apache-2.0 `main` commit
+`4f39251a010a8bd7d692d25fb33832ff06f1635a`. Its tool runtime admits explicitly
+parallel-safe calls through a shared read lock and serializes all other calls
+through a write lock; its multi-agent guidance keeps immediate critical-path work
+with the current owner and delegates only bounded, nonduplicated sidecars. The
+inspected source hashes are:
+
+- `codex-rs/core/src/tools/parallel.rs`:
+  `48380e25abaf9c52e7a5de9cecf82cc4ddb84197683f73a11719de3b78c90e5a`;
+- `codex-rs/core/src/tools/handlers/multi_agents_spec.rs`:
+  `3ccedea36cc1c40e846a5c363edf614aba2b923055a86aff36a2473890de1be5`;
+- `codex-rs/core/src/session/turn.rs`:
+  `7499497671f04186b7c31126dbdee38c5a34a022a51b55bdefca331f778e2c66`.
+
+AI-Statistician keeps the corresponding scientific division of responsibility:
+one source-owning session handles the immediate Theory, Python/R, Simulation, or
+Lean action; independent reviewers receive artifact-only contexts; optional
+retrieval and light formal scouting are sidecars; and task-intent evidence
+requirements, not a model's accidental route, determine which missing authority
+must run next. A complete deterministic `run_research_agent_runtime` regression
+now proves that `source_replication=required` enters the existing TheoryDeveloper
+source workspace even when Architect requests an unrelated Simulation lane, then
+terminates without Critic, Simulation, or Formalizer work after the hash-bound
+source checkpoint is recorded.
+
+The audit also found one content-addressing defect in our persisted specialist
+sessions. Their contract hash included model, system prompt, tool names, strictness,
+and terminal semantics, but omitted the exact tool descriptions and JSON input
+schemas shown to the model. An old transcript could therefore resume after a tool
+contract changed while retaining the same reference identity. Contract schema 2
+now hashes the complete provider-visible tool definition. Description or schema
+drift fails closed before any Theory, scientific-code, Simulation, or Lean session
+is restored. TheoryDeveloper's read/write ABI is now stable across workspace
+progress: current artifact names remain model-visible state and are validated by
+the executor with ordinary tool feedback, rather than being baked into a changing
+JSON-schema enum.
+
+This is an integrity correction to the existing provider-neutral tool loop. It
+adds no OpenAI provider, Codex app-server, thread manager, scheduler, subagent,
+repair worker, model turn, retry, scientific rule, Lean grammar or tactic rule,
+benchmark draw, output repair, score, or capability credit. Existing consumed
+tasks and their recorded outcomes remain immutable.
