@@ -663,3 +663,32 @@ loop. It imports no Codex provider, app-server, thread manager, scheduler, repai
 or scientific rule. Lifecycle and immutable-ledger regressions are included in the full
 `819/819` passing suite. The Pearson run remains immutable `0/1`; the correction is
 eligible only for a newly frozen, disjoint task.
+
+### Executable-ABI implication
+
+The consumed exponential-rate draw exposed a different harness overreach rather
+than an execution-loop defect. After TheoryDeveloper had already authored the
+mathematics in its persistent Markdown/LaTeX workspace, a second structured phase
+required it to restate every output's sample-size order and a typed polynomial/log
+rate decomposition. Those fields were validated, copied through prompts, and
+reviewed, but no Python/R executor, metric calculation, proof gate, or evaluator
+used them as executable semantics. They created a second, less expressive
+mathematical authority that could disagree with the document.
+
+Commit `a0271fde7a5d2a32106a3d4c13b7aa6517ad89dc` applies Codex's
+tool-contract boundary to that interface. New estimator ABIs contain request name,
+meaning, and lifecycle binding plus response name, meaning, normalization, and one
+exact derivation reference. Asymptotic orders, rates, theorem conclusions, and
+their arguments remain only in model-owned theory documents. The canonical author
+schema and fallback validator both reject mathematical metadata in a new ABI.
+Legacy packets remain readable for audit, while preflight and Simulation prompts
+omit the retired fields and implementation handoffs project old contracts onto the
+minimal executable shape with source identity retained.
+
+This is a net deletion, not a statistical validator or another handoff layer. The
+focused Theory/ABI/Simulation/preflight panel passed 129 tests and the full local
+suite passed `820/820` in 66.88 seconds. No model call, benchmark draw, rerun,
+resume, output repair, hidden-gold feedback, formula rule, retry, agent, scheduler,
+model escalation, mathematical acceptance, empirical credit, or proof credit was
+added. The exponential-rate task remains immutable `0/1`, and the scored ladder
+remains `0/21`.
