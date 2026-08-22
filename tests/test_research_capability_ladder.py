@@ -1208,9 +1208,9 @@ def test_exponential_rate_mle_l0_authority_is_consumed_after_one_draw() -> None:
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["active_scored_tasks"] == 26
+    assert ladder["current_readiness"]["active_scored_tasks"] == 27
     assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 26
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
@@ -1280,9 +1280,9 @@ def test_its_time_l1_draw_is_consumed_without_posthoc_rescore() -> None:
     assert evidence["hidden_gold_full_task_result"] == "0/1"
     assert "never rerun" in evidence["post_run_policy"].lower()
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["active_scored_tasks"] == 26
+    assert ladder["current_readiness"]["active_scored_tasks"] == 27
     assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 26
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -1380,9 +1380,9 @@ def test_statlib_formal_l0_draw_is_consumed_without_proof_credit() -> None:
     assert contract["lean_source_prefix"].rstrip().endswith(":= by")
     assert "tendsto_of_tendsto" not in contract["lean_source_prefix"]
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
-    assert ladder["current_readiness"]["active_scored_tasks"] == 26
+    assert ladder["current_readiness"]["active_scored_tasks"] == 27
     assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 26
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 27
 
 
 def test_score_information_l0_draw_is_consumed_without_review_credit() -> None:
@@ -1541,9 +1541,9 @@ def test_basu_theory_l0_draw_is_consumed_after_missing_routed_review() -> None:
     )
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["active_scored_tasks"] == 26
+    assert ladder["current_readiness"]["active_scored_tasks"] == 27
     assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 26
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -1569,6 +1569,87 @@ def test_basu_theory_l0_draw_is_consumed_after_missing_routed_review() -> None:
     for hidden_name in (
         "gold_manifest.json",
         "hidden_theory_harness.py",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_uniform_endpoint_l0_authority_is_frozen_before_first_product_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "uniform_endpoint_maximum_exact_interval_known_result"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "nonregular_endpoint_inference"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "frozen_ready_before_first_runtime_model_call"
+    )
+    assert candidate["gold_runtime_visibility"] == "evaluator_only_after_runtime"
+    assert candidate["gold_manifest_sha256"] == (
+        "9da0e97e77651d97994823a0c94d883a387680e8640bdc374c1c30b55f59ca45"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "6d971a027858bce4dd91c2af1a6dfc09a497899f148b1726790837439f42ab1e"
+    )
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["product_model_calls"] == 0
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["model_draw_resampling_blocked"] is False
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["full_task_passed"] is False
+    assert ladder["current_readiness"]["active_scored_tasks"] == 27
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 27
+    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert candidate["task_intent"] == question["task_intent"]
+    assert question["task_intent"] == {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+    contract = question["estimator_execution_contract"]
+    assert contract["estimator_id"] == "est_uniform_endpoint_interval"
+    assert contract["entrypoint"] == "run_estimator"
+    assert [row["name"] for row in contract["request_fields"]] == ["sample", "alpha"]
+    assert [row["name"] for row in contract["response_fields"]] == [
+        "sample_size",
+        "sample_maximum",
+        "mle_endpoint",
+        "unbiased_endpoint",
+        "confidence_level",
+        "exact_ci_lower",
+        "exact_ci_upper",
+    ]
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
+        "hidden_harness.py",
+        "hidden_empirical_harness.py",
         "semantic_reference.md",
         "semantic_rubric.json",
         "semantic_calibration_cases.json",

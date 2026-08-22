@@ -2192,6 +2192,65 @@
         "novelty": "not_applicable",
         "unresolved_gaps": "required"
       }
+    },
+    {
+      "id": "uniform_endpoint_maximum_exact_interval_known_result",
+      "level": "L0",
+      "family": "nonregular_endpoint_inference",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l0_uniform_endpoint_questions_20260822.json",
+      "source_authority": "published_reference_metadata_and_model_visible_problem_statement",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l0-uniform-endpoint-20260822-v1",
+      "gold_manifest_sha256": "9da0e97e77651d97994823a0c94d883a387680e8640bdc374c1c30b55f59ca45",
+      "gold_descriptor_hash": "6d971a027858bce4dd91c2af1a6dfc09a497899f148b1726790837439f42ab1e",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "frozen_ready_before_first_runtime_model_call",
+      "activation_evidence": {
+        "public_reference": "NIST/SEMATECH e-Handbook of Statistical Methods, Uniform Distribution",
+        "public_reference_url": "https://www.itl.nist.gov/div898/handbook/eda/section3/eda3662.htm",
+        "visible_questions_sha256": "324a9574d802f933fe8ce2ffbc9a3f47c687c5f7c5b51c7f40be525f1ea921d4",
+        "visible_question_hash": "d05ba786704fad4373b1d626956a5a7fac50e85e89c9a6885196e59cd95b4801",
+        "estimator_execution_contract_id": "frozen_estimator_execution_contract:4a769c72f6ec02111a6d",
+        "hidden_theory_harness_sha256": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+        "hidden_semantic_reference_sha256": "ac55c0abea5a9f8816329be502820d10da1c48b286134efab844317a6a79f37b",
+        "hidden_semantic_rubric_sha256": "228cb715501fe45d4782bc9810ee5b74b89c6a190717cddb71a8dfcb0d014bf2",
+        "hidden_semantic_calibration_cases_sha256": "3a5b5c9a248e91f60eb60e0902cfb1b2fd6b70e934f81aa1a8a7d70dd9e2dd95",
+        "hidden_algorithm_harness_sha256": "2b44aa1ef29cbbd9dac12378442bf09cdd1f74bc2f3fd7239ace8dcb71a99a99",
+        "hidden_empirical_harness_sha256": "461126ef3195f1688129da613920e126c23f50800eb926cf65dba4edaac66cfd",
+        "algorithm_reference_contract_checks": "10/10",
+        "algorithm_negative_variants_rejected": 4,
+        "empirical_negative_variants_rejected": 3,
+        "empirical_reference_dgps_passed": 3,
+        "empirical_reference_identity_agreements": 15000,
+        "semantic_calibration_cases": 12,
+        "semantic_calibration_cases_correct": 12,
+        "semantic_reference_claims": 9,
+        "semantic_reference_candidate_passed": true,
+        "semantic_calibration_judgment_hash": "8226f979c937df49964fc6ac80bf37aaf3f31c3a6c4d145a595e91bdddd09603",
+        "semantic_calibration_model": "claude-haiku-4-5-20251001",
+        "semantic_calibration_model_calls": 2,
+        "hidden_gold_manifest_validated": true,
+        "gold_frozen_before_first_runtime_model_call": true,
+        "visible_question_activation_commit": "672e504c7009c1a9b2a3ad5c9b650a7f3c2a8027",
+        "visible_question_activation_push_confirmed_on_work_branch_and_main": true,
+        "first_runtime_model_call_occurred": false,
+        "product_model_calls": 0,
+        "fresh_live_runs": 0,
+        "runtime_model": "claude-haiku-4-5-20251001",
+        "model_draw_resampling_blocked": false,
+        "formalization_requirement": "not_applicable",
+        "full_task_passed": false
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
     }
   ],
   "activation_requirements": [
@@ -2205,16 +2264,16 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 26,
+    "active_scored_tasks": 27,
     "consumed_scored_tasks": 26,
-    "fully_gold_configured_tasks": 26,
+    "fully_gold_configured_tasks": 27,
     "fully_gold_passed_tasks": 0,
     "runtime_source_replication_components_ready": 2,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_shared_mechanism_head": "6598ed348152999c317b83b9b2d48d1582231321",
-    "latest_diagnostic": "All twenty-six scored tasks are consumed and immutable at 0/26 full-task passes. Commits 8ef61b0b and 6598ed34 preserve required isolated review and remove the routine post-Theory Architect resampling call. These are deterministic future-task mechanism results; no consumed score changed and no mathematical capability success has been established.",
-    "next_step": "Preserve every consumed task. Before any new product draw, freeze and push one disjoint known-result authority that can distinguish Theory authoring, isolated review, and any selected downstream workspace. Use the unchanged exact-Haiku policy and permit no rerun, repair, resume, or rescore."
+    "latest_shared_mechanism_head": "1b646582b34dd1d9ef6e3a2fbb64a5fe87c0a3db",
+    "latest_diagnostic": "All twenty-six consumed tasks remain immutable at 0/26 full-task passes. A twenty-seventh disjoint Uniform-endpoint L0 authority is now calibrated and frozen before its first product call. Its visible task, estimator ABI, hidden theory, semantic, algorithm, and empirical evaluators are hash-bound; this activation is not capability evidence.",
+    "next_step": "Push this authority binding to the work branch and main, then run exactly one fresh exact-Haiku product draw. Evaluate only after AgentRuntime termination, consume the task regardless of outcome, and permit no rerun, repair, resume, or rescore."
   }
 }
