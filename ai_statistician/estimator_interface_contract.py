@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from copy import deepcopy
 from typing import Any, Mapping
 
@@ -13,12 +12,6 @@ ESTIMATOR_REQUEST_BINDINGS = (
     "derived_once_from_frozen_design",
     "runtime_control",
     "other_explicit",
-)
-ESTIMATOR_SAMPLE_SIZE_RATE_SCALES = (
-    "polynomial_log_n",
-    "constant",
-    "not_indexed",
-    "other",
 )
 FROZEN_ESTIMATOR_EXECUTION_CONTRACT_SCHEMA_VERSION = 1
 FROZEN_ESTIMATOR_EXECUTION_FIELD_TEXT_KEYS = (
@@ -168,91 +161,13 @@ def frozen_estimator_execution_contract_errors(
     return errors
 
 
-def sample_size_rate_json_schema() -> dict[str, Any]:
-    contribution_schema = {
-        "type": "array",
-        "minItems": 1,
-        "items": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": [
-                "quantity",
-                "polynomial_exponent",
-                "log_exponent",
-                "justification_ref",
-            ],
-            "properties": {
-                "quantity": {"type": "string", "minLength": 1},
-                "polynomial_exponent": {"type": "number"},
-                "log_exponent": {"type": "number"},
-                "justification_ref": {
-                    "type": "string",
-                    "minLength": 1,
-                },
-            },
-        },
-    }
-    indexed_properties: dict[str, Any] = {
-        "scale": {
-            "type": "string",
-            "enum": [
-                scale
-                for scale in ESTIMATOR_SAMPLE_SIZE_RATE_SCALES
-                if scale != "not_indexed"
-            ],
-        },
-        "index_symbol": {"type": "string", "minLength": 1},
-        "contributions": contribution_schema,
-    }
-    indexed_properties.update(
-        {
-            "polynomial_exponent": {"type": "number"},
-            "log_exponent": {"type": "number"},
-        }
-    )
-    indexed_required = [
-        "scale",
-        "index_symbol",
-        "polynomial_exponent",
-        "log_exponent",
-        "contributions",
-    ]
-    return {
-        "anyOf": [
-            {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["scale"],
-                "properties": {
-                    "scale": {
-                        "type": "string",
-                        "enum": ["not_indexed"],
-                    }
-                },
-            },
-            {
-                "type": "object",
-                "additionalProperties": False,
-                "required": indexed_required,
-                "properties": indexed_properties,
-            },
-        ]
-    }
-
-
-def estimator_interface_contract_json_schema(
-    *,
-    require_typed_rate: bool = False,
-) -> dict[str, Any]:
+def estimator_interface_contract_json_schema() -> dict[str, Any]:
     response_required = [
         "name",
         "meaning",
         "normalization",
-        "sample_size_order",
         "derivation_ref",
     ]
-    if require_typed_rate:
-        response_required.append("sample_size_rate")
     return {
         "type": "object",
         "additionalProperties": False,
@@ -286,13 +201,43 @@ def estimator_interface_contract_json_schema(
                         "name": {"type": "string", "minLength": 1},
                         "meaning": {"type": "string", "minLength": 1},
                         "normalization": {"type": "string", "minLength": 1},
-                        "sample_size_order": {"type": "string", "minLength": 1},
-                        "sample_size_rate": sample_size_rate_json_schema(),
                         "derivation_ref": {"type": "string", "minLength": 1},
                     },
                 },
             },
         },
+    }
+
+
+def project_executable_estimator_interface_contract(
+    contract: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project legacy contracts onto the canonical cross-agent executable ABI.
+
+    This is a field projection only. It does not infer, repair, or restate any
+    mathematical content; rates and theorem claims remain in theory documents.
+    """
+
+    def project_rows(rows: Any, keys: tuple[str, ...]) -> list[Any]:
+        projected: list[Any] = []
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, Mapping):
+                projected.append(deepcopy(row))
+                continue
+            projected.append(
+                {key: deepcopy(row[key]) for key in keys if key in row}
+            )
+        return projected
+
+    return {
+        "request_fields": project_rows(
+            contract.get("request_fields"),
+            ("name", "meaning", "binding"),
+        ),
+        "response_fields": project_rows(
+            contract.get("response_fields"),
+            ("name", "meaning", "normalization", "derivation_ref"),
+        ),
     }
 
 
@@ -330,8 +275,13 @@ def estimator_interface_contract_errors(
     label: str,
     required: bool,
     allowed_derivation_refs: set[str] | None = None,
-    require_typed_rate: bool = False,
 ) -> list[str]:
+    """Validate the executable ABI without interpreting statistical rates.
+
+    Legacy packets may still carry rate metadata. The canonical authoring schema
+    no longer emits it, and this validator deliberately does not make it runtime
+    authority for mathematics.
+    """
     if not isinstance(value, Mapping):
         return [f"{label} missing estimator_interface_contract"] if required else []
 
@@ -371,23 +321,12 @@ def estimator_interface_contract_errors(
                     )
                 continue
 
-            for field in ("normalization", "sample_size_order", "derivation_ref"):
+            for field in ("normalization", "derivation_ref"):
                 if not str(row.get(field, "") or "").strip():
                     errors.append(
                         f"{label} estimator_interface_contract response field "
                         f"{index} missing {field}"
                     )
-            errors.extend(
-                sample_size_rate_errors(
-                    row.get("sample_size_rate"),
-                    label=(
-                        f"{label} estimator_interface_contract response field "
-                        f"{index} sample_size_rate"
-                    ),
-                    required=require_typed_rate,
-                    allowed_derivation_refs=allowed_derivation_refs,
-                )
-            )
             derivation_ref = str(row.get("derivation_ref", "") or "").strip()
             if (
                 derivation_ref
@@ -408,88 +347,6 @@ def estimator_interface_contract_errors(
                 f"{label} estimator_interface_contract {collection_name} "
                 "field names must be unique"
             )
-    return errors
-
-
-def sample_size_rate_errors(
-    value: Any,
-    *,
-    label: str,
-    required: bool,
-    allowed_derivation_refs: set[str] | None = None,
-) -> list[str]:
-    if not isinstance(value, Mapping):
-        return [f"{label} is required"] if required else []
-    errors: list[str] = []
-    scale = str(value.get("scale", "") or "").strip()
-    if scale not in ESTIMATOR_SAMPLE_SIZE_RATE_SCALES:
-        errors.append(f"{label} has invalid scale")
-    if scale == "not_indexed":
-        unexpected_fields = sorted(set(value) - {"scale"})
-        if unexpected_fields:
-            errors.append(
-                f"{label} not_indexed scale must not carry synthetic rate "
-                "fields: " + ", ".join(unexpected_fields)
-            )
-        return errors
-    if not str(value.get("index_symbol", "") or "").strip():
-        errors.append(f"{label} missing index_symbol")
-    exponents: dict[str, float] = {}
-    for field in ("polynomial_exponent", "log_exponent"):
-        raw = value.get(field)
-        if (
-            isinstance(raw, bool)
-            or not isinstance(raw, (int, float))
-            or not math.isfinite(float(raw))
-        ):
-            errors.append(f"{label} {field} must be a finite number")
-            continue
-        exponents[field] = float(raw)
-    if scale in {"constant", "not_indexed"} and any(
-        abs(exponent) > 1e-12 for exponent in exponents.values()
-    ):
-        errors.append(f"{label} {scale} scale must have zero exponents")
-    contributions = value.get("contributions")
-    if not isinstance(contributions, list) or not contributions:
-        errors.append(f"{label} contributions must be a nonempty list")
-        contributions = []
-    for index, contribution in enumerate(contributions):
-        if not isinstance(contribution, Mapping):
-            errors.append(f"{label} contribution {index} must be an object")
-            continue
-        if not str(contribution.get("quantity", "") or "").strip():
-            errors.append(f"{label} contribution {index} missing quantity")
-        justification_ref = str(
-            contribution.get("justification_ref", "") or ""
-        ).strip()
-        if not justification_ref:
-            errors.append(
-                f"{label} contribution {index} missing justification_ref"
-            )
-        elif (
-            allowed_derivation_refs is not None
-            and justification_ref not in allowed_derivation_refs
-        ):
-            allowed = sorted(allowed_derivation_refs)
-            allowed_preview = ", ".join(allowed[:16]) or "<none>"
-            if len(allowed) > 16:
-                allowed_preview += f", ... ({len(allowed)} total)"
-            errors.append(
-                f"{label} contribution {index} has unresolved "
-                f"justification_ref {justification_ref}; choose exactly one "
-                f"allowed reference id from: {allowed_preview}"
-            )
-        for field in ("polynomial_exponent", "log_exponent"):
-            raw = contribution.get(field)
-            if (
-                isinstance(raw, bool)
-                or not isinstance(raw, (int, float))
-                or not math.isfinite(float(raw))
-            ):
-                errors.append(
-                    f"{label} contribution {index} {field} must be a finite number"
-                )
-                break
     return errors
 
 

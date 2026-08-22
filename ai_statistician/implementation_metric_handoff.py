@@ -4,7 +4,10 @@ from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from typing import Any
 
-from .estimator_interface_contract import estimator_interface_contract_errors
+from .estimator_interface_contract import (
+    estimator_interface_contract_errors,
+    project_executable_estimator_interface_contract,
+)
 from .fingerprint import stable_hash
 
 
@@ -104,14 +107,7 @@ def _interface_contract_shape_errors(
             errors.append(
                 f"{label} request field {index} has unexpected fields: {unexpected}"
             )
-    response_fields = {
-        "name",
-        "meaning",
-        "normalization",
-        "sample_size_order",
-        "sample_size_rate",
-        "derivation_ref",
-    }
+    response_fields = {"name", "meaning", "normalization", "derivation_ref"}
     for index, row in enumerate(contract.get("response_fields", []) or []):
         if not isinstance(row, Mapping):
             continue
@@ -120,45 +116,6 @@ def _interface_contract_shape_errors(
             errors.append(
                 f"{label} response field {index} has unexpected fields: {unexpected}"
             )
-        rate = row.get("sample_size_rate")
-        if not isinstance(rate, Mapping):
-            continue
-        rate_fields = (
-            {"scale"}
-            if rate.get("scale") == "not_indexed"
-            else {
-                "scale",
-                "index_symbol",
-                "contributions",
-                "polynomial_exponent",
-                "log_exponent",
-            }
-        )
-        unexpected = sorted(set(rate) - rate_fields)
-        if unexpected:
-            errors.append(
-                f"{label} response field {index} sample_size_rate has "
-                f"unexpected fields: {unexpected}"
-            )
-        for contribution_index, contribution in enumerate(
-            rate.get("contributions", []) or []
-        ):
-            if not isinstance(contribution, Mapping):
-                continue
-            unexpected = sorted(
-                set(contribution)
-                - {
-                    "quantity",
-                    "polynomial_exponent",
-                    "log_exponent",
-                    "justification_ref",
-                }
-            )
-            if unexpected:
-                errors.append(
-                    f"{label} response field {index} contribution "
-                    f"{contribution_index} has unexpected fields: {unexpected}"
-                )
     return errors
 
 
@@ -173,9 +130,17 @@ def build_accepted_implementation_interface_handoff(
     ) or []:
         if not isinstance(raw_row, Mapping):
             continue
-        interface_contract = raw_row.get("estimator_interface_contract", {})
-        if not isinstance(interface_contract, Mapping) or not interface_contract:
+        source_interface_contract = raw_row.get(
+            "estimator_interface_contract", {}
+        )
+        if (
+            not isinstance(source_interface_contract, Mapping)
+            or not source_interface_contract
+        ):
             continue
+        interface_contract = project_executable_estimator_interface_contract(
+            source_interface_contract
+        )
         interface_rows.append(
             {
                 "estimator_id": str(raw_row.get("estimator_id", "") or ""),
@@ -397,13 +362,6 @@ def accepted_implementation_interface_handoff_errors(
                 errors.append(
                     "accepted implementation interface row "
                     f"{index} contract identity hash mismatch"
-                )
-            if str(
-                row.get("source_estimator_interface_contract_id", "") or ""
-            ) != expected_contract_id:
-                errors.append(
-                    "accepted implementation interface row "
-                    f"{index} source contract identity mismatch"
                 )
         authority = row.get("estimator_interface_contract_authority", {})
         if not isinstance(authority, Mapping):

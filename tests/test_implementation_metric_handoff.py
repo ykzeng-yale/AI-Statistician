@@ -66,9 +66,11 @@ def _accepted_algorithm_handoff() -> dict[str, object]:
 
 
 def test_interface_handoff_excludes_source_and_execution_results() -> None:
-    handoff = build_accepted_implementation_interface_handoff(
-        _accepted_algorithm_handoff()
-    )
+    source_handoff = _accepted_algorithm_handoff()
+    source_contract_id = source_handoff["exact_algorithm_artifacts"][0][
+        "estimator_interface_contract_id"
+    ]
+    handoff = build_accepted_implementation_interface_handoff(source_handoff)
 
     assert accepted_implementation_interface_handoff_errors(
         handoff,
@@ -88,11 +90,7 @@ def test_interface_handoff_excludes_source_and_execution_results() -> None:
             "language": "python",
             "dependencies": ["numpy"],
             "exact_source_hash": "source-hash",
-            "source_estimator_interface_contract_id": (
-                handoff["implementation_interfaces"][0][
-                    "estimator_interface_contract_id"
-                ]
-            ),
+            "source_estimator_interface_contract_id": source_contract_id,
             "estimator_interface_contract_id": (
                 handoff["implementation_interfaces"][0][
                     "estimator_interface_contract_id"
@@ -111,7 +109,6 @@ def test_interface_handoff_excludes_source_and_execution_results() -> None:
                         "name": "estimate",
                         "meaning": "estimate of the theory-owned target",
                         "normalization": "unscaled finite-sample estimate",
-                        "sample_size_order": "constant output dimension",
                         "derivation_ref": "derivation:estimate",
                     }
                 ],
@@ -125,6 +122,10 @@ def test_interface_handoff_excludes_source_and_execution_results() -> None:
             },
         }
     ]
+    assert source_contract_id != handoff["implementation_interfaces"][0][
+        "estimator_interface_contract_id"
+    ]
+    assert "sample_size_order" not in serialized
 
 
 def test_interface_handoff_rejects_result_or_source_injection() -> None:

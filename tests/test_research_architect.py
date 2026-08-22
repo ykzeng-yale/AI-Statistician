@@ -30,7 +30,9 @@ from ai_statistician.estimator_interface_contract import (
     ESTIMATOR_REQUEST_BINDINGS,
     estimator_interface_contract_id,
     estimator_interface_contract_errors,
+    estimator_interface_contract_json_schema,
     normalize_estimator_interface_contract,
+    project_executable_estimator_interface_contract,
     theory_estimator_interface_contracts,
 )
 from ai_statistician.model_backend import (
@@ -710,7 +712,6 @@ def _sample_response() -> dict[str, object]:
                 "inputs": ["one observed sample of O_i=(X_i,A_i,Y_i)"],
                 "outputs": ["cross-fitted AIPW estimate of psi"],
                 "normalization": "finite-sample point estimate",
-                "sample_size_order": "O_p(1)",
                 "tuning": ["number of folds"],
                 "required_assumptions": ["positivity", "product-rate nuisance convergence"],
                 "estimator_interface_contract": {
@@ -726,21 +727,6 @@ def _sample_response() -> dict[str, object]:
                             "name": "estimate",
                             "meaning": "cross-fitted AIPW estimate of psi",
                             "normalization": "finite-sample point estimate, not root-n scaled",
-                            "sample_size_order": "O(1)",
-                            "sample_size_rate": {
-                                "scale": "constant",
-                                "index_symbol": "n",
-                                "polynomial_exponent": 0.0,
-                                "log_exponent": 0.0,
-                                "contributions": [
-                                    {
-                                        "quantity": "finite point-estimate scale",
-                                        "polynomial_exponent": 0.0,
-                                        "log_exponent": 0.0,
-                                        "justification_ref": "orthogonal_expansion",
-                                    }
-                                ],
-                            },
                             "derivation_ref": "orthogonal_expansion",
                         }
                     ],
@@ -1312,16 +1298,15 @@ def test_theory_validation_rejects_unresolved_estimator_semantic_reference() -> 
     assert "orthogonal_expansion" in unresolved
 
 
-def test_theory_validation_reports_allowed_rate_justification_references() -> None:
+def test_theory_validation_does_not_authorize_legacy_rate_metadata() -> None:
     packet = _sample_response()
     estimator = dict(packet["estimator_specs"][0])
     contract = dict(estimator["estimator_interface_contract"])
     response_fields = [dict(row) for row in contract["response_fields"]]
-    rate = dict(response_fields[0]["sample_size_rate"])
-    contributions = [dict(row) for row in rate["contributions"]]
-    contributions[0]["justification_ref"] = "missing_theory_step"
-    rate["contributions"] = contributions
-    response_fields[0]["sample_size_rate"] = rate
+    response_fields[0]["sample_size_rate"] = {
+        "scale": "constant",
+        "justification_ref": "missing_theory_step",
+    }
     contract["response_fields"] = response_fields
     estimator["estimator_interface_contract"] = contract
     estimator["estimator_interface_contract_id"] = (
@@ -1333,13 +1318,7 @@ def test_theory_validation_reports_allowed_rate_justification_references() -> No
 
     errors = validate_theory_packet(packet)
 
-    unresolved = next(
-        row
-        for row in errors
-        if "unresolved justification_ref missing_theory_step" in row
-    )
-    assert "choose exactly one allowed reference id from:" in unresolved
-    assert "orthogonal_expansion" in unresolved
+    assert errors == []
 
 
 def test_theory_validation_accepts_existing_lemma_as_interface_justification() -> None:
@@ -1348,11 +1327,6 @@ def test_theory_validation_accepts_existing_lemma_as_interface_justification() -
     contract = dict(estimator["estimator_interface_contract"])
     response_fields = [dict(row) for row in contract["response_fields"]]
     response_fields[0]["derivation_ref"] = "second_order_remainder_bound"
-    rate = dict(response_fields[0]["sample_size_rate"])
-    contributions = [dict(row) for row in rate["contributions"]]
-    contributions[0]["justification_ref"] = "second_order_remainder_bound"
-    rate["contributions"] = contributions
-    response_fields[0]["sample_size_rate"] = rate
     contract["response_fields"] = response_fields
     estimator["estimator_interface_contract"] = contract
     estimator["estimator_interface_contract_id"] = (
@@ -1365,32 +1339,10 @@ def test_theory_validation_accepts_existing_lemma_as_interface_justification() -
     errors = validate_theory_packet(packet)
 
     assert not any("unresolved derivation_ref" in row for row in errors)
-    assert not any("unresolved justification_ref" in row for row in errors)
+    assert errors == []
 
 
-def test_theory_validation_does_not_invent_rate_composition_rule() -> None:
-    packet = _sample_response()
-    estimator = dict(packet["estimator_specs"][0])
-    contract = dict(estimator["estimator_interface_contract"])
-    response_fields = [dict(row) for row in contract["response_fields"]]
-    rate = dict(response_fields[0]["sample_size_rate"])
-    rate["polynomial_exponent"] = -1.0
-    response_fields[0]["sample_size_rate"] = rate
-    contract["response_fields"] = response_fields
-    estimator["estimator_interface_contract"] = contract
-    estimator["estimator_interface_contract_id"] = (
-        estimator_interface_contract_id(contract)
-    )
-    packet["estimator_specs"] = [estimator]
-    packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
-    packet["kernel_verified"] = False
-
-    errors = validate_theory_packet(packet)
-
-    assert not any("sum of signed contributions" in error for error in errors)
-
-
-def test_interface_normalization_preserves_model_authored_rate() -> None:
+def test_source_normalization_preserves_legacy_metadata_without_authorizing_it() -> None:
     contract = json.loads(
         json.dumps(
             _sample_response()["estimator_specs"][0][
@@ -1398,6 +1350,9 @@ def test_interface_normalization_preserves_model_authored_rate() -> None:
             ]
         )
     )
+    contract["response_fields"][0]["sample_size_rate"] = {
+        "scale": "legacy",
+    }
     rate = contract["response_fields"][0]["sample_size_rate"]
     rate["polynomial_exponent"] = 99.0
     rate["log_exponent"] = -99.0
@@ -1424,7 +1379,7 @@ def test_interface_normalization_preserves_model_authored_rate() -> None:
     assert normalized_rate["contributions"] == rate["contributions"]
 
 
-def test_not_indexed_interface_rate_has_no_synthetic_exponents() -> None:
+def test_canonical_interface_schema_excludes_legacy_rate_metadata() -> None:
     contract = json.loads(
         json.dumps(
             _sample_response()["estimator_specs"][0][
@@ -1433,32 +1388,29 @@ def test_not_indexed_interface_rate_has_no_synthetic_exponents() -> None:
         )
     )
     contract["response_fields"][0]["sample_size_rate"] = {
-        "scale": "not_indexed"
+        "scale": "not_indexed",
+        "synthetic_exponent": 99,
     }
+    schema = estimator_interface_contract_json_schema()
+    response_schema = schema["properties"]["response_fields"]["items"]
 
+    assert response_schema["required"] == [
+        "name",
+        "meaning",
+        "normalization",
+        "derivation_ref",
+    ]
+    assert set(response_schema["properties"]) == set(
+        response_schema["required"]
+    )
     assert estimator_interface_contract_errors(
         contract,
         label="interface",
         required=True,
-        require_typed_rate=True,
     ) == []
-
-    contract["response_fields"][0]["sample_size_rate"][
-        "polynomial_exponent"
-    ] = 0.0
-    assert any(
-        "must not carry synthetic rate fields" in error
-        for error in estimator_interface_contract_errors(
-            contract,
-            label="interface",
-            required=True,
-            require_typed_rate=True,
-        )
-    )
-    normalized = normalize_estimator_interface_contract(contract)
-    assert normalized["response_fields"][0]["sample_size_rate"] == (
-        contract["response_fields"][0]["sample_size_rate"]
-    )
+    projected = project_executable_estimator_interface_contract(contract)
+    assert "sample_size_order" not in projected["response_fields"][0]
+    assert "sample_size_rate" not in projected["response_fields"][0]
 
 
 def test_theory_interface_boundary_does_not_silently_repair_legacy_rate() -> None:
@@ -2151,7 +2103,10 @@ def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> Non
 
     core_response = _sample_response()
     core_estimators = [dict(row) for row in core_response["estimator_specs"]]
-    expected_contract = core_estimators[0].pop("estimator_interface_contract")
+    expected_contract = project_executable_estimator_interface_contract(
+        core_estimators[0].pop("estimator_interface_contract")
+    )
+    core_estimators[0].pop("sample_size_order", None)
     core_response["estimator_specs"] = core_estimators
     interface_response = {
         "interfaces": {"crossfit_aipw": expected_contract}
@@ -2193,8 +2148,8 @@ def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> Non
         "inputs",
         "outputs",
         "normalization",
-        "sample_size_order",
     }.issubset(set(core_estimator_schema["required"]))
+    assert "sample_size_order" not in core_estimator_schema["properties"]
     interface_schema = provider.requests[1].schema["properties"]["interfaces"]
     assert interface_schema["type"] == "object"
     assert interface_schema["additionalProperties"] is False
@@ -2207,15 +2162,15 @@ def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> Non
     assert contract_schema["properties"]["request_fields"]["items"][
         "properties"
     ]["binding"]["enum"] == list(ESTIMATOR_REQUEST_BINDINGS)
-    indexed_rate_schema = response_schema["items"]["properties"][
-        "sample_size_rate"
-    ]["anyOf"][1]
-    assert "polynomial_exponent" in indexed_rate_schema["properties"]
-    assert "log_exponent" in indexed_rate_schema["properties"]
-    assert {
-        "polynomial_exponent",
-        "log_exponent",
-    }.issubset(indexed_rate_schema["required"])
+    response_item_schema = response_schema["items"]
+    assert response_item_schema["required"] == [
+        "name",
+        "meaning",
+        "normalization",
+        "derivation_ref",
+    ]
+    assert "sample_size_order" not in response_item_schema["properties"]
+    assert "sample_size_rate" not in response_item_schema["properties"]
     estimator = packet["estimator_specs"][0]
     assert estimator["estimator_interface_contract"] == expected_contract
     assert estimator["estimator_interface_contract_id"] == (
@@ -2227,6 +2182,44 @@ def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> Non
         "core_theory_workspace",
         "estimator_interface_authoring",
     ]
+
+
+def test_theory_interface_authoring_rejects_math_metadata_in_abi() -> None:
+    core_response = _sample_response()
+    core_estimators = [dict(row) for row in core_response["estimator_specs"]]
+    interface = core_estimators[0].pop("estimator_interface_contract")
+    core_response["estimator_specs"] = core_estimators
+    legacy_interface = deepcopy(interface)
+    legacy_interface["response_fields"][0]["sample_size_order"] = "O_p(1)"
+    provider = SequentialGeneratorBackend(
+        [
+            core_response,
+            {"interfaces": {"crossfit_aipw": legacy_interface}},
+        ]
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="sequential_test",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        developer.derive(
+            OpenResearchQuestion(
+                id="canonical_interface_only",
+                title="Canonical executable interface",
+                description="Keep mathematical claims in theory documents.",
+            )
+        )
+
+    assert any(
+        "must contain only executable ABI fields" in error
+        for error in exc_info.value.errors
+    )
 
 
 def test_interface_authoring_cannot_replace_frozen_outputs_with_status_rows() -> None:
@@ -2854,17 +2847,14 @@ def test_theory_revision_resumes_interface_stage_from_validated_core(
         json.dumps(estimator["estimator_interface_contract"])
     )
     invalid_contract = json.loads(json.dumps(expected_contract))
-    invalid_rate = invalid_contract["response_fields"][0]["sample_size_rate"]
-    invalid_rate["contributions"][0]["polynomial_exponent"] = "invalid"
+    invalid_contract["response_fields"][0]["normalization"] = ""
     invalid_interface = {
         "interfaces": {estimator["id"]: invalid_contract}
     }
     still_invalid_interface = json.loads(json.dumps(invalid_interface))
     still_invalid_interface["interfaces"][estimator["id"]]["response_fields"][
         0
-    ]["sample_size_rate"]["contributions"][0]["polynomial_exponent"] = (
-        "still-invalid"
-    )
+    ]["normalization"] = ""
     revised_document = (
         parent_documents["theory/workspace.md"]
         + "\n## bounded_outcomes\n\n"
@@ -3266,11 +3256,6 @@ def test_llm_theory_developer_canonicalizes_common_schema_variants() -> None:
     interface = dict(estimator["estimator_interface_contract"])
     response_fields = [dict(row) for row in interface["response_fields"]]
     response_fields[0]["derivation_ref"] = "E2"
-    rate = dict(response_fields[0]["sample_size_rate"])
-    contributions = [dict(row) for row in rate["contributions"]]
-    contributions[0]["justification_ref"] = "E2"
-    rate["contributions"] = contributions
-    response_fields[0]["sample_size_rate"] = rate
     interface["response_fields"] = response_fields
     estimator["estimator_interface_contract"] = interface
     response["estimator_specs"] = [estimator]

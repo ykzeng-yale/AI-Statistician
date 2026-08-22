@@ -538,9 +538,10 @@ def build_simulation_engineer_prompt(
         "JSON-finite response when computing diagnostics. Treat each "
         "estimator_interface_contract as the accepted ABI: construct the declared "
         "request fields according to their fixed-versus-replicate binding, use response "
-        "fields only with their declared statistical meaning, normalization, and "
-        "sample-size order, and do not add or remove an n-dependent scaling "
-        "unless that contract explicitly requires it. Do not silently replace it. "
+        "fields only with their declared statistical meaning and normalization, and "
+        "do not silently add, remove, or replace a scaling convention. Consult the "
+        "theory workspace for asymptotic claims rather than inferring them from ABI "
+        "metadata. "
         "Do not define, copy, wrap, "
         "or rederive the estimator implementation inside simulation source. If the "
         "upstream languages are inconsistent or the ABI cannot represent the theory "
@@ -847,7 +848,6 @@ def _compact_estimator_interface_contract(value: Any) -> dict[str, Any]:
                     "name",
                     "meaning",
                     "normalization",
-                    "sample_size_order",
                     "derivation_ref",
                 )
             }

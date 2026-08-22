@@ -278,7 +278,6 @@ def _project_estimator_specs(value: Any) -> tuple[list[dict[str, Any]], list[str
                             "meaning",
                             "binding",
                             "normalization",
-                            "sample_size_order",
                             "derivation_ref",
                         ):
                             value = str(raw_field.get(key, "") or "").strip()

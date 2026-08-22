@@ -593,8 +593,9 @@ def _theory_material() -> dict[str, object]:
                         {
                             "name": "T",
                             "meaning": "ideal first-event index",
-                            "normalization": "positive integer or typed censored outcome",
-                            "sample_size_order": "bounded by the serialized input length",
+                            "normalization": (
+                                "positive integer or typed censored outcome"
+                            ),
                         }
                     ],
                 },
@@ -2320,7 +2321,6 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
                 "name": "T",
                 "meaning": "ideal first-event index",
                 "normalization": "positive integer or typed censored outcome",
-                "sample_size_order": "bounded by the serialized input length",
             }
         ],
         "declared_output_contract": (

@@ -16,6 +16,7 @@ from .estimator_interface_contract import (
     estimator_interface_contract_json_schema,
     normalize_estimator_interface_contract,
     normalize_theory_estimator_interface_contracts,
+    project_executable_estimator_interface_contract,
     theory_semantic_reference_ids,
 )
 from .model_backend import (
@@ -1810,7 +1811,6 @@ THEORY_DEVELOPER_OUTPUT_CONTRACT: dict[str, Any] = {
                 "outcome used when the ideal procedure does not terminate"
             ),
             "normalization": "string",
-            "sample_size_order": "string",
             "tuning": ["string"],
             "required_assumptions": ["string"],
             "estimator_interface_contract": {
@@ -1826,27 +1826,6 @@ THEORY_DEVELOPER_OUTPUT_CONTRACT: dict[str, Any] = {
                         "name": "field name",
                         "meaning": "statistical meaning",
                         "normalization": "exact finite-sample or asymptotic convention",
-                        "sample_size_order": "explicit order in sample size",
-                        "sample_size_rate": {
-                            "scale": "polynomial_log_n|constant|not_indexed|other",
-                            "index_symbol": "n or the actual asymptotic index",
-                            "polynomial_exponent": (
-                                "numeric exponent of index_symbol"
-                            ),
-                            "log_exponent": (
-                                "numeric exponent of log(index_symbol)"
-                            ),
-                            "contributions": [
-                                {
-                                    "quantity": "factor or aggregation cardinality",
-                                    "polynomial_exponent": "signed numeric contribution",
-                                    "log_exponent": "signed numeric contribution",
-                                    "justification_ref": (
-                                        "derivation, equation, or sanity-check id"
-                                    ),
-                                }
-                            ],
-                        },
                         "derivation_ref": (
                             "derivation, equation, sanity-check, theorem, or lemma id"
                         ),
@@ -1980,9 +1959,7 @@ THEORY_DEVELOPER_JSON_SCHEMA: dict[str, Any] = {
 }
 THEORY_DEVELOPER_JSON_SCHEMA["properties"]["estimator_specs"]["items"][
     "properties"
-]["estimator_interface_contract"] = estimator_interface_contract_json_schema(
-    require_typed_rate=True
-)
+]["estimator_interface_contract"] = estimator_interface_contract_json_schema()
 
 
 def _theory_developer_json_schema(
@@ -2635,7 +2612,6 @@ def _validate_theory_packet(
                     label=f"estimator_specs[{idx}]",
                     required=True,
                     allowed_derivation_refs=allowed_derivation_refs,
-                    require_typed_rate=True,
                 )
             )
             if isinstance(contract, Mapping):
@@ -4235,14 +4211,14 @@ You are the interface-authoring phase of the AI Statistician TheoryDeveloper.
 
 The core mathematical workspace is frozen. Translate each frozen estimator into
 one typed request/response contract. Do not revise the estimand, formula,
-algorithm, assumptions, theorem, or derivation. Every response normalization and
-sample-size rate must cite an exact semantic id supplied in the prompt. This
+algorithm, assumptions, theorem, or derivation. Every response normalization must
+cite an exact semantic id supplied in the prompt. This
 artifact is an executable handoff specification, not proof evidence. Preserve
 the frozen outputs exactly: do not invent status, unavailable, diagnostic, or
 resource fields that the core theory did not declare. Runtime owns operational
-execution status. You own the mathematical rate statement: author the aggregate
-rate exponents and their cited explanatory contributions from the frozen theory.
-The runtime validates shape and references but never computes or overwrites a rate.
+execution status. Mathematical rates and asymptotic claims remain authoritative
+only in the frozen Markdown/LaTeX workspace; do not duplicate them in this ABI.
+The runtime validates shape and references but never interprets mathematics.
 """
 
 
@@ -4307,7 +4283,10 @@ def _reusable_parent_estimator_interfaces(
             label=f"estimator_specs[{estimator_id!r}].estimator_interface_contract",
             required=True,
             allowed_derivation_refs=allowed_refs,
-            require_typed_rate=True,
+        ):
+            return {}
+        if contract != project_executable_estimator_interface_contract(
+            contract
         ):
             return {}
         expected_outputs = spec.get("outputs", [])
@@ -4640,9 +4619,7 @@ def _theory_estimator_interface_authoring_json_schema(
 ) -> dict[str, Any]:
     estimator_ids = _theory_estimator_ids(core_packet)
     base_contract_schema = _bounded_theory_schema_value(
-        estimator_interface_contract_json_schema(
-            require_typed_rate=True,
-        ),
+        estimator_interface_contract_json_schema(),
         max_string_chars=600,
         default_max_items=12,
     )
@@ -4768,19 +4745,11 @@ def _theory_estimator_interface_authoring_prompt(
         "new mathematics: request fields expose the frozen algorithm inputs and "
         "lifecycle; response fields correspond one-for-one, in order, to the exact "
         "frozen outputs. Do not add operational status or unavailable fields unless "
-        "one is itself a frozen output. Include normalization and complete sample-size "
-        "order. For a genuinely rate-bearing output, author the typed primary-index "
-        "polynomial/log projection and its explanatory cited contributions. The "
-        "aggregate exponents are your mathematical conclusion; runtime will preserve "
-        "them exactly and an independent semantic reviewer will check them. Do not "
-        "assume contributions combine by summation unless the frozen derivation says "
-        "that they do. For "
-        "an output with no sample-size indexing, emit exactly "
-        "sample_size_rate={\"scale\":\"not_indexed\"} and do not fabricate "
-        "exponents or contributions. "
-        "Cite only ids in semantic_reference_catalog for derivation_ref and "
-        "justification_ref. Keep additional dimensions and non-polynomial factors in "
-        "sample_size_order and use scale=other when needed. Do not edit or restate the "
+        "one is itself a frozen output. Include the exact value normalization needed "
+        "for a caller to consume each output. Cite only ids in "
+        "semantic_reference_catalog for derivation_ref. Do not copy asymptotic rates, "
+        "orders, theorem conclusions, or explanatory derivations into this executable "
+        "interface; they remain in the frozen Markdown/LaTeX workspace. Do not edit or restate the "
         "core theory, keep prose fields concise, and do not claim proof evidence.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )
@@ -4929,11 +4898,19 @@ def _validate_theory_estimator_interface_authoring_packet(
                 label=interface_label,
                 required=True,
                 allowed_derivation_refs=allowed_refs,
-                require_typed_rate=True,
             )
         )
-        expected_outputs = specs_by_id.get(estimator_id, {}).get("outputs", [])
         contract = row.get("estimator_interface_contract", {})
+        if (
+            isinstance(contract, Mapping)
+            and dict(contract)
+            != project_executable_estimator_interface_contract(contract)
+        ):
+            errors.append(
+                f"{interface_label} must contain only executable ABI fields; "
+                "mathematical rates and orders belong in theory documents"
+            )
+        expected_outputs = specs_by_id.get(estimator_id, {}).get("outputs", [])
         response_fields = (
             contract.get("response_fields", [])
             if isinstance(contract, Mapping)
