@@ -1716,13 +1716,14 @@ def run_theory_artifact_workspace(
         else ""
     )
     source_execution_guidance = (
-        "An operator-bound immutable author-source execution is available through "
+        "An operator-bound hash-verified author-source execution is available through "
         "run_research_source. The tool accepts no command, path, argument, or code from "
         "you: it revalidates the pinned snapshot and environment, denies network and "
         "secret inheritance, runs the exact published entrypoint, and returns raw "
-        "stdout/stderr to this same session. Inspect and interpret that observation "
-        "yourself. It is source-replication evidence, not model-authored scientific "
-        "code, confirmatory simulation, or theorem proof. "
+        "stdout/stderr plus any operator-declared result artifacts from an isolated "
+        "copy-on-write source workspace to this same session. Inspect and interpret "
+        "that observation yourself. It is source-replication evidence, not model-authored "
+        "scientific code, confirmatory simulation, or theorem proof. "
         if research_source_execution is not None
         else ""
     )
@@ -2595,8 +2596,10 @@ def _theory_workspace_tools(
                 description=(
                     "Run the exact operator-pinned published entrypoint once in its "
                     "hash-bound, network-denied environment. This tool accepts no model-"
-                    "selected command or source. Raw stdout/stderr and a compact "
-                    "SourceReplicationManifest return to this same session."
+                    "selected command or source. Raw stdout/stderr, plus any operator-"
+                    "declared CSV, text, or binary result artifacts from an isolated "
+                    "copy-on-write workspace, return to this same session in a compact "
+                    "SourceReplicationManifest."
                 ),
                 input_schema={
                     "type": "object",

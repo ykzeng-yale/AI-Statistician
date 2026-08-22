@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from ai_statistician.research_source_library import (
+    MAX_SOURCE_RESULT_TEXT_BYTES,
     RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
     SOURCE_REPLICATION_NOT_PROOF_EVIDENCE,
     _source_execution_sandbox_profile,
@@ -270,6 +271,249 @@ def _source_execution_fixture(tmp_path):
         research_sources=snapshot,
     )
     return snapshot, execution, entrypoint_path, execution_manifest_path
+
+
+def _staged_source_execution_fixture(tmp_path, *, max_output_bytes=8192):
+    source_root = tmp_path / "public_sources"
+    source_root.mkdir(parents=True)
+    entrypoint_text = (
+        "from pathlib import Path\n"
+        "Path('results.csv').write_text('method,error\\nrecent,0.1\\n')\n"
+    )
+    environment_text = "python=3.test\nDemo=1.2.3\n"
+    published_result_text = "method,error\ndistant,1.0\n"
+    files = {
+        "published_example.py": entrypoint_text,
+        "environment-lock.txt": environment_text,
+        "results.csv": published_result_text,
+    }
+    for relative_path, content in files.items():
+        (source_root / relative_path).write_text(content, encoding="utf-8")
+    source_manifest = {
+        "schema_version": 1,
+        "snapshot_id": "published-source-staged-v1",
+        "source_horizon": "2025-12-31",
+        "source_root": "public_sources",
+        "documents": [
+            {
+                "document_id": "published-example",
+                "title": "Published example",
+                "source_kind": "published_example_code",
+                "relative_path": "published_example.py",
+                "sha256": hashlib.sha256(entrypoint_text.encode()).hexdigest(),
+                "model_visible": True,
+                "git_commit": "abc123",
+            },
+            {
+                "document_id": "environment-lock",
+                "title": "Environment lock",
+                "source_kind": "replication_provenance",
+                "relative_path": "environment-lock.txt",
+                "sha256": hashlib.sha256(environment_text.encode()).hexdigest(),
+                "model_visible": True,
+            },
+            {
+                "document_id": "published-results",
+                "title": "Published results",
+                "source_kind": "published_output",
+                "relative_path": "results.csv",
+                "sha256": hashlib.sha256(published_result_text.encode()).hexdigest(),
+                "model_visible": True,
+            },
+        ],
+    }
+    source_manifest_path = tmp_path / "sources.json"
+    source_manifest_path.write_text(json.dumps(source_manifest), encoding="utf-8")
+    snapshot = load_research_source_snapshot(source_manifest_path)
+
+    environment_root = tmp_path / "environment"
+    (environment_root / "bin").mkdir(parents=True)
+    executable_path = environment_root / "bin" / "python"
+    executable_path.symlink_to(sys.executable)
+    os.chmod(executable_path, 0o755)
+    execution_payload = {
+        "schema_version": 2,
+        "artifact_kind": "ResearchSourceExecutionSpec",
+        "execution_id": "published-source-staged-execution-v1",
+        "benchmark_id": "published-source-staged-benchmark-v1",
+        "source_snapshot_id": snapshot.snapshot_id,
+        "source_snapshot_hash": snapshot.snapshot_hash,
+        "source_manifest_sha256": snapshot.manifest_sha256,
+        "source_commit": "abc123",
+        "entrypoint_document_id": "published-example",
+        "environment_lock_document_id": "environment-lock",
+        "environment_root": str(environment_root),
+        "python_executable_relative_path": "bin/python",
+        "python_executable_sha256": hashlib.sha256(
+            executable_path.resolve().read_bytes()
+        ).hexdigest(),
+        "runtime_read_roots": [str(Path(sys.executable).resolve().parent)],
+        "working_directory_relative": ".",
+        "arguments": [],
+        "package_distributions": {"Demo": "demo"},
+        "timeout_seconds": 30,
+        "max_output_bytes": max_output_bytes,
+        "execution_workspace_mode": "staged_copy_on_write",
+        "result_artifact_paths": ["results.csv"],
+    }
+    execution_manifest_path = tmp_path / "source-execution.json"
+    execution_manifest_path.write_text(
+        json.dumps(execution_payload), encoding="utf-8"
+    )
+    execution = load_research_source_execution_spec(
+        execution_manifest_path,
+        research_sources=snapshot,
+    )
+    return snapshot, execution, source_root / "results.csv"
+
+
+def test_staged_source_execution_captures_declared_result_without_mutating_source(
+    tmp_path,
+) -> None:
+    snapshot, execution, original_result_path = _staged_source_execution_fixture(
+        tmp_path
+    )
+    original_result = original_result_path.read_text(encoding="utf-8")
+    calls = []
+
+    def fake_executor(**kwargs):
+        calls.append(kwargs)
+        if str(kwargs["command"][1]).endswith("environment_probe.py"):
+            stdout = json.dumps(
+                {
+                    "python_version": "3.test",
+                    "package_versions": {"Demo": "1.2.3"},
+                }
+            )
+        else:
+            (kwargs["cwd"] / "results.csv").write_text(
+                "method,error\nrecent,0.1\n", encoding="utf-8"
+            )
+            stdout = "replication complete\n"
+        return {
+            "execution_attempted": True,
+            "returncode": 0,
+            "stdout": stdout,
+            "stderr": "",
+            "errors": [],
+        }
+
+    manifest = execute_research_source(
+        execution=execution,
+        research_sources=snapshot,
+        output_dir=tmp_path / "replication-output",
+        question_id="published-source-task",
+        process_executor=fake_executor,
+    )
+
+    assert len(calls) == 2
+    assert calls[1]["command"][1].endswith(
+        "replication-output/source_workspace/published_example.py"
+    )
+    assert calls[1]["python_path_root"] == (
+        tmp_path / "replication-output" / "source_workspace"
+    )
+    assert original_result_path.read_text(encoding="utf-8") == original_result
+    assert manifest["execution_status"] == "EXECUTED"
+    assert manifest["source_mutated"] is False
+    assert manifest["staged_source_inputs_mutated"] is False
+    assert manifest["unexpected_workspace_artifacts"] == []
+    assert manifest["result_artifacts"] == [
+        {
+            "relative_path": "results.csv",
+            "sha256": hashlib.sha256(
+                b"method,error\nrecent,0.1\n"
+            ).hexdigest(),
+            "size_bytes": len(b"method,error\nrecent,0.1\n"),
+            "content_encoding": "utf-8",
+            "raw_text": "method,error\nrecent,0.1\n",
+            "text_truncated": False,
+        }
+    ]
+
+
+def test_staged_source_execution_bounds_large_text_observation(tmp_path) -> None:
+    snapshot, execution, _ = _staged_source_execution_fixture(
+        tmp_path,
+        max_output_bytes=MAX_SOURCE_RESULT_TEXT_BYTES * 2,
+    )
+    large_result = "x" * (MAX_SOURCE_RESULT_TEXT_BYTES + 1)
+
+    def fake_executor(**kwargs):
+        if str(kwargs["command"][1]).endswith("environment_probe.py"):
+            stdout = json.dumps(
+                {
+                    "python_version": "3.test",
+                    "package_versions": {"Demo": "1.2.3"},
+                }
+            )
+        else:
+            (kwargs["cwd"] / "results.csv").write_text(
+                large_result,
+                encoding="utf-8",
+            )
+            stdout = "replication complete\n"
+        return {
+            "execution_attempted": True,
+            "returncode": 0,
+            "stdout": stdout,
+            "stderr": "",
+            "errors": [],
+        }
+
+    manifest = execute_research_source(
+        execution=execution,
+        research_sources=snapshot,
+        output_dir=tmp_path / "replication-output",
+        question_id="published-source-task",
+        process_executor=fake_executor,
+    )
+
+    artifact = manifest["result_artifacts"][0]
+    assert manifest["execution_status"] == "EXECUTED"
+    assert artifact["text_truncated"] is True
+    assert "raw_text" not in artifact
+    assert len(artifact["text_preview"].encode("utf-8")) == (
+        MAX_SOURCE_RESULT_TEXT_BYTES
+    )
+
+
+def test_staged_source_execution_rejects_undeclared_workspace_output(tmp_path) -> None:
+    snapshot, execution, _ = _staged_source_execution_fixture(tmp_path)
+
+    def fake_executor(**kwargs):
+        if str(kwargs["command"][1]).endswith("environment_probe.py"):
+            stdout = json.dumps(
+                {
+                    "python_version": "3.test",
+                    "package_versions": {"Demo": "1.2.3"},
+                }
+            )
+        else:
+            (kwargs["cwd"] / "results.csv").write_text("ok\n", encoding="utf-8")
+            (kwargs["cwd"] / "undeclared.txt").write_text(
+                "unexpected\n", encoding="utf-8"
+            )
+            stdout = "replication complete\n"
+        return {
+            "execution_attempted": True,
+            "returncode": 0,
+            "stdout": stdout,
+            "stderr": "",
+            "errors": [],
+        }
+
+    manifest = execute_research_source(
+        execution=execution,
+        research_sources=snapshot,
+        output_dir=tmp_path / "replication-output",
+        question_id="published-source-task",
+        process_executor=fake_executor,
+    )
+
+    assert manifest["execution_status"] == "FAILED"
+    assert manifest["unexpected_workspace_artifacts"] == ["undeclared.txt"]
+    assert any("undeclared workspace artifact" in error for error in manifest["errors"])
 
 
 def test_immutable_source_execution_uses_only_operator_bound_command(tmp_path) -> None:

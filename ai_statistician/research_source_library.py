@@ -30,12 +30,15 @@ RESEARCH_SOURCE_NOT_PROOF_EVIDENCE = (
 SOURCE_REPLICATION_NOT_PROOF_EVIDENCE = (
     "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
 )
-SOURCE_EXECUTION_SCHEMA_VERSION = 1
+SOURCE_EXECUTION_SCHEMA_VERSION = 2
+SUPPORTED_SOURCE_EXECUTION_SCHEMA_VERSIONS = frozenset({1, 2})
 MAX_SOURCE_FILE_BYTES = 20 * 1024 * 1024
 MAX_SOURCE_READ_LINES = 240
 MAX_SOURCE_READ_CHARS = 50_000
 MAX_SOURCE_SEARCH_HITS = 10
-MAX_SOURCE_EXECUTION_OUTPUT_BYTES = 1024 * 1024
+MAX_SOURCE_EXECUTION_OUTPUT_BYTES = 16 * 1024 * 1024
+MAX_SOURCE_RESULT_TEXT_BYTES = 256 * 1024
+MAX_SOURCE_RESULT_ARTIFACTS = 32
 PinnedProcessExecutor = Callable[..., Mapping[str, Any]]
 
 
@@ -338,12 +341,15 @@ class ResearchSourceExecutionSpec:
     timeout_seconds: int
     max_output_bytes: int
     runtime_executables: tuple[tuple[Path, str], ...] = ()
+    schema_version: int = 1
+    execution_workspace_mode: str = "immutable_source"
+    result_artifact_paths: tuple[str, ...] = ()
 
     def descriptor(self, snapshot: ResearchSourceSnapshot) -> dict[str, Any]:
         entrypoint = snapshot.document(self.entrypoint_document_id)
         environment_lock = snapshot.document(self.environment_lock_document_id)
         return {
-            "schema_version": SOURCE_EXECUTION_SCHEMA_VERSION,
+            "schema_version": self.schema_version,
             "artifact_kind": "ResearchSourceExecutionDescriptor",
             "execution_id": self.execution_id,
             "benchmark_id": self.benchmark_id,
@@ -359,11 +365,14 @@ class ResearchSourceExecutionSpec:
             "package_distributions": dict(self.package_distributions),
             "timeout_seconds": self.timeout_seconds,
             "max_output_bytes": self.max_output_bytes,
+            "execution_workspace_mode": self.execution_workspace_mode,
+            "result_artifact_paths": list(self.result_artifact_paths),
             "runtime_executable_sha256": [
                 sha256 for _, sha256 in self.runtime_executables
             ],
             "command_owned_by_model": False,
             "source_mutation_allowed": False,
+            "declared_result_writes_allowed": bool(self.result_artifact_paths),
             "network_access": False,
             "secret_environment_inherited": False,
             "proof_evidence_status": SOURCE_REPLICATION_NOT_PROOF_EVIDENCE,
@@ -407,6 +416,8 @@ def load_research_source_execution_spec(
         "package_distributions",
         "timeout_seconds",
         "max_output_bytes",
+        "execution_workspace_mode",
+        "result_artifact_paths",
     }
     unknown_fields = sorted(set(payload) - allowed_fields)
     if unknown_fields:
@@ -414,10 +425,21 @@ def load_research_source_execution_spec(
             "research source execution manifest has unknown fields: "
             + ", ".join(unknown_fields)
         )
-    if payload.get("schema_version") != SOURCE_EXECUTION_SCHEMA_VERSION:
+    schema_version = payload.get("schema_version")
+    if schema_version not in SUPPORTED_SOURCE_EXECUTION_SCHEMA_VERSIONS:
         raise ValueError(
-            "research source execution schema_version must be "
-            f"{SOURCE_EXECUTION_SCHEMA_VERSION}"
+            "research source execution schema_version must be one of "
+            + ", ".join(
+                str(value)
+                for value in sorted(SUPPORTED_SOURCE_EXECUTION_SCHEMA_VERSIONS)
+            )
+        )
+    if schema_version == 1 and any(
+        field in payload
+        for field in ("execution_workspace_mode", "result_artifact_paths")
+    ):
+        raise ValueError(
+            "research source execution schema_version 1 cannot declare a staged workspace"
         )
     if payload.get("artifact_kind") != "ResearchSourceExecutionSpec":
         raise ValueError(
@@ -526,6 +548,55 @@ def load_research_source_execution_spec(
     if not working_directory.is_dir():
         raise ValueError("source execution working directory is unavailable")
 
+    execution_workspace_mode = str(
+        payload.get("execution_workspace_mode", "immutable_source")
+        or "immutable_source"
+    ).strip()
+    if execution_workspace_mode not in {"immutable_source", "staged_copy_on_write"}:
+        raise ValueError(
+            "execution_workspace_mode must be immutable_source or staged_copy_on_write"
+        )
+    raw_result_paths = payload.get("result_artifact_paths", [])
+    if (
+        not isinstance(raw_result_paths, list)
+        or len(raw_result_paths) > MAX_SOURCE_RESULT_ARTIFACTS
+    ):
+        raise ValueError(
+            "result_artifact_paths must be an array of at most "
+            f"{MAX_SOURCE_RESULT_ARTIFACTS} paths"
+        )
+    result_artifact_paths: list[str] = []
+    for raw_path in raw_result_paths:
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            raise ValueError("result artifact paths must be nonempty text")
+        result_path = PurePosixPath(raw_path.strip())
+        if (
+            result_path.is_absolute()
+            or ".." in result_path.parts
+            or str(result_path) == "."
+        ):
+            raise ValueError("result artifact paths must stay inside source_root")
+        normalized_result_path = result_path.as_posix()
+        if normalized_result_path in result_artifact_paths:
+            raise ValueError("result_artifact_paths must be unique")
+        result_artifact_paths.append(normalized_result_path)
+    protected_paths = {
+        entrypoint.relative_path,
+        research_sources.document(environment_lock_document_id).relative_path,
+    }
+    if protected_paths.intersection(result_artifact_paths):
+        raise ValueError(
+            "result artifacts cannot replace the entrypoint or environment lock"
+        )
+    if execution_workspace_mode == "immutable_source" and result_artifact_paths:
+        raise ValueError(
+            "immutable_source execution cannot declare writable result artifacts"
+        )
+    if execution_workspace_mode == "staged_copy_on_write" and not result_artifact_paths:
+        raise ValueError(
+            "staged_copy_on_write execution requires result_artifact_paths"
+        )
+
     raw_arguments = payload.get("arguments", [])
     if not isinstance(raw_arguments, list) or len(raw_arguments) > 32 or not all(
         isinstance(value, str) and "\x00" not in value for value in raw_arguments
@@ -580,6 +651,124 @@ def load_research_source_execution_spec(
         timeout_seconds=timeout_seconds,
         max_output_bytes=max_output_bytes,
         runtime_executables=tuple(runtime_executables),
+        schema_version=int(schema_version),
+        execution_workspace_mode=execution_workspace_mode,
+        result_artifact_paths=tuple(result_artifact_paths),
+    )
+
+
+def _stage_research_source_snapshot(
+    research_sources: ResearchSourceSnapshot,
+    *,
+    workspace_root: Path,
+) -> tuple[Path, ...]:
+    staged_paths: list[Path] = []
+    for document in research_sources.documents:
+        source_path = research_sources.document_path(document.document_id)
+        staged_path = workspace_root / PurePosixPath(document.relative_path)
+        staged_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source_path, staged_path)
+        if _file_sha256(staged_path) != document.sha256:
+            raise ValueError(
+                f"staged research source hash mismatch: {document.document_id}"
+            )
+        staged_paths.append(staged_path)
+    return tuple(staged_paths)
+
+
+def _workspace_file_hashes(workspace_root: Path) -> tuple[dict[str, str], list[str]]:
+    file_hashes: dict[str, str] = {}
+    unsafe_paths: list[str] = []
+    for path in sorted(workspace_root.rglob("*")):
+        relative_path = path.relative_to(workspace_root).as_posix()
+        if path.is_symlink():
+            unsafe_paths.append(relative_path)
+        elif path.is_file():
+            file_hashes[relative_path] = _file_sha256(path)
+    return file_hashes, unsafe_paths
+
+
+def _capture_staged_result_artifacts(
+    *,
+    workspace_root: Path,
+    research_sources: ResearchSourceSnapshot,
+    result_artifact_paths: Sequence[str],
+    max_output_bytes: int,
+) -> tuple[list[dict[str, Any]], list[str], list[str], bool, str]:
+    declared_hashes = {
+        document.relative_path: document.sha256
+        for document in research_sources.documents
+    }
+    result_paths = set(result_artifact_paths)
+    observed_hashes, unsafe_paths = _workspace_file_hashes(workspace_root)
+    errors = [f"staged source workspace contains symlink: {path}" for path in unsafe_paths]
+    staged_input_mutated = False
+    for relative_path, expected_hash in declared_hashes.items():
+        if relative_path in result_paths:
+            continue
+        if observed_hashes.get(relative_path) != expected_hash:
+            staged_input_mutated = True
+            errors.append(f"staged source input changed during execution: {relative_path}")
+
+    expected_workspace_paths = set(declared_hashes) | result_paths
+    unexpected_paths = sorted(set(observed_hashes) - expected_workspace_paths)
+    errors.extend(
+        f"source execution created undeclared workspace artifact: {path}"
+        for path in unexpected_paths
+    )
+
+    result_artifacts: list[dict[str, Any]] = []
+    for relative_path in result_artifact_paths:
+        artifact_path = workspace_root / PurePosixPath(relative_path)
+        try:
+            resolved_artifact = artifact_path.resolve(strict=True)
+            resolved_artifact.relative_to(workspace_root)
+        except (FileNotFoundError, ValueError):
+            errors.append(f"declared result artifact is unavailable: {relative_path}")
+            continue
+        if artifact_path.is_symlink() or not resolved_artifact.is_file():
+            errors.append(f"declared result artifact is not a regular file: {relative_path}")
+            continue
+        raw_content = resolved_artifact.read_bytes()
+        if len(raw_content) > max_output_bytes:
+            errors.append(
+                f"declared result artifact exceeded {max_output_bytes} bytes: "
+                f"{relative_path}"
+            )
+            continue
+        descriptor: dict[str, Any] = {
+            "relative_path": relative_path,
+            "sha256": hashlib.sha256(raw_content).hexdigest(),
+            "size_bytes": len(raw_content),
+        }
+        try:
+            raw_text = raw_content.decode("utf-8")
+        except UnicodeDecodeError:
+            descriptor["content_encoding"] = "binary_not_embedded"
+        else:
+            descriptor["content_encoding"] = "utf-8"
+            if len(raw_content) <= MAX_SOURCE_RESULT_TEXT_BYTES:
+                descriptor["raw_text"] = raw_text
+                descriptor["text_truncated"] = False
+            else:
+                descriptor["text_preview"] = raw_content[
+                    :MAX_SOURCE_RESULT_TEXT_BYTES
+                ].decode("utf-8", errors="replace")
+                descriptor["text_truncated"] = True
+        result_artifacts.append(descriptor)
+
+    workspace_hash = stable_hash(
+        [
+            {"relative_path": path, "sha256": sha256}
+            for path, sha256 in sorted(observed_hashes.items())
+        ]
+    )
+    return (
+        result_artifacts,
+        errors,
+        unexpected_paths,
+        staged_input_mutated,
+        workspace_hash,
     )
 
 
@@ -608,10 +797,6 @@ def execute_research_source(
     environment_lock = research_sources.document(
         execution.environment_lock_document_id
     )
-    working_directory = (
-        research_sources.source_root
-        / PurePosixPath(execution.working_directory_relative)
-    ).resolve()
     executor = process_executor or _execute_pinned_process
     pre_identity_errors = research_sources.identity_errors()
     errors = list(pre_identity_errors)
@@ -620,6 +805,42 @@ def execute_research_source(
     for executable_path, expected_hash in execution.runtime_executables:
         if _file_sha256(executable_path) != expected_hash:
             errors.append("runtime executable changed after execution-spec load")
+
+    source_workspace_root = research_sources.source_root
+    execution_entrypoint_path = entrypoint_path
+    execution_source_paths = tuple(
+        research_sources.document_path(document.document_id)
+        for document in research_sources.documents
+    )
+    staged_workspace_created = False
+    source_workspace_hash_before = ""
+    if execution.execution_workspace_mode == "staged_copy_on_write" and not errors:
+        source_workspace_root = resolved_output / "source_workspace"
+        source_workspace_root.mkdir()
+        staged_workspace_created = True
+        execution_source_paths = _stage_research_source_snapshot(
+            research_sources,
+            workspace_root=source_workspace_root,
+        )
+        execution_entrypoint_path = (
+            source_workspace_root / PurePosixPath(entrypoint.relative_path)
+        )
+        staged_hashes, unsafe_staged_paths = _workspace_file_hashes(
+            source_workspace_root
+        )
+        errors.extend(
+            f"staged source workspace contains symlink: {path}"
+            for path in unsafe_staged_paths
+        )
+        source_workspace_hash_before = stable_hash(
+            [
+                {"relative_path": path, "sha256": sha256}
+                for path, sha256 in sorted(staged_hashes.items())
+            ]
+        )
+    working_directory = (
+        source_workspace_root / PurePosixPath(execution.working_directory_relative)
+    ).resolve()
 
     package_probe_path = resolved_output / "environment_probe.py"
     package_probe_code = _python_environment_probe_code(
@@ -644,10 +865,7 @@ def execute_research_source(
         "environment_root": execution.environment_root,
         "runtime_read_roots": execution.runtime_read_roots,
         "runtime_executables": execution.runtime_executables,
-        "source_paths": tuple(
-            research_sources.document_path(document.document_id)
-            for document in research_sources.documents
-        ),
+        "source_paths": execution_source_paths,
         "output_dir": resolved_output,
         "timeout_seconds": execution.timeout_seconds,
         "max_output_bytes": execution.max_output_bytes,
@@ -688,12 +906,17 @@ def execute_research_source(
             executor(
                 command=(
                     str(execution.python_executable),
-                    str(entrypoint_path),
+                    str(execution_entrypoint_path),
                     *execution.arguments,
                 ),
                 cwd=working_directory,
                 stdout_path=resolved_output / "source.stdout",
                 stderr_path=resolved_output / "source.stderr",
+                python_path_root=(
+                    source_workspace_root
+                    if execution.execution_workspace_mode == "staged_copy_on_write"
+                    else None
+                ),
                 **common_executor_inputs,
             )
         )
@@ -703,6 +926,25 @@ def execute_research_source(
                 "pinned research source exited "
                 + str(source_result.get("returncode"))
             )
+
+    result_artifacts: list[dict[str, Any]] = []
+    unexpected_workspace_artifacts: list[str] = []
+    staged_source_inputs_mutated = False
+    source_workspace_hash_after = ""
+    if staged_workspace_created:
+        (
+            result_artifacts,
+            result_errors,
+            unexpected_workspace_artifacts,
+            staged_source_inputs_mutated,
+            source_workspace_hash_after,
+        ) = _capture_staged_result_artifacts(
+            workspace_root=source_workspace_root,
+            research_sources=research_sources,
+            result_artifact_paths=execution.result_artifact_paths,
+            max_output_bytes=execution.max_output_bytes,
+        )
+        errors.extend(result_errors)
 
     post_identity_errors = research_sources.identity_errors()
     source_mutated = bool(pre_identity_errors or post_identity_errors)
@@ -724,12 +966,13 @@ def execute_research_source(
             research_sources.snapshot_hash,
             entrypoint.sha256,
             stdout_sha256,
+            [artifact.get("sha256", "") for artifact in result_artifacts],
             source_result.get("returncode"),
         ]
     )[:20]
     manifest_path = resolved_output / "source_replication_manifest.json"
     manifest: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": execution.schema_version,
         "artifact_kind": "SourceReplicationManifest",
         "artifact_id": artifact_id,
         "question_id": str(question_id),
@@ -760,6 +1003,13 @@ def execute_research_source(
         "raw_stderr": raw_stderr,
         "stdout_sha256": stdout_sha256,
         "stderr_sha256": stderr_sha256,
+        "execution_workspace_mode": execution.execution_workspace_mode,
+        "declared_result_artifact_paths": list(execution.result_artifact_paths),
+        "result_artifacts": result_artifacts,
+        "source_workspace_hash_before": source_workspace_hash_before,
+        "source_workspace_hash_after": source_workspace_hash_after,
+        "staged_source_inputs_mutated": staged_source_inputs_mutated,
+        "unexpected_workspace_artifacts": unexpected_workspace_artifacts,
         "source_mutated": source_mutated,
         "runtime_edited_source": False,
         "command_owned_by_model": False,
@@ -772,9 +1022,11 @@ def execute_research_source(
         "proof_evidence_status": SOURCE_REPLICATION_NOT_PROOF_EVIDENCE,
         "kernel_verified": False,
         "boundary": (
-            "This manifest records an exact immutable author-source rerun and raw "
-            "environment feedback. It does not validate a rewritten implementation, "
-            "establish a statistical theorem, or count as Lean proof evidence."
+            "This manifest records an exact hash-bound author-source rerun, raw "
+            "environment feedback, and any operator-declared result artifacts from "
+            "an isolated copy-on-write workspace. It does not validate a rewritten "
+            "implementation, establish a statistical theorem, or count as Lean proof "
+            "evidence."
         ),
     }
     manifest["manifest_hash"] = stable_hash(manifest)
@@ -820,6 +1072,7 @@ def _execute_pinned_process(
     output_dir: Path,
     timeout_seconds: int,
     max_output_bytes: int,
+    python_path_root: Path | None = None,
 ) -> Mapping[str, Any]:
     sandbox_executable = shutil.which("sandbox-exec") if sys.platform == "darwin" else None
     if not sandbox_executable:
@@ -857,6 +1110,8 @@ def _execute_pinned_process(
         "MKL_NUM_THREADS": "1",
         "NUMEXPR_NUM_THREADS": "1",
     }
+    if python_path_root is not None:
+        environment["PYTHONPATH"] = str(python_path_root)
     limits = {
         "cpu_seconds": max(2, int(math.ceil(timeout_seconds)) + 1),
         "file_size_bytes": max_output_bytes,
