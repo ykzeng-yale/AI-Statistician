@@ -476,12 +476,21 @@ def _evaluate_gold_task(
                     }
                 )
             if source_report_document is not None and source_report_semantic_evaluator:
+                semantic_evidence_document = (
+                    _source_replication_semantic_evidence_document(
+                        source_manifest=source_manifest,
+                        source_execution=source_execution,
+                    )
+                )
                 semantic_judgment, semantic_error = (
                     _run_hidden_document_semantic_evaluation(
                         evaluator=source_report_semantic_evaluator,
                         task_id=task_id,
                         visible_question=runtime_question,
-                        candidate_documents=[source_report_document],
+                        candidate_documents=[
+                            source_report_document,
+                            semantic_evidence_document,
+                        ],
                         project_root=project_root,
                         run_semantic_judge=run_theory_semantic_judge,
                         semantic_judge_provider=theory_semantic_judge_provider,
@@ -1608,6 +1617,48 @@ def _source_replication_checkpoint_report_document(
             return None, False
         return matching_rows[0], True
     return None, False
+
+
+def _source_replication_semantic_evidence_document(
+    *,
+    source_manifest: Mapping[str, Any],
+    source_execution: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Bind report adjudication to this run without exposing hidden thresholds."""
+
+    manifest_projection = deepcopy(dict(source_manifest))
+    manifest_projection.pop("raw_stdout", None)
+    manifest_projection.pop("raw_stderr", None)
+    manifest_projection.pop("manifest_path", None)
+    projected_artifacts: list[dict[str, Any]] = []
+    for raw_artifact in manifest_projection.get("result_artifacts", []) or []:
+        if not isinstance(raw_artifact, Mapping):
+            continue
+        artifact = dict(raw_artifact)
+        artifact.pop("raw_text", None)
+        artifact.pop("text_preview", None)
+        projected_artifacts.append(artifact)
+    manifest_projection["result_artifacts"] = projected_artifacts
+    metrics = source_execution.get("metrics", {})
+    body = {
+        "artifact_kind": "EvaluatorSourceReplicationObservation",
+        "source_replication_manifest": manifest_projection,
+        "hidden_source_replication_metrics": (
+            deepcopy(dict(metrics)) if isinstance(metrics, Mapping) else {}
+        ),
+        "proof_evidence_status": "SOURCE_REPLICATION_OBSERVATION_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "This post-runtime evaluator observation contains exact run identity and "
+            "observed hidden-harness metrics. It contains no acceptance thresholds, "
+            "cannot enter AgentRuntime, and is not theorem proof evidence."
+        ),
+    }
+    content = json.dumps(body, ensure_ascii=True, sort_keys=True)
+    return {
+        "path": "evaluator_source_replication_observation.json",
+        "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        "content": content,
+    }
 
 
 def _latest_accepted_algorithm_handoff(

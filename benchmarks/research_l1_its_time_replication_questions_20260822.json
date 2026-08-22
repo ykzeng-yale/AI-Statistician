@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "its_time_niv_figure5_public_replication",
+      "title": "Exact replication of the published ITS-Time Figure 5 experiment",
+      "description": "Conduct an L1 exact published-source replication of the right-hand Figure 5 experiment in Thams, Sondergaard, Weichwald, and Peters, JMLR 25(302):1-51, 2024, using only the operator-supplied hash-bound source snapshot and execution. Inspect the paper's simulation design, the exact Figure 5 right entrypoint, its imported implementation, the committed result table, repository metadata, license, and independent environment lock. Run the operator-pinned source without editing or wrapping it. In one durable Markdown report, record the source snapshot, execution-manifest, repository-commit, entrypoint, environment, and result-artifact identities; summarize the rerun's table shape, columns, sample-size values, method-wise mean and median squared errors, and the fraction of rows in which each method has lower error. Compare the rerun with the committed result table and the paper's stated qualitative conclusion, accounting for stochastic variation. Independently audit whether the exact entrypoint operationalizes the paper's stated data-generating and repetition protocol, and report any source-paper discrepancy with precise source references rather than silently repairing it. Distinguish an exact author-code rerun from reimplementation, confirmatory evidence, a universal method ranking, or theorem proof. No model-authored estimator, new simulation, novelty claim, or Lean formalization is required. Disclose all remaining reproducibility, environment, interpretation, and source-identity gaps honestly.",
+      "tags": [
+        "instrumental variables",
+        "time series",
+        "nuisance IV",
+        "source replication",
+        "reproducibility",
+        "L1"
+      ],
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "paper_title": "Identifying Causal Effects using Instrumental Time Series: Nuisance IV and Correcting for the Past",
+        "authors": [
+          "Nikolaj Thams",
+          "Rikke Sondergaard",
+          "Sebastian Weichwald",
+          "Jonas Peters"
+        ],
+        "journal": "Journal of Machine Learning Research",
+        "year": 2024,
+        "volume": 25,
+        "issue": 302,
+        "pages": "1-51",
+        "paper_url": "https://www.jmlr.org/papers/v25/22-0262.html",
+        "arxiv_id": "2203.06056v3",
+        "repository": "https://github.com/nikolajthams/its-time",
+        "repository_commit": "5df3e2b51cbb8a144b21bd18e8e1194703c12607",
+        "research_source_snapshot_id": "its-time-jmlr-2024-public-replication-v1",
+        "research_source_snapshot_hash": "c3f00bf9b266089dd998644c77b7cf7496d2776d73eed9edeb6c38816247db80",
+        "research_source_manifest_sha256": "e3b2b8885f2a0b0ec3fd2e00c0afbc9320e99cdbac8d1ff19404f732a18ea31b"
+      }
+    }
+  ]
+}

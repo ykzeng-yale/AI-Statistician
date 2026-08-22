@@ -724,9 +724,20 @@ def test_source_replication_separates_identity_from_report_semantics(
         assert kwargs["semantic_artifact_role"] == "source_replication_report"
         assert kwargs["model"] == "claude-haiku-4-5-20251001"
         assert kwargs["model_tier"] == "haiku"
+        assert len(kwargs["candidate_documents"]) == 2
         assert kwargs["candidate_documents"][0]["content"].startswith(
             "# Published-source replication"
         )
+        evidence = kwargs["candidate_documents"][1]
+        assert evidence["path"] == "evaluator_source_replication_observation.json"
+        evidence_body = json.loads(evidence["content"])
+        assert evidence_body["hidden_source_replication_metrics"] == {
+            "source_gold_ok": True
+        }
+        assert "raw_stdout" not in evidence_body["source_replication_manifest"]
+        assert evidence["sha256"] == hashlib.sha256(
+            evidence["content"].encode("utf-8")
+        ).hexdigest()
         return {
             "judgment_hash": "private-source-report-result",
             "semantic_judge_calibrated": calibrated,
@@ -766,6 +777,7 @@ def test_source_replication_separates_identity_from_report_semantics(
     assert "private-source-method-identity" not in serialized
     assert "private-source-report-correct" not in serialized
     assert "correct method" not in serialized
+    assert "source_gold_ok" not in serialized
     if expected_pass:
         assert task["failure_reasons"] == []
     else:
