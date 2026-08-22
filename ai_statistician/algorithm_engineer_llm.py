@@ -89,6 +89,16 @@ class LLMAlgorithmEngineerAgent:
         self.provider = provider
         self.config = config
 
+    def source_workspace_owns_planning(self) -> bool:
+        """Return whether one native source session can own planning and code."""
+
+        return bool(
+            self.config.use_client_tool_code_workspace
+            and callable(
+                getattr(self.provider, "generate_client_tool_turn", None)
+            )
+        )
+
     def propose(
         self,
         *,
@@ -636,6 +646,151 @@ ALGORITHM_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
 }
 
 
+def algorithm_source_workspace_plan(
+    *,
+    proposal_agent: Any,
+    enabled: bool,
+    question_id: str,
+    theory_packet_id: str,
+    expected_estimator_ids: list[str],
+) -> dict[str, Any]:
+    """Select the single-session Codex-shaped planning/source path."""
+
+    capability = getattr(proposal_agent, "source_workspace_owns_planning", None)
+    owns_planning = bool(enabled and callable(capability) and capability())
+    return {
+        "owns_planning": owns_planning,
+        "intent_id": (
+            "algorithm_source_workspace_intent:"
+            + stable_hash(
+                [question_id, theory_packet_id, expected_estimator_ids]
+            )[:20]
+            if owns_planning
+            else ""
+        ),
+    }
+
+
+def materialize_algorithm_source_workspace_packet(
+    *,
+    question: OpenResearchQuestion,
+    theory_packet: Mapping[str, Any],
+    implementation_gaps: list[Mapping[str, Any]],
+    source_rows: list[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Project accepted model-owned source sessions into the review ABI."""
+
+    expected_ids = [
+        str(row.get("estimator_id", row.get("id", "")) or "").strip()
+        for row in implementation_gaps
+        if str(row.get("estimator_id", row.get("id", "")) or "").strip()
+    ]
+    rows_by_id = {
+        str(row.get("estimator_id", "") or "").strip(): row
+        for row in source_rows
+        if isinstance(row, Mapping)
+        and str(row.get("estimator_id", "") or "").strip()
+    }
+    errors: list[str] = []
+    source_artifacts: list[dict[str, Any]] = []
+    providers: set[str] = set()
+    models: set[str] = set()
+    model_tiers: set[str] = set()
+    for estimator_id in expected_ids:
+        row = rows_by_id.get(estimator_id, {})
+        workspace = row.get("scientific_code_workspace", {})
+        workspace = workspace if isinstance(workspace, Mapping) else {}
+        source_hash = str(row.get("script_hash", "") or "").strip()
+        source_code = str(row.get("source_code", "") or "")
+        if (
+            row.get("smoke_passed") is not True
+            or not source_code
+            or source_hash != stable_hash(source_code)
+        ):
+            errors.append(f"{estimator_id}: accepted source bytes are not hash-bound")
+        if not (
+            workspace.get("accepted") is True
+            and workspace.get("model_owned_source") is True
+            and workspace.get("runtime_edited_source") is False
+            and str(workspace.get("artifact_id", "") or "").strip()
+            and str(
+                workspace.get("transcript_fingerprint", "") or ""
+            ).strip()
+        ):
+            errors.append(f"{estimator_id}: model-owned source evidence is invalid")
+        source_artifacts.append(
+            {
+                "estimator_id": estimator_id,
+                "source_hash": source_hash,
+                "workspace_artifact_id": str(
+                    workspace.get("artifact_id", "") or ""
+                ),
+                "workspace_transcript_fingerprint": str(
+                    workspace.get("transcript_fingerprint", "") or ""
+                ),
+            }
+        )
+        for values, value in (
+            (providers, workspace.get("provider", "")),
+            (models, workspace.get("model", "")),
+            (model_tiers, workspace.get("model_tier", "")),
+        ):
+            normalized = str(value or "").strip()
+            if normalized:
+                values.add(normalized)
+    if not expected_ids or len(expected_ids) != len(set(expected_ids)):
+        errors.append("source workspace estimator identities are empty or duplicated")
+    if set(rows_by_id) != set(expected_ids):
+        errors.append("source workspace rows do not exactly cover estimator IDs")
+    if any(len(values) != 1 for values in (providers, models, model_tiers)):
+        errors.append("source workspaces do not share one model identity")
+    if errors:
+        raise ValueError("; ".join(sorted(set(errors))))
+
+    payload = {
+        "implementation_targets": [
+            {"estimator_id": estimator_id} for estimator_id in expected_ids
+        ],
+        "sandbox_code_drafts": [
+            {"estimator_id": estimator_id} for estimator_id in expected_ids
+        ],
+        "metric_contracts": [],
+        "next_actions": [],
+        "source_workspace_planning_owned": True,
+        "planning_model_call_used": False,
+        "source_workspace_artifacts": source_artifacts,
+    }
+    packet = _normalize_algorithm_packet(
+        payload,
+        question=question,
+        model=next(iter(models)),
+        model_tier=next(iter(model_tiers)),
+        provider_name=next(iter(providers)),
+        backend_provider_name=next(iter(providers)),
+        raw_response=json.dumps(source_artifacts, separators=(",", ":")),
+        theory_packet=theory_packet,
+        implementation_gaps=implementation_gaps,
+        requires_generated_code=True,
+        authoritative_metric_requirements=[],
+        metric_requirement_authority_policy=(
+            GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
+        ),
+        scientific_source_transport=(
+            SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
+        ),
+    )
+    validation_errors = validate_algorithm_engineer_packet(packet)
+    validation_errors.extend(
+        _validate_capability_eval_generated_algorithm_packet(
+            packet,
+            implementation_gaps=implementation_gaps,
+        )
+    )
+    if validation_errors:
+        raise ValueError("; ".join(sorted(set(validation_errors))))
+    return packet
+
+
 def _algorithm_engineer_output_contract(
     *,
     requires_generated_code: bool,
@@ -805,16 +960,25 @@ ALGORITHM_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
 
 def validate_algorithm_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
+    source_workspace_planning_owned = bool(
+        packet.get("source_workspace_planning_owned") is True
+    )
     source_deferred = bool(
         packet.get("scientific_source_transport")
         == SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
     )
-    for field in (
-        "implementation_targets",
-        "next_actions",
-    ):
+    required_fields = ["implementation_targets"]
+    if not source_workspace_planning_owned:
+        required_fields.append("next_actions")
+    for field in required_fields:
         if packet.get(field) in (None, "", [], {}):
             errors.append(f"missing or empty field: {field}")
+    if source_workspace_planning_owned:
+        if packet.get("planning_model_call_used") is not False:
+            errors.append("source-owned planning cannot claim a planning model call")
+        artifacts = packet.get("source_workspace_artifacts", [])
+        if not isinstance(artifacts, list) or not artifacts:
+            errors.append("source-owned planning requires accepted source artifacts")
     if packet.get("execution_evidence_status") != ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE:
         errors.append("execution_evidence_status must preserve proposal-only boundary")
     if packet.get("sandbox_executed") is not False:
@@ -969,7 +1133,7 @@ def _validate_capability_eval_generated_algorithm_packet(
     )
     if not drafts:
         errors.append(
-            "capability_eval requires at least one Claude/OpenAI-generated sandbox_code_drafts entry"
+            "capability_eval requires at least one model-owned sandbox source descriptor"
         )
     if not source_deferred:
         for row in drafts:

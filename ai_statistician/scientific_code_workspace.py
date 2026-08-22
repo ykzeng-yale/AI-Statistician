@@ -154,7 +154,16 @@ def scientific_workspace_resume_plan(
     ):
         errors.append("scientific workspace progress manifest lineage is invalid")
     proposal_id = str(manifest.get(proposal_id_field, "") or "").strip()
-    if (
+    source_workspace_owns_planning = bool(
+        manifest.get("scientific_source_workspace_owns_planning") is True
+    )
+    source_workspace_intent_id = str(
+        manifest.get("scientific_source_workspace_intent_id", "") or ""
+    ).strip()
+    if source_workspace_owns_planning:
+        if not source_workspace_intent_id:
+            errors.append("scientific source workspace intent identity is missing")
+    elif (
         not proposal_id
         or str(proposal_packet.get("packet_id", "") or "") != proposal_id
     ):
@@ -212,6 +221,8 @@ def scientific_workspace_resume_plan(
     return {
         "parent_manifest": deepcopy(dict(manifest)),
         "proposal_packet": deepcopy(dict(proposal_packet)),
+        "source_workspace_owns_planning": source_workspace_owns_planning,
+        "source_workspace_intent_id": source_workspace_intent_id,
         "rows": rows,
         "reusable_rows": reusable_rows,
         "checkpoints": checkpoints,
@@ -248,9 +259,12 @@ def runtime_scientific_workspace_resume_plan(
     ):
         return {}, ["scientific workspace progress manifest is missing or stale"]
     proposal_id = str(manifest.get(proposal_id_field, "") or "").strip()
-    proposal = blackboard.artifacts.get(proposal_id, {})
-    if not isinstance(proposal, Mapping):
+    if manifest.get("scientific_source_workspace_owns_planning") is True:
         proposal = {}
+    else:
+        proposal = blackboard.artifacts.get(proposal_id, {})
+        if not isinstance(proposal, Mapping):
+            proposal = {}
     return scientific_workspace_resume_plan(
         manifest=manifest,
         proposal_packet=proposal,
@@ -290,9 +304,12 @@ def scientific_workspace_progress_continuation(
         return None, None, None, []
     manifest_id = str(manifest.get("manifest_id", "") or "").strip()
     proposal_id = str((proposal_packet or {}).get("packet_id", "") or "").strip()
-    if not manifest_id or not proposal_id:
+    source_workspace_intent_id = str(
+        manifest.get("scientific_source_workspace_intent_id", "") or ""
+    ).strip()
+    if not manifest_id or not (proposal_id or source_workspace_intent_id):
         return None, None, None, [
-            "scientific progress requires bound proposal and manifest identities"
+            "scientific progress requires bound source intent and manifest identities"
         ]
     prior_manifest = task.inputs.get(
         "scientific_code_workspace_progress_manifest", {}

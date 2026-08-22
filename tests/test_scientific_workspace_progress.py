@@ -15,6 +15,7 @@ from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_CODE_WORKSPACE_CHECKPOINT_KIND,
     ScientificCodeWorkspaceResult,
     runtime_scientific_workspace_resume_plan,
+    scientific_workspace_resume_plan,
     scientific_workspace_progress_continuation,
 )
 
@@ -185,6 +186,98 @@ def test_scientific_progress_uses_same_owner_refs_and_stops_on_stagnation() -> N
     assert any("no new executed progress" in error for error in stagnant[-1])
 
 
+def test_direct_source_progress_resumes_without_a_planning_packet() -> None:
+    question = OpenResearchQuestion(
+        id="direct-source-progress",
+        title="Direct source progress",
+        description="Resume the source-owning model session.",
+    )
+    theory_packet_id = "theory:direct-source-progress"
+    source_id = "estimator"
+    checkpoint = _checkpoint(question_id=question.id, source_id=source_id)
+    row = {
+        "estimator_id": source_id,
+        "prototype_status": "FAILED",
+        "smoke_passed": False,
+        "scientific_code_workspace_failure": {
+            "recovery_checkpoint": checkpoint,
+            "runtime_edited_source": False,
+        },
+    }
+    manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": "algorithm-manifest:direct-source-progress",
+        "question": {"id": question.id},
+        "theory_packet_id": theory_packet_id,
+        "scientific_source_workspace_owns_planning": True,
+        "scientific_source_workspace_intent_id": (
+            "algorithm_source_workspace_intent:direct"
+        ),
+        "llm_algorithm_engineer_proposal_id": "",
+        "prototypes": [row],
+    }
+    plan, errors = scientific_workspace_resume_plan(
+        manifest=manifest,
+        proposal_packet={},
+        question_id=question.id,
+        theory_packet_id=theory_packet_id,
+        expected_manifest_kind="RuntimeAlgorithmSandboxManifest",
+        proposal_id_field="llm_algorithm_engineer_proposal_id",
+        row_id_field="estimator_id",
+        expected_source_ids=[source_id],
+        source_accepted=lambda candidate: candidate.get("smoke_passed") is True,
+    )
+    assert errors == []
+    assert plan["source_workspace_owns_planning"] is True
+    assert plan["source_workspace_intent_id"].endswith(":direct")
+    task = AgentTask(
+        task_id="algorithm:direct-source-progress",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Continue the direct source workspace.",
+        inputs={
+            "question": {"id": question.id},
+            "theory_packet_id": theory_packet_id,
+        },
+        budget={"outer": {"remaining": 3}},
+    )
+    next_task, _, _, continuation_errors = (
+        scientific_workspace_progress_continuation(
+            task=task,
+            question_id=question.id,
+            manifest=manifest,
+            proposal_packet=None,
+            rows=[row],
+            row_id_field="estimator_id",
+            incomplete_source_ids=[source_id],
+        )
+    )
+    assert continuation_errors == []
+    assert next_task is not None
+    artifact_store = {manifest["manifest_id"]: manifest}
+    hydrated = replace(
+        next_task,
+        inputs=resolve_runtime_artifact_references(
+            next_task.inputs,
+            artifact_store,
+        ),
+    )
+    resumed, resume_errors = runtime_scientific_workspace_resume_plan(
+        hydrated,
+        BlackboardState(project_id=question.id, artifacts=artifact_store),
+        question_id=question.id,
+        theory_packet_id=theory_packet_id,
+        expected_manifest_kind="RuntimeAlgorithmSandboxManifest",
+        proposal_id_field="llm_algorithm_engineer_proposal_id",
+        row_id_field="estimator_id",
+        expected_source_ids=[source_id],
+        source_accepted=lambda candidate: candidate.get("smoke_passed") is True,
+    )
+    assert resume_errors == []
+    assert resumed["proposal_packet"] == {}
+    assert resumed["checkpoints"][source_id] == checkpoint
+
+
 def _research_context(question_id: str, theory_packet_id: str) -> dict:
     return {
         "architect_coordinator_proposal_id": "architect:generic-progress",
@@ -215,6 +308,166 @@ def _research_context(question_id: str, theory_packet_id: str) -> dict:
             ],
         },
     }
+
+
+def test_algorithm_source_workspace_owns_planning_and_source(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="algorithm-direct-source",
+        title="Direct algorithm source",
+        description="Let one coding-agent session plan and implement an estimator.",
+    )
+    theory_packet_id = "theory:algorithm-direct-source"
+    source_id = "estimator"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "estimator_specs": [
+            {
+                "id": source_id,
+                "estimator_interface_contract": {
+                    "request_fields": [
+                        {
+                            "name": "value",
+                            "meaning": "Finite numeric input.",
+                            "binding": "per_replicate_data",
+                        }
+                    ],
+                    "response_fields": [
+                        {
+                            "name": "estimate",
+                            "meaning": "Finite estimate.",
+                            "normalization": "Identity scale.",
+                            "derivation_ref": "C1",
+                        }
+                    ],
+                },
+            }
+        ],
+    }
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("runtime must use the source workspace boundary")
+
+    class SourceAgent:
+        provider = Provider()
+        proposal_calls = 0
+
+        @staticmethod
+        def source_workspace_owns_planning():
+            return True
+
+        @classmethod
+        def propose(cls, **_kwargs):
+            cls.proposal_calls += 1
+            raise AssertionError("direct source planning must bypass propose()")
+
+    source_calls = []
+
+    def run_source_workspace(**kwargs):
+        source_calls.append(kwargs)
+        assert kwargs["source_deferred"] is True
+        assert kwargs["code_draft"] == {"estimator_id": source_id}
+        source = "model-owned source"
+        return {
+            "estimator_id": source_id,
+            "prototype_status": "EXECUTED",
+            "executor": "generated_python_sandbox",
+            "source_code": source,
+            "script_hash": stable_hash(source),
+            "execution_attempted": True,
+            "execution_smoke_passed": True,
+            "smoke_passed": True,
+            "scientific_code_workspace": {
+                "artifact_id": f"{question.id}:{source_id}",
+                "provider": "anthropic",
+                "model": "claude-haiku-4-5-20251001",
+                "model_tier": "haiku",
+                "accepted": True,
+                "model_owned_source": True,
+                "runtime_edited_source": False,
+                "transcript_fingerprint": "transcript:direct-source",
+            },
+        }, []
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_source_owner_scientific_workspace",
+        run_source_workspace,
+    )
+    context = _research_context(question.id, theory_packet_id)
+    deferred_task = AgentTask(
+        task_id="architect:metric-after-direct-source",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Continue metric authoring after independent source review.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": context,
+            "runtime_architect_operation": (
+                runtime_module.RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+            ),
+        },
+    )
+    result = runtime_module.AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path,
+        n_runs=2,
+        seed=7,
+        proposal_agent=SourceAgent(),
+        semantic_reviewer_available=False,
+    ).run(
+        AgentTask(
+            task_id="algorithm:direct-source",
+            owner_subsystem="AlgorithmEngineer",
+            objective="Plan and implement the estimator in one source workspace.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "architect_context": context,
+                "implementation_gaps": [{"estimator_id": source_id}],
+                "implementation_before_metric_freeze": True,
+                "empirical_evaluation_phase": (
+                    runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                ),
+                "deferred_metric_protocol_task": asdict(deferred_task),
+                "n_runs": 2,
+                "seed": 7,
+            },
+        ),
+        BlackboardState(
+            project_id=question.id,
+            artifacts={theory_packet_id: theory_packet},
+        ),
+    )
+
+    assert SourceAgent.proposal_calls == 0
+    assert len(source_calls) == 1
+    manifests = [
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
+    ]
+    assert len(manifests) == 1
+    manifest = manifests[0]
+    assert manifest["scientific_source_workspace_owns_planning"] is True
+    assert manifest["planning_model_call_used"] is False
+    assert manifest["n_passed"] == 1
+    proposal_id = manifest["llm_algorithm_engineer_proposal_id"]
+    review_packet = result.produced_artifacts[proposal_id]
+    assert review_packet["source_workspace_planning_owned"] is True
+    assert review_packet["planning_model_call_used"] is False
+    assert review_packet["source_workspace_artifacts"][0]["source_hash"] == (
+        stable_hash("model-owned source")
+    )
+    assert review_packet["theory_trace_alignment_contract"][
+        "structured_alignment_observed"
+    ] is False
+    assert manifest["prototypes"][0]["source_llm_proposal_model_tier"] == (
+        "haiku"
+    )
 
 
 def test_algorithm_subsystem_resumes_source_without_replanning(

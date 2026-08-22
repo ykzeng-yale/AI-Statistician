@@ -44,6 +44,8 @@ from .algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_BOUNDARY,
     ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
     LLMAlgorithmEngineerAgent,
+    algorithm_source_workspace_plan,
+    materialize_algorithm_source_workspace_packet,
 )
 from .critic_evaluator_llm import (
     CRITIC_EVALUATOR_BOUNDARY,
@@ -439,10 +441,6 @@ def _normalized_recommended_research_path(
     return value
 
 
-
-
-
-
 def _runtime_requested_evidence_contract(
     *,
     formal_verification_policy: str,
@@ -629,12 +627,6 @@ def _runtime_contract_dimension_requirements(
         str(dimension): str(requirement)
         for dimension, requirement in raw.items()
     }
-
-
-
-
-
-
 
 
 def _runtime_architect_operation(task: AgentTask) -> str:
@@ -4791,10 +4783,6 @@ def _architect_initial_objective(
     row = _architect_subsystem_plan(context, subsystem)
     objective = str(row.get("objective", "") or "").strip()
     return objective or default
-
-
-
-
 
 
 RUNTIME_RETRIEVAL_RETURN_OWNERS = {
@@ -8972,8 +8960,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         )
 
 
-
-
 def _runtime_simulation_metric_protocol_guard(
     *,
     task: AgentTask,
@@ -11745,6 +11731,32 @@ class AlgorithmEngineerRuntimeSubsystem:
             )
         )
         scientific_progress_mode = bool(scientific_progress)
+        requires_generated_algorithm_code = (
+            _runtime_requires_generated_algorithm_code(
+                effective_context,
+                environment_feedback,
+            )
+        )
+        source_plan = algorithm_source_workspace_plan(
+            proposal_agent=self.proposal_agent,
+            enabled=bool(
+                not scientific_progress_mode
+                and not consumer_revision_mode
+                and not theory_revision_source_seeds
+                and requires_generated_algorithm_code
+            ),
+            question_id=question.id,
+            theory_packet_id=packet_id,
+            expected_estimator_ids=expected_estimator_ids,
+        )
+        source_workspace_owns_planning = bool(
+            scientific_progress.get("source_workspace_owns_planning") is True
+            or source_plan["owns_planning"]
+        )
+        source_workspace_intent_id = str(
+            scientific_progress.get("source_workspace_intent_id", "")
+            or source_plan["intent_id"]
+        )
         progress_parent_rows_by_id: dict[str, dict[str, Any]] = {}
         progress_checkpoints: dict[str, dict[str, Any]] = {}
         if scientific_progress_mode and consumer_revision_mode:
@@ -11965,7 +11977,11 @@ class AlgorithmEngineerRuntimeSubsystem:
                     },
                 )
             )
-        elif self.proposal_agent is not None and implementation_gaps:
+        elif (
+            not source_workspace_owns_planning
+            and self.proposal_agent is not None
+            and implementation_gaps
+        ):
             try:
                 effective_context = _runtime_context_with_environment_feedback_contract(
                     context,
@@ -12104,10 +12120,6 @@ class AlgorithmEngineerRuntimeSubsystem:
             for estimator_id, source_row in consumer_source_rows_by_id.items()
         }
         tool_calls: list[ToolCallRecord] = []
-        requires_generated_algorithm_code = _runtime_requires_generated_algorithm_code(
-            effective_context,
-            environment_feedback,
-        )
         theory_workspace_context = document_authoritative_theory_context(
             packet,
             max_rows=3,
@@ -12165,9 +12177,13 @@ class AlgorithmEngineerRuntimeSubsystem:
                         theory_revision_source_seeds.get(estimator_id, {})
                     )
                     if not code_draft:
-                        code_draft = _algorithm_code_draft_for_estimator(
-                            proposal_packet,
-                            estimator_id,
+                        code_draft = (
+                            {"estimator_id": estimator_id}
+                            if source_workspace_owns_planning
+                            else _algorithm_code_draft_for_estimator(
+                                proposal_packet,
+                                estimator_id,
+                            )
                         )
             if code_draft:
                 source_seed_replayed = bool(
@@ -12280,10 +12296,15 @@ class AlgorithmEngineerRuntimeSubsystem:
                         artifact_id=f"{question.id}:{estimator_id}",
                         code_draft=code_draft,
                         source_deferred=(
-                            not scientific_progress_mode
-                            and not consumer_revision_mode
-                            and not source_seed_replayed
-                            and _proposal_defers_scientific_source(proposal_packet)
+                            source_workspace_owns_planning
+                            or (
+                                not scientific_progress_mode
+                                and not consumer_revision_mode
+                                and not source_seed_replayed
+                                and _proposal_defers_scientific_source(
+                                    proposal_packet
+                                )
+                            )
                         ),
                         workspace_context={
                             "theory_packet_id": packet_id,
@@ -12398,6 +12419,46 @@ class AlgorithmEngineerRuntimeSubsystem:
                         source_feedback=environment_feedback,
                     )
                 )
+        if source_workspace_owns_planning:
+            passed_ids = {
+                str(row.get("estimator_id", "") or "").strip()
+                for row in prototype_rows
+                if row.get("smoke_passed") is True
+                and str(row.get("estimator_id", "") or "").strip()
+            }
+            if passed_ids == set(expected_estimator_ids):
+                proposal_packet = materialize_algorithm_source_workspace_packet(
+                    question=question,
+                    theory_packet=packet,
+                    implementation_gaps=implementation_gaps,
+                    source_rows=prototype_rows,
+                )
+                proposal_id = str(proposal_packet["packet_id"])
+                produced_artifacts[proposal_id] = proposal_packet
+                algorithm_theory_trace_contract = dict(
+                    proposal_packet.get("theory_trace_consumption_contract", {})
+                    or {}
+                )
+                algorithm_theory_trace_alignment_contract = dict(
+                    proposal_packet.get("theory_trace_alignment_contract", {})
+                    or {}
+                )
+                prototype_rows = [
+                    _annotate_generated_sandbox_prototype_provenance(
+                        {
+                            **dict(row),
+                            "llm_algorithm_engineer_target": (
+                                _algorithm_proposal_for_estimator(
+                                    proposal_packet,
+                                    str(row.get("estimator_id", "") or ""),
+                                )
+                            ),
+                        },
+                        proposal_packet=proposal_packet,
+                        source_feedback=environment_feedback,
+                    )
+                    for row in prototype_rows
+                ]
         if consumer_revision_mode:
             estimator_order = {
                 str(row.get("estimator_id", "") or ""): index
@@ -12526,6 +12587,20 @@ class AlgorithmEngineerRuntimeSubsystem:
             ),
             "runtime_architect_control": algorithm_control,
             "theory_trace_consumption_contract": runtime_theory_trace_contract,
+            "scientific_source_workspace_owns_planning": (
+                source_workspace_owns_planning
+            ),
+            "scientific_source_workspace_intent_id": (
+                source_workspace_intent_id
+                if source_workspace_owns_planning
+                else ""
+            ),
+            "planning_model_call_used": bool(
+                not source_workspace_owns_planning
+                and not scientific_progress_mode
+                and not consumer_revision_mode
+                and proposal_packet
+            ),
             "llm_algorithm_engineer_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
             ),
@@ -14970,8 +15045,6 @@ def _formalizer_provider_failure_classification(exc: Exception) -> str:
     return "formalizer_provider_generation_failed"
 
 
-
-
 def _formalizer_provider_failure_result(
     *,
     task: AgentTask,
@@ -15980,8 +16053,6 @@ def _formalizer_candidate_source_theorem_proof_evidence_status(
     return "NOT_KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_EVIDENCE"
 
 
-
-
 def _formalizer_candidate_proof_boundary(
     *,
     diagnostic_helper_not_source_theorem: bool,
@@ -16799,8 +16870,6 @@ def _formalizer_lean_candidate_target_context(
         "formal_target_role": formal_target_role,
         "formal_target_role_source": formal_target_role_source,
     }
-
-
 
 
 def _formalizer_lean_candidate_revision_feedback(
@@ -20648,7 +20717,6 @@ def run_research_agent_runtime(
     return manifest
 
 
-
 def _runtime_llm_topology(
     *,
     architect_coordinator: LLMArchitectCoordinatorAgent | None,
@@ -20997,28 +21065,6 @@ def _merge_resume_task_architect_context(
             merged_context[key] = value
     inputs["architect_context"] = merged_context
     return replace(task, inputs=inputs)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def _runtime_llm_topology_enabled_agent_rows(
@@ -21872,8 +21918,6 @@ def _effective_critic_revision_rounds(
     return max(0, min(configured, architect_max))
 
 
-
-
 def _runtime_source_theorem_kernel_closure_verified(
     *,
     formalization_manifest: Mapping[str, Any],
@@ -22021,38 +22065,6 @@ def _critic_evidence_contract_decision(
         "failure_classification": failure_classification,
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def _architect_runtime_plan(context: Mapping[str, Any]) -> dict[str, Any]:
@@ -22205,20 +22217,6 @@ def _runtime_environment_feedback_with_architect_directive(
             str(control.get("acceptance_gate", "")),
         )
     return payload
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def _runtime_context_contract_flag(
@@ -22458,18 +22456,6 @@ def _runtime_bind_and_validate_generated_metric_authority(
     return bound, errors
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 def _runtime_requires_generated_simulation_code(
     context: Mapping[str, Any],
     environment_feedback: Mapping[str, Any] | None = None,
@@ -22480,8 +22466,6 @@ def _runtime_requires_generated_simulation_code(
         subsystem="SimulationEvaluator",
         flag="research_evaluation_requires_generated_simulation_code",
     )
-
-
 
 
 def _implementation_gap_estimator_ids(
@@ -22591,10 +22575,6 @@ def _algorithm_code_draft_for_estimator(
     return {}
 
 
-
-
-
-
 _SOURCE_THEOREM_TARGET_PROVENANCE_STRING_KEYS = (
     "source_formalization_manifest_id",
     "source_formalizer_packet_id",
@@ -22618,8 +22598,6 @@ _SOURCE_THEOREM_TARGET_PROVENANCE_STRING_KEYS = (
     "materialization_id",
     "execution_queue_id",
 )
-
-
 
 
 def _source_theorem_target_provenance_from_row(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -22662,10 +22640,6 @@ def _source_theorem_target_provenance_from_row(row: Mapping[str, Any]) -> dict[s
     if constraints:
         provenance["semantic_alignment_constraints"] = list(dict.fromkeys(constraints))
     return provenance
-
-
-
-
 
 
 def _source_theorem_target_ids_from_row(
@@ -22774,8 +22748,6 @@ def _runtime_context_requires_formalizer_live_prover_tool_call(
         context,
         "formal_evaluation_requires_formalizer_live_prover_tool_call",
     )
-
-
 
 
 def _theorem_goal_id(row: Any) -> str:
@@ -23508,8 +23480,6 @@ def _runtime_safe_int(value: Any) -> int:
         return 0
 
 
-
-
 RUNTIME_REQUIRED_THEORY_TRACE_CONSUMERS = (
     "SimulationEngineer",
     "AlgorithmEngineer",
@@ -23554,12 +23524,6 @@ def _runtime_theory_trace_alignment_consumer_from_artifact(
     return ""
 
 
-
-
-
-
-
-
 def _append_runtime_architect_initial_routing_record(
     records: list[dict[str, Any]],
     seen: set[str],
@@ -23576,8 +23540,6 @@ def _append_runtime_architect_initial_routing_record(
         return
     seen.add(fingerprint)
     records.append(record)
-
-
 
 
 def _runtime_formal_source_hits(
@@ -24104,18 +24066,6 @@ def _generated_metric_contract_evaluation_count(
         return 0
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 def _generated_simulation_revision_feedback(
     *,
     manifest: Mapping[str, Any],
@@ -24343,8 +24293,6 @@ def _run_generated_simulation_sandbox(
         safety_boundary=simulation_boundary,
     )
     return prototype, wrapped_tool_call
-
-
 
 
 def _generated_sandbox_metric_gate_result(
@@ -24956,12 +24904,6 @@ def _write_jsonl(path: Path, rows: Sequence[Any]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, default=str) + "\n")
-
-
-
-
-
-
 
 
 def _append_jsonl_row(path: Path, row: Mapping[str, Any]) -> None:

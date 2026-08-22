@@ -6,17 +6,19 @@ from pathlib import Path
 from ai_statistician.algorithm_engineer_llm import (
     _algorithm_engineer_response_schema,
     _compact_theory_packet_for_algorithm,
+    materialize_algorithm_source_workspace_packet,
 )
 from ai_statistician.architect_theory_execution_preflight import (
     build_architect_theory_execution_preflight_material,
 )
-from ai_statistician.generated_code_semantic_review_scope import (
-    generated_code_semantic_review_theory_projection,
-)
+from ai_statistician.fingerprint import stable_hash
 from ai_statistician.formalizer_llm import (
     _build_lean_candidate_workspace_tool_prompt,
     _formalizer_json_schema,
     build_formalizer_prompt,
+)
+from ai_statistician.generated_code_semantic_review_scope import (
+    generated_code_semantic_review_theory_projection,
 )
 from ai_statistician.metric_protocol_stage import (
     build_theory_informed_metric_protocol_material,
@@ -340,6 +342,86 @@ def test_document_authority_replaces_duplicate_structured_math_for_coding_agents
         "DUPLICATE_DGP_PROSE",
     ):
         assert duplicate not in serialized
+
+
+def test_source_workspace_review_packet_does_not_duplicate_theory_math(
+    tmp_path: Path,
+) -> None:
+    packet, content = _document_theory_packet(tmp_path)
+    packet["estimator_specs"] = [
+        {
+            "id": "C1",
+            "name": "document-owned estimator",
+            "estimator_interface_contract": {
+                "request_fields": [
+                    {
+                        "name": "observations",
+                        "meaning": "Finite numeric array.",
+                        "binding": "per_replicate_data",
+                    }
+                ],
+                "response_fields": [
+                    {
+                        "name": "estimate",
+                        "meaning": "Finite estimate.",
+                        "normalization": "Defined in C1.",
+                        "derivation_ref": "C1",
+                    }
+                ],
+            },
+        }
+    ]
+    source = "def run_estimator(request): return {'estimate': 0.0}\n"
+    source_hash = stable_hash(source)
+    review_packet = materialize_algorithm_source_workspace_packet(
+        question=OpenResearchQuestion(
+            id="question:C1",
+            title="Implement C1",
+            description="Implement the document-owned estimator.",
+        ),
+        theory_packet=packet,
+        implementation_gaps=[{"estimator_id": "C1"}],
+        source_rows=[
+            {
+                "estimator_id": "C1",
+                "source_code": source,
+                "script_hash": source_hash,
+                "smoke_passed": True,
+                "scientific_code_workspace": {
+                    "artifact_id": "question:C1:C1",
+                    "provider": "anthropic",
+                    "model": "claude-haiku-4-5-20251001",
+                    "model_tier": "haiku",
+                    "accepted": True,
+                    "model_owned_source": True,
+                    "runtime_edited_source": False,
+                    "transcript_fingerprint": "transcript:C1",
+                },
+            }
+        ],
+    )
+
+    assert review_packet["source_workspace_planning_owned"] is True
+    assert review_packet["planning_model_call_used"] is False
+    assert review_packet["source_workspace_artifacts"] == [
+        {
+            "estimator_id": "C1",
+            "source_hash": source_hash,
+            "workspace_artifact_id": "question:C1:C1",
+            "workspace_transcript_fingerprint": "transcript:C1",
+        }
+    ]
+    assert review_packet["theory_trace_alignment_contract"][
+        "structured_alignment_observed"
+    ] is False
+    review = generated_code_semantic_review_theory_projection(
+        theory_packet=packet,
+        proposal_packet=review_packet,
+    )
+    assert review["theory_review_projection"]["projection_mode"] == (
+        "canonical_semantic_core_fallback"
+    )
+    assert review["authoritative_theory_documents"][0]["content"] == content
 
 
 def test_document_claim_dag_is_complete_and_exact_across_subagents(
