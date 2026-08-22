@@ -930,7 +930,8 @@ def build_research_evaluation_summary(
         "evidence_boundary": (
             "This is research-loop evidence only. Theory, generated code, simulation, "
             "and semantic review are not theorem proof; formalization and kernel "
-            "closure remain separately reported and are not required by research_eval. "
+            "closure remain separately reported and are required only when selected "
+            "task intent marks formal evidence required. "
             "Mode conformance is diagnostic and cannot erase completed research evidence."
         ),
     }

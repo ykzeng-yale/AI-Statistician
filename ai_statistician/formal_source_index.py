@@ -868,6 +868,107 @@ def search_formal_sources(
     return FormalSourceRetriever(declarations).search(query, k=k)
 
 
+def formal_source_snapshot_for_retriever(
+    retriever: object,
+    source_id: str,
+) -> dict[str, object]:
+    """Return the indexed source snapshot behind one composite RAG source."""
+
+    requested = str(source_id or "").strip()
+    if not requested:
+        return {}
+    pending = [retriever]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if current is None or id(current) in seen:
+            continue
+        seen.add(id(current))
+        snapshots_value = getattr(current, "source_snapshots", None)
+        try:
+            snapshots = snapshots_value() if callable(snapshots_value) else snapshots_value
+        except Exception:
+            snapshots = None
+        if isinstance(snapshots, dict):
+            snapshot = snapshots.get(requested)
+            if isinstance(snapshot, dict):
+                return dict(snapshot)
+        sqlite_index = getattr(current, "sqlite_index", None)
+        if sqlite_index is not None:
+            pending.append(sqlite_index)
+        providers = getattr(current, "providers", ())
+        if isinstance(providers, (list, tuple)):
+            pending.extend(providers)
+    return {}
+
+
+def resolve_active_project_formal_source_file(
+    *,
+    retriever: object,
+    source_id: str,
+    declaration_path: str,
+    project_root: Path | str,
+) -> dict[str, object] | None:
+    """Resolve one indexed Lean source only when it belongs to the active project."""
+
+    path_text = str(declaration_path or "").strip()
+    if not path_text:
+        return None
+    project = Path(project_root).expanduser().resolve()
+    indexed_path = Path(path_text).expanduser()
+    snapshot = formal_source_snapshot_for_retriever(retriever, source_id)
+    snapshot_location = str(snapshot.get("location", "") or "").strip()
+    snapshot_root = (
+        Path(snapshot_location).expanduser().resolve()
+        if snapshot_location
+        else None
+    )
+    candidates: list[tuple[Path, Path, tuple[str, ...]]] = []
+    entry_modules = tuple(
+        str(value).strip()
+        for value in snapshot.get("entry_modules", []) or []
+        if str(value).strip()
+    )
+    if indexed_path.is_absolute():
+        source_root = (
+            snapshot_root
+            if snapshot_root is not None
+            and snapshot_root in indexed_path.resolve().parents
+            else project
+        )
+        candidates.append((indexed_path.resolve(), source_root, entry_modules))
+    else:
+        if snapshot_root is not None:
+            candidates.append(
+                ((snapshot_root / indexed_path).resolve(), snapshot_root, entry_modules)
+            )
+        candidates.append(((project / indexed_path).resolve(), project, ()))
+    seen_paths: set[Path] = set()
+    for resolved, source_root, module_roots in candidates:
+        if resolved in seen_paths:
+            continue
+        seen_paths.add(resolved)
+        try:
+            resolved.relative_to(project)
+            relative_source = resolved.relative_to(source_root)
+        except ValueError:
+            continue
+        if not resolved.is_file() or resolved.suffix != ".lean":
+            continue
+        module_parts = relative_source.with_suffix("").parts
+        if len(module_roots) == 1:
+            root_parts = tuple(module_roots[0].split("."))
+            if tuple(module_parts[: len(root_parts)]) != root_parts:
+                module_parts = (*root_parts, *module_parts)
+        return {
+            "path": str(resolved),
+            "importable_module": ".".join(module_parts),
+            "source_id": str(source_id or ""),
+            "source_snapshot": snapshot,
+        }
+    return None
+
+
 def build_formal_source_search_backend(
     *,
     db_path: Path | str | None = None,

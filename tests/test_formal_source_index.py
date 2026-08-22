@@ -21,6 +21,8 @@ from ai_statistician.formal_source_index import (
     build_formal_source_index,
     build_formal_source_search_backend,
     diversify_formal_source_hits,
+    formal_source_snapshot_for_retriever,
+    resolve_active_project_formal_source_file,
     search_formal_sources,
 )
 from ai_statistician.formal_source_hybrid import (
@@ -55,6 +57,75 @@ def test_default_formal_source_roots_exclude_historical_snapshots() -> None:
     assert "empirical_process_lean" in source_ids
     assert "local_statinference_repo" not in source_ids
     assert "legacy_ai_statistician_statinference" not in source_ids
+
+
+def test_active_project_source_resolution_uses_bound_dependency_snapshot(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "LeanProject"
+    source_root = project / ".lake" / "packages" / "Statlib" / "Statlib"
+    source_root.mkdir(parents=True)
+    source_file = source_root / "Inference.lean"
+    source_file.write_text(
+        "namespace InferenceModelofMeasure\n"
+        "def IsConsistent : Prop := True\n"
+        "end InferenceModelofMeasure\n",
+        encoding="utf-8",
+    )
+    snapshots = {
+        "statlib": {
+            "location": str(source_root),
+            "entry_modules": ["Statlib"],
+            "git_commit": "statlib-commit",
+            "git_dirty": False,
+        }
+    }
+    retriever = SimpleNamespace(
+        providers=(SimpleNamespace(source_snapshots=lambda: snapshots),)
+    )
+
+    assert formal_source_snapshot_for_retriever(retriever, "statlib") == (
+        snapshots["statlib"]
+    )
+    resolved = resolve_active_project_formal_source_file(
+        retriever=retriever,
+        source_id="statlib",
+        declaration_path="Inference.lean",
+        project_root=project,
+    )
+
+    assert resolved is not None
+    assert resolved["path"] == str(source_file.resolve())
+    assert resolved["importable_module"] == "Statlib.Inference"
+    assert resolved["source_id"] == "statlib"
+
+
+def test_active_project_source_resolution_rejects_external_snapshot(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "LeanProject"
+    project.mkdir()
+    external = tmp_path / "External" / "Library"
+    external.mkdir(parents=True)
+    (external / "Result.lean").write_text(
+        "theorem result : True := by trivial\n",
+        encoding="utf-8",
+    )
+    retriever = SimpleNamespace(
+        source_snapshots=lambda: {
+            "external": {
+                "location": str(external),
+                "entry_modules": ["External"],
+            }
+        }
+    )
+
+    assert resolve_active_project_formal_source_file(
+        retriever=retriever,
+        source_id="external",
+        declaration_path="Result.lean",
+        project_root=project,
+    ) is None
 
 
 def test_nested_alias_root_deduplication_is_inventory_order_independent(

@@ -6,6 +6,8 @@ import ai_statistician.proof_state_feedback as proof_state_module
 from ai_statistician.proof_state_feedback import (
     LeanLspMcpProofStateFeedbackProvider,
     LocalLeanProofStateFeedbackProvider,
+    bind_candidate_axiom_audit_to_proof_state_feedback,
+    build_lean_declaration_inspection_tool,
 )
 from ai_statistician.research_schema import FormalSubclaim
 
@@ -40,6 +42,97 @@ def test_local_proof_state_provider_executes_exact_model_source(monkeypatch) -> 
     assert rows[0].local_lean_checked is True
     assert rows[0].proof_evidence_status.endswith("NOT_PROOF_EVIDENCE")
     assert "import Mathlib" not in observed_sources[0]
+
+
+def test_axiom_audit_keeps_elaborated_placeholder_feedback_untrusted(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        proof_state_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=0,
+            stdout="",
+            stderr="declaration uses `sorry`",
+        ),
+    )
+    provider = LocalLeanProofStateFeedbackProvider(lean_command=("lean",))
+    rows = provider.inspect(
+        [
+            FormalSubclaim(
+                id="target",
+                title="Untrusted source inspection",
+                status="FAILED",
+                claim="Inspect the current model source.",
+                lean_statement="theorem target : True := by\n  sorry\n",
+            )
+        ]
+    )
+
+    bound = bind_candidate_axiom_audit_to_proof_state_feedback(
+        rows,
+        audit_checked=True,
+        audit_clean=False,
+        untrusted_axioms=("sorryAx",),
+    )
+
+    assert bound[0].attempt_status == "local_lean_untrusted_axioms"
+    assert bound[0].route_revision_recommended is True
+    assert any("sorryAx" in value for value in bound[0].diagnostics)
+    assert any("untrusted dependencies" in value for value in bound[0].residual_goals)
+
+
+def test_indexed_dependency_source_is_inspectable_without_lsp(tmp_path) -> None:
+    project = tmp_path / "LeanProject"
+    source_root = project / ".lake" / "packages" / "Statlib" / "Statlib"
+    source_root.mkdir(parents=True)
+    source_file = source_root / "Inference.lean"
+    source_file.write_text(
+        "namespace InferenceModelofMeasure\n"
+        "def IsConsistent : Prop := True\n"
+        "end InferenceModelofMeasure\n",
+        encoding="utf-8",
+    )
+
+    class Retriever:
+        source_snapshots = {
+            "statlib": {
+                "location": str(source_root),
+                "entry_modules": ["Statlib"],
+            }
+        }
+
+        @staticmethod
+        def search(symbol: str, *, k: int):
+            assert symbol == "InferenceModelofMeasure.IsConsistent"
+            assert k == 8
+            declaration = SimpleNamespace(
+                source_id="statlib",
+                path="Inference.lean",
+                line=2,
+                name=symbol,
+                namespace="InferenceModelofMeasure",
+                signature="def IsConsistent : Prop := True",
+            )
+            return [SimpleNamespace(declaration=declaration)]
+
+    tool = build_lean_declaration_inspection_tool(
+        formal_source_retriever=Retriever(),
+        project_root=project,
+        proof_state_provider=None,
+    )
+
+    assert tool is not None
+    result = tool("", "InferenceModelofMeasure.IsConsistent", 4, {})
+    assert result["ok"] is True
+    assert result["status"] == "INDEXED_SOURCE_OBSERVED"
+    api = result["active_project_api_context"]
+    assert api["importable_module"] == "Statlib.Inference"
+    assert api["qualified_declaration"] == (
+        "InferenceModelofMeasure.IsConsistent"
+    )
+    assert "def IsConsistent" in api["declaration_source_context"]["content"]
+    assert api["declaration_source_context"]["file_path"] == str(source_file)
 
 
 def test_lsp_provider_returns_exact_model_selected_declaration_source(

@@ -7,13 +7,16 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from .fingerprint import stable_hash
+from .formal_source_index import resolve_active_project_formal_source_file
 from .research_schema import FormalSubclaim
+from .structured_output_retry import PacketValidationError
 
 
 PROOF_STATE_FEEDBACK_STATUS = "PROOF_STATE_FEEDBACK_NOT_PROOF_EVIDENCE"
@@ -59,6 +62,272 @@ class ProofStateFeedbackProvider(Protocol):
 
     def inspect(self, subclaims: Sequence[FormalSubclaim]) -> list[ProofStateFeedbackRow]:
         ...
+
+
+def bind_candidate_axiom_audit_to_proof_state_feedback(
+    rows: Sequence[ProofStateFeedbackRow],
+    *,
+    audit_checked: bool,
+    audit_clean: bool,
+    untrusted_axioms: Sequence[str] = (),
+) -> list[ProofStateFeedbackRow]:
+    """Keep an elaborated but untrusted declaration from looking proof-complete."""
+
+    if not audit_checked or audit_clean:
+        return list(rows)
+    names = tuple(
+        dict.fromkeys(str(value).strip() for value in untrusted_axioms if str(value).strip())
+    )
+    detail = (
+        "candidate declaration elaborated but the independent axiom audit rejected "
+        "untrusted dependencies"
+        + (f": {', '.join(names)}" if names else "")
+    )
+    return [
+        replace(
+            row,
+            attempt_status="local_lean_untrusted_axioms",
+            diagnostics=tuple(dict.fromkeys((*row.diagnostics, detail))),
+            residual_goals=tuple(dict.fromkeys((*row.residual_goals, detail))),
+            route_revision_recommended=True,
+        )
+        for row in rows
+    ]
+
+
+def build_lean_declaration_inspection_tool(
+    *,
+    formal_source_retriever: object | None,
+    project_root: str | Path,
+    proof_state_provider: object | None,
+) -> Callable[[str, str, int, Mapping[str, Any]], dict[str, Any]] | None:
+    """Build one read-only declaration-source tool for a model-owned Lean session."""
+
+    provider_inspector = getattr(proof_state_provider, "inspect_declaration", None)
+    if formal_source_retriever is None and not callable(provider_inspector):
+        return None
+    active_project = Path(project_root).resolve()
+
+    def active_declaration_location(symbol: str) -> dict[str, Any] | None:
+        if formal_source_retriever is None:
+            return None
+        try:
+            hits = formal_source_retriever.search(symbol, k=8)
+        except Exception:
+            return None
+        for hit in hits:
+            declaration = getattr(hit, "declaration", None)
+            indexed_name = str(getattr(declaration, "name", "") or "").strip()
+            if indexed_name != symbol:
+                continue
+            resolved_source = resolve_active_project_formal_source_file(
+                retriever=formal_source_retriever,
+                source_id=str(getattr(declaration, "source_id", "") or ""),
+                declaration_path=str(getattr(declaration, "path", "") or ""),
+                project_root=active_project,
+            )
+            if resolved_source is None:
+                continue
+            namespace = str(getattr(declaration, "namespace", "") or "").strip()
+            namespace_prefix = f"{namespace}." if namespace else ""
+            source_symbol = (
+                indexed_name[len(namespace_prefix) :]
+                if namespace_prefix and indexed_name.startswith(namespace_prefix)
+                else indexed_name
+            )
+            return {
+                "path": Path(str(resolved_source["path"])),
+                "qualified_symbol": indexed_name,
+                "source_symbol": source_symbol,
+                "namespace": namespace,
+                "importable_module": str(resolved_source["importable_module"]),
+                "source_id": str(resolved_source["source_id"]),
+                "line": int(getattr(declaration, "line", 0) or 0),
+                "signature": str(getattr(declaration, "signature", "") or "").strip(),
+            }
+        return None
+
+    def inspect(
+        source: str,
+        symbol: str,
+        context_lines: int,
+        last_check: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        source_hash = stable_hash(source)
+        candidate_source_checked = bool(last_check)
+        if candidate_source_checked and str(
+            last_check.get("source_hash", "") or ""
+        ) != source_hash:
+            raise PacketValidationError(
+                validation_label="Formalizer Lean declaration inspection lineage",
+                attempts=1,
+                errors=["Lean declaration inspection is not bound to current source hash"],
+                history=[],
+            )
+        active_declaration = active_declaration_location(symbol)
+        provider_symbol = symbol
+        if active_declaration is not None:
+            checked_path = Path(active_declaration["path"])
+            provider_symbol = str(active_declaration["source_symbol"])
+            inspection_binding = "active_project_declaration_source"
+        elif candidate_source_checked and callable(provider_inspector):
+            checked_path = Path(
+                str(
+                    last_check.get("proof_state_artifact_path", "")
+                    or last_check.get("artifact_path", "")
+                    or ""
+                )
+            )
+            try:
+                checked_source = checked_path.read_text(encoding="utf-8")
+            except OSError as exc:
+                raise PacketValidationError(
+                    validation_label="Formalizer Lean declaration inspection lineage",
+                    attempts=1,
+                    errors=[f"checked Lean artifact is unavailable: {exc}"],
+                    history=[],
+                ) from exc
+            if stable_hash(checked_source) != source_hash:
+                raise PacketValidationError(
+                    validation_label="Formalizer Lean declaration inspection lineage",
+                    attempts=1,
+                    errors=["checked Lean artifact is not bound to current source hash"],
+                    history=[],
+                )
+            inspection_binding = "checked_candidate_source"
+        else:
+            return {
+                "ok": False,
+                "status": "ACTIVE_PROJECT_DECLARATION_NOT_FOUND",
+                "symbol": symbol,
+                "error": (
+                    "No exact active-project declaration source was found for this "
+                    "model-selected symbol. Search the formal environment for its "
+                    "qualified name before retrying inspection."
+                ),
+                "candidate_source_hash": source_hash,
+                "candidate_source_checked": candidate_source_checked,
+                "proof_evidence_status": LEAN_DECLARATION_INSPECTION_STATUS,
+            }
+        if callable(provider_inspector):
+            raw = provider_inspector(
+                artifact_path=str(checked_path),
+                symbol=provider_symbol,
+                context_lines=context_lines,
+            )
+            if not isinstance(raw, Mapping):
+                return {
+                    "ok": False,
+                    "status": "PROVIDER_ERROR",
+                    "provider": str(
+                        getattr(
+                            proof_state_provider,
+                            "name",
+                            type(proof_state_provider).__name__,
+                        )
+                    ),
+                    "error": "declaration inspection provider returned a non-object",
+                    "proof_evidence_status": LEAN_DECLARATION_INSPECTION_STATUS,
+                }
+            result = deepcopy(dict(raw))
+        else:
+            result = {
+                "ok": False,
+                "status": "INDEXED_SOURCE_PROVIDER_UNAVAILABLE",
+                "provider": "formal_source_index",
+                "proof_evidence_status": LEAN_DECLARATION_INSPECTION_STATUS,
+            }
+        source_context: dict[str, Any] = {}
+        module_prefix_context: dict[str, Any] = {}
+        api_context: dict[str, Any] = {}
+        if active_declaration is not None:
+            indexed_path = Path(active_declaration["path"])
+            try:
+                indexed_lines = indexed_path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                indexed_lines = []
+            if indexed_lines:
+                prefix_end_line = min(len(indexed_lines), 64)
+                prefix_content = "\n".join(indexed_lines[:prefix_end_line])
+                module_prefix_context = {
+                    "file_path": str(indexed_path),
+                    "start_line": 1,
+                    "end_line": prefix_end_line,
+                    "content": prefix_content[:20_000],
+                    "content_truncated": len(prefix_content) > 20_000,
+                }
+                indexed_line = max(
+                    1,
+                    min(int(active_declaration["line"] or 1), len(indexed_lines)),
+                )
+                start_line = max(1, indexed_line - context_lines)
+                end_line = min(len(indexed_lines), indexed_line + context_lines)
+                indexed_content = "\n".join(
+                    indexed_lines[start_line - 1 : end_line]
+                )
+                source_context = {
+                    "file_path": str(indexed_path),
+                    "indexed_line": indexed_line,
+                    "start_line": start_line,
+                    "end_line": end_line,
+                    "content": indexed_content[:20_000],
+                    "content_truncated": len(indexed_content) > 20_000,
+                }
+            signature = str(active_declaration.get("signature", "") or "")
+            source_symbol = str(active_declaration.get("source_symbol", "") or "")
+            symbol_observed = bool(
+                source_symbol
+                and (
+                    source_symbol in signature
+                    or source_symbol in str(source_context.get("content", "") or "")
+                )
+            )
+            api_context = {
+                "context_contract": (
+                    "Treat importable_module, qualified_declaration, namespace_path, "
+                    "source_module_prefix_reference, and declaration_source_context "
+                    "as one active-project API observation. Import importable_module "
+                    "when reusing the declaration; do not substitute the source "
+                    "module's internal dependency imports or copy unrelated "
+                    "declarations from its prefix."
+                ),
+                "importable_module": str(active_declaration["importable_module"]),
+                "qualified_declaration": str(active_declaration["qualified_symbol"]),
+                "namespace_path": str(active_declaration["namespace"]),
+                "exact_signature": signature,
+                "source_module_prefix_reference": module_prefix_context,
+                "declaration_source_context": source_context,
+            }
+            result["provider_observation_ok"] = bool(result.get("ok", False))
+            result["active_project_api_context"] = api_context
+            result["indexed_declaration_signature"] = signature
+            result["indexed_symbol_context_observed"] = symbol_observed
+            if symbol_observed:
+                result["ok"] = True
+                if not result["provider_observation_ok"]:
+                    result["status"] = "INDEXED_SOURCE_OBSERVED"
+        result.update(
+            {
+                "inspection_binding": inspection_binding,
+                "requested_symbol": symbol,
+                "inspected_source_symbol": provider_symbol,
+                "candidate_source_hash": source_hash,
+                "candidate_source_checked": candidate_source_checked,
+                **(
+                    {
+                        "indexed_declaration_namespace": str(
+                            active_declaration["namespace"]
+                        ),
+                        "indexed_declaration_line": int(active_declaration["line"]),
+                    }
+                    if active_declaration is not None
+                    else {}
+                ),
+            }
+        )
+        return result
+
+    return inspect
 
 
 class LocalLeanProofStateFeedbackProvider:

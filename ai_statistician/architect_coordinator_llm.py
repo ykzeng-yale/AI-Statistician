@@ -3053,21 +3053,13 @@ def _required_architect_plan_subsystems(
             "generated_code_semantic_review",
         ):
             required.add("GeneratedCodeSemanticReviewer")
-        if (
-            evaluation_mode == "capability_eval"
-            and evidence_contract.get(
-                "formal_evaluation_requires_formal_target_semantic_review"
-            )
-            is True
-        ):
+        if evidence_contract.get(
+            "formal_evaluation_requires_formal_target_semantic_review"
+        ) is True:
             required.add("FormalTargetSemanticReviewer")
-        if (
-            evaluation_mode == "capability_eval"
-            and evidence_contract.get(
-                "formal_evaluation_requires_formalizer_lean_candidate"
-            )
-            is True
-        ):
+        if evidence_contract.get(
+            "formal_evaluation_requires_formalizer_lean_candidate"
+        ) is True:
             required.add("FormalizationEvaluator")
     if (
         evidence_contract.get("formal_required_for_final") is True

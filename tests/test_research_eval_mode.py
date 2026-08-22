@@ -209,6 +209,29 @@ def test_explicit_theory_only_intent_does_not_require_unused_lanes() -> None:
     }
 
 
+def test_explicit_formal_research_intent_requires_real_formal_gates() -> None:
+    contract = _runtime_requested_evidence_contract(
+        formal_verification_policy="advisory",
+        evaluation_mode="research_eval",
+        formal_target_semantic_review_required=True,
+        task_intent={
+            "theory": "not_applicable",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "required",
+        },
+    )
+
+    assert contract["formal_verification_policy"] == "required"
+    assert contract["formal_evaluation_requires_formalizer_lean_candidate"] is True
+    assert contract[
+        "formal_evaluation_requires_formal_target_semantic_review"
+    ] is True
+    required = set(_required_architect_plan_subsystems(contract))
+    assert "FormalizationEvaluator" in required
+    assert "FormalTargetSemanticReviewer" in required
+
+
 def test_research_eval_cli_uses_frozen_gold_scope_when_configured() -> None:
     incomplete_full_loop = {"all_questions_research_eval_complete": False}
 

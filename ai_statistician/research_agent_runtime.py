@@ -249,6 +249,8 @@ from .proof_state_feedback import (
     DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS,
     PROOF_STATE_FEEDBACK_BOUNDARY,
     ProofStateFeedbackProvider,
+    bind_candidate_axiom_audit_to_proof_state_feedback,
+    build_lean_declaration_inspection_tool,
     proof_state_feedback_row_to_json,
 )
 from .research_architect import (
@@ -497,6 +499,10 @@ def _runtime_requested_evidence_contract(
         not explicit_task_intent
         or dimension_requirements["formal"] == "required"
     )
+    formal_evaluation_required = bool(
+        formal_lane_required
+        and (capability_eval or (research_evaluation and explicit_task_intent))
+    )
     contract = {
         "formal_verification_policy": policy,
         "recommended_research_path": path,
@@ -518,12 +524,11 @@ def _runtime_requested_evidence_contract(
             generated_simulation_required
         ),
         "formal_evaluation_requires_formal_target_semantic_review": bool(
-            capability_eval
-            and formal_lane_required
+            formal_evaluation_required
             and formal_target_semantic_review_required
         ),
         "formal_evaluation_requires_formalizer_lean_candidate": bool(
-            capability_eval and formal_lane_required
+            formal_evaluation_required
         ),
         "formal_target_authoring_required": bool(
             policy == "required"
@@ -18491,7 +18496,18 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             ],
             artifact_path=check_artifact_path or None,
         )
-        rows = proof_state_provider.inspect((subclaim,))
+        rows = bind_candidate_axiom_audit_to_proof_state_feedback(
+            proof_state_provider.inspect((subclaim,)),
+            audit_checked=_bool_like(
+                last_check.get("candidate_axiom_audit_checked", False)
+            ),
+            audit_clean=_bool_like(
+                last_check.get("candidate_axiom_audit_clean", False)
+            ),
+            untrusted_axioms=tuple(
+                last_check.get("candidate_untrusted_axiom_names", []) or []
+            ),
+        )
         return {
             "status": "OBSERVED" if rows else "NO_OBSERVATION",
             "provider": str(
@@ -18508,262 +18524,11 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             ),
         }
 
-    declaration_inspector = getattr(
-        proof_state_provider,
-        "inspect_declaration",
-        None,
+    inspect_lean_declaration = build_lean_declaration_inspection_tool(
+        formal_source_retriever=formal_source_retriever,
+        project_root=lean_candidate_lean_project,
+        proof_state_provider=proof_state_provider,
     )
-
-    def active_project_declaration_location(
-        symbol: str,
-    ) -> dict[str, Any] | None:
-        if formal_source_retriever is None:
-            return None
-        try:
-            hits = formal_source_retriever.search(symbol, k=8)
-        except Exception:
-            return None
-        project_root = Path(lean_candidate_lean_project).resolve()
-        for hit in hits:
-            declaration = getattr(hit, "declaration", None)
-            indexed_name = str(
-                getattr(declaration, "name", "") or ""
-            ).strip()
-            if indexed_name != symbol:
-                continue
-            path_text = str(getattr(declaration, "path", "") or "").strip()
-            if not path_text:
-                continue
-            path = Path(path_text).expanduser()
-            resolved = (
-                path if path.is_absolute() else project_root / path
-            ).resolve()
-            if resolved.is_file() and project_root in resolved.parents:
-                module_path = resolved.relative_to(project_root).with_suffix("")
-                namespace = str(
-                    getattr(declaration, "namespace", "") or ""
-                ).strip()
-                namespace_prefix = f"{namespace}." if namespace else ""
-                source_symbol = (
-                    indexed_name[len(namespace_prefix) :]
-                    if namespace_prefix
-                    and indexed_name.startswith(namespace_prefix)
-                    else indexed_name
-                )
-                return {
-                    "path": resolved,
-                    "qualified_symbol": indexed_name,
-                    "source_symbol": source_symbol,
-                    "namespace": namespace,
-                    "importable_module": ".".join(module_path.parts),
-                    "line": int(getattr(declaration, "line", 0) or 0),
-                    "signature": str(
-                        getattr(declaration, "signature", "") or ""
-                    ).strip(),
-                }
-        return None
-
-    def inspect_lean_declaration(
-        source: str,
-        symbol: str,
-        context_lines: int,
-        last_check: Mapping[str, Any],
-    ) -> Any:
-        source_hash = stable_hash(source)
-        candidate_source_checked = bool(last_check)
-        if candidate_source_checked:
-            if str(last_check.get("source_hash", "") or "") != source_hash:
-                raise PacketValidationError(
-                    validation_label=(
-                        "Formalizer Lean declaration inspection lineage"
-                    ),
-                    attempts=1,
-                    errors=[
-                        "Lean declaration inspection is not bound to current source hash"
-                    ],
-                    history=[],
-                )
-        active_declaration = active_project_declaration_location(symbol)
-        provider_symbol = symbol
-        if active_declaration is not None:
-            check_artifact_path = Path(active_declaration["path"])
-            provider_symbol = str(active_declaration["source_symbol"])
-            inspection_binding = "active_project_declaration_source"
-        elif candidate_source_checked:
-            check_artifact_path = Path(
-                str(
-                    last_check.get("proof_state_artifact_path", "")
-                    or last_check.get("artifact_path", "")
-                    or ""
-                )
-            )
-            try:
-                checked_source = check_artifact_path.read_text(encoding="utf-8")
-            except OSError as exc:
-                raise PacketValidationError(
-                    validation_label=(
-                        "Formalizer Lean declaration inspection lineage"
-                    ),
-                    attempts=1,
-                    errors=[f"checked Lean artifact is unavailable: {exc}"],
-                    history=[],
-                ) from exc
-            if stable_hash(checked_source) != source_hash:
-                raise PacketValidationError(
-                    validation_label=(
-                        "Formalizer Lean declaration inspection lineage"
-                    ),
-                    attempts=1,
-                    errors=[
-                        "checked Lean artifact is not bound to current source hash"
-                    ],
-                    history=[],
-                )
-            inspection_binding = "checked_candidate_source"
-        else:
-            return {
-                "ok": False,
-                "status": "ACTIVE_PROJECT_DECLARATION_NOT_FOUND",
-                "symbol": symbol,
-                "error": (
-                    "No exact active-project declaration path was found for "
-                    "this model-selected symbol. Search the formal environment "
-                    "for its exact qualified name before retrying inspection."
-                ),
-                "candidate_source_hash": source_hash,
-                "candidate_source_checked": False,
-                "proof_evidence_status": (
-                    "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
-                ),
-            }
-        raw = declaration_inspector(
-            artifact_path=str(check_artifact_path),
-            symbol=provider_symbol,
-            context_lines=context_lines,
-        )
-        if not isinstance(raw, Mapping):
-            return {
-                "ok": False,
-                "status": "PROVIDER_ERROR",
-                "provider": str(
-                    getattr(
-                        proof_state_provider,
-                        "name",
-                        type(proof_state_provider).__name__,
-                    )
-                ),
-                "error": "declaration inspection provider returned a non-object",
-                "proof_evidence_status": (
-                    "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
-                ),
-            }
-        result = deepcopy(dict(raw))
-        indexed_source_context: dict[str, Any] = {}
-        indexed_module_prefix_context: dict[str, Any] = {}
-        active_project_api_context: dict[str, Any] = {}
-        if active_declaration is not None:
-            indexed_path = Path(active_declaration["path"])
-            try:
-                indexed_lines = indexed_path.read_text(
-                    encoding="utf-8"
-                ).splitlines()
-            except OSError:
-                indexed_lines = []
-            if indexed_lines:
-                prefix_end_line = min(len(indexed_lines), 64)
-                prefix_content = "\n".join(
-                    indexed_lines[:prefix_end_line]
-                )
-                indexed_module_prefix_context = {
-                    "file_path": str(indexed_path),
-                    "start_line": 1,
-                    "end_line": prefix_end_line,
-                    "content": prefix_content[:20_000],
-                    "content_truncated": len(prefix_content) > 20_000,
-                }
-                indexed_line = max(
-                    1,
-                    min(int(active_declaration["line"] or 1), len(indexed_lines)),
-                )
-                start_line = max(1, indexed_line - context_lines)
-                end_line = min(len(indexed_lines), indexed_line + context_lines)
-                indexed_content = "\n".join(
-                    indexed_lines[start_line - 1 : end_line]
-                )
-                indexed_source_context = {
-                    "file_path": str(indexed_path),
-                    "indexed_line": indexed_line,
-                    "start_line": start_line,
-                    "end_line": end_line,
-                    "content": indexed_content[:20_000],
-                    "content_truncated": len(indexed_content) > 20_000,
-                }
-            indexed_signature = str(
-                active_declaration.get("signature", "") or ""
-            )
-            indexed_symbol = str(
-                active_declaration.get("source_symbol", "") or ""
-            )
-            indexed_context_observed = bool(
-                indexed_symbol
-                and (
-                    indexed_symbol in indexed_signature
-                    or indexed_symbol
-                    in str(indexed_source_context.get("content", "") or "")
-                )
-            )
-            active_project_api_context = {
-                "context_contract": (
-                    "Treat importable_module, qualified_declaration, namespace_path, "
-                    "source_module_prefix_reference, and declaration_source_context "
-                    "as one active-project API observation. Import importable_module "
-                    "when reusing the declaration; do not substitute the source "
-                    "module's internal dependency imports or copy unrelated "
-                    "declarations from its prefix."
-                ),
-                "importable_module": str(
-                    active_declaration.get("importable_module", "") or ""
-                ),
-                "qualified_declaration": str(
-                    active_declaration.get("qualified_symbol", "") or ""
-                ),
-                "namespace_path": str(
-                    active_declaration.get("namespace", "") or ""
-                ),
-                "exact_signature": indexed_signature,
-                "source_module_prefix_reference": indexed_module_prefix_context,
-                "declaration_source_context": indexed_source_context,
-            }
-            result["provider_observation_ok"] = bool(result.get("ok", False))
-            result["active_project_api_context"] = active_project_api_context
-            result["indexed_declaration_signature"] = indexed_signature
-            result["indexed_symbol_context_observed"] = indexed_context_observed
-            if indexed_context_observed:
-                result["ok"] = True
-                if not result["provider_observation_ok"]:
-                    result["status"] = "INDEXED_SOURCE_OBSERVED"
-        result.update(
-            {
-                "inspection_binding": inspection_binding,
-                "requested_symbol": symbol,
-                "inspected_source_symbol": provider_symbol,
-                "candidate_source_hash": source_hash,
-                "candidate_source_checked": candidate_source_checked,
-                **(
-                    {
-                        "indexed_declaration_namespace": str(
-                            active_declaration["namespace"]
-                        ),
-                        "indexed_declaration_line": int(
-                            active_declaration["line"]
-                        ),
-                    }
-                    if active_declaration is not None
-                    else {}
-                ),
-            }
-        )
-        return result
 
     try:
         revised_packet, loop_evidence = (
@@ -18788,11 +18553,7 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                     if proof_state_provider is not None
                     else None
                 ),
-                inspect_lean_declaration=(
-                    inspect_lean_declaration
-                    if callable(declaration_inspector)
-                    else None
-                ),
+                inspect_lean_declaration=inspect_lean_declaration,
                 session_dir=(
                     Path(lean_candidate_root)
                     / _safe_identifier(question.id)
