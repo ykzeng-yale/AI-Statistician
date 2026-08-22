@@ -1,13 +1,13 @@
 {
-  "schema_version": 141,
+  "schema_version": 142,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "9a224b534cc8cce2fce48a8834810e2ac502b257",
+  "validated_code_head": "f775f7164cadc17440f011c7dd254133b84638a9",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all twenty-six consumed tasks and treat commit 9a224b53 as future-task harness evidence only. Continue removing routine planning/router calls so each Theory, Python/R, Simulation, review, or Lean source owner uses one model-tool session, while task intent, independent review, confirmatory blinding, and kernel authority remain outer evidence boundaries. The next disjoint evaluation must not add scientific rules, a repair agent, scheduler, model retry, or mandatory Formalizer work. The capability ladder is 0/26.",
+  "current_goal_focus": "Preserve all twenty-six consumed tasks and treat commit f775f716 as future-task harness evidence only. Continue converging Theory, Python/R, Simulation, review, and Lean onto one Codex-shaped model-tool session per source owner, with model-directed context selection and no routine Architect routing. Task intent, independent review, confirmatory blinding, evaluator isolation, and kernel authority remain outer evidence boundaries. The next disjoint evaluation must not add scientific formulas, a repair agent, second scheduler, reviewer vote, model retry, or mandatory Formalizer work. The capability ladder is 0/26.",
   "latest_its_time_source_execution_calibration": {
     "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
@@ -147,6 +147,7 @@
     "runtime_manifest_sha256": "2f3089ebc3907964835c30100da7509a962dd805e5703e1a439a88ebe7f2b826",
     "hidden_gold_report_sha256": "1ce19550ce812eaa6b8001fcd3ce8dc7508a1205337730300afee82bc45b6894",
     "post_run_shared_mechanism_change": "none",
+    "later_cross_run_generic_referee_change": "f775f716 removes exhaustive deterministic document coverage and extends the same isolated review segment for future disjoint tasks; it does not encode exponential-rate content or alter this result",
     "full_task_passed": false,
     "full_task_score": "0/1",
     "ladder_score_after_consumption": "0/21",
@@ -233,8 +234,11 @@
     ]
   },
   "validated_change": {
-    "commit": "9a224b534cc8cce2fce48a8834810e2ac502b257",
+    "commit": "f775f7164cadc17440f011c7dd254133b84638a9",
     "changes": [
+      "Commit f775f716 applies the official OpenAI Codex model-directed context principle to the existing isolated theory referee. Runtime still requires an exact hash-bound read of authoritative theory and records every inspected range, but it no longer forces exhaustive line coverage of every document or asks the model to paraphrase every indexed claim.",
+      "The same referee prompt now prioritizes a model-selected load-bearing dependency chain, attempted falsification, scale and order checks, and explicit instantiation of invoked standard results. Ordered statuses remain a compact evidence envelope; materially unchecked claims must be marked UNCERTAIN, and the model-owned Markdown report remains mathematical authority. No statistical formula, deterministic math parser, task-family rule, reviewer vote, RepairAgent, or second scheduler was added.",
+      "One referee segment now permits twelve tool turns instead of five, avoiding an outer AgentRuntime checkpoint for ordinary document reads, source lookup, scratch work, and report editing. This is capacity for the same session rather than a mandatory retry or extra model call. The change deletes 61 net lines; the focused referee suite passed 57/57, adjacent routing/runtime tests passed 106/106, architecture budgets passed 7/7, compile-all passed, and the complete repository passed 863/863 in 69.01 seconds. No model/API call, benchmark draw, rerun, rescore, proof, or capability credit occurred.",
       "Commit 9a224b53 applies the official OpenAI Codex same-session model/tool principle to fresh exploratory SimulationEngineer work. The existing propose boundary emits only a deterministic intent envelope with planning_model_call_used=false; the same source-owning model chooses the DGP and diagnostics, authors Python/R, receives raw sandbox observations, and revises source without a separate planning sample.",
       "Confirmatory simulation is unchanged: frozen metric contracts, accepted estimator lineage, cohort blinding, and independent evidence authority remain mandatory. Source-owned continuation loads an exact bound intent packet when present and rejects stale identity before another model call. No app-server, thread manager, provider transport, subagent scheduler, repair worker, scientific formula, or task-family branch was added.",
       "The focused source/runtime/cross-task panel passed 96/96 and the complete repository passed 863/863 in 72.26 seconds. Compile-all and diff checks passed; research_agent_runtime.py is 24,962 lines, the Python package is 149,992 lines, and production_design.md is 399 lines. No product model call, benchmark draw, rerun, rescore, proof, or capability credit occurred.",

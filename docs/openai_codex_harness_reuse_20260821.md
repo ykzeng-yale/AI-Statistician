@@ -202,8 +202,8 @@ placing another Codex thread manager around `AgentRuntime`.
    exact tool result already remain in the same client-tool session, so runtime
    no longer forces the author to reread every line at the final document hash
    before requesting independent review. Model-chosen reads remain recorded,
-   while the isolated referee still has to inspect every authoritative document
-   under its separate hash-bound coverage gate.
+   while the isolated referee must inspect authoritative theory through separate
+   hash-bound tools and cannot accept from the structured index alone.
 5. Python and R source workspaces now survive an exhausted inner tool-loop
    segment without regenerating their planning envelope. The next outer-runtime
    step returns the exact content-addressed source and its raw execution
@@ -308,9 +308,22 @@ placing another Codex thread manager around `AgentRuntime`.
     identity, transcript bytes, workspace, or owner fails before another model call.
     Independent reviewers still receive artifact-only context and never inherit an
     author's transcript.
+15. The independent theory referee now chooses its own document context in the same
+    way that a Codex coding agent chooses files and ranges. Runtime still requires at
+    least one exact read of authoritative theory, records every range and hash, and
+    rejects acceptance from the structured handoff alone, but it no longer requires
+    exhaustive line coverage of every document. The review prompt asks the model to
+    identify and try to falsify the load-bearing dependency chain, instantiate any
+    invoked standard result in the candidate's notation, and mark materially unchecked
+    claims `UNCERTAIN`. Ordered claim statuses remain a compact disposition index; the
+    Markdown report carries the actual mathematical argument. One uninterrupted review
+    segment now permits twelve tool turns instead of five, so ordinary reads, source
+    lookup, scratch work, and report editing do not require an outer AgentRuntime
+    checkpoint. This removes a deterministic context-selection rule and adds no agent,
+    scheduler, formula check, reviewer vote, or runtime-authored mathematical result.
 
-These changes add no model call, retry, turn, agent, scheduler, model tier,
-statistical formula, Lean grammar rule, or repair recipe.
+These changes add no mandatory model call, retry, reflection turn, agent,
+scheduler, model tier, statistical formula, Lean grammar rule, or repair recipe.
 
 Codex ordinarily lets a final assistant message end a turn. AI-Statistician keeps
 small typed terminal tools where the product must distinguish a proposed theory
@@ -439,6 +452,16 @@ claim that document iteration improves correctness. The affected 139-test panel 
 the full 808-test suite pass; the consumed Fisher candidate remains `0/1` and all
 seventeen scored tasks remain `0/17`.
 
+A later cross-run audit of the Fisher-z and exponential-rate traces found a narrower
+shared attention-allocation defect: exhaustive line coverage and a short tool segment
+encouraged broad paraphrase while both reports waved through their decisive transition
+as standard algebra or standard asymptotics. The current correction removes exhaustive
+coverage, gives the same isolated model a longer uninterrupted session, and focuses its
+prompt on a model-selected load-bearing chain and attempted falsification. It does not
+encode either task's formula or assert that exact Haiku will now judge the mathematics
+correctly. The frozen runs remain unchanged failures; only future disjoint tasks can
+provide capability evidence.
+
 ### Exponential-rate live validation
 
 The frozen exponential-rate MLE L0 draw is the clearest end-to-end validation of the
@@ -461,9 +484,11 @@ boolean sample entry contrary to the public ABI; the one-shot code reviewer miss
 This result sets the correct reuse boundary. Codex-style tool binding supplies durable
 workspaces, exact observations, same-owner revision, isolated review context, and clear
 harness-failure separation. It does not supply mathematical judgment or guarantee that
-two calls to the same small model are independent in capability. No formula parser,
-boolean special case, extra vote, retry, prompt patch, rerun, or rescore was added. The
-task remains immutable `0/1`, and the ladder becomes `0/21`.
+two calls to the same small model are independent in capability. At the time of that
+run, no formula parser, boolean special case, extra vote, retry, prompt patch, rerun, or
+rescore was added. The task remains immutable `0/1`, and the ladder becomes `0/21`.
+The later generic referee context-selection correction described above does not repair
+or rescore this artifact.
 
 ### Reused collaboration semantics
 
