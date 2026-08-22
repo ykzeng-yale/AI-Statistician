@@ -1,13 +1,13 @@
 {
-  "schema_version": 118,
+  "schema_version": 119,
   "updated_at": "2026-08-21",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "fc7d335ccc582338609e77ce24d400f05fa80abd",
+  "validated_code_head": "8494072932a42dc0a5df8048bb6cbf12cbd6caf6",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. The consumed exponential-rate MLE draw remains immutable 0/1: its mathematical and boolean-input defects receive no formula rule, special case, vote, retry, rerun, repair, or rescore. Canonical document-native Theory packets now give AlgorithmEngineer and SimulationEngineer the same exact hash-bound Markdown/LaTeX plus complete claim DAG in both planning and actual Python/R source-owner sessions; structured handoff carries only identity and executable ABI, while historical no-document packets remain replay-compatible. Twenty-one scored tasks remain 0/21. The next measured design debt is the separate structured planning turn before each scientific source workspace; remove it only by merging responsibilities into the existing model-tool-observation loop, never by adding another adapter, agent, or scheduler.",
+  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. Commit 84940729 removes the redundant fresh AlgorithmEngineer planning request: one native source-owner model session now reads exact hash-bound Theory documents and ABI, plans, authors, executes, revises, and commits source from raw observations. Runtime emits only a provenance-and-identity projection for independent review; no claim-alignment JSON or copied mathematical handoff was added. Simulation planning remains separate because it freezes metric bindings and confirmatory precision before outcome-bearing execution. Twenty-one scored tasks remain immutable 0/21. The next priority is measured long-horizon TheoryDeveloper and paper-replication capability, not another coding interface, repair layer, budget increase, or frozen-task rerun.",
   "latest_exponential_rate_mle_evaluation": {
     "task_id": "exponential_rate_mle_pivot_known_result",
     "run_id": "main_worker_research_l0_exponential_rate_mle_20260821_v1_codex_harness_exact_haiku",
@@ -121,8 +121,14 @@
     ]
   },
   "validated_change": {
-    "commit": "fc7d335ccc582338609e77ce24d400f05fa80abd",
+    "commit": "8494072932a42dc0a5df8048bb6cbf12cbd6caf6",
     "changes": [
+      "Commit 84940729 makes the native AlgorithmEngineer source workspace the owner of both implementation planning and source authoring on fresh generated-code tasks. The separate structured propose() call is bypassed, removing exactly one provider request per fresh Algorithm task without adding source turns, retries, budget, agents, or schedulers.",
+      "The same model session receives the exact question, hash-bound Markdown/LaTeX Theory documents, complete claim DAG, immutable Theory-owned estimator ABI, sandbox tools, and every raw execution observation. It chooses all source bytes and revisions and must explicitly commit an accepted source hash; runtime supplies no strategy or correction rule.",
+      "The post-execution AlgorithmEngineerProposalPacket name remains a legacy review ABI only. Its canonical direct-source form contains estimator identities, exact rechecked source hashes, source-workspace artifact and transcript identities, model provenance, and executable ABI. It contains no mathematical prose, implementation strategy, repair instruction, or new model-authored handoff. Independent review uses its existing canonical-theory fallback and reads every authoritative Theory document.",
+      "A failed first source segment can resume from one stable source-workspace intent before a proposal packet exists. Exact checkpoint bytes and the last raw sandbox observation return to AlgorithmEngineer with zero proposal or Architect calls. Historical structured providers, source replay, and consumer backedges remain compatible.",
+      "SimulationEngineer deliberately retains its pre-execution planning call because that stage owns frozen metric-path bindings and confirmatory replicate selection before outcome-bearing source execution. The change does not merge unlike authorities merely to reduce call count.",
+      "Direct routing, no-proposal continuation, provenance-only review projection, legacy fallback, semantic review, source hash binding, and model-policy regressions passed; the full local suite passed 825/825 in 66.91 seconds. research_agent_runtime.py is 24,913 lines under the unchanged strict 25,000-line limit. No Claude call, benchmark rerun, output repair, hidden evaluation, statistical rule, Lean rule, proof, score, or E2E credit was produced; all twenty-one consumed tasks remain 0/21.",
       "Commit fc7d335c makes the document-authority declaration true at the Python/R authoring boundary. AlgorithmEngineer and SimulationEngineer planning views and their actual source-owning model-tool-observation sessions now consume one shared context containing exact hash-bound Markdown/LaTeX documents, the complete compact claim DAG, and only estimator identity plus executable ABI.",
       "For canonical document-native packets, duplicated problem-card, formula, algorithm-sketch, theorem-card, and ADeMP prose is absent from coding-agent contexts. Historical packets with no documents keep the old structured fallback for replay; a packet that presents documents with inconsistent authority metadata fails closed instead of silently choosing another authority.",
       "The existing executable estimator projection is reused to omit retired legacy rate metadata without parsing, calculating, or repairing mathematics. Immutable replay of the consumed exponential-rate artifact reduced Algorithm planning context from 20,712 to 17,067 bytes and Simulation context from 16,271 to 15,123 bytes while preserving the 9,552-byte theory document and all claim identities.",
@@ -345,9 +351,9 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model independently chooses every claim, dependency, research-source query, source handle, exact read, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, confirmatory replicate count, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, median-of-means, AR(1), Fisher-z, paired-ratio, and scalar-control-variate expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, automatic literature query or source selection, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback. Terminal disposition is generic control-plane capacity and cannot execute an extra research action; dependency and trace projections preserve identity, hashes, ABI, exact-output locations, and unique unreferenced observations without selecting or rewriting scientific content.",
     "verification": {
-      "full_pytest": "816 passed in 68.49s",
-      "next_frozen_activation": "none; all nineteen scored tasks are consumed and closed, and a future disjoint task requires a new fully frozen and pushed authority bundle before its first model call",
-      "affected_subsystem_pytest": "18/18 AgentRuntime and simulation projection tests passed; full in-memory output, bounded referenced persistence, and exact unreferenced-output fallback are covered",
+      "full_pytest": "825 passed in 66.91s",
+      "next_frozen_activation": "none; all twenty-one scored tasks are consumed and closed, and a future disjoint task requires a new fully frozen and pushed authority bundle before its first model call",
+      "affected_subsystem_pytest": "Direct Algorithm routing, no-proposal source continuation, provenance-only review projection, exact source hash binding, legacy fallback, semantic review, core budget, and full-suite regressions passed",
       "simulation_dependency_prompt_projection": "immutable live replay reduced 6,812,024 bytes of recursive environment feedback to a 45,314-byte complete planning prompt; accepted estimator ABI plus source/result hashes remained visible, while source bytes and 4,000 historical smoke-result rows were absent",
       "persisted_tool_call_projection": "immutable scalar replay reduced the largest tool record from 3,370,158 to 18,379 bytes and the complete ten-row trace from 3,440,322 to 89,326 bytes, preserving summary hash, output hash, and output paths; large observations without external authoritative output remain exact inline",
       "visible_estimator_contract": "schema-v2 executable tasks fail closed unless every public ABI field has explicit semantics, hidden checks cite valid public clauses under one estimator identity, and each hidden empirical check also cites a compact public empirical claim; the exact contract reaches scientific model contexts without being copied into agent result packets",
@@ -368,9 +374,10 @@
       "lean_workspace_continuation": "the second tool-loop segment receives the exact failed source, compiler stderr, formal search observation, checked-candidate set, and predecessor identity; it does not recheck the parent, preserves the immutable original parent hash, and rejects tampering or no-new-observation continuation before a provider call",
       "theory_referee_workspace_continuation": "a two-segment independent review restores the exact prior Markdown read, task-bound source handle, document coverage, and terminal-validator observation; AgentRuntime uses one blackboard reference, calls the referee twice, calls Architect planning zero times, preserves cumulative source budgets, and blocks tamper or no-progress lineage before a provider call",
       "theory_referee_report_workspace": "the same isolated model writes, reads, hash-edits, and submits one Markdown report by SHA; terminal JSON contains no report body, checkpoints retain only a validated draft manifest, stale hashes return as actionable observations, and disk tampering fails before a provider call",
-      "runtime_core_growth": "research_agent_runtime.py is 24999 lines; confirmatory precision resolves through one shared contract helper and the existing Simulation path rather than a router, scheduler, or repair layer, and the unchanged strict-under-25000-line regression budget passes."
+      "algorithm_source_workspace_planning": "fresh native-tool Algorithm tasks make zero structured proposal calls and one source-owner workspace call; accepted source bytes are rehash-checked and projected by identity for independent review, while an incomplete first segment resumes by source-workspace intent before any proposal exists",
+      "runtime_core_growth": "research_agent_runtime.py is 24913 lines; Algorithm planning now lives in the existing source-owner loop, Simulation retains its frozen-metric planning authority, and the unchanged strict-under-25000-line regression budget passes."
     },
-    "evidence_boundary": "The visible estimator contract and schema-v2 hidden-check bindings make executable and empirical acceptance semantics inspectable before a model call, but clause references cannot prove scientific entailment or candidate correctness. Scalar control-variate v1 reached accepted runtime theory, code, and metric checkpoints but no generated simulation; its evaluator-only empirical pass cannot close that missing runtime lane, and hidden theory remained inconclusive. Trace compaction changes duplicate persistence only and supplies no scientific credit. All nineteen scored tasks remain 0/19 full-task passes, no new draw is authorized, and exact development theorem closure remains 0/2."
+    "evidence_boundary": "The visible estimator contract and schema-v2 hidden-check bindings make executable and empirical acceptance semantics inspectable before a model call, but clause references cannot prove scientific entailment or candidate correctness. Scalar control-variate v1 reached accepted runtime theory, code, and metric checkpoints but no generated simulation; its evaluator-only empirical pass cannot close that missing runtime lane, and hidden theory remained inconclusive. Removing one Algorithm planning call has deterministic mechanism evidence only and supplies no scientific credit. All twenty-one scored tasks remain 0/21 full-task passes, no new draw is authorized, and exact development theorem closure remains 0/2."
   },
   "latest_component_evidence": {
     "id": "research_l0_scalar_control_variate_v1_codex_harness_exact_haiku_20260821",
@@ -745,7 +752,7 @@
       "the research-capability ladder now has nineteen consumed focused tasks and still lacks a passing paper replication or hidden rederivation full task; scalar control-variate v1 supplies the deepest accepted runtime trajectory but no generated simulation or full hidden acceptance, while Fisher-z remains a hidden code-and-empirical component pass with failed theory semantics and runtime completion; repeated bundled S13 runs cannot substitute for this diagnostic ladder",
       "the active Lean foundation pins Statlib 6575d611 on Lean 4.30, while fetched Statlib origin/main 01d2a03 adds EVariable and DPI foundations on Lean 4.33. The active importable corpus and latest upstream discovery corpus must retain distinct snapshot identities until a deliberate compatibility migration succeeds",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
-      "research_agent_runtime.py remains large at 24999 lines even though the canonical review path is document-native and architect_theory_execution_preflight.py is 4761 lines; any further extraction must remove a measured central responsibility rather than add another outer interface"
+      "research_agent_runtime.py remains large at 24913 lines even though the canonical review path is document-native and fresh Algorithm planning now lives in the source-owner workspace; any further extraction must remove a measured central responsibility rather than add another outer interface"
     ],
     "wrong_next_move": "Do not add a repair worker, packet patcher, theorem-specific bridge, Lean grammar fixer, forced tactic policy, hardcoded statistical answer, fixed universal simulation count, more outer budget, or another scheduler."
   },
@@ -757,22 +764,22 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 52-58%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "0/19 consumed tasks passed; scalar control-variate reached accepted runtime theory, estimator source, and metric review but no generated simulation, hidden theory remained inconclusive, and hidden algorithm acceptance failed; evaluator-only empirical success cannot complete the task",
+    "fully_gold_covered_research_tasks": "0/21 consumed tasks passed; exponential-rate completed the non-formal runtime but failed hidden theory and algorithm authority, while scalar control-variate reached accepted runtime theory, estimator source, and metric review but no generated simulation; component evidence cannot complete either task",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24999,
-    "scientific_code_workspace_lines": 2213,
+    "research_agent_runtime_lines": 24913,
+    "scientific_code_workspace_lines": 2295,
     "theory_workspace_lines": 3469,
-    "research_architect_lines": 5237,
-    "architect_theory_execution_preflight_lines": 5225,
+    "research_architect_lines": 5214,
+    "architect_theory_execution_preflight_lines": 5229,
     "architect_metric_contract_authoring_lines": 2822,
     "formalizer_llm_lines": 2418,
-    "agent_runtime_lines": 1247,
+    "agent_runtime_lines": 1255,
     "cli_lines": 7138,
     "top_level_python_modules": 142,
-    "top_level_package_lines": 147379,
+    "top_level_package_lines": 147622,
     "latest_runtime_manifest_bytes": 51442
   },
   "next_gates": [
