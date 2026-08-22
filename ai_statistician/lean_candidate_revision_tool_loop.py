@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    load_client_tool_session,
+    persist_client_tool_session,
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
@@ -431,6 +434,7 @@ def run_lean_candidate_revision_tool_loop(
     allow_formal_gap: bool = False,
     request_metadata: Mapping[str, Any] | None = None,
     recovery_checkpoint: Mapping[str, Any] | None = None,
+    session_dir: Path | None = None,
 ) -> LeanCandidateRevisionToolLoopResult:
     """Let the model author or revise one immutable-bound Lean target."""
 
@@ -997,6 +1001,42 @@ def run_lean_candidate_revision_tool_loop(
             ],
         },
     )
+    resolved_session_dir = session_dir.resolve() if session_dir else None
+    resumed_client_tool_session_ref: dict[str, Any] = {}
+    prior_client_tool_session_ref = (
+        recovery_checkpoint.get("client_tool_session_ref", {})
+        if isinstance(recovery_checkpoint, Mapping)
+        else {}
+    )
+    if prior_client_tool_session_ref:
+        if not isinstance(prior_client_tool_session_ref, Mapping):
+            raise ValueError("Lean client-tool session reference is malformed")
+        if resolved_session_dir is None:
+            raise ValueError(
+                "Lean client-tool session resume requires a persistent directory"
+            )
+        prior_messages = load_client_tool_session(
+            prior_client_tool_session_ref,
+            session_dir=resolved_session_dir,
+            session_id=f"lean:{candidate_id}",
+            request=request,
+        )
+        resumed_client_tool_session_ref = deepcopy(
+            dict(prior_client_tool_session_ref)
+        )
+        request = replace(
+            request,
+            messages=(*prior_messages, *request.messages),
+            metadata={
+                **dict(request.metadata),
+                "resumed_client_tool_session_fingerprint": str(
+                    prior_client_tool_session_ref.get(
+                        "transcript_fingerprint", ""
+                    )
+                    or ""
+                ),
+            },
+        )
 
     # Permit one search + submit pair; terminal retries remain a separate budget.
     max_tool_calls = max_turns + 1
@@ -1011,6 +1051,12 @@ def run_lean_candidate_revision_tool_loop(
             max_terminal_recovery_turns=max_terminal_recovery_turns,
         )
     except ClientToolLoopError as exc:
+        client_tool_session_ref = persist_client_tool_session(
+            session_dir=resolved_session_dir,
+            session_id=f"lean:{candidate_id}",
+            request=request,
+            messages=exc.messages,
+        )
         new_progress = bool(
             len(state["workspace_observation_fingerprints"])
             > segment_start_observation_count
@@ -1066,6 +1112,11 @@ def run_lean_candidate_revision_tool_loop(
             "provider": exc.provider,
             "model": exc.model or model,
             "model_tier": model_tier,
+            **(
+                {"client_tool_session_ref": client_tool_session_ref}
+                if client_tool_session_ref
+                else {}
+            ),
             "resumable": new_progress,
             "accepted": False,
             "runtime_selected_lean_code": False,
@@ -1086,6 +1137,12 @@ def run_lean_candidate_revision_tool_loop(
             ),
         ) from exc
 
+    client_tool_session_ref = persist_client_tool_session(
+        session_dir=resolved_session_dir,
+        session_id=f"lean:{candidate_id}",
+        request=request,
+        messages=loop.messages,
+    )
     terminal = dict(loop.terminal_payload)
     disposition = str(terminal.get("disposition", "AUTHOR_LEAN") or "AUTHOR_LEAN")
     if disposition == "FORMAL_GAP":
@@ -1133,6 +1190,10 @@ def run_lean_candidate_revision_tool_loop(
             segment_start_counters=segment_start_counters,
             segment_start_observation_count=(
                 segment_start_observation_count
+            ),
+            client_tool_session_ref=client_tool_session_ref,
+            resumed_client_tool_session_ref=(
+                resumed_client_tool_session_ref
             ),
         )
     source = str(terminal.get("lean_source", "") or "")
@@ -1186,6 +1247,8 @@ def run_lean_candidate_revision_tool_loop(
         resumed_from_checkpoint_id=resume_metadata["resume_checkpoint_id"],
         segment_start_counters=segment_start_counters,
         segment_start_observation_count=segment_start_observation_count,
+        client_tool_session_ref=client_tool_session_ref,
+        resumed_client_tool_session_ref=resumed_client_tool_session_ref,
     )
 
 
@@ -1219,6 +1282,8 @@ def _lean_candidate_revision_success_result(
     resumed_from_checkpoint_id: str,
     segment_start_counters: Mapping[str, int],
     segment_start_observation_count: int,
+    client_tool_session_ref: Mapping[str, Any],
+    resumed_client_tool_session_ref: Mapping[str, Any],
 ) -> LeanCandidateRevisionToolLoopResult:
     source_hash = stable_hash(source)
     accepted_model_source = disposition == "AUTHOR_LEAN"
@@ -1255,6 +1320,13 @@ def _lean_candidate_revision_success_result(
         **({"formal_gap": deepcopy(dict(formal_gap))} if formal_gap else {}),
         "workspace_phase": workspace_phase,
         "resumed_from_checkpoint_id": resumed_from_checkpoint_id,
+        "client_tool_session_ref": deepcopy(dict(client_tool_session_ref)),
+        "resumed_from_client_tool_session_ref": deepcopy(
+            dict(resumed_client_tool_session_ref)
+        ),
+        "client_tool_session_continued": bool(
+            resumed_client_tool_session_ref
+        ),
         "workspace_segment_start_counters": dict(segment_start_counters),
         "workspace_segment_start_observation_count": (
             segment_start_observation_count

@@ -83,6 +83,70 @@ def test_research_eval_contract_requires_research_lane_without_formalizer() -> N
     assert "FormalizationEvaluator" not in required
 
 
+def test_source_only_checkpoint_completes_without_unrelated_critic() -> None:
+    question = {
+        "id": "source-only-evaluation",
+        "title": "Source only",
+        "description": "Replicate one immutable source.",
+        "tags": [],
+        "task_intent": {
+            "source_replication": "required",
+            "theory": "not_applicable",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+            "unresolved_gaps": "required",
+        },
+    }
+    checkpoint_id = "source_replication_checkpoint:test"
+    artifacts = {
+        "question-metadata": {
+            "artifact_kind": "RuntimeQuestionMetadata",
+            "question": question,
+        },
+        checkpoint_id: {
+            "artifact_kind": "SourceReplicationCheckpoint",
+            "checkpoint_id": checkpoint_id,
+            "question_id": question["id"],
+            "runtime_completion_status": (
+                "SOURCE_EXECUTION_RECORDED_REQUIRES_HIDDEN_EVALUATION"
+            ),
+            "report_document": {"relative_path": "report.md"},
+            "unresolved_gaps": [],
+            "model_authored_report": True,
+            "runtime_edited_report": False,
+            "runtime_edited_source": False,
+        },
+    }
+
+    summary = build_research_evaluation_summary(
+        [
+            {
+                "status": "ACCEPTED",
+                "blackboard": {"artifacts": artifacts},
+                "traces": (
+                    {
+                        "subsystem": "TheoryDeveloper",
+                        "status": "ACCEPTED",
+                        "produced_artifact_ids": (checkpoint_id,),
+                    },
+                ),
+            }
+        ],
+        evaluation_mode="research_eval",
+        schema_version="test",
+    )
+
+    row = summary["rows"][0]
+    assert row["research_eval_complete"] is True
+    assert row["required_capability_checks"] == [
+        "source_replication_checkpoint_recorded",
+        "source_replication_unresolved_gap_disclosure_present",
+    ]
+    assert row["requirements"]["critic_research_acceptance"] is False
+    assert row["dimension_requirements"]["source_replication"] == "required"
+
+
 def test_accepted_metric_rows_replace_the_exploratory_replicate_fallback() -> None:
     theory_material = {
         "artifact_kind": "RuntimeTheoryInformedMetricProtocolMaterial",

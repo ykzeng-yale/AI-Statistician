@@ -11,6 +11,8 @@ from ai_statistician.client_tool_loop import (
     ClientToolInputError,
     ClientToolLoopError,
     ClientToolRuntimeError,
+    load_client_tool_session,
+    persist_client_tool_session,
     run_bounded_client_tool_loop,
 )
 from ai_statistician.model_backend import (
@@ -95,6 +97,101 @@ def _request() -> ClientToolTurnRequest:
         model="claude-haiku-4-5-20251001",
         metadata={"model_tier": "haiku"},
     )
+
+
+def test_client_tool_session_roundtrips_exact_transcript(tmp_path) -> None:
+    request = _request()
+    messages = (
+        *request.messages,
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "call-edit",
+                    "name": "edit",
+                    "input": {"value": 2},
+                }
+            ],
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "call-edit",
+                    "content": '{"ok":true,"value":2}',
+                    "is_error": False,
+                }
+            ],
+        },
+    )
+
+    reference = persist_client_tool_session(
+        session_dir=tmp_path,
+        session_id="theory:q1",
+        request=request,
+        messages=messages,
+    )
+
+    assert reference["message_count"] == len(messages)
+    assert reference["root_path"] == str(tmp_path.resolve())
+    assert reference["relative_path"].startswith(".client_tool_sessions/")
+    assert load_client_tool_session(
+        reference,
+        session_dir=tmp_path,
+        session_id="theory:q1",
+        request=request,
+    ) == messages
+
+
+def test_client_tool_session_rejects_contract_drift_and_tampering(tmp_path) -> None:
+    request = _request()
+    reference = persist_client_tool_session(
+        session_dir=tmp_path,
+        session_id="theory:q1",
+        request=request,
+        messages=request.messages,
+    )
+
+    changed_model = replace(request, model="claude-sonnet-4-20250514")
+    with pytest.raises(ValueError, match="identity mismatch"):
+        load_client_tool_session(
+            reference,
+            session_dir=tmp_path,
+            session_id="theory:q1",
+            request=changed_model,
+        )
+
+    changed_tools = replace(
+        request,
+        tools=(*request.tools, _tool("search")),
+    )
+    with pytest.raises(ValueError, match="identity mismatch"):
+        load_client_tool_session(
+            reference,
+            session_dir=tmp_path,
+            session_id="theory:q1",
+            request=changed_tools,
+        )
+
+    with pytest.raises(ValueError, match="identity mismatch"):
+        load_client_tool_session(
+            reference,
+            session_dir=tmp_path / "different-workspace",
+            session_id="theory:q1",
+            request=request,
+        )
+
+    session_path = tmp_path / reference["relative_path"]
+    session_path.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="bytes do not match"):
+        load_client_tool_session(
+            reference,
+            session_dir=tmp_path,
+            session_id="theory:q1",
+            request=request,
+        )
 
 
 def test_bounded_client_tool_loop_returns_terminal_runtime_payload() -> None:

@@ -17,6 +17,7 @@ from .research_schema import (
     RESEARCH_EVIDENCE_DIMENSIONS,
     OpenResearchQuestion,
     research_dimension_requirements,
+    research_task_intent_requirement,
 )
 from .research_trace_audit import audit_research_traces
 from .verifier import AxleProofVerifier, MockProofVerifier, ProofVerifier
@@ -536,6 +537,37 @@ def _question_id(
     return str(question.get("id", "") or "") if isinstance(question, Mapping) else ""
 
 
+def _latest_source_replication_checkpoint(
+    artifacts: Mapping[str, Mapping[str, Any]],
+    *,
+    question_id: str,
+) -> Mapping[str, Any]:
+    """Find a runtime-validated source checkpoint; hidden gold remains separate."""
+
+    for artifact_id, artifact in reversed(list(artifacts.items())):
+        report = artifact.get("report_document", {})
+        unresolved_gaps = artifact.get("unresolved_gaps")
+        if (
+            artifact.get("artifact_kind") == "SourceReplicationCheckpoint"
+            and artifact.get("checkpoint_id") == artifact_id
+            and artifact.get("question_id") == question_id
+            and artifact.get("runtime_completion_status")
+            == "SOURCE_EXECUTION_RECORDED_REQUIRES_HIDDEN_EVALUATION"
+            and artifact.get("model_authored_report") is True
+            and artifact.get("runtime_edited_report") is False
+            and artifact.get("runtime_edited_source") is False
+            and isinstance(report, Mapping)
+            and str(report.get("relative_path", "") or "").strip()
+            and isinstance(unresolved_gaps, list)
+            and all(
+                isinstance(value, str) and value.strip()
+                for value in unresolved_gaps
+            )
+        ):
+            return artifact
+    return {}
+
+
 def build_research_evaluation_summary(
     results: Sequence[Mapping[str, Any]],
     *,
@@ -549,6 +581,10 @@ def build_research_evaluation_summary(
         task_intent = _question_task_intent(artifacts)
         dimension_requirements = research_dimension_requirements(task_intent)
         explicit_task_intent = bool(dimension_requirements)
+        source_replication_requirement = research_task_intent_requirement(
+            task_intent,
+            "source_replication",
+        )
         if not dimension_requirements:
             dimension_requirements = {
                 "theory": "required",
@@ -557,6 +593,11 @@ def build_research_evaluation_summary(
                 "formal": "optional",
             }
         critic_manifest = _final_accepted_critic_manifest(result, artifacts)
+        question_id = _question_id(result, critic_manifest, artifacts)
+        source_replication_checkpoint = _latest_source_replication_checkpoint(
+            artifacts,
+            question_id=question_id,
+        )
         if critic_manifest:
             theory_packet_id = str(
                 critic_manifest.get("theory_packet_id", "") or ""
@@ -635,6 +676,15 @@ def build_research_evaluation_summary(
             if artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
         ]
         capability_checks = {
+            "source_replication_checkpoint_recorded": bool(
+                source_replication_checkpoint
+            ),
+            "source_replication_unresolved_gap_disclosure_present": bool(
+                source_replication_checkpoint
+                and isinstance(
+                    source_replication_checkpoint.get("unresolved_gaps"), list
+                )
+            ),
             "serious_theory_completed": bool(
                 theory_packet.get("artifact_kind") == "TheoryDerivationPacket"
                 and theory_packet.get("packet_id") == theory_packet_id
@@ -731,7 +781,17 @@ def build_research_evaluation_summary(
         empirical_required = bool(
             dimension_requirements["empirical"] == "required"
         )
+        source_replication_required = bool(
+            source_replication_requirement == "required"
+        )
         required_capability_checks: list[str] = []
+        if source_replication_required:
+            required_capability_checks.extend(
+                (
+                    "source_replication_checkpoint_recorded",
+                    "source_replication_unresolved_gap_disclosure_present",
+                )
+            )
         if theory_required:
             required_capability_checks.append("serious_theory_completed")
         if empirical_required:
@@ -754,12 +814,16 @@ def build_research_evaluation_summary(
                     "simulation_semantic_review_accepted",
                 )
             )
-        required_capability_checks.extend(
-            (
-                "critic_research_acceptance",
-                "critic_unresolved_gap_disclosure_present",
-            )
+        substantive_review_required = bool(
+            theory_required or scientific_code_required or empirical_required
         )
+        if substantive_review_required:
+            required_capability_checks.extend(
+                (
+                    "critic_research_acceptance",
+                    "critic_unresolved_gap_disclosure_present",
+                )
+            )
         formal_executed = bool(executed & STRICT_FORMAL_SUBSYSTEMS)
         formal_requirement = dimension_requirements["formal"]
         if formal_requirement == "required":
@@ -789,14 +853,21 @@ def build_research_evaluation_summary(
         )
         rows.append(
             {
-                "question_id": _question_id(result, critic_manifest, artifacts),
+                "question_id": question_id,
                 "research_loop_complete": research_loop_complete,
                 "mode_conformant": mode_conformant,
                 "research_eval_complete": bool(
                     research_loop_complete
                 ),
                 "requirements": capability_checks,
-                "dimension_requirements": dimension_requirements,
+                "dimension_requirements": {
+                    **(
+                        {"source_replication": source_replication_requirement}
+                        if "source_replication" in task_intent
+                        else {}
+                    ),
+                    **dimension_requirements,
+                },
                 "required_capability_checks": required_capability_checks,
                 "mode_conformance": conformance_checks,
                 "formalization_status": {

@@ -4,6 +4,7 @@ import json
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from .fingerprint import stable_hash
@@ -272,6 +273,7 @@ class LLMSimulationEngineerAgent:
         workspace_operation: str = "targeted_revision",
         allow_current_source_run: bool = False,
         recovery_checkpoint: Mapping[str, Any] | None = None,
+        session_dir: Path | None = None,
     ) -> ScientificCodeWorkspaceResult:
         """Run one direct model -> sandbox -> same-model source loop."""
 
@@ -313,6 +315,7 @@ class LLMSimulationEngineerAgent:
             allow_current_source_run=allow_current_source_run,
             allow_dependency_handoff=True,
             recovery_checkpoint=recovery_checkpoint,
+            session_dir=session_dir,
             request_metadata={
                 "subsystem": "SimulationEvaluator",
                 "agent": "LLMSimulationEngineerAgent",

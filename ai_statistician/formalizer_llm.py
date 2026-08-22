@@ -4,6 +4,7 @@ import json
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
@@ -256,6 +257,7 @@ class LLMFormalizerProofEngineerAgent:
         search_proof_candidates: ProofCandidateSearch | None = None,
         inspect_lean_state: LeanStateInspection | None = None,
         inspect_lean_declaration: LeanDeclarationInspection | None = None,
+        session_dir: Path | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Author or revise one hash-bound target through model-selected tools."""
 
@@ -403,6 +405,7 @@ class LLMFormalizerProofEngineerAgent:
                 )
                 else {}
             ),
+            session_dir=session_dir,
             request_metadata={
                 "subsystem": "FormalizerProofEngineer",
                 "agent": "LLMFormalizerProofEngineerAgent",

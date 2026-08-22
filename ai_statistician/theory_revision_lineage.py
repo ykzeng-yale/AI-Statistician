@@ -381,6 +381,26 @@ def resolve_theory_developer_revision_parent_material(
         theory_packet_id=packet_id,
     )
     material["source_theory_packet_hash"] = expected_packet_hash
+    session_refs = [
+        deepcopy(dict(session_ref))
+        for artifact in artifacts.values()
+        if isinstance(artifact, Mapping)
+        and artifact.get("artifact_kind") == "TheoryDeveloperWorkspaceEvidence"
+        and artifact.get("runtime_source_theory_packet_id") == packet_id
+        and artifact.get("runtime_source_theory_packet_hash")
+        == expected_packet_hash
+        and isinstance(
+            (session_ref := artifact.get("client_tool_session_ref", {})),
+            Mapping,
+        )
+        and session_ref
+    ]
+    if len(session_refs) > 1 and len(
+        {stable_hash(session_ref) for session_ref in session_refs}
+    ) > 1:
+        raise ValueError("theory revision parent has conflicting session references")
+    if session_refs:
+        material["parent_client_tool_session_ref"] = session_refs[-1]
     return material
 
 

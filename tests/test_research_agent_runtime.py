@@ -84,6 +84,37 @@ def test_research_evaluation_is_pinned_to_exact_haiku_snapshot() -> None:
         )
 
 
+def test_required_source_replication_precedes_non_applicable_model_route() -> None:
+    question = OpenResearchQuestion(
+        id="source-routing",
+        title="Source routing",
+        description="Replicate one bound source without unrelated lanes.",
+        task_intent={
+            "source_replication": "required",
+            "theory": "not_applicable",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+            "unresolved_gaps": "required",
+        },
+    )
+    contract = runtime_module._runtime_requested_evidence_contract(
+        formal_verification_policy="advisory",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+    )
+
+    selected = runtime_module._architect_feasible_initial_subsystem(
+        "SimulationEvaluator",
+        architect_context={"runtime_requested_evidence_contract": contract},
+        blackboard=BlackboardState(project_id=question.id),
+        question_id=question.id,
+    )
+
+    assert contract["source_replication_requirement"] == "required"
+    assert selected == "TheoryDeveloper"
+
+
 def test_retrieval_memory_skips_lean_search_only_when_formal_is_not_applicable() -> None:
     class RecordingFormalSourceRetriever:
         name = "recording_formal_source"

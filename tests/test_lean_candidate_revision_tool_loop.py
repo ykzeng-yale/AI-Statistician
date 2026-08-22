@@ -84,12 +84,12 @@ def _response(*calls: ClientToolCall) -> ClientToolTurnResponse:
 
 
 def _initial_workspace(request: ClientToolTurnRequest) -> dict:
-    content = request.messages[0]["content"]
-    assert isinstance(content, str)
-    encoded = content.split(
-        "Initial authoritative Lean workspace state:\n", 1
-    )[1]
-    return json.loads(encoded)
+    marker = "Initial authoritative Lean workspace state:\n"
+    for message in reversed(request.messages):
+        content = message.get("content", "")
+        if isinstance(content, str) and marker in content:
+            return json.loads(content.split(marker, 1)[1])
+    raise AssertionError("Lean workspace state is missing from the request")
 
 
 def _lean_workspace_checkpoint(
@@ -1963,7 +1963,9 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
         raise AssertionError("uncompiled final source was not checkpointed")
 
 
-def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift() -> None:
+def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
+    tmp_path,
+) -> None:
     parent = "theorem target : True := by exact missing_parent\n"
     failed = "theorem target : True := by exact missing_revision\n"
     accepted = "theorem target : True := by exact True.intro\n"
@@ -2044,6 +2046,7 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift() -> 
             initial_source=parent,
             check_candidate=check,
             search_formal_environment=lambda query, k: exact_search_result,
+            session_dir=tmp_path / "lean-session",
         )
     checkpoint = dict(raised.value.recovery_checkpoint or {})
     assert checkpoint["resumable"] is True
@@ -2056,6 +2059,8 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift() -> 
         exact_search_result
     )
     assert checkpoint["checks"] == 2
+    session_ref = checkpoint["client_tool_session_ref"]
+    assert session_ref["artifact_kind"] == "ClientToolWorkspaceSessionRef"
 
     second_backend = ScriptedLeanToolBackend(
         [
@@ -2087,6 +2092,7 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift() -> 
         check_candidate=check,
         search_formal_environment=lambda query, k: exact_search_result,
         recovery_checkpoint=checkpoint,
+        session_dir=tmp_path / "lean-session",
     )
 
     resumed_state = _initial_workspace(second_backend.requests[0])
@@ -2104,6 +2110,12 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift() -> 
     ]
     assert result.evidence["local_lean_checks"] == 3
     assert result.evidence["source_updates"] == 2
+    assert result.evidence["client_tool_session_continued"] is True
+    assert result.evidence["resumed_from_client_tool_session_ref"] == session_ref
+    assert "submit-failed" in str(second_backend.requests[0].messages[:-1])
+    assert len(second_backend.requests[0].messages) == (
+        session_ref["message_count"] + 1
+    )
 
 
 def test_lean_candidate_workspace_rejects_tampered_checkpoint_before_model_call() -> None:

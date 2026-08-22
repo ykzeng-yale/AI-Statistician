@@ -51,21 +51,25 @@ def test_ladder_counts_fully_configured_active_tasks_without_embedding_gold() ->
     candidates = ladder["initial_candidate_queue"]
 
     assert candidates
-    active = [candidate for candidate in candidates if candidate["status"] == "active_scored"]
+    scored = [
+        candidate
+        for candidate in candidates
+        if candidate["status"] in {"active_scored", "consumed_scored"}
+    ]
     pending = [
         candidate
         for candidate in candidates
         if candidate["status"].startswith("proposed_pending_")
     ]
-    assert active
-    assert ladder["current_readiness"]["active_scored_tasks"] == len(active)
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == len(active)
+    assert scored
+    assert ladder["current_readiness"]["active_scored_tasks"] == len(scored)
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == len(scored)
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == sum(
         candidate["activation_evidence"].get("full_task_passed") is True
-        for candidate in active
+        for candidate in scored
     )
     assert len({candidate["id"] for candidate in candidates}) == len(candidates)
-    for candidate in active:
+    for candidate in scored:
         assert candidate["gold_runtime_visibility"] == "evaluator_only_after_runtime"
         assert candidate["activation_status"].startswith(
             ("full_task_gold_", "fresh_live_v1_", "frozen_ready_")
@@ -76,7 +80,7 @@ def test_ladder_counts_fully_configured_active_tasks_without_embedding_gold() ->
             "operator_provisioned_outside_repository_and_model_workspace"
         )
         assert len(candidate["gold_manifest_sha256"]) == 64
-    assert len(active) + len(pending) == len(candidates)
+    assert len(scored) + len(pending) == len(candidates)
     forbidden_keys = {
         "expected_answer",
         "expected_results",
@@ -1031,7 +1035,7 @@ def test_scalar_control_variate_l0_frozen_draw_is_consumed_and_closed() -> None:
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 21
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 22
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
@@ -1112,7 +1116,7 @@ def test_pearson_multinomial_gof_l0_frozen_draw_is_consumed_and_closed() -> None
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 21
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 22
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
@@ -1205,7 +1209,7 @@ def test_exponential_rate_mle_l0_authority_is_consumed_after_one_draw() -> None:
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
     assert ladder["current_readiness"]["active_scored_tasks"] == 22
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 21
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 22
     assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 22
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
@@ -1243,7 +1247,7 @@ def test_exponential_rate_mle_l0_authority_is_consumed_after_one_draw() -> None:
         assert hidden_name not in runtime_visible
 
 
-def test_its_time_l1_authority_is_frozen_before_first_product_draw() -> None:
+def test_its_time_l1_draw_is_consumed_without_posthoc_rescore() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -1253,23 +1257,31 @@ def test_its_time_l1_authority_is_frozen_before_first_product_draw() -> None:
 
     assert candidate["level"] == "L1"
     assert candidate["family"] == "instrumental_time_series"
-    assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"] == "frozen_ready_no_product_model_call"
+    assert candidate["status"] == "consumed_scored"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_blocked_before_source_replication"
+    )
     assert candidate["gold_runtime_visibility"] == "evaluator_only_after_runtime"
     evidence = candidate["activation_evidence"]
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["hidden_gold_activated_before_first_product_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["independent_reruns"] == "4/4"
     assert evidence["source_replication_calibration_cases"] == "8/8"
     assert evidence["semantic_calibration_cases"] == "6/6"
     assert evidence["semantic_calibration_model"] == "claude-haiku-4-5-20251001"
     assert evidence["semantic_calibration_model_calls"] == 2
     assert evidence["dynamic_report_evidence_binding"] is True
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_enabled_model_roles"] == 7
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_source_replication_manifest_observed"] is False
+    assert evidence["hidden_gold_full_task_result"] == "0/1"
+    assert "never rerun" in evidence["post_run_policy"].lower()
     assert evidence["full_task_passed"] is False
     assert ladder["current_readiness"]["active_scored_tasks"] == 22
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 21
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 22
     assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 22
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 

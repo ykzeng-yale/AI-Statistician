@@ -832,7 +832,7 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
     )
 
 
-def test_scientific_workspace_resumes_exact_progress_checkpoint() -> None:
+def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> None:
     initial = {
         "language": "python",
         "execution_profile": "stdlib",
@@ -888,6 +888,7 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint() -> None:
                 "stderr": "NameError: missing",
             },
             check_candidate=check,
+            session_dir=tmp_path / "scientific-session",
         )
 
     checkpoint = exc_info.value.recovery_checkpoint
@@ -902,6 +903,8 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint() -> None:
     assert checkpoint["source_updates"] == 1
     assert checkpoint["checks"] == 1
     assert checkpoint["resumable"] is True
+    session_ref = checkpoint["client_tool_session_ref"]
+    assert session_ref["artifact_kind"] == "ClientToolWorkspaceSessionRef"
 
     second_backend = ScriptedScientificBackend(
         [
@@ -936,6 +939,7 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint() -> None:
         initial_check_result=checkpoint_observation,
         check_candidate=resumed_check,
         recovery_checkpoint=checkpoint,
+        session_dir=tmp_path / "scientific-session",
     )
 
     assert executed == [accepted_revision]
@@ -945,7 +949,13 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint() -> None:
     ]
     assert result.evidence["source_updates"] == 2
     assert result.evidence["sandbox_checks"] == 2
+    assert result.evidence["client_tool_session_continued"] is True
+    assert result.evidence["resumed_from_client_tool_session_ref"] == session_ref
     assert checkpoint["checkpoint_id"] in str(second_backend.requests[0].messages)
+    assert "submit-first" in str(second_backend.requests[0].messages[:-1])
+    assert len(second_backend.requests[0].messages) == (
+        session_ref["message_count"] + 1
+    )
 
     tampered = {**checkpoint, "current_code_draft_hash": "tampered"}
     with pytest.raises(ValueError, match="identity mismatch"):

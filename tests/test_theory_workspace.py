@@ -1017,6 +1017,8 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
     assert checkpoint["changed_document_paths"] == [
         "derivations/progress.md"
     ]
+    session_ref = checkpoint["client_tool_session_ref"]
+    assert session_ref["artifact_kind"] == "ClientToolWorkspaceSessionRef"
     artifacts, documents = load_theory_progress_checkpoint_state(
         checkpoint,
         question_id="q1",
@@ -1043,6 +1045,48 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
         backend.requests[2].messages[-1]["content"][0]["content"]
     )
     assert final_write_observation["remaining_submissions"] == 0
+
+    continuation = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="finish-theory-index",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "remainder-bound"}],
+                        }
+                    ),
+                )
+            ),
+            _response(_commit_checkpoint("commit-continued-theory")),
+        ]
+    )
+    result = _run_workspace(
+        continuation,
+        workspace_dir=tmp_path / "theory",
+        require_document_authority=True,
+        initial_artifacts=artifacts,
+        initial_documents=documents,
+        prior_changed_artifact_names=checkpoint["changed_artifact_names"],
+        prior_changed_document_paths=checkpoint["changed_document_paths"],
+        prior_client_tool_session_ref=session_ref,
+    )
+
+    assert result.evidence["client_tool_session_continued"] is True
+    assert result.evidence["resumed_from_client_tool_session_ref"] == session_ref
+    continued_messages = continuation.requests[0].messages
+    assert continued_messages[-1]["role"] == "user"
+    assert "Revise the theory from independent observations" in str(
+        continued_messages[-1]["content"]
+    )
+    assert "checkpoint-progress" in str(continued_messages[:-1])
+    assert "Derive and stress-test the remainder bound" in str(
+        continued_messages[:-1]
+    )
+    assert len(continued_messages) == session_ref["message_count"] + 1
+
     document_path = tmp_path / "theory" / "derivations" / "progress.md"
     document_path.write_text(markdown + "tampered\n", encoding="utf-8")
     with pytest.raises(ValueError, match="document hash mismatch"):

@@ -44,6 +44,7 @@ from .metric_protocol_stage import (
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import (
     OpenResearchQuestion,
+    TASK_INTENT_REQUIREMENTS,
     research_dimension_requirements,
     research_question_payload,
 )
@@ -79,6 +80,24 @@ ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "FormalTargetSemanticReviewer",
     "CriticEvaluator",
 )
+ARCHITECT_WORKSPACE_CAPABILITIES = {
+    "RetrievalMemory": "task-bound paper, statistical, and formal-source retrieval",
+    "TheoryDeveloper": (
+        "persistent Markdown/LaTeX theory, source discovery, exact published-source "
+        "execution and replication reporting, and exploratory Python/R scratch"
+    ),
+    "AlgorithmEngineer": "model-owned Python/R source with direct sandbox feedback",
+    "SimulationEvaluator": (
+        "model-owned simulation source, exploratory diagnostics, and frozen "
+        "confirmatory execution"
+    ),
+    "GeneratedCodeSemanticReviewer": "independent review of exact executed source",
+    "FormalizationEvaluator": (
+        "model-owned Lean source with declaration search, proof state, and compiler feedback"
+    ),
+    "FormalTargetSemanticReviewer": "independent review of the exact formal statement",
+    "CriticEvaluator": "terminal multidimensional evidence and gap assessment",
+}
 ARCHITECT_FEEDBACK_ROUTE_OPERATION = "environment_feedback_route"
 ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS = (
     "RetrievalMemory",
@@ -1941,6 +1960,7 @@ def build_architect_coordinator_prompt(
             parent_key="runtime_config",
         ),
         "available_subsystems": list(ARCHITECT_RUNTIME_SUBSYSTEMS),
+        "workspace_capabilities": dict(ARCHITECT_WORKSPACE_CAPABILITIES),
         "orchestration_contract": {
             "model_owns": (
                 "research analysis, lane choice, retrieval priorities, mathematical "
@@ -2258,6 +2278,15 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 )
             except ValueError as exc:
                 errors.append(str(exc))
+        source_replication_requirement = str(
+            evidence_contract.get("source_replication_requirement", "optional")
+            or "optional"
+        )
+        if source_replication_requirement not in TASK_INTENT_REQUIREMENTS:
+            errors.append(
+                "evidence_contract.source_replication_requirement must be required, "
+                "optional, or not_applicable"
+            )
         policy = str(
             evidence_contract.get("formal_verification_policy", "") or ""
         ).strip().lower()
@@ -2590,6 +2619,7 @@ def _architect_runtime_owned_evidence_contract(
         "research_evaluation_requires_typed_metric_contracts",
         "recommended_research_path_frozen",
         "simulation_target_authoring_required",
+        "source_replication_requirement",
     ):
         value = requested_contract.get(field)
         if value not in (None, "", [], {}):
@@ -3045,6 +3075,8 @@ def _required_architect_plan_subsystems(
         == "required"
     ):
         required.add("FormalizationEvaluator")
+    if evidence_contract.get("source_replication_requirement") == "required":
+        required.add("TheoryDeveloper")
     return tuple(
         subsystem
         for subsystem in ARCHITECT_RUNTIME_SUBSYSTEMS

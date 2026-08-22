@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
-from typing import Any, Callable, Mapping
+from pathlib import Path, PurePosixPath
+from typing import Any, Callable, Mapping, Sequence
 
 from .agent_runtime import agent_runtime_substage
 from .fingerprint import stable_hash
@@ -117,6 +119,151 @@ ClientToolExecutor = Callable[
     [ClientToolCall, ClientToolExecutionContext],
     ClientToolExecutionResult,
 ]
+
+
+CLIENT_TOOL_SESSION_KIND = "ClientToolWorkspaceSession"
+CLIENT_TOOL_SESSION_DIRECTORY = ".client_tool_sessions"
+
+
+def client_tool_session_contract_fingerprint(
+    request: ClientToolTurnRequest,
+) -> str:
+    """Bind a resumable transcript to one model, system prompt, and tool surface."""
+
+    return stable_hash(
+        {
+            "model": request.model,
+            "system_prompt": request.system_prompt,
+            "tools": [
+                {
+                    "name": tool.name,
+                    "terminal": tool.terminal,
+                    "strict": tool.strict,
+                }
+                for tool in request.tools
+            ],
+        }
+    )
+
+
+def persist_client_tool_session(
+    *,
+    session_dir: Path | None,
+    session_id: str,
+    request: ClientToolTurnRequest,
+    messages: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Persist one immutable transcript and return a compact integrity reference."""
+
+    if session_dir is None:
+        return {}
+    normalized_session_id = str(session_id or "").strip()
+    if not normalized_session_id:
+        raise ValueError("client-tool session id is required")
+    normalized_messages = [deepcopy(dict(message)) for message in messages]
+    if not normalized_messages:
+        raise ValueError("client-tool session requires at least one message")
+    root = session_dir.resolve()
+    transcript_fingerprint = stable_hash(normalized_messages)
+    session_contract_fingerprint = client_tool_session_contract_fingerprint(
+        request
+    )
+    body = {
+        "schema_version": 2,
+        "artifact_kind": CLIENT_TOOL_SESSION_KIND,
+        "session_id": normalized_session_id,
+        "root_path": str(root),
+        "session_contract_fingerprint": session_contract_fingerprint,
+        "transcript_fingerprint": transcript_fingerprint,
+        "message_count": len(normalized_messages),
+        "messages": normalized_messages,
+    }
+    encoded = json.dumps(
+        body,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    sha256 = hashlib.sha256(encoded).hexdigest()
+    relative_path = PurePosixPath(
+        CLIENT_TOOL_SESSION_DIRECTORY,
+        f"{sha256}.json",
+    )
+    target = (root / Path(relative_path)).resolve()
+    if root != target and root not in target.parents:
+        raise ValueError("client-tool session path escapes its workspace")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        if target.read_bytes() != encoded:
+            raise ValueError("client-tool session path contains different bytes")
+    else:
+        target.write_bytes(encoded)
+    return {
+        "schema_version": 2,
+        "artifact_kind": "ClientToolWorkspaceSessionRef",
+        "session_id": normalized_session_id,
+        "root_path": str(root),
+        "relative_path": relative_path.as_posix(),
+        "sha256": sha256,
+        "message_count": len(normalized_messages),
+        "transcript_fingerprint": transcript_fingerprint,
+        "session_contract_fingerprint": session_contract_fingerprint,
+    }
+
+
+def load_client_tool_session(
+    reference: Mapping[str, Any],
+    *,
+    session_dir: Path,
+    session_id: str,
+    request: ClientToolTurnRequest,
+) -> tuple[Mapping[str, Any], ...]:
+    """Load a transcript only when its workspace and tool contract still match."""
+
+    ref = dict(reference)
+    normalized_session_id = str(session_id or "").strip()
+    expected_contract = client_tool_session_contract_fingerprint(request)
+    root = session_dir.resolve()
+    relative_path = PurePosixPath(str(ref.get("relative_path", "") or ""))
+    if (
+        int(ref.get("schema_version", 0) or 0) != 2
+        or ref.get("artifact_kind") != "ClientToolWorkspaceSessionRef"
+        or str(ref.get("session_id", "") or "") != normalized_session_id
+        or str(ref.get("root_path", "") or "") != str(root)
+        or str(ref.get("session_contract_fingerprint", "") or "")
+        != expected_contract
+        or relative_path.is_absolute()
+        or not relative_path.parts
+        or relative_path.parts[0] != CLIENT_TOOL_SESSION_DIRECTORY
+        or ".." in relative_path.parts
+    ):
+        raise ValueError("client-tool session reference identity mismatch")
+    path = (root / Path(relative_path)).resolve()
+    if root != path and root not in path.parents:
+        raise ValueError("client-tool session reference escapes its workspace")
+    encoded = path.read_bytes()
+    if hashlib.sha256(encoded).hexdigest() != str(ref.get("sha256", "") or ""):
+        raise ValueError("client-tool session bytes do not match their reference")
+    payload = json.loads(encoded.decode("utf-8"))
+    messages = payload.get("messages", []) if isinstance(payload, Mapping) else []
+    if not (
+        isinstance(payload, Mapping)
+        and int(payload.get("schema_version", 0) or 0) == 2
+        and payload.get("artifact_kind") == CLIENT_TOOL_SESSION_KIND
+        and payload.get("session_id") == normalized_session_id
+        and payload.get("root_path") == str(root)
+        and payload.get("session_contract_fingerprint") == expected_contract
+        and isinstance(messages, list)
+        and messages
+        and all(isinstance(message, Mapping) for message in messages)
+        and int(payload.get("message_count", 0) or 0) == len(messages)
+        and int(ref.get("message_count", 0) or 0) == len(messages)
+        and stable_hash(messages) == payload.get("transcript_fingerprint")
+        and payload.get("transcript_fingerprint")
+        == ref.get("transcript_fingerprint")
+    ):
+        raise ValueError("client-tool session payload identity mismatch")
+    return tuple(deepcopy(dict(message)) for message in messages)
 
 
 def run_bounded_client_tool_loop(

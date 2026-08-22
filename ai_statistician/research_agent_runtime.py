@@ -292,6 +292,7 @@ from .research_schema import (
     ResearchProblemSpec,
     TheoremGoal,
     research_dimension_requirements,
+    research_task_intent_requirement,
 )
 from .research_source_library import ResearchSourceSnapshot
 from .runtime_research_problem_adapter import (
@@ -452,6 +453,10 @@ def _runtime_requested_evidence_contract(
     policy = _normalized_formal_verification_policy(formal_verification_policy)
     dimension_requirements = research_dimension_requirements(task_intent)
     explicit_task_intent = bool(dimension_requirements)
+    source_replication_requirement = research_task_intent_requirement(
+        task_intent,
+        "source_replication",
+    )
     if explicit_task_intent:
         formal_requirement = dimension_requirements["formal"]
         if formal_requirement == "required":
@@ -547,6 +552,9 @@ def _runtime_requested_evidence_contract(
     }
     if explicit_task_intent:
         contract["dimension_requirements"] = dimension_requirements
+        contract["source_replication_requirement"] = (
+            source_replication_requirement
+        )
     return contract
 
 
@@ -3761,6 +3769,27 @@ def _architect_feasible_initial_subsystem(
         if isinstance(evidence_contract, Mapping)
         else {}
     )
+    source_replication_refs = architect_context.get(
+        "source_replication_refs", []
+    )
+    source_replication_ready = bool(
+        isinstance(source_replication_refs, Sequence)
+        and not isinstance(source_replication_refs, (str, bytes, bytearray))
+        and any(
+            isinstance(ref, Mapping)
+            and _architect_blackboard_artifact_present(
+                blackboard,
+                str(ref.get("artifact_id", "") or ""),
+            )
+            for ref in source_replication_refs
+        )
+    )
+    if (
+        isinstance(evidence_contract, Mapping)
+        and evidence_contract.get("source_replication_requirement") == "required"
+        and not source_replication_ready
+    ):
+        return "TheoryDeveloper"
     subsystem_dimension = {
         "AlgorithmEngineer": "scientific_code",
         "SimulationEvaluator": "empirical",
@@ -5746,6 +5775,10 @@ class TheoryDeveloperRuntimeSubsystem:
                 question_id=question.id,
             )
         )
+        if source_replication_refs:
+            context["source_replication_refs"] = deepcopy(
+                source_replication_refs
+            )
         theory_workspace_evidence = (
             {
                 field: deepcopy(raw_theory_workspace.get(field))
@@ -10170,6 +10203,14 @@ class SimulationEvaluatorRuntimeSubsystem:
                         if scientific_progress_mode
                         else None
                     ),
+                    session_dir=(
+                        self.sandbox_root
+                        / _safe_identifier(question.id)
+                        / "client_tool_sessions"
+                        / stable_hash(
+                            [question.id, simulation_id, "SimulationEvaluator"]
+                        )[:12]
+                    ),
                 )
             )
             generated_simulation_tool_calls.extend(source_tool_calls)
@@ -12363,6 +12404,14 @@ class AlgorithmEngineerRuntimeSubsystem:
                             progress_checkpoints.get(estimator_id)
                             if scientific_progress_mode
                             else None
+                        ),
+                        session_dir=(
+                            self.out_dir
+                            / _safe_identifier(question.id)
+                            / "client_tool_sessions"
+                            / stable_hash(
+                                [question.id, estimator_id, "AlgorithmEngineer"]
+                            )[:12]
                         ),
                     )
                 )
@@ -18740,6 +18789,12 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                     inspect_lean_declaration
                     if callable(declaration_inspector)
                     else None
+                ),
+                session_dir=(
+                    Path(lean_candidate_root)
+                    / _safe_identifier(question.id)
+                    / "client_tool_sessions"
+                    / stable_hash([question.id, candidate_id])[:12]
                 ),
             )
         )

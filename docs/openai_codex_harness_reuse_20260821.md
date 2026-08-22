@@ -6,7 +6,7 @@
 - Audited branch: `main`
 - Audited commit: `4f39251a010a8bd7d692d25fb33832ff06f1635a`
 - License: Apache-2.0
-- Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex-970b7f2f`
+- Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex`
 - License SHA-256: `d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc`
 
 The audit is commit-bound. A later Codex release is a different mechanism
@@ -286,9 +286,29 @@ placing another Codex thread manager around `AgentRuntime`.
     body. A stale hash returns to the same referee as an actionable tool observation,
     while a missing or tampered draft fails before acceptance. This adds no reviewer,
     model turn allowance, retry, scheduler, or runtime-authored mathematical action.
+14. Theory, Algorithm, Simulation, and Lean source owners now persist their exact
+    model-visible client-tool transcript as an immutable content-addressed session
+    artifact. A progress checkpoint carries only a compact session reference. The
+    next same-owner segment verifies the model, system prompt, tool names and
+    terminal semantics, verifies the transcript bytes and hash, restores every
+    prior assistant tool call and raw tool result, then appends the continuation
+    objective. It does not reconstruct context from a repair packet or ask Architect
+    to summarize the failure. Dynamic artifact schemas may change as the workspace
+    grows without changing session identity; switching model, system prompt, tool
+    identity, transcript bytes, workspace, or owner fails before another model call.
+    Independent reviewers still receive artifact-only context and never inherit an
+    author's transcript.
 
 These changes add no model call, retry, turn, agent, scheduler, model tier,
 statistical formula, Lean grammar rule, or repair recipe.
+
+Codex ordinarily lets a final assistant message end a turn. AI-Statistician keeps
+small typed terminal tools where the product must distinguish a proposed theory
+checkpoint, an honest unresolved gap, a reviewed scientific-source handoff, and a
+formal gap. Those tools do not diagnose or repair content. They bind the model's
+disposition to the exact current artifact hash so independent review and kernel
+authority cannot be inferred from free-form prose. This is an intentional evidence
+boundary divergence, not a second reasoning layer.
 
 ### Live implication
 

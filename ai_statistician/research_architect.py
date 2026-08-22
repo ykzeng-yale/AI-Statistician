@@ -3055,6 +3055,13 @@ def build_theory_developer_revision_inputs(
         ),
         "feedback": deepcopy(dict(feedback)),
         "transport_feedback": transport_feedback,
+        "parent_client_tool_session_ref": deepcopy(
+            dict(material.get("parent_client_tool_session_ref", {}))
+            if isinstance(
+                material.get("parent_client_tool_session_ref", {}), Mapping
+            )
+            else {}
+        ),
         "base_core_payload": base_core_payload,
         "base_core_payload_fingerprint": stable_hash(base_core_payload),
         "parent_estimator_interface_bindings": (
@@ -3892,6 +3899,11 @@ def _generate_initial_theory_artifact_workspace(
             if progress_checkpoint
             else ()
         ),
+        prior_client_tool_session_ref=(
+            progress_checkpoint.get("client_tool_session_ref", {})
+            if progress_checkpoint
+            else None
+        ),
         request_metadata={
             "subsystem": "TheoryDeveloper",
             "agent": "LLMTheoryDeveloperAgent",
@@ -3991,19 +4003,31 @@ def _generate_theory_workspace_revision(
             history=[],
         )
     progress_checkpoint: dict[str, Any] = {}
+    parent_client_tool_session_ref = revision_inputs.get(
+        "parent_client_tool_session_ref", {}
+    )
+    parent_client_tool_session_ref = (
+        deepcopy(dict(parent_client_tool_session_ref))
+        if isinstance(parent_client_tool_session_ref, Mapping)
+        else {}
+    )
     if progress_checkpoint_state is None:
         initial_artifacts = {
             field: deepcopy(raw_parent_payload[field])
             for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
             if field in raw_parent_payload
         }
-        workspace_id = "theory_workspace:" + stable_hash(
-            [
-                question.id,
-                revision_inputs.get("revision_binding_id", ""),
-                revision_inputs.get("base_core_payload_fingerprint", ""),
-            ]
-        )[:20]
+        workspace_id = str(
+            parent_client_tool_session_ref.get("session_id", "") or ""
+        ).strip()
+        if not workspace_id:
+            workspace_id = "theory_workspace:" + stable_hash(
+                [
+                    question.id,
+                    revision_inputs.get("revision_binding_id", ""),
+                    revision_inputs.get("base_core_payload_fingerprint", ""),
+                ]
+            )[:20]
         try:
             initial_documents = load_theory_workspace_documents(
                 raw_parent_payload
@@ -4034,6 +4058,14 @@ def _generate_theory_workspace_revision(
             )
         workspace_id = str(
             progress_checkpoint.get("workspace_id", "") or ""
+        )
+        parent_client_tool_session_ref = deepcopy(
+            dict(progress_checkpoint.get("client_tool_session_ref", {}))
+            if isinstance(
+                progress_checkpoint.get("client_tool_session_ref", {}),
+                Mapping,
+            )
+            else {}
         )
     workspace_dir = (
         theory_workspace_root / workspace_id.replace(":", "-")
@@ -4171,6 +4203,9 @@ def _generate_theory_workspace_revision(
             progress_checkpoint.get("changed_document_paths", [])
             if progress_checkpoint
             else ()
+        ),
+        prior_client_tool_session_ref=(
+            parent_client_tool_session_ref or None
         ),
         request_metadata={
             "subsystem": "TheoryDeveloper",

@@ -50,6 +50,38 @@ def research_dimension_requirements(
     }
 
 
+def research_task_intent_requirement(
+    task_intent: Mapping[str, Any] | None,
+    dimension: str,
+    *,
+    default: str = "optional",
+) -> str:
+    """Return one validated task-intent requirement outside the core four lanes."""
+
+    normalized_default = str(default).strip().lower()
+    if normalized_default not in TASK_INTENT_REQUIREMENTS:
+        raise ValueError("default task-intent requirement is invalid")
+    if not task_intent:
+        return normalized_default
+    normalized = {
+        str(key): str(value).strip().lower()
+        for key, value in task_intent.items()
+    }
+    invalid = sorted(
+        {
+            requirement
+            for requirement in normalized.values()
+            if requirement not in TASK_INTENT_REQUIREMENTS
+        }
+    )
+    if invalid:
+        raise ValueError(
+            "task_intent requirements must be required, optional, or "
+            "not_applicable; invalid=" + ", ".join(invalid)
+        )
+    return normalized.get(str(dimension), normalized_default)
+
+
 @dataclass(frozen=True)
 class OpenResearchQuestion:
     id: str

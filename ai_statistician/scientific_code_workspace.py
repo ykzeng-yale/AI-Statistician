@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from .agent_runtime import (
@@ -17,6 +18,8 @@ from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    load_client_tool_session,
+    persist_client_tool_session,
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
@@ -664,6 +667,7 @@ def run_source_owner_scientific_workspace(
     allow_current_source_run: bool = False,
     disallowed_unchanged_source_hashes: Sequence[str] = (),
     recovery_checkpoint: Mapping[str, Any] | None = None,
+    session_dir: Path | None = None,
 ) -> tuple[dict[str, Any], list[Any]]:
     """Run one source owner's direct model/tool feedback loop."""
 
@@ -888,6 +892,7 @@ def run_source_owner_scientific_workspace(
             workspace_operation=workspace_operation,
             allow_current_source_run=allow_current_source_run,
             recovery_checkpoint=(active_recovery_checkpoint or None),
+            session_dir=session_dir,
         )
     except PacketValidationError as exc:
         if last_checked_prototype:
@@ -1545,6 +1550,7 @@ def run_scientific_code_workspace(
     allow_dependency_handoff: bool = False,
     request_metadata: Mapping[str, Any] | None = None,
     recovery_checkpoint: Mapping[str, Any] | None = None,
+    session_dir: Path | None = None,
 ) -> ScientificCodeWorkspaceResult:
     """Let one model own complete scientific source across raw sandbox feedback."""
 
@@ -1979,6 +1985,40 @@ def run_scientific_code_workspace(
             "resumed_from_checkpoint_id": resumed_checkpoint_id,
         },
     )
+    resolved_session_dir = session_dir.resolve() if session_dir else None
+    resumed_client_tool_session_ref: dict[str, Any] = {}
+    prior_client_tool_session_ref = resumed_checkpoint.get(
+        "client_tool_session_ref", {}
+    )
+    if prior_client_tool_session_ref:
+        if not isinstance(prior_client_tool_session_ref, Mapping):
+            raise ValueError("scientific client-tool session reference is malformed")
+        if resolved_session_dir is None:
+            raise ValueError(
+                "scientific client-tool session resume requires a persistent directory"
+            )
+        prior_messages = load_client_tool_session(
+            prior_client_tool_session_ref,
+            session_dir=resolved_session_dir,
+            session_id=f"scientific:{artifact_id}",
+            request=request,
+        )
+        resumed_client_tool_session_ref = deepcopy(
+            dict(prior_client_tool_session_ref)
+        )
+        request = replace(
+            request,
+            messages=(*prior_messages, *request.messages),
+            metadata={
+                **dict(request.metadata),
+                "resumed_client_tool_session_fingerprint": str(
+                    prior_client_tool_session_ref.get(
+                        "transcript_fingerprint", ""
+                    )
+                    or ""
+                ),
+            },
+        )
 
     try:
         loop = run_bounded_client_tool_loop(
@@ -1990,6 +2030,12 @@ def run_scientific_code_workspace(
             max_no_progress_turns=max_no_progress_turns,
         )
     except ClientToolLoopError as exc:
+        client_tool_session_ref = persist_client_tool_session(
+            session_dir=resolved_session_dir,
+            session_id=f"scientific:{artifact_id}",
+            request=request,
+            messages=exc.messages,
+        )
         last_check = deepcopy(dict(state["last_check"]))
         current_draft = deepcopy(dict(state["code_draft"]))
         current_draft_hash = str(state["code_draft_hash"] or "")
@@ -2015,6 +2061,11 @@ def run_scientific_code_workspace(
             "last_check": last_check,
             "last_check_hash": stable_hash(last_check),
             "resumed_from_checkpoint_id": resumed_checkpoint_id,
+            **(
+                {"client_tool_session_ref": client_tool_session_ref}
+                if client_tool_session_ref
+                else {}
+            ),
             "resumable": bool(
                 last_check_bound and state["checks"] > prior_checks
             ),
@@ -2040,6 +2091,12 @@ def run_scientific_code_workspace(
             recovery_checkpoint=checkpoint,
         ) from exc
 
+    client_tool_session_ref = persist_client_tool_session(
+        session_dir=resolved_session_dir,
+        session_id=f"scientific:{artifact_id}",
+        request=request,
+        messages=loop.messages,
+    )
     terminal = dict(loop.terminal_payload)
     draft = _complete_code_draft(terminal.get("code_draft", {}))
     check = dict(terminal.get("check_result", {}))
@@ -2071,6 +2128,13 @@ def run_scientific_code_workspace(
         "transport": "native_client_tools",
         "workspace_operation": workspace_operation,
         "resumed_from_checkpoint_id": resumed_checkpoint_id,
+        "client_tool_session_ref": deepcopy(client_tool_session_ref),
+        "resumed_from_client_tool_session_ref": deepcopy(
+            resumed_client_tool_session_ref
+        ),
+        "client_tool_session_continued": bool(
+            resumed_client_tool_session_ref
+        ),
         "parent_code_draft_hash": parent_hash,
         "initial_check_result_hash": stable_hash(dict(initial_check_result)),
         "initial_check_accepted": initial_check_result.get("accepted") is True,

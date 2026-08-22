@@ -290,6 +290,26 @@ def test_theory_revision_binding_uses_exact_nonproof_parent_reference() -> None:
         artifacts={packet["packet_id"]: packet},
     ) == material
 
+    session_ref = {
+        "artifact_kind": "ClientToolWorkspaceSessionRef",
+        "session_id": "theory:consumer-neutral",
+        "relative_path": ".client_tool_sessions/session.json",
+        "sha256": "a" * 64,
+    }
+    material_with_session = resolve_theory_developer_revision_parent_material(
+        revision_binding=binding,
+        artifacts={
+            packet["packet_id"]: packet,
+            "theory_workspace_evidence:test": {
+                "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+                "runtime_source_theory_packet_id": packet["packet_id"],
+                "runtime_source_theory_packet_hash": stable_hash(packet),
+                "client_tool_session_ref": session_ref,
+            },
+        },
+    )
+    assert material_with_session["parent_client_tool_session_ref"] == session_ref
+
     tampered_packet = {**packet, "problem_card": {"estimand": "changed"}}
     with pytest.raises(ValueError, match="unavailable or stale"):
         resolve_theory_developer_revision_parent_material(

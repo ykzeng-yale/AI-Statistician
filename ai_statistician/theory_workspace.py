@@ -4,7 +4,7 @@ import hashlib
 import json
 import tempfile
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence
 
@@ -12,6 +12,8 @@ from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    load_client_tool_session,
+    persist_client_tool_session,
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
@@ -311,6 +313,7 @@ def run_theory_artifact_workspace(
     writable_artifact_names: Sequence[str] | None = None,
     prior_changed_artifact_names: Sequence[str] = (),
     prior_changed_document_paths: Sequence[str] = (),
+    prior_client_tool_session_ref: Mapping[str, Any] | None = None,
 ) -> TheoryWorkspaceResult:
     """Let one model author text mathematics and a structured handoff in place."""
 
@@ -360,7 +363,18 @@ def run_theory_artifact_workspace(
         raise ValueError("theory workspace requires initial artifacts")
     parent_documents = _normalized_theory_documents(initial_documents or {})
     if require_document_authority and workspace_dir is None:
-        workspace_dir = Path(tempfile.mkdtemp(prefix="ai-stat-theory-"))
+        prior_session_root = str(
+            (prior_client_tool_session_ref or {}).get("root_path", "") or ""
+        ).strip()
+        if prior_session_root:
+            prior_session_root_path = Path(prior_session_root)
+            if not prior_session_root_path.is_absolute():
+                raise ValueError(
+                    "theory client-tool session root must be absolute"
+                )
+            workspace_dir = prior_session_root_path
+        else:
+            workspace_dir = Path(tempfile.mkdtemp(prefix="ai-stat-theory-"))
     resolved_workspace_dir = workspace_dir.resolve() if workspace_dir else None
     if resolved_workspace_dir is not None:
         resolved_workspace_dir.mkdir(parents=True, exist_ok=True)
@@ -1857,6 +1871,34 @@ def run_theory_artifact_workspace(
             "parent_workspace_hash": parent_hash,
         },
     )
+    resumed_client_tool_session_ref: dict[str, Any] = {}
+    if prior_client_tool_session_ref:
+        if resolved_workspace_dir is None:
+            raise ValueError(
+                "theory client-tool session resume requires a persistent workspace"
+            )
+        prior_messages = load_client_tool_session(
+            prior_client_tool_session_ref,
+            session_dir=resolved_workspace_dir,
+            session_id=workspace_id,
+            request=request,
+        )
+        resumed_client_tool_session_ref = deepcopy(
+            dict(prior_client_tool_session_ref)
+        )
+        request = replace(
+            request,
+            messages=(*prior_messages, *request.messages),
+            metadata={
+                **dict(request.metadata),
+                "resumed_client_tool_session_fingerprint": str(
+                    prior_client_tool_session_ref.get(
+                        "transcript_fingerprint", ""
+                    )
+                    or ""
+                ),
+            },
+        )
 
     def recovery_checkpoint() -> dict[str, Any]:
         current_artifacts = deepcopy(dict(state["artifacts"]))
@@ -1943,6 +1985,15 @@ def run_theory_artifact_workspace(
             max_no_progress_turns=max_no_progress_turns,
         )
     except ClientToolLoopError as exc:
+        client_tool_session_ref = persist_client_tool_session(
+            session_dir=resolved_workspace_dir,
+            session_id=workspace_id,
+            request=request,
+            messages=exc.messages,
+        )
+        checkpoint = recovery_checkpoint()
+        if client_tool_session_ref:
+            checkpoint["client_tool_session_ref"] = client_tool_session_ref
         raise PacketValidationError(
             validation_label="LLM TheoryDeveloper artifact workspace",
             attempts=exc.turns,
@@ -1957,9 +2008,24 @@ def run_theory_artifact_workspace(
                 if state["last_candidate"]
                 else None
             ),
-            recovery_checkpoint=recovery_checkpoint(),
+            recovery_checkpoint=checkpoint,
         ) from exc
 
+    client_tool_session_ref = persist_client_tool_session(
+        session_dir=resolved_workspace_dir,
+        session_id=workspace_id,
+        request=request,
+        messages=loop.messages,
+    )
+    client_tool_session_evidence = {
+        "client_tool_session_ref": deepcopy(client_tool_session_ref),
+        "resumed_from_client_tool_session_ref": deepcopy(
+            resumed_client_tool_session_ref
+        ),
+        "client_tool_session_continued": bool(
+            resumed_client_tool_session_ref
+        ),
+    }
     terminal = dict(loop.terminal_payload)
     if terminal.get("disposition") == "SOURCE_REPLICATION_CHECKPOINT_COMMITTED":
         core_packet = terminal.get("core_packet", {})
@@ -2050,6 +2116,7 @@ def run_theory_artifact_workspace(
             "provider_usage": dict(loop.provider_usage),
             "history": _theory_workspace_evidence_history(loop.history),
             "transcript_fingerprint": loop.transcript_fingerprint,
+            **client_tool_session_evidence,
             "disposition": "SOURCE_REPLICATION_CHECKPOINT_COMMITTED",
             "checkpoint_committed": True,
             "model_owned_theory": False,
@@ -2080,6 +2147,9 @@ def run_theory_artifact_workspace(
             **recovery_checkpoint(),
             "artifact_kind": THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND,
             "progress": progress,
+            "client_tool_session_ref": deepcopy(
+                client_tool_session_ref
+            ),
             "resumable": True,
             "accepted": False,
             "proof_evidence_status": (
@@ -2138,6 +2208,7 @@ def run_theory_artifact_workspace(
             "provider_usage": dict(loop.provider_usage),
             "history": _theory_workspace_evidence_history(loop.history),
             "transcript_fingerprint": loop.transcript_fingerprint,
+            **client_tool_session_evidence,
             "disposition": "THEORY_PROGRESS_CHECKPOINT",
             "checkpoint_id": checkpoint_id,
             "checkpoint_committed": True,
@@ -2223,6 +2294,7 @@ def run_theory_artifact_workspace(
             "provider_usage": dict(loop.provider_usage),
             "history": _theory_workspace_evidence_history(loop.history),
             "transcript_fingerprint": loop.transcript_fingerprint,
+            **client_tool_session_evidence,
             "disposition": "THEORY_GAP",
             "theory_gap": gap,
             "model_owned_theory": True,
@@ -2351,6 +2423,7 @@ def run_theory_artifact_workspace(
         "provider_usage": dict(loop.provider_usage),
         "history": _theory_workspace_evidence_history(loop.history),
         "transcript_fingerprint": loop.transcript_fingerprint,
+        **client_tool_session_evidence,
         "disposition": "THEORY_CHECKPOINT_COMMITTED",
         "checkpoint_committed": True,
         "checkpoint_readiness_rationale": str(

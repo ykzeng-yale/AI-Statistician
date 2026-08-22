@@ -1,5 +1,5 @@
 {
-  "schema_version": 122,
+  "schema_version": 123,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -7,7 +7,7 @@
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. Commit a2e19a07 binds source-replication report judgment to the exact evaluator-observed source manifest and hidden harness metrics after AgentRuntime terminates, while withholding raw result bodies and acceptance thresholds from both the product model and runtime. The disjoint ITS-Time L1 visible task, hash-bound public source snapshot, exact-source authority, and calibrated report-semantic authority are now frozen with zero product model calls. Twenty-one consumed tasks remain immutable 0/21; the twenty-second task is frozen but unconsumed and supplies no capability credit. After this freeze record is pushed, the next action is exactly one fresh exact-Haiku product run with no rerun, resume, output repair, post-hoc authority, or added harness feature.",
+  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. The frozen ITS-Time L1 draw is now consumed at 0/1: seven exact-Haiku roles terminated after two outer steps without entering the required source-replication workspace because source_replication intent was omitted from the evidence-contract dimensions and required workspace topology. Formalization correctly remained not applicable. Close this task permanently, fix only the shared task-intent routing and persistent specialist-session kernel for future disjoint work, and preserve all twenty-two consumed tasks at immutable 0/22.",
   "latest_its_time_source_execution_calibration": {
     "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
@@ -29,9 +29,9 @@
     "capability_credit": false,
     "boundary": "This is independent executor calibration for a stochastic author script. It does not score TheoryDeveloper interpretation, establish hidden-gold acceptance, rerun a consumed task, or prove the paper's theorem."
   },
-  "next_its_time_l1_evaluation": {
+  "latest_its_time_l1_evaluation": {
     "task_id": "its_time_niv_figure5_public_replication",
-    "status": "frozen_ready_no_product_model_call",
+    "status": "fresh_live_v1_blocked_before_source_replication",
     "preactivation_code_head": "a2e19a07714069d1278428adfb9bc06d9c4dbbf4",
     "visible_questions_sha256": "24787023cfbef7c37a3826a0616733e17f6850959b6836213c33ce37bb307d9c",
     "source_snapshot_hash": "c3f00bf9b266089dd998644c77b7cf7496d2776d73eed9edeb6c38816247db80",
@@ -45,10 +45,29 @@
     "semantic_calibration_model": "claude-haiku-4-5-20251001",
     "semantic_calibration_model_calls": 2,
     "preactivation_product_model_calls": 0,
+    "activation_commit": "541df6d607a663da86847f6da78197116e99be64",
+    "activation_push_confirmed_on_work_branch_and_main": true,
     "formalization_requirement": "not_applicable",
-    "task_consumed": false,
+    "task_consumed": true,
+    "fresh_live_runs": 1,
+    "run_path": "runs/main_worker_l1_its_time_exact_replication_20260822_v1_haiku",
+    "runtime_manifest_sha256": "05b51ffbacb0b99bb7f2fc528ff1a0af79331bccf770d14bf224373ca82bd65b",
+    "hidden_gold_report_sha256": "ac615948c03c4e0fe97628eea75a9471ce2f4b88ce3cbbad2f830b85123394e4",
+    "runtime_failure_summary_sha256": "26c1bde8100df9e760f4350e5038034f6209d7ea8edc69a2bf799727838f67ac",
+    "runtime_completion_summary_sha256": "b37aa7cfb3f389856c621eb76ef58277eac12b174622a7715b13580fdd621aaa",
+    "runtime_result_sha256": "a1545ec4cad783826077a8f5e80fbd21f4de10cdc8ae630883b154f2eacca4fd",
+    "runtime_traces_sha256": "f74c0881b31dce50d740fe87b16e5ee198aa36ce0046cd2a55e1b1e34785a156",
+    "runtime_model": "claude-haiku-4-5-20251001",
+    "runtime_enabled_model_roles": 7,
+    "runtime_status": "BLOCKED",
+    "runtime_terminal_classification": "critic_scientific_inconclusive",
+    "runtime_iterations": 2,
+    "runtime_source_replication_manifest_observed": false,
+    "hidden_gold_tasks_evaluated": 0,
+    "hidden_gold_full_task_result": "0/1",
+    "shared_harness_diagnostic": "source_replication=required was not represented in the Architect evidence-contract dimensions or required workspace topology. The Architect requested SimulationEvaluator, runtime redirected to CriticEvaluator because theory, code, empirical, and formal lanes were not applicable, and source replication never executed.",
     "capability_credit": false,
-    "boundary": "All calibration is evaluator-only preactivation evidence. It does not establish research-agent replication or report fidelity, and no hidden semantic conclusion is exposed to runtime."
+    "boundary": "The single permitted runtime draw is complete and immutable. Evaluator calibration remains authority evidence only; no source manifest was produced, so hidden source identity and report judgment could not evaluate a candidate. Never rerun, resume, repair, or rescore this task."
   },
   "latest_exponential_rate_mle_evaluation": {
     "task_id": "exponential_rate_mle_pivot_known_result",
