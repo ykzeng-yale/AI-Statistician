@@ -65,12 +65,12 @@ blueprint/DAG; ERA search stays inside an existing executable source workspace.
 
 ## Progressive commitment
 
-The graph imposes no universal research order. The current TheoryDeveloper, not a
-Scout agent, chooses early Crossref/GitHub queries and source handles. The harness
-owns fixed hosts, source horizon, secrets, byte bounds, commit identity, hashes, and
-citations, but never source choice or interpretation. Exact code is frozen and rerun
-before reimplementation; live discovery is not historical gold or replication proof,
-which require immutable operator-curated source and execution manifests.
+The graph imposes no universal research order. TheoryDeveloper chooses early
+Crossref/GitHub queries and source handles; the harness owns hosts, source horizon,
+secrets, byte bounds, commit identity, hashes, and citations, but not interpretation.
+Exact replication requires immutable operator-curated source and execution manifests.
+When author code writes results, declared paths are captured from a hash-audited
+copy-on-write workspace; the model cannot alter source, command, environment, or output.
 
 Theory remains long-horizon and iterative. As soon as the estimand, DGP,
 procedure interface, and a testable claim are stable enough, exploratory coding

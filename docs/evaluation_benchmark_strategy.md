@@ -106,6 +106,15 @@ artifact. Reimplementation follows only after the environment and claimed target
 are understood. The manifest distinguishes author code, model code, and reused
 library code by source snapshot and hash.
 
+Exact source execution schema v2 supports ordinary author scripts that persist
+tables, figures, or model files. The operator freezes their relative result paths
+before activation; the runner copies only hash-verified snapshot files into an
+isolated copy-on-write workspace, executes the unchanged entrypoint, rejects mutated
+inputs and undeclared workspace outputs, and returns bounded text or hash/size
+descriptors to the same model session. Schema v1 stdout-only manifests remain
+read-compatible. Declared outputs are replication observations, not automatically
+correct scientific interpretations or hidden-gold acceptance.
+
 Ordinary product tasks may let the same TheoryDeveloper model search Crossref and
 public GitHub through opaque-handle tools under an explicit source horizon. Those
 live observations support scouting only. L1-L5 evaluation never treats a mutable
