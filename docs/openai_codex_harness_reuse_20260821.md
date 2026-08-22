@@ -988,3 +988,8 @@ CLI description to state this same task-intent contract. The complete suite
 remained `849/849` in 68.16 seconds, and the external authority was rebound and
 recalibrated `5/5` without changing its target, gold proof, negatives, or
 evaluator logic. No product call has occurred.
+
+Commit `d81ac4212501558d750bfc2a4b160f3f853b1724` makes the
+profile's internal contract state the same selected-task formal behavior. The
+focused profile suite passed `22/22`; the unchanged hidden authority again
+calibrated `5/5`. No product call has occurred.

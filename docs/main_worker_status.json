@@ -1,13 +1,13 @@
 {
-  "schema_version": 130,
+  "schema_version": 131,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "40c1a9e508558b1294470d566f3af51eca5615ba",
+  "validated_code_head": "d81ac4212501558d750bfc2a4b160f3f853b1724",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Evaluate the existing Codex-style Formalizer workspace without adding another harness layer. Commit 9812446f adds one operator-frozen exact-target contract and routes proof-only work through existing RAG directly to the same model-owned Lean session, bypassing Architect and TheoryDeveloper target rewriting. Commit c4289cdb makes the research-eval profile honor an explicitly formal-required selected task instead of disabling that existing lane globally; commit 40c1a9e5 makes the CLI description state the same task-intent contract. Runtime interprets no Lean and chooses no tactic; independent whole-target review, axiom audit, and kernel promotion remain mandatory. The disjoint Statlib authority is calibrated 5/5, bound to pushed commit 40c1a9e5, and permits exactly one fresh exact-Haiku product draw after the final metadata push. All prior twenty-three scored tasks remain immutable 0/23 and strict development closure remains 0/2.",
+  "current_goal_focus": "Evaluate the existing Codex-style Formalizer workspace without adding another harness layer. Commit 9812446f adds one operator-frozen exact-target contract and routes proof-only work through existing RAG directly to the same model-owned Lean session, bypassing Architect and TheoryDeveloper target rewriting. Commit c4289cdb makes the research-eval profile honor an explicitly formal-required selected task instead of disabling that existing lane globally; commits 40c1a9e5 and d81ac421 make both public help and the internal profile contract state the same task-intent behavior. Runtime interprets no Lean and chooses no tactic; independent whole-target review, axiom audit, and kernel promotion remain mandatory. The disjoint Statlib authority is calibrated 5/5, bound to pushed commit d81ac421, and permits exactly one fresh exact-Haiku product draw after the final metadata push. All prior twenty-three scored tasks remain immutable 0/23 and strict development closure remains 0/2.",
   "latest_its_time_source_execution_calibration": {
     "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
@@ -233,8 +233,9 @@
     ]
   },
   "validated_change": {
-    "commit": "40c1a9e508558b1294470d566f3af51eca5615ba",
+    "commit": "d81ac4212501558d750bfc2a4b160f3f853b1724",
     "changes": [
+      "Commit d81ac421 aligns the internal research-eval profile contract with the same selected-task formal intent. The focused profile suite passed 22/22; no product model call occurred.",
       "Commit 40c1a9e5 corrects the research-eval CLI description to match its task-intent behavior: Formalizer/Lean remains optional unless a selected task explicitly requires formal evidence. The complete suite passed 849/849 in 68.16 seconds, with no product model call.",
       "Commit c4289cdb makes research_eval preserve the explicit formal-required intent of the selected frozen task. It enables the existing Formalizer and independent formal-target reviewer only when a selected question requires formal evidence; ordinary research tasks still leave that lane optional.",
       "Commit 9812446f adds a hash-bound formal_target_contract for exact-statement hidden-proof tasks. The contract carries target source, declaration identity, active Lean environment identity, and hashes, but no proof or tactic.",
@@ -684,9 +685,9 @@
     "fresh_live_runs": 0,
     "visible_questions_sha256": "0a5b9a239889019c007f03ce3ce8b8efdc912dd211734387ac06345977751d1f",
     "visible_question_hash": "5a4ee790c2edde1063ffc40a81bc795597a652adcf5e7124b0006e1e7e244832",
-    "gold_manifest_sha256": "d6bda7d1fd9a648d561ae1ae0be7a9cb4c0516008234e889816652f1acbf9745",
+    "gold_manifest_sha256": "d097d20c6ae82089c581eb5f508bd00457e18dad79fe08b43cfa02c6c21bbdc2",
     "hidden_harness_calibration": "5/5",
-    "activation_code_commit": "40c1a9e508558b1294470d566f3af51eca5615ba",
+    "activation_code_commit": "d81ac4212501558d750bfc2a4b160f3f853b1724",
     "activation_code_push_confirmed_on_work_branch_and_main": true,
     "model": "claude-haiku-4-5-20251001",
     "formalization_requirement": "required",
