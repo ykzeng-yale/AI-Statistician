@@ -17,6 +17,7 @@ from .estimator_interface_contract import (
     frozen_estimator_execution_contract_id,
 )
 from .model_backend import AnthropicGeneratorBackend, GeneratorBackend
+from .research_schema import frozen_formal_target_contract_errors
 from .scientific_sandbox import (
     ScientificEstimatorBinding,
     ScientificInputArtifactBinding,
@@ -48,6 +49,10 @@ def _visible_question_hash_payload(
     if "estimator_execution_contract" in question:
         payload["estimator_execution_contract"] = question.get(
             "estimator_execution_contract"
+        )
+    if "formal_target_contract" in question:
+        payload["formal_target_contract"] = question.get(
+            "formal_target_contract"
         )
     return payload
 
@@ -1966,6 +1971,15 @@ def _validate_benchmark_manifest(
             ),
         )
         errors.extend(contract_errors)
+        errors.extend(
+            frozen_formal_target_contract_errors(
+                visible_question.get("formal_target_contract", {}),
+                label=(
+                    f"active task {index} model-visible formal_target_contract"
+                ),
+                required="formal_target_contract" in visible_question,
+            )
+        )
         contract_clause_ids = (
             frozen_estimator_execution_contract_clause_ids(
                 estimator_execution_contract

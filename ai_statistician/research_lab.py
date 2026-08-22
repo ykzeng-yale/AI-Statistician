@@ -35,6 +35,7 @@ from .research_schema import (
     ResearchSimulation,
     SimulationDiagnosis,
     TheoremGoal,
+    frozen_formal_target_contract_errors,
 )
 from .retrieval import ProofBankRetriever, RetrievalQuery
 from .schema import ProofCheck
@@ -1135,6 +1136,22 @@ def load_open_research_questions(path: Path) -> list[OpenResearchQuestion]:
         )
         if contract_errors:
             raise ValueError("; ".join(contract_errors))
+        formal_target_contract = row.get("formal_target_contract", {})
+        formal_contract_errors = frozen_formal_target_contract_errors(
+            formal_target_contract,
+            label="research question formal_target_contract",
+            required="formal_target_contract" in row,
+        )
+        if formal_contract_errors:
+            raise ValueError("; ".join(formal_contract_errors))
+        if (
+            formal_target_contract
+            and task_intent.get("formal") == "not_applicable"
+        ):
+            raise ValueError(
+                "research question formal_target_contract conflicts with "
+                "task_intent.formal=not_applicable"
+            )
         questions.append(
             OpenResearchQuestion(
                 id=str(row["id"]),
@@ -1145,6 +1162,11 @@ def load_open_research_questions(path: Path) -> list[OpenResearchQuestion]:
                 estimator_execution_contract=(
                     deepcopy(dict(estimator_execution_contract))
                     if isinstance(estimator_execution_contract, dict)
+                    else {}
+                ),
+                formal_target_contract=(
+                    deepcopy(dict(formal_target_contract))
+                    if isinstance(formal_target_contract, dict)
                     else {}
                 ),
             )

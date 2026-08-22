@@ -759,6 +759,15 @@ def build_research_evaluation_summary(
                 source_manifest=simulation_manifest,
                 require_confirmatory_empirical_evidence=True,
             ),
+            "exact_formal_target_kernel_closed": any(
+                manifest.get("source_theorem_kernel_verified") is True
+                and bool(
+                    manifest.get(
+                        "source_theorem_kernel_verified_target_ids", []
+                    )
+                )
+                for manifest in formal_manifests
+            ),
             "critic_research_acceptance": bool(
                 critic_manifest
                 and result.get("status") == "ACCEPTED"
@@ -826,6 +835,10 @@ def build_research_evaluation_summary(
             )
         formal_executed = bool(executed & STRICT_FORMAL_SUBSYSTEMS)
         formal_requirement = dimension_requirements["formal"]
+        if formal_requirement == "required":
+            required_capability_checks.append(
+                "exact_formal_target_kernel_closed"
+            )
         if formal_requirement == "required":
             formal_intent_conformant = formal_executed
         elif formal_requirement == "not_applicable":

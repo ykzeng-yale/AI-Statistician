@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Mapping
@@ -14,6 +15,64 @@ RESEARCH_EVIDENCE_DIMENSIONS = (
 TASK_INTENT_REQUIREMENTS = frozenset(
     {"required", "optional", "not_applicable"}
 )
+
+
+def frozen_formal_target_contract_errors(
+    contract: Any,
+    *,
+    label: str = "formal_target_contract",
+    required: bool = False,
+) -> list[str]:
+    """Validate operator-frozen target identity without interpreting Lean."""
+
+    if not contract:
+        return [f"{label} is required"] if required else []
+    if not isinstance(contract, Mapping):
+        return [f"{label} must be an object"]
+    errors: list[str] = []
+    if contract.get("schema_version") != 1:
+        errors.append(f"{label}.schema_version must equal 1")
+    for field_name in (
+        "target_id",
+        "declaration_name",
+        "lean_source_prefix",
+        "lean_source_prefix_sha256",
+    ):
+        if not isinstance(contract.get(field_name), str) or not str(
+            contract.get(field_name, "")
+        ).strip():
+            errors.append(f"{label}.{field_name} must be a non-empty string")
+    proof_visibility = str(contract.get("proof_visibility", "") or "")
+    if proof_visibility != "hidden":
+        errors.append(f"{label}.proof_visibility must equal hidden")
+    source = str(contract.get("lean_source_prefix", "") or "")
+    expected_hash = str(contract.get("lean_source_prefix_sha256", "") or "")
+    if source and expected_hash:
+        observed_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()
+        if observed_hash != expected_hash:
+            errors.append(f"{label}.lean_source_prefix_sha256 does not match source")
+    environment = contract.get("lean_environment", {})
+    if not isinstance(environment, Mapping):
+        errors.append(f"{label}.lean_environment must be an object")
+    else:
+        for field_name in (
+            "project_id",
+            "lean_toolchain",
+            "lake_manifest_sha256",
+        ):
+            if not isinstance(environment.get(field_name), str) or not str(
+                environment.get(field_name, "")
+            ).strip():
+                errors.append(
+                    f"{label}.lean_environment.{field_name} must be a non-empty string"
+                )
+    required_primitives = contract.get("required_primitives", [])
+    if not isinstance(required_primitives, list) or any(
+        not isinstance(value, str) or not value.strip()
+        for value in required_primitives
+    ):
+        errors.append(f"{label}.required_primitives must be a list of strings")
+    return errors
 
 
 def research_dimension_requirements(
@@ -90,6 +149,7 @@ class OpenResearchQuestion:
     tags: tuple[str, ...] = ()
     task_intent: dict[str, str] = field(default_factory=dict)
     estimator_execution_contract: dict[str, Any] = field(default_factory=dict)
+    formal_target_contract: dict[str, Any] = field(default_factory=dict)
 
 
 def research_question_payload(
@@ -112,6 +172,10 @@ def research_question_payload(
     ):
         payload["estimator_execution_contract"] = deepcopy(
             question.estimator_execution_contract
+        )
+    if question.formal_target_contract:
+        payload["formal_target_contract"] = deepcopy(
+            question.formal_target_contract
         )
     return payload
 

@@ -297,6 +297,8 @@ from .research_schema import (
 from .research_source_library import ResearchSourceSnapshot
 from .runtime_research_problem_adapter import (
     derive_runtime_research_problem,
+    frozen_formal_only_initial_task as _frozen_formal_only_initial_task,
+    is_frozen_formal_only_question as _is_frozen_formal_only_question,
 )
 from .simulation_engineer_llm import (
     EMPIRICAL_EVALUATION_PHASE_EXPLORATORY,
@@ -13727,14 +13729,15 @@ class FormalizerWorkspaceRuntimeSubsystem:
         )
         if missing_algorithm_result is not None:
             return missing_algorithm_result
-        research_bundle = derive_runtime_research_problem(
-            question=question,
-            architect_context=context,
-            theory_packet=packet if isinstance(packet, Mapping) else {},
+        problem, theorem_goals, problem_authority = (
+            _formalization_runtime_problem_and_goals(
+                question,
+                task.inputs,
+                theory_packet=(
+                    packet if isinstance(packet, Mapping) else {}
+                ),
+            )
         )
-        problem = research_bundle.problem
-        theorem_goals = list(research_bundle.theorem_goals)
-        problem_authority = research_bundle.provenance()
         proposal_packet: dict[str, Any] | None = None
         proposal_evidence: EvidenceLedgerEntry | None = None
         produced_artifacts: dict[str, Any] = {}
@@ -20284,7 +20287,12 @@ def run_research_agent_runtime(
             )
         else:
             initial_task = resume_pending_task or (
-                AgentTask(
+                _frozen_formal_only_initial_task(
+                    question=question,
+                    architect_context=question_architect_context,
+                )
+                if _is_frozen_formal_only_question(question)
+                else AgentTask(
                     task_id=f"architect:{question.id}",
                     owner_subsystem="ArchitectCoordinator",
                     objective=(
@@ -24851,6 +24859,9 @@ def _question_from_payload(payload: Mapping[str, Any]) -> OpenResearchQuestion:
         estimator_execution_contract=deepcopy(
             dict(payload.get("estimator_execution_contract", {}) or {})
         ),
+        formal_target_contract=deepcopy(
+            dict(payload.get("formal_target_contract", {}) or {})
+        ),
     )
 
 
@@ -24896,6 +24907,8 @@ def _theorem_goal_from_payload(payload: Mapping[str, Any]) -> TheoremGoal:
 def _formalization_runtime_problem_and_goals(
     question: OpenResearchQuestion,
     task_inputs: Mapping[str, Any],
+    *,
+    theory_packet: Mapping[str, Any] | None = None,
 ) -> tuple[ResearchProblemSpec, list[TheoremGoal], dict[str, Any]]:
     problem_override = task_inputs.get("registered_problem_override", {})
     goals_override = task_inputs.get("theorem_goals_override", [])
@@ -24929,6 +24942,9 @@ def _formalization_runtime_problem_and_goals(
     bundle = derive_runtime_research_problem(
         question=question,
         architect_context=architect_context,
+        theory_packet=(
+            theory_packet if isinstance(theory_packet, Mapping) else {}
+        ),
     )
     return bundle.problem, list(bundle.theorem_goals), bundle.provenance()
 

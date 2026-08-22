@@ -1150,6 +1150,61 @@ def test_research_summary_honors_theory_only_task_intent() -> None:
     assert row["requirements"]["generated_simulation_executed_and_passed"] is False
 
 
+def test_research_summary_requires_kernel_closure_for_formal_only_task() -> None:
+    question = {
+        "id": "formal_only",
+        "task_intent": {
+            "source_replication": "not_applicable",
+            "theory": "not_applicable",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "required",
+            "novelty": "not_applicable",
+            "unresolved_gaps": "required",
+        },
+    }
+    formalization = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization",
+        "source_theorem_kernel_verified": False,
+        "source_theorem_kernel_verified_target_ids": [],
+        "counts": {"kernel_verified": 0},
+    }
+    result = {
+        "status": "BLOCKED",
+        "blackboard": {
+            "artifacts": {
+                "question": {
+                    "artifact_kind": "RuntimeQuestionMetadata",
+                    "question": question,
+                },
+                "formalization": formalization,
+            }
+        },
+        "traces": ({"subsystem": "FormalizationEvaluator"},),
+    }
+
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+    row = summary["rows"][0]
+    assert row["required_capability_checks"] == [
+        "exact_formal_target_kernel_closed"
+    ]
+    assert row["research_loop_complete"] is False
+    assert row["mode_conformant"] is True
+
+    formalization["source_theorem_kernel_verified"] = True
+    formalization["source_theorem_kernel_verified_target_ids"] = [
+        "frozen_target"
+    ]
+    formalization["counts"]["kernel_verified"] = 1
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+    assert summary["rows"][0]["research_loop_complete"] is True
+
+
 def test_research_summary_preserves_reviewed_theory_and_code_before_critic() -> None:
     question = {"id": "blocked_after_reviewed_code"}
     theory = {

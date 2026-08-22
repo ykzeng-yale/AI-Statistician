@@ -1938,6 +1938,60 @@
         "novelty": "not_applicable",
         "unresolved_gaps": "required"
       }
+    },
+    {
+      "id": "statlib_uniform_consistency_implies_consistency_formal_known_result",
+      "level": "L0",
+      "family": "measure_inference_formalization",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l0_statlib_uniform_consistency_formal_questions_20260822.json",
+      "source_authority": "operator_frozen_exact_lean_target_in_pinned_statlib_environment",
+      "source_snapshot_id": "statlib-uniform-consistency-formal-target-v1",
+      "source_snapshot_hash": "4ff6129d04e7c7c6eebbcb02f16a90ec16064641cb479d0f4ec50f00c2dbe81f",
+      "source_manifest_sha256": "1a4a57144b4f871f233c42d125517b0598002e895e2e708779d646ee3ff2f65f",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l0-statlib-uniform-consistency-formal-20260822-v1",
+      "gold_manifest_sha256": "b684b4c9552f7d991f8c969f288bafb6b5ecd8427202f5c7bdb5fa0b64eca047",
+      "gold_descriptor_hash": "681334d6b621318eae5243d7e17bf54c4673760fefaf93ccc30234e5c7c15a69",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "frozen_ready_formal_component_v1_preactivation",
+      "activation_evidence": {
+        "public_reference": "Statlib commit 6575d611b5d32ef6013e9560d30b1a82a1972fb6, Statlib.Inference",
+        "visible_questions_sha256": "0a5b9a239889019c007f03ce3ce8b8efdc912dd211734387ac06345977751d1f",
+        "visible_question_hash": "5a4ee790c2edde1063ffc40a81bc795597a652adcf5e7124b0006e1e7e244832",
+        "lean_source_prefix_sha256": "4ff6129d04e7c7c6eebbcb02f16a90ec16064641cb479d0f4ec50f00c2dbe81f",
+        "hidden_gold_lean_sha256": "57bba1113235073f8f463a756ed30bedef66df714dec0cf3a2d8052b1deb26fa",
+        "hidden_formal_harness_sha256": "41dcaf6ee3525b2b83479cb6f7d2cad28c5d92dfd29a32e63a7646f953abbaf4",
+        "hidden_formal_harness_calibration_sha256": "9623e4a622a124df24b8593e71dc3d4c3fa981cebe1fac18ce811f605a3c035c",
+        "hidden_formal_harness_calibration_cases": "5/5",
+        "hidden_gold_kernel_compiled": true,
+        "negative_weakened_conclusion_rejected": true,
+        "negative_extra_assumption_rejected": true,
+        "negative_sorry_rejected": true,
+        "negative_custom_axiom_rejected": true,
+        "active_lean_project_commit": "4cec7860c926feebd4cbcdaccedb63b2156972dd",
+        "active_lean_toolchain": "leanprover/lean4:v4.30.0",
+        "active_lake_manifest_sha256": "1a4a57144b4f871f233c42d125517b0598002e895e2e708779d646ee3ff2f65f",
+        "statlib_commit": "6575d611b5d32ef6013e9560d30b1a82a1972fb6",
+        "mathlib_commit": "81343555dae873c8de2de2b27bbabf7bc4d8d97a",
+        "gold_frozen_before_first_runtime_model_call": true,
+        "activation_commit": "TO_BE_FROZEN_BEFORE_ACTIVATION",
+        "activation_push_confirmed_on_work_branch_and_main": false,
+        "first_runtime_model_call_occurred": false,
+        "fresh_live_runs": 0,
+        "model_draw_resampling_blocked": true,
+        "formalization_requirement": "required",
+        "full_task_passed": false
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "required",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
     }
   ],
   "activation_requirements": [
@@ -1951,15 +2005,15 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 23,
+    "active_scored_tasks": 24,
     "consumed_scored_tasks": 23,
-    "fully_gold_configured_tasks": 23,
+    "fully_gold_configured_tasks": 24,
     "fully_gold_passed_tasks": 0,
     "runtime_source_replication_components_ready": 2,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "All twenty-three scored tasks are consumed and immutable at 0/23 full-task passes. The single fresh Trimmed Match L1 draw reached runtime ACCEPTED and visible research-eval 1/1, but hidden gold remained 0/1: the identity harness never executed because its evaluator embedded a 207 KB candidate as source, while the independently calibrated semantic judge also rejected the model report. The shared post-consumption fix passes artifacts as hash-bound data and exposes exact source arguments, but does not alter or rescore the consumed result.",
-    "next_step": "Do not rerun, resume, repair, or rescore any consumed task. Use deterministic mechanism tests to stabilize the shared file-backed specialist harness, then freeze a disjoint new candidate and evaluator before any further exact-Haiku product call."
+    "latest_diagnostic": "All prior twenty-three scored tasks remain consumed and immutable at 0/23 full-task passes. A disjoint twenty-fourth L0 formal component is frozen but not yet activated: its exact Statlib target is model-visible, its human proof and five-case kernel/semantic calibration remain evaluator-only, and no product model call has occurred.",
+    "next_step": "Commit and push the generic exact-target workspace path plus frozen authority identities, then permit exactly one fresh exact-Haiku product draw for the new formal component. Never rerun, resume, repair, or rescore any consumed task."
   }
 }

@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from .agent_runtime import AgentTask
 from .fingerprint import stable_hash
-from .research_schema import OpenResearchQuestion, ResearchProblemSpec, TheoremGoal
+from .research_schema import (
+    OpenResearchQuestion,
+    ResearchProblemSpec,
+    TheoremGoal,
+    frozen_formal_target_contract_errors,
+    research_dimension_requirements,
+    research_question_payload,
+    research_task_intent_requirement,
+)
 
 
 LLM_RESEARCH_AUTHORITY_BOUNDARY = (
@@ -12,6 +22,108 @@ LLM_RESEARCH_AUTHORITY_BOUNDARY = (
     "theorem targets for agentic runs. Their contents remain proposals, not "
     "simulation evidence or Lean proof evidence."
 )
+
+
+def is_frozen_formal_only_question(question: OpenResearchQuestion) -> bool:
+    """Identify an exact-target proof task that needs no theory rewrite."""
+
+    if not question.formal_target_contract:
+        return False
+    requirements = research_dimension_requirements(question.task_intent)
+    return bool(
+        requirements
+        and requirements.get("formal") == "required"
+        and all(
+            requirements.get(dimension) == "not_applicable"
+            for dimension in ("theory", "scientific_code", "empirical")
+        )
+        and research_task_intent_requirement(
+            question.task_intent, "source_replication"
+        )
+        == "not_applicable"
+        and research_task_intent_requirement(question.task_intent, "novelty")
+        == "not_applicable"
+    )
+
+
+def frozen_formal_only_initial_task(
+    *,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+) -> AgentTask:
+    """Start exact proof work with RAG and preserve the operator-owned target."""
+
+    contract = deepcopy(question.formal_target_contract)
+    errors = frozen_formal_target_contract_errors(
+        contract,
+        label="question formal_target_contract",
+        required=True,
+    )
+    if errors:
+        raise ValueError("; ".join(errors))
+    target_id = str(contract["target_id"])
+    declaration_name = str(contract["declaration_name"])
+    contract_hash = stable_hash(contract)
+    return AgentTask(
+        task_id=f"retrieve-formal-target:{question.id}:{contract_hash[:8]}",
+        owner_subsystem="RetrievalMemory",
+        objective=(
+            "Retrieve active-project declarations for the frozen exact Lean target, "
+            "then return directly to the model-owned Formalizer workspace."
+        ),
+        inputs={
+            "question": research_question_payload(
+                question, include_task_intent=True
+            ),
+            "architect_context": dict(architect_context),
+            "retrieval_return_to_subsystem": "FormalizationEvaluator",
+            "registered_problem_override": {
+                "problem_class": "operator_frozen_exact_lean_target",
+                "dgp": "not_applicable",
+                "estimand": target_id,
+                "assumptions": [],
+                "asymptotic_regime": "not_applicable",
+                "diagnostics": [],
+                "stress_tests": [],
+                "extraction_evidence": {
+                    "authority": ["operator_frozen_formal_target_contract"],
+                    "formal_target_contract_hash": [contract_hash],
+                    "lean_source_prefix_sha256": [
+                        str(contract["lean_source_prefix_sha256"])
+                    ],
+                },
+            },
+            "theorem_goals_override": [
+                {
+                    "id": target_id,
+                    "title": question.title,
+                    "informal_statement": str(contract["lean_source_prefix"]),
+                    "proof_strategy": (
+                        "Use active-project retrieval and raw Lean feedback while "
+                        "preserving the exact frozen declaration."
+                    ),
+                    "status": "FORMAL_GAP",
+                    "required_primitives": list(
+                        contract.get("required_primitives", [])
+                    ),
+                    "proof_obligations": [
+                        "Complete the exact declaration "
+                        f"{declaration_name} without changing its statement."
+                    ],
+                }
+            ],
+        },
+        allowed_tools=("formal_source_retriever", "model_backend", "local_lean"),
+        expected_artifacts=("formalization_manifest", "proof_feedback"),
+        acceptance_gate=(
+            "the unchanged frozen target receives independent semantic review and "
+            "exact local kernel evidence"
+        ),
+        stop_condition=(
+            "the exact target is kernel promoted or the bounded Formalizer "
+            "workspace records a precise blocker"
+        ),
+    )
 
 
 @dataclass(frozen=True)
