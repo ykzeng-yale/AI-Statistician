@@ -1,13 +1,13 @@
 {
-  "schema_version": 119,
-  "updated_at": "2026-08-21",
+  "schema_version": 120,
+  "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "8494072932a42dc0a5df8048bb6cbf12cbd6caf6",
+  "validated_code_head": "b54864809740c4d35c3b1e33bf3e97d8d8118786",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. Commit 84940729 removes the redundant fresh AlgorithmEngineer planning request: one native source-owner model session now reads exact hash-bound Theory documents and ABI, plans, authors, executes, revises, and commits source from raw observations. Runtime emits only a provenance-and-identity projection for independent review; no claim-alignment JSON or copied mathematical handoff was added. Simulation planning remains separate because it freezes metric bindings and confirmatory precision before outcome-bearing execution. Twenty-one scored tasks remain immutable 0/21. The next priority is measured long-horizon TheoryDeveloper and paper-replication capability, not another coding interface, repair layer, budget increase, or frozen-task rerun.",
+  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. Commit b5486480 makes the persistent Markdown/LaTeX TheoryDeveloper workspace own the exact estimator ABI and its validator feedback in the same model session, removing the dedicated interface-authoring request from canonical initial and revision work. Runtime adds only immutable contract identity and provenance; it authors no interface or mathematical content. Legacy JSON-only replay remains compatible but is not a product fallback. Twenty-one scored tasks remain immutable 0/21. The next priority is measured long-horizon theory quality and exact paper replication, not another interface, repair layer, budget increase, or frozen-task rerun.",
   "latest_exponential_rate_mle_evaluation": {
     "task_id": "exponential_rate_mle_pivot_known_result",
     "run_id": "main_worker_research_l0_exponential_rate_mle_20260821_v1_codex_harness_exact_haiku",
@@ -121,8 +121,12 @@
     ]
   },
   "validated_change": {
-    "commit": "8494072932a42dc0a5df8048bb6cbf12cbd6caf6",
+    "commit": "b54864809740c4d35c3b1e33bf3e97d8d8118786",
     "changes": [
+      "Commit b5486480 removes the dedicated estimator-interface model request from canonical document-backed TheoryDeveloper work. The same persistent model/tool/observation session now authors Markdown/LaTeX mathematics, the compact claim graph, and the exact executable estimator ABI.",
+      "Initial and targeted-revision workspaces validate the complete packet after every model write, so a malformed ABI returns as a raw generic shape or exact-reference observation to the same TheoryDeveloper transcript. Runtime does not translate, repair, or infer any request field, response field, normalization, rate, or claim reference.",
+      "Targeted revisions retain the exact parent ABI when estimator_specs is unchanged and require the same workspace owner to revise it when estimator semantics or outputs change. A compact provenance record distinguishes model-authored or revised interfaces from exact parent retention and records that no dedicated model call or runtime content edit occurred.",
+      "Initial invalid-interface feedback, revision feedback, progress continuation, unchanged-parent retention, legacy structured compatibility, and downstream document-consumer regressions passed; the full local suite passed 825/825 in 66.97 seconds. No Claude call, benchmark rerun, output repair, hidden evaluation, task rule, statistical formula, Lean rule, proof, score, or E2E credit was produced; all twenty-one consumed tasks remain 0/21.",
       "Commit 84940729 makes the native AlgorithmEngineer source workspace the owner of both implementation planning and source authoring on fresh generated-code tasks. The separate structured propose() call is bypassed, removing exactly one provider request per fresh Algorithm task without adding source turns, retries, budget, agents, or schedulers.",
       "The same model session receives the exact question, hash-bound Markdown/LaTeX Theory documents, complete claim DAG, immutable Theory-owned estimator ABI, sandbox tools, and every raw execution observation. It chooses all source bytes and revisions and must explicitly commit an accepted source hash; runtime supplies no strategy or correction rule.",
       "The post-execution AlgorithmEngineerProposalPacket name remains a legacy review ABI only. Its canonical direct-source form contains estimator identities, exact rechecked source hashes, source-workspace artifact and transcript identities, model provenance, and executable ABI. It contains no mathematical prose, implementation strategy, repair instruction, or new model-authored handoff. Independent review uses its existing canonical-theory fallback and reads every authoritative Theory document.",
@@ -606,6 +610,7 @@
       "exact target-bound Lean kernel promotion"
     ],
     "fixed_in_validated_head": [
+      "canonical document-backed TheoryDeveloper authoring mathematics and claim structure in one persistent model workspace, then launching a second generator-only model request to author the executable estimator ABI and routing its validation failures outside the source-owning session",
       "hidden algorithm or empirical checks being able to impose estimator-field semantics that were absent from the model-visible question, with no stable public clause provenance or estimator-identity binding",
       "a theory scratch call rejected before sandbox request-file materialization persisting a blank request hash that the independent-review validator then required, making every model submission impossible even though the field was runtime-owned",
       "the generic theory scratch tool exposing an entrypoint name without telling the model the existing run_sandbox(seed, replicates) callable ABI or that the isolated runner invokes it",
@@ -772,17 +777,19 @@
     "research_agent_runtime_lines": 24913,
     "scientific_code_workspace_lines": 2295,
     "theory_workspace_lines": 3469,
-    "research_architect_lines": 5214,
+    "research_architect_lines": 5326,
     "architect_theory_execution_preflight_lines": 5229,
     "architect_metric_contract_authoring_lines": 2822,
     "formalizer_llm_lines": 2418,
     "agent_runtime_lines": 1255,
     "cli_lines": 7138,
     "top_level_python_modules": 142,
-    "top_level_package_lines": 147622,
+    "top_level_package_lines": 147734,
     "latest_runtime_manifest_bytes": 51442
   },
   "next_gates": [
+    "Treat commit b5486480 as canonical Theory workspace evidence: initial and revised estimator ABIs now belong to the same model-owned Markdown/LaTeX session and receive direct validator feedback. Do not add an ABI repair worker, restore the dedicated interface call, parse statistical meaning in runtime, or rerun a consumed task merely to demonstrate the change live.",
+    "Measure long-horizon TheoryDeveloper quality next on a newly frozen known-result or exact-replication task with evaluator authority established before activation. Distinguish derivation quality, independent review, executable ABI, source replication, and empirical evidence; do not let this harness simplification count as mathematical capability.",
     "Preserve scalar control-variate L0 v1 at raw 0/1 without rerun, resume, output repair, hidden rescore, or component promotion. Accepted runtime theory, estimator source, and metric review remain distinct from the missing generated simulation and incomplete hidden theory/algorithm acceptance.",
     "Treat commit bd8961ab as future-task persistence evidence only. Keep full raw tool observations inside source-owner execution and exact artifacts; compact only duplicate trace text with external output identity, and never use log size as scientific acceptance or as a reason to hide an unreferenced failure.",
     "Treat commit dd3cb36c as future-task shared artifact-boundary evidence only. Model sampling receives one bounded identity/hash/ABI dependency projection while exact reviewed source and raw outcomes remain content-addressed and available to the runtime executor; do not reintroduce payload copying, a fallback simulator, or another scheduler.",

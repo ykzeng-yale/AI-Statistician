@@ -770,3 +770,37 @@ in the full `825/825` passing suite (66.91 seconds).
 25,000-line limit. No Claude call, benchmark rerun, resume, output repair,
 statistical rule, Lean rule, hidden evaluation, proof, score, or E2E capability
 credit was produced; the consumed ladder remains `0/21`.
+
+### Single-session Theory ABI implication
+
+Code commit `b54864809740c4d35c3b1e33bf3e97d8d8118786` removes the
+equivalent split from the canonical TheoryDeveloper path. The persistent
+Markdown/LaTeX workspace previously authored the mathematics and compact claim
+graph, then a second generator-only request asked the same owner to translate
+each estimator into its executable ABI. That extra phase had no independent
+authority: it neither reviewed the theory nor executed the interface, and its
+validation failures left the source-owning workspace.
+
+The document workspace now owns `estimator_interface_contract` as part of its
+compact `estimator_specs` handoff. Initial work and targeted revisions receive
+the complete ABI shape in their workspace catalog, submit exact interface bytes
+with the documents, and receive generic shape and exact-reference validation
+observations in the same model transcript. A revision keeps the parent's exact
+ABI when estimator semantics are unchanged; if the model changes estimator
+semantics or outputs, the prompt makes that same model responsible for revising
+the ABI. Runtime adds only the immutable contract ID and provenance record. It
+does not infer a request field, response field, normalization, mathematical
+rate, or correction.
+
+The canonical document path therefore has one Theory model/tool/observation
+session and zero dedicated estimator-interface model requests. Historical
+JSON-only parser and replay providers retain the existing two-phase compatibility
+path; they are not a product fallback. Initial invalid-ABI feedback, targeted
+revision feedback, progress continuation, unchanged-parent retention, and legacy
+compatibility regressions are included in the full `825/825` passing suite
+(66.97 seconds).
+
+No Claude call, benchmark draw, rerun, resume, output repair, research turn,
+budget increase, agent, scheduler, provider, statistical rule, Lean rule, hidden
+evaluation, proof, score, or E2E capability credit was produced. The consumed
+ladder remains immutable `0/21`.
