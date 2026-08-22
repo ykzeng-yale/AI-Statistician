@@ -28,7 +28,7 @@ from .model_backend import (
 from .research_schema import OpenResearchQuestion, research_question_payload
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 21
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 22
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -76,6 +76,7 @@ GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
 GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS = (
     "question_alignment",
     "theory_assumption_alignment",
+    "executable_interface_alignment",
     "frozen_measurement_protocol_alignment",
     "execution_argument_alignment",
     "experiment_non_vacuity_and_identifiability",
@@ -743,6 +744,10 @@ def build_generated_code_semantic_review_prompt(
         "a declared semantic or resource role into the executed source. Silently "
         "ignoring it or replacing it with a source-local constant is a defect; judge "
         "the argument contract, not whether the realized result happened to pass. "
+        "For executable_interface_alignment, compare every public entrypoint, field, "
+        "key policy, type, domain, shape, edge case, and rejection clause against "
+        "actual source behavior. Trace real language semantics: comments are not "
+        "evidence, and contract-violating permissive coercion is FAIL. "
         "For frozen_measurement_protocol_alignment, review the statistic "
         "binding, path, shape, units, and meaning, never the realized threshold result. "
         "For every emitted metric path, compare the source computation and returned "

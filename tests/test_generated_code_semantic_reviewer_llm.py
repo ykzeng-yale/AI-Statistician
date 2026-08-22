@@ -170,6 +170,17 @@ def test_semantic_review_traces_declared_runtime_arguments_into_source() -> None
     assert "runtime_argument_rule" in prompt
 
 
+def test_semantic_review_audits_actual_executable_interface_behavior() -> None:
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question(),
+        review_material=_review_material(),
+    )
+
+    assert "For executable_interface_alignment" in prompt
+    assert "Trace real language semantics" in prompt
+    assert "contract-violating permissive coercion is FAIL" in prompt
+
+
 def _dimension_rows(*, failed: str = "") -> dict[str, dict[str, object]]:
     return {
         dimension: {

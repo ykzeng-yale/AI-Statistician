@@ -447,6 +447,8 @@ client tools to replace and run the exact source. Read every raw sandbox
 observation and choose every source change yourself. The runtime executes source
 unchanged and never supplies a correction rule. Do not answer with prose, delegate
 an edit, weaken the task contract, or claim theorem-proof evidence.
+Before commit_scientific_source, use submit_scientific_source to test the complete
+immutable public ABI: valid and rejected requests, response schema, and transformations.
 When workspace_context.theory_context.document_authoritative is true, read its
 exact authoritative_theory_documents as the mathematical authority; structured
 theory fields carry only claim identity and executable ABI.

@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from ai_statistician.fingerprint import stable_hash
 from ai_statistician.model_backend import (
     LIVE_EVALUATION_CLAUDE_MODEL,
     GeneratorResponse,
@@ -163,6 +164,13 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
 
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "PASS"
+    assert result["candidate_claim_assessments"] == [
+        {
+            "claim_id_hash": stable_hash(claim_id),
+            "status": "SATISFIED",
+        }
+        for claim_id in CLAIM_IDS
+    ]
     assert result["passed"] is True
     assert result["n_calibration_cases_correct"] == 2
     assert result["n_model_calls"] == 2
@@ -274,6 +282,16 @@ def test_candidate_document_status_is_derived_from_keyed_claim_statuses() -> Non
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "FAIL"
     assert result["candidate_claim_status_counts"]["VIOLATED"] == 1
+    assert result["candidate_claim_assessments"] == [
+        {
+            "claim_id_hash": stable_hash("claim:definition"),
+            "status": "SATISFIED",
+        },
+        {
+            "claim_id_hash": stable_hash("claim:limit"),
+            "status": "VIOLATED",
+        },
+    ]
     assert result["passed"] is False
 
 

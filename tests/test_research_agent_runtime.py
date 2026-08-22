@@ -1748,7 +1748,13 @@ def test_source_workspace_prompts_give_tools_to_the_source_owner() -> None:
         assert "complete executable Python or R" in prompt
         assert "Use the supplied\nclient tools" in prompt
         assert "Do not run tools" not in prompt
-        assert "never supplies a correction rule" in prompt
+    assert "never supplies a correction rule" in prompt
+    assert "test the complete\nimmutable public ABI" in (
+        ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
+    )
+    assert "valid and rejected requests" in (
+        ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
+    )
     assert "request's data scope" in SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
     assert "consumer control flow" in SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
     assert "literal,\npunctuation-sensitive JSON key" in (

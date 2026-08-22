@@ -303,6 +303,7 @@ def _evaluate_gold_task(
         "hidden_theory_semantic_calibration_cases_correct": 0,
         "hidden_theory_semantic_claim_count": 0,
         "hidden_theory_semantic_candidate_status": "",
+        "hidden_theory_semantic_claim_assessments": [],
         "hidden_theory_semantic_passed": False,
         "hidden_theory_combined_passed": False,
         "hidden_empirical_evaluation_configured": bool(empirical_evaluator),
@@ -340,6 +341,7 @@ def _evaluate_gold_task(
         "hidden_source_report_semantic_calibration_cases_correct": 0,
         "hidden_source_report_semantic_claim_count": 0,
         "hidden_source_report_semantic_candidate_status": "",
+        "hidden_source_report_semantic_claim_assessments": [],
         "hidden_source_report_semantic_passed": False,
         "hidden_source_replication_combined_passed": False,
         "source_replication_report_document_hash": "",
@@ -538,6 +540,9 @@ def _evaluate_gold_task(
                             "hidden_source_report_semantic_candidate_status": str(
                                 semantic_judgment.get("candidate_status", "") or ""
                             ),
+                            "hidden_source_report_semantic_claim_assessments": deepcopy(
+                                semantic_judgment.get("candidate_claim_assessments", [])
+                            ),
                             "hidden_source_report_semantic_passed": (
                                 hidden_source_report_semantic_passed
                             ),
@@ -678,6 +683,9 @@ def _evaluate_gold_task(
                             "hidden_theory_semantic_candidate_status": str(
                                 semantic_judgment.get("candidate_status", "")
                                 or ""
+                            ),
+                            "hidden_theory_semantic_claim_assessments": deepcopy(
+                                semantic_judgment.get("candidate_claim_assessments", [])
                             ),
                             "hidden_theory_semantic_passed": (
                                 semantic_theory_passed
@@ -1423,7 +1431,8 @@ def _evaluate_hidden_check(
             and _finite_number(tolerance)
         ):
             passed = abs(float(value) - float(expected)) <= float(tolerance)
-    return {"passed": passed}
+    check_id = str(check.get("check_id", "") or "")
+    return {"check_id_hash": stable_hash(check_id) if check_id else "", "passed": passed}
 
 
 def _nested_value(

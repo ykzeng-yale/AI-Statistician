@@ -338,6 +338,10 @@ def run_theory_semantic_gold_judge(
         "candidate_claim_status_counts": _claim_status_counts(
             candidate_assessment
         ),
+        "candidate_claim_assessments": [
+            {"claim_id_hash": stable_hash(str(row["claim_id"])), "status": str(row["status"])}
+            for row in candidate_assessment["claim_assessments"]
+        ],
         "passed": passed,
         "calibration_raw_response_fingerprint": stable_hash(
             calibration_response.text

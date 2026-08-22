@@ -616,7 +616,14 @@ def test_gold_evaluator_scores_only_accepted_exact_source(tmp_path: Path) -> Non
         "required evidence dimension did not pass: theory",
         "required evidence dimension did not pass: empirical",
     ]
-    assert all(set(row) == {"passed"} for row in task["hidden_check_results"])
+    assert all(
+        set(row) == {"check_id_hash", "passed"}
+        for row in task["hidden_check_results"]
+    )
+    assert all(
+        len(row["check_id_hash"]) == 64
+        for row in task["hidden_check_results"]
+    )
     persisted = json.loads(
         (tmp_path / "research_capability_gold_evaluation.json").read_text()
     )
@@ -797,6 +804,18 @@ def test_source_replication_separates_identity_from_report_semantics(
             "n_calibration_cases_correct": 2 if calibrated else 1,
             "n_claims": 1,
             "candidate_status": candidate_status,
+            "candidate_claim_assessments": [
+                {
+                    "claim_id_hash": stable_hash(
+                        "private-source-method-identity"
+                    ),
+                    "status": (
+                        "SATISFIED"
+                        if candidate_status == "PASS"
+                        else "VIOLATED"
+                    ),
+                }
+            ],
             "passed": calibrated and candidate_status == "PASS",
         }
 
@@ -818,6 +837,14 @@ def test_source_replication_separates_identity_from_report_semantics(
     assert task["hidden_source_report_semantic_execution_attempted"] is True
     assert task["hidden_source_report_semantic_judge_calibrated"] is calibrated
     assert task["hidden_source_report_semantic_candidate_status"] == candidate_status
+    assert task["hidden_source_report_semantic_claim_assessments"] == [
+        {
+            "claim_id_hash": stable_hash("private-source-method-identity"),
+            "status": (
+                "SATISFIED" if candidate_status == "PASS" else "VIOLATED"
+            ),
+        }
+    ]
     assert task["hidden_source_report_semantic_passed"] is expected_pass
     assert task["hidden_source_replication_combined_passed"] is expected_pass
     assert task["dimension_status"]["source_replication"]["status"] == (
@@ -1140,6 +1167,12 @@ def test_full_task_theory_requires_calibrated_semantic_judgment(
             "n_calibration_cases_correct": 2 if calibrated else 1,
             "n_claims": 1,
             "candidate_status": "PASS",
+            "candidate_claim_assessments": [
+                {
+                    "claim_id_hash": stable_hash("private-claim"),
+                    "status": "SATISFIED",
+                }
+            ],
             "passed": calibrated,
         }
 
@@ -1161,6 +1194,12 @@ def test_full_task_theory_requires_calibrated_semantic_judgment(
     assert task["hidden_theory_semantic_execution_attempted"] is True
     assert task["hidden_theory_semantic_judge_calibrated"] is calibrated
     assert task["hidden_theory_semantic_passed"] is calibrated
+    assert task["hidden_theory_semantic_claim_assessments"] == [
+        {
+            "claim_id_hash": stable_hash("private-claim"),
+            "status": "SATISFIED",
+        }
+    ]
     assert task["hidden_theory_combined_passed"] is calibrated
     assert task["task_passed"] is calibrated
     serialized = json.dumps(result)
