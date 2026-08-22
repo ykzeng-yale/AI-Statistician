@@ -982,3 +982,9 @@ agent, scheduler, repair action, tactic, or retry. The focused profile/runtime
 panel passed `103/103`, the complete suite passed `849/849` in 68.25 seconds,
 and the unchanged hidden gold/negative set recalibrated `5/5` after binding the
 new code identity. No product call has occurred.
+
+Commit `40c1a9e508558b1294470d566f3af51eca5615ba` also corrects the
+CLI description to state this same task-intent contract. The complete suite
+remained `849/849` in 68.16 seconds, and the external authority was rebound and
+recalibrated `5/5` without changing its target, gold proof, negatives, or
+evaluator logic. No product call has occurred.
