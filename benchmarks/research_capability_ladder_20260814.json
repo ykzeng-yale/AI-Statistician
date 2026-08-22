@@ -1411,6 +1411,70 @@
         "novelty": "not_applicable",
         "unresolved_gaps": "required"
       }
+    },
+    {
+      "id": "paired_ratio_of_means_delta_method_known_result",
+      "level": "L0",
+      "family": "ratio_metrics",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l0_paired_ratio_delta_questions_20260821.json",
+      "source_authority": "operator_provisioned_hash_bound_model_visible_snapshot",
+      "source_snapshot_id": "paired-ratio-of-means-delta-method-known-result-v1",
+      "source_snapshot_hash": "23944800cbbaedf7b826b8f16e2496ae5f6ff540c4852c0edb50f614691bfd8e",
+      "source_manifest_sha256": "6e71e00d8a185aeacd3bebc479555a15f878528d278aee4a90bf381464b2f419",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l0-paired-ratio-delta-20260821-v1",
+      "gold_manifest_sha256": "5c2cbbedf246a987d3ff787445c00bf635f77d2367022dbaa7ed881c5ef4aded",
+      "gold_descriptor_hash": "c2f4afb2d7b2f42eb4d3eee2c1f4316ac57a80d900f43e9f38ea0a4ebad6f379",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "full_task_gold_frozen_unconsumed",
+      "activation_evidence": {
+        "public_reference": "Deng, Knoblich, and Lu, Applying the Delta Method in Metric Analytics: A Practical Guide with Novel Ideas, KDD 2018, DOI 10.1145/3219819.3219919, arXiv:1803.06336v4",
+        "visible_questions_sha256": "9e4fb3178347610e44ae9056d8a4734a5c417f72006c38dccd9a65f7601d5e4d",
+        "visible_question_hash": "3937ae520f6fa17c0247cf332024ed08371071d6e43566d8411a9ff94e953836",
+        "estimator_execution_contract_id": "frozen_estimator_execution_contract:86a044470a5df7c4976e",
+        "source_snapshot_documents": 2,
+        "hidden_theory_harness_sha256": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+        "hidden_semantic_reference_sha256": "60a3eb3ea1ac2e60fff0261998aa2c34ba5cc9fc67c0ad78722d7e154faffeb1",
+        "hidden_algorithm_harness_sha256": "7f94d8ab56ef2c5fcdbe6eb60386e755e82fe06e0df1c5d51f954ef073212b54",
+        "hidden_empirical_harness_sha256": "530fa26cc335c34fed6437c97639ad3dc91173aa2adff19780273a840a4fd763",
+        "reference_estimator_sha256": "4906aeb8012b720d3ec9940bd932504362bf6d7af5bd3cc7dd88928c3fbcc92d",
+        "algorithm_reference_contract_checks": "14/14",
+        "algorithm_reference_maximum_relative_error": 0.0,
+        "algorithm_negative_variants_rejected": 4,
+        "empirical_reference_dgps_passed": 3,
+        "empirical_reference_replicates_per_dgp": 3000,
+        "empirical_reference_identity_agreements": 9000,
+        "empirical_reference_maximum_absolute_standardized_mean": 0.046901059617152914,
+        "empirical_reference_maximum_standardized_variance_error": 0.06392639455579952,
+        "empirical_reference_maximum_coverage_error": 0.006666666666666599,
+        "empirical_reference_maximum_mean_mcse": 0.0188319444433813,
+        "empirical_reference_maximum_coverage_mcse": 0.004221198706353269,
+        "semantic_calibration_cases": 12,
+        "semantic_calibration_cases_correct": 12,
+        "semantic_reference_claims": 10,
+        "semantic_reference_candidate_passed": true,
+        "semantic_reference_judgment_hash": "6fb6bb6c36104d157e92d457a8a0934710afe8ac511d6af0bce7b0eda3a2e203",
+        "hidden_gold_manifest_validated": true,
+        "schema_v2_contract_entailment_audit": "Every hidden algorithm check cites exact public request, response, or invariant clauses. Every hidden empirical check cites one of two public empirical claims plus the exact estimator fields it consumes. Mathematical theory remains in the question and Markdown/LaTeX workspace; hidden DGPs, thresholds, and replicate totals are frozen evaluator configuration rather than runtime research rules.",
+        "gold_frozen_before_first_runtime_model_call": true,
+        "activation_commit": "",
+        "activation_push_confirmed_on_work_branch_and_main": false,
+        "first_runtime_model_call_occurred": false,
+        "fresh_live_runs": 0,
+        "model_draw_resampling_blocked": false,
+        "formalization_requirement": "not_applicable",
+        "full_task_passed": false
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
     }
   ],
   "activation_requirements": [
@@ -1424,15 +1488,15 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 17,
+    "active_scored_tasks": 18,
     "consumed_scored_tasks": 17,
-    "fully_gold_configured_tasks": 17,
+    "fully_gold_configured_tasks": 18,
     "fully_gold_passed_tasks": 0,
     "runtime_source_replication_components_ready": 1,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "Seventeen scored tasks are consumed and immutable at 0/17 full-task passes. The Fisher-z draw reached a runtime-reviewed theory checkpoint and hidden-correct generated estimator, but the calibrated hidden theory judge rejected the mathematics and runtime blocked before simulation because one portfolio-level replicate choice was redundantly repeated with inconsistent row values.",
-    "next_step": "Keep Fisher-z closed at 0/1. Use commit fbea1af3 only as future-task shared interface evidence. Improve the general model-owned theory/referee process from this hard negative without adding Gaussian formulas or post-hoc validators, then freeze a new disjoint authority bundle before any further scored model call."
+    "latest_diagnostic": "Seventeen scored tasks are consumed and immutable at 0/17 full-task passes. One disjoint paired ratio-of-means task is now fully source- and gold-frozen but unconsumed. Its hidden reference passed 14/14 ABI checks, three predeclared DGPs and 12/12 exact-Haiku semantic calibration cases before any candidate runtime call.",
+    "next_step": "Commit and push the paired ratio activation to both canonical refs, record the immutable activation commit, then permit exactly one fresh exact-Haiku canonical runtime draw. Keep every earlier task closed and do not expose evaluator-only files or outcomes to the runtime."
   }
 }

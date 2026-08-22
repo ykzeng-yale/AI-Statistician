@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "paired_ratio_of_means_delta_method_known_result",
+      "title": "Paired ratio-of-means delta-method inference",
+      "description": "Focused L0 known-result evaluation in ratio metrics and asymptotic statistics. Let (X_i,Y_i), i=1,...,n, be iid paired real observations with finite second moments, mu_X=E[X_i]>0, and a nondegenerate covariance matrix. The target is theta=mu_Y/mu_X and the estimator is theta_hat=bar(Y)/bar(X), not the mean of the individual ratios Y_i/X_i. Develop one authoritative Markdown/LaTeX derivation from the bivariate central limit theorem and the multivariate delta method. Derive the gradient, the full covariance quadratic form including the pairing covariance, its equivalent residual or influence-function representation, consistency of the plug-in variance estimate, and the studentized asymptotic normal limit. State the denominator-stability and moment conditions and clearly distinguish asymptotic inference from finite-sample exactness or unbiasedness; simulation is support, not proof. The required model-authored artifact is est_paired_ratio_delta and must implement the frozen run_estimator(request) contract exactly. Exploratory computation may diagnose algebra or implementation. A separate frozen confirmatory assessment uses independently generated paired samples under predeclared Gaussian and non-Gaussian finite-moment laws to test the exact moment, residual, scaling, and shift identities and approximate centered unit-normal studentized behavior with Monte Carlo uncertainty. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "ratio_metrics",
+        "multivariate_clt",
+        "delta_method",
+        "paired_data",
+        "studentization",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_paired_ratio_delta",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.x",
+            "name": "x",
+            "meaning": "The finite real-valued denominator sample, paired by position with y.",
+            "json_type": "array[number]",
+            "shape": "length n with n>=4, equal to len(y), and a strictly positive arithmetic mean",
+            "units": "one common denominator measurement unit within x",
+            "indexing": "zero-based entries x[j] and y[j] form observation pair j",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, fewer than four observations, unequal sample lengths, and a nonpositive arithmetic mean.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.y",
+            "name": "y",
+            "meaning": "The finite real-valued numerator sample, paired by position with x.",
+            "json_type": "array[number]",
+            "shape": "length n with n>=4 and equal to len(x)",
+            "units": "one common numerator measurement unit within y",
+            "indexing": "zero-based entries x[j] and y[j] form observation pair j",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, fewer than four observations, and unequal sample lengths.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n_observations",
+            "name": "n_observations",
+            "meaning": "The number n of paired observations used by every returned quantity.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "count",
+            "indexing": "equals len(x) and len(y)",
+            "edge_cases": "Must be an integer at least four.",
+            "normalization": "No normalization; count each pair exactly once."
+          },
+          {
+            "clause_id": "response.mean_x",
+            "name": "mean_x",
+            "meaning": "The arithmetic mean of the supplied denominator sample.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "x measurement units",
+            "indexing": "uses all n entries of x",
+            "edge_cases": "Must be JSON-finite and strictly positive.",
+            "normalization": "sum(x)/n."
+          },
+          {
+            "clause_id": "response.mean_y",
+            "name": "mean_y",
+            "meaning": "The arithmetic mean of the supplied numerator sample.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "y measurement units",
+            "indexing": "uses all n entries of y",
+            "edge_cases": "Must be JSON-finite.",
+            "normalization": "sum(y)/n."
+          },
+          {
+            "clause_id": "response.sample_variance_x",
+            "name": "sample_variance_x",
+            "meaning": "The ordinary Bessel-corrected sample variance of x.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "squared x units",
+            "indexing": "uses all n centered denominator observations",
+            "edge_cases": "Must be JSON-finite and nonnegative.",
+            "normalization": "sum_j (x[j]-mean_x)^2/(n-1)."
+          },
+          {
+            "clause_id": "response.sample_variance_y",
+            "name": "sample_variance_y",
+            "meaning": "The ordinary Bessel-corrected sample variance of y.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "squared y units",
+            "indexing": "uses all n centered numerator observations",
+            "edge_cases": "Must be JSON-finite and nonnegative.",
+            "normalization": "sum_j (y[j]-mean_y)^2/(n-1)."
+          },
+          {
+            "clause_id": "response.sample_covariance_xy",
+            "name": "sample_covariance_xy",
+            "meaning": "The ordinary Bessel-corrected paired sample covariance of x and y.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "x units times y units",
+            "indexing": "preserves the supplied pairing and uses all n pairs",
+            "edge_cases": "Must be JSON-finite.",
+            "normalization": "sum_j (x[j]-mean_x)*(y[j]-mean_y)/(n-1)."
+          },
+          {
+            "clause_id": "response.ratio_estimate",
+            "name": "ratio_estimate",
+            "meaning": "The ratio of the numerator sample mean to the denominator sample mean.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "y units per x unit",
+            "indexing": "computed from the two returned means",
+            "edge_cases": "Must be JSON-finite; it is not the mean of entrywise ratios.",
+            "normalization": "mean_y/mean_x."
+          },
+          {
+            "clause_id": "response.residual_variance",
+            "name": "residual_variance",
+            "meaning": "The Bessel-corrected sample variance of the paired residuals y[j]-ratio_estimate*x[j].",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "squared y units",
+            "indexing": "uses every paired residual exactly once",
+            "edge_cases": "Must be JSON-finite and nonnegative.",
+            "normalization": "sum_j (y[j]-ratio_estimate*x[j])^2/(n-1); the residual sample mean is algebraically zero."
+          },
+          {
+            "clause_id": "response.asymptotic_variance_estimate",
+            "name": "asymptotic_variance_estimate",
+            "meaning": "The plug-in estimate of the asymptotic variance of sqrt(n)*(ratio_estimate-theta).",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "squared y units per squared x units",
+            "indexing": "computed from the paired residual variance and denominator mean",
+            "edge_cases": "Must be JSON-finite and nonnegative.",
+            "normalization": "residual_variance/(mean_x^2)."
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "The plug-in asymptotic standard error of ratio_estimate.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "y units per x unit",
+            "indexing": "uses n_observations and asymptotic_variance_estimate",
+            "edge_cases": "Must be JSON-finite and nonnegative.",
+            "normalization": "sqrt(asymptotic_variance_estimate/n_observations)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.exact_identities",
+            "meaning": "The returned moments use the declared n-1 normalization, ratio_estimate equals mean_y/mean_x, residual_variance equals sample_variance_y-2*ratio_estimate*sample_covariance_xy+ratio_estimate^2*sample_variance_x, asymptotic_variance_estimate equals residual_variance/mean_x^2, and standard_error squared equals asymptotic_variance_estimate/n_observations."
+          },
+          {
+            "clause_id": "invariant.common_positive_scaling",
+            "meaning": "Multiplying both x and y by one common positive finite scale leaves ratio_estimate, asymptotic_variance_estimate, and standard_error unchanged while scaling means linearly and variances and covariance quadratically."
+          },
+          {
+            "clause_id": "invariant.separate_positive_scaling",
+            "meaning": "Multiplying x by a positive finite scale a and y by a positive finite scale b multiplies ratio_estimate and standard_error by b/a and asymptotic_variance_estimate by (b/a)^2, with the returned moments scaling according to their units."
+          },
+          {
+            "clause_id": "invariant.numerator_linear_shift",
+            "meaning": "Replacing every y[j] by y[j]+c*x[j] for a finite c increases ratio_estimate by c and changes the raw y variance and covariance according to their exact moment identities, while preserving residual_variance, asymptotic_variance_estimate, and standard_error."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.studentized_ratio",
+            "meaning": "The frozen confirmatory assessment compares independently generated paired samples under predeclared Gaussian and non-Gaussian finite-second-moment laws using (ratio_estimate-theta)/standard_error, reports Monte Carlo uncertainty, and treats approximate centered unit-normal behavior as empirical support rather than proof."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory estimator call must use the exact predeclared paired sample and contract, and the assessment separately verifies the returned moments, covariance, residual quadratic form, asymptotic variance, standard error, scaling, and shift identities before aggregating studentized errors."
+          }
+        ]
+      }
+    }
+  ]
+}

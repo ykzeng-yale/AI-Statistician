@@ -898,3 +898,64 @@ def test_fisher_z_l0_is_consumed_closed_after_one_runtime_draw() -> None:
         "semantic_calibration_cases.json",
     ):
         assert hidden_name not in runtime_visible
+
+
+def test_paired_ratio_l0_is_frozen_before_its_first_runtime_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "paired_ratio_of_means_delta_method_known_result"
+    )
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "ratio_metrics"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == "full_task_gold_frozen_unconsumed"
+    evidence = candidate["activation_evidence"]
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["algorithm_reference_contract_checks"] == "14/14"
+    assert evidence["algorithm_negative_variants_rejected"] == 4
+    assert evidence["empirical_reference_dgps_passed"] == 3
+    assert evidence["empirical_reference_identity_agreements"] == 9000
+    assert evidence["semantic_calibration_cases"] == 12
+    assert evidence["semantic_calibration_cases_correct"] == 12
+    assert evidence["semantic_reference_claims"] == 10
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["full_task_passed"] is False
+    for field in (
+        "source_snapshot_hash",
+        "source_manifest_sha256",
+        "gold_manifest_sha256",
+        "gold_descriptor_hash",
+    ):
+        assert len(candidate[field]) == 64
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert "authoritative Markdown/LaTeX derivation" in question["description"]
+    assert "est_paired_ratio_delta" in question["description"]
+    assert "Lean formalization is not applicable" in question["description"]
+    assert candidate["task_intent"] == question["task_intent"]
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "reference_estimator.py",
+        "negative_mean_of_ratios.py",
+        "negative_omit_covariance.py",
+        "negative_population_normalization.py",
+        "negative_standard_error_scaling.py",
+        "semantic_reference.md",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
