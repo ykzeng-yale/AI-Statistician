@@ -150,6 +150,7 @@ def _runtime_result(*, include_handoff: bool = True) -> dict:
 def _runtime_result_with_accepted_theory(
     *,
     document_workspace: Path | None = None,
+    estimator_specs: list[dict] | None = None,
 ) -> dict:
     result = _runtime_result()
     artifacts = result["blackboard"]["artifacts"]
@@ -162,6 +163,8 @@ def _runtime_result_with_accepted_theory(
         "serious_theory_mode": True,
         "theory_derivation_packet": {"mock_claim": "candidate-owned content"},
     }
+    if estimator_specs is not None:
+        theory["estimator_specs"] = deepcopy(estimator_specs)
     if document_workspace is not None:
         documents = {
             "derivations/C1.md": "# C1\n\nThe candidate-owned derivation.\n"
@@ -1156,6 +1159,24 @@ def test_full_task_theory_requires_calibrated_semantic_judgment(
         assert kwargs["model"] == "claude-haiku-4-5-20251001"
         assert kwargs["model_tier"] == "haiku"
         assert kwargs["candidate_documents"][0]["content"].startswith("# C1")
+        assert len(kwargs["candidate_documents"]) == 2
+        interface_document = kwargs["candidate_documents"][1]
+        assert interface_document["path"] == (
+            "model_authored_estimator_interfaces.json"
+        )
+        assert hashlib.sha256(
+            interface_document["content"].encode("utf-8")
+        ).hexdigest() == interface_document["sha256"]
+        interface_payload = json.loads(interface_document["content"])
+        assert interface_payload["artifact_kind"] == (
+            "ModelAuthoredTheorySemanticInterfaceProjection"
+        )
+        assert interface_payload["content_authority"] == (
+            "model_authored_structured_executable_abi"
+        )
+        assert interface_payload["estimator_specs"][0]["id"] == (
+            "est_ols_hc0_covariance"
+        )
         assert kwargs["reference_documents"][0]["content"].startswith(
             "# Reference"
         )
@@ -1179,7 +1200,38 @@ def test_full_task_theory_requires_calibrated_semantic_judgment(
     result = evaluate_research_gold_benchmark(
         [
             _runtime_result_with_accepted_theory(
-                document_workspace=tmp_path / "theory-workspace"
+                document_workspace=tmp_path / "theory-workspace",
+                estimator_specs=[
+                    {
+                        "id": "est_ols_hc0_covariance",
+                        "name": "OLS HC0 covariance",
+                        "inputs": ["design_matrix", "outcomes"],
+                        "outputs": [
+                            "coefficients",
+                            "covariance",
+                            "standard_errors",
+                        ],
+                        "estimator_interface_contract_id": "test-model-contract",
+                        "estimator_interface_contract": {
+                            "request_fields": [
+                                {
+                                    "name": "design_matrix",
+                                    "binding": "per_replicate_data",
+                                },
+                                {
+                                    "name": "outcomes",
+                                    "binding": "per_replicate_data",
+                                },
+                            ],
+                            "response_fields": [
+                                {"name": "coefficients"},
+                                {"name": "covariance"},
+                                {"name": "standard_errors"},
+                            ],
+                        },
+                        "termination_guarantee": "Finite linear algebra only.",
+                    }
+                ],
             )
         ],
         research_evaluation_summary=_research_summary(),

@@ -104,24 +104,32 @@ PREFLIGHT_CLIENT_TOOL_NAMES = [
 
 def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     prompt = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
+    protocol = " ".join(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL)
 
     assert "authoritative Markdown or LaTeX" in prompt
-    assert "every line of every authoritative Markdown or LaTeX document" in prompt
-    assert "reconstruct decisive algebraic or probabilistic transitions" in prompt
-    assert "boundary case" in prompt
-    assert "special case" in prompt
-    assert "counterexample" in prompt
-    assert "final statement" in prompt
-    assert "may be UNCERTAIN" in prompt
-    assert "scratchpad" in prompt
-    assert "frozen confirmatory" in prompt
-    assert "task-family checklist" in prompt
-    assert "Do not silently repair the candidate" in prompt
-    assert "change a defined variable, normalization, constraint subspace" in prompt
+    assert "model-directed search and exact range reads" in prompt
+    assert "highest-risk claims" in prompt
+    assert "Start from attempted falsification" in prompt
+    assert "read a\ncomplete authoritative" in prompt
+    assert "every line of every authoritative" not in prompt
+    assert "independently reconstruct its decisive transitions" in protocol
+    assert "boundary case" in protocol
+    assert "special case" in protocol
+    assert "counterexample" in protocol
+    assert "correct final statement" in protocol
+    assert "record it as uncertain" in protocol
+    assert "scratch results" in protocol
+    assert "frozen confirmatory" in protocol
+    assert "canned checklist" in protocol
+    assert "Do not silently repair a false derivation" in prompt
     assert "corrected argument" in prompt
     assert "exploratory_confirmatory_evidence_chronology" in (
         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
     )
+    assert "First challenge unresolved risks" in (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL[1]
+    )
+    assert "evidence authority" in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL[1]
 
 
 def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
@@ -2341,8 +2349,9 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert backend.requests[0].max_tokens == 7000
     assert "review_output_token_cap" not in backend.requests[0].metadata
-    assert "not theorem peer review" in backend.requests[0].system_prompt
-    assert "exact model-authored SymPy algebra" in backend.requests[0].system_prompt
+    request_content = backend.requests[0].messages[0]["content"]
+    assert "mathematical coherence from proof completeness" in request_content
+    assert "exact symbolic reduction" in request_content
     submit_schema = _submit_schema(backend.requests[0])
     assert "do not carry downstream proof obligations" in (
         prompt_payload["verdict_policy"]

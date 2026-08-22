@@ -640,7 +640,9 @@ def _evaluate_gold_task(
                         evaluator=theory_semantic_evaluator,
                         task_id=task_id,
                         visible_question=runtime_question,
-                        candidate_documents=authoritative_documents,
+                        candidate_documents=_hidden_theory_semantic_candidate_documents(
+                            theory_candidate
+                        ),
                         project_root=project_root,
                         run_semantic_judge=run_theory_semantic_judge,
                         semantic_judge_provider=theory_semantic_judge_provider,
@@ -1161,6 +1163,33 @@ def _hidden_theory_candidate_artifact(
         "boundary": GOLD_EVALUATION_BOUNDARY,
     }
     return candidate
+
+
+def _hidden_theory_semantic_candidate_documents(
+    theory_candidate: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    authoritative_rows = theory_candidate.get("authoritative_theory_documents", []) or []
+    documents = [
+        deepcopy(dict(row)) for row in authoritative_rows if isinstance(row, Mapping)
+    ]
+    interface_keys = (
+        "id", "name", "inputs", "outputs", "estimator_interface_contract_id",
+        "estimator_interface_contract", "termination_guarantee",
+    )
+    estimator_specs = [
+        {key: deepcopy(row[key]) for key in interface_keys if key in row}
+        for row in theory_candidate.get("estimator_specs", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if estimator_specs:
+        payload = {"artifact_kind": "ModelAuthoredTheorySemanticInterfaceProjection",
+                   "estimator_specs": estimator_specs,
+                   "content_authority": "model_authored_structured_executable_abi"}
+        content = json.dumps(payload, indent=2, sort_keys=True)
+        documents.append({"path": "model_authored_estimator_interfaces.json",
+                          "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                          "content": content})
+    return documents
 
 
 def _load_hidden_theory_semantic_authority(
