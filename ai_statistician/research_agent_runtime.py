@@ -8157,6 +8157,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     "review_input_fingerprint",
                     "model_requested_overall_verdict",
                     "overall_verdict",
+                    "review_document_ref",
                     "prior_finding_reviews",
                     "dimension_reviews",
                     "findings",
@@ -8224,8 +8225,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             return AgentStepResult(
                 status="BLOCKED",
                 rationale=(
-                    "The independent semantic reviewer exhausted typed packet "
-                    "repair without a contract-valid verdict."
+                    "The independent semantic reviewer's single model response "
+                    "did not produce a contract-valid verdict envelope."
                 ),
                 produced_artifacts={
                     materialization_id: materialization,
@@ -8273,6 +8274,27 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 ),
                 failure_classification="generated_code_semantic_review_verdict_invalid",
             )
+
+        review_document = review_packet.pop(
+            "_review_document_artifact",
+            {},
+        )
+        if not isinstance(review_document, Mapping) or not str(
+            review_document.get("document_id", "") or ""
+        ).strip():
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale=(
+                    "GeneratedCodeSemanticReviewer did not bind its compact verdict "
+                    "to a model-authored Markdown review artifact."
+                ),
+                produced_artifacts={materialization_id: materialization},
+                failure_classification=(
+                    "generated_code_semantic_review_document_missing"
+                ),
+            )
+        review_document_id = str(review_document["document_id"])
+        review_audit_artifacts[review_document_id] = dict(review_document)
 
         review_packet_id = str(review_packet.get("packet_id", "") or "")
         review_packet_hash = stable_hash(review_packet)
@@ -8416,6 +8438,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "initial_materialization_id": initial_materialization_id,
             "review_packet_id": review_packet_id,
             "review_packet_hash": review_packet_hash,
+            "review_document_id": review_document_id,
+            "review_document_sha256": str(
+                review_document.get("sha256", "") or ""
+            ),
             "initial_review_packet_id": initial_review_packet_id,
             "review_input_fingerprint": stable_hash(review_material),
             "source_responsibility_contract_fingerprint": str(
@@ -8445,6 +8471,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "reviewer_overall_verdict": reviewer_verdict,
             "overall_verdict": verdict,
             "workflow_verdict": verdict,
+            "review_document_ref": dict(
+                review_packet.get("review_document_ref", {}) or {}
+            ),
             "reviewed_source_artifact_lineage": [
                 {
                     "artifact_id": row["artifact_id"],
@@ -8510,6 +8539,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "reviewer_overall_verdict": reviewer_verdict,
             "overall_verdict": verdict,
             "workflow_verdict": verdict,
+            "review_document_ref": dict(
+                review_packet.get("review_document_ref", {}) or {}
+            ),
             "routing_authority": (
                 "architect_model_after_source_sufficiency_observation"
                 if cross_artifact_revision_required

@@ -1205,11 +1205,7 @@ def _build_generated_code_semantic_reviewer_agent_from_args(
                 0.0,
             ),
             provider_name=provider_name,
-            max_validation_retries=(
-                2
-                if _runtime_evaluation_model_tier(args)
-                else GeneratedCodeSemanticReviewerConfig().max_validation_retries
-            ),
+            max_validation_retries=0,
         ),
     )
 

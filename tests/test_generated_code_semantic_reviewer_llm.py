@@ -159,26 +159,27 @@ def _trusted_lineage() -> dict[str, object]:
     }
 
 
-def test_semantic_review_traces_declared_runtime_arguments_into_source() -> None:
+def test_semantic_review_delegates_load_bearing_checks_to_the_model() -> None:
     prompt = build_generated_code_semantic_review_prompt(
         question=_question(),
         review_material=_review_material(),
     )
 
-    assert "trace every supplied runtime argument" in prompt
-    assert "replacing it with a source-local constant is a defect" in prompt
+    assert "Choose the load-bearing checks yourself" in prompt
+    assert "do not fill a fixed dimension checklist" in prompt
+    assert "actual_runtime_arguments" in prompt
     assert "runtime_argument_rule" in prompt
 
 
-def test_semantic_review_audits_actual_executable_interface_behavior() -> None:
+def test_semantic_review_receives_exact_source_and_public_interface() -> None:
     prompt = build_generated_code_semantic_review_prompt(
         question=_question(),
         review_material=_review_material(),
     )
 
-    assert "For executable_interface_alignment" in prompt
-    assert "Trace real language semantics" in prompt
-    assert "contract-violating permissive coercion is FAIL" in prompt
+    assert "exact executed source" in prompt
+    assert "public interface" in prompt
+    assert "For executable_interface_alignment" not in prompt
 
 
 def _dimension_rows(*, failed: str = "") -> dict[str, dict[str, object]]:
@@ -262,26 +263,18 @@ def test_prompt_is_observation_only_and_preserves_complete_source() -> None:
     ]["seed"] == "EVALUATOR_WITHHELD"
     assert "RESULT_VALUE_MUST_NOT_APPEAR" not in prompt
     assert "def run_sandbox" in prompt
-    assert "Do not propose source edits" in prompt
-    assert "ArchitectCoordinator decides what subsystem acts next" in prompt
-    assert "counterfactual question" in prompt
-    assert "NO_PARENT_ARTIFACT_CHANGE_REQUIRED" in prompt
-    assert "PARENT_ARTIFACT_CHANGE_REQUIRED" in prompt
-    assert "The current source is mutable" in prompt
-    assert "A mismatch between mutable source and one frozen contract" in prompt
-    assert "cannot all be satisfied by any complete source rewrite" in prompt
-    assert "attempt history and artifact satisfiability" in prompt
-    assert "Monte Carlo uncertainty" in prompt
-    assert "belong exclusively to the empirical evaluator" in prompt
-    assert "cannot create a semantic source finding" in prompt
-    assert "never the realized threshold result" in prompt
-    assert "all-PASS" not in prompt
-    assert "If every dimension is PASS, findings must be empty" in prompt
-    assert "RETRACTED_RUNTIME_CONTRACT_CONFLICT" in prompt
+    assert "Do not write replacement code" in prompt
+    assert "review_document as Markdown" in prompt
+    assert "not a repair plan or routing decision" in prompt
+    assert "whether some rewrite of the current source could close all findings" in prompt
+    assert "source_revision_assessment" in prompt
+    assert "Monte Carlo" in prompt
+    assert "empirical evaluator owns realized outcome values" in prompt
+    assert "cannot by themselves create a source finding" in prompt
+    assert "fixed dimension checklist" in prompt
     assert '"reviewer_scope_contract"' in prompt
-    assert "valid_evidence_refs" in prompt
-    assert "forms are also accepted" in prompt
-    assert "findings contains only genuinely new defects" in prompt
+    assert "valid_evidence_refs" not in prompt
+    assert "Review every listed prior finding once" in prompt
     assert "repair_scope" not in prompt
     assert "upstream_metric_contract" not in prompt
     assert len(prompt) < 20_000
@@ -355,10 +348,11 @@ def test_prompt_projection_preserves_frozen_comparator_but_excludes_outcomes() -
     assert "metric_contract_evaluation" not in projected_row
     assert "stdout_summary" not in projected_row
     assert projected_row["metrics_schema"]["realized_values_withheld"] is True
-    assert "For every emitted metric path" in build_generated_code_semantic_review_prompt(
-        question=_question(),
-        review_material=material,
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question(), review_material=material
     )
+    assert "frozen measurement meanings" in prompt
+    assert "For every emitted metric path" not in prompt
 
 
 def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:
@@ -372,10 +366,18 @@ def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:
     }
 
     assert not _contains_key(GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA, forbidden)
-    assert not _contains_key(
-        generated_code_semantic_review_json_schema(_review_material()),
-        forbidden,
+    schema = generated_code_semantic_review_json_schema(_review_material())
+    assert not _contains_key(schema, forbidden)
+    assert "dimension_reviews" not in (
+        GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["properties"]
     )
+    assert {
+        "overall_verdict",
+        "review_document",
+        "findings",
+        "prior_finding_reviews",
+        "source_revision_assessment",
+    } == set(GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["required"])
     assert "source_revision_assessment" in (
         GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["required"]
     )
@@ -386,13 +388,23 @@ def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:
     assert "current_source_edit_sufficient" not in assessment_schema[
         "properties"
     ]
+    assert len(json.dumps(schema, separators=(",", ":"))) < 2_500
+    assert "enum" not in schema["properties"]["findings"]["items"][
+        "properties"
+    ]["evidence_refs"]["items"]
 
 
 def test_anthropic_reviewer_uses_provider_native_structured_output() -> None:
     response = {
         "prior_finding_reviews": [],
-        "dimension_reviews": _dimension_rows(),
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\nThe executed source is aligned.",
         "findings": [],
+        "source_revision_assessment": {
+            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "rationale": "No active finding requires a parent change.",
+            "evidence_refs": [],
+        },
     }
 
     class AnthropicBackend:
@@ -431,8 +443,11 @@ def test_anthropic_reviewer_uses_provider_native_structured_output() -> None:
     )
 
     assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["review_document_ref"]["format"] == "markdown"
+    assert packet["_review_document_artifact"]["content"].startswith("# Review")
     assert backend.requests[0].model == "claude-haiku-4-5-20251001"
     assert backend.requests[0].metadata["provider_structured_output"] is True
+    assert backend.requests[0].metadata["full_packet_regeneration_disabled"] is True
 
 
 def test_reviewer_accepts_without_selecting_a_repair_owner() -> None:

@@ -4606,16 +4606,11 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
     assert dispatch is not None
     response = {
         "prior_finding_reviews": [],
-        "dimension_reviews": {
-            dimension: {
-                "status": "PASS",
-                "rationale": "The exact executed source matches its supplied contract.",
-                "evidence_refs": [
-                    "/exact_executed_artifacts/0/exact_source_code"
-                ],
-            }
-            for dimension in GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
-        },
+        "overall_verdict": "ACCEPT",
+        "review_document": (
+            "# Independent Review\n\nThe exact executed source matches its "
+            "supplied theory, interface, arguments, and measurement meaning."
+        ),
         "findings": [],
         "source_revision_assessment": {
             "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
@@ -4650,6 +4645,14 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
     )
     assert outcome.next_task is not None
     assert outcome.next_task.owner_subsystem == "FormalizationEvaluator"
+    review_documents = [
+        row
+        for row in outcome.produced_artifacts.values()
+        if isinstance(row, dict)
+        and row.get("artifact_kind") == "GeneratedCodeSemanticReviewDocument"
+    ]
+    assert len(review_documents) == 1
+    assert review_documents[0]["content"].startswith("# Independent Review")
     next_context = outcome.next_task.inputs["architect_context"]
     assert outcome.next_task.inputs["simulation_manifest_id"] == (
         simulation_manifest_id

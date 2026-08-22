@@ -3577,6 +3577,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     assert semantic_reviewer is not None
     assert semantic_reviewer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert semantic_reviewer.config.model_tier == "sonnet"
+    assert semantic_reviewer.config.max_validation_retries == 0
     runtime_args.formal_target_semantic_reviewer_provider = "same"
     formal_target_reviewer = (
         _build_formal_target_semantic_reviewer_agent_from_args(
@@ -3658,7 +3659,7 @@ def test_live_evaluation_builders_are_pinned_to_current_haiku(
     assert all(agent.config.model == expected_model for agent in agents)
     assert agents[1].config.max_validation_retries == 0
     assert agents[2].config.max_validation_retries == 0
-    assert agents[5].config.max_validation_retries == 2
+    assert agents[5].config.max_validation_retries == 0
     architect = agents[0]
     assert architect.metric_semantic_reviewer.config.model_tier == "haiku"
 
