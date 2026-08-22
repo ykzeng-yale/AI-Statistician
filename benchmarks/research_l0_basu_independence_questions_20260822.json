@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "basu_complete_sufficient_ancillary_independence_known_result",
+      "title": "Basu independence theorem and the completeness boundary",
+      "description": "Focused known-result theory evaluation based on Debabrata Basu, On Statistics Independent of a Complete Sufficient Statistic, Sankhya 15 (1955), pages 377-380. Let {P_theta : theta in Theta} be a dominated family on a standard Borel sample space. Let T and A be statistics with standard Borel ranges. Formulate sufficiency using a theta-independent Markov kernel that is a regular conditional law of the observation given T under every P_theta; formulate bounded completeness of T and ancillarity of A without silently changing null-set or parameter dependence. In an authoritative Markdown/LaTeX theory workspace, derive rather than merely quote why T and A are independent under every P_theta. For an arbitrary measurable event in the range of A, construct the conditional-probability function of T, derive its zero-mean identity for every theta, identify exactly where bounded completeness applies, and finish the measurable-event independence calculation. Explain why bounded completeness, rather than an L2 or pointwise argument, is enough. Apply the result to n independent N(mu,sigma^2) observations with known sigma^2 by justifying the complete sufficiency of the sample mean and the ancillarity of the residual vector before claiming independence. Finally, give a concrete dominated normal-location counterexample showing that sufficiency without bounded completeness does not imply independence, and verify every claimed property of that counterexample. Keep active and rejected calculations visibly distinct and disclose any unproved regular-conditional, completeness, measurability, or null-set step honestly. This L0 task evaluates mathematical derivation and independent review only. Source replication, Python/R implementation, simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "Basu theorem",
+        "complete sufficient statistic",
+        "ancillary statistic",
+        "conditional probability",
+        "known result",
+        "theory only",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "On Statistics Independent of a Complete Sufficient Statistic",
+        "author": "Debabrata Basu",
+        "journal": "Sankhya: The Indian Journal of Statistics",
+        "year": 1955,
+        "volume": 15,
+        "pages": "377-380",
+        "jstor_stable_id": "25048259",
+        "jstor_url": "https://www.jstor.org/stable/25048259",
+        "math_reviews_id": "MR0074745"
+      }
+    }
+  ]
+}
