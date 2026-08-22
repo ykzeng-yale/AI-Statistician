@@ -666,6 +666,29 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
         )
 
 
+def test_research_eval_profile_honors_selected_formal_required_intent() -> None:
+    args = build_parser().parse_args(
+        [
+            "research-agent-runtime",
+            "--research-eval",
+            "--question-file",
+            (
+                "benchmarks/"
+                "research_l0_statlib_uniform_consistency_formal_questions_"
+                "20260822.json"
+            ),
+        ]
+    )
+
+    _apply_research_agent_runtime_research_eval_profile(args)
+
+    assert args.formalizer_provider == "same"
+    assert args.formal_target_semantic_reviewer_provider == "same"
+    assert args.formal_target_semantic_review_required is True
+    assert args.formal_verification_policy == "advisory"
+    assert args.recommended_research_path == "simulation_first"
+
+
 def test_full_live_outer_iteration_ceiling_governs_revision_paths() -> None:
     args = build_parser().parse_args(
         [

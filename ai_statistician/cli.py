@@ -4116,6 +4116,29 @@ def _research_agent_runtime_research_eval_ready(
 
 
 
+def _selected_research_eval_requires_formal_lane(
+    args: argparse.Namespace,
+) -> bool:
+    question_file = str(getattr(args, "question_file", "") or "").strip()
+    if not question_file:
+        return False
+    questions = load_open_research_questions(Path(question_file))
+    selected_ids = {
+        str(value)
+        for value in (getattr(args, "question_id", []) or [])
+        if str(value).strip()
+    }
+    if selected_ids:
+        questions = [row for row in questions if row.id in selected_ids]
+    max_questions = max(0, int(getattr(args, "max_questions", 0) or 0))
+    if max_questions:
+        questions = questions[:max_questions]
+    return any(
+        str(question.task_intent.get("formal", "") or "") == "required"
+        for question in questions
+    )
+
+
 def _apply_research_agent_runtime_research_eval_profile(
     args: argparse.Namespace,
 ) -> None:
@@ -4145,9 +4168,23 @@ def _apply_research_agent_runtime_research_eval_profile(
     ):
         if str(getattr(args, field_name, "") or "") in {"", "none", "static"}:
             setattr(args, field_name, "same")
-    args.formalizer_provider = "none"
-    args.formal_target_semantic_reviewer_provider = "none"
-    args.formal_target_semantic_review_required = False
+    if _selected_research_eval_requires_formal_lane(args):
+        if str(getattr(args, "formalizer_provider", "") or "") in {
+            "",
+            "none",
+            "static",
+        }:
+            args.formalizer_provider = "same"
+        if str(
+            getattr(args, "formal_target_semantic_reviewer_provider", "")
+            or ""
+        ) in {"", "none", "static"}:
+            args.formal_target_semantic_reviewer_provider = "same"
+        args.formal_target_semantic_review_required = True
+    else:
+        args.formalizer_provider = "none"
+        args.formal_target_semantic_reviewer_provider = "none"
+        args.formal_target_semantic_review_required = False
     args.formal_verification_policy = "advisory"
     args.recommended_research_path = "simulation_first"
     args.architect_max_tokens = max(
