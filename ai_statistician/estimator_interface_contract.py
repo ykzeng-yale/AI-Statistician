@@ -241,6 +241,23 @@ def project_executable_estimator_interface_contract(
     }
 
 
+def project_executable_estimator_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep estimator identity and its executable ABI, never duplicate theory prose."""
+
+    projected = {
+        key: deepcopy(spec[key])
+        for key in ("id", "name", "estimator_interface_contract_id")
+        if key in spec
+    }
+    contract = spec.get("estimator_interface_contract", {})
+    projected["estimator_interface_contract"] = (
+        project_executable_estimator_interface_contract(contract)
+        if isinstance(contract, Mapping)
+        else {}
+    )
+    return projected
+
+
 def theory_semantic_reference_ids(theory_packet: Mapping[str, Any]) -> set[str]:
     derivation = theory_packet.get("theory_derivation_packet", {})
     if not isinstance(derivation, Mapping):

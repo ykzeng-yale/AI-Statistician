@@ -3,6 +3,12 @@ from __future__ import annotations
 import re
 from typing import Any, Mapping
 
+from .theory_workspace import (
+    THEORY_WORKSPACE_CONTENT_AUTHORITY,
+    THEORY_WORKSPACE_HANDOFF_ROLE,
+    load_theory_workspace_document_rows,
+)
+
 
 DERIVATION_STEP_KEYS = (
     "id",
@@ -52,6 +58,59 @@ THEORY_TRACE_ALIGNMENT_BOUNDARY = (
     "does not count as code execution, simulation evidence, or Lean/kernel "
     "proof evidence."
 )
+DOCUMENT_AUTHORITATIVE_THEORY_CONTEXT_BOUNDARY = (
+    "Exact model-authored theory documents are the mathematical content "
+    "authority for this handoff. The structured trace and ABI carry identity "
+    "only. Neither the documents nor the index count as code execution, "
+    "simulation evidence, or Lean/kernel proof evidence."
+)
+
+
+def document_authoritative_theory_context(
+    theory_packet: Mapping[str, Any],
+    *,
+    max_rows: int = 5,
+    text_limit: int = 360,
+) -> dict[str, Any]:
+    """Return one exact, reusable theory context for model-owned workspaces."""
+
+    if not isinstance(theory_packet, Mapping):
+        return {}
+    documents = load_theory_workspace_document_rows(theory_packet)
+    manifest = theory_packet.get("theory_workspace_manifest", {})
+    manifest = manifest if isinstance(manifest, Mapping) else {}
+    content_authority = str(
+        theory_packet.get("theory_content_authority", "")
+        or manifest.get("content_authority", "")
+        or ""
+    )
+    handoff_role = str(
+        theory_packet.get("structured_handoff_role", "")
+        or manifest.get("structured_handoff_role", "")
+        or ""
+    )
+    if documents and (
+        content_authority != THEORY_WORKSPACE_CONTENT_AUTHORITY
+        or handoff_role != THEORY_WORKSPACE_HANDOFF_ROLE
+    ):
+        raise ValueError("theory document authority metadata is invalid")
+    return {
+        "source_theory_packet_id": str(theory_packet.get("packet_id", "") or ""),
+        "document_authoritative": bool(documents),
+        "theory_content_authority": (
+            content_authority if documents else "legacy_structured_packet"
+        ),
+        "structured_handoff_role": (
+            handoff_role if documents else "legacy_structured_packet"
+        ),
+        "theory_derivation_trace": compact_theory_derivation_trace(
+            theory_packet,
+            max_rows=max_rows,
+            text_limit=text_limit,
+        ),
+        "authoritative_theory_documents": documents,
+        "boundary": DOCUMENT_AUTHORITATIVE_THEORY_CONTEXT_BOUNDARY,
+    }
 
 
 def compact_theory_derivation_trace(

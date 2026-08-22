@@ -41,13 +41,13 @@ from .scientific_code_workspace import (
 )
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
+    document_authoritative_theory_context,
     theory_trace_alignment_contract,
     theory_trace_alignment_json_schema,
     theory_trace_alignment_output_contract,
     theory_trace_alignment_prompt_instruction,
     theory_trace_consumption_contract,
 )
-from .theory_workspace import load_theory_workspace_document_rows
 
 
 SIMULATION_ENGINEER_SCHEMA_VERSION = 1
@@ -579,9 +579,11 @@ def build_simulation_engineer_prompt(
         )
         + "You may "
         "name one runtime diagnostic, but do not claim that simulations "
-        "were run or passed. Execution is owned by AgentRuntime. Use "
-        "theory_packet_summary.theory_derivation_trace to align DGPs, estimands, "
-        "metrics, and stress tests with the authoritative theory. "
+        "were run or passed. Execution is owned by AgentRuntime. When "
+        "theory_packet_summary.document_authoritative is true, read every "
+        "authoritative_theory_documents row as the mathematical authority; use "
+        "theory_derivation_trace and estimator_specs only for claim identity and "
+        "the executable handoff. Otherwise use the supplied legacy theory trace. "
         + theory_trace_alignment_prompt_instruction(theory_packet)
         + "\n\n"
         + generated_simulation_instruction
@@ -610,6 +612,9 @@ client tools to replace and run the exact source. Read every raw sandbox and met
 observation and choose every source change yourself. The runtime executes source
 unchanged and never supplies a correction rule. Do not answer with prose, delegate
 an edit, weaken the frozen metric contract, or claim theorem-proof evidence. When
+workspace_context.theory_context.document_authoritative is true, read its exact
+authoritative_theory_documents as the mathematical authority; structured theory
+fields carry only claim identity and executable ABI. When
 metric_path contracts are supplied, treat every path segment as a literal,
 punctuation-sensitive JSON key. Before each submission, compare the nested keys
 returned by run_sandbox with every frozen path segment; do not normalize names or
@@ -628,6 +633,27 @@ a field name or sampled value without checking the declared ABI semantics.
 
 def _compact_theory_packet_for_simulation(theory_packet: Mapping[str, Any]) -> dict[str, Any]:
     """Expose only simulator-relevant theory fields to keep Haiku packets short."""
+
+    theory_context = document_authoritative_theory_context(
+        theory_packet,
+        max_rows=3,
+        text_limit=240,
+    )
+    if theory_context.get("document_authoritative"):
+        return {
+            "packet_id": theory_packet.get("packet_id", ""),
+            "estimator_specs": [
+                {
+                    "id": _truncate_text(row.get("id", ""), limit=120),
+                    "name": _truncate_text(row.get("name", ""), limit=180),
+                }
+                for row in _first_mapping_rows(
+                    theory_packet.get("estimator_specs", []),
+                    limit=2,
+                )
+            ],
+            **theory_context,
+        }
 
     problem_card = _mapping(theory_packet.get("problem_card", {}))
     simulation_spec = _mapping(theory_packet.get("simulation_ademp_spec", {}))
@@ -657,14 +683,10 @@ def _compact_theory_packet_for_simulation(theory_packet: Mapping[str, Any]) -> d
             key: _compact_string_or_list(simulation_spec.get(key, ""))
             for key in ("aim", "dgps", "methods", "performance_measures", "stress_tests")
         },
-        "theory_derivation_trace": compact_theory_derivation_trace(
-            theory_packet,
-            max_rows=3,
-            text_limit=240,
+        "theory_derivation_trace": theory_context.get(
+            "theory_derivation_trace", {}
         ),
-        "authoritative_theory_documents": (
-            load_theory_workspace_document_rows(theory_packet)
-        ),
+        "authoritative_theory_documents": [],
     }
 
 

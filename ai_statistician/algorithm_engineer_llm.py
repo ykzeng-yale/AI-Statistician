@@ -10,6 +10,7 @@ from .fingerprint import stable_hash
 from .estimator_interface_contract import (
     estimator_interface_contract_errors as shared_estimator_interface_contract_errors,
     estimator_interface_contract_id,
+    project_executable_estimator_spec,
     theory_estimator_interface_contracts,
 )
 from .generated_metric_contract import (
@@ -40,13 +41,13 @@ from .scientific_code_workspace import (
 )
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
+    document_authoritative_theory_context,
     theory_trace_alignment_contract,
     theory_trace_alignment_json_schema,
     theory_trace_alignment_output_contract,
     theory_trace_alignment_prompt_instruction,
     theory_trace_consumption_contract,
 )
-from .theory_workspace import load_theory_workspace_document_rows
 
 
 ALGORITHM_ENGINEER_SCHEMA_VERSION = 2
@@ -405,8 +406,10 @@ def build_algorithm_engineer_prompt(
         "propose code and tests, but "
         "you must not claim you executed code, wrote files, promoted a production algorithm, or proved "
         "any theorem. "
-        "Use theory_packet_summary.theory_derivation_trace to align generated code, validation metrics, "
-        "and risk controls with the authoritative theory. "
+        "When theory_packet_summary.document_authoritative is true, read every "
+        "authoritative_theory_documents row as the mathematical authority; use "
+        "theory_derivation_trace and estimator_specs only for claim identity and "
+        "the executable ABI. Otherwise use the supplied legacy theory trace. "
         + theory_trace_alignment_prompt_instruction(theory_packet)
         + source_stage_instruction
         + "\n\n"
@@ -431,11 +434,32 @@ client tools to replace and run the exact source. Read every raw sandbox
 observation and choose every source change yourself. The runtime executes source
 unchanged and never supplies a correction rule. Do not answer with prose, delegate
 an edit, weaken the task contract, or claim theorem-proof evidence.
+When workspace_context.theory_context.document_authoritative is true, read its
+exact authoritative_theory_documents as the mathematical authority; structured
+theory fields carry only claim identity and executable ABI.
 """
 
 
 def _compact_theory_packet_for_algorithm(theory_packet: Mapping[str, Any]) -> dict[str, Any]:
     """Expose only implementation-relevant theory fields to keep Haiku packets short."""
+
+    theory_context = document_authoritative_theory_context(
+        theory_packet,
+        max_rows=3,
+        text_limit=240,
+    )
+    if theory_context.get("document_authoritative"):
+        return {
+            "packet_id": theory_packet.get("packet_id", ""),
+            "estimator_specs": [
+                project_executable_estimator_spec(row)
+                for row in _first_mapping_rows(
+                    theory_packet.get("estimator_specs", []),
+                    limit=2,
+                )
+            ],
+            **theory_context,
+        }
 
     problem_card = _mapping(theory_packet.get("problem_card", {}))
     simulation_spec = _mapping(theory_packet.get("simulation_ademp_spec", {}))
@@ -472,14 +496,10 @@ def _compact_theory_packet_for_algorithm(theory_packet: Mapping[str, Any]) -> di
             key: _compact_string_list(simulation_spec.get(key, []), limit=2)
             for key in ("methods", "performance_measures", "stress_tests")
         },
-        "theory_derivation_trace": compact_theory_derivation_trace(
-            theory_packet,
-            max_rows=3,
-            text_limit=240,
+        "theory_derivation_trace": theory_context.get(
+            "theory_derivation_trace", {}
         ),
-        "authoritative_theory_documents": (
-            load_theory_workspace_document_rows(theory_packet)
-        ),
+        "authoritative_theory_documents": [],
     }
 
 

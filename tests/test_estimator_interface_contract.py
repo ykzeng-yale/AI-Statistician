@@ -7,6 +7,7 @@ from ai_statistician.estimator_interface_contract import (
     frozen_estimator_execution_contract_empirical_claim_ids,
     frozen_estimator_execution_contract_errors,
     frozen_estimator_execution_contract_id,
+    project_executable_estimator_spec,
 )
 from ai_statistician.algorithm_engineer_llm import build_algorithm_engineer_prompt
 from ai_statistician.research_agent_runtime import (
@@ -202,3 +203,48 @@ def test_absent_frozen_contract_does_not_change_legacy_question_payload() -> Non
         implementation_gaps=[],
     )
     assert "estimator_execution_contract" not in prompt
+
+
+def test_executable_estimator_projection_removes_legacy_theory_prose() -> None:
+    projected = project_executable_estimator_spec(
+        {
+            "id": "est_example",
+            "name": "Example estimator",
+            "formula": "theory-document-only formula",
+            "algorithm_sketch": "theory-document-only algorithm",
+            "estimator_interface_contract_id": "abi:example",
+            "estimator_interface_contract": {
+                "request_fields": [
+                    {
+                        "name": "sample",
+                        "meaning": "Observed sample.",
+                        "binding": "per_replicate_data",
+                        "legacy_theory_note": "do not forward",
+                    }
+                ],
+                "response_fields": [
+                    {
+                        "name": "estimate",
+                        "meaning": "Finite estimate.",
+                        "normalization": "Declared in the ABI.",
+                        "derivation_ref": "C1",
+                        "sample_size_rate": {"scale": "legacy"},
+                    }
+                ],
+            },
+        }
+    )
+
+    assert set(projected) == {
+        "id",
+        "name",
+        "estimator_interface_contract_id",
+        "estimator_interface_contract",
+    }
+    serialized = json.dumps(projected, sort_keys=True)
+    assert "theory-document-only" not in serialized
+    assert "legacy_theory_note" not in serialized
+    assert "sample_size_rate" not in serialized
+    assert projected["estimator_interface_contract"]["response_fields"][0][
+        "derivation_ref"
+    ] == "C1"

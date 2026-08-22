@@ -27,6 +27,7 @@ from ai_statistician.simulation_engineer_llm import (
     _simulation_engineer_response_schema,
 )
 from ai_statistician.theory_derivation_trace import (
+    document_authoritative_theory_context,
     theory_trace_alignment_contract,
     theory_trace_consumption_contract,
 )
@@ -251,6 +252,94 @@ def test_every_theory_consumer_reads_the_same_hash_bound_document(
     assert revision_delta_anchor["content"]["changed_claim_refs"][0][
         "claim_id"
     ] == "C1"
+
+
+def test_document_authority_replaces_duplicate_structured_math_for_coding_agents(
+    tmp_path: Path,
+) -> None:
+    packet, content = _document_theory_packet(tmp_path)
+    packet["problem_card"] = {
+        "estimand": "DUPLICATE_PROBLEM_PROSE",
+        "assumptions": ["DUPLICATE_ASSUMPTION_PROSE"],
+        "desired_theorem_type": "DUPLICATE_THEOREM_TYPE",
+    }
+    packet["estimator_specs"] = [
+        {
+            "id": "C1",
+            "name": "document-owned estimator",
+            "formula": "DUPLICATE_FORMULA_PROSE",
+            "algorithm_sketch": "DUPLICATE_ALGORITHM_PROSE",
+            "estimator_interface_contract": {
+                "request_fields": [
+                    {
+                        "name": "observations",
+                        "meaning": "Finite numeric array.",
+                        "binding": "per_replicate_data",
+                    }
+                ],
+                "response_fields": [
+                    {
+                        "name": "estimate",
+                        "meaning": "Finite estimate.",
+                        "normalization": "Defined in C1.",
+                        "derivation_ref": "C1",
+                    }
+                ],
+            },
+            "estimator_interface_contract_id": "abi:C1",
+        }
+    ]
+    packet["theorem_cards"] = [
+        {"id": "C1", "conclusion": "DUPLICATE_THEOREM_PROSE"}
+    ]
+    packet["simulation_ademp_spec"] = {
+        "aim": "DUPLICATE_SIMULATION_PROSE",
+        "dgps": ["DUPLICATE_DGP_PROSE"],
+    }
+
+    context = document_authoritative_theory_context(packet)
+    algorithm = _compact_theory_packet_for_algorithm(packet)
+    simulation = _compact_theory_packet_for_simulation(packet)
+
+    assert context["document_authoritative"] is True
+    assert context["authoritative_theory_documents"][0]["content"] == content
+    assert algorithm["authoritative_theory_documents"] == context[
+        "authoritative_theory_documents"
+    ]
+    assert simulation["authoritative_theory_documents"] == context[
+        "authoritative_theory_documents"
+    ]
+    assert "problem_card" not in algorithm
+    assert "theorem_cards" not in algorithm
+    assert "simulation_ademp_spec" not in algorithm
+    assert "problem_card" not in simulation
+    assert "theorem_cards" not in simulation
+    assert "simulation_ademp_spec" not in simulation
+    assert set(algorithm["estimator_specs"][0]) == {
+        "id",
+        "name",
+        "estimator_interface_contract",
+        "estimator_interface_contract_id",
+    }
+    assert set(simulation["estimator_specs"][0]) == {"id", "name"}
+    assert algorithm["estimator_specs"][0]["estimator_interface_contract"][
+        "response_fields"
+    ][0]["derivation_ref"] == "C1"
+    serialized = json.dumps(
+        {"algorithm": algorithm, "simulation": simulation},
+        sort_keys=True,
+    )
+    for duplicate in (
+        "DUPLICATE_PROBLEM_PROSE",
+        "DUPLICATE_ASSUMPTION_PROSE",
+        "DUPLICATE_THEOREM_TYPE",
+        "DUPLICATE_FORMULA_PROSE",
+        "DUPLICATE_ALGORITHM_PROSE",
+        "DUPLICATE_THEOREM_PROSE",
+        "DUPLICATE_SIMULATION_PROSE",
+        "DUPLICATE_DGP_PROSE",
+    ):
+        assert duplicate not in serialized
 
 
 def test_document_claim_dag_is_complete_and_exact_across_subagents(

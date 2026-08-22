@@ -276,6 +276,9 @@ from .theory_revision_lineage import (
     resolve_theory_developer_revision_parent_material,
     theory_developer_revision_binding_errors,
 )
+from .estimator_interface_contract import (
+    project_executable_estimator_spec,
+)
 from .research_knowledge import retrieve_problem_knowledge
 from .research_paper_index import retrieve_paper_sources
 from .research_schema import (
@@ -302,6 +305,7 @@ from .task_family import primary_task_family_from_question
 from .theory_derivation_trace import (
     THEORY_TRACE_ALIGNMENT_BOUNDARY,
     THEORY_TRACE_CONSUMPTION_BOUNDARY,
+    document_authoritative_theory_context,
     theory_trace_alignment_contract,
 )
 
@@ -9933,6 +9937,11 @@ class SimulationEvaluatorRuntimeSubsystem:
                     source_feedback=environment_feedback,
                 )
             )
+        theory_workspace_context = document_authoritative_theory_context(
+            packet,
+            max_rows=3,
+            text_limit=240,
+        )
         for draft in simulation_code_drafts:
             simulation_id = str(draft.get("simulation_id", "") or "simulation_draft")
             simulation_metric_contracts = generated_metric_contracts_for_artifact(
@@ -10108,6 +10117,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     ),
                     workspace_context={
                         "theory_packet_id": packet_id,
+                        "theory_context": theory_workspace_context,
                         "simulation_id": simulation_id,
                         "simulation_target": next(
                             (
@@ -10122,13 +10132,12 @@ class SimulationEvaluatorRuntimeSubsystem:
                             ),
                             {},
                         ),
-                        "theory_simulation_spec": dict(
-                            packet.get("simulation_ademp_spec", {})
-                            if isinstance(
-                                packet.get("simulation_ademp_spec", {}),
-                                Mapping,
+                        "theory_simulation_spec": (
+                            {}
+                            if theory_workspace_context.get(
+                                "document_authoritative"
                             )
-                            else {}
+                            else dict(packet.get("simulation_ademp_spec", {}))
                         ),
                         "metric_contracts": (
                             _scientific_workspace_metric_contracts(
@@ -12099,6 +12108,11 @@ class AlgorithmEngineerRuntimeSubsystem:
             effective_context,
             environment_feedback,
         )
+        theory_workspace_context = document_authoritative_theory_context(
+            packet,
+            max_rows=3,
+            text_limit=240,
+        )
         for gap in execution_gaps:
             estimator_id = str(gap.get("estimator_id", ""))
             spec = _estimator_spec(packet, estimator_id)
@@ -12273,9 +12287,16 @@ class AlgorithmEngineerRuntimeSubsystem:
                         ),
                         workspace_context={
                             "theory_packet_id": packet_id,
+                            "theory_context": theory_workspace_context,
                             "simulation_manifest_id": simulation_manifest_id,
                             "implementation_gap": dict(gap),
-                            "estimator_spec": dict(spec),
+                            "estimator_spec": (
+                                project_executable_estimator_spec(spec)
+                                if theory_workspace_context.get(
+                                    "document_authoritative"
+                                )
+                                else dict(spec)
+                            ),
                             "required_callable_exports": [
                                 "run_estimator",
                                 "run_sandbox",
