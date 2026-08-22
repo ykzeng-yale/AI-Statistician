@@ -941,3 +941,34 @@ The final focused Lean, semantic-review, and shared client-tool panel passed
 call, retry, turn increase, agent, repair worker, Lean grammar or tactic rule,
 benchmark rerun, score, proof, or capability credit was added. The frozen ladder
 remains immutable `0/23`, and strict development closure remains `0/2`.
+
+### Frozen exact-target implication
+
+Code commit `9812446fa0c4b48f0873518c30158a4268a78430` adds the
+smallest missing task surface for evaluating the Codex-style Lean workspace in
+isolation. An operator may now attach one hash-bound `formal_target_contract` to
+a proof-only question. The contract carries the exact Lean source prefix,
+declaration identity, active-project identity, and target hash; it contains no
+proof. The existing RetrievalMemory worker consumes that target and returns
+directly to the existing Formalizer session. Architect and TheoryDeveloper do not
+rewrite an already-frozen theorem, while ordinary research tasks retain their
+current graph.
+
+This path reuses existing typed theorem-goal overrides, formal RAG, source
+inspection, proof search, raw Lean checks, same-session source editing,
+independent whole-target semantic review, axiom audit, and kernel promotion. It
+adds no scheduler, agent, provider, repair worker, Lean parser, tactic rule, or
+theorem-specific product logic. The central runtime remains below its regression
+budget at 24,984 lines; pure target projection lives in the existing runtime
+research-problem adapter.
+
+The first disjoint formal L0 authority is Statlib's measure-inference implication
+from uniform consistency to pointwise consistency. The exact target and fixed
+Lean 4.30/Statlib environment are visible. The human proof and evaluator remain
+outside the repository and model workspace. Before any product call, the hidden
+harness accepted the human proof and rejected a weakened conclusion, an added
+assumption, `sorry`, and a custom axiom (`5/5`). Repo tests passed `848/848` in
+68.13 seconds. Commit `9812446f` was pushed to both canonical refs before the
+external authority was bound to it. No product model call, theorem attempt,
+runtime proof, score, or capability credit has yet occurred; the prior 23 tasks
+remain immutable at `0/23`.

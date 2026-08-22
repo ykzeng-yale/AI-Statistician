@@ -1951,10 +1951,10 @@
       "source_manifest_sha256": "1a4a57144b4f871f233c42d125517b0598002e895e2e708779d646ee3ff2f65f",
       "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
       "gold_bundle_id": "research-l0-statlib-uniform-consistency-formal-20260822-v1",
-      "gold_manifest_sha256": "b684b4c9552f7d991f8c969f288bafb6b5ecd8427202f5c7bdb5fa0b64eca047",
+      "gold_manifest_sha256": "8e5a4cea31ddfa93d22173ac934305198780225adab57c7669744a306c4d5ddd",
       "gold_descriptor_hash": "681334d6b621318eae5243d7e17bf54c4673760fefaf93ccc30234e5c7c15a69",
       "gold_runtime_visibility": "evaluator_only_after_runtime",
-      "activation_status": "frozen_ready_formal_component_v1_preactivation",
+      "activation_status": "frozen_ready_formal_component_v1_activated",
       "activation_evidence": {
         "public_reference": "Statlib commit 6575d611b5d32ef6013e9560d30b1a82a1972fb6, Statlib.Inference",
         "visible_questions_sha256": "0a5b9a239889019c007f03ce3ce8b8efdc912dd211734387ac06345977751d1f",
@@ -1962,7 +1962,7 @@
         "lean_source_prefix_sha256": "4ff6129d04e7c7c6eebbcb02f16a90ec16064641cb479d0f4ec50f00c2dbe81f",
         "hidden_gold_lean_sha256": "57bba1113235073f8f463a756ed30bedef66df714dec0cf3a2d8052b1deb26fa",
         "hidden_formal_harness_sha256": "41dcaf6ee3525b2b83479cb6f7d2cad28c5d92dfd29a32e63a7646f953abbaf4",
-        "hidden_formal_harness_calibration_sha256": "9623e4a622a124df24b8593e71dc3d4c3fa981cebe1fac18ce811f605a3c035c",
+        "hidden_formal_harness_calibration_sha256": "f9a6a1a8fa5ccc248a406ed4b131dfb91b27f51a246d3357a950a7a3c874c3de",
         "hidden_formal_harness_calibration_cases": "5/5",
         "hidden_gold_kernel_compiled": true,
         "negative_weakened_conclusion_rejected": true,
@@ -1975,8 +1975,8 @@
         "statlib_commit": "6575d611b5d32ef6013e9560d30b1a82a1972fb6",
         "mathlib_commit": "81343555dae873c8de2de2b27bbabf7bc4d8d97a",
         "gold_frozen_before_first_runtime_model_call": true,
-        "activation_commit": "TO_BE_FROZEN_BEFORE_ACTIVATION",
-        "activation_push_confirmed_on_work_branch_and_main": false,
+        "activation_commit": "9812446fa0c4b48f0873518c30158a4268a78430",
+        "activation_push_confirmed_on_work_branch_and_main": true,
         "first_runtime_model_call_occurred": false,
         "fresh_live_runs": 0,
         "model_draw_resampling_blocked": true,
@@ -2013,7 +2013,7 @@
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "All prior twenty-three scored tasks remain consumed and immutable at 0/23 full-task passes. A disjoint twenty-fourth L0 formal component is frozen but not yet activated: its exact Statlib target is model-visible, its human proof and five-case kernel/semantic calibration remain evaluator-only, and no product model call has occurred.",
-    "next_step": "Commit and push the generic exact-target workspace path plus frozen authority identities, then permit exactly one fresh exact-Haiku product draw for the new formal component. Never rerun, resume, repair, or rescore any consumed task."
+    "latest_diagnostic": "All prior twenty-three scored tasks remain consumed and immutable at 0/23 full-task passes. A disjoint twenty-fourth L0 formal component is activated at pushed code commit 9812446fa0c4b48f0873518c30158a4268a78430: its exact Statlib target is model-visible, its human proof and five-case kernel/semantic calibration remain evaluator-only, and no product model call has occurred.",
+    "next_step": "After pushing this final authority binding, permit exactly one fresh exact-Haiku product draw for the activated formal component, then evaluate it once without rerun, resume, output repair, or rescore."
   }
 }

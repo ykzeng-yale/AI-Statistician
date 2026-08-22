@@ -1,13 +1,13 @@
 {
-  "schema_version": 127,
+  "schema_version": 128,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "cb70e09c3fbd2c9b95c3ed5c06cc3f1646330898",
+  "validated_code_head": "9812446fa0c4b48f0873518c30158a4268a78430",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep converging on one model-owned, Codex-style scientific harness without importing a second scheduler, provider, or repair layer. Commit cb70e09c removes the Formalizer's full-source-only revision bottleneck: the same persistent Lean owner may now apply one exact model-authored text edit to its current source and immediately receive raw Lean feedback over the complete resulting bytes, while complete submission remains available for initial authoring or broad changes. Runtime parses no Lean and chooses no tactic; independent semantic review and kernel promotion remain mandatory. This is deterministic future-task mechanism evidence only: all twenty-three scored tasks remain immutable 0/23, exact development closure remains 0/2, and no new live call is authorized until a disjoint authority bundle is frozen and pushed.",
+  "current_goal_focus": "Evaluate the existing Codex-style Formalizer workspace without adding another harness layer. Commit 9812446f adds one operator-frozen exact-target contract and routes proof-only work through existing RAG directly to the same model-owned Lean session, bypassing Architect and TheoryDeveloper target rewriting. Runtime interprets no Lean and chooses no tactic; independent whole-target review, axiom audit, and kernel promotion remain mandatory. The disjoint Statlib authority is calibrated 5/5, bound to pushed commit 9812446f, and permits exactly one fresh exact-Haiku product draw after the final metadata push. All prior twenty-three scored tasks remain immutable 0/23 and strict development closure remains 0/2.",
   "latest_its_time_source_execution_calibration": {
     "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
@@ -233,8 +233,12 @@
     ]
   },
   "validated_change": {
-    "commit": "cb70e09c3fbd2c9b95c3ed5c06cc3f1646330898",
+    "commit": "9812446fa0c4b48f0873518c30158a4268a78430",
     "changes": [
+      "Commit 9812446f adds a hash-bound formal_target_contract for exact-statement hidden-proof tasks. The contract carries target source, declaration identity, active Lean environment identity, and hashes, but no proof or tactic.",
+      "A proof-only task now uses existing theorem-goal overrides and RetrievalMemory return-to-owner to enter the existing Formalizer directly. Architect and TheoryDeveloper do not regenerate an operator-frozen theorem; ordinary research tasks retain their existing graph.",
+      "Formalizer still owns all Lean source and sees raw compiler, RAG, proof-search, and proof-state observations. Independent target-semantic review, axiom audit, and exact kernel promotion remain unchanged, and research_eval now requires actual kernel closure when formal is required.",
+      "The disjoint Statlib hidden authority accepted the human proof and rejected weakened-conclusion, extra-assumption, sorry, and custom-axiom candidates 5/5 before activation. Focused tests passed 87/87 and the full suite passed 848/848 in 68.13 seconds with central runtime at 24,984 lines. No product call, proof attempt, score, or capability credit occurred.",
       "Commit cb70e09c aligns the existing Formalizer session with Codex's file-editing loop without importing Codex runtime. The model can use edit_current_lean_source with one exact unique old_text substring and arbitrary replacement; runtime materializes those bytes without Lean parsing, immediately checks the complete current source in the active project, and returns raw diagnostics to the same model.",
       "Complete submit_lean_source remains available for initial authoring, declaration-identity changes, and broad replacement. Ambiguous, absent, unchanged, oversized, or previously checked exact edits fail through ordinary same-session tool feedback. Overlapping substring matches are counted explicitly, and a continued hash-bound Lean workspace can edit its exact checkpoint source without regenerating a packet or passing through Architect.",
       "A successful exact edit is still only a model-authored local candidate. Existing independent semantic review, rejected-source identity, axiom audit, and runtime kernel-promotion gates are unchanged; evidence remains kernel_verified=false until those authorities run. No agent, scheduler, retry, turn, model call, Lean grammar/tactic rule, theorem-specific patch, benchmark rerun, score, or capability credit was added.",
@@ -671,12 +675,20 @@
     "boundary": "The only permitted runtime draw is complete and immutable. The valid but uncommitted model-authored workspace is not accepted theory, and no hidden component pass exists. The shared terminal-disposition correction cannot permit rerun, output repair, manual commit, resume, or rescore."
   },
   "next_frozen_evaluation": {
-    "id": "",
-    "task_id": "",
-    "family": "",
-    "status": "not_selected_or_authorized",
+    "id": "research_l0_statlib_uniform_consistency_formal_v1",
+    "task_id": "statlib_uniform_consistency_implies_consistency_formal_known_result",
+    "family": "measure_inference_formalization",
+    "status": "frozen_activated_zero_product_calls",
     "fresh_live_runs": 0,
-    "boundary": "All twenty-three scored tasks are consumed and closed. A future disjoint task requires a new visible contract, isolated gold authority, exact-Haiku calibration, freeze commit, and push to both canonical branches before any product model call."
+    "visible_questions_sha256": "0a5b9a239889019c007f03ce3ce8b8efdc912dd211734387ac06345977751d1f",
+    "visible_question_hash": "5a4ee790c2edde1063ffc40a81bc795597a652adcf5e7124b0006e1e7e244832",
+    "gold_manifest_sha256": "8e5a4cea31ddfa93d22173ac934305198780225adab57c7669744a306c4d5ddd",
+    "hidden_harness_calibration": "5/5",
+    "activation_code_commit": "9812446fa0c4b48f0873518c30158a4268a78430",
+    "activation_code_push_confirmed_on_work_branch_and_main": true,
+    "model": "claude-haiku-4-5-20251001",
+    "formalization_requirement": "required",
+    "boundary": "The exact Lean target and active Statlib environment are visible. The human proof and evaluator remain outside repository and model context. Exactly one fresh product draw may run only after this final authority binding is pushed; no rerun, resume, repair, or rescore is permitted."
   },
   "previous_authorized_evaluation": {
     "id": "research_l0_scalar_control_variate_v1_exact_haiku_20260821",
@@ -915,7 +927,7 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24968,
+    "research_agent_runtime_lines": 24984,
     "scientific_code_workspace_lines": 2359,
     "theory_workspace_lines": 3716,
     "research_architect_lines": 5361,
@@ -926,11 +938,11 @@
     "agent_runtime_lines": 1255,
     "cli_lines": 7138,
     "top_level_python_modules": 142,
-    "top_level_package_lines": 149330,
+    "top_level_package_lines": 149559,
     "latest_runtime_manifest_bytes": 50101
   },
   "next_gates": [
-    "Treat cb70e09c as future-task Formalizer harness evidence only. On a newly frozen unrelated formal task, measure whether the same exact-Haiku source owner chooses localized edits after real compiler or proof-state observations and reaches independent semantic acceptance plus kernel promotion. Do not rerun an existing failed theorem, increase turns, or count local compilation as proof.",
+    "After the final authority-binding commit is pushed to both canonical refs, run exactly one fresh research_l0_statlib_uniform_consistency_formal_v1 draw with claude-haiku-4-5-20251001 for every enabled role. Evaluate once against the already frozen hidden harness. Do not rerun, resume, repair, rescore, increase turns, or count local compilation without semantic review and kernel promotion as proof.",
     "Preserve Trimmed Match L1 v1 at raw 0/1 without rerun, resume, report repair, hidden rescore, or component promotion. Treat separate hash-bound scientific input artifacts, exact source-command visibility, and model-authored Python/R queries over selected results as future-task regression evidence only; do not infer that the consumed report would have passed.",
     "Keep the specialist collaboration rule small: one persistent source owner per Theory, Python/R, Simulation, or Lean workspace; direct environment feedback stays with that owner; independent reviewers receive artifact-only context; Architect handles only initial intent, cross-workspace conflicts, and stopping. Do not import Codex app-server, provider transport, thread manager, or another scheduler.",
     "Preserve ITS-Time L1 v1 at raw 0/1 without rerun, resume, output repair, hidden rescore, or component promotion. Treat the source-replication intent topology and exact specialist-session persistence as future-task regression evidence only; before any new disjoint draw, freeze and push its visible task, source/data authority, hidden evaluator, and model policy.",

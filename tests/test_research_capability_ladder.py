@@ -1329,7 +1329,7 @@ def test_statlib_formal_l0_is_frozen_before_first_product_draw() -> None:
 
     assert candidate["status"] == "active_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_formal_component_v1_preactivation"
+        "frozen_ready_formal_component_v1_activated"
     )
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["first_runtime_model_call_occurred"] is False
@@ -1367,7 +1367,7 @@ def test_statlib_formal_l0_is_frozen_before_first_product_draw() -> None:
     ).hexdigest() == contract["lean_source_prefix_sha256"]
     assert contract["lean_source_prefix"].rstrip().endswith(":= by")
     assert "tendsto_of_tendsto" not in contract["lean_source_prefix"]
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert ladder["current_readiness"]["active_scored_tasks"] == 24
     assert ladder["current_readiness"]["consumed_scored_tasks"] == 23
     assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 24
