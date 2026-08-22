@@ -2613,6 +2613,7 @@ def _architect_runtime_owned_evidence_contract(
         "formal_target_completion_policy",
         "formal_evaluation_requires_formal_target_semantic_review",
         "formal_evaluation_requires_formalizer_lean_candidate",
+        "independent_theory_review_required",
         "research_evaluation_requires_generated_algorithm_code",
         "research_evaluation_requires_generated_code_semantic_review",
         "research_evaluation_requires_generated_simulation_code",

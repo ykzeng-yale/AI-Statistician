@@ -435,6 +435,7 @@ def test_architect_accepts_empty_targets_for_not_applicable_dimensions() -> None
     ] == ["RetrievalMemory", "TheoryDeveloper", "CriticEvaluator"]
     assert packet["evidence_contract"]["formal_targets"] == []
     assert packet["evidence_contract"]["simulation_targets"] == []
+    assert packet["evidence_contract"]["independent_theory_review_required"] is True
 
 
 class _RouteBackend:

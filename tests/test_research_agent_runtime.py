@@ -1080,6 +1080,16 @@ def test_runtime_stores_theory_tool_history_as_separate_evidence() -> None:
             inputs={
                 "question": runtime_module._question_to_payload(question),
                 "architect_context": {
+                    "architect_runtime_plan": {
+                        "evidence_contract": {
+                            "dimension_requirements": {
+                                "theory": "required",
+                                "scientific_code": "not_applicable",
+                                "empirical": "not_applicable",
+                                "formal": "not_applicable",
+                            }
+                        }
+                    },
                     "runtime_requested_evidence_contract": (
                         runtime_module._runtime_requested_evidence_contract(
                             formal_verification_policy="optional",

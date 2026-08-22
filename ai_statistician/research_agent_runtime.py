@@ -6068,6 +6068,8 @@ class TheoryDeveloperRuntimeSubsystem:
         )
         requires_independent_theory_review = bool(
             evidence_contract.get("independent_theory_review_required") is True
+            or research_dimension_requirements(question.task_intent).get("theory")
+            == "required"
         )
         requires_theory_preflight = bool(
             requires_metric_protocol_gate
