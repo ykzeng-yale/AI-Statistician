@@ -1689,6 +1689,67 @@
         "novelty": "not_applicable",
         "unresolved_gaps": "required"
       }
+    },
+    {
+      "id": "exponential_rate_mle_pivot_known_result",
+      "level": "L0",
+      "family": "lifetime_rate_inference",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l0_exponential_rate_mle_questions_20260821.json",
+      "source_authority": "operator_provisioned_hash_bound_model_visible_snapshot",
+      "source_snapshot_id": "exponential-rate-mle-known-result-v1",
+      "source_snapshot_hash": "e8129b821d3fad594f19086f4a229e3cbebd92667fad6260e1f301ba389ce622",
+      "source_manifest_sha256": "90ec02bda5ac5a8e6a1642116f277e02252fa1f0f21f7803f3afc6f7de110bba",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l0-exponential-rate-mle-20260821-v1",
+      "gold_manifest_sha256": "a81c1d2ca66b616d1f53baf876954e0a3af70aa610af677254775e9cdd45ab8f",
+      "gold_descriptor_hash": "71410d786fed8ed38b72ff2267ce81a14b5231b4b9a5da67792e02eb734c0ed6",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "full_task_gold_frozen_v1_not_yet_run",
+      "activation_evidence": {
+        "public_reference": "NIST/SEMATECH exponential-distribution reference and SciPy v1.18.0 scipy.stats.expon and scipy.stats.chi2 references",
+        "visible_questions_sha256": "d81f3c32786644bf7b6d3bdaf5be04087389a16e3d6a8c0ba9e94544213ee989",
+        "visible_question_hash": "42d76dffcaa2df5844337083d0c9575fbcddc76a8dccbba73498dc97fbad9bb6",
+        "estimator_execution_contract_id": "frozen_estimator_execution_contract:f846cc277a55cf23ce15",
+        "source_snapshot_documents": 3,
+        "hidden_theory_harness_sha256": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+        "hidden_semantic_reference_sha256": "2b2100b36af1dce9fcfe9c60ce8b71051e8125442cadac396fa03e8617183a3b",
+        "hidden_algorithm_harness_sha256": "f005246436dc4b04bcfe3dfd97fb6e9efdfd9ac6ad96b79db0fcc9a8dea6b193",
+        "hidden_empirical_harness_sha256": "fb29b6e7c20bd61e13b783880138dde959d3c7c9eb0aa113aae7cd5d78fb9043",
+        "reference_estimator_sha256": "6a1f5663d562759c34a51ff8265f95ae69d36583acbf609bc96e5f6c5dcce46e",
+        "algorithm_reference_contract_checks": "11/11",
+        "algorithm_reference_maximum_relative_error": 0.0,
+        "algorithm_negative_variants_rejected": 4,
+        "empirical_reference_dgps_passed": 3,
+        "empirical_reference_replicates_per_dgp": 5000,
+        "empirical_reference_identity_agreements": 15000,
+        "empirical_reference_maximum_coverage_standardized_error": 1.5573256428552922,
+        "empirical_reference_maximum_mle_mean_standardized_error": 1.4849973653109412,
+        "empirical_reference_maximum_unbiased_mean_standardized_error": 1.4849973653109538,
+        "semantic_calibration_cases": 12,
+        "semantic_calibration_cases_correct": 12,
+        "semantic_reference_claims": 10,
+        "semantic_reference_candidate_passed": true,
+        "semantic_reference_judgment_hash": "cbb2195b58da3a1feb05f62e091d0ff3a0c2eaa3dab465e128a484a18191267d",
+        "hidden_gold_manifest_validated": true,
+        "schema_v2_contract_entailment_audit": "Every hidden algorithm check cites exact public request, response, or invariant clauses. Every hidden empirical check cites a public empirical claim plus the exact estimator fields it consumes. Mathematical theory remains in the question and Markdown/LaTeX workspace; hidden rates, sample sizes, thresholds, seeds, and replicate totals are frozen evaluator configuration rather than runtime research rules.",
+        "gold_frozen_before_first_runtime_model_call": true,
+        "activation_push_confirmed_on_work_branch_and_main": false,
+        "first_runtime_model_call_occurred": false,
+        "fresh_live_runs": 0,
+        "model_draw_resampling_blocked": true,
+        "formalization_requirement": "not_applicable",
+        "full_task_passed": false
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
     }
   ],
   "activation_requirements": [
@@ -1702,15 +1763,15 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 20,
+    "active_scored_tasks": 21,
     "consumed_scored_tasks": 20,
-    "fully_gold_configured_tasks": 20,
+    "fully_gold_configured_tasks": 21,
     "fully_gold_passed_tasks": 0,
     "runtime_source_replication_components_ready": 1,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "Twenty scored tasks are consumed and immutable at 0/20 full-task passes. Pearson multinomial goodness-of-fit v1 reached accepted runtime theory, generated estimator, source review, metric review, and an 8/8-gate generated simulation, then a shared hash-only dependency validation defect blocked post-simulation review before its model call. Hidden empirical checks passed, while hidden algorithm acceptance and calibrated theory semantics did not. Future-task commit f4fe83ed requires the coding model to inspect raw execution before explicit source commit, preserves withheld outcome hashes correctly, and tells the referee not to silently repair a candidate's mathematics while accepting it.",
-    "next_step": "Keep Pearson immutable and closed. Freeze a new disjoint gold-covered task before any further product draw. The next draw must use the corrected submit-execute-observe-commit lifecycle with every enabled role pinned to claude-haiku-4-5-20251001; no Pearson output may enter prompts, RAG, tests, or scoring."
+    "latest_diagnostic": "Twenty scored tasks are consumed and immutable at 0/20 full-task passes. Exponential rate MLE v1 is a new disjoint lifetime-rate task whose visible contract, three-document official source snapshot, schema-v2 hidden gold, 11/11 deterministic contract calibration, four rejected negative estimators, 15,000-draw empirical calibration, and 12/12 exact-Haiku semantic calibration are frozen before its first product model call.",
+    "next_step": "Commit and push the exponential-rate MLE v1 freeze to the work branch and main, bind that freeze commit in a separate activation record, then run exactly one fresh canonical research-eval draw with every enabled model role pinned to claude-haiku-4-5-20251001. Consume the task regardless of outcome and do not rerun, resume, repair, or rescore it."
   }
 }

@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "exponential_rate_mle_pivot_known_result",
+      "title": "Exponential-rate MLE, reciprocal bias, and exact pivot interval",
+      "description": "Focused L0 known-result evaluation in lifetime-rate inference. Let X_1,...,X_n be independent exponential observations with rate lambda>0 and density lambda exp(-lambda x) on x>=0, with fixed n>=3. Develop one authoritative Markdown/LaTeX derivation of the likelihood, score, strict concavity, and MLE lambda_hat=n/S for S=sum_i X_i. Derive S~Gamma(shape=n, rate=lambda), the pivot 2 lambda S~chi-square_{2n}, the exact finite-sample bias E(lambda_hat)=n lambda/(n-1), the unbiased correction (n-1)/S, and the exact equal-tail 1-alpha confidence interval [chi2_{2n,alpha/2}/(2S), chi2_{2n,1-alpha/2}/(2S)]. Also derive Fisher information n/lambda^2 and the asymptotic law sqrt(n)(lambda_hat-lambda)/lambda => N(0,1). Keep rate and scale parameterizations explicit, distinguish exact pivot coverage from asymptotic normal approximation, and explain positive rescaling equivariance. The required model-authored artifact is est_exponential_rate_interval and must implement run_estimator(request) exactly. The request object has exactly sample and alpha; reject missing or extra fields. Exploratory computation may diagnose algebra or implementation. A separate frozen confirmatory assessment uses independent exponential samples from predeclared rates and sample sizes, verifies formula, permutation, and rescaling identities, and assesses exact-interval coverage plus finite-sample means with Monte Carlo uncertainty. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "lifetime_rate_inference",
+        "exponential_distribution",
+        "maximum_likelihood",
+        "exact_pivot",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_exponential_rate_interval",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.sample",
+            "name": "sample",
+            "meaning": "Observed lifetimes X_1,...,X_n under the exponential rate parameterization.",
+            "json_type": "array[number]",
+            "shape": "length n with n>=3; every entry is finite and nonnegative; the total is strictly positive",
+            "units": "time",
+            "indexing": "entry i is observation i; ordering has no inferential meaning",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, negative values, fewer than three observations, and zero total time.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.alpha",
+            "name": "alpha",
+            "meaning": "Two-sided equal-tail error probability fixed before observing the sample.",
+            "json_type": "number",
+            "shape": "scalar strictly between zero and one",
+            "units": "probability",
+            "indexing": "one value for the entire interval",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite values, and values outside the open interval (0,1).",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.sample_size",
+            "name": "sample_size",
+            "meaning": "The number n of observed lifetimes.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "observations",
+            "indexing": "equals len(sample)",
+            "edge_cases": "Must be an integer at least three.",
+            "normalization": "No normalization."
+          },
+          {
+            "clause_id": "response.total_time",
+            "name": "total_time",
+            "meaning": "The sufficient statistic S=sum_i X_i.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "time",
+            "indexing": "uses all sample entries",
+            "edge_cases": "Must be finite and strictly positive.",
+            "normalization": "sum_i sample[i]."
+          },
+          {
+            "clause_id": "response.mle_rate",
+            "name": "mle_rate",
+            "meaning": "The maximum-likelihood estimator of the exponential rate lambda.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "inverse time",
+            "indexing": "uses sample_size and total_time",
+            "edge_cases": "Must be finite and strictly positive.",
+            "normalization": "sample_size/total_time."
+          },
+          {
+            "clause_id": "response.unbiased_rate",
+            "name": "unbiased_rate",
+            "meaning": "The finite-sample unbiased reciprocal-sum estimator of lambda.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "inverse time",
+            "indexing": "uses sample_size and total_time",
+            "edge_cases": "Must be finite and strictly positive.",
+            "normalization": "(sample_size-1)/total_time."
+          },
+          {
+            "clause_id": "response.fisher_standard_error",
+            "name": "fisher_standard_error",
+            "meaning": "The plug-in first-order standard error from Fisher information.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "inverse time",
+            "indexing": "uses mle_rate and sample_size",
+            "edge_cases": "Must be finite and strictly positive.",
+            "normalization": "mle_rate/sqrt(sample_size)."
+          },
+          {
+            "clause_id": "response.confidence_level",
+            "name": "confidence_level",
+            "meaning": "The declared nominal coverage probability.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "probability",
+            "indexing": "determined by alpha",
+            "edge_cases": "Must be finite and strictly between zero and one.",
+            "normalization": "1-alpha."
+          },
+          {
+            "clause_id": "response.exact_ci_lower",
+            "name": "exact_ci_lower",
+            "meaning": "The lower endpoint obtained by inverting the exact chi-square pivot.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "inverse time",
+            "indexing": "uses alpha, sample_size, and total_time",
+            "edge_cases": "Must be finite, strictly positive, and below exact_ci_upper.",
+            "normalization": "chi2.ppf(alpha/2, 2*sample_size)/(2*total_time)."
+          },
+          {
+            "clause_id": "response.exact_ci_upper",
+            "name": "exact_ci_upper",
+            "meaning": "The upper endpoint obtained by inverting the exact chi-square pivot.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "inverse time",
+            "indexing": "uses alpha, sample_size, and total_time",
+            "edge_cases": "Must be finite, strictly positive, and above exact_ci_lower.",
+            "normalization": "chi2.ppf(1-alpha/2, 2*sample_size)/(2*total_time)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.exact_formulas",
+            "meaning": "All returned fields equal the declared sufficient-statistic, MLE, unbiased correction, Fisher plug-in standard error, confidence level, and exact chi-square endpoint formulas."
+          },
+          {
+            "clause_id": "invariant.permutation",
+            "meaning": "Permuting sample entries preserves every response field."
+          },
+          {
+            "clause_id": "invariant.positive_rescaling",
+            "meaning": "Multiplying every sample entry by c>0 multiplies total_time by c, leaves sample_size and confidence_level unchanged, and divides mle_rate, unbiased_rate, fisher_standard_error, and both interval endpoints by c."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.exact_coverage",
+            "meaning": "For each frozen exponential DGP, independently generated intervals cover the true rate with probability 1-alpha up to Monte Carlo uncertainty because 2 lambda S is an exact continuous chi-square pivot."
+          },
+          {
+            "clause_id": "claim.empirical.finite_sample_means",
+            "meaning": "Across independent replicates, the mean MLE agrees with n lambda/(n-1) and the mean unbiased_rate agrees with lambda up to Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory call supplies the exact generated sample and frozen alpha and separately verifies formula, output-domain, permutation, and positive-rescaling behavior before aggregating coverage or estimator means."
+          }
+        ]
+      }
+    }
+  ]
+}

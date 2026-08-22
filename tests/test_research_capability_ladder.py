@@ -1147,3 +1147,71 @@ def test_pearson_multinomial_gof_l0_frozen_draw_is_consumed_and_closed() -> None
         "semantic_calibration_cases.json",
     ):
         assert hidden_name not in runtime_visible
+
+
+def test_exponential_rate_mle_l0_authority_is_frozen_before_first_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "exponential_rate_mle_pivot_known_result"
+    )
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "lifetime_rate_inference"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == "full_task_gold_frozen_v1_not_yet_run"
+    evidence = candidate["activation_evidence"]
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["algorithm_reference_contract_checks"] == "11/11"
+    assert evidence["algorithm_negative_variants_rejected"] == 4
+    assert evidence["empirical_reference_dgps_passed"] == 3
+    assert evidence["empirical_reference_identity_agreements"] == 15000
+    assert evidence["semantic_calibration_cases"] == 12
+    assert evidence["semantic_calibration_cases_correct"] == 12
+    assert evidence["semantic_reference_claims"] == 10
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["full_task_passed"] is False
+    assert ladder["current_readiness"]["active_scored_tasks"] == 21
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 20
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 21
+    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
+    for field in (
+        "source_snapshot_hash",
+        "source_manifest_sha256",
+        "gold_manifest_sha256",
+        "gold_descriptor_hash",
+    ):
+        assert len(candidate[field]) == 64
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert "authoritative Markdown/LaTeX derivation" in question["description"]
+    assert "est_exponential_rate_interval" in question["description"]
+    assert "Lean formalization is not applicable" in question["description"]
+    assert candidate["task_intent"] == question["task_intent"]
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "reference_estimator.py",
+        "negative_scale_parameter.py",
+        "negative_unbiased_as_mle.py",
+        "negative_missing_factor_two.py",
+        "negative_wald_interval.py",
+        "semantic_reference.md",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
