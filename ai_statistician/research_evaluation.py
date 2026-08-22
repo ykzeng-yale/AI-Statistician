@@ -371,7 +371,7 @@ def _latest_serious_theory_packet(
     return "", {}
 
 
-def _theory_preexecution_review_accepted(
+def theory_preexecution_review_accepted(
     artifacts: Mapping[str, Mapping[str, Any]],
     *,
     theory_packet_id: str,
@@ -693,7 +693,7 @@ def build_research_evaluation_summary(
                 in {"anthropic", "openai"}
             ),
             "theory_preexecution_review_accepted": bool(
-                _theory_preexecution_review_accepted(
+                theory_preexecution_review_accepted(
                     artifacts,
                     theory_packet_id=theory_packet_id,
                     theory_packet=theory_packet,
@@ -802,10 +802,11 @@ def build_research_evaluation_summary(
                 )
             )
         if theory_required:
-            required_capability_checks.append("serious_theory_completed")
-        if empirical_required:
-            required_capability_checks.append(
-                "theory_preexecution_review_accepted"
+            required_capability_checks.extend(
+                (
+                    "serious_theory_completed",
+                    "theory_preexecution_review_accepted",
+                )
             )
         if scientific_code_required:
             required_capability_checks.extend(

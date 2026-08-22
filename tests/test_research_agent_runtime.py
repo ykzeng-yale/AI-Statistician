@@ -390,6 +390,95 @@ def test_theory_only_path_compiles_directly_to_critic() -> None:
     ) == "SimulationEvaluator"
 
 
+def test_accepted_theory_only_preflight_compiles_without_empirical_gate() -> None:
+    question = OpenResearchQuestion(
+        id="accepted-theory-only-preflight",
+        title="Accepted theory only preflight",
+        description="Review exact theory before terminal criticism.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+    theory_packet_id = "theory_derivation:accepted-theory-only"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "question": runtime_module._question_to_payload(question),
+    }
+    theory_packet_hash = runtime_module.stable_hash(theory_packet)
+    contract = runtime_module._runtime_requested_evidence_contract(
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+    )
+    context = {
+        "architect_coordinator_proposal_id": "architect:theory-only",
+        "architect_runtime_plan": {
+            "packet_id": "architect:theory-only",
+            "evidence_contract": contract,
+            "subsystem_execution_plan": [
+                {"subsystem": "TheoryDeveloper"},
+                {"subsystem": "CriticEvaluator"},
+            ],
+        },
+        "runtime_requested_evidence_contract": contract,
+        "architect_metric_protocol_theory_material": {
+            "source_theory_packet_id": theory_packet_id,
+            "source_theory_packet_hash": theory_packet_hash,
+        },
+    }
+    preflight = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+        "packet_id": "theory_preflight:accepted-theory-only",
+        "source_theory_packet_id": theory_packet_id,
+        "source_theory_packet_hash": theory_packet_hash,
+        "overall_verdict": "ACCEPT",
+        "active_unresolved_finding_ids": [],
+    }
+
+    result = runtime_module._architect_theory_preflight_accepted_result(
+        task=AgentTask(
+            task_id="architect-theory-preflight:accepted-theory-only",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Review exact theory.",
+            inputs={"question": runtime_module._question_to_payload(question)},
+        ),
+        question=question,
+        architect_context=context,
+        preflight_packet=preflight,
+        runtime_config=ResearchAgentRuntimeConfig(),
+        blackboard=BlackboardState(
+            project_id=question.id,
+            artifacts={theory_packet_id: theory_packet},
+        ),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "CriticEvaluator"
+    next_context = result.next_task.inputs["architect_context"]
+    assert "architect_metric_protocol_gate" not in next_context
+    acceptance = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeArchitectTheoryExecutionPreflightAcceptance"
+    )
+    assert acceptance["algorithm_execution_available"] is False
+    assert acceptance["empirical_evaluation_available"] is False
+    assert acceptance["formalization_evaluation_available"] is False
+    observation = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeArchitectTheoryExecutionPreflightAcceptedObservation"
+    )
+    assert observation["metric_authoring_deferred"] is False
+
+
 def test_runtime_config_has_no_legacy_prover_authoring_plane() -> None:
     names = {field.name for field in fields(ResearchAgentRuntimeConfig)}
     forbidden_fragments = (
@@ -1018,6 +1107,14 @@ def test_runtime_stores_theory_tool_history_as_separate_evidence() -> None:
     assert stored_workspace["runtime_storage_role"] == (
         "SEPARATE_WORKSPACE_EVIDENCE_NOT_THEORY_CONTENT"
     )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.inputs["runtime_architect_operation"] == (
+        runtime_module.RUNTIME_ARCHITECT_OPERATION_THEORY_PREFLIGHT
+    )
+    assert "architect_metric_protocol_gate" not in result.next_task.inputs[
+        "architect_context"
+    ]
 
 
 def test_runtime_records_claim_revision_delta_against_exact_packet_bytes() -> None:
@@ -1317,6 +1414,74 @@ def test_architect_source_escalation_requires_independent_semantic_conflict() ->
             },
             source_artifact_id="algorithm:failed",
         )
+
+
+def test_terminal_critic_blocks_unreviewed_required_theory_before_model_call() -> None:
+    question = OpenResearchQuestion(
+        id="critic-requires-independent-theory-review",
+        title="Require isolated theory review",
+        description="Do not let a terminal critic self-ratify an unreviewed theory.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+    theory_packet_id = "theory_derivation:unreviewed"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "question": runtime_module._question_to_payload(question),
+    }
+
+    class NeverCalledCritic:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        def propose(self, **kwargs):
+            self.calls.append(kwargs)
+            raise AssertionError("Critic model must not see unreviewed required theory")
+
+    critic = NeverCalledCritic()
+    result = CriticEvaluatorRuntimeSubsystem(
+        proposal_agent=critic,  # type: ignore[arg-type]
+    ).run(
+        AgentTask(
+            task_id="critic:unreviewed-theory",
+            owner_subsystem="CriticEvaluator",
+            objective="Evaluate the requested theory evidence.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "architect_context": {
+                    "runtime_requested_evidence_contract": (
+                        runtime_module._runtime_requested_evidence_contract(
+                            formal_verification_policy="optional",
+                            evaluation_mode="research_eval",
+                            task_intent=question.task_intent,
+                        )
+                    )
+                },
+            },
+        ),
+        BlackboardState(
+            project_id=question.id,
+            artifacts={theory_packet_id: theory_packet},
+        ),
+    )
+
+    assert critic.calls == []
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "required_independent_theory_review_missing"
+    )
+    missing = next(iter(result.produced_artifacts.values()))
+    assert missing["artifact_kind"] == "RuntimeRequiredTheoryReviewMissing"
+    assert missing["model_call_authorized"] is False
+    assert result.evidence_entries[0].status == (
+        "MISSING_BLOCKED_BEFORE_CRITIC_MODEL_CALL"
+    )
 
 
 def test_final_critic_does_not_restart_exhausted_formalizer_for_missing_proof() -> None:

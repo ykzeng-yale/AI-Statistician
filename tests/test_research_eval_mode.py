@@ -202,6 +202,7 @@ def test_explicit_theory_only_intent_does_not_require_unused_lanes() -> None:
     assert contract["research_evaluation_requires_generated_algorithm_code"] is False
     assert contract["research_evaluation_requires_generated_simulation_code"] is False
     assert contract["research_evaluation_requires_typed_metric_contracts"] is False
+    assert contract["independent_theory_review_required"] is True
     assert set(_required_architect_plan_subsystems(contract)) == {
         "RetrievalMemory",
         "TheoryDeveloper",
@@ -1186,14 +1187,41 @@ def test_research_summary_honors_theory_only_task_intent() -> None:
     )
 
     row = summary["rows"][0]
-    assert row["research_loop_complete"] is True
+    assert row["research_loop_complete"] is False
     assert row["required_capability_checks"] == [
         "serious_theory_completed",
+        "theory_preexecution_review_accepted",
         "critic_research_acceptance",
         "critic_unresolved_gap_disclosure_present",
     ]
+    assert row["requirements"]["theory_preexecution_review_accepted"] is False
     assert row["requirements"]["generated_algorithm_executed_and_passed"] is False
     assert row["requirements"]["generated_simulation_executed_and_passed"] is False
+
+    preflight = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+        "source_theory_packet_id": "theory",
+        "source_theory_packet_hash": stable_hash(theory),
+        "overall_verdict": "ACCEPT",
+        "active_unresolved_finding_ids": [],
+    }
+    artifacts = result["blackboard"]["artifacts"]
+    artifacts["theory_preflight"] = preflight
+    artifacts["theory_preflight_acceptance"] = {
+        "artifact_kind": "RuntimeArchitectTheoryExecutionPreflightAcceptance",
+        "source_theory_packet_id": "theory",
+        "source_theory_packet_hash": stable_hash(theory),
+        "preflight_packet_id": "theory_preflight",
+        "preflight_packet_hash": stable_hash(preflight),
+    }
+
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+    assert summary["rows"][0]["research_loop_complete"] is True
+    assert summary["rows"][0]["requirements"][
+        "theory_preexecution_review_accepted"
+    ] is True
 
 
 def test_research_summary_requires_kernel_closure_for_formal_only_task() -> None:

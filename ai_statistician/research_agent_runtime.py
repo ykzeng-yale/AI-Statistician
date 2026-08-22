@@ -157,7 +157,10 @@ from .implementation_metric_handoff import (
     accepted_implementation_interface_handoff_errors,
     build_accepted_implementation_interface_handoff,
 )
-from .research_evaluation import build_research_evaluation_summary
+from .research_evaluation import (
+    build_research_evaluation_summary,
+    theory_preexecution_review_accepted,
+)
 from .research_gold_evaluation import (
     evaluate_research_gold_benchmark,
     validate_research_gold_benchmark_manifest,
@@ -523,6 +526,10 @@ def _runtime_requested_evidence_contract(
         "research_evaluation_requires_typed_metric_contracts": (
             generated_simulation_required
         ),
+        "independent_theory_review_required": bool(
+            not explicit_task_intent
+            or dimension_requirements["theory"] == "required"
+        ),
         "formal_evaluation_requires_formal_target_semantic_review": bool(
             formal_evaluation_required
             and formal_target_semantic_review_required
@@ -808,6 +815,34 @@ def _architect_theory_preflight_accepted_result(
     blackboard: BlackboardState,
 ) -> AgentStepResult:
     context = dict(architect_context)
+    evidence_contract = _architect_runtime_plan(context).get(
+        "evidence_contract", {}
+    )
+    if not isinstance(evidence_contract, Mapping) or not evidence_contract:
+        evidence_contract = context.get(
+            "runtime_requested_evidence_contract", {}
+        )
+    if not isinstance(evidence_contract, Mapping):
+        evidence_contract = {}
+    dimension_requirements = _runtime_contract_dimension_requirements(
+        evidence_contract
+    )
+    algorithm_execution_available = bool(
+        not dimension_requirements
+        or dimension_requirements.get("scientific_code") != "not_applicable"
+    )
+    empirical_evaluation_available = bool(
+        not dimension_requirements
+        or dimension_requirements.get("empirical") != "not_applicable"
+    )
+    formalization_evaluation_available = bool(
+        not dimension_requirements
+        or dimension_requirements.get("formal") != "not_applicable"
+    )
+    metric_protocol_required = _runtime_research_evaluation_contract_flag(
+        evidence_contract,
+        "typed_metric_contracts",
+    )
     theory_material = context.get(
         "architect_metric_protocol_theory_material", {}
     )
@@ -875,9 +910,12 @@ def _architect_theory_preflight_accepted_result(
         ),
         "execution_results_observed": False,
         "full_metric_authoring_completed": False,
-        "algorithm_execution_available": True,
+        "algorithm_execution_available": algorithm_execution_available,
         "algorithm_execution_authorized": False,
-        "formalization_evaluation_available": True,
+        "empirical_evaluation_available": empirical_evaluation_available,
+        "formalization_evaluation_available": (
+            formalization_evaluation_available
+        ),
         "confirmatory_simulation_authorized": False,
         "runtime_selected_next_owner": False,
         "runtime_selected_semantics": False,
@@ -886,9 +924,9 @@ def _architect_theory_preflight_accepted_result(
         ),
         "boundary": (
             "Independent source-grounded preflight accepted the current theory "
-            "for downstream evidence work selected by the Architect model. It does "
-            "not select a worker, freeze empirical metrics, authorize confirmatory "
-            "simulation, accept statistical performance, or prove a theorem."
+            "artifact for downstream use selected by the existing Architect plan. "
+            "It does not select a worker, freeze empirical metrics, authorize "
+            "execution, accept statistical performance, or prove a theorem."
         ),
     }
     acceptance_identity_payload = deepcopy(acceptance)
@@ -900,58 +938,68 @@ def _architect_theory_preflight_accepted_result(
         + stable_hash(acceptance_identity_payload)[:20]
     )
     acceptance["acceptance_id"] = acceptance_id
+    context["theory_packet_id"] = theory_packet_id
     context["architect_theory_execution_preflight_acceptance"] = (
         runtime_artifact_reference(acceptance_id, acceptance)
     )
-    context["empirical_evaluation_phase"] = (
-        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
-    )
-    prior_metric_gate = context.get("architect_metric_protocol_gate", {})
-    prior_metric_gate = (
-        dict(prior_metric_gate)
-        if isinstance(prior_metric_gate, Mapping)
-        else {}
-    )
-    upstream_theory_revision_count = max(
-        0,
-        int(prior_metric_gate.get("upstream_theory_revision_count", 0) or 0),
-    )
-    context["architect_metric_protocol_gate"] = {
-        **{
-            key: value
-            for key, value in prior_metric_gate.items()
-            if key
-            in {
-                "rejection_manifest_ids",
-                "source_theory_revision_feedback_id",
-            }
-        },
-        "artifact_kind": "RuntimeArchitectMetricProtocolGate",
-        "source_theory_packet_id": theory_packet_id,
-        "source_theory_packet_hash": theory_packet_hash,
-        "upstream_theory_revision_count": upstream_theory_revision_count,
-        "continuation_budget_authority": "AgentRuntime.max_iterations",
-        "required_disposition": (
-            "IMPLEMENTATION_ACCEPTED_BEFORE_METRIC_AUTHORING"
-        ),
-        "execution_authorized": False,
-        "algorithm_execution_available": True,
-        "algorithm_execution_authorized": False,
-        "confirmatory_simulation_authorized": False,
-        "consumed": False,
-        "preflight_acceptance_id": acceptance_id,
-        "preflight_acceptance_hash": stable_hash(acceptance),
-        "proof_evidence_status": (
-            "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
-        ),
-        "boundary": (
-            "If the Architect model selects AlgorithmEngineer, only exploratory "
-            "execution is authorized and full metric authoring remains deferred "
-            "until independent implementation review accepts a hash-bound executable "
-            "interface. Formalization and theory review do not depend on that "
-            "empirical sequence."
-        ),
-    }
+    if empirical_evaluation_available:
+        context["empirical_evaluation_phase"] = (
+            EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+        )
+    else:
+        context.pop("empirical_evaluation_phase", None)
+    if metric_protocol_required:
+        prior_metric_gate = context.get("architect_metric_protocol_gate", {})
+        prior_metric_gate = (
+            dict(prior_metric_gate)
+            if isinstance(prior_metric_gate, Mapping)
+            else {}
+        )
+        upstream_theory_revision_count = max(
+            0,
+            int(
+                prior_metric_gate.get("upstream_theory_revision_count", 0)
+                or 0
+            ),
+        )
+        context["architect_metric_protocol_gate"] = {
+            **{
+                key: value
+                for key, value in prior_metric_gate.items()
+                if key
+                in {
+                    "rejection_manifest_ids",
+                    "source_theory_revision_feedback_id",
+                }
+            },
+            "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+            "source_theory_packet_id": theory_packet_id,
+            "source_theory_packet_hash": theory_packet_hash,
+            "upstream_theory_revision_count": upstream_theory_revision_count,
+            "continuation_budget_authority": "AgentRuntime.max_iterations",
+            "required_disposition": (
+                "IMPLEMENTATION_ACCEPTED_BEFORE_METRIC_AUTHORING"
+            ),
+            "execution_authorized": False,
+            "algorithm_execution_available": algorithm_execution_available,
+            "algorithm_execution_authorized": False,
+            "confirmatory_simulation_authorized": False,
+            "consumed": False,
+            "preflight_acceptance_id": acceptance_id,
+            "preflight_acceptance_hash": stable_hash(acceptance),
+            "proof_evidence_status": (
+                "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": (
+                "If the existing Architect plan selects AlgorithmEngineer, only "
+                "exploratory execution is authorized and full metric authoring "
+                "remains deferred until independent implementation review accepts "
+                "a hash-bound executable interface."
+            ),
+        }
+    else:
+        context.pop("architect_metric_protocol_gate", None)
+        context.pop("architect_metric_protocol_prior_rejection", None)
     implementation_gaps = _implementation_gaps(theory_packet)
     context["implementation_gaps"] = implementation_gaps
     next_workspace_owner = _compiled_post_theory_workspace_owner(
@@ -976,16 +1024,17 @@ def _architect_theory_preflight_accepted_result(
         "overall_verdict": "ACCEPT",
         "implementation_target_available": bool(implementation_gaps),
         "n_implementation_gaps": len(implementation_gaps),
-        "metric_authoring_deferred": True,
+        "metric_authoring_deferred": metric_protocol_required,
         "confirmatory_simulation_authorized": False,
         "compiled_next_owner": next_workspace_owner,
         "owner_selection_source": "model_authored_architect_plan",
         "runtime_authored_research_route": False,
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
         "boundary": (
-            "This observation records the next workspace compiled from the already "
-            "validated model-authored Architect plan. Runtime does not make a new "
-            "research decision or author implementation, simulation, or proof content."
+            "This observation records independent review of an exact theory artifact "
+            "and the next workspace compiled from the existing model-authored "
+            "Architect plan. Runtime does not make a new research decision or "
+            "author theory, implementation, simulation, or proof content."
         ),
     }
     route_feedback_id = (
@@ -1039,8 +1088,12 @@ def _architect_theory_preflight_accepted_result(
         payload={
             "source_theory_packet_id": theory_packet_id,
             "preflight_packet_id": preflight_packet_id,
-            "algorithm_execution_available": True,
+            "algorithm_execution_available": algorithm_execution_available,
             "algorithm_execution_authorized": False,
+            "empirical_evaluation_available": empirical_evaluation_available,
+            "formalization_evaluation_available": (
+                formalization_evaluation_available
+            ),
             "confirmatory_simulation_authorized": False,
             "compiled_next_owner": next_task.owner_subsystem,
             "owner_selection_source": "model_authored_architect_plan",
@@ -5881,6 +5934,10 @@ class TheoryDeveloperRuntimeSubsystem:
         evidence_contract = _architect_runtime_plan(context).get(
             "evidence_contract", {}
         )
+        if not isinstance(evidence_contract, Mapping) or not evidence_contract:
+            evidence_contract = context.get(
+                "runtime_requested_evidence_contract", {}
+            )
         if not isinstance(evidence_contract, Mapping):
             evidence_contract = {}
         requires_generated_algorithm = bool(
@@ -6009,6 +6066,19 @@ class TheoryDeveloperRuntimeSubsystem:
             evidence_contract=evidence_contract,
             architect_context=context,
         )
+        requires_independent_theory_review = bool(
+            evidence_contract.get("independent_theory_review_required") is True
+        )
+        requires_theory_preflight = bool(
+            requires_metric_protocol_gate
+            or requires_independent_theory_review
+        )
+        if not requires_metric_protocol_gate:
+            context.pop("architect_metric_protocol_gate", None)
+            context.pop(
+                "architect_metric_protocol_authority_invalidation",
+                None,
+            )
         theory_material_artifacts: dict[str, dict[str, Any]] = {}
         current_theory_material_id = (
             "theory_metric_protocol_material:"
@@ -6080,16 +6150,28 @@ class TheoryDeveloperRuntimeSubsystem:
                     "review accepts a hash-bound interface."
                 ),
             }
-            metric_protocol_task = AgentTask(
+        if requires_theory_preflight:
+            context["theory_packet_id"] = packet_id
+            context["architect_metric_protocol_theory_material"] = (
+                current_theory_material
+            )
+            theory_preflight_task = AgentTask(
                 task_id=(
-                    f"architect-metric-protocol:{question.id}:"
-                    f"{stable_hash([task.task_id, packet_id])[:8]}"
+                    (
+                        f"architect-metric-protocol:{question.id}:"
+                        if requires_metric_protocol_gate
+                        else f"architect-theory-preflight:{question.id}:"
+                    )
+                    + f"{stable_hash([task.task_id, packet_id])[:8]}"
                 ),
                 owner_subsystem="ArchitectCoordinator",
                 objective=(
                     "Independently review the theory, DGP, estimand, identifiability, "
                     "and finite executability before generated implementation and "
                     "deferred metric protocol authoring."
+                    if requires_metric_protocol_gate
+                    else "Independently review the exact theory workspace and its "
+                    "source-grounded derivation before downstream scientific use."
                 ),
                 inputs={
                     "question": _question_to_payload(question),
@@ -6106,13 +6188,19 @@ class TheoryDeveloperRuntimeSubsystem:
                 acceptance_gate=(
                     "source-grounded theory preflight receives independent ACCEPT; "
                     "only exploratory implementation is then authorized"
+                    if requires_metric_protocol_gate
+                    else "the exact theory workspace receives an independent, "
+                    "artifact-grounded ACCEPT with no unresolved findings"
                 ),
                 stop_condition=(
                     "preflight is accepted and routed to AlgorithmEngineer, or a "
                     "typed theory revision preserves the full review lineage"
+                    if requires_metric_protocol_gate
+                    else "review is accepted for downstream use, or exact findings "
+                    "return to the same TheoryDeveloper workspace"
                 ),
             )
-            next_task = metric_protocol_task
+            next_task = theory_preflight_task
         elif dependency_rebuild_required:
             next_task = simulation_task
         else:
@@ -6191,10 +6279,8 @@ class TheoryDeveloperRuntimeSubsystem:
             status="REROUTE",
             rationale=(
                 "LLM TheoryDeveloper produced a proposal; runtime is routing it to "
-                "independent source-grounded theory/executability preflight before "
-                "AlgorithmEngineer; full metric authoring remains deferred until "
-                "independent implementation acceptance."
-                if requires_metric_protocol_gate
+                "independent, artifact-grounded theory review before downstream use."
+                if requires_theory_preflight
                 else (
                     "LLM TheoryDeveloper revised the theory packet; runtime is "
                     "rebuilding hash-bound empirical descendants through a "
@@ -18779,6 +18865,76 @@ def _critic_packet_validation_failure_bundle(
     return failure_id, failure_artifact, feedback, observation, evidence
 
 
+def _runtime_required_theory_review_missing_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    theory_packet: Mapping[str, Any],
+) -> AgentStepResult:
+    theory_packet_hash = (
+        stable_hash(dict(theory_packet)) if theory_packet else ""
+    )
+    artifact_id = "required_theory_review_missing:" + stable_hash(
+        [task.task_id, question.id, theory_packet_id, theory_packet_hash]
+    )[:20]
+    boundary = (
+        "A terminal Critic cannot accept a theory-required task until an isolated "
+        "reviewer accepts the exact theory artifact with no unresolved findings. "
+        "Runtime did not call the Critic model or edit scientific content."
+    )
+    artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeRequiredTheoryReviewMissing",
+        "artifact_id": artifact_id,
+        "question_id": question.id,
+        "source_task_id": task.task_id,
+        "source_theory_packet_id": theory_packet_id,
+        "source_theory_packet_hash": theory_packet_hash,
+        "model_call_authorized": False,
+        "runtime_edited_theory": False,
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        "boundary": boundary,
+    }
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, artifact_id])[:20],
+        task_id=task.task_id,
+        artifact_id=artifact_id,
+        evidence_type="required_independent_theory_review",
+        status="MISSING_BLOCKED_BEFORE_CRITIC_MODEL_CALL",
+        boundary=boundary,
+        payload={
+            "source_theory_packet_id": theory_packet_id,
+            "source_theory_packet_hash": theory_packet_hash,
+            "model_call_authorized": False,
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        },
+    )
+    return AgentStepResult(
+        status="BLOCKED",
+        rationale=boundary,
+        produced_artifacts={artifact_id: artifact},
+        observations=(
+            EnvironmentObservation(
+                observation_type="required_independent_theory_review_missing",
+                summary=(
+                    "terminal Critic blocked before model call because the exact "
+                    "theory artifact lacks accepted independent review"
+                ),
+                payload={
+                    "artifact_id": artifact_id,
+                    "source_theory_packet_id": theory_packet_id,
+                    "source_theory_packet_hash": theory_packet_hash,
+                    "model_call_authorized": False,
+                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        failure_classification="required_independent_theory_review_missing",
+    )
+
+
 class CriticEvaluatorRuntimeSubsystem:
     name = "CriticEvaluator"
 
@@ -18902,6 +19058,41 @@ class CriticEvaluatorRuntimeSubsystem:
             if isinstance(critic_control.get("evidence_contract", {}), Mapping)
             else {}
         )
+        requested_evidence_contract = context.get(
+            "runtime_requested_evidence_contract", {}
+        )
+        if not isinstance(requested_evidence_contract, Mapping):
+            requested_evidence_contract = {}
+        dimension_requirements = research_dimension_requirements(
+            question.task_intent
+        )
+        independent_theory_review_required = bool(
+            critic_evidence_contract.get(
+                "independent_theory_review_required"
+            )
+            is True
+            or requested_evidence_contract.get(
+                "independent_theory_review_required"
+            )
+            is True
+            or (
+                dimension_requirements
+                and dimension_requirements.get("theory") == "required"
+            )
+        )
+        if independent_theory_review_required and not (
+            theory_preexecution_review_accepted(
+                blackboard.artifacts,
+                theory_packet_id=theory_packet_id,
+                theory_packet=theory_packet,
+            )
+        ):
+            return _runtime_required_theory_review_missing_result(
+                task=task,
+                question=question,
+                theory_packet_id=theory_packet_id,
+                theory_packet=theory_packet,
+            )
         explicit_formal_verification_policy = str(
             critic_evidence_contract.get("formal_verification_policy", "") or ""
         ).strip()
