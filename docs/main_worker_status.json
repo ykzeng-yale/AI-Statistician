@@ -1,15 +1,15 @@
 {
-  "schema_version": 121,
+  "schema_version": 122,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "18392b13b30202a98b94b21e85e4d199320ddfeb",
+  "validated_code_head": "a2e19a07714069d1278428adfb9bc06d9c4dbbf4",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. Commit 18392b13 extends the existing exact-source tool with a hash-audited copy-on-write workspace and operator-declared result artifacts, so ordinary published scripts can return their CSV, text, or binary outputs to the same TheoryDeveloper session without model-owned commands or runtime content repair. The untouched ITS-Time JMLR Figure 5 script supplies independent real-sandbox component evidence only; it is not a scored L1 run or report-semantic acceptance. Twenty-one scored tasks remain immutable 0/21. The next priority is to freeze independent source-identity and report-interpretation authority before one disjoint L1 activation, while continuing measured long-horizon theory work rather than adding another interface, agent, retry, or budget.",
+  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. Commit a2e19a07 binds source-replication report judgment to the exact evaluator-observed source manifest and hidden harness metrics after AgentRuntime terminates, while withholding raw result bodies and acceptance thresholds from both the product model and runtime. The disjoint ITS-Time L1 visible task, hash-bound public source snapshot, exact-source authority, and calibrated report-semantic authority are now frozen with zero product model calls. Twenty-one consumed tasks remain immutable 0/21; the twenty-second task is frozen but unconsumed and supplies no capability credit. After this freeze record is pushed, the next action is exactly one fresh exact-Haiku product run with no rerun, resume, output repair, post-hoc authority, or added harness feature.",
   "latest_its_time_source_execution_calibration": {
-    "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(68), Identifying Causal Effects using Instrumental Time Series",
+    "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
     "source_commit": "5df3e2b51cbb8a144b21bd18e8e1194703c12607",
     "source_snapshot_hash": "3df42ed627f73a3657082f89e282d30aefa93a2ce8d485a4c84e6a6c1dce0b51",
@@ -28,6 +28,27 @@
     "scored_task_activated": false,
     "capability_credit": false,
     "boundary": "This is independent executor calibration for a stochastic author script. It does not score TheoryDeveloper interpretation, establish hidden-gold acceptance, rerun a consumed task, or prove the paper's theorem."
+  },
+  "next_its_time_l1_evaluation": {
+    "task_id": "its_time_niv_figure5_public_replication",
+    "status": "frozen_ready_no_product_model_call",
+    "preactivation_code_head": "a2e19a07714069d1278428adfb9bc06d9c4dbbf4",
+    "visible_questions_sha256": "24787023cfbef7c37a3826a0616733e17f6850959b6836213c33ce37bb307d9c",
+    "source_snapshot_hash": "c3f00bf9b266089dd998644c77b7cf7496d2776d73eed9edeb6c38816247db80",
+    "source_manifest_sha256": "e3b2b8885f2a0b0ec3fd2e00c0afbc9320e99cdbac8d1ff19404f732a18ea31b",
+    "source_execution_spec_sha256": "e42edfdd1c547b54a8fac2f57035bd9f1ce8243d6a94a4197641dbc3da7e9df8",
+    "gold_manifest_sha256": "6c698025e2a51879c5c694a60dd01e3288cac0b205a75b368e4b06e394df5b6b",
+    "gold_descriptor_hash": "5486537ec40d34d4c6b5896736568c6a9cd71bf94c0e8af13e9517610b0aa98c",
+    "independent_exact_source_reruns": "4/4",
+    "source_replication_calibration_cases": "8/8",
+    "semantic_calibration_cases": "6/6",
+    "semantic_calibration_model": "claude-haiku-4-5-20251001",
+    "semantic_calibration_model_calls": 2,
+    "preactivation_product_model_calls": 0,
+    "formalization_requirement": "not_applicable",
+    "task_consumed": false,
+    "capability_credit": false,
+    "boundary": "All calibration is evaluator-only preactivation evidence. It does not establish research-agent replication or report fidelity, and no hidden semantic conclusion is exposed to runtime."
   },
   "latest_exponential_rate_mle_evaluation": {
     "task_id": "exponential_rate_mle_pivot_known_result",
@@ -142,8 +163,12 @@
     ]
   },
   "validated_change": {
-    "commit": "18392b13b30202a98b94b21e85e4d199320ddfeb",
+    "commit": "a2e19a07714069d1278428adfb9bc06d9c4dbbf4",
     "changes": [
+      "Commit a2e19a07 gives source-report semantic evaluation a separate evaluator-only observation document derived from the exact source-replication manifest and hidden harness metrics after AgentRuntime terminates. Raw stdout, stderr, result bodies, previews, and acceptance thresholds are excluded; the document cannot feed runtime, mutate the candidate, or turn source execution into semantic acceptance.",
+      "The visible ITS-Time L1 task requires only exact published-source replication and an unresolved-gap report. Theory, generated scientific code, simulation, novelty, and formalization are explicitly not applicable, so the task measures whether the same source-owning model can inspect frozen paper/code evidence, execute the pinned source, and interpret the observed result without unrelated lanes.",
+      "Evaluator-only authority was frozen before any product call: four independent untouched exact-source reruns passed, the source identity harness passed 8/8 calibrated cases, and the exact claude-haiku-4-5-20251001 report-semantic judge passed 6/6 calibrated claims in two evaluator calls. These are authority-calibration facts, not product capability evidence.",
+      "The focused evaluator panel passed 142/142 and the full local suite passed 828/828 in 71.63 seconds. No product model call, source edit, output repair, result parser in runtime, agent, scheduler, retry, model escalation, statistical formula, Lean rule, proof, score, or capability credit was added; all twenty-one consumed tasks remain immutable 0/21.",
       "Commit 18392b13 adds schema-v2 exact-source execution inside the existing TheoryDeveloper tool loop. The operator may predeclare bounded result paths; runtime stages only hash-verified snapshot files, executes the unchanged pinned entrypoint in the existing network-denied sandbox, and returns raw stdout/stderr plus exact output hashes, sizes, and bounded text to the same source-owning model session.",
       "Original source identity is rechecked before and after execution. Staged non-result inputs must retain their exact hashes, undeclared workspace outputs and symlinks fail closed, large UTF-8 results expose only a 256 KiB preview while retaining full-file hash and size, and binary results are never embedded. Schema-v1 stdout-only execution stays read-compatible.",
       "Independent component calibration used the untouched JMLR 2024 ITS-Time Figure 5 right script at Git commit 5df3e2b51cbb8a144b21bd18e8e1194703c12607 in a pinned Python 3.9.6 scientific environment. The real macOS sandbox produced 1,000 CSV rows with no original or staged-input mutation and no undeclared output; niv_all had lower error than niv_single in 77.7% of sampled settings, coherently reproducing the published qualitative comparison. This is executor calibration, not model-authored interpretation, hidden-gold acceptance, theorem proof, or scored capability.",
@@ -809,11 +834,11 @@
     "agent_runtime_lines": 1255,
     "cli_lines": 7138,
     "top_level_python_modules": 142,
-    "top_level_package_lines": 147992,
+    "top_level_package_lines": 148043,
     "latest_runtime_manifest_bytes": 51442
   },
   "next_gates": [
-    "Treat commit 18392b13 and the untouched ITS-Time run as shared executor evidence only. Before any live L1 call, freeze the complete paper/code snapshot, exact source-output identity checks, and independently calibrated report-semantic authority; then allow exact Haiku one fresh draw. Do not add another result parser, source wrapper, retry, agent, or post-run evaluator authority merely to make that draw pass.",
+    "The ITS-Time L1 visible task, source identity, exact-source harness, dynamic report-observation binding, and calibrated report-semantic authority are frozen before any product model call. After this record is pushed, run exactly one fresh draw with every enabled role pinned to claude-haiku-4-5-20251001, execute hidden gold only after AgentRuntime terminates, and then permanently close the task from rerun, resume, output repair, or rescore regardless of outcome.",
     "Treat commit b5486480 as canonical Theory workspace evidence: initial and revised estimator ABIs now belong to the same model-owned Markdown/LaTeX session and receive direct validator feedback. Do not add an ABI repair worker, restore the dedicated interface call, parse statistical meaning in runtime, or rerun a consumed task merely to demonstrate the change live.",
     "Measure long-horizon TheoryDeveloper quality next on a newly frozen known-result or exact-replication task with evaluator authority established before activation. Distinguish derivation quality, independent review, executable ABI, source replication, and empirical evidence; do not let this harness simplification count as mathematical capability.",
     "Preserve scalar control-variate L0 v1 at raw 0/1 without rerun, resume, output repair, hidden rescore, or component promotion. Accepted runtime theory, estimator source, and metric review remain distinct from the missing generated simulation and incomplete hidden theory/algorithm acceptance.",

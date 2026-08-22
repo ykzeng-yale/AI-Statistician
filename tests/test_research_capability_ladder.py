@@ -68,7 +68,7 @@ def test_ladder_counts_fully_configured_active_tasks_without_embedding_gold() ->
     for candidate in active:
         assert candidate["gold_runtime_visibility"] == "evaluator_only_after_runtime"
         assert candidate["activation_status"].startswith(
-            ("full_task_gold_", "fresh_live_v1_")
+            ("full_task_gold_", "fresh_live_v1_", "frozen_ready_")
         )
         assert Path(candidate["visible_questions_path"]).is_file()
         assert "gold_manifest" not in candidate
@@ -1204,9 +1204,9 @@ def test_exponential_rate_mle_l0_authority_is_consumed_after_one_draw() -> None:
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["active_scored_tasks"] == 21
+    assert ladder["current_readiness"]["active_scored_tasks"] == 22
     assert ladder["current_readiness"]["consumed_scored_tasks"] == 21
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 21
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 22
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
@@ -1238,6 +1238,68 @@ def test_exponential_rate_mle_l0_authority_is_consumed_after_one_draw() -> None:
         "negative_missing_factor_two.py",
         "negative_wald_interval.py",
         "semantic_reference.md",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_its_time_l1_authority_is_frozen_before_first_product_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "its_time_niv_figure5_public_replication"
+    )
+
+    assert candidate["level"] == "L1"
+    assert candidate["family"] == "instrumental_time_series"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == "frozen_ready_no_product_model_call"
+    assert candidate["gold_runtime_visibility"] == "evaluator_only_after_runtime"
+    evidence = candidate["activation_evidence"]
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["hidden_gold_activated_before_first_product_model_call"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["independent_reruns"] == "4/4"
+    assert evidence["source_replication_calibration_cases"] == "8/8"
+    assert evidence["semantic_calibration_cases"] == "6/6"
+    assert evidence["semantic_calibration_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["semantic_calibration_model_calls"] == 2
+    assert evidence["dynamic_report_evidence_binding"] is True
+    assert evidence["full_task_passed"] is False
+    assert ladder["current_readiness"]["active_scored_tasks"] == 22
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 21
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 22
+    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert "operator-pinned source without editing or wrapping it" in question["description"]
+    assert question["task_intent"]["formal"] == "not_applicable"
+    assert candidate["task_intent"] == question["task_intent"]
+    assert question["task_intent"] == {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_source_replication_harness.py",
+        "semantic_reference.md",
+        "semantic_rubric.json",
         "semantic_calibration_cases.json",
     ):
         assert hidden_name not in runtime_visible

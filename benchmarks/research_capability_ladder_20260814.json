@@ -703,6 +703,60 @@
       }
     },
     {
+      "id": "its_time_niv_figure5_public_replication",
+      "level": "L1",
+      "family": "instrumental_time_series",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l1_its_time_replication_questions_20260822.json",
+      "source_authority": "operator_provisioned_hash_bound_model_visible_snapshot",
+      "source_snapshot_id": "its-time-jmlr-2024-public-replication-v1",
+      "source_snapshot_hash": "c3f00bf9b266089dd998644c77b7cf7496d2776d73eed9edeb6c38816247db80",
+      "source_manifest_sha256": "e3b2b8885f2a0b0ec3fd2e00c0afbc9320e99cdbac8d1ff19404f732a18ea31b",
+      "source_repository_commit": "5df3e2b51cbb8a144b21bd18e8e1194703c12607",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l1-its-time-jmlr-2024-v1",
+      "gold_manifest_sha256": "6c698025e2a51879c5c694a60dd01e3288cac0b205a75b368e4b06e394df5b6b",
+      "gold_descriptor_hash": "5486537ec40d34d4c6b5896736568c6a9cd71bf94c0e8af13e9517610b0aa98c",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "frozen_ready_no_product_model_call",
+      "activation_evidence": {
+        "preactivation_code_head": "a2e19a07714069d1278428adfb9bc06d9c4dbbf4",
+        "visible_questions_sha256": "24787023cfbef7c37a3826a0616733e17f6850959b6836213c33ce37bb307d9c",
+        "source_snapshot_documents": 10,
+        "paper_source_sha256": "0ac670b773f3c7d2f43862198c76c203665b568a4382122f89ff01051fd6a504",
+        "source_entrypoint_sha256": "34718f91cd3efa9b999b8166e6467c8d5bedb7bfacdb3864705e42c7c9a5b5f5",
+        "committed_result_sha256": "6272a701349320c68d9d4e192230261141f1b7487ab7d87fb592e931dae6da66",
+        "environment_lock_sha256": "7d07ab3cf8e7d73c61533912bb167bfbcbf74d50e51a4de5cde4516ad7041bec",
+        "source_execution_spec_sha256": "e42edfdd1c547b54a8fac2f57035bd9f1ce8243d6a94a4197641dbc3da7e9df8",
+        "hidden_source_replication_harness_sha256": "0c30a7aeb0bbab5f82cec3b57cb85f3edd5c2d8f9b9c77b96f2ab3564c81da8a",
+        "independent_rerun_summary_sha256": "24dd5ae872333d812910941f7529849420c65fe8803414bf005f8614d2f11f1e",
+        "independent_reruns": "4/4",
+        "source_replication_calibration_cases": "8/8",
+        "semantic_reference_sha256": "6774313fa1973f93e944079c3822232b296d02d1779e2919ff728abecaf7ca1f",
+        "semantic_rubric_sha256": "e1fd7effed25ea324d17fce3b69594fbce6689d1797fdcc08a3092bc9004d0d9",
+        "semantic_calibration_cases_sha256": "69e1171ae2503fc4033b57b99233f85e946cb7848a80baab57f6a474fbf3812d",
+        "semantic_calibration_cases": "6/6",
+        "semantic_calibration_model": "claude-haiku-4-5-20251001",
+        "semantic_calibration_model_calls": 2,
+        "dynamic_report_evidence_binding": true,
+        "hidden_gold_manifest_validated": true,
+        "hidden_gold_activated_before_first_product_model_call": true,
+        "preactivation_product_model_calls": 0,
+        "fresh_live_runs": 0,
+        "runtime_source_replication_lane_available": true,
+        "full_task_passed": false
+      },
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
+    },
+    {
       "id": "model_x_public_paper_to_code_reproduction",
       "level": "L2",
       "family": "conditional_independence",
@@ -1792,15 +1846,15 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 21,
+    "active_scored_tasks": 22,
     "consumed_scored_tasks": 21,
-    "fully_gold_configured_tasks": 21,
+    "fully_gold_configured_tasks": 22,
     "fully_gold_passed_tasks": 0,
-    "runtime_source_replication_components_ready": 1,
+    "runtime_source_replication_components_ready": 2,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "Twenty-one scored tasks are consumed and immutable at 0/21 full-task passes. Exponential rate MLE v1 completed the canonical runtime and passed hidden empirical assessment, but frozen gold rejected an internally inconsistent asymptotic derivation and a public-ABI boolean-input miss. The result confirms that the Codex-style same-model tool loop and evidence boundaries work; it does not establish that exact Haiku can reliably author or referee the mathematics.",
-    "next_step": "Do not rerun, resume, repair, or rescore any consumed task. Audit another disjoint capability only after its visible contract, source snapshot, hidden gold, calibration, and activation commit are frozen and pushed before the first product model call; keep every enabled evaluation role pinned to claude-haiku-4-5-20251001."
+    "latest_diagnostic": "Twenty-one scored tasks are consumed and immutable at 0/21 full-task passes. A twenty-second disjoint ITS-Time L1 task is frozen but unconsumed with four exact author-source calibrations, an 8/8 source harness, and a 6/6 exact-Haiku report judge. These are preactivation evaluator facts, not research-agent capability evidence.",
+    "next_step": "After this freeze record is pushed, execute exactly one fresh ITS-Time L1 product run with every model role pinned to claude-haiku-4-5-20251001, then run hidden identity and report-semantic gold only after AgentRuntime terminates. Never rerun, resume, repair, or rescore the result."
   }
 }
