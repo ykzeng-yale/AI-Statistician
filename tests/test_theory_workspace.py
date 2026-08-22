@@ -16,6 +16,7 @@ from ai_statistician.model_backend import (
 from ai_statistician.scientific_sandbox import ScientificSandboxExecution
 from ai_statistician.research_source_library import (
     RESEARCH_SOURCE_READ_TOOL,
+    RESEARCH_SOURCE_RESULT_READ_TOOL,
     RESEARCH_SOURCE_RUN_TOOL,
     RESEARCH_SOURCE_SEARCH_TOOL,
     ResearchSourceExecutionSpec,
@@ -492,8 +493,13 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
         timeout_seconds=30,
         max_output_bytes=8192,
     )
+    source_output = tmp_path / "source-output"
+    staged_result = source_output / "source_workspace" / "results.csv"
+    staged_result.parent.mkdir(parents=True)
+    result_text = "method,error\nrecent,0.1\n"
+    staged_result.write_text(result_text, encoding="utf-8")
     manifest_body = {
-        "schema_version": 1,
+        "schema_version": 2,
         "artifact_kind": "SourceReplicationManifest",
         "artifact_id": "source_replication:fixture",
         "question_id": "q1",
@@ -501,6 +507,18 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
         "raw_stdout": "coef=0.5\n",
         "raw_stderr": "",
         "stdout_sha256": hashlib.sha256(b"coef=0.5\n").hexdigest(),
+        "manifest_path": str(source_output / "source_replication_manifest.json"),
+        "result_artifacts": [
+            {
+                "relative_path": "results.csv",
+                "sha256": hashlib.sha256(result_text.encode()).hexdigest(),
+                "size_bytes": len(result_text.encode()),
+                "content_encoding": "utf-8",
+                "text_line_count": 2,
+                "raw_text": result_text,
+                "text_truncated": False,
+            }
+        ],
         "source_mutated": False,
         "runtime_edited_source": False,
         "runtime_generated": True,
@@ -525,6 +543,17 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
                     call_id="run-published-source",
                     name=RESEARCH_SOURCE_RUN_TOOL,
                     input={},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="read-published-result",
+                    name=RESEARCH_SOURCE_RESULT_READ_TOOL,
+                    input={
+                        "relative_path": "results.csv",
+                        "line_start": 1,
+                        "line_end": 2,
+                    },
                 )
             ),
             _response(
@@ -554,16 +583,36 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
     assert calls[0]["execution"] is source_execution
     assert calls[0]["research_sources"] is research_sources
     first_tools = [tool.name for tool in backend.requests[0].tools]
-    assert first_tools[:4] == [
+    assert first_tools[:5] == [
         "read_theory_workspace",
         RESEARCH_SOURCE_SEARCH_TOOL,
         RESEARCH_SOURCE_READ_TOOL,
         RESEARCH_SOURCE_RUN_TOOL,
+        RESEARCH_SOURCE_RESULT_READ_TOOL,
     ]
     assert "coef=0.5" in str(backend.requests[1].messages)
+    assert "raw_text" not in str(backend.requests[1].messages)
+    assert "method,error" in str(backend.requests[2].messages)
     assert result.evidence["source_replication_runs"] == 1
     assert result.evidence["source_replication_manifests"] == [manifest]
+    assert result.evidence["source_result_read_refs"] == [
+        {
+            "artifact_id": "source_replication:fixture",
+            "relative_path": "results.csv",
+            "artifact_sha256": hashlib.sha256(result_text.encode()).hexdigest(),
+            "line_count": 2,
+            "line_start": 1,
+            "line_end": 2,
+            "content_sha256": hashlib.sha256(
+                b"method,error\nrecent,0.1"
+            ).hexdigest(),
+            "proof_evidence_status": (
+                "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    ]
     assert "coef=0.5" not in json.dumps(result.evidence["history"])
+    assert "method,error" not in json.dumps(result.evidence["history"])
     assert "source-replication refs" in json.dumps(result.evidence["history"])
 
 

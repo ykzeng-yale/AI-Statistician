@@ -22,11 +22,14 @@ from .research_source_library import (
     MAX_SOURCE_SEARCH_HITS,
     RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
     RESEARCH_SOURCE_READ_TOOL,
+    RESEARCH_SOURCE_RESULT_READ_TOOL,
     RESEARCH_SOURCE_RUN_TOOL,
     RESEARCH_SOURCE_SEARCH_TOOL,
     ResearchSourceExecutionSpec,
     ResearchSourceSnapshot,
     execute_research_source,
+    read_source_replication_result,
+    source_replication_model_observation,
 )
 from .research_source_discovery import (
     RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE,
@@ -467,6 +470,7 @@ def run_theory_artifact_workspace(
         "source_discovery_read_refs": [],
         "source_replication_runs": 0,
         "source_replication_manifests": [],
+        "source_result_read_refs": [],
     }
     tools = _theory_workspace_tools(
         scratchpad_enabled=scratchpad is not None,
@@ -1135,12 +1139,53 @@ def run_theory_artifact_workspace(
             return ClientToolExecutionResult(
                 content={
                     "ok": manifest.get("execution_status") == "EXECUTED",
-                    "source_replication_manifest": manifest,
+                    "source_replication_manifest": (
+                        source_replication_model_observation(manifest)
+                    ),
                     "remaining_source_replication_runs": 0,
                 },
                 state_changed=True,
                 observation_key="research-source-execution:"
                 + str(manifest.get("manifest_hash", "") or stable_hash(manifest)),
+            )
+
+        if call.name == RESEARCH_SOURCE_RESULT_READ_TOOL:
+            if set(tool_input) != {"relative_path", "line_start", "line_end"}:
+                raise ClientToolInputError(
+                    "read_research_source_result requires relative_path, "
+                    "line_start, and line_end"
+                )
+            if len(state["source_replication_manifests"]) != 1:
+                raise ClientToolInputError(
+                    "read_research_source_result requires one completed source run"
+                )
+            try:
+                observation = read_source_replication_result(
+                    state["source_replication_manifests"][0],
+                    relative_path=tool_input.get("relative_path"),
+                    line_start=tool_input.get("line_start"),
+                    line_end=tool_input.get("line_end"),
+                )
+            except (OSError, UnicodeError, ValueError) as exc:
+                raise ClientToolInputError(str(exc)) from exc
+            result_ref = {
+                key: observation[key]
+                for key in (
+                    "artifact_id",
+                    "relative_path",
+                    "artifact_sha256",
+                    "line_count",
+                    "line_start",
+                    "line_end",
+                    "content_sha256",
+                    "proof_evidence_status",
+                )
+            }
+            state["source_result_read_refs"].append(result_ref)
+            return ClientToolExecutionResult(
+                content=observation,
+                observation_key="research-source-result-read:"
+                + stable_hash(result_ref),
             )
 
         if call.name == THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL:
@@ -1574,6 +1619,7 @@ def run_theory_artifact_workspace(
                 or state["scratch_runs"]
                 or state["source_search_refs"]
                 or state["source_read_refs"]
+                or state["source_result_read_refs"]
                 or state["source_discovery_search_refs"]
                 or state["source_discovery_read_refs"]
             ):
@@ -1946,6 +1992,9 @@ def run_theory_artifact_workspace(
             ),
             "source_search_refs": deepcopy(state["source_search_refs"]),
             "source_read_refs": deepcopy(state["source_read_refs"]),
+            "source_result_read_refs": deepcopy(
+                state["source_result_read_refs"]
+            ),
             **source_discovery_evidence(),
             "source_replication_runs": state["source_replication_runs"],
             "source_replication_manifests": deepcopy(
@@ -2104,6 +2153,9 @@ def run_theory_artifact_workspace(
             ),
             "source_search_refs": deepcopy(state["source_search_refs"]),
             "source_read_refs": deepcopy(state["source_read_refs"]),
+            "source_result_read_refs": deepcopy(
+                state["source_result_read_refs"]
+            ),
             **source_discovery_evidence(),
             "turns": loop.turns,
             "tool_calls": loop.tool_calls,
@@ -2278,6 +2330,9 @@ def run_theory_artifact_workspace(
             ),
             "source_search_refs": deepcopy(state["source_search_refs"]),
             "source_read_refs": deepcopy(state["source_read_refs"]),
+            "source_result_read_refs": deepcopy(
+                state["source_result_read_refs"]
+            ),
             **source_discovery_evidence(),
             "source_replication_runs": state["source_replication_runs"],
             "source_replication_manifests": deepcopy(
@@ -2407,6 +2462,9 @@ def run_theory_artifact_workspace(
         ),
         "source_search_refs": deepcopy(state["source_search_refs"]),
         "source_read_refs": deepcopy(state["source_read_refs"]),
+        "source_result_read_refs": deepcopy(
+            state["source_result_read_refs"]
+        ),
         **source_discovery_evidence(),
         "source_replication_runs": state["source_replication_runs"],
         "source_replication_manifests": deepcopy(
@@ -2449,6 +2507,7 @@ def _theory_workspace_evidence_history(
         RESEARCH_SOURCE_SEARCH_TOOL,
         RESEARCH_SOURCE_READ_TOOL,
         RESEARCH_SOURCE_RUN_TOOL,
+        RESEARCH_SOURCE_RESULT_READ_TOOL,
         RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
         RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
     }
@@ -2658,22 +2717,57 @@ def _theory_workspace_tools(
     if research_source_discovery_enabled:
         tools.extend(research_source_discovery_client_tools())
     if research_source_execution_enabled:
-        tools.append(
-            ClientToolDefinition(
-                name=RESEARCH_SOURCE_RUN_TOOL,
-                description=(
-                    "Run the exact operator-pinned published entrypoint once in its "
-                    "hash-bound, network-denied environment. This tool accepts no model-"
-                    "selected command or source. Raw stdout/stderr, plus any operator-"
-                    "declared CSV, text, or binary result artifacts from an isolated "
-                    "copy-on-write workspace, return to this same session in a compact "
-                    "SourceReplicationManifest."
+        tools.extend(
+            (
+                ClientToolDefinition(
+                    name=RESEARCH_SOURCE_RUN_TOOL,
+                    description=(
+                        "Run the exact operator-pinned published entrypoint once in its "
+                        "hash-bound, network-denied environment. This tool accepts no "
+                        "model-selected command or source. Raw stdout/stderr, plus any "
+                        "operator-declared CSV, text, or binary result artifacts from "
+                        "an isolated copy-on-write workspace, return to this same "
+                        "session as hash-bound compact observations. Use "
+                        "read_research_source_result for exact result lines instead of "
+                        "requesting embedded files."
+                    ),
+                    input_schema={
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {},
+                    },
                 ),
-                input_schema={
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {},
-                },
+                ClientToolDefinition(
+                    name=RESEARCH_SOURCE_RESULT_READ_TOOL,
+                    description=(
+                        "Read an exact inclusive line range from one declared UTF-8 "
+                        "result artifact produced by run_research_source. The runtime "
+                        "rechecks the artifact SHA-256 before returning bytes."
+                    ),
+                    input_schema={
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": [
+                            "relative_path",
+                            "line_start",
+                            "line_end",
+                        ],
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "minLength": 1,
+                            },
+                            "line_start": {
+                                "type": "integer",
+                                "minimum": 1,
+                            },
+                            "line_end": {
+                                "type": "integer",
+                                "minimum": 1,
+                            },
+                        },
+                    },
+                ),
             )
         )
     if scratchpad_enabled:

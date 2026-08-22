@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import json
 import math
 import os
@@ -24,6 +26,7 @@ RESEARCH_SOURCE_SCHEMA_VERSION = 1
 RESEARCH_SOURCE_SEARCH_TOOL = "search_research_sources"
 RESEARCH_SOURCE_READ_TOOL = "read_research_source"
 RESEARCH_SOURCE_RUN_TOOL = "run_research_source"
+RESEARCH_SOURCE_RESULT_READ_TOOL = "read_research_source_result"
 RESEARCH_SOURCE_NOT_PROOF_EVIDENCE = (
     "RESEARCH_SOURCE_OBSERVATION_NOT_PROOF_EVIDENCE"
 )
@@ -39,6 +42,9 @@ MAX_SOURCE_SEARCH_HITS = 10
 MAX_SOURCE_EXECUTION_OUTPUT_BYTES = 16 * 1024 * 1024
 MAX_SOURCE_RESULT_TEXT_BYTES = 256 * 1024
 MAX_SOURCE_RESULT_ARTIFACTS = 32
+MAX_SOURCE_RESULT_READ_LINES = 240
+MAX_SOURCE_RESULT_READ_CHARS = 50_000
+MAX_SOURCE_RESULT_SUMMARY_UNIQUE_VALUES = 16
 PinnedProcessExecutor = Callable[..., Mapping[str, Any]]
 
 
@@ -688,6 +694,257 @@ def _workspace_file_hashes(workspace_root: Path) -> tuple[dict[str, str], list[s
     return file_hashes, unsafe_paths
 
 
+def _csv_result_summary(raw_text: str) -> dict[str, Any]:
+    """Return format-level observations without interpreting scientific meaning."""
+
+    try:
+        reader = csv.DictReader(io.StringIO(raw_text))
+        columns = list(reader.fieldnames or [])
+    except (csv.Error, UnicodeError):
+        return {}
+    if (
+        not columns
+        or len(columns) > 128
+        or any(not isinstance(column, str) or not column for column in columns)
+        or len(set(columns)) != len(columns)
+    ):
+        return {}
+    states = {
+        column: {
+            "nonempty_count": 0,
+            "missing_count": 0,
+            "numeric_values": [],
+            "numeric": True,
+            "unique_values": set(),
+        }
+        for column in columns
+    }
+    data_rows = 0
+    try:
+        for row in reader:
+            if None in row:
+                return {}
+            data_rows += 1
+            for column in columns:
+                value = row.get(column)
+                text_value = "" if value is None else str(value)
+                state = states[column]
+                if text_value == "":
+                    state["missing_count"] += 1
+                    continue
+                state["nonempty_count"] += 1
+                state["unique_values"].add(text_value)
+                if state["numeric"]:
+                    try:
+                        numeric_value = float(text_value)
+                    except ValueError:
+                        state["numeric"] = False
+                        state["numeric_values"] = []
+                    else:
+                        if math.isfinite(numeric_value):
+                            state["numeric_values"].append(numeric_value)
+                        else:
+                            state["numeric"] = False
+                            state["numeric_values"] = []
+    except (csv.Error, UnicodeError):
+        return {}
+
+    column_summaries: dict[str, Any] = {}
+    for column in columns:
+        state = states[column]
+        unique_values = state["unique_values"]
+        summary: dict[str, Any] = {
+            "nonempty_count": state["nonempty_count"],
+            "missing_count": state["missing_count"],
+            "unique_count": len(unique_values),
+        }
+        if len(unique_values) <= MAX_SOURCE_RESULT_SUMMARY_UNIQUE_VALUES:
+            summary["unique_values"] = sorted(unique_values)
+        numeric_values = state["numeric_values"]
+        if state["numeric"] and numeric_values:
+            summary["numeric"] = {
+                "count": len(numeric_values),
+                "minimum": min(numeric_values),
+                "maximum": max(numeric_values),
+                "mean": math.fsum(numeric_values) / len(numeric_values),
+                "all_integer_valued": all(
+                    value.is_integer() for value in numeric_values
+                ),
+            }
+        column_summaries[column] = summary
+    return {
+        "format": "csv",
+        "columns": columns,
+        "data_rows": data_rows,
+        "column_summaries": column_summaries,
+        "scientific_interpretation_performed": False,
+    }
+
+
+def source_replication_model_observation(
+    manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project a bounded result while retaining full bytes in the artifact manifest."""
+
+    identity_fields = (
+        "schema_version",
+        "artifact_kind",
+        "artifact_id",
+        "question_id",
+        "benchmark_id",
+        "execution_id",
+        "execution_spec_sha256",
+        "source_snapshot_id",
+        "source_snapshot_hash",
+        "source_manifest_sha256",
+        "source_commit",
+        "entrypoint_document_id",
+        "executed_entrypoint_sha256",
+        "environment_lock_document_id",
+        "environment_lock_sha256",
+        "python_executable_sha256",
+        "runtime_executable_sha256",
+        "environment_probe_sha256",
+        "python_version",
+        "package_versions",
+        "execution_attempted",
+        "returncode",
+        "errors",
+        "stdout_sha256",
+        "stderr_sha256",
+        "execution_workspace_mode",
+        "declared_result_artifact_paths",
+        "source_workspace_hash_before",
+        "source_workspace_hash_after",
+        "staged_source_inputs_mutated",
+        "unexpected_workspace_artifacts",
+        "source_mutated",
+        "runtime_edited_source",
+        "command_owned_by_model",
+        "network_access",
+        "secret_environment_inherited",
+        "execution_status",
+        "runtime_generated",
+        "model_authored",
+        "proof_evidence_status",
+        "kernel_verified",
+        "boundary",
+        "manifest_hash",
+    )
+    observation = {
+        field: manifest[field] for field in identity_fields if field in manifest
+    }
+    for field in ("raw_stdout", "raw_stderr"):
+        raw_value = str(manifest.get(field, "") or "")
+        observation[field] = raw_value[:MAX_SOURCE_RESULT_READ_CHARS]
+        observation[f"{field}_truncated"] = (
+            len(raw_value) > MAX_SOURCE_RESULT_READ_CHARS
+        )
+    compact_artifacts: list[dict[str, Any]] = []
+    for raw_artifact in manifest.get("result_artifacts", []) or []:
+        if not isinstance(raw_artifact, Mapping):
+            continue
+        artifact = {
+            key: raw_artifact[key]
+            for key in (
+                "relative_path",
+                "sha256",
+                "size_bytes",
+                "content_encoding",
+                "text_truncated",
+                "text_line_count",
+                "csv_summary",
+            )
+            if key in raw_artifact
+        }
+        artifact["content_available_via"] = (
+            RESEARCH_SOURCE_RESULT_READ_TOOL
+            if raw_artifact.get("content_encoding") == "utf-8"
+            else "binary_hash_only"
+        )
+        compact_artifacts.append(artifact)
+    observation["result_artifacts"] = compact_artifacts
+    observation["model_observation_compacted"] = True
+    observation["full_result_bytes_embedded"] = False
+    return observation
+
+
+def read_source_replication_result(
+    manifest: Mapping[str, Any],
+    *,
+    relative_path: Any,
+    line_start: Any,
+    line_end: Any,
+) -> dict[str, Any]:
+    """Read exact declared result lines from the hash-bound staged workspace."""
+
+    if not isinstance(relative_path, str) or not relative_path.strip():
+        raise ValueError("source result relative_path must be nonempty text")
+    result_path = PurePosixPath(relative_path.strip())
+    if result_path.is_absolute() or ".." in result_path.parts:
+        raise ValueError("source result path must stay inside its staged workspace")
+    if any(
+        isinstance(value, bool) or not isinstance(value, int)
+        for value in (line_start, line_end)
+    ):
+        raise ValueError("source result line_start and line_end must be integers")
+    if line_start < 1 or line_end < line_start:
+        raise ValueError("source result line range is invalid")
+    if line_end - line_start + 1 > MAX_SOURCE_RESULT_READ_LINES:
+        raise ValueError(
+            f"source result reads are limited to {MAX_SOURCE_RESULT_READ_LINES} lines"
+        )
+    matching = [
+        row
+        for row in manifest.get("result_artifacts", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("relative_path", "") or "") == result_path.as_posix()
+    ]
+    if len(matching) != 1:
+        raise ValueError("source result artifact identity is unavailable or ambiguous")
+    artifact = matching[0]
+    if artifact.get("content_encoding") != "utf-8":
+        raise ValueError("source result artifact is not UTF-8 text")
+    manifest_path = Path(str(manifest.get("manifest_path", "") or "")).resolve()
+    workspace_root = (manifest_path.parent / "source_workspace").resolve()
+    artifact_path = (workspace_root / Path(result_path)).resolve()
+    try:
+        artifact_path.relative_to(workspace_root)
+    except ValueError as exc:
+        raise ValueError("source result artifact escaped its staged workspace") from exc
+    if not artifact_path.is_file() or artifact_path.is_symlink():
+        raise ValueError("source result artifact file is unavailable")
+    raw_bytes = artifact_path.read_bytes()
+    if hashlib.sha256(raw_bytes).hexdigest() != str(artifact.get("sha256", "") or ""):
+        raise ValueError("source result artifact changed after execution")
+    try:
+        raw_text = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("source result artifact is no longer UTF-8") from exc
+    lines = raw_text.splitlines()
+    if line_end > len(lines):
+        raise ValueError(
+            f"source result line_end exceeds document length {len(lines)}"
+        )
+    selected = "\n".join(lines[line_start - 1 : line_end])
+    if len(selected) > MAX_SOURCE_RESULT_READ_CHARS:
+        raise ValueError(
+            f"source result observation exceeds {MAX_SOURCE_RESULT_READ_CHARS} characters"
+        )
+    return {
+        "ok": True,
+        "artifact_id": str(manifest.get("artifact_id", "") or ""),
+        "relative_path": result_path.as_posix(),
+        "artifact_sha256": str(artifact.get("sha256", "") or ""),
+        "line_count": len(lines),
+        "line_start": line_start,
+        "line_end": line_end,
+        "content": selected,
+        "content_sha256": hashlib.sha256(selected.encode("utf-8")).hexdigest(),
+        "proof_evidence_status": SOURCE_REPLICATION_NOT_PROOF_EVIDENCE,
+    }
+
+
 def _capture_staged_result_artifacts(
     *,
     workspace_root: Path,
@@ -747,6 +1004,10 @@ def _capture_staged_result_artifacts(
             descriptor["content_encoding"] = "binary_not_embedded"
         else:
             descriptor["content_encoding"] = "utf-8"
+            descriptor["text_line_count"] = len(raw_text.splitlines())
+            csv_summary = _csv_result_summary(raw_text)
+            if csv_summary:
+                descriptor["csv_summary"] = csv_summary
             if len(raw_content) <= MAX_SOURCE_RESULT_TEXT_BYTES:
                 descriptor["raw_text"] = raw_text
                 descriptor["text_truncated"] = False

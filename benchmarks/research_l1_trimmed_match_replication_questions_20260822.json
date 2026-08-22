@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "trimmed_match_aoas_example_dataset_public_replication",
+      "title": "Exact replication and audit of the published Trimmed Match example-dataset generator",
+      "description": "Conduct an L1 exact published-source replication of the example-dataset generator accompanying Chen and Au, Annals of Applied Statistics 16(1):1-20, 2022, using only the operator-supplied hash-bound paper and repository snapshot and operator-pinned execution. Inspect the paper context, README, exact simulation_script.py entrypoint, design and post-analysis guides, repository metadata, license, and independent environment lock. Run the pinned source without editing, wrapping, or replacing it. In one durable Markdown report, record the source snapshot, execution-manifest, repository-commit, entrypoint, arguments, environment, and both result-artifact identities. Describe what the entrypoint actually generates, including each CSV's path, schema, row count, date coverage, geo count, and the post-analysis pair and assignment structure. Audit the relationship between the num_geos flag and observed outputs, how pairing and assignment are constructed, and any compatibility warnings or unused protocol elements visible in source. Distinguish this exact dataset-generation rerun from execution or validation of the Trimmed Match estimator, reproduction of a paper table or figure, confirmatory empirical evidence, a performance comparison, or theorem proof. No model-authored estimator, replacement simulation, novelty claim, or Lean formalization is required. Disclose all remaining reproducibility, environment, interpretation, source-identity, and scientific-scope gaps honestly.",
+      "tags": [
+        "causal inference",
+        "geo experiments",
+        "Trimmed Match",
+        "source replication",
+        "reproducibility",
+        "L1"
+      ],
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "paper_title": "Robust Causal Inference for Incremental Return on Ad Spend with Randomized Paired Geo Experiments",
+        "authors": [
+          "Aiyou Chen",
+          "Timothy C. Au"
+        ],
+        "journal": "The Annals of Applied Statistics",
+        "year": 2022,
+        "volume": 16,
+        "issue": 1,
+        "pages": "1-20",
+        "paper_url": "https://doi.org/10.1214/21-AOAS1492",
+        "arxiv_id": "1908.02922v3",
+        "repository": "https://github.com/google/trimmed_match",
+        "repository_commit": "0be855234ee3a589eaddc8b945e2a0d924ad8791",
+        "research_source_snapshot_id": "trimmed-match-aoas-2022-public-replication-v1",
+        "research_source_snapshot_hash": "3cf59850f428dd131ede369747e26198fd03e1e99342e83bdb0cb90ae1964642",
+        "research_source_manifest_sha256": "32d4361ed5e8177b2f0f1d21120d6e12ce7c8e20262cb71411cee8b1c4aace58"
+      }
+    }
+  ]
+}

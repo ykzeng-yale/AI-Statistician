@@ -16,6 +16,8 @@ from ai_statistician.research_source_library import (
     execute_research_source,
     load_research_source_execution_spec,
     load_research_source_snapshot,
+    read_source_replication_result,
+    source_replication_model_observation,
 )
 
 
@@ -426,9 +428,55 @@ def test_staged_source_execution_captures_declared_result_without_mutating_sourc
             ).hexdigest(),
             "size_bytes": len(b"method,error\nrecent,0.1\n"),
             "content_encoding": "utf-8",
+            "text_line_count": 2,
+            "csv_summary": {
+                "format": "csv",
+                "columns": ["method", "error"],
+                "data_rows": 1,
+                "column_summaries": {
+                    "method": {
+                        "nonempty_count": 1,
+                        "missing_count": 0,
+                        "unique_count": 1,
+                        "unique_values": ["recent"],
+                    },
+                    "error": {
+                        "nonempty_count": 1,
+                        "missing_count": 0,
+                        "unique_count": 1,
+                        "unique_values": ["0.1"],
+                        "numeric": {
+                            "count": 1,
+                            "minimum": 0.1,
+                            "maximum": 0.1,
+                            "mean": 0.1,
+                            "all_integer_valued": False,
+                        },
+                    },
+                },
+                "scientific_interpretation_performed": False,
+            },
             "raw_text": "method,error\nrecent,0.1\n",
             "text_truncated": False,
         }
+    ]
+
+    observation = source_replication_model_observation(manifest)
+    assert observation["model_observation_compacted"] is True
+    assert observation["full_result_bytes_embedded"] is False
+    assert "raw_text" not in observation["result_artifacts"][0]
+    assert observation["result_artifacts"][0]["csv_summary"]["data_rows"] == 1
+
+    exact_lines = read_source_replication_result(
+        manifest,
+        relative_path="results.csv",
+        line_start=1,
+        line_end=2,
+    )
+    assert exact_lines["content"] == "method,error\nrecent,0.1"
+    assert exact_lines["line_count"] == 2
+    assert exact_lines["artifact_sha256"] == manifest["result_artifacts"][0][
+        "sha256"
     ]
 
 
@@ -476,6 +524,51 @@ def test_staged_source_execution_bounds_large_text_observation(tmp_path) -> None
     assert len(artifact["text_preview"].encode("utf-8")) == (
         MAX_SOURCE_RESULT_TEXT_BYTES
     )
+
+
+def test_source_result_read_fails_closed_after_artifact_mutation(tmp_path) -> None:
+    snapshot, execution, _ = _staged_source_execution_fixture(tmp_path)
+
+    def fake_executor(**kwargs):
+        if str(kwargs["command"][1]).endswith("environment_probe.py"):
+            stdout = json.dumps(
+                {
+                    "python_version": "3.test",
+                    "package_versions": {"Demo": "1.2.3"},
+                }
+            )
+        else:
+            (kwargs["cwd"] / "results.csv").write_text(
+                "method,error\nrecent,0.1\n", encoding="utf-8"
+            )
+            stdout = "replication complete\n"
+        return {
+            "execution_attempted": True,
+            "returncode": 0,
+            "stdout": stdout,
+            "stderr": "",
+            "errors": [],
+        }
+
+    manifest = execute_research_source(
+        execution=execution,
+        research_sources=snapshot,
+        output_dir=tmp_path / "replication-output",
+        question_id="published-source-task",
+        process_executor=fake_executor,
+    )
+    staged_result = (
+        tmp_path / "replication-output" / "source_workspace" / "results.csv"
+    )
+    staged_result.write_text("method,error\nrecent,9.9\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="changed after execution"):
+        read_source_replication_result(
+            manifest,
+            relative_path="results.csv",
+            line_start=1,
+            line_end=2,
+        )
 
 
 def test_staged_source_execution_rejects_undeclared_workspace_output(tmp_path) -> None:
