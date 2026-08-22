@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "scalar_score_information_bound_known_result",
+      "title": "Scalar score-information lower bound and its regularity boundary",
+      "description": "Focused known-result theory evaluation based on C. R. Rao, Information and Accuracy Attainable in the Estimation of Statistical Parameters, Bulletin of the Calcutta Mathematical Society 37(3), 1945, pages 81-91. Let {p_theta : theta in Theta} be a scalar dominated statistical model on a common sample space, with Theta an open interval, and let T be a theta-independent estimator satisfying E_theta[T] = g(theta). State explicit regularity and integrability conditions under which differentiation may pass through the integral and the score U_theta = partial_theta log p_theta(X) is square-integrable with Fisher information I(theta) in (0,infinity). In an authoritative Markdown/LaTeX theory workspace, derive rather than merely quote the score mean identity, the covariance identity linking T and U_theta, and the information lower bound for Var_theta(T). Derive the equality condition with its correct proportionality constant and specialize both the bound and equality case to unbiased estimation of theta. Check the derivation on n independent N(mu,sigma^2) observations with known sigma^2 and the sample mean. Then analyze X distributed Uniform(0,theta): identify exactly which regularity step fails, show why the interior log-density derivative is not a mean-zero score, and give an explicit unbiased estimator whose variance contradicts the naively applied regular-model bound. Keep active and rejected calculations visibly distinct, and disclose any unproved interchange, equality, or scope step honestly. This L0 task evaluates mathematical derivation and independent review only. Source replication, Python/R implementation, simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "information inequality",
+        "Fisher information",
+        "unbiased estimation",
+        "regularity boundary",
+        "known result",
+        "theory only",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "Information and Accuracy Attainable in the Estimation of Statistical Parameters",
+        "author": "C. R. Rao",
+        "journal": "Bulletin of the Calcutta Mathematical Society",
+        "year": 1945,
+        "volume": 37,
+        "issue": 3,
+        "pages": "81-91",
+        "repository_url": "https://repository.ias.ac.in/71593/",
+        "publisher_archive_url": "https://calmathsociety.org/bulletin-db.html"
+      }
+    }
+  ]
+}
