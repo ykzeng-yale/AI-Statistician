@@ -1007,8 +1007,10 @@ def test_scalar_control_variate_l0_is_frozen_before_first_product_draw() -> None
     assert evidence["semantic_calibration_cases"] == 12
     assert evidence["semantic_calibration_cases_correct"] == 12
     assert evidence["semantic_reference_claims"] == 10
-    assert evidence["activation_commit"] == ""
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_commit"] == (
+        "e1e1f975322b4eaafc2809a112ac30b445753aa5"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["model_draw_resampling_blocked"] is False
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
