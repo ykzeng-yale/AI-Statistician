@@ -1417,6 +1417,12 @@ def test_score_information_l0_is_frozen_before_first_product_draw() -> None:
     )
     assert evidence["semantic_calibration_model_calls"] == 2
     assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["authority_binding_commit"] == (
+        "c0065450d8d8e0b0b79ca79a74444391f9394857"
+    )
+    assert evidence[
+        "authority_binding_push_confirmed_on_work_branch_and_main"
+    ] is True
     assert evidence["formalization_requirement"] == "not_applicable"
 
     visible_path = Path(candidate["visible_questions_path"])

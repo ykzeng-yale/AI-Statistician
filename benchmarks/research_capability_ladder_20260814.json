@@ -2050,6 +2050,8 @@
         "hidden_gold_manifest_validated": true,
         "gold_frozen_before_first_runtime_model_call": true,
         "visible_question_activation_commit": "15e982d4ec177781c7eac3eb8e90714a14fefcc3",
+        "authority_binding_commit": "c0065450d8d8e0b0b79ca79a74444391f9394857",
+        "authority_binding_push_confirmed_on_work_branch_and_main": true,
         "first_runtime_model_call_occurred": false,
         "fresh_live_runs": 0,
         "model_draw_resampling_blocked": true,
