@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "pearson_multinomial_gof_known_result",
+      "title": "Pearson goodness-of-fit for a fully specified multinomial null",
+      "description": "Focused L0 known-result evaluation in categorical inference. Let N=(N_1,...,N_k) be the category counts from n independent draws under a fully specified categorical null p=(p_1,...,p_k), where fixed k>=2, every p_j>0, and sum_j p_j=1. Develop one authoritative Markdown/LaTeX derivation of Pearson's statistic Q_n=sum_j (N_j-n p_j)^2/(n p_j), its multinomial-CLT and projection argument, and the null limit Q_n => chi-square_{k-1}. Explain why the covariance is singular, why the limiting quadratic form has rank k-1, why no parameter-estimation degrees-of-freedom correction appears here, and why the chi-square p-value is asymptotic rather than an exact finite-sample claim. The required model-authored artifact is est_multinomial_pearson_gof and must implement the frozen run_estimator(request) contract exactly. Exploratory computation may diagnose algebra or implementation. A separate frozen confirmatory assessment uses independently generated multinomial counts in predeclared null settings whose expected cell counts are comfortably above the usual small-cell warning, checks exact statistic and category-permutation identities, and assesses null rejection calibration and the first two chi-square moments with Monte Carlo uncertainty. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "categorical_inference",
+        "multinomial",
+        "goodness_of_fit",
+        "chi_square_asymptotics",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_multinomial_pearson_gof",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.observed_counts",
+            "name": "observed_counts",
+            "meaning": "Observed category counts N_1,...,N_k from one categorical sample.",
+            "json_type": "array[integer]",
+            "shape": "length k with k>=2; every entry is nonnegative and the total n is positive",
+            "units": "observations",
+            "indexing": "entry j is paired with null_probabilities[j]",
+            "edge_cases": "Reject booleans, nonintegers, negative counts, fewer than two categories, and zero total count.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.null_probabilities",
+            "name": "null_probabilities",
+            "meaning": "The fully specified categorical null probabilities p_1,...,p_k, fixed independently of the observed counts.",
+            "json_type": "array[number]",
+            "shape": "length k equal to observed_counts; every entry is finite and strictly positive; the sum differs from one by at most 1e-12",
+            "units": "probability",
+            "indexing": "entry j is paired with observed_counts[j]",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, nonpositive probabilities, unequal lengths, and sums outside the stated tolerance; do not renormalize an invalid request.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n_categories",
+            "name": "n_categories",
+            "meaning": "The number k of categories in the request.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "categories",
+            "indexing": "equals both request-array lengths",
+            "edge_cases": "Must be an integer at least two.",
+            "normalization": "No normalization."
+          },
+          {
+            "clause_id": "response.sample_size",
+            "name": "sample_size",
+            "meaning": "The total observed count n.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "observations",
+            "indexing": "sums all observed_counts entries",
+            "edge_cases": "Must be a positive integer.",
+            "normalization": "sum_j observed_counts[j]."
+          },
+          {
+            "clause_id": "response.expected_counts",
+            "name": "expected_counts",
+            "meaning": "Expected category counts under the fully specified null.",
+            "json_type": "array[number]",
+            "shape": "length k",
+            "units": "observations",
+            "indexing": "entry j corresponds to category j",
+            "edge_cases": "Every entry must be finite and strictly positive.",
+            "normalization": "expected_counts[j]=sample_size*null_probabilities[j]."
+          },
+          {
+            "clause_id": "response.pearson_contributions",
+            "name": "pearson_contributions",
+            "meaning": "The categorywise Pearson contributions.",
+            "json_type": "array[number]",
+            "shape": "length k",
+            "units": "dimensionless",
+            "indexing": "entry j corresponds to category j",
+            "edge_cases": "Every entry must be finite and nonnegative.",
+            "normalization": "(observed_counts[j]-expected_counts[j])^2/expected_counts[j]."
+          },
+          {
+            "clause_id": "response.pearson_statistic",
+            "name": "pearson_statistic",
+            "meaning": "Pearson's multinomial goodness-of-fit statistic Q_n.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "dimensionless",
+            "indexing": "uses all k categories",
+            "edge_cases": "Must be finite and nonnegative.",
+            "normalization": "sum_j pearson_contributions[j]."
+          },
+          {
+            "clause_id": "response.degrees_of_freedom",
+            "name": "degrees_of_freedom",
+            "meaning": "The asymptotic chi-square degrees of freedom for this fully specified null.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "degrees of freedom",
+            "indexing": "determined by k",
+            "edge_cases": "Must be a positive integer.",
+            "normalization": "n_categories-1; no parameters are estimated from observed_counts."
+          },
+          {
+            "clause_id": "response.asymptotic_p_value",
+            "name": "asymptotic_p_value",
+            "meaning": "The upper-tail probability of pearson_statistic under the declared chi-square approximation.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "probability",
+            "indexing": "uses pearson_statistic and degrees_of_freedom",
+            "edge_cases": "Must be finite and lie in [0,1].",
+            "normalization": "P(ChiSquare_degrees_of_freedom >= pearson_statistic)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.exact_decomposition",
+            "meaning": "Expected counts equal n times the supplied probabilities, each contribution has the declared Pearson formula, the statistic is their sum, degrees_of_freedom equals k-1, and the p-value is the corresponding chi-square upper tail."
+          },
+          {
+            "clause_id": "invariant.category_permutation",
+            "meaning": "Applying the same category permutation to observed_counts and null_probabilities permutes expected_counts and pearson_contributions while preserving sample_size, pearson_statistic, degrees_of_freedom, and asymptotic_p_value."
+          },
+          {
+            "clause_id": "invariant.exact_null_fit",
+            "meaning": "Whenever every n*null_probabilities[j] is an integer and observed_counts equals that expected-count vector, every contribution and pearson_statistic is zero and asymptotic_p_value is one."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.null_calibration",
+            "meaning": "The frozen confirmatory assessment draws independent multinomial counts from predeclared fully specified nulls with comfortably non-small expected cells and assesses rejection at alpha=0.05 plus the chi-square mean and variance, all with Monte Carlo uncertainty; these are empirical support for an asymptotic result, not proof or an exact finite-sample guarantee."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory call supplies the exact predeclared counts and null probabilities and separately verifies expected counts, category contributions, their sum, k-1 degrees of freedom, upper-tail p-value, category-permutation behavior, and valid output domains before aggregating calibration behavior."
+          }
+        ]
+      }
+    }
+  ]
+}
