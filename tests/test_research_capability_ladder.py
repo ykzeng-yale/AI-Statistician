@@ -900,7 +900,7 @@ def test_fisher_z_l0_is_consumed_closed_after_one_runtime_draw() -> None:
         assert hidden_name not in runtime_visible
 
 
-def test_paired_ratio_l0_is_frozen_before_its_first_runtime_draw() -> None:
+def test_paired_ratio_l0_draw_is_consumed_and_hash_bound() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -911,12 +911,14 @@ def test_paired_ratio_l0_is_frozen_before_its_first_runtime_draw() -> None:
     assert candidate["level"] == "L0"
     assert candidate["family"] == "ratio_metrics"
     assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"] == "full_task_gold_frozen_unconsumed"
+    assert candidate["activation_status"] == (
+        "full_task_gold_frozen_v1_failed_shared_terminal_disposition_budget"
+    )
     evidence = candidate["activation_evidence"]
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["algorithm_reference_contract_checks"] == "14/14"
     assert evidence["algorithm_negative_variants_rejected"] == 4
     assert evidence["empirical_reference_dgps_passed"] == 3
@@ -928,6 +930,22 @@ def test_paired_ratio_l0_is_frozen_before_its_first_runtime_draw() -> None:
         "bc5eb28c6e09ddffda15e4d6c0d32108cea2c273"
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_terminal_classification"] == (
+        "theory_developer_packet_validation_failed"
+    )
+    assert evidence["final_workspace_valid"] is True
+    assert evidence["final_checkpoint_commit_ready"] is True
+    assert evidence["final_terminal_tool_call_returned_by_model"] is True
+    assert evidence["final_terminal_tool_call_executed_by_runtime"] is False
+    assert evidence["independently_accepted_theory_packet"] is False
+    assert evidence["hidden_theory_execution_attempted"] is False
+    assert evidence["hidden_algorithm_execution_attempted"] is False
+    assert evidence["hidden_empirical_execution_attempted"] is False
+    assert evidence["post_run_shared_mechanism_fix_commit"] == (
+        "3bfa8daa378480fdd1e11acae3b229abf3abd3d7"
+    )
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
     for field in (

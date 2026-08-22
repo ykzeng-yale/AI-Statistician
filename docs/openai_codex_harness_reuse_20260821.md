@@ -253,6 +253,24 @@ scientific scheduler and Claude as the required provider path. Codex thread,
 app-server, Responses transport, and multi-agent persistence are not imported.
 The consumed task remains `0/1`; deterministic regression cannot rescore it.
 
+The later paired ratio-of-means L0 draw showed that the caller-local `+1` was
+not a true reservation. Its final ordinary write was valid and commit-ready but
+consumed that nominal slot; the following exact-Haiku response returned one
+terminal tool call, which the shared global call guard rejected before dispatch.
+Commit `3bfa8daa378480fdd1e11acae3b229abf3abd3d7` restores the intended
+Codex-style lifecycle at the shared-loop boundary: ordinary environment actions
+have one budget, while one same-session terminal disposition and any explicitly
+configured same-session terminal retries have a separate control-plane budget.
+Nonterminal tools remain visible for prompt-cache stability but cannot execute
+after action exhaustion. Theory and Lean no longer emulate terminal capacity
+with caller-local arithmetic.
+
+This corrects the earlier audit's overstatement that commit `0d8a01e5` had
+already placed terminal disposition outside the action allowance. That commit
+only enlarged one caller's undifferentiated count. The paired-ratio draw remains
+an immutable `0/1`; `151/151` caller tests and the `812/812` full suite are
+mechanism evidence, not permission to rerun or rescore it.
+
 ### AR1 live validation
 
 The frozen stationary-AR(1) L0 draw exposed a second, more general harness
@@ -399,7 +417,7 @@ unstated hidden-check semantics. A hidden empirical check must additionally cite
 one of the compact public `empirical_claims`; no general theory schema was added.
 Structural clause references remain provenance, not proof that a hidden check is
 scientifically entailed; that preactivation audit and independent harness
-calibration remain operator responsibilities. All seventeen scored tasks are
+calibration remain operator responsibilities. All eighteen scored tasks are
 consumed and closed. No new live draw is authorized until a future unrelated
 task is frozen and pushed under schema v2 before its first model call.
 
