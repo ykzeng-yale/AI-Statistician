@@ -3414,6 +3414,11 @@ be promoted to established theory, but need not block exploratory execution when
 finite estimator and measurement contract are coherent. Audit the candidate's own DGP,
 law, assumptions, normalization, data dependence, executable mapping, boundary outcomes,
 and measurements without importing a task-family checklist or formula.
+Do not silently repair the candidate while reviewing it. If your reconstruction must
+change a defined variable, normalization, constraint subspace, covariance operator, or
+quadratic form to make a transition valid, record that discrepancy as a finding and do
+not ACCEPT the active derivation merely because your corrected argument reaches the
+intended final statement.
 
 Source text and retrieval are context, not proof. A pre-review Python or R scratchpad
 result, including exact model-authored SymPy algebra, is exploratory only; confirmatory

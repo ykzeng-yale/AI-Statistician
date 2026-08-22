@@ -101,6 +101,8 @@ from .generated_code_semantic_review_scope import (
     generated_code_semantic_review_proposal_projection,
     generated_code_semantic_review_scope_projection,
     generated_code_semantic_review_theory_projection,
+    generated_code_semantic_review_upstream_dependency_artifacts,
+    generated_code_semantic_review_upstream_dependency_errors,
     generated_code_semantic_review_upstream_dependency_projection,
 )
 from .scientific_sandbox import (
@@ -7549,43 +7551,11 @@ def _runtime_generated_code_semantic_review_material(
             upstream_algorithm_handoff=dependency_handoff,
         )
     )
-    if upstream_generated_dependency and any(
-        not str(upstream_generated_dependency.get(field, "") or "")
-        for field in (
-            "algorithm_sandbox_manifest_id",
-            "algorithm_sandbox_manifest_hash",
-            "accepted_semantic_review_execution_id",
-            "accepted_semantic_review_packet_id",
+    errors.extend(
+        generated_code_semantic_review_upstream_dependency_errors(
+            upstream_generated_dependency
         )
-    ):
-        errors.append("upstream generated dependency lineage is incomplete")
-    for dependency in upstream_generated_dependency.get(
-        "exact_dependency_artifacts",
-        [],
-    ):
-        if not isinstance(dependency, Mapping):
-            errors.append("upstream generated dependency is not an object")
-            continue
-        dependency_id = str(dependency.get("artifact_id", "") or "")
-        dependency_source = str(
-            dependency.get("exact_source_code", "") or ""
-        )
-        dependency_result = dependency.get("exact_result", {})
-        if not dependency_id or not dependency_source:
-            errors.append("upstream generated dependency is incomplete")
-            continue
-        if str(dependency.get("exact_source_hash", "") or "") != stable_hash(
-            dependency_source
-        ):
-            errors.append(
-                f"upstream generated dependency source hash mismatch: {dependency_id}"
-            )
-        if not isinstance(dependency_result, Mapping) or str(
-            dependency.get("exact_result_hash", "") or ""
-        ) != stable_hash(dependency_result):
-            errors.append(
-                f"upstream generated dependency result hash mismatch: {dependency_id}"
-            )
+    )
     material = {
         "source_subsystem": source_subsystem,
         "empirical_evaluation_phase": str(
@@ -8257,30 +8227,11 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             if isinstance(upstream_dependency_material, Mapping)
             else {}
         )
-        upstream_dependency_artifacts = [
-            {
-                "artifact_id": str(row.get("artifact_id", "") or ""),
-                "exact_source_hash": str(
-                    row.get("exact_source_hash", "") or ""
-                ),
-                "exact_source_code": str(
-                    row.get("exact_source_code", "") or ""
-                ),
-                "exact_source_code_complete": True,
-                "exact_result": dict(row.get("exact_result", {}) or {}),
-                "exact_result_hash": str(
-                    row.get("exact_result_hash", "") or ""
-                ),
-                "actual_runtime_arguments": {},
-                "artifact_role": "upstream_generated_dependency",
-            }
-            for row in upstream_dependency_material.get(
-                "exact_dependency_artifacts",
-                [],
+        upstream_dependency_artifacts = (
+            generated_code_semantic_review_upstream_dependency_artifacts(
+                upstream_dependency_material
             )
-            or []
-            if isinstance(row, Mapping)
-        ]
+        )
         reviewed_source_artifacts = [
             *current_reviewed_source_artifacts,
             *upstream_dependency_artifacts,

@@ -510,6 +510,84 @@ def generated_code_semantic_review_upstream_dependency_projection(
     }
 
 
+def generated_code_semantic_review_upstream_dependency_errors(
+    dependency: Mapping[str, Any],
+) -> list[str]:
+    """Validate included bytes and hash-only outcome references by their own rules."""
+
+    errors: list[str] = []
+    if dependency and any(
+        not str(dependency.get(field, "") or "")
+        for field in (
+            "algorithm_sandbox_manifest_id",
+            "algorithm_sandbox_manifest_hash",
+            "accepted_semantic_review_execution_id",
+            "accepted_semantic_review_packet_id",
+        )
+    ):
+        errors.append("upstream generated dependency lineage is incomplete")
+    for row in dependency.get("exact_dependency_artifacts", []) or []:
+        if not isinstance(row, Mapping):
+            errors.append("upstream generated dependency is not an object")
+            continue
+        artifact_id = str(row.get("artifact_id", "") or "")
+        source = str(row.get("exact_source_code", "") or "")
+        if not artifact_id or not source:
+            errors.append("upstream generated dependency is incomplete")
+            continue
+        if str(row.get("exact_source_hash", "") or "") != stable_hash(source):
+            errors.append(
+                f"upstream generated dependency source hash mismatch: {artifact_id}"
+            )
+        result_hash = str(row.get("exact_result_hash", "") or "")
+        result_included = bool(
+            row.get("exact_result_included", "exact_result" in row)
+        )
+        if result_included:
+            result = row.get("exact_result", {})
+            if not isinstance(result, Mapping) or result_hash != stable_hash(result):
+                errors.append(
+                    f"upstream generated dependency result hash mismatch: {artifact_id}"
+                )
+        elif "exact_result" in row:
+            errors.append(
+                "withheld upstream generated dependency unexpectedly includes a "
+                f"result: {artifact_id}"
+            )
+        elif not result_hash:
+            errors.append(
+                f"upstream generated dependency result hash is missing: {artifact_id}"
+            )
+    return errors
+
+
+def generated_code_semantic_review_upstream_dependency_artifacts(
+    dependency: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Materialize dependency source while retaining intentionally withheld outcomes."""
+
+    artifacts: list[dict[str, Any]] = []
+    for row in dependency.get("exact_dependency_artifacts", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        artifact = {
+            "artifact_id": str(row.get("artifact_id", "") or ""),
+            "exact_source_hash": str(row.get("exact_source_hash", "") or ""),
+            "exact_source_code": str(row.get("exact_source_code", "") or ""),
+            "exact_source_code_complete": True,
+            "exact_result_hash": str(row.get("exact_result_hash", "") or ""),
+            "actual_runtime_arguments": {},
+            "artifact_role": "upstream_generated_dependency",
+        }
+        if row.get("exact_result_included") is True:
+            artifact["exact_result"] = dict(row.get("exact_result", {}) or {})
+        else:
+            artifact["exact_result_withheld"] = True
+            artifact["result_authority_owner"] = "AlgorithmEngineer"
+        artifacts.append(artifact)
+    return artifacts
+
+
 def algorithm_handoff_artifacts(
     exact_artifacts: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:

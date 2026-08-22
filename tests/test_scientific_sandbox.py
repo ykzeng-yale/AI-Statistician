@@ -729,13 +729,39 @@ def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
                 }
             ],
         },
-        source_task={},
+        source_task={
+            "inputs": {
+                "upstream_algorithm_handoff": {
+                    "algorithm_sandbox_manifest_id": "algorithm-manifest:1",
+                    "algorithm_sandbox_manifest_hash": "algorithm-manifest-hash",
+                    "semantic_review_execution_id": "algorithm-review-execution:1",
+                    "semantic_review_packet_id": "algorithm-review:1",
+                    "exact_algorithm_artifacts": [
+                        {
+                            "estimator_id": "accepted-estimator",
+                            "exact_source_code": code,
+                            "exact_source_hash": stable_hash(code),
+                            "exact_smoke_result_hash": stable_hash(
+                                {"smoke_passed": True}
+                            ),
+                            "language": "r",
+                            "dependencies": ["base", "stats"],
+                        }
+                    ],
+                }
+            }
+        },
         source_manifest={"generated_simulation_sandbox_prototypes": [simulation]},
         theory_packet={},
         proposal_packet={},
     )
     assert errors == []
     assert material["exact_executed_artifacts"][0]["exact_result"] == metrics
+    dependency = material["upstream_generated_dependency"][
+        "exact_dependency_artifacts"
+    ][0]
+    assert dependency["exact_result_included"] is False
+    assert "exact_result" not in dependency
 
     rejected, rejected_call = runtime_module._run_generated_code_sandbox(
         sandbox_dir=tmp_path,

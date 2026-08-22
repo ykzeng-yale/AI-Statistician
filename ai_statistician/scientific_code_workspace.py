@@ -39,6 +39,7 @@ ScientificCodeCheck = Callable[[Mapping[str, Any]], Mapping[str, Any]]
 SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS = "native_client_tools"
 SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET = "structured_packet"
 SCIENTIFIC_SOURCE_SUBMISSION_TOOL = "submit_scientific_source"
+SCIENTIFIC_SOURCE_COMMIT_TOOL = "commit_scientific_source"
 SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL = "run_current_scientific_source"
 SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL = "report_bound_dependency_failure"
 SCIENTIFIC_SOURCE_REVISE_CURRENT = "revise_current_source"
@@ -1599,6 +1600,8 @@ def run_scientific_code_workspace(
         "current_source_run_requests": 0,
         "checks": prior_checks,
         "last_check": deepcopy(dict(initial_check_result)),
+        "last_check_turn_index": -1,
+        "commit_turn_index": -1,
     }
     tools = _scientific_code_tools(
         allow_current_source_run=(
@@ -1612,6 +1615,7 @@ def run_scientific_code_workspace(
         *,
         source_changed: bool,
         current_source_reexecuted: bool,
+        turn_index: int,
     ) -> ClientToolExecutionResult:
         raw = check_candidate(deepcopy(dict(draft)))
         if not isinstance(raw, Mapping):
@@ -1624,6 +1628,7 @@ def run_scientific_code_workspace(
             )
         state["checks"] += 1
         state["last_check"] = check
+        state["last_check_turn_index"] = turn_index
         accepted = check.get("accepted") is True
         disposition = str(
             check.get("source_iteration_disposition", "") or ""
@@ -1647,10 +1652,6 @@ def run_scientific_code_workspace(
                 "scientific sandbox acceptance and source iteration disposition "
                 "disagree"
             )
-        terminal = bool(
-            accepted
-            or disposition == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
-        )
         if disposition == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER:
             source_owner = check.get("source_owner", {})
             if not (
@@ -1687,16 +1688,6 @@ def run_scientific_code_workspace(
             },
             is_error=not accepted,
             state_changed=True,
-            terminal=terminal,
-            terminal_payload=(
-                {
-                    "code_draft": deepcopy(dict(state["code_draft"])),
-                    "code_draft_hash": state["code_draft_hash"],
-                    "check_result": check,
-                }
-                if terminal
-                else None
-            ),
             observation_key="scientific-submission:"
             + stable_hash(
                 {
@@ -1708,7 +1699,6 @@ def run_scientific_code_workspace(
         )
 
     def execute_tool(call, context):
-        del context
         tool_input = dict(call.input)
         if call.name == SCIENTIFIC_SOURCE_SUBMISSION_TOOL:
             required_fields = {
@@ -1743,6 +1733,57 @@ def run_scientific_code_workspace(
                 state["code_draft"],
                 source_changed=changed,
                 current_source_reexecuted=False,
+                turn_index=context.turn_index,
+            )
+
+        if call.name == SCIENTIFIC_SOURCE_COMMIT_TOOL:
+            if tool_input:
+                raise ClientToolInputError(
+                    "commit_scientific_source does not accept arguments"
+                )
+            draft = state["code_draft"]
+            check = state["last_check"]
+            draft_hash = str(state["code_draft_hash"] or "")
+            if not draft or not draft_hash:
+                raise ClientToolInputError(
+                    "no executed scientific source is available to commit"
+                )
+            if (
+                not isinstance(check, Mapping)
+                or check.get("accepted") is not True
+                or str(check.get("source_iteration_disposition", "") or "")
+                != "accepted"
+                or str(check.get("code_draft_hash", "") or "") != draft_hash
+            ):
+                raise ClientToolInputError(
+                    "the current scientific source has no accepted hash-bound "
+                    "sandbox observation"
+                )
+            if int(state["last_check_turn_index"]) >= context.turn_index:
+                raise ClientToolInputError(
+                    "inspect the accepted sandbox observation in a subsequent model "
+                    "turn before committing the current source"
+                )
+            state["commit_turn_index"] = context.turn_index
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    "committed": True,
+                    "code_draft_hash": draft_hash,
+                    "check_result_hash": stable_hash(check),
+                    "execution_evidence_status": (
+                        "SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                state_changed=False,
+                terminal=True,
+                terminal_payload={
+                    "code_draft": deepcopy(dict(draft)),
+                    "code_draft_hash": draft_hash,
+                    "check_result": deepcopy(dict(check)),
+                },
+                observation_key="scientific-commit:"
+                + stable_hash([draft_hash, stable_hash(check)]),
             )
 
         if call.name == SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL:
@@ -1769,6 +1810,7 @@ def run_scientific_code_workspace(
                 state["code_draft"],
                 source_changed=False,
                 current_source_reexecuted=True,
+                turn_index=context.turn_index,
             )
 
         if call.name == SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL:
@@ -1865,7 +1907,8 @@ def run_scientific_code_workspace(
                 + (
                     "\n\nNo scientific source exists yet. Author the complete "
                     "candidate with submit_scientific_source. Each submission is "
-                    "executed immediately without runtime source edits."
+                    "executed immediately without runtime source edits. Inspect the "
+                    "returned observation before committing it."
                     if not parent_draft
                     else "\n\nCurrent complete code candidate:\n"
                     + _compact_json(parent_draft)
@@ -1887,14 +1930,16 @@ def run_scientific_code_workspace(
                     "owns it, call run_current_scientific_source to execute the exact "
                     "current bytes in the newly changed dependency environment. Every "
                     "submission executes immediately; identical bytes are not a new "
-                    "submission."
+                    "submission. Commit only after inspecting an accepted execution "
+                    "observation."
                     if initial_check_result.get("accepted") is not True
                     and parent_draft
                     and allow_current_source_run
                     else "\n\nThe current candidate has a failed observation. Diagnose "
                     "that exact observation and submit a changed complete candidate. "
                     "Every submission executes immediately; identical bytes are not "
-                    "a new submission."
+                    "a new submission. Commit only after inspecting an accepted "
+                    "execution observation."
                     if initial_check_result.get("accepted") is not True
                     and parent_draft
                     else ""
@@ -2024,6 +2069,10 @@ def run_scientific_code_workspace(
         "source_updates": state["source_updates"],
         "sandbox_checks": state["checks"],
         "submit_and_execute_atomic": True,
+        "explicit_model_commit_required": True,
+        "model_commit_after_observation": bool(
+            state["commit_turn_index"] > state["last_check_turn_index"] >= 0
+        ),
         "transcript_policy": "full_linear_history",
         "turns": loop.turns,
         "tool_calls": loop.tool_calls,
@@ -2092,7 +2141,9 @@ def _scientific_code_tools(
             description=(
                 "Submit one complete Python or R candidate. The runtime stores and "
                 "immediately executes the exact source, then returns the raw sandbox "
-                "observation to this same model. Match dependencies to language: "
+                "observation to this same model. This does not commit the candidate; "
+                "inspect the observation, revise when needed, then explicitly commit "
+                "the accepted current source. Match dependencies to language: "
                 "Python allows "
                 + ", ".join(PYTHON_SCIENTIFIC_DEPENDENCIES)
                 + "; R allows "
@@ -2140,6 +2191,20 @@ def _scientific_code_tools(
                     "code": {"type": "string"},
                 },
             },
+            terminal=False,
+        ),
+        ClientToolDefinition(
+            name=SCIENTIFIC_SOURCE_COMMIT_TOOL,
+            description=(
+                "Commit the exact current scientific source only after a prior model "
+                "turn received and inspected its accepted hash-bound sandbox "
+                "observation. This tool neither edits nor reruns source."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {},
+            },
             terminal=True,
         ),
     ]
@@ -2167,7 +2232,7 @@ def _scientific_code_tools(
                         }
                     },
                 },
-                terminal=True,
+                terminal=False,
             )
         )
     if allow_dependency_handoff:

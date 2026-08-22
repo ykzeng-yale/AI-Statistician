@@ -15,6 +15,7 @@ from ai_statistician.generated_code_semantic_review_replan import (
 )
 from ai_statistician.generated_code_semantic_review_scope import (
     generated_code_semantic_review_proposal_projection,
+    generated_code_semantic_review_upstream_dependency_errors,
     generated_code_semantic_review_upstream_dependency_projection,
 )
 from ai_statistician.generated_code_semantic_reviewer_llm import (
@@ -79,7 +80,9 @@ def test_simulation_proposal_review_uses_current_dependency_projection_only() ->
                 {
                     "estimator_id": "candidate",
                     "exact_source_code": "def run_estimator(request): return {}",
-                    "exact_source_hash": "source-hash",
+                    "exact_source_hash": stable_hash(
+                        "def run_estimator(request): return {}"
+                    ),
                     "exact_smoke_result": {},
                     "exact_smoke_result_hash": stable_hash({}),
                 }
@@ -88,6 +91,22 @@ def test_simulation_proposal_review_uses_current_dependency_projection_only() ->
     )
     assert "Architect" not in dependency["routing_rule"]
     assert "source-owning workspace" in dependency["routing_rule"]
+    exact_dependency = dependency["exact_dependency_artifacts"][0]
+    assert exact_dependency["exact_result_included"] is False
+    assert exact_dependency["exact_result_hash"] == stable_hash({})
+    assert "exact_result" not in exact_dependency
+
+    assert generated_code_semantic_review_upstream_dependency_errors(dependency) == []
+    missing_hash = deepcopy(dependency)
+    missing_hash["exact_dependency_artifacts"][0]["exact_result_hash"] = ""
+    assert generated_code_semantic_review_upstream_dependency_errors(missing_hash) == [
+        "upstream generated dependency result hash is missing: candidate"
+    ]
+    leaked_result = deepcopy(dependency)
+    leaked_result["exact_dependency_artifacts"][0]["exact_result"] = {}
+    assert generated_code_semantic_review_upstream_dependency_errors(leaked_result) == [
+        "withheld upstream generated dependency unexpectedly includes a result: candidate"
+    ]
 
 
 def _review_material() -> dict[str, object]:

@@ -10,6 +10,7 @@ from ai_statistician.model_backend import (
     ClientToolTurnResponse,
 )
 from ai_statistician.scientific_code_workspace import (
+    SCIENTIFIC_SOURCE_COMMIT_TOOL,
     SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL,
     SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
     SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
@@ -55,6 +56,16 @@ def _response(*calls: ClientToolCall) -> ClientToolTurnResponse:
     )
 
 
+def _commit_response(call_id: str = "commit") -> ClientToolTurnResponse:
+    return _response(
+        ClientToolCall(
+            call_id=call_id,
+            name=SCIENTIFIC_SOURCE_COMMIT_TOOL,
+            input={},
+        )
+    )
+
+
 def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> None:
     initial = {
         "language": "python",
@@ -75,7 +86,8 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
                     name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
                     input=revised,
                 ),
-            )
+            ),
+            _commit_response(),
         ]
     )
     checked: list[dict] = []
@@ -120,13 +132,16 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
     assert result.evidence["parent_code_draft_hash"] != result.evidence[
         "submitted_code_draft_hash"
     ]
-    assert result.evidence["runtime_executed_tool_calls"] == 1
+    assert result.evidence["runtime_executed_tool_calls"] == 2
     assert result.evidence["submit_and_execute_atomic"] is True
+    assert result.evidence["explicit_model_commit_required"] is True
+    assert result.evidence["model_commit_after_observation"] is True
     assert "NameError: missing_name" in str(backend.requests[0].messages)
     assert all(request.enable_prompt_caching for request in backend.requests)
     assert all(request.disable_parallel_tool_use for request in backend.requests)
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+        SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
     assert SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL not in str(
         backend.requests[0].messages
@@ -177,6 +192,7 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
                     input=authored,
                 )
             ),
+            _commit_response(),
         ]
     )
 
@@ -212,9 +228,84 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
     assert result.evidence["source_updates"] == 1
     assert result.evidence["sandbox_checks"] == 1
     assert [tool.name for tool in backend.requests[0].tools] == [
-        SCIENTIFIC_SOURCE_SUBMISSION_TOOL
+        SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+        SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
-    assert len(backend.requests) == 1
+    assert len(backend.requests) == 2
+
+
+def test_same_model_can_revise_after_technically_successful_execution() -> None:
+    first = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates): return {'passed': False}\n",
+    }
+    revised = {
+        **first,
+        "code": "def run_sandbox(seed, replicates): return {'passed': True}\n",
+    }
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="submit-first",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=first,
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="submit-revised",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=revised,
+                )
+            ),
+            _commit_response(),
+        ]
+    )
+    checked: list[dict] = []
+
+    def check(candidate):
+        candidate = dict(candidate)
+        checked.append(candidate)
+        return {
+            "code_draft_hash": stable_hash(candidate),
+            "accepted": True,
+            "metrics": {
+                "self_diagnostic": {
+                    "passed": candidate == revised,
+                }
+            },
+        }
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Inspect execution output before accepting the source.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_no_progress_turns=2,
+        artifact_id="question:successful-process-failed-diagnostic",
+        initial_code_draft=None,
+        initial_check_result={
+            "artifact_kind": "ScientificSourceAuthoringRequired",
+            "accepted": False,
+            "execution_attempted": False,
+        },
+        check_candidate=check,
+        workspace_operation="initial_authoring",
+    )
+
+    assert checked == [first, revised]
+    assert dict(result.code_draft) == revised
+    assert '"passed":false' in str(backend.requests[1].messages).lower()
+    assert result.evidence["sandbox_checks"] == 2
+    assert result.evidence["model_commit_after_observation"] is True
 
 
 def test_model_selects_dependency_handoff_after_raw_consumer_failure() -> None:
@@ -305,6 +396,7 @@ def test_model_selects_dependency_handoff_after_raw_consumer_failure() -> None:
     assert len(backend.requests) == 2
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+        SCIENTIFIC_SOURCE_COMMIT_TOOL,
         SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL,
     ]
 
@@ -337,6 +429,7 @@ def test_byte_identical_replacement_is_returned_to_same_model_as_noop() -> None:
                     input=revised,
                 ),
             ),
+            _commit_response(),
         ]
     )
 
@@ -392,7 +485,8 @@ def test_model_can_run_current_source_in_changed_dependency_environment() -> Non
                         )
                     },
                 )
-            )
+            ),
+            _commit_response(),
         ]
     )
     checked: list[dict] = []
@@ -436,6 +530,7 @@ def test_model_can_run_current_source_in_changed_dependency_environment() -> Non
     assert result.evidence["accepted"] is True
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+        SCIENTIFIC_SOURCE_COMMIT_TOOL,
         SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
     ]
 
@@ -478,6 +573,7 @@ def test_current_source_runs_at_most_once_per_dependency_environment() -> None:
                     revised,
                 )
             ),
+            _commit_response(),
         ]
     )
     checked: list[dict] = []
@@ -555,6 +651,7 @@ def test_scientific_workspace_does_not_reexecute_an_older_source() -> None:
                     accepted_revision,
                 )
             ),
+            _commit_response(),
         ]
     )
     executed_hashes: list[str] = []
@@ -624,6 +721,7 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
             )
             for index, draft in enumerate(drafts)
         ]
+        + [_commit_response()]
     )
 
     result = run_scientific_code_workspace(
@@ -657,13 +755,20 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
     assert result.evidence["source_updates"] == 5
     assert result.evidence["sandbox_checks"] == 5
     assert result.evidence["transcript_policy"] == "full_linear_history"
-    assert [len(request.messages) for request in backend.requests] == [1, 3, 5, 7, 9]
+    assert [len(request.messages) for request in backend.requests] == [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+    ]
     assert "at most 5 total model/tool turns" in str(backend.requests[0].messages)
     assert "attempt': 0" in str(backend.requests[-1].messages)
     assert "attempt': 3" in str(backend.requests[-1].messages)
     assert all(
         [tool.name for tool in request.tools]
-        == [SCIENTIFIC_SOURCE_SUBMISSION_TOOL]
+        == [SCIENTIFIC_SOURCE_SUBMISSION_TOOL, SCIENTIFIC_SOURCE_COMMIT_TOOL]
         for request in backend.requests
     )
 
@@ -747,7 +852,8 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint() -> None:
                     name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
                     input=accepted_revision,
                 )
-            )
+            ),
+            _commit_response(),
         ]
     )
     executed: list[dict] = []

@@ -1481,7 +1481,9 @@ def _normalize_simulation_packet(
     runtime_plan["seed"] = seed
     if agentic_execution:
         runtime_plan["execution_owner"] = "scientific_code_workspace"
-        runtime_plan["execution_interface"] = "submit_scientific_source"
+        runtime_plan["execution_interface"] = (
+            "submit_execute_observe_then_model_commit"
+        )
         runtime_plan["canonicalization_boundary"] = (
             "AgentRuntime records the isolated execution interface; the model owns "
             "the complete source and receives its raw observations."

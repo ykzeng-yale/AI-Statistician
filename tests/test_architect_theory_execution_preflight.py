@@ -116,6 +116,9 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "scratchpad" in prompt
     assert "frozen confirmatory" in prompt
     assert "task-family checklist" in prompt
+    assert "Do not silently repair the candidate" in prompt
+    assert "change a defined variable, normalization, constraint subspace" in prompt
+    assert "corrected argument" in prompt
     assert "exploratory_confirmatory_evidence_chronology" in (
         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
     )
