@@ -993,3 +993,43 @@ Commit `d81ac4212501558d750bfc2a4b160f3f853b1724` makes the
 profile's internal contract state the same selected-task formal behavior. The
 focused profile suite passed `22/22`; the unchanged hidden authority again
 calibrated `5/5`. No product call has occurred.
+
+### First exact-target result
+
+The single authorized exact-Haiku draw is now consumed. The existing Formalizer
+workspace did execute as a coding-agent loop: two same-owner segments produced 24
+model-authored source updates, 24 local Lean checks, and 10 formal-RAG calls, with
+no Architect call. One candidate elaborated only through `sorryAx`; the independent
+axiom audit rejected it. The model ended with a formal-gap report, so there were
+zero kernel-verified subclaims and no exact theorem closure. Runtime and the one
+post-termination hidden evaluation both failed; the immutable ladder is `0/24`.
+The task cannot be rerun, resumed, repaired, or rescored.
+
+This result supports the Codex harness choice but not the prover capability claim.
+The model owned every Lean edit and saw raw compiler/search observations; the
+harness correctly refused to turn elaboration, retrieval, or a model-reported
+foundation gap into proof. It also exposed three generic observation defects:
+
+- selected-task `formal=required` was respected by dispatch and final evaluation,
+  but two internal evidence-contract fields still inherited a capability-eval-only
+  condition;
+- proof-state inspection could label a goal-free elaborated declaration as locally
+  accepted even when structured axiom audit had found `sorryAx`;
+- exact declaration source already existed in the active RAG snapshot, but the
+  read-only source-inspection tool was unavailable without an LSP declaration
+  provider.
+
+Post-run commit `fe7c7055` fixes those shared mechanisms for future tasks. It makes
+explicit formal research intent authoritative across the evidence contract, binds
+proof-state feedback to the existing structured axiom audit, and lets the same
+Formalizer session inspect a model-selected declaration through the active
+project/RAG snapshot. Runtime selects no declaration, source edit, proof term,
+tactic, or repair. The declaration tool only resolves files within the bound Lean
+project and labels its output as non-proof evidence.
+
+Focused regression passed `124/124`; the complete suite passed `854/854` in 68.22
+seconds with `research_agent_runtime.py` reduced to 24,745 lines. No product call,
+benchmark rerun, hidden rescore, agent, scheduler, retry, turn increase, theorem
+rule, Lean grammar/tactic rule, proof, or capability credit was added. Exact run and
+authority hashes are recorded in
+`docs/operator_audits/statlib_uniform_consistency_formal_l0_v1.md`.

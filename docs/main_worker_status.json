@@ -1,13 +1,13 @@
 {
-  "schema_version": 131,
+  "schema_version": 132,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "d81ac4212501558d750bfc2a4b160f3f853b1724",
+  "validated_code_head": "fe7c70552b877d451dfbd3bb0e6cd93cf1e12370",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Evaluate the existing Codex-style Formalizer workspace without adding another harness layer. Commit 9812446f adds one operator-frozen exact-target contract and routes proof-only work through existing RAG directly to the same model-owned Lean session, bypassing Architect and TheoryDeveloper target rewriting. Commit c4289cdb makes the research-eval profile honor an explicitly formal-required selected task instead of disabling that existing lane globally; commits 40c1a9e5 and d81ac421 make both public help and the internal profile contract state the same task-intent behavior. Runtime interprets no Lean and chooses no tactic; independent whole-target review, axiom audit, and kernel promotion remain mandatory. The disjoint Statlib authority is calibrated 5/5, bound to pushed commit d81ac421, and permits exactly one fresh exact-Haiku product draw after the final metadata push. All prior twenty-three scored tasks remain immutable 0/23 and strict development closure remains 0/2.",
+  "current_goal_focus": "Preserve the first exact-target Formalizer draw as an immutable 0/1 capability failure and improve only shared future-task observation mechanics. The exact-Haiku run used the existing same-owner Lean workspace for 24 source updates, 24 local checks, and 10 RAG calls, but its sole elaborated source depended on sorryAx and no candidate reached kernel promotion. Commit fe7c7055 makes explicit formal-required research intent authoritative across the runtime evidence contract, binds proof-state feedback to structured axiom audit, and exposes active-project declaration source through the existing model-selected RAG workspace without adding a proof repair layer. All twenty-four scored tasks remain immutable 0/24 and strict development closure remains 0/2; no new evaluation is activated.",
   "latest_its_time_source_execution_calibration": {
     "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
@@ -233,8 +233,13 @@
     ]
   },
   "validated_change": {
-    "commit": "d81ac4212501558d750bfc2a4b160f3f853b1724",
+    "commit": "fe7c70552b877d451dfbd3bb0e6cd93cf1e12370",
     "changes": [
+      "The one authorized Statlib uniform-consistency exact-target draw is consumed and immutable at 0/1. Exact Haiku made 24 model-authored Lean source updates, 24 local checks, and 10 formal-RAG calls in two same-owner workspace segments; one source elaborated only with sorryAx, independent axiom audit rejected it, and zero candidates reached kernel promotion. Runtime and hidden evaluation both failed closed; all twenty-four scored tasks remain 0/24.",
+      "Commit fe7c7055 makes explicit formal-required research intent authoritative across the actual runtime evidence contract and Architect-required subsystem projection. Ordinary non-formal research tasks remain unchanged and Formalizer remains optional unless selected task intent requires it.",
+      "Proof-state feedback is now joined with the existing structured candidate axiom audit, so an elaborated declaration rejected for untrusted axioms cannot appear goal-free and locally accepted. The join reads audit fields only; it parses no Lean source and chooses no repair.",
+      "The existing Formalizer session can now inspect a model-selected declaration's exact source, signature, namespace, and importable module through the active project and formal-RAG snapshot even without an LSP declaration provider. Resolution fails closed outside the bound project and is explicitly non-proof evidence.",
+      "Focused post-run regression passed 124/124 and the complete suite passed 854/854 in 68.22 seconds; compile-all, exact model-policy, JSON, and diff checks passed. research_agent_runtime.py decreased to 24,745 lines. These are future-task mechanism facts only: no rerun, resume, hidden rescore, model call, agent, scheduler, retry, budget increase, theorem rule, Lean grammar/tactic rule, proof, or capability credit was added.",
       "Commit d81ac421 aligns the internal research-eval profile contract with the same selected-task formal intent. The focused profile suite passed 22/22; no product model call occurred.",
       "Commit 40c1a9e5 corrects the research-eval CLI description to match its task-intent behavior: Formalizer/Lean remains optional unless a selected task explicitly requires formal evidence. The complete suite passed 849/849 in 68.16 seconds, with no product model call.",
       "Commit c4289cdb makes research_eval preserve the explicit formal-required intent of the selected frozen task. It enables the existing Formalizer and independent formal-target reviewer only when a selected question requires formal evidence; ordinary research tasks still leave that lane optional.",
@@ -502,9 +507,9 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model independently chooses every claim, dependency, research-source query, source handle, exact read, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, confirmatory replicate count, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, median-of-means, AR(1), Fisher-z, paired-ratio, and scalar-control-variate expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, automatic literature query or source selection, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback. Terminal disposition is generic control-plane capacity and cannot execute an extra research action; dependency and trace projections preserve identity, hashes, ABI, exact-output locations, and unique unreferenced observations without selecting or rewriting scientific content.",
     "verification": {
-      "full_pytest": "843 passed in 67.93s",
-      "next_frozen_activation": "none; all twenty-three scored tasks are consumed and closed, and a future disjoint task requires a new fully frozen and pushed authority bundle before its first model call",
-      "affected_subsystem_pytest": "Exact Lean source editing, ambiguous and overlapping edit feedback, workspace continuation, Formalizer semantic-review boundaries, and the shared client-tool loop passed 77/77 focused checks and 843/843 overall",
+      "full_pytest": "854 passed in 68.22s",
+      "next_frozen_activation": "none; all twenty-four scored tasks are consumed and closed, and a future disjoint task requires a new fully frozen and pushed authority bundle before its first model call",
+      "affected_subsystem_pytest": "Formal-source snapshot resolution, declaration inspection without LSP, axiom-audit-bound proof-state feedback, explicit formal research intent, exact Lean source editing, and the shared client-tool loop passed 124/124 focused checks and 854/854 overall",
       "simulation_dependency_prompt_projection": "immutable live replay reduced 6,812,024 bytes of recursive environment feedback to a 45,314-byte complete planning prompt; accepted estimator ABI plus source/result hashes remained visible, while source bytes and 4,000 historical smoke-result rows were absent",
       "persisted_tool_call_projection": "immutable scalar replay reduced the largest tool record from 3,370,158 to 18,379 bytes and the complete ten-row trace from 3,440,322 to 89,326 bytes, preserving summary hash, output hash, and output paths; large observations without external authoritative output remain exact inline",
       "visible_estimator_contract": "schema-v2 executable tasks fail closed unless every public ABI field has explicit semantics, hidden checks cite valid public clauses under one estimator identity, and each hidden empirical check also cites a compact public empirical claim; the exact contract reaches scientific model contexts without being copied into agent result packets",
@@ -516,8 +521,10 @@
       "hidden_source_harness_calibration": "6/6: gold accepted and five source, environment, execution, stdout, or sign variants rejected",
       "git_diff_check": "passed",
       "model_policy_audit": "production tiers remain Haiku or Sonnet with Opus rejected; tests and live evaluations remain pinned to claude-haiku-4-5-20251001",
-      "fresh_live_research_draws": 2,
-      "fresh_live_result": "Trimmed Match L1 v1 used exact claude-haiku-4-5-20251001 for every enabled role, reached runtime ACCEPTED and visible research evaluation 1/1, executed the exact pinned author source, and produced the expected hash-bound CSV artifacts. Hidden gold remained 0/1 because evaluator data transport prevented identity execution and calibrated semantic review independently rejected the report. The task is immutable and the ladder remains 0/23.",
+      "fresh_live_research_draws": 3,
+      "fresh_live_result": "The Statlib exact-target v1 draw used exact claude-haiku-4-5-20251001 for every enabled role and exercised the same Formalizer source owner for 24 Lean checks and 10 RAG calls. One declaration elaborated only with sorryAx, independent axiom audit rejected it, no candidate reached kernel promotion, and hidden evaluation failed. The task is immutable and the ladder remains 0/24.",
+      "latest_formal_draw": "BLOCKED and hidden 0/1 after two same-owner workspace segments, 24 model-authored source updates, 24 local Lean checks, 10 formal-RAG calls, one sorryAx elaboration, zero kernel-verified subclaims, zero full-theorem proofs, and one formal gap",
+      "post_formal_draw_regression": "Commit fe7c7055 passed 124/124 focused checks and 854/854 overall in 68.22 seconds; explicit formal intent now reaches the actual evidence contract, axiom audit annotates proof-state feedback, and active-project indexed declaration source is available to the same Formalizer session without an LSP dependency. This cannot rescore the consumed draw.",
       "post_run_semantic_diagnostic": "Runtime preflight acceptance is not hidden theory authority: deterministic checks passed but the calibrated 12/12 semantic judge returned INCONCLUSIVE. Hidden empirical checks passed over 9,000 invocations, while hidden algorithm acceptance did not fully pass and runtime generated no simulation. Commit dd3cb36c fixes only the shared projection mechanism for future tasks.",
       "task_bound_referee_regression": "A real client-tool review writes one model-authored Markdown report, submits only ordered statuses and compact blockers, persists the exact report under the run review workspace, rejects path escape, and stores report-level evidence refs once.",
       "scientific_workspace_continuation": "Python/R callbacks preserve exception semantics; handled errors remain consumer results, unhandled errors return to the same Simulation model, and only the model's explicit report_bound_dependency_failure action can trigger a hash-validated cross-workspace handoff. No repair worker or additional budget exists.",
@@ -526,9 +533,9 @@
       "theory_referee_workspace_continuation": "a two-segment independent review restores the exact prior Markdown read, task-bound source handle, document coverage, and terminal-validator observation; AgentRuntime uses one blackboard reference, calls the referee twice, calls Architect planning zero times, preserves cumulative source budgets, and blocks tamper or no-progress lineage before a provider call",
       "theory_referee_report_workspace": "the same isolated model writes, reads, hash-edits, and submits one Markdown report by SHA; terminal JSON contains no report body, checkpoints retain only a validated draft manifest, stale hashes return as actionable observations, and disk tampering fails before a provider call",
       "algorithm_source_workspace_planning": "fresh native-tool Algorithm tasks make zero structured proposal calls and one source-owner workspace call; accepted source bytes are rehash-checked and projected by identity for independent review, while an incomplete first segment resumes by source-workspace intent before any proposal exists",
-      "runtime_core_growth": "research_agent_runtime.py is 24968 lines; source replication is represented by the existing evidence contract and workspace selection without a duplicate routing counter, Algorithm planning remains in the source-owner loop, and the unchanged strict-under-25000-line regression budget passes."
+      "runtime_core_growth": "research_agent_runtime.py is 24745 lines; declaration-source inspection was extracted into the existing proof-state/source-index workspace boundary, explicit formal intent uses the existing evidence contract, and the unchanged strict-under-25000-line regression budget passes."
     },
-    "evidence_boundary": "Trimmed Match v1 remains immutable 0/1: exact source execution and visible runtime acceptance do not replace hidden identity execution or correct semantic interpretation. The post-consumption file-backed artifact and exact-command corrections are deterministic mechanism evidence only. All twenty-three scored tasks remain 0/23 full-task passes, no new draw is authorized, and exact development theorem closure remains 0/2."
+    "evidence_boundary": "The Statlib exact-target v1 draw remains immutable 0/1: source iteration, RAG, local elaboration, and a model gap report do not replace axiom-clean target-bound kernel evidence. Post-run evidence-contract, proof-state, and declaration-inspection corrections are deterministic future-task mechanism evidence only. All twenty-four scored tasks remain 0/24 full-task passes, no new draw is authorized, and exact development theorem closure remains 0/2."
   },
   "latest_component_evidence": {
     "id": "research_l0_scalar_control_variate_v1_codex_harness_exact_haiku_20260821",
@@ -677,21 +684,52 @@
     "full_task_passed": false,
     "boundary": "The only permitted runtime draw is complete and immutable. The valid but uncommitted model-authored workspace is not accepted theory, and no hidden component pass exists. The shared terminal-disposition correction cannot permit rerun, output repair, manual commit, resume, or rescore."
   },
-  "next_frozen_evaluation": {
+  "latest_formal_evaluation": {
     "id": "research_l0_statlib_uniform_consistency_formal_v1",
     "task_id": "statlib_uniform_consistency_implies_consistency_formal_known_result",
     "family": "measure_inference_formalization",
-    "status": "frozen_activated_zero_product_calls",
-    "fresh_live_runs": 0,
+    "status": "consumed_failed_exact_kernel_closure",
+    "fresh_live_runs": 1,
     "visible_questions_sha256": "0a5b9a239889019c007f03ce3ce8b8efdc912dd211734387ac06345977751d1f",
     "visible_question_hash": "5a4ee790c2edde1063ffc40a81bc795597a652adcf5e7124b0006e1e7e244832",
+    "visible_formal_target_prefix_sha256": "4ff6129d04e7c7c6eebbcb02f16a90ec16064641cb479d0f4ec50f00c2dbe81f",
     "gold_manifest_sha256": "d097d20c6ae82089c581eb5f508bd00457e18dad79fe08b43cfa02c6c21bbdc2",
+    "hidden_calibration_sha256": "e2d2c1ea5c0b42fa0c6938e16f12ff10e668cb7cc0c22655a4609fbc05d1893b",
     "hidden_harness_calibration": "5/5",
     "activation_code_commit": "d81ac4212501558d750bfc2a4b160f3f853b1724",
     "activation_code_push_confirmed_on_work_branch_and_main": true,
     "model": "claude-haiku-4-5-20251001",
     "formalization_requirement": "required",
-    "boundary": "The exact Lean target and active Statlib environment are visible. The human proof and evaluator remain outside repository and model context. Exactly one fresh product draw may run only after this final authority binding is pushed; no rerun, resume, repair, or rescore is permitted."
+    "run_path": "runs/main_worker_research_l0_statlib_uniform_consistency_formal_20260822_v1_codex_harness_exact_haiku",
+    "runtime_status": "BLOCKED",
+    "runtime_disposition": "RESEARCH_CANDIDATE_INCONCLUSIVE",
+    "runtime_manifest_sha256": "290038d990aed7fbac801cf0cd1a71296cdd678e5addc0642f896a7b3ee18ea0",
+    "hidden_formal_report_sha256": "1c23f19bd19b23fee40e9f2c0f4e4c857c535ccb99ceb05d0b84d1c09a7e5739",
+    "runtime_progress_sha256": "7564ce845e1824524e979d37c1011698701d6f816ebf17f70614cb658d2c9041",
+    "runtime_failure_summary_sha256": "f6829d782e54d4065c12ca6f2d97bd6df009f68728c0645e98508e1b19f369d2",
+    "runtime_completion_summary_sha256": "982d3b7308ab2e387c41b5f3fe939eecf7b96e1a282553d8477c4578648dcab9",
+    "runtime_llm_topology_sha256": "aa5c8b523eba57d2e61e999414b604b4b3a021791db35aec7043d744eff1ce00",
+    "formalizer_workspace_segments": 2,
+    "formalizer_source_updates": 24,
+    "formalizer_local_lean_checks": 24,
+    "formalizer_local_lean_compiled": 1,
+    "formalizer_formal_rag_calls": 10,
+    "compiled_candidate_status": "declaration elaborated only with sorryAx and was rejected by independent axiom audit",
+    "kernel_verified_subclaims": 0,
+    "full_theorem_proved": false,
+    "formal_gaps": 1,
+    "architect_model_calls": 0,
+    "hidden_evaluator_runs": 1,
+    "hidden_result": "failed because one_kernel_promoted_candidate=false; authority errors were empty",
+    "post_run_shared_fix_commit": "fe7c70552b877d451dfbd3bb0e6cd93cf1e12370",
+    "operator_audit": "docs/operator_audits/statlib_uniform_consistency_formal_l0_v1.md",
+    "full_task_passed": false,
+    "boundary": "The single authorized draw is consumed and permanently 0/1. The exact Lean target and active Statlib environment were visible; the human proof and evaluator remained outside repository and model context. Post-run generic observation fixes apply only to future tasks and cannot permit rerun, resume, repair, rescore, or proof credit."
+  },
+  "next_frozen_evaluation": {
+    "status": "none_activated",
+    "fresh_live_runs_authorized": 0,
+    "boundary": "All twenty-four scored tasks are consumed and closed. A future disjoint task requires a new visible authority, hidden evaluator, model policy, calibration, and pushed activation binding before its first product call."
   },
   "previous_authorized_evaluation": {
     "id": "research_l0_scalar_control_variate_v1_exact_haiku_20260821",
@@ -910,10 +948,10 @@
       "scientific execution has Pyodide/WebR foundations but live R, broad package support, and precision-driven confirmatory replication need integrated evidence",
       "Formalizer has real RAG, local Lean, same-session complete replacement and exact localized source editing, proof-state feedback, and semantic review but still lacks reliable exact statistical theorem closure; cb70e09c is deterministic harness evidence only",
       "the atomic active-project declaration context has exact-Haiku component evidence but still needs a fresh integrated Formalizer run and cross-task ablation",
-      "the research-capability ladder now has twenty-three consumed focused tasks and still lacks a passing full task. Trimmed Match executed exact author source and reached visible runtime acceptance, but hidden identity transport did not run and semantic report review failed; ITS-Time never entered source replication, while scalar control-variate remains the deepest multi-lane trajectory without generated simulation or full hidden acceptance",
+      "the research-capability ladder now has twenty-four consumed focused tasks and still lacks a passing full task. The Statlib exact-target task exercised 24 direct Lean checks but produced no axiom-clean kernel candidate; Trimmed Match executed exact author source and reached visible runtime acceptance, but hidden identity transport did not run and semantic report review failed; ITS-Time never entered source replication, while scalar control-variate remains the deepest multi-lane trajectory without generated simulation or full hidden acceptance",
       "the active Lean foundation pins Statlib 6575d611 on Lean 4.30, while fetched Statlib origin/main 01d2a03 adds EVariable and DPI foundations on Lean 4.33. The active importable corpus and latest upstream discovery corpus must retain distinct snapshot identities until a deliberate compatibility migration succeeds",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
-      "research_agent_runtime.py remains large at 24968 lines even though the canonical review path is document-native and fresh Algorithm planning now lives in the source-owner workspace; any further extraction must remove a measured central responsibility rather than add another outer interface"
+      "research_agent_runtime.py remains large at 24745 lines even though declaration-source inspection and canonical review are now outside its central control body and fresh Algorithm planning lives in the source-owner workspace; any further extraction must remove a measured central responsibility rather than add another outer interface"
     ],
     "wrong_next_move": "Do not add a repair worker, packet patcher, theorem-specific bridge, Lean grammar fixer, forced tactic policy, hardcoded statistical answer, fixed universal simulation count, more outer budget, or another scheduler."
   },
@@ -925,12 +963,12 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 52-58%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "0/23 consumed tasks passed; Trimmed Match completed exact source execution but failed hidden report semantics and its identity evaluator transport, ITS-Time never entered its required source-replication workspace, exponential-rate failed hidden theory and algorithm authority, and scalar control-variate lacked generated simulation; component evidence cannot complete any task",
+    "fully_gold_covered_research_tasks": "0/24 consumed tasks passed; the Statlib exact-target task reached 24 Lean checks but no axiom-clean kernel candidate, Trimmed Match completed exact source execution but failed hidden report semantics and identity-evaluator transport, ITS-Time never entered its required source-replication workspace, exponential-rate failed hidden theory and algorithm authority, and scalar control-variate lacked generated simulation; component evidence cannot complete any task",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24984,
+    "research_agent_runtime_lines": 24745,
     "scientific_code_workspace_lines": 2359,
     "theory_workspace_lines": 3716,
     "research_architect_lines": 5361,
@@ -945,7 +983,7 @@
     "latest_runtime_manifest_bytes": 50101
   },
   "next_gates": [
-    "After the final authority-binding commit is pushed to both canonical refs, run exactly one fresh research_l0_statlib_uniform_consistency_formal_v1 draw with claude-haiku-4-5-20251001 for every enabled role. Evaluate once against the already frozen hidden harness. Do not rerun, resume, repair, rescore, increase turns, or count local compilation without semantic review and kernel promotion as proof.",
+    "Preserve research_l0_statlib_uniform_consistency_formal_v1 at immutable 0/1. Do not rerun, resume, repair, rescore, increase turns, or count its 24 Lean checks, 10 RAG calls, sorryAx elaboration, model gap report, or post-run regression as proof. A future unrelated formal task must freeze and push a new target and hidden authority before its first exact-Haiku call.",
     "Preserve Trimmed Match L1 v1 at raw 0/1 without rerun, resume, report repair, hidden rescore, or component promotion. Treat separate hash-bound scientific input artifacts, exact source-command visibility, and model-authored Python/R queries over selected results as future-task regression evidence only; do not infer that the consumed report would have passed.",
     "Keep the specialist collaboration rule small: one persistent source owner per Theory, Python/R, Simulation, or Lean workspace; direct environment feedback stays with that owner; independent reviewers receive artifact-only context; Architect handles only initial intent, cross-workspace conflicts, and stopping. Do not import Codex app-server, provider transport, thread manager, or another scheduler.",
     "Preserve ITS-Time L1 v1 at raw 0/1 without rerun, resume, output repair, hidden rescore, or component promotion. Treat the source-replication intent topology and exact specialist-session persistence as future-task regression evidence only; before any new disjoint draw, freeze and push its visible task, source/data authority, hidden evaluator, and model policy.",

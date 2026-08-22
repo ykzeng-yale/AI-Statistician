@@ -555,3 +555,19 @@ two broad tasks in hope of a better model draw. This is an evaluation-selection
 rule, not a smaller source-workspace budget or an extra runtime guardrail. The
 unchanged S13 budgets and exact kernel gate remain authoritative whenever that
 formal-capability evaluation is run.
+
+The first disjoint proof-only L0 task now supplies a direct Formalizer component
+measurement. Its exact Statlib theorem statement, active Lean project, model policy,
+and hidden proof authority were frozen and pushed before one exact-Haiku draw. The
+same model-owned Lean workspace made 24 source updates, ran 24 local checks, and made
+10 task-bound RAG calls. Its only elaborated declaration depended on `sorryAx`, the
+independent axiom audit rejected it, and no candidate reached semantic review or
+kernel promotion. Runtime and the one post-termination hidden evaluation therefore
+failed, leaving the task at immutable `0/1` and the full ladder at `0/24`.
+
+This is useful failure localization: orchestration reached the correct optional-by-
+default but required-by-task Formalizer lane, direct compiler feedback worked, and
+the evidence boundary held. It does not establish autonomous Lean proving. Post-run
+changes to formal-intent propagation, axiom-audit-aware proof-state observations,
+and model-selected active-project declaration inspection are future-task mechanism
+evidence only; this task will not be rerun, resumed, repaired, or rescored.
