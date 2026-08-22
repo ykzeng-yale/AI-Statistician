@@ -7051,8 +7051,8 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "run the live autonomous statistical research loop with serious theory, "
             "generated algorithm and simulation code, frozen metric protocol, "
-            "independent semantic review, and final Critic evaluation. The strict "
-            "Formalizer/Lean lane is reported separately and is not run by this mode"
+            "independent semantic review, and final Critic evaluation. Formalizer/Lean "
+            "remains optional unless a selected task explicitly requires formal evidence"
         ),
     )
     runtime_evaluation_mode.add_argument(
