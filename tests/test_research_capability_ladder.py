@@ -924,6 +924,10 @@ def test_paired_ratio_l0_is_frozen_before_its_first_runtime_draw() -> None:
     assert evidence["semantic_calibration_cases"] == 12
     assert evidence["semantic_calibration_cases_correct"] == 12
     assert evidence["semantic_reference_claims"] == 10
+    assert evidence["activation_commit"] == (
+        "bc5eb28c6e09ddffda15e4d6c0d32108cea2c273"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
     for field in (
