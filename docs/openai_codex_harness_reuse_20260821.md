@@ -4,9 +4,9 @@
 
 - Repository: `https://github.com/openai/codex`
 - Audited branch: `main`
-- Audited commit: `e6a3877e95788b52c3aa5e9a143dba87f04720dc`
+- Audited commit: `970b7f2ff4f612b8e8cd340eb6b6d789d7141dd2`
 - License: Apache-2.0
-- Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex-e6a3877e`
+- Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex-970b7f2f`
 - License SHA-256: `d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc`
 
 The audit is commit-bound. A later Codex release is a different mechanism
@@ -23,11 +23,22 @@ setup, and redacted provider configuration values. They strengthen isolation,
 policy ownership, and secret handling but do not justify a second scheduler,
 scientific reviewer, or provider path in AI-Statistician.
 
-The latest incremental recheck from `9949c9ea` to `e6a3877e` contains one
-commit limited to remote installed-plugin cache reconciliation. Every core
-session, tool-dispatch, multi-agent, app-server, provider, Guardian, thread, and
-executor-hook file listed below remains byte-identical. It adds no reusable
-research-workspace or scientific-scheduling mechanism.
+The incremental recheck from `9949c9ea` to `e6a3877e` contained one commit
+limited to remote installed-plugin cache reconciliation. The latest recheck
+from `e6a3877e` to `970b7f2f` contains seven commits for trace telemetry,
+browser/computer policy, executor-hook tests, cancellation propagation,
+granular sandbox approval, Guardian classification logging, and preservation of
+strict MCP review outcomes. Every core turn-loop, tool-dispatch, multi-agent,
+app-server, provider, Guardian-evidence, thread-manager, and executor-hook file
+listed below remains byte-identical.
+
+The new strict-review change preserves canonical denial, timeout, and abort
+outcomes instead of flattening them into a generic decline. That reinforces an
+existing AI-Statistician rule: retain the independent referee's exact findings
+and disposition, keep harness failure distinct, and fail closed when no valid
+decision exists. The cancellation and approval changes strengthen environment
+control, but add no reusable research workspace, scientific scheduler, theory
+method, simulation policy, or Lean-proving policy.
 
 ## What Codex actually contributes
 
@@ -64,6 +75,35 @@ Primary inspected files and their SHA-256 identities:
 | `codex-rs/core/src/context/guardian_review_evidence.rs` | bounded, runtime-only, authorization-bound review evidence | `b0d5cafa5529dd0ae55a44d3933a175b4d0999d73e78dc7963c1d2781088279f` |
 | `codex-rs/core/src/thread_manager.rs` | fresh parent-linked internal sessions | `3bbbd6f2c68cacc1f652e57493ac15a560b2d7da2f93f797ad492d794f4e8c9d` |
 | `codex-rs/core-plugins/src/executor_hooks.rs` | identity-allowlisted executor cleanup hooks | `fbdc87934d9dae73014f626dd079989986c1b1e8bcc8d068cb6f1d4fc555463a` |
+| `codex-rs/core/src/session/mcp.rs` | canonical strict-review outcome propagation | `65d807c77eb76c9c6f61a27c56ae943d052e50b1966674f721f02e6a42433e44` |
+
+## Best-leverage decision
+
+The useful unit of reuse is a mechanism, not the whole binary:
+
+- Keep AI-Statistician's provider-neutral `client_tool_loop` as the shared inner
+  harness for TheoryDeveloper, Python/R authors, SimulationEngineer, the
+  independent referee, and Formalizer. It already implements the Codex-shaped
+  model -> tool -> exact observation -> same-model continuation cycle.
+- Keep one outer `AgentRuntime` because scientific task intent, immutable source
+  policy, independent review, confirmatory blinding, and proof authority are not
+  coding-thread concerns supplied by Codex.
+- Give each source owner a persistent artifact workspace and generic domain
+  tools. Ordinary source or compiler failures stay with that owner; only a
+  model-selected, hash-bound cross-workspace defect becomes a handoff.
+- Fork independent reviewers with artifact-only context, analogous to a Codex
+  child with no inherited turns. Never share author hidden reasoning or
+  evaluator-only files.
+- Treat model context compaction as a transport optimization. Authoritative
+  mathematics, source, raw diagnostics, and reviewer findings remain in
+  content-addressed files and references rather than in a lossy summary.
+
+Directly embedding Codex app-server would duplicate thread state, scheduling,
+tool persistence, permissions, and provider transport. Its Python SDK is a
+client for that app-server, not a provider-neutral library containing a small
+agent loop we can import. Because AI-Statistician must use Claude Haiku/Sonnet,
+direct adoption would additionally require replacing the provider or building
+an Anthropic-to-Responses proxy. That is more harness, not better research.
 
 ## Fit with AI-Statistician
 
