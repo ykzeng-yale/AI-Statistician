@@ -746,6 +746,8 @@
     "status": "frozen_ready_gold_validated_no_product_call",
     "visible_question_activation_commit": "77f58bccce7711a5ccd0cd6cccf35da67e4902e5",
     "visible_question_activation_push_confirmed_on_work_branch_and_main": true,
+    "authority_binding_commit": "7a0ee06b1b0f4507df40aaaf53c7092cde4e48d5",
+    "authority_binding_push_confirmed_on_work_branch_and_main": true,
     "visible_questions_sha256": "81d80ac8a01f1f0ffe0e1f75c0bd4062611711de902292267378cbf9c9868bab",
     "visible_question_hash": "c85761379c3ae87a1c09724c7d620f7907d1c8a165aaf9bf572e34a88eb4c5a9",
     "gold_manifest_sha256": "f86ba4be31ecd34b1b855160ada36fa933502450ae07905f0ed9b7cb652f8895",

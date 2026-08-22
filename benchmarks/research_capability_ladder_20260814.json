@@ -2139,6 +2139,8 @@
         "gold_frozen_before_first_runtime_model_call": true,
         "visible_question_activation_commit": "77f58bccce7711a5ccd0cd6cccf35da67e4902e5",
         "visible_question_activation_push_confirmed_on_work_branch_and_main": true,
+        "authority_binding_commit": "7a0ee06b1b0f4507df40aaaf53c7092cde4e48d5",
+        "authority_binding_push_confirmed_on_work_branch_and_main": true,
         "first_runtime_model_call_occurred": false,
         "product_model_calls": 0,
         "fresh_live_runs": 0,

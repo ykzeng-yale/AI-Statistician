@@ -1516,6 +1516,12 @@ def test_basu_theory_l0_authority_is_frozen_before_product_call() -> None:
         "claude-haiku-4-5-20251001"
     )
     assert evidence["semantic_calibration_model_calls"] == 2
+    assert evidence["authority_binding_commit"] == (
+        "7a0ee06b1b0f4507df40aaaf53c7092cde4e48d5"
+    )
+    assert evidence[
+        "authority_binding_push_confirmed_on_work_branch_and_main"
+    ] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
     assert ladder["current_readiness"]["active_scored_tasks"] == 26
