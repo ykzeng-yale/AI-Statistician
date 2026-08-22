@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -232,6 +233,7 @@ def _canonical_evidence_ref(value: Any) -> str:
     pointer = str(value or "").strip()
     if pointer.startswith("#"):
         pointer = unquote(pointer[1:])
+    pointer = re.sub(r"\[(0|[1-9]\d*)\]", r"/\1", pointer)
     evidence_roots = ("/question", "/reviewer_scope_contract", "/review_material")
     has_evidence_root = any(
         pointer == root or pointer.startswith(root + "/")
@@ -673,13 +675,12 @@ def build_generated_code_semantic_review_prompt(
     )
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SYSTEM_PROMPT = """\
-You are an independent semantic reviewer inside an AI Statistician runtime.
-Judge what executed generated code actually measures and implements. Ground every
-blocking observation in the supplied artifacts. Assess whether current-source-only
-revision is sufficient, but do not choose a repair owner or write replacement code.
-Never claim statistical acceptance or theorem proof.
-"""
+GENERATED_CODE_SEMANTIC_REVIEW_SYSTEM_PROMPT = (
+    "You are an independent semantic reviewer inside an AI Statistician runtime. "
+    "Judge what executed generated code actually measures and implements. Ground every "
+    "blocking observation in supplied artifacts. Assess source sufficiency without choosing "
+    "a repair owner or writing replacement code. Never claim statistical acceptance or proof."
+)
 
 
 @dataclass(frozen=True)

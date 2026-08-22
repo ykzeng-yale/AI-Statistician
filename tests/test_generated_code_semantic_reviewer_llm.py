@@ -531,6 +531,46 @@ def test_reviewer_reports_evidence_bound_defect_without_source_edit() -> None:
     ) == []
 
 
+def test_reviewer_canonicalizes_unambiguous_bracket_array_refs() -> None:
+    response = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "REVISE",
+        "review_document": "# Review\n\nThe source ignores its runtime arguments.",
+        "findings": [
+            {
+                "severity": "high",
+                "category": "argument_alignment",
+                "summary": "Runtime arguments are ignored.",
+                "observed_behavior": "The source returns a constant.",
+                "expected_behavior": "The source should use supplied arguments.",
+                "evidence_refs": [
+                    "/review_material/exact_executed_artifacts[0]/exact_source_code"
+                ],
+            }
+        ],
+        "source_revision_assessment": {
+            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "rationale": "The current source can be rewritten against fixed parents.",
+            "evidence_refs": [
+                "/review_material/exact_executed_artifacts[0]/actual_runtime_arguments"
+            ],
+        },
+    }
+
+    packet = _agent(response).review(
+        question=_question(),
+        review_material=_review_material(),
+        trusted_lineage=_trusted_lineage(),
+    )
+
+    assert packet["findings"][0]["evidence_refs"] == [
+        "/review_material/exact_executed_artifacts/0/exact_source_code"
+    ]
+    assert validate_generated_code_semantic_review_packet(
+        packet, review_material=_review_material()
+    ) == []
+
+
 def test_reviewer_can_flag_cross_artifact_conflict_without_selecting_owner() -> None:
     response = {
         "prior_finding_reviews": [],
