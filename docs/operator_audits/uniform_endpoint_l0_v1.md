@@ -111,3 +111,25 @@ values, rubric text, source corrections, and runtime feedback remain withheld.
 The focused panel passed 147/147 and the complete repository passed 865/865 in
 68.54 seconds. Production Python remains under its architecture budget at 149,998
 lines. The consumed task remains 0/1 regardless of these later regressions.
+
+## Theory review and evaluator alignment
+
+Post-run commit `778b2aac` addresses two shared harness contradictions without
+revisiting the consumed judgment. The isolated referee's compact role prompt now
+asks the model to select and falsify the highest-risk load-bearing claims; the
+versioned review protocol in its task payload remains the single detailed source of
+mathematical review obligations. It no longer forces exhaustive line-by-line
+paraphrase of every authoritative document.
+
+For future tasks, the evaluator-only semantic judge receives the same two-part
+theory authority used by downstream workspaces: model-authored Markdown/LaTeX
+mathematics and a hash-bound projection of the model-authored executable estimator
+ABI. This does not duplicate mathematical prose, expose hidden gold, or feed an
+evaluation result back into AgentRuntime. It prevents a valid structured interface
+from disappearing merely because long mathematics correctly lives in files.
+
+The focused theory/referee/evaluator panel passed 98/98, the complete repository
+passed 865/865 in 68.48 seconds, compile-all and diff checks passed, and production
+Python remains below the unchanged 150,000-line budget at 149,999 lines. No model
+call, rerun, resume, repair, rescore, or capability credit occurred; Uniform remains
+0/1 and the ladder remains 0/27.

@@ -1246,3 +1246,27 @@ budget at 149,998 lines. This reinforces the official Codex reuse decision: keep
 the provider-neutral same-model tool loop and artifact/session lifecycle, but do
 not embed Codex app-server, Responses transport, thread manager, or a second
 scheduler around Claude specialists.
+
+### Model-directed referee context and artifact parity
+
+Commit `778b2aac` applies the same thin-harness principle to the remaining theory
+review mismatch. The referee system prompt now establishes only role, falsification
+stance, model-directed context selection, and evidence boundaries. Detailed review
+obligations live once in the versioned task protocol already supplied to the same
+tool session. This removes the contradictory demand to read and paraphrase every
+line while retaining hash-bound reads, raw scratch observations, independent report
+authority, and compact terminal statuses.
+
+The hidden semantic evaluator now inspects the canonical model-authored theory
+artifact rather than only its file-backed half. It receives authoritative
+Markdown/LaTeX plus a hash-bound JSON projection of the exact estimator identity,
+inputs, outputs, executable interface contract, and termination guarantee authored
+by TheoryDeveloper. Hidden references, rubric text, thresholds, and results remain
+outside AgentRuntime, and no evaluator observation can return to the source owner.
+
+This is selective mechanism reuse, not Codex embedding: no app-server, Responses
+provider, thread manager, subagent scheduler, repair worker, retry, mathematical
+parser, statistical formula, or extra model call was added. The focused panel passed
+98/98, the complete repository passed 865/865 in 68.48 seconds, compile-all and diff
+checks passed, and production Python remains 149,999 lines. The consumed Uniform
+draw stays 0/1 and the capability ladder stays 0/27.

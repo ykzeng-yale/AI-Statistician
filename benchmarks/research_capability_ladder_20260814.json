@@ -2277,6 +2277,8 @@
         "operator_audit_path": "docs/operator_audits/uniform_endpoint_l0_v1.md",
         "post_run_shared_mechanism_fix_commit": "b49a8f5a",
         "post_run_shared_mechanism_fix_verification": "147 focused tests and 865/865 full-suite tests passed",
+        "post_run_theory_review_alignment_commit": "778b2aac",
+        "post_run_theory_review_alignment_verification": "98 focused tests and 865/865 full-suite tests passed; no model call or evaluator redraw occurred",
         "post_run_shared_mechanism_boundary": "Future source owners exercise the complete visible ABI before commit, independent review explicitly audits actual executable-interface behavior, and evaluator reports retain privacy-preserving claim/check references. No task content, retry, repair agent, hidden feedback, rerun, or rescore was added.",
         "model_draw_resampling_blocked": true,
         "formalization_requirement": "not_applicable",
@@ -2312,7 +2314,7 @@
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_shared_mechanism_head": "b49a8f5a",
+    "latest_shared_mechanism_head": "778b2aac",
     "latest_diagnostic": "All twenty-seven consumed tasks remain immutable at 0/27 full-task passes. Uniform endpoint completed the intended nonformal graph and passed hidden empirical evaluation 8/8 over 15,000 estimator calls, but hidden theory semantics failed and the estimator violated its public invalid-request ABI. The graph is substantially healthier than earlier draws; model-owned mathematical and executable-interface judgment remain the binding weaknesses.",
     "next_step": "Preserve Uniform endpoint at 0/1. Use deterministic regression and the existing one-session source-owner loops to improve theory/referee depth and executable-interface testing; activate another disjoint task only after its visible contract and evaluator authority are frozen and pushed before the first exact-Haiku product call."
   }

@@ -1,13 +1,13 @@
 {
-  "schema_version": 144,
+  "schema_version": 145,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "b49a8f5a",
+  "validated_code_head": "778b2aac",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all twenty-seven consumed tasks and treat commit b49a8f5a as future-task harness evidence only. The Uniform endpoint draw completed the intended Codex-shaped Theory, isolated review, Python, confirmatory Simulation, review, and Critic graph, but hidden theory semantics and the public rejected-request ABI still failed while empirical evaluation passed 8/8 over 15,000 estimator calls. Continue improving model-owned long-horizon derivation, adversarial referee reasoning, and complete executable-interface testing inside the existing source-owner sessions. Keep task intent, provenance, independent review, confirmatory blinding, evaluator isolation, and kernel authority as the outer boundaries; do not add scientific formulas, a repair agent, second scheduler, reviewer vote, model retry, or mandatory Formalizer work. The capability ladder is 0/27.",
+  "current_goal_focus": "Preserve all twenty-seven consumed tasks and treat commits b49a8f5a and 778b2aac as future-task harness evidence only. The Uniform endpoint draw completed the intended Codex-shaped Theory, isolated review, Python, confirmatory Simulation, review, and Critic graph, but hidden theory semantics and the public rejected-request ABI still failed while empirical evaluation passed 8/8 over 15,000 estimator calls. Continue improving model-owned long-horizon derivation, adversarial risk-directed referee reasoning, and complete executable-interface testing inside the existing source-owner sessions. Keep task intent, provenance, independent review, confirmatory blinding, evaluator isolation, and kernel authority as the outer boundaries; do not add scientific formulas, a repair agent, second scheduler, reviewer vote, model retry, or mandatory Formalizer work. The capability ladder is 0/27.",
   "latest_its_time_source_execution_calibration": {
     "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
@@ -234,8 +234,12 @@
     ]
   },
   "validated_change": {
-    "commit": "b49a8f5a",
+    "commit": "778b2aac",
     "changes": [
+      "Commit 778b2aac removes the last contradictory exhaustive-reading instruction from the isolated theory referee. The compact role prompt asks the existing model to choose and falsify the highest-risk load-bearing claims, while the detailed versioned protocol remains present exactly once in the task payload. No review obligation, source boundary, independent authority, tool, turn, or model call was added.",
+      "For future disjoint tasks, hidden theory-semantic evaluation now receives the same canonical model-authored authority used by runtime consumers: hash-verified Markdown/LaTeX mathematics plus a projected executable estimator ABI containing identity, inputs, outputs, exact interface contract, and termination guarantee. This is evaluator-only artifact parity, not hidden feedback or duplicated mathematical prose.",
+      "The focused theory-referee, gold-evaluation, and architecture panel passed 98/98; the complete repository passed 865/865 in 68.48 seconds. Compile-all and diff checks passed; research_agent_runtime.py remains 24,962 lines and production Python remains below its strict budget at 149,999 lines.",
+      "No model/API call, consumed-task rerun, resume, artifact repair, hidden rescore, proof, or capability credit occurred. Uniform endpoint remains immutable 0/1 and the ladder remains 0/27.",
       "The single Uniform-endpoint L0 draw is consumed and immutable at 0/1. It completed the intended nonformal collaboration graph and visible research evaluation 1/1, but hidden theory semantics returned FAIL and the estimator violated its public invalid-request contract. Hidden empirical evaluation passed 8/8 over 15,000 estimator calls; those component results do not complete the task.",
       "Commit b49a8f5a keeps correction ownership with the existing models. AlgorithmEngineer is prompted to execute valid and rejected ABI cases before source commit, and the independent generated-code reviewer gains one general executable_interface_alignment dimension that compares declared interfaces with actual language behavior. No type-rule parser, code patcher, repair worker, retry, task-family branch, or second scheduler was added.",
       "Evaluator-only output now retains privacy-preserving hashes and statuses for hidden checks and semantic claims. Expected values, rubric text, corrections, and runtime feedback remain withheld. This makes future one-draw failures auditable without exposing gold before execution or authorizing a rescore.",
@@ -539,9 +543,9 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model independently chooses every claim, dependency, research-source query, source handle, exact read, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, confirmatory replicate count, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, median-of-means, AR(1), Fisher-z, paired-ratio, and scalar-control-variate expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, automatic literature query or source selection, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback. Terminal disposition is generic control-plane capacity and cannot execute an extra research action; dependency and trace projections preserve identity, hashes, ABI, exact-output locations, and unique unreferenced observations without selecting or rewriting scientific content.",
     "verification": {
-      "full_pytest": "865 passed in 68.54s",
+      "full_pytest": "865 passed in 68.48s",
       "next_frozen_activation": "none currently authorized; Uniform endpoint is permanently consumed, so any future product draw requires a newly frozen disjoint task and evaluator authority",
-      "affected_subsystem_pytest": "Executable-interface review, gold-audit, Theory semantic judge, Algorithm prompt, runtime, and architecture-budget regressions passed 147/147; the complete repository passed 865/865 overall",
+      "affected_subsystem_pytest": "Theory referee, hidden gold evaluation, and architecture-budget regressions passed 98/98; the complete repository passed 865/865 overall",
       "independent_theory_review_authority": "Commit 9fbbeaba requires an exact isolated review acceptance before terminal Critic whenever theory is required. Theory-only tasks create no metric gate, and bypass attempts block before the Critic model call.",
       "theory_workspace_action_budget": "Commit 9cf75411 replaces class-specific read/write quotas with one shared ordinary-tool budget selected by the TheoryDeveloper model. Turn/action bounds, no-progress termination, execution safety caps, and the separately reserved terminal disposition remain enforced; no model call or frozen-task activation occurred.",
       "simulation_dependency_prompt_projection": "immutable live replay reduced 6,812,024 bytes of recursive environment feedback to a 45,314-byte complete planning prompt; accepted estimator ABI plus source/result hashes remained visible, while source bytes and 4,000 historical smoke-result rows were absent",
@@ -568,7 +572,7 @@
       "theory_referee_report_workspace": "the same isolated model writes, reads, hash-edits, and submits one Markdown report by SHA; terminal JSON contains no report body, checkpoints retain only a validated draft manifest, stale hashes return as actionable observations, and disk tampering fails before a provider call",
       "algorithm_source_workspace_planning": "fresh native-tool Algorithm tasks make zero structured proposal calls and one source-owner workspace call; accepted source bytes are rehash-checked and projected by identity for independent review, while an incomplete first segment resumes by source-workspace intent before any proposal exists",
       "compiled_post_theory_transition": "Optional Theory plus required scientific code now routes the exact newly produced theory identity, original Architect plan, n_runs, and seed directly to AlgorithmEngineer with no second Architect model operation. Required-theory preflight and dependency rebuild routes remain unchanged.",
-      "runtime_core_growth": "research_agent_runtime.py is 24962 lines and remains below the unchanged strict-under-25000-line regression budget. The complete top-level Python package is 149998 lines under its strict-under-150000-line budget; commit b49a8f5a adds no outer interface or scheduler."
+      "runtime_core_growth": "research_agent_runtime.py is 24962 lines and remains below the unchanged strict-under-25000-line regression budget. The complete top-level Python package is 149999 lines under its strict-under-150000-line budget; commit 778b2aac adds no outer interface or scheduler."
     },
     "evidence_boundary": "Uniform endpoint v1 remains immutable 0/1: runtime acceptance and empirical 8/8 do not override failed hidden theory and executable-interface dimensions. Post-run interface-review and evaluator-audit corrections are deterministic future-task mechanism evidence only. All twenty-seven scored tasks remain 0/27 full-task passes, no new draw is authorized, and exact development theorem closure remains 0/2."
   },
@@ -684,6 +688,7 @@
     "hidden_component_results": "theory mechanical 7/7, calibrated semantic candidate FAIL; scientific code 6/8 because invalid requests were not all rejected; empirical 8/8 over 15,000 estimator invocations; full task 0/1",
     "operator_audit": "docs/operator_audits/uniform_endpoint_l0_v1.md",
     "post_frozen_shared_harness_fix_commit": "b49a8f5a",
+    "post_frozen_theory_review_alignment_commit": "778b2aac",
     "full_task_passed": false,
     "boundary": "The only permitted runtime draw is complete and immutable. Visible runtime acceptance and a passing empirical component do not substitute for hidden theory and code-interface acceptance. The shared prompt/reviewer/audit correction cannot permit rerun, resume, artifact repair, or rescore."
   },
@@ -1092,7 +1097,7 @@
     "latest_runtime_manifest_bytes": 50250
   },
   "next_gates": [
-    "Preserve Uniform endpoint L0 v1 at immutable 0/1. Do not rerun, resume, repair, rescore, or feed hidden findings back to its source owners. Keep hidden empirical 8/8 as component evidence only; use commit b49a8f5a solely as future-task regression evidence for full visible-ABI probing, executable-interface review, and auditable evaluator references.",
+    "Preserve Uniform endpoint L0 v1 at immutable 0/1. Do not rerun, resume, repair, rescore, or feed hidden findings back to its source owners. Keep hidden empirical 8/8 as component evidence only; use commits b49a8f5a and 778b2aac solely as future-task regression evidence for full visible-ABI probing, executable-interface review, risk-directed theory review, canonical artifact parity, and auditable evaluator references.",
     "Preserve research_l0_statlib_uniform_consistency_formal_v1 at immutable 0/1. Do not rerun, resume, repair, rescore, increase turns, or count its 24 Lean checks, 10 RAG calls, sorryAx elaboration, model gap report, or post-run regression as proof. A future unrelated formal task must freeze and push a new target and hidden authority before its first exact-Haiku call.",
     "Preserve Trimmed Match L1 v1 at raw 0/1 without rerun, resume, report repair, hidden rescore, or component promotion. Treat separate hash-bound scientific input artifacts, exact source-command visibility, and model-authored Python/R queries over selected results as future-task regression evidence only; do not infer that the consumed report would have passed.",
     "Keep the specialist collaboration rule small: one persistent source owner per Theory, Python/R, Simulation, or Lean workspace; direct environment feedback stays with that owner; independent reviewers receive artifact-only context; Architect handles only initial intent, cross-workspace conflicts, and stopping. Do not import Codex app-server, provider transport, thread manager, or another scheduler.",

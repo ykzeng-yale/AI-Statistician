@@ -156,6 +156,12 @@ argument is one model-authored Markdown/LaTeX report, while the structured submi
 contains only ordered claim and dimension statuses, evidence references, and compact
 blocking findings. Runtime may bind identities, hash and persist the report, and derive
 routing; it may not duplicate, summarize, repair, or choose the referee's mathematics.
+The referee chooses exact ranges and source reads around the highest-risk load-bearing
+claims and begins from attempted falsification; evaluation must not require exhaustive
+paraphrase as a proxy for scrutiny. A hidden theory-semantic judge receives the same
+canonical candidate authority as runtime consumers: hash-verified Markdown/LaTeX plus
+the model-authored executable ABI projection. It must not silently discard either half
+or require mathematical prose to be duplicated into JSON.
 
 A schema-valid theory write does not automatically close the workspace. The author
 model explicitly commits a review checkpoint or continues within the existing
