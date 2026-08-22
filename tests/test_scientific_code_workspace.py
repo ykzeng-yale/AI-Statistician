@@ -308,6 +308,65 @@ def test_same_model_can_revise_after_technically_successful_execution() -> None:
     assert result.evidence["model_commit_after_observation"] is True
 
 
+def test_model_cannot_submit_and_commit_before_observing_execution() -> None:
+    source = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates): return {'value': 1}\n",
+    }
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="submit",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=source,
+                ),
+                ClientToolCall(
+                    call_id="premature-commit",
+                    name=SCIENTIFIC_SOURCE_COMMIT_TOOL,
+                    input={},
+                ),
+            ),
+            _commit_response("observed-commit"),
+        ]
+    )
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Execute, inspect, then commit.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=2,
+        max_no_progress_turns=2,
+        artifact_id="question:observation-before-commit",
+        initial_code_draft=None,
+        initial_check_result={
+            "artifact_kind": "ScientificSourceAuthoringRequired",
+            "accepted": False,
+            "execution_attempted": False,
+        },
+        check_candidate=lambda candidate: {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": True,
+            "stdout": "execution complete",
+        },
+        workspace_operation="initial_authoring",
+    )
+
+    premature = result.evidence["history"][0]["tool_calls"][1]
+    assert premature["is_error"] is True
+    assert "subsequent model turn" in premature["result_excerpt"]
+    assert dict(result.code_draft) == source
+    assert result.evidence["sandbox_checks"] == 1
+    assert result.evidence["model_commit_after_observation"] is True
+
+
 def test_model_selects_dependency_handoff_after_raw_consumer_failure() -> None:
     initial = {
         "language": "python",

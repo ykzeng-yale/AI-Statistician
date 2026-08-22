@@ -613,3 +613,27 @@ An immutable replay reduced the largest scalar tool record from 3,370,158 to
 816 tests. No prompt, feedback loop, model call, agent, scheduler, provider,
 budget, scientific content, evaluator result, proof status, or frozen score
 changed; the ladder remains `0/19`.
+
+### Scientific-source disposition implication
+
+The consumed Pearson multinomial draw exposed the next concrete Codex-style lifecycle
+boundary. AlgorithmEngineer submitted source that executed successfully at the process
+level, but the old submission tool terminated its model workspace immediately. The
+model therefore never received a later turn in which to inspect the exact execution
+observation, including its own failed smoke diagnostic, before the source advanced.
+Runtime parsing of arbitrary nested diagnostic fields would have replaced model judgment
+with another content rule; a separate repair worker would have split source ownership.
+
+Commit `f4fe83ed539046c4de3c8eeb7444f5bdd13428ba` instead keeps one source-owning
+session: submit exact source, execute it unchanged, return the raw observation, then let
+that same model revise or explicitly commit the unchanged accepted hash on a later turn.
+A submit-plus-commit in one model response is rejected because no observation has yet
+entered the transcript. Included dependency outcomes remain exact-hash validated, while
+deliberately withheld outcomes retain only a nonempty content reference and cannot be
+reconstructed as an empty payload.
+
+This reuses Codex's turn/tool/observation principle inside the existing provider-neutral
+loop. It imports no Codex provider, app-server, thread manager, scheduler, repair layer,
+or scientific rule. Lifecycle and immutable-ledger regressions are included in the full
+`819/819` passing suite. The Pearson run remains immutable `0/1`; the correction is
+eligible only for a newly frozen, disjoint task.

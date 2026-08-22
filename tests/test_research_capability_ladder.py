@@ -1031,7 +1031,7 @@ def test_scalar_control_variate_l0_frozen_draw_is_consumed_and_closed() -> None:
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 19
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 20
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
@@ -1062,6 +1062,87 @@ def test_scalar_control_variate_l0_frozen_draw_is_consumed_and_closed() -> None:
         "negative_population_normalization.py",
         "negative_omit_covariance.py",
         "negative_standard_error_scaling.py",
+        "semantic_reference.md",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_pearson_multinomial_gof_l0_frozen_draw_is_consumed_and_closed() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "pearson_multinomial_gof_known_result"
+    )
+
+    assert ladder["model_policy"] == {
+        "provider": "anthropic",
+        "live_evaluation_model_tier": "haiku",
+        "live_evaluation_model": "claude-haiku-4-5-20251001",
+        "sonnet_live_calls_allowed": False,
+        "opus_live_calls_allowed": False,
+        "automatic_tier_escalation_allowed": False,
+    }
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "categorical_inference"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == "full_task_gold_frozen_consumed_closed"
+    evidence = candidate["activation_evidence"]
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["fresh_live_terminal_status"] == "BLOCKED"
+    assert evidence["fresh_live_terminal_classification"] == (
+        "generated_code_semantic_review_input_invalid"
+    )
+    assert evidence["fresh_live_outer_traces"] == 9
+    assert evidence["fresh_live_generated_algorithm_executions"] == 1
+    assert evidence["fresh_live_generated_simulation_executions"] == 1
+    assert evidence["fresh_live_runtime_metric_contracts_passed"] == "8/8"
+    assert evidence["fresh_live_simulation_estimator_invocations"] == 75006
+    assert evidence["fresh_live_theory_structural_checks_passed"] is True
+    assert evidence["fresh_live_theory_semantic_status"] == "INCONCLUSIVE"
+    assert evidence["fresh_live_algorithm_harness_execution_passed"] is True
+    assert evidence["fresh_live_algorithm_acceptance_checks_passed"] is False
+    assert evidence["fresh_live_empirical_checks_passed"] is True
+    assert evidence["fresh_live_empirical_estimator_invocations"] == 15000
+    assert evidence["post_run_shared_mechanism_commit"] == "f4fe83ed"
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["full_task_passed"] is False
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 20
+    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
+    for field in (
+        "source_snapshot_hash",
+        "source_manifest_sha256",
+        "gold_manifest_sha256",
+        "gold_descriptor_hash",
+    ):
+        assert len(candidate[field]) == 64
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert "authoritative Markdown/LaTeX derivation" in question["description"]
+    assert "est_multinomial_pearson_gof" in question["description"]
+    assert "Lean formalization is not applicable" in question["description"]
+    assert candidate["task_intent"] == question["task_intent"]
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "reference_estimator.py",
+        "negative_absolute_residual.py",
+        "negative_pvalue_cdf.py",
+        "negative_uniform_null.py",
+        "negative_wrong_df.py",
         "semantic_reference.md",
         "semantic_calibration_cases.json",
     ):

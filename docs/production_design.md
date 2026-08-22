@@ -166,10 +166,11 @@ bound to the independently reviewed current theory and frozen protocol.
 
 For live providers with native client tools, the structured proposal carries only
 artifact identity and immutable bindings. Source is authored afterward in the same
-model-owned workspace. One terminal `submit_scientific_source` tool stores and
-immediately executes each complete Python or R candidate unchanged. A failed raw
-observation returns to that owner on its next bounded turn; no repair worker or
-content patch runs between them. Planning-time estimator IDs remain frozen.
+model-owned workspace. `submit_scientific_source` stores and executes each complete Python
+or R candidate unchanged, then returns the raw observation without terminating the
+workspace. On a later turn, the same model may revise or explicitly finish with
+`commit_scientific_source`; it cannot submit and commit before receiving the observation.
+No repair worker, diagnostic parser, or content patch intervenes. Estimator IDs stay frozen.
 Structured-source packets remain only a replay/static-provider fallback.
 
 Confirmatory iteration stops when source is execution-valid. Realized values,
