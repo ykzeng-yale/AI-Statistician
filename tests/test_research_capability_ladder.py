@@ -1031,7 +1031,7 @@ def test_scalar_control_variate_l0_frozen_draw_is_consumed_and_closed() -> None:
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 20
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 21
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
@@ -1112,7 +1112,7 @@ def test_pearson_multinomial_gof_l0_frozen_draw_is_consumed_and_closed() -> None
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 20
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 21
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
@@ -1149,7 +1149,7 @@ def test_pearson_multinomial_gof_l0_frozen_draw_is_consumed_and_closed() -> None
         assert hidden_name not in runtime_visible
 
 
-def test_exponential_rate_mle_l0_authority_is_frozen_before_first_draw() -> None:
+def test_exponential_rate_mle_l0_authority_is_consumed_after_one_draw() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -1162,7 +1162,7 @@ def test_exponential_rate_mle_l0_authority_is_frozen_before_first_draw() -> None
     assert candidate["status"] == "active_scored"
     assert (
         candidate["activation_status"]
-        == "full_task_gold_frozen_v1_activated_not_yet_run"
+        == "full_task_gold_frozen_consumed_closed"
     )
     evidence = candidate["activation_evidence"]
     assert evidence["hidden_gold_manifest_validated"] is True
@@ -1171,8 +1171,28 @@ def test_exponential_rate_mle_l0_authority_is_frozen_before_first_draw() -> None
         "2097c3102b7a4b936a1a0669bdb5e4f8f716f5ba"
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["fresh_live_terminal_status"] == "ACCEPTED"
+    assert evidence["fresh_live_outer_traces"] == 11
+    assert evidence["fresh_live_task_handoffs"] == 10
+    assert evidence["fresh_live_client_tool_model_turns"] == 24
+    assert evidence["fresh_live_generated_algorithm_executions"] == 1
+    assert evidence["fresh_live_generated_simulation_executions"] == 1
+    assert evidence["fresh_live_runtime_metric_contracts_passed"] == "8/8"
+    assert evidence["fresh_live_simulation_estimator_invocations"] == 65020
+    assert evidence["fresh_live_research_eval_ready"] is True
+    assert evidence["fresh_live_theory_structural_checks_passed"] is True
+    assert evidence["fresh_live_theory_semantic_status"] == "FAIL"
+    assert evidence["fresh_live_theory_gold_validated"] is False
+    assert evidence["fresh_live_algorithm_harness_execution_passed"] is True
+    assert evidence["fresh_live_algorithm_acceptance_checks_passed"] is False
+    assert evidence["fresh_live_algorithm_acceptance_checks"] == "5/7"
+    assert evidence["fresh_live_algorithm_invalid_requests_rejected"] is False
+    assert evidence["fresh_live_empirical_checks_passed"] is True
+    assert evidence["fresh_live_empirical_acceptance_checks"] == "8/8"
+    assert evidence["fresh_live_empirical_estimator_invocations"] == 15000
+    assert evidence["post_run_shared_mechanism_change"] == "none"
     assert evidence["algorithm_reference_contract_checks"] == "11/11"
     assert evidence["algorithm_negative_variants_rejected"] == 4
     assert evidence["empirical_reference_dgps_passed"] == 3
@@ -1185,7 +1205,7 @@ def test_exponential_rate_mle_l0_authority_is_frozen_before_first_draw() -> None
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
     assert ladder["current_readiness"]["active_scored_tasks"] == 21
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 20
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 21
     assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 21
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (

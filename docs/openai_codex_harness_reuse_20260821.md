@@ -409,6 +409,32 @@ claim that document iteration improves correctness. The affected 139-test panel 
 the full 808-test suite pass; the consumed Fisher candidate remains `0/1` and all
 seventeen scored tasks remain `0/17`.
 
+### Exponential-rate live validation
+
+The frozen exponential-rate MLE L0 draw is the clearest end-to-end validation of the
+current Codex-shaped source loops. TheoryDeveloper recovered from a hash-bound edit
+error in its own Markdown workspace. AlgorithmEngineer submitted source that failed a
+real sandbox execution, received the raw observation in the same exact-Haiku session,
+rewrote the complete source, executed successfully, and then used a distinct terminal
+commit. SimulationEngineer likewise executed and committed its own source. Independent
+reviewers received exact artifacts without inherited author turns, all eight runtime
+metric contracts passed over 65,020 estimator calls, and formalization remained
+nonblocking because task intent marked it not applicable.
+
+Frozen post-termination gold still rejected the full task. The active theory applies
+total-sample Fisher information inside a `sqrt(n)` limit and produces a limit variance
+that still contains `n`, while calling the next correct standardized display
+equivalent. Both the isolated referee and Critic false-accepted that inconsistency. The
+estimator formulas and hidden empirical checks passed, but source coercion accepted a
+boolean sample entry contrary to the public ABI; the one-shot code reviewer missed it.
+
+This result sets the correct reuse boundary. Codex-style tool binding supplies durable
+workspaces, exact observations, same-owner revision, isolated review context, and clear
+harness-failure separation. It does not supply mathematical judgment or guarantee that
+two calls to the same small model are independent in capability. No formula parser,
+boolean special case, extra vote, retry, prompt patch, rerun, or rescore was added. The
+task remains immutable `0/1`, and the ladder becomes `0/21`.
+
 ### Reused collaboration semantics
 
 | AI-Statistician relation | Codex analogue | Required policy |
