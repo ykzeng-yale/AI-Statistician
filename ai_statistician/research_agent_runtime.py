@@ -10233,6 +10233,11 @@ class SimulationEvaluatorRuntimeSubsystem:
                     workspace_context={
                         "theory_packet_id": packet_id,
                         "theory_context": theory_workspace_context,
+                        "source_workspace_planning_owned": bool(
+                            (proposal_packet or {}).get(
+                                "source_workspace_planning_owned"
+                            )
+                        ),
                         "simulation_id": simulation_id,
                         "simulation_target": next(
                             (
@@ -10509,6 +10514,15 @@ class SimulationEvaluatorRuntimeSubsystem:
             "theory_trace_consumption_contract": runtime_theory_trace_contract,
             "llm_simulation_engineer_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
+            ),
+            "scientific_source_workspace_owns_planning": bool(
+                (proposal_packet or {}).get("source_workspace_planning_owned")
+            ),
+            "scientific_source_workspace_intent_id": str(
+                (proposal_packet or {}).get("source_workspace_intent_id", "") or ""
+            ),
+            "planning_model_call_used": bool(
+                proposal_packet and proposal_packet.get("planning_model_call_used") is not False
             ),
             "llm_simulation_engineer_theory_trace_consumption_contract": (
                 simulation_theory_trace_contract

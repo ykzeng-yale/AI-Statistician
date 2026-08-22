@@ -135,12 +135,8 @@ continues, reports a gap, or calls `commit_theory_checkpoint`. The harness still
 total action and turn bounds, no-progress termination, execution safety caps, and the
 reserved terminal disposition. A commit proposes independent review; it is not evidence.
 
-When selected task intent does not require independent theory acceptance, completion
-of the supporting Theory workspace does not trigger another Architect model call.
-AgentRuntime compiles the already validated, model-authored Architect plan into the
-next applicable Python/R, Simulation, Lean, or Critic workspace. Required-theory
-review and cross-workspace conflicts still use their existing authority paths; the
-runtime does not invent a new research decision.
+Supporting Theory completion compiles the validated Architect plan into the next
+workspace; required review and genuine conflicts retain their authority paths.
 
 When prior work is permitted, the same TheoryDeveloper session can inspect a frozen
 snapshot or model-selected public paper/repository text without a LiteratureAgent.
@@ -396,10 +392,8 @@ The preferred response is deletion and consolidation, not moving code behind a n
 - `research_agent_runtime.py`: canonical outer graph and subsystem adapters.
 - `scientific_code_workspace.py`: direct Python/R source-feedback loop.
 - `scientific_sandbox.py`: isolated Pyodide/WebR execution.
-- `lean_candidate_revision_tool_loop.py`: direct Lean read/submit-and-check loop.
-- `lean_kernel_promotion.py`: exact artifact and kernel evidence gate.
+- Lean revision and kernel-promotion modules: direct checks and exact evidence gate.
 - `formal_source_index.py` and scoped retrievers: declaration-level formal RAG.
 - `structured_output_retry.py`: same-model schema retry transport.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
-
 Priorities are model-owned counterchecks, execution timing, independent gap review, and fresh evidence; never add repair agents or theorem-specific rules.

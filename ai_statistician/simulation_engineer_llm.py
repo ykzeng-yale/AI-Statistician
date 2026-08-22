@@ -120,6 +120,9 @@ class LLMSimulationEngineerAgent:
             )
         )
         empirical_evaluation_phase = _feedback_empirical_evaluation_phase(feedback)
+        source_workspace_planning_owned = bool(
+            empirical_evaluation_phase == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            and defer_source_authoring and not upstream_estimator_ids)
         requires_typed_metric_contracts = bool(
             requires_generated_code
             and empirical_evaluation_phase
@@ -250,6 +253,39 @@ class LLMSimulationEngineerAgent:
                     )
                 )
             return sorted(set(errors))
+
+        if source_workspace_planning_owned:
+            intent_hash = stable_hash(
+                [question.id, theory_packet.get("packet_id", ""), "simulation"]
+            )[:20]
+            simulation_id = f"exploratory_simulation:{intent_hash}"
+            packet = _normalize_simulation_packet(
+                {
+                    "simulation_targets": [{"procedure_id": simulation_id}],
+                    "simulation_code_drafts": [
+                        {"simulation_id": simulation_id, "required_estimator_ids": []}
+                    ],
+                    "source_workspace_planning_owned": True,
+                    "source_workspace_intent_id": f"simulation_source_workspace_intent:{intent_hash}",
+                    "planning_model_call_used": False,
+                },
+                question=question,
+                model=request_model,
+                model_tier=self.config.model_tier,
+                provider_name=self.config.provider_name,
+                backend_provider_name=provider_name,
+                raw_response=f"source_workspace_intent:{intent_hash}",
+                theory_packet=theory_packet,
+                n_runs=n_runs,
+                seed=seed,
+                empirical_evaluation_phase=empirical_evaluation_phase,
+                scientific_source_transport=SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
+                agentic_execution=True,
+            )
+            errors = validate_packet(packet)
+            if errors:
+                raise ValueError("; ".join(errors))
+            return packet
 
         return generate_validated_json_packet(
             provider=self.provider,
@@ -615,7 +651,8 @@ client tools to replace and run the exact source. Read every raw sandbox and met
 observation and choose every source change yourself. The runtime executes source
 unchanged and never supplies a correction rule. Do not answer with prose, delegate
 an edit, weaken the frozen metric contract, or claim theorem-proof evidence. When
-workspace_context.theory_context.document_authoritative is true, read its exact
+source_workspace_planning_owned is true, also choose the exploratory DGP and diagnostics.
+When workspace_context.theory_context.document_authoritative is true, read its exact
 authoritative_theory_documents as the mathematical authority; structured theory
 fields carry only claim identity and executable ABI. When
 metric_path contracts are supplied, treat every path segment as a literal,
@@ -1186,18 +1223,25 @@ SIMULATION_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
 
 def validate_simulation_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
+    source_workspace_planning_owned = bool(
+        packet.get("source_workspace_planning_owned") is True
+    )
     source_deferred = bool(
         packet.get("scientific_source_transport")
         == SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
     )
-    for field in (
-        "simulation_targets",
-        "runtime_execution_plan",
-        "critic_findings",
-        "next_actions",
-    ):
+    required_fields = ["simulation_targets", "runtime_execution_plan"] + (
+        [] if source_workspace_planning_owned else ["critic_findings", "next_actions"])
+    for field in required_fields:
         if packet.get(field) in (None, "", [], {}):
             errors.append(f"missing or empty field: {field}")
+    if source_workspace_planning_owned:
+        if packet.get("planning_model_call_used") is not False:
+            errors.append(
+                "source-workspace planning cannot claim a separate planning model call"
+            )
+        if not str(packet.get("source_workspace_intent_id", "") or "").strip():
+            errors.append("source-workspace planning requires a stable intent identity")
     if packet.get("simulation_evidence_status") != SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE:
         errors.append("simulation_evidence_status must preserve proposal-only boundary")
     if packet.get("simulations_executed") is not False:

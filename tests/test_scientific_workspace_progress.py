@@ -18,6 +18,10 @@ from ai_statistician.scientific_code_workspace import (
     scientific_workspace_resume_plan,
     scientific_workspace_progress_continuation,
 )
+from ai_statistician.simulation_engineer_llm import (
+    LLMSimulationEngineerAgent,
+    SimulationEngineerConfig,
+)
 
 
 def _checkpoint(*, question_id: str, source_id: str) -> dict:
@@ -277,6 +281,41 @@ def test_direct_source_progress_resumes_without_a_planning_packet() -> None:
     assert resumed["proposal_packet"] == {}
     assert resumed["checkpoints"][source_id] == checkpoint
 
+    proposal = {"packet_id": "simulation-intent:bound"}
+    simulation_manifest = {
+        **manifest,
+        "artifact_kind": "RuntimeSimulationManifest",
+        "llm_simulation_engineer_proposal_id": proposal["packet_id"],
+        "generated_simulation_sandbox_prototypes": [
+            {**row, "simulation_id": source_id}
+        ],
+    }
+    bound, bound_errors = scientific_workspace_resume_plan(
+        manifest=simulation_manifest,
+        proposal_packet=proposal,
+        question_id=question.id,
+        theory_packet_id=theory_packet_id,
+        expected_manifest_kind="RuntimeSimulationManifest",
+        proposal_id_field="llm_simulation_engineer_proposal_id",
+        row_id_field="simulation_id",
+        expected_source_ids=[source_id],
+        source_accepted=lambda candidate: candidate.get("smoke_passed") is True,
+    )
+    assert bound_errors == []
+    assert bound["proposal_packet"] == proposal
+    _, stale_errors = scientific_workspace_resume_plan(
+        manifest=simulation_manifest,
+        proposal_packet={"packet_id": "simulation-intent:stale"},
+        question_id=question.id,
+        theory_packet_id=theory_packet_id,
+        expected_manifest_kind="RuntimeSimulationManifest",
+        proposal_id_field="llm_simulation_engineer_proposal_id",
+        row_id_field="simulation_id",
+        expected_source_ids=[source_id],
+        source_accepted=lambda candidate: candidate.get("smoke_passed") is True,
+    )
+    assert "scientific workspace proposal packet is missing or stale" in stale_errors
+
 
 def _research_context(question_id: str, theory_packet_id: str) -> dict:
     return {
@@ -468,6 +507,144 @@ def test_algorithm_source_workspace_owns_planning_and_source(
     assert manifest["prototypes"][0]["source_llm_proposal_model_tier"] == (
         "haiku"
     )
+
+
+def test_exploratory_simulation_source_workspace_owns_planning_and_source(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="simulation-direct-source",
+        title="Direct exploratory simulation source",
+        description=(
+            "Let one coding-agent session design and execute a diagnostic simulation."
+        ),
+    )
+    theory_packet_id = "theory:simulation-direct-source"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "problem_card": {"estimand": "a generic scalar"},
+        "estimator_specs": [],
+        "theorem_cards": [],
+    }
+
+    class Provider:
+        provider_name = "anthropic"
+        calls = 0
+
+        @classmethod
+        def generate_client_tool_turn(cls, *_args, **_kwargs):
+            cls.calls += 1
+            raise AssertionError("runtime must use the source workspace boundary")
+
+    provider = Provider()
+    source_agent = LLMSimulationEngineerAgent(
+        provider=provider,
+        config=SimulationEngineerConfig(
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            provider_name="anthropic",
+        ),
+    )
+
+    source_calls = []
+
+    def run_source_workspace(**kwargs):
+        source_calls.append(kwargs)
+        assert kwargs["source_deferred"] is True
+        draft = dict(kwargs["code_draft"])
+        simulation_id = str(draft["simulation_id"])
+        assert draft["required_estimator_ids"] == []
+        assert kwargs["workspace_context"]["source_workspace_planning_owned"] is True
+        source = (
+            "def run_sandbox(seed, replicates):\n"
+            "    return {'diagnostic': float(replicates)}\n"
+        )
+        return {
+            "simulation_id": simulation_id,
+            "prototype_status": "EXECUTED",
+            "executor": "generated_simulation_sandbox",
+            "required_estimator_ids": [],
+            "source_code": source,
+            "script_hash": stable_hash(source),
+            "execution_attempted": True,
+            "execution_smoke_passed": True,
+            "smoke_passed": True,
+            "metrics": {"diagnostic": 2.0},
+            "metric_contracts": [],
+            "metric_contract_evaluation": {},
+            "scientific_code_workspace": {
+                "artifact_id": f"{question.id}:{simulation_id}",
+                "provider": "anthropic",
+                "model": "claude-haiku-4-5-20251001",
+                "model_tier": "haiku",
+                "accepted": True,
+                "model_owned_source": True,
+                "runtime_edited_source": False,
+                "transcript_fingerprint": "transcript:direct-simulation-source",
+            },
+        }, []
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_source_owner_scientific_workspace",
+        run_source_workspace,
+    )
+    context = _research_context(question.id, theory_packet_id)
+    result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=source_agent,
+        sandbox_root=tmp_path,
+        semantic_reviewer_available=False,
+    ).run(
+        AgentTask(
+            task_id="simulation:direct-source",
+            owner_subsystem="SimulationEvaluator",
+            objective="Plan and execute one exploratory simulation workspace.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "architect_context": context,
+                "empirical_evaluation_phase": (
+                    runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                ),
+                "n_runs": 2,
+                "seed": 7,
+            },
+        ),
+        BlackboardState(
+            project_id=question.id,
+            artifacts={theory_packet_id: theory_packet},
+        ),
+    )
+
+    assert Provider.calls == 0
+    assert len(source_calls) == 1
+    manifests = [
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    ]
+    assert len(manifests) == 1
+    manifest = manifests[0]
+    assert manifest["scientific_source_workspace_owns_planning"] is True
+    assert manifest["planning_model_call_used"] is False
+    assert manifest["n_exploratory_generated_simulation_sandbox_passed"] == 1
+    proposal_id = manifest["llm_simulation_engineer_proposal_id"]
+    review_packet = result.produced_artifacts[proposal_id]
+    assert review_packet["source_workspace_planning_owned"] is True
+    assert review_packet["planning_model_call_used"] is False
+    assert review_packet["metric_contracts"] == []
+    assert review_packet["source_workspace_intent_id"] == (
+        manifest["scientific_source_workspace_intent_id"]
+    )
+    assert review_packet["simulation_code_drafts"][0]["simulation_id"] == (
+        manifest["generated_simulation_sandbox_prototypes"][0]["simulation_id"]
+    )
+    assert manifest["generated_simulation_sandbox_prototypes"][0][
+        "source_llm_proposal_model_tier"
+    ] == "haiku"
 
 
 def test_algorithm_subsystem_resumes_source_without_replanning(

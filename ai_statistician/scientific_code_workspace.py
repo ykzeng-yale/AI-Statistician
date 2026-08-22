@@ -166,6 +166,8 @@ def scientific_workspace_resume_plan(
     if source_workspace_owns_planning:
         if not source_workspace_intent_id:
             errors.append("scientific source workspace intent identity is missing")
+        if proposal_id and str(proposal_packet.get("packet_id", "") or "") != proposal_id:
+            errors.append("scientific workspace proposal packet is missing or stale")
     elif (
         not proposal_id
         or str(proposal_packet.get("packet_id", "") or "") != proposal_id
@@ -262,7 +264,10 @@ def runtime_scientific_workspace_resume_plan(
     ):
         return {}, ["scientific workspace progress manifest is missing or stale"]
     proposal_id = str(manifest.get(proposal_id_field, "") or "").strip()
-    if manifest.get("scientific_source_workspace_owns_planning") is True:
+    if (
+        manifest.get("scientific_source_workspace_owns_planning") is True
+        and not proposal_id
+    ):
         proposal = {}
     else:
         proposal = blackboard.artifacts.get(proposal_id, {})
