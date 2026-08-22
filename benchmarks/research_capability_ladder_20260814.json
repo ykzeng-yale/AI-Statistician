@@ -2293,6 +2293,65 @@
         "novelty": "not_applicable",
         "unresolved_gaps": "required"
       }
+    },
+    {
+      "id": "huber_location_m_estimator_known_result",
+      "level": "L0",
+      "family": "robust_location_m_estimation",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l0_huber_location_questions_20260822.json",
+      "source_authority": "published_reference_metadata_and_model_visible_problem_statement",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l0-huber-location-20260822-v1",
+      "gold_manifest_sha256": "89dba52ede66123bf142d1aa80d78173816dd185cf4ccdb0e605337a4f3ab2fd",
+      "gold_descriptor_hash": "3f1be4cebea9b6d4dfd39c624f2c4914df2d5d31bba1ce4fd28c0693903d0f6c",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "frozen_ready_before_first_runtime_model_call",
+      "activation_evidence": {
+        "public_reference": "Peter J. Huber, Robust Estimation of a Location Parameter, Annals of Mathematical Statistics 35 (1964), 73-101",
+        "public_reference_url": "https://projecteuclid.org/euclid.aoms/1177703732",
+        "visible_questions_sha256": "1ceb1a07955b4b4043e934c541f1b4ba353cfd37d92e60de5442b81be989dd23",
+        "visible_question_hash": "8379df17c7f83249727c3d0c40e715833c41ee19d5aad42c34e9b9e66d4882ba",
+        "estimator_execution_contract_id": "frozen_estimator_execution_contract:f0d53cf13e0ed6b8a0a1",
+        "hidden_theory_harness_sha256": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+        "hidden_semantic_reference_sha256": "d0e4edbe1c7c607c0028bb2f37b4a3504f20932d75c6d3391ba23afeb9e9343e",
+        "hidden_semantic_rubric_sha256": "ed5ce0dcb02a776ed725d2dafe61b01894a3fd08869b18566675cd3cf58f3f19",
+        "hidden_semantic_calibration_cases_sha256": "b363194dc85909d76bdd3c072ab70ac72c3c8c83096f67601421739935d2baec",
+        "hidden_algorithm_harness_sha256": "ae0b483865fcfef89a71964c313475e5ed4b1cca53e9fa7cc4a78b416af08439",
+        "hidden_empirical_harness_sha256": "e99e69ae78378e71d7de8f62de07e153ae17fdf5ecf1a92b3282458047a92c3b",
+        "algorithm_reference_contract_checks": "7/7",
+        "algorithm_negative_variants_rejected": 4,
+        "empirical_negative_variants_rejected": 3,
+        "empirical_reference_dgps_passed": 3,
+        "empirical_reference_identity_agreements": 7500,
+        "semantic_calibration_cases": 12,
+        "semantic_calibration_cases_correct": 12,
+        "semantic_reference_claims": 9,
+        "semantic_reference_candidate_passed": true,
+        "semantic_calibration_judgment_hash": "e30e2ca3f02248d0f02d6e779f3b2c7481f3120d61709522cbd311f26485e043",
+        "semantic_calibration_model": "claude-haiku-4-5-20251001",
+        "semantic_calibration_model_calls": 2,
+        "hidden_gold_manifest_validated": true,
+        "gold_frozen_before_first_runtime_model_call": true,
+        "visible_question_activation_commit": "7b76fa8eaf1f3a7e12862f8fd4cf863d15da2b6d",
+        "visible_question_activation_push_confirmed_on_work_branch_and_main": true,
+        "first_runtime_model_call_occurred": false,
+        "product_model_calls": 0,
+        "fresh_live_runs": 0,
+        "runtime_model": "claude-haiku-4-5-20251001",
+        "model_draw_resampling_blocked": false,
+        "formalization_requirement": "not_applicable",
+        "full_task_passed": false
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
     }
   ],
   "activation_requirements": [
@@ -2306,16 +2365,16 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 27,
+    "active_scored_tasks": 28,
     "consumed_scored_tasks": 27,
-    "fully_gold_configured_tasks": 27,
+    "fully_gold_configured_tasks": 28,
     "fully_gold_passed_tasks": 0,
     "runtime_source_replication_components_ready": 2,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
     "latest_shared_mechanism_head": "778b2aac",
-    "latest_diagnostic": "All twenty-seven consumed tasks remain immutable at 0/27 full-task passes. Uniform endpoint completed the intended nonformal graph and passed hidden empirical evaluation 8/8 over 15,000 estimator calls, but hidden theory semantics failed and the estimator violated its public invalid-request ABI. The graph is substantially healthier than earlier draws; model-owned mathematical and executable-interface judgment remain the binding weaknesses.",
-    "next_step": "Preserve Uniform endpoint at 0/1. Use deterministic regression and the existing one-session source-owner loops to improve theory/referee depth and executable-interface testing; activate another disjoint task only after its visible contract and evaluator authority are frozen and pushed before the first exact-Haiku product call."
+    "latest_diagnostic": "All twenty-seven consumed tasks remain immutable at 0/27 full-task passes. A twenty-eighth disjoint Huber-location L0 authority is calibrated and frozen before its first product call. Its visible task, estimator ABI, hidden theory, semantic, algorithm, and empirical evaluators are hash-bound; activation is not capability evidence.",
+    "next_step": "Push this authority binding to the work branch and main, then run exactly one fresh exact-Haiku product draw. Evaluate only after AgentRuntime termination, consume the task regardless of outcome, and permit no rerun, repair, resume, or rescore."
   }
 }
