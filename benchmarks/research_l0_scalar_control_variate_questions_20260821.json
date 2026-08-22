@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "scalar_control_variate_known_result",
+      "title": "Scalar control-variate variance reduction with a fixed coefficient",
+      "description": "Focused L0 known-result evaluation in Monte Carlo variance reduction. Let (X_i,C_i), i=1,...,n, be iid paired real observations with E[C_i]=0, finite second moments, Var(X_i)>0, and Var(C_i)>0. The target is alpha=E[X_i]. For a fixed finite scalar lambda supplied independently of the current sample, study alpha_hat_lambda=bar(X)-lambda*bar(C). Develop one authoritative Markdown/LaTeX derivation of exact unbiasedness, the exact finite-sample variance quadratic, the variance-minimizing population coefficient lambda*=Cov(X,C)/Var(C), the minimized variance and its correlation form, and the fixed-lambda central limit theorem with consistent studentization. State the moment, nondegeneracy, fixed-coefficient, and iid-pairing conditions; distinguish population optimality from estimating lambda on the same data and distinguish simulation support from proof. The required model-authored artifact is est_scalar_control_variate and must implement the frozen run_estimator(request) contract exactly. Exploratory computation may diagnose algebra or implementation. A separate frozen confirmatory assessment uses independently generated paired samples under predeclared Gaussian and non-Gaussian finite-moment laws, supplies the population-optimal fixed coefficient, checks exact moment and transformation identities, and assesses variance reduction plus approximate centered unit-normal studentized behavior with Monte Carlo uncertainty. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "monte_carlo_variance_reduction",
+        "control_variates",
+        "central_limit_theorem",
+        "studentization",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_scalar_control_variate",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.x",
+            "name": "x",
+            "meaning": "The finite real-valued target-output sample, paired by position with control.",
+            "json_type": "array[number]",
+            "shape": "length n with n>=4, equal to len(control), and strictly positive Bessel-corrected sample variance",
+            "units": "one common target-output measurement unit",
+            "indexing": "zero-based entries x[j] and control[j] form observation pair j",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, fewer than four observations, unequal sample lengths, and a nonpositive sample variance of x.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.control",
+            "name": "control",
+            "meaning": "The finite real-valued control sample whose population mean is known by the task setup to equal zero, paired by position with x.",
+            "json_type": "array[number]",
+            "shape": "length n with n>=4 and equal to len(x)",
+            "units": "one common control measurement unit",
+            "indexing": "zero-based entries x[j] and control[j] form observation pair j",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, fewer than four observations, and unequal sample lengths. The sample mean need not be zero.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.control_coefficient",
+            "name": "control_coefficient",
+            "meaning": "The fixed finite scalar lambda in bar(x)-lambda*bar(control), supplied independently of the current sample.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "target-output units per control unit",
+            "indexing": "one coefficient applied to every paired observation",
+            "edge_cases": "Reject booleans, nonnumeric values, and nonfinite values.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n_observations",
+            "name": "n_observations",
+            "meaning": "The number n of paired observations used by every returned quantity.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "count",
+            "indexing": "equals len(x) and len(control)",
+            "edge_cases": "Must be an integer at least four.",
+            "normalization": "No normalization; count each pair exactly once."
+          },
+          {
+            "clause_id": "response.mean_x",
+            "name": "mean_x",
+            "meaning": "The arithmetic mean of the supplied target-output sample.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "target-output units",
+            "indexing": "uses all n entries of x",
+            "edge_cases": "Must be JSON-finite.",
+            "normalization": "sum(x)/n."
+          },
+          {
+            "clause_id": "response.mean_control",
+            "name": "mean_control",
+            "meaning": "The arithmetic mean of the supplied control sample.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "control units",
+            "indexing": "uses all n entries of control",
+            "edge_cases": "Must be JSON-finite and need not equal the known population mean zero.",
+            "normalization": "sum(control)/n."
+          },
+          {
+            "clause_id": "response.control_coefficient",
+            "name": "control_coefficient",
+            "meaning": "The exact fixed coefficient supplied in the request.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "target-output units per control unit",
+            "indexing": "one scalar",
+            "edge_cases": "Must be JSON-finite and exactly preserve the request value.",
+            "normalization": "No transformation."
+          },
+          {
+            "clause_id": "response.direct_estimate",
+            "name": "direct_estimate",
+            "meaning": "The conventional Monte Carlo estimate of alpha.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "target-output units",
+            "indexing": "uses all n target outputs",
+            "edge_cases": "Must be JSON-finite.",
+            "normalization": "mean_x."
+          },
+          {
+            "clause_id": "response.adjusted_estimate",
+            "name": "adjusted_estimate",
+            "meaning": "The fixed-coefficient control-variate estimate of alpha.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "target-output units",
+            "indexing": "uses all n paired observations",
+            "edge_cases": "Must be JSON-finite.",
+            "normalization": "mean_x-control_coefficient*mean_control."
+          },
+          {
+            "clause_id": "response.sample_variance_x",
+            "name": "sample_variance_x",
+            "meaning": "The ordinary Bessel-corrected sample variance of x.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "squared target-output units",
+            "indexing": "uses all n centered target outputs",
+            "edge_cases": "Must be JSON-finite and strictly positive.",
+            "normalization": "sum_j (x[j]-mean_x)^2/(n-1)."
+          },
+          {
+            "clause_id": "response.sample_variance_control",
+            "name": "sample_variance_control",
+            "meaning": "The ordinary Bessel-corrected sample variance of control.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "squared control units",
+            "indexing": "uses all n centered control values",
+            "edge_cases": "Must be JSON-finite and nonnegative.",
+            "normalization": "sum_j (control[j]-mean_control)^2/(n-1)."
+          },
+          {
+            "clause_id": "response.sample_covariance_x_control",
+            "name": "sample_covariance_x_control",
+            "meaning": "The ordinary Bessel-corrected paired sample covariance of x and control.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "target-output units times control units",
+            "indexing": "preserves the supplied pairing and uses all n pairs",
+            "edge_cases": "Must be JSON-finite.",
+            "normalization": "sum_j (x[j]-mean_x)*(control[j]-mean_control)/(n-1)."
+          },
+          {
+            "clause_id": "response.adjusted_sample_variance",
+            "name": "adjusted_sample_variance",
+            "meaning": "The Bessel-corrected sample variance of x[j]-control_coefficient*control[j].",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "squared target-output units",
+            "indexing": "uses every adjusted paired observation exactly once",
+            "edge_cases": "Must be JSON-finite and nonnegative.",
+            "normalization": "sample_variance_x-2*control_coefficient*sample_covariance_x_control+control_coefficient^2*sample_variance_control."
+          },
+          {
+            "clause_id": "response.direct_standard_error",
+            "name": "direct_standard_error",
+            "meaning": "The usual estimated standard error of the direct sample mean.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "target-output units",
+            "indexing": "uses n_observations and sample_variance_x",
+            "edge_cases": "Must be JSON-finite and strictly positive.",
+            "normalization": "sqrt(sample_variance_x/n_observations)."
+          },
+          {
+            "clause_id": "response.adjusted_standard_error",
+            "name": "adjusted_standard_error",
+            "meaning": "The usual estimated standard error of the fixed-coefficient adjusted sample mean.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "target-output units",
+            "indexing": "uses n_observations and adjusted_sample_variance",
+            "edge_cases": "Must be JSON-finite and nonnegative.",
+            "normalization": "sqrt(adjusted_sample_variance/n_observations)."
+          },
+          {
+            "clause_id": "response.estimated_variance_ratio",
+            "name": "estimated_variance_ratio",
+            "meaning": "The estimated per-observation variance of the adjusted output divided by that of the direct output.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "dimensionless",
+            "indexing": "uses the two returned sample variances",
+            "edge_cases": "Must be JSON-finite and nonnegative because sample_variance_x is required to be positive.",
+            "normalization": "adjusted_sample_variance/sample_variance_x."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.exact_identities",
+            "meaning": "All returned moments use the declared n-1 normalization; direct_estimate equals mean_x; adjusted_estimate equals mean_x-control_coefficient*mean_control; adjusted_sample_variance equals sample_variance_x-2*control_coefficient*sample_covariance_x_control+control_coefficient^2*sample_variance_control; both standard errors square to their corresponding sample variance divided by n; and estimated_variance_ratio equals adjusted_sample_variance/sample_variance_x."
+          },
+          {
+            "clause_id": "invariant.zero_coefficient",
+            "meaning": "With control_coefficient=0, adjusted_estimate, adjusted_sample_variance, adjusted_standard_error, and estimated_variance_ratio exactly recover direct_estimate, sample_variance_x, direct_standard_error, and one."
+          },
+          {
+            "clause_id": "invariant.control_rescaling",
+            "meaning": "Multiplying every control value by a nonzero finite a and dividing control_coefficient by a preserves adjusted_estimate, adjusted_sample_variance, adjusted_standard_error, and estimated_variance_ratio while mean_control, sample_variance_control, and sample_covariance_x_control scale according to their units."
+          },
+          {
+            "clause_id": "invariant.outcome_shift",
+            "meaning": "Adding a finite constant d to every x value increases mean_x, direct_estimate, and adjusted_estimate by d while preserving all returned variances, covariance, standard errors, and estimated_variance_ratio."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.optimal_fixed_control",
+            "meaning": "The frozen confirmatory assessment supplies each predeclared law's population-optimal fixed coefficient, compares direct and adjusted sampling variance, and assesses (adjusted_estimate-alpha)/adjusted_standard_error for approximate centered unit-normal behavior with Monte Carlo uncertainty; this is empirical support rather than proof."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory estimator call uses the exact predeclared paired sample and fixed coefficient, and the assessment separately verifies returned moments, covariance, the adjusted variance quadratic, standard errors, variance ratio, zero-coefficient recovery, rescaling, and shift identities before aggregating sampling behavior."
+          }
+        ]
+      }
+    }
+  ]
+}
