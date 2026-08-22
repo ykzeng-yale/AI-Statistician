@@ -312,8 +312,9 @@ class LLMFormalizerProofEngineerAgent:
                 "every changed source must be reviewed again before promotion. "
                 "You own every Lean source and search query. Use the client tools to "
                 "inspect the active formal environment, inspect exact declarations "
-                "when useful, and submit a complete standalone source plus its exact "
-                "declaration name for immediate compilation. The source must contain "
+                "when useful, then either edit the exact current source or submit a "
+                "complete standalone source plus its exact declaration name for "
+                "immediate compilation. The source must contain "
                 "every import it relies on because the runtime injects none. Retrieval "
                 "is optional evidence, not a "
                 "prerequisite to an early compiler-grounded source attempt. Do not "
@@ -333,7 +334,8 @@ class LLMFormalizerProofEngineerAgent:
                 "instead of copying that source module's internal dependency imports, "
                 "and preserve the needed lexical environment from its exact source "
                 "context. After a compiler diagnostic on the current source, "
-                "prioritize a complete source revision and resubmission; search again "
+                "prioritize a model-authored exact edit or complete source revision; "
+                "search again "
                 "only when the diagnostic leaves an unresolved environment question. "
                 "Do not "
                 "claim that a revision was tried unless a tool observation records it. "
@@ -348,7 +350,7 @@ class LLMFormalizerProofEngineerAgent:
                 "raw check, search, and inspection observation. Make an "
                 "early compiler-grounded source attempt. Independent search and "
                 "read-only inspection calls may be batched in one model turn when "
-                "none depends on another's result. Keep a source submission or formal "
+                "none depends on another's result. Keep a source action or formal "
                 "gap after the observations it depends on and make that terminal "
                 "action the final call of its turn. "
                 "Retain useful declarations, "
@@ -363,8 +365,8 @@ class LLMFormalizerProofEngineerAgent:
                 "to proof construction. If a model-defined declaration's argument "
                 "shape is unclear, ask Lean with #check or #print in a submitted "
                 "diagnostic source instead of guessing several call signatures. "
-                "Finish by choosing either a "
-                "complete submit_lean_source call or a concrete report_formal_gap call."
+                "Finish by choosing edit_current_lean_source, a complete "
+                "submit_lean_source call, or a concrete report_formal_gap call."
             ),
             user_prompt=_build_lean_candidate_workspace_tool_prompt(
                 question=question,
@@ -835,19 +837,23 @@ def _build_lean_candidate_workspace_tool_prompt(
         "task": (
             ("Author" if initial_authoring else "Revise")
             + " the complete exact current Lean source through model-selected "
-            "search, inspection, and atomic source-submission actions. A successful "
-            "submission hands the exact current source to independent semantic review."
+            "search, inspection, and atomic source actions. A successful source action "
+            "hands the exact current source to independent semantic review."
         ),
         "workspace_phase": (
             "initial_authoring" if initial_authoring else "revision"
         ),
         "tool_workflow": (
-            "Choose searches and inspections from the current observations, then call "
-            "submit_lean_source with one complete standalone source and "
+            "Choose searches and inspections from the current observations. For an "
+            "existing source, use edit_current_lean_source with one exact unique "
+            "old_text substring and model-authored replacement when a localized change "
+            "is sufficient; the complete resulting source is checked immediately. "
+            "Use submit_lean_source for initial authoring, declaration-identity changes, "
+            "or a complete replacement, with one standalone source and "
             "candidate_declaration_name set only to the Lean identifier introduced or "
             "checked by that source (for example Namespace.myTheorem, never a theorem "
             "header, binders, or type). Include every required import in the submitted "
-            "source; the runtime injects none. Every submission is checked "
+            "source; the runtime injects none. Every source action is checked "
             "immediately. Prefer an early compiler-grounded source attempt when you can "
             "state the target; use retrieval for concrete unresolved environment/API "
             "questions rather than as a prerequisite. Success hands that exact hash to "

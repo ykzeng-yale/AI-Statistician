@@ -10,6 +10,7 @@ from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.lean_candidate_revision_tool_loop import (
     LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND,
     LEAN_FORMAL_GAP_TOOL,
+    LEAN_SOURCE_EDIT_TOOL,
     LEAN_SOURCE_SUBMISSION_TOOL,
     lean_candidate_workspace_continuation_errors,
     run_lean_candidate_revision_tool_loop,
@@ -361,6 +362,7 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
     )
     assert all(request.enable_prompt_caching for request in backend.requests)
     assert set(tool.name for tool in backend.requests[0].tools) == {
+        LEAN_SOURCE_EDIT_TOOL,
         LEAN_SOURCE_SUBMISSION_TOOL,
         "search_formal_environment",
     }
@@ -378,6 +380,206 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
     )
     assert result.evidence["model_explicit_submit"] is True
     assert result.evidence["submit_and_check_atomic"] is True
+
+
+def test_lean_candidate_tool_loop_applies_exact_model_edit_and_checks_full_source() -> None:
+    initial = "theorem target : True := by\n  exact missing_name\n"
+    revised = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "edit-current-source",
+                    LEAN_SOURCE_EDIT_TOOL,
+                    {
+                        "old_text": "exact missing_name",
+                        "replacement": "exact True.intro",
+                    },
+                )
+            )
+        ]
+    )
+    checked_sources: list[str] = []
+
+    def check(source: str, declaration: str):
+        checked_sources.append(source)
+        return {
+            "source_hash": stable_hash(source),
+            "candidate_lean_declaration": declaration,
+            "compiled": source == revised,
+            "local_lean_stderr": (
+                "unknown identifier 'missing_name'" if source == initial else ""
+            ),
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Revise this exact current source from Lean feedback.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=2,
+        max_no_progress_turns=1,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=initial,
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+    )
+
+    assert checked_sources == [initial, revised]
+    assert result.lean_source == revised
+    assert result.source_hash == stable_hash(revised)
+    assert result.evidence["source_updates"] == 1
+    assert result.evidence["local_lean_checks"] == 2
+    assert result.evidence["model_owned_lean_code"] is True
+    assert result.evidence["runtime_selected_lean_code"] is False
+    assert result.evidence["independent_semantic_review_required"] is True
+    assert result.evidence["runtime_kernel_promotion_required"] is True
+    assert result.evidence["kernel_verified"] is False
+    edit_tool = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == LEAN_SOURCE_EDIT_TOOL
+    )
+    assert edit_tool.terminal is True
+    assert edit_tool.input_schema["required"] == ["old_text", "replacement"]
+    assert "does not parse Lean" in edit_tool.description
+
+
+def test_lean_candidate_tool_loop_returns_ambiguous_edit_error_to_same_model() -> None:
+    initial = (
+        "-- missing_name is intentionally mentioned here\n"
+        "theorem target : True := by\n"
+        "  exact missing_name\n"
+    )
+    revised = initial.replace("exact missing_name", "exact True.intro")
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "ambiguous-edit",
+                    LEAN_SOURCE_EDIT_TOOL,
+                    {"old_text": "missing_name", "replacement": "True.intro"},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "unique-edit",
+                    LEAN_SOURCE_EDIT_TOOL,
+                    {
+                        "old_text": "exact missing_name",
+                        "replacement": "exact True.intro",
+                    },
+                )
+            ),
+        ]
+    )
+    checked_sources: list[str] = []
+
+    def check(source: str, _declaration: str):
+        checked_sources.append(source)
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": source == revised,
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Edit the exact current source.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=initial,
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+    )
+
+    assert checked_sources == [initial, revised]
+    assert result.lean_source == revised
+    assert result.evidence["runtime_executed_tool_calls"] == 2
+    second_request_context = json.dumps(
+        backend.requests[1].messages,
+        sort_keys=True,
+    )
+    assert "observed 2 matches" in second_request_context
+    assert "old_text must match the exact current source exactly once" in (
+        second_request_context
+    )
+
+
+def test_exact_lean_source_edit_rejects_overlapping_matches() -> None:
+    with pytest.raises(ValueError, match="observed 2 matches"):
+        lean_candidate_tool_loop_module._apply_exact_source_edit(
+            "aaa",
+            old_text="aa",
+            replacement="b",
+        )
+
+
+def test_lean_candidate_tool_loop_continues_checkpoint_with_exact_edit() -> None:
+    parent = "theorem target : True := by\n  sorry\n"
+    current = "theorem target : True := by\n  exact missing_name\n"
+    revised = "theorem target : True := by\n  exact True.intro\n"
+    checkpoint = _lean_workspace_checkpoint(
+        parent_source=parent,
+        current_source=current,
+    )
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "continued-edit",
+                    LEAN_SOURCE_EDIT_TOOL,
+                    {
+                        "old_text": "exact missing_name",
+                        "replacement": "exact True.intro",
+                    },
+                )
+            )
+        ]
+    )
+    checked_sources: list[str] = []
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Continue the same exact workspace.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=2,
+        max_no_progress_turns=1,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=parent,
+        check_candidate=lambda source, _declaration: (
+            checked_sources.append(source)
+            or {"source_hash": stable_hash(source), "compiled": source == revised}
+        ),
+        search_formal_environment=lambda query, k: [],
+        recovery_checkpoint=checkpoint,
+    )
+
+    assert checked_sources == [revised]
+    assert _initial_workspace(backend.requests[0])["current_lean_source"] == current
+    assert result.lean_source == revised
+    assert result.evidence["resumed_from_checkpoint_id"] == checkpoint[
+        "checkpoint_id"
+    ]
+    assert result.evidence["source_updates"] == 2
+    assert result.evidence["workspace_segment_start_counters"][
+        "source_updates"
+    ] == 1
 
 
 def test_lean_candidate_tool_loop_authors_first_source_from_empty_workspace() -> None:
@@ -523,7 +725,7 @@ def test_formal_gap_tool_keeps_model_authored_errors_in_source_revision_loop() -
     )
     gap_tool = next(tool for tool in tools if tool.name == LEAN_FORMAL_GAP_TOOL)
     assert "current model-authored source" in gap_tool.description
-    assert "rewrite the complete source" in gap_tool.description
+    assert "edit or replace that source" in gap_tool.description
     assert "statement must first elaborate locally" in gap_tool.description
     assert "corresponding tool observation" in gap_tool.description
 
@@ -797,7 +999,7 @@ def test_formalizer_agent_keeps_formal_gap_available_after_workspace_resume() ->
         backend.requests[0].system_prompt
     )
     assert "inspected declaration source" in backend.requests[0].system_prompt
-    assert "prioritize a complete source revision" in (
+    assert "prioritize a model-authored exact edit" in (
         backend.requests[0].system_prompt
     )
     assert evidence["disposition"] == "FORMAL_GAP"
@@ -1260,6 +1462,7 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
     assert result.lean_source == revised
     assert [tool.name for tool in backend.requests[1].tools] == [
         LEAN_SOURCE_SUBMISSION_TOOL,
+        LEAN_SOURCE_EDIT_TOOL,
         "search_formal_environment",
     ]
     assert backend.requests[1].tool_choice == "any"
@@ -1320,6 +1523,7 @@ def test_lean_candidate_workspace_keeps_stable_tools_and_linear_history() -> Non
     )
 
     expected_tools = {
+        LEAN_SOURCE_EDIT_TOOL,
         LEAN_SOURCE_SUBMISSION_TOOL,
         "search_formal_environment",
     }
@@ -1398,6 +1602,7 @@ def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -
     assert result.evidence["max_terminal_recovery_turns"] == 1
     assert [tool.name for tool in backend.requests[1].tools] == [
         LEAN_SOURCE_SUBMISSION_TOOL,
+        LEAN_SOURCE_EDIT_TOOL,
         "search_formal_environment",
     ]
     assert backend.requests[1].tool_choice == "any"
@@ -1482,10 +1687,11 @@ def test_lean_candidate_workspace_revises_after_context_stall_compile_error() ->
     assert result.evidence["local_lean_checks"] == 2
     assert all(
         [tool.name for tool in request.tools]
-        == [
-            LEAN_SOURCE_SUBMISSION_TOOL,
-            "search_formal_environment",
-            LEAN_FORMAL_GAP_TOOL,
+            == [
+                LEAN_SOURCE_SUBMISSION_TOOL,
+                LEAN_SOURCE_EDIT_TOOL,
+                "search_formal_environment",
+                LEAN_FORMAL_GAP_TOOL,
         ]
         for request in backend.requests[-2:]
     )

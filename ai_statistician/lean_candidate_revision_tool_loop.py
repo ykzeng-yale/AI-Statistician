@@ -27,6 +27,7 @@ LeanDeclarationInspection = Callable[
     [str, str, int, Mapping[str, Any]], Any
 ]
 LEAN_SOURCE_SUBMISSION_TOOL = "submit_lean_source"
+LEAN_SOURCE_EDIT_TOOL = "edit_current_lean_source"
 LEAN_FORMAL_GAP_TOOL = "report_formal_gap"
 LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND = (
     "LeanCandidateWorkspaceRecoveryCheckpoint"
@@ -58,6 +59,52 @@ class LeanCandidateRevisionToolLoopResult:
     formal_gap: Mapping[str, Any]
     check_result: Mapping[str, Any]
     evidence: Mapping[str, Any]
+
+
+def _apply_exact_source_edit(
+    source: str,
+    *,
+    old_text: Any,
+    replacement: Any,
+) -> tuple[str, dict[str, Any]]:
+    """Materialize one model-authored exact-text edit without parsing Lean."""
+
+    if not source.strip():
+        raise ClientToolInputError(
+            "edit_current_lean_source requires an existing current source; use "
+            "submit_lean_source for initial authoring"
+        )
+    if not isinstance(old_text, str) or not old_text:
+        raise ClientToolInputError("old_text must be a nonempty exact source substring")
+    if not isinstance(replacement, str):
+        raise ClientToolInputError("replacement must be text")
+    match_positions: list[int] = []
+    search_from = 0
+    while True:
+        position = source.find(old_text, search_from)
+        if position < 0:
+            break
+        match_positions.append(position)
+        search_from = position + 1
+    if len(match_positions) != 1:
+        raise ClientToolInputError(
+            "old_text must match the exact current source exactly once; "
+            f"observed {len(match_positions)} matches"
+        )
+    position = match_positions[0]
+    updated = source[:position] + replacement + source[position + len(old_text) :]
+    if updated == source:
+        raise ClientToolInputError("the requested source edit makes no byte change")
+    if len(updated) > 20000:
+        raise ClientToolInputError(
+            "edited Lean source exceeds the runtime artifact-size boundary"
+        )
+    return updated, {
+        "old_text_hash": stable_hash(old_text),
+        "replacement_hash": stable_hash(replacement),
+        "old_text_chars": len(old_text),
+        "replacement_chars": len(replacement),
+    }
 
 
 def seal_lean_candidate_workspace_checkpoint(
@@ -560,6 +607,119 @@ def run_lean_candidate_revision_tool_loop(
             ),
         }
 
+    def execute_source_candidate(
+        *,
+        source: str,
+        declaration: str,
+        source_action: str,
+        edit_metadata: Mapping[str, Any] | None = None,
+    ) -> ClientToolExecutionResult:
+        if not source.strip():
+            raise ClientToolInputError("Lean source must be nonempty")
+        if len(source) > 20000:
+            raise ClientToolInputError(
+                "Lean source exceeds the runtime artifact-size boundary"
+            )
+        if not declaration:
+            raise ClientToolInputError(
+                "every checked source requires the exact globally resolvable "
+                "declaration name"
+            )
+        source_hash = stable_hash(source)
+        changed = source_hash != state["source_hash"]
+        declaration_changed = declaration != state["candidate_lean_declaration"]
+        candidate_key = (source_hash, declaration)
+        if candidate_key in state["checked_candidate_keys"]:
+            raise ClientToolInputError(
+                "the resulting source and declaration are byte-identical to a "
+                "previously checked Lean candidate; its deterministic observation "
+                "is already recorded"
+            )
+        if changed:
+            state["source"] = source
+            state["source_hash"] = source_hash
+            state["source_updates"] += 1
+            state["last_check"] = {}
+        if declaration_changed:
+            state["candidate_lean_declaration"] = declaration
+            state["declaration_updates"] += 1
+            state["last_check"] = {}
+        check_result = check_current_source()
+        compiled = bool(check_result.get("compiled", False))
+        rejected_source_reused = bool(
+            compiled
+            and rejected_source_hash
+            and source_hash == rejected_source_hash
+        )
+        content = {
+            **check_result,
+            "ok": compiled and not rejected_source_reused,
+            "source_action": source_action,
+            "changed": changed,
+            "declaration_changed": declaration_changed,
+            "source_hash": source_hash,
+            "candidate_lean_declaration": declaration,
+            "source_updates": state["source_updates"],
+            "declaration_updates": state["declaration_updates"],
+            "checks": state["checks"],
+            "proof_evidence_status": (
+                "LOCAL_LEAN_OBSERVATION_REQUIRES_RUNTIME_PROMOTION_GATE"
+            ),
+        }
+        if edit_metadata:
+            content["model_authored_exact_edit"] = deepcopy(dict(edit_metadata))
+        if rejected_source_reused:
+            content.update(
+                {
+                    "error": "independently_rejected_source_unchanged",
+                    "rejected_source_hash": rejected_source_hash,
+                    "detail": (
+                        "Lean compiled these bytes, but they are byte-identical "
+                        "to the source rejected by independent semantic review. "
+                        "Use the supplied review findings to author a changed "
+                        "source, or report a grounded formal gap."
+                    ),
+                }
+            )
+        elif compiled:
+            content.update(
+                {
+                    "handed_off": True,
+                    "independent_semantic_review_required": True,
+                    "runtime_kernel_promotion_required": True,
+                }
+            )
+        return ClientToolExecutionResult(
+            content=content,
+            is_error=not compiled or rejected_source_reused,
+            state_changed=changed or declaration_changed,
+            terminal=compiled and not rejected_source_reused,
+            terminal_payload=(
+                {
+                    "lean_source": state["source"],
+                    "source_hash": state["source_hash"],
+                    "candidate_lean_declaration": state[
+                        "candidate_lean_declaration"
+                    ],
+                    "check_result": deepcopy(check_result),
+                    "source_action": source_action,
+                }
+                if compiled and not rejected_source_reused
+                else None
+            ),
+            observation_key="lean-source-action:"
+            + stable_hash(
+                {
+                    "source_action": source_action,
+                    "source_hash": source_hash,
+                    "candidate_lean_declaration": declaration,
+                    "check_result": check_result,
+                    "rejected_source_reused": rejected_source_reused,
+                    "edit_metadata": dict(edit_metadata or {}),
+                }
+            ),
+        )
+
     def execute_tool(call, context):
         del context
         tool_input = dict(call.input)
@@ -572,105 +732,30 @@ def run_lean_candidate_revision_tool_loop(
             source = tool_input.get("lean_source")
             if not isinstance(source, str) or not source.strip():
                 raise ClientToolInputError("lean_source must be a nonempty string")
-            if len(source) > 20000:
-                raise ClientToolInputError(
-                    "lean_source exceeds the runtime artifact-size boundary"
-                )
             declaration = str(
                 tool_input.get("candidate_declaration_name", "") or ""
             ).strip()
-            if not declaration:
-                raise ClientToolInputError(
-                    "every source submission requires the exact globally resolvable "
-                    "declaration name"
-                )
-            source_hash = stable_hash(source)
-            changed = source_hash != state["source_hash"]
-            declaration_changed = declaration != state["candidate_lean_declaration"]
-            candidate_key = (source_hash, declaration)
-            if candidate_key in state["checked_candidate_keys"]:
-                raise ClientToolInputError(
-                    "submitted source and declaration are byte-identical to a "
-                    "previously checked Lean candidate; its deterministic "
-                    "observation is already recorded"
-                )
-            if changed:
-                state["source"] = source
-                state["source_hash"] = source_hash
-                state["source_updates"] += 1
-                state["last_check"] = {}
-            if declaration_changed:
-                state["candidate_lean_declaration"] = declaration
-                state["declaration_updates"] += 1
-                state["last_check"] = {}
-            check_result = check_current_source()
-            compiled = bool(check_result.get("compiled", False))
-            rejected_source_reused = bool(
-                compiled
-                and rejected_source_hash
-                and source_hash == rejected_source_hash
+            return execute_source_candidate(
+                source=source,
+                declaration=declaration,
+                source_action="complete_source_submission",
             )
-            content = {
-                **check_result,
-                "ok": compiled and not rejected_source_reused,
-                "changed": changed,
-                "declaration_changed": declaration_changed,
-                "source_hash": source_hash,
-                "candidate_lean_declaration": declaration,
-                "source_updates": state["source_updates"],
-                "declaration_updates": state["declaration_updates"],
-                "checks": state["checks"],
-                "proof_evidence_status": (
-                    "LOCAL_LEAN_OBSERVATION_REQUIRES_RUNTIME_PROMOTION_GATE"
-                ),
-            }
-            if rejected_source_reused:
-                content.update(
-                    {
-                        "error": "independently_rejected_source_unchanged",
-                        "rejected_source_hash": rejected_source_hash,
-                        "detail": (
-                            "Lean compiled these bytes, but they are byte-identical "
-                            "to the source rejected by independent semantic review. "
-                            "Use the supplied review findings to submit a changed "
-                            "complete source, or report a grounded formal gap."
-                        ),
-                    }
+
+        if call.name == LEAN_SOURCE_EDIT_TOOL:
+            if set(tool_input) != {"old_text", "replacement"}:
+                raise ClientToolInputError(
+                    "edit_current_lean_source requires exactly old_text and replacement"
                 )
-            elif compiled:
-                content.update(
-                    {
-                        "handed_off": True,
-                        "independent_semantic_review_required": True,
-                        "runtime_kernel_promotion_required": True,
-                    }
-                )
-            return ClientToolExecutionResult(
-                content=content,
-                is_error=not compiled or rejected_source_reused,
-                state_changed=changed or declaration_changed,
-                terminal=compiled and not rejected_source_reused,
-                terminal_payload=(
-                    {
-                        "lean_source": state["source"],
-                        "source_hash": state["source_hash"],
-                        "candidate_lean_declaration": state[
-                            "candidate_lean_declaration"
-                        ],
-                        "check_result": deepcopy(check_result),
-                    }
-                    if compiled and not rejected_source_reused
-                    else None
-                ),
-                observation_key="lean-submission:"
-                + stable_hash(
-                    {
-                        "source_hash": source_hash,
-                        "candidate_lean_declaration": declaration,
-                        "check_result": check_result,
-                        "rejected_source_reused": rejected_source_reused,
-                    }
-                ),
+            updated_source, edit_metadata = _apply_exact_source_edit(
+                str(state["source"]),
+                old_text=tool_input.get("old_text"),
+                replacement=tool_input.get("replacement"),
+            )
+            return execute_source_candidate(
+                source=updated_source,
+                declaration=str(state["candidate_lean_declaration"]),
+                source_action="exact_text_edit",
+                edit_metadata=edit_metadata,
             )
 
         if call.name == LEAN_FORMAL_GAP_TOOL:
@@ -846,8 +931,8 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError("inspect_lean_state takes an empty object")
             if not state["last_check"]:
                 raise ClientToolInputError(
-                    "submit_lean_source must run before inspect_lean_state so the "
-                    "inspection is bound to the exact current source and diagnostics"
+                    "the current source must be checked before inspect_lean_state so "
+                    "the inspection is bound to exact source bytes and diagnostics"
                 )
             state["state_inspections"] += 1
             result = inspect_lean_state(
@@ -955,7 +1040,7 @@ def run_lean_candidate_revision_tool_loop(
                 "revision_requirement": {
                     "rejected_source_hash": rejected_source_hash,
                     "required_disposition": (
-                        "submit changed complete source or report grounded formal gap"
+                        "author a changed source or report grounded formal gap"
                     ),
                 }
             }
@@ -1038,7 +1123,8 @@ def run_lean_candidate_revision_tool_loop(
             },
         )
 
-    # Permit one search + submit pair; terminal retries remain a separate budget.
+    # Permit one observation plus a final source action; terminal retries remain
+    # a separate budget.
     max_tool_calls = max_turns + 1
     try:
         loop = run_bounded_client_tool_loop(
@@ -1165,6 +1251,7 @@ def run_lean_candidate_revision_tool_loop(
                 state["candidate_lean_declaration"]
             ),
             disposition=disposition,
+            terminal_source_action="formal_gap",
             formal_gap=formal_gap,
             parent_source_hash=parent_source_hash,
             tools=tools,
@@ -1225,6 +1312,10 @@ def run_lean_candidate_revision_tool_loop(
         candidate_id=candidate_id,
         candidate_lean_declaration=submitted_declaration,
         disposition="AUTHOR_LEAN",
+        terminal_source_action=str(
+            terminal.get("source_action", "complete_source_submission")
+            or "complete_source_submission"
+        ),
         formal_gap={},
         parent_source_hash=parent_source_hash,
         tools=tools,
@@ -1260,6 +1351,7 @@ def _lean_candidate_revision_success_result(
     candidate_id: str,
     candidate_lean_declaration: str,
     disposition: str,
+    terminal_source_action: str,
     formal_gap: Mapping[str, Any],
     parent_source_hash: str,
     tools: tuple[ClientToolDefinition, ...],
@@ -1317,6 +1409,7 @@ def _lean_candidate_revision_success_result(
         "candidate_id": candidate_id,
         "candidate_lean_declaration": candidate_lean_declaration,
         "disposition": disposition,
+        "terminal_source_action": terminal_source_action,
         **({"formal_gap": deepcopy(dict(formal_gap))} if formal_gap else {}),
         "workspace_phase": workspace_phase,
         "resumed_from_checkpoint_id": resumed_from_checkpoint_id,
@@ -1345,6 +1438,9 @@ def _lean_candidate_revision_success_result(
         "transcript_policy": "full_linear_history",
         "tool_surface_policy": "stable_for_workspace",
         "submit_and_check_atomic": True,
+        "model_source_action_and_check_atomic": True,
+        "incremental_exact_edit_available": LEAN_SOURCE_EDIT_TOOL
+        in {tool.name for tool in tools},
         "tool_names": [tool.name for tool in tools],
         "source_updates": state["source_updates"],
         "declaration_updates": state["declaration_updates"],
@@ -1378,6 +1474,7 @@ def _lean_candidate_revision_success_result(
             else "model_reported_formal_gap"
         ),
         "model_explicit_submit": model_explicit_submit,
+        "model_explicit_source_action": model_explicit_submit,
         "budget_exhausted": False,
         "local_candidate_validation_passed": (
             local_candidate_validation_passed
@@ -1525,6 +1622,28 @@ def _lean_candidate_revision_tools(
             terminal=True,
         ),
         ClientToolDefinition(
+            name=LEAN_SOURCE_EDIT_TOOL,
+            description=(
+                "Apply one model-authored exact-text edit to the current Lean source, "
+                "then immediately check the complete resulting bytes in the configured "
+                "Lean project. old_text must identify one exact unique substring; "
+                "replacement may contain any model-chosen text or be empty. The runtime "
+                "does not parse Lean, choose a tactic, or alter the edit. Use complete "
+                "submit_lean_source instead when authoring the first source, changing "
+                "the declaration identity, or replacing unrelated regions at once."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["old_text", "replacement"],
+                "properties": {
+                    "old_text": {"type": "string", "minLength": 1},
+                    "replacement": {"type": "string"},
+                },
+            },
+            terminal=True,
+        ),
+        ClientToolDefinition(
             name="search_formal_environment",
             description=(
                 "Search declarations and modules indexed from the active Lean project "
@@ -1556,7 +1675,7 @@ def _lean_candidate_revision_tools(
                     "search or compiler observations identify a real missing primitive "
                     "or foundation blocker required by that target. Errors caused by "
                     "imports, identifiers, types, or proof terms chosen in the current "
-                    "model-authored source are feedback to rewrite the complete source, "
+                    "model-authored source are feedback to edit or replace that source, "
                     "not by themselves formal gaps. If a current source exists, its "
                     "task-bound statement must first elaborate locally before a missing "
                     "proof primitive can be reported. Do not claim an attempted revision "
