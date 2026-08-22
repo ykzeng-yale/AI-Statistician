@@ -1896,6 +1896,13 @@ del THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT["estimator_specs"][0][
 THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT = deepcopy(
     THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
 )
+THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["estimator_specs"][0][
+    "estimator_interface_contract"
+] = deepcopy(
+    THEORY_DEVELOPER_OUTPUT_CONTRACT["estimator_specs"][0][
+        "estimator_interface_contract"
+    ]
+)
 THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
     "derivation_summary": (
         "short cross-agent summary; full mathematics lives in referenced documents"
@@ -2957,19 +2964,23 @@ def build_theory_developer_revision_inputs(
     parent_estimator_interface_bindings: list[dict[str, Any]] = []
     raw_specs = base_core_payload.get("estimator_specs", [])
     if isinstance(raw_specs, list):
-        stripped_specs: list[Any] = []
+        workspace_specs: list[Any] = []
         for index, raw_spec in enumerate(raw_specs):
             if not isinstance(raw_spec, Mapping):
                 errors.append(f"prior estimator_specs[{index}] must be an object")
-                stripped_specs.append(deepcopy(raw_spec))
+                workspace_specs.append(deepcopy(raw_spec))
                 continue
-            spec = deepcopy(dict(raw_spec))
-            interface_contract = spec.pop("estimator_interface_contract", None)
-            interface_contract_id = spec.pop(
+            workspace_spec = deepcopy(dict(raw_spec))
+            interface_contract = workspace_spec.get(
+                "estimator_interface_contract"
+            )
+            interface_contract_id = workspace_spec.pop(
                 "estimator_interface_contract_id",
                 None,
             )
-            estimator_id = str(spec.get("id", "") or "").strip()
+            core_spec = deepcopy(workspace_spec)
+            core_spec.pop("estimator_interface_contract", None)
+            estimator_id = str(workspace_spec.get("id", "") or "").strip()
             if (
                 estimator_id
                 and isinstance(interface_contract, Mapping)
@@ -2978,7 +2989,7 @@ def build_theory_developer_revision_inputs(
                 parent_estimator_interface_bindings.append(
                     {
                         "estimator_id": estimator_id,
-                        "core_spec_fingerprint": stable_hash(spec),
+                        "core_spec_fingerprint": stable_hash(core_spec),
                         "estimator_interface_contract": deepcopy(
                             dict(interface_contract)
                         ),
@@ -2990,8 +3001,8 @@ def build_theory_developer_revision_inputs(
                         ),
                     }
                 )
-            stripped_specs.append(spec)
-        base_core_payload["estimator_specs"] = stripped_specs
+            workspace_specs.append(workspace_spec)
+        base_core_payload["estimator_specs"] = workspace_specs
     else:
         errors.append("prior estimator_specs must be a list")
 
@@ -3303,7 +3314,10 @@ def _initial_theory_workspace_prompt(
         "definitions and claims rather "
         "than treating retrieval as an answer key. Keep assumptions, equations, "
         "every authored downstream handoff mutually consistent. Treat IDs and document "
-        "paths as exact references. The required compact handoffs are: "
+        "paths as exact references. When estimator_specs is required, author its exact "
+        "executable estimator_interface_contract in this same workspace session; the "
+        "runtime validates its shape and claim references but does not translate or "
+        "rewrite it. The required compact handoffs are: "
         + required_handoffs
         + ". Handoffs not required by this task intent may remain empty: "
         + optional_handoffs
@@ -3416,6 +3430,13 @@ def _theory_workspace_revision_prompt(
                 "formalization requests that need to change. A self-critique, status "
                 "label, critic finding, or next action does not override contradictory "
                 "mathematics; rewrite every affected document before submitting."
+            ),
+            (
+                "The estimator interface contract is part of estimator_specs in this "
+                "same workspace. When estimator semantics or outputs change, inspect and "
+                "revise that executable ABI yourself; when they do not change, preserve "
+                "the parent value exactly. Runtime validates shape and claim references "
+                "but never authors the interface."
             ),
             (
                 "Keep only the current endorsed argument as authoritative mathematics. "
@@ -3588,7 +3609,7 @@ def _validate_theory_workspace_revision_packet(
     workspace_id: str,
     require_workspace_edit_evidence: bool = False,
 ) -> list[str]:
-    errors = validate_theory_core_packet(packet)
+    errors = validate_theory_packet(packet)
     transport = packet.get("theory_revision_transport", {})
     if not isinstance(transport, Mapping):
         return [*errors, "theory workspace revision transport must be an object"]
@@ -3845,7 +3866,7 @@ def _generate_initial_theory_artifact_workspace(
         initial_documents=initial_documents,
         read_only_artifacts=read_only_artifacts,
         build_candidate=build_candidate,
-        validate_candidate=validate_theory_core_packet,
+        validate_candidate=validate_theory_packet,
         scratchpad=theory_scratchpad,
         research_sources=research_sources,
         research_source_discovery=research_source_discovery,
@@ -3893,7 +3914,11 @@ def _generate_initial_theory_artifact_workspace(
     packet["llm_client_tool_loop"] = workspace_evidence
     if packet.get("artifact_kind") == SOURCE_REPLICATION_CHECKPOINT_KIND:
         return packet
-    errors = validate_theory_core_packet(packet)
+    packet = _finalize_document_workspace_estimator_interfaces(
+        packet,
+        question=question,
+    )
+    errors = validate_theory_packet(packet)
     changed = set(workspace_evidence.get("changed_artifact_names", []) or [])
     required_authored_artifacts = {
         field
@@ -3925,6 +3950,8 @@ def _generate_initial_theory_artifact_workspace(
             history=workspace_evidence.get("history", []),
             last_invalid_packet=packet,
         )
+    packet["validation_errors"] = []
+    packet["ok"] = True
     return packet
 
 
@@ -4189,6 +4216,10 @@ def _generate_theory_workspace_revision(
         workspace_evidence.get("model_document_writes", [])
     )
     packet["theory_revision_transport"] = transport
+    packet = _finalize_document_workspace_estimator_interfaces(
+        packet,
+        question=question,
+    )
     errors = _validate_theory_workspace_revision_packet(
         packet,
         revision_inputs=revision_inputs,
@@ -4203,6 +4234,8 @@ def _generate_theory_workspace_revision(
             history=workspace_evidence.get("history", []),
             last_invalid_packet=packet,
         )
+    packet["validation_errors"] = []
+    packet["ok"] = True
     return packet
 
 
@@ -4327,6 +4360,85 @@ def _theory_core_generation_phase_record(
             client_tool_loop.get("tool_calls", 0) or 0
         )
     return phase
+
+
+def _finalize_document_workspace_estimator_interfaces(
+    packet: Mapping[str, Any],
+    *,
+    question: OpenResearchQuestion,
+) -> dict[str, Any]:
+    """Record exact ABIs authored or retained by the document workspace."""
+
+    merged = deepcopy(dict(packet))
+    specs = merged.get("estimator_specs", [])
+    if not isinstance(specs, list) or not specs:
+        return merged
+    normalize_theory_estimator_interface_contracts(merged)
+    workspace_evidence = merged.get("llm_client_tool_loop", {})
+    workspace_evidence = (
+        dict(workspace_evidence)
+        if isinstance(workspace_evidence, Mapping)
+        else {}
+    )
+    changed_artifacts = {
+        str(name)
+        for name in workspace_evidence.get("changed_artifact_names", []) or []
+        if str(name)
+    }
+    interface_rows = {
+        str(spec.get("id", "") or ""): str(
+            spec.get("estimator_interface_contract_id", "") or ""
+        )
+        for spec in merged.get("estimator_specs", []) or []
+        if isinstance(spec, Mapping) and str(spec.get("id", "") or "")
+    }
+    interface_authored = "estimator_specs" in changed_artifacts
+    disposition = (
+        "model_authored_or_revised_in_workspace"
+        if interface_authored
+        else "parent_workspace_value_retained"
+    )
+    source_packet_id = str(merged.get("packet_id", "") or "")
+    authoring_identity = {
+        "source_theory_packet_id": source_packet_id,
+        "workspace_evidence_id": str(
+            workspace_evidence.get("artifact_id", "") or ""
+        ),
+        "interface_contract_ids": interface_rows,
+        "disposition": disposition,
+    }
+    merged["estimator_interface_authoring"] = {
+        "artifact_kind": "TheoryEstimatorInterfaceWorkspaceRecord",
+        "artifact_id": (
+            "theory_estimator_interfaces_workspace:"
+            + stable_hash(authoring_identity)[:24]
+        ),
+        **authoring_identity,
+        "provider": str(merged.get("provider", "") or ""),
+        "model": str(merged.get("model", "") or ""),
+        "model_tier": str(merged.get("model_tier", "") or ""),
+        "n_interfaces": len(interface_rows),
+        "n_interfaces_authored_or_revised": (
+            len(interface_rows) if interface_authored else 0
+        ),
+        "n_interfaces_reused": 0 if interface_authored else len(interface_rows),
+        "model_call_used": interface_authored,
+        "dedicated_model_call_used": False,
+        "workspace_session_used": True,
+        "runtime_edited_interfaces": False,
+        "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+        "kernel_verified": False,
+    }
+    phase = _theory_core_generation_phase_record(merged)
+    phase.update(
+        {
+            "estimator_interface_disposition": disposition,
+            "dedicated_estimator_interface_model_call_used": False,
+        }
+    )
+    merged["theory_generation_phases"] = [phase]
+    _refresh_theory_packet_id(merged, question=question)
+    return merged
 
 
 def _complete_theory_estimator_interfaces(

@@ -1572,8 +1572,8 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         _sample_response()
     )
     core_estimators = [dict(row) for row in core_response["estimator_specs"]]
-    expected_contract = core_estimators[0].pop(
-        "estimator_interface_contract"
+    expected_contract = deepcopy(
+        core_estimators[0]["estimator_interface_contract"]
     )
     core_response["estimator_specs"] = core_estimators
     optional_artifacts = {"lemma_cards", "critic_findings", "next_actions"}
@@ -1588,6 +1588,9 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     invalid_core_artifacts["theory_derivation_packet"][
         "formalization_handoff"
     ]["source_theorem_target"] = "invented_aggregate_alias"
+    invalid_core_artifacts["estimator_specs"][0][
+        "estimator_interface_contract"
+    ]["response_fields"][0]["normalization"] = ""
     fixed_derivation = json.loads(
         json.dumps(invalid_core_artifacts["theory_derivation_packet"])
     )
@@ -1637,7 +1640,10 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
                     call_id="fix-formal-target-reference",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
                     input=_theory_artifact_writes(
-                        {"theory_derivation_packet": fixed_derivation}
+                        {
+                            "theory_derivation_packet": fixed_derivation,
+                            "estimator_specs": core_estimators,
+                        }
                     ),
                 )
             ),
@@ -1653,13 +1659,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
                 "ready for independent review."
             ),
         ],
-        generator_responses=[
-            {
-                "interfaces": {
-                    core_estimators[0]["id"]: expected_contract
-                }
-            }
-        ],
+        generator_responses=[],
     )
     developer = LLMTheoryDeveloperAgent(
         provider=provider,
@@ -1675,7 +1675,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
 
     assert validate_theory_packet(packet) == []
     assert len(provider.tool_requests) == 7
-    assert len(provider.generator_requests) == 1
+    assert provider.generator_requests == []
     first_request = provider.tool_requests[0]
     assert first_request.metadata["theory_developer_phase"] == (
         "initial_artifact_workspace"
@@ -1743,6 +1743,9 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert "invented_aggregate_alias" in str(
         provider.tool_requests[-1].messages
     )
+    assert "response field 0 missing normalization" in str(
+        provider.tool_requests[-1].messages
+    )
     assert packet["problem_card"]["dgp"] == core_response["problem_card"][
         "dgp"
     ]
@@ -1751,7 +1754,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert evidence["write_transport"] == (
         THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT
     )
-    assert evidence["n_model_artifact_writes"] == len(core_artifacts) + 1
+    assert evidence["n_model_artifact_writes"] == len(core_artifacts) + 2
     assert evidence["n_model_document_writes"] == 1
     assert evidence["changed_document_paths"] == ["theory/workspace.md"]
     assert evidence["model_owned_theory"] is True
@@ -1781,12 +1784,21 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         derivation["sanity_check_index"]
     )
     assert "n_derivation_steps" not in derivation_contract
-    assert packet["theory_generation_phases"][0]["phase"] == (
+    assert packet["estimator_interface_authoring"][
+        "artifact_kind"
+    ] == "TheoryEstimatorInterfaceWorkspaceRecord"
+    assert packet["estimator_interface_authoring"][
+        "dedicated_model_call_used"
+    ] is False
+    assert packet["estimator_interface_authoring"][
+        "runtime_edited_interfaces"
+    ] is False
+    assert packet["estimator_specs"][0][
+        "estimator_interface_contract"
+    ] == expected_contract
+    assert [row["phase"] for row in packet["theory_generation_phases"]] == [
         "initial_artifact_workspace"
-    )
-    assert provider.generator_requests[0].metadata[
-        "theory_developer_phase"
-    ] == "estimator_interface_authoring"
+    ]
 
 
 def test_nonformal_initial_workspace_checkpoints_without_theorem_abi() -> None:
@@ -1902,9 +1914,6 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
         _sample_response()
     )
     core_estimators = [dict(row) for row in core_response["estimator_specs"]]
-    expected_contract = core_estimators[0].pop(
-        "estimator_interface_contract"
-    )
     core_response["estimator_specs"] = core_estimators
     core_artifacts = {
         field: core_response[field]
@@ -2036,13 +2045,7 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
                 "The preserved derivation and its claim index are ready for review."
             ),
         ],
-        generator_responses=[
-            {
-                "interfaces": {
-                    core_estimators[0]["id"]: expected_contract,
-                }
-            }
-        ],
+        generator_responses=[],
     )
     second_developer = LLMTheoryDeveloperAgent(
         provider=second_provider,
@@ -2067,6 +2070,7 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
     )
 
     assert validate_theory_packet(packet) == []
+    assert second_provider.generator_requests == []
     final_evidence = packet["llm_client_tool_loop"]
     assert final_evidence["workspace_id"] == checkpoint["workspace_id"]
     assert final_evidence["changed_document_paths"] == [document_path]
@@ -2533,8 +2537,11 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert transport["runtime_edited_theory"] is False
     assert "revision_obligations" not in transport
     assert packet["estimator_interface_authoring"]["model_call_used"] is False
-    assert packet["theory_generation_phases"][1]["phase"] == (
-        "estimator_interface_reuse"
+    assert packet["estimator_interface_authoring"][
+        "dedicated_model_call_used"
+    ] is False
+    assert packet["estimator_interface_authoring"]["disposition"] == (
+        "parent_workspace_value_retained"
     )
     workspace_evidence = packet["llm_client_tool_loop"]
     assert workspace_evidence["model_owned_theory"] is True
@@ -2546,9 +2553,9 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert Path(final_document["path"]).read_text(encoding="utf-8") == (
         revised_document
     )
-    assert packet["theory_generation_phases"][0]["phase"] == (
+    assert [row["phase"] for row in packet["theory_generation_phases"]] == [
         "artifact_workspace_revision"
-    )
+    ]
 
 
 def test_default_theory_workspace_budget_allows_observation_recovery() -> None:
@@ -2642,12 +2649,14 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
     assert revision_inputs["base_core_payload"]["problem_card"]["estimand"] == (
         "psi = E[m_1(X)-m_0(X)]"
     )
+    expected_core_spec = deepcopy(
+        revision_inputs["base_core_payload"]["estimator_specs"][0]
+    )
+    expected_core_spec.pop("estimator_interface_contract")
     assert revision_inputs["parent_estimator_interface_bindings"] == [
         {
             "estimator_id": "crossfit_aipw",
-            "core_spec_fingerprint": stable_hash(
-                revision_inputs["base_core_payload"]["estimator_specs"][0]
-            ),
+            "core_spec_fingerprint": stable_hash(expected_core_spec),
             "estimator_interface_contract": (
                 parent["estimator_specs"][0]["estimator_interface_contract"]
             ),
@@ -2768,15 +2777,20 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged(
         parent["estimator_specs"][0]["estimator_interface_contract"]
     )
     assert packet["estimator_interface_authoring"]["artifact_kind"] == (
-        "TheoryEstimatorInterfaceReuseRecord"
+        "TheoryEstimatorInterfaceWorkspaceRecord"
     )
     assert packet["estimator_interface_authoring"]["model_call_used"] is False
+    assert packet["estimator_interface_authoring"]["disposition"] == (
+        "parent_workspace_value_retained"
+    )
     assert packet["estimator_interface_authoring"]["runtime_edited_interfaces"] is (
         False
     )
+    assert packet["estimator_interface_authoring"][
+        "dedicated_model_call_used"
+    ] is False
     assert [row["phase"] for row in packet["theory_generation_phases"]] == [
-        "artifact_workspace_revision",
-        "estimator_interface_reuse",
+        "artifact_workspace_revision"
     ]
 
 
@@ -2816,7 +2830,7 @@ def test_theory_core_validator_enforces_declared_nested_item_shapes() -> None:
     assert "simulation_ademp_spec.dgps[0] must be a string" in errors
 
 
-def test_theory_revision_resumes_interface_stage_from_validated_core(
+def test_theory_revision_repairs_interface_in_same_document_workspace(
     tmp_path: Path,
 ) -> None:
     parent, parent_documents = _file_authority_theory_fixture(
@@ -2824,9 +2838,9 @@ def test_theory_revision_resumes_interface_stage_from_validated_core(
         workspace_dir=tmp_path / "parent-theory",
     )
     question = OpenResearchQuestion(
-        id="targeted_revision_interface_resume",
-        title="Targeted revision interface resume",
-        description="Resume only the failed interface stage after core validation.",
+        id="targeted_revision_same_session_interface",
+        title="Targeted revision same-session interface",
+        description="Revise theory and its executable ABI in one model workspace.",
     )
     context = _metric_theory_revision_context(question=question, parent=parent)
     revision_inputs = build_theory_developer_revision_inputs(
@@ -2842,19 +2856,11 @@ def test_theory_revision_resumes_interface_stage_from_validated_core(
         *revised_core["estimator_specs"][0]["required_assumptions"],
         "bounded outcomes",
     ]
-    estimator = parent["estimator_specs"][0]
-    expected_contract = json.loads(
-        json.dumps(estimator["estimator_interface_contract"])
-    )
-    invalid_contract = json.loads(json.dumps(expected_contract))
-    invalid_contract["response_fields"][0]["normalization"] = ""
-    invalid_interface = {
-        "interfaces": {estimator["id"]: invalid_contract}
-    }
-    still_invalid_interface = json.loads(json.dumps(invalid_interface))
-    still_invalid_interface["interfaces"][estimator["id"]]["response_fields"][
-        0
-    ]["normalization"] = ""
+    valid_specs = deepcopy(revised_core["estimator_specs"])
+    invalid_specs = deepcopy(valid_specs)
+    invalid_specs[0]["estimator_interface_contract"]["response_fields"][0][
+        "normalization"
+    ] = ""
     revised_document = (
         parent_documents["theory/workspace.md"]
         + "\n## bounded_outcomes\n\n"
@@ -2864,7 +2870,9 @@ def test_theory_revision_resumes_interface_stage_from_validated_core(
         tool_responses=[
             _theory_tool_response(
                 ClientToolCall(
-                    call_id="write-revised-document-before-interface-stage",
+                    call_id=(
+                        "write-revised-document-before-interface-validation"
+                    ),
                     name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
                     input={
                         "path": "theory/workspace.md",
@@ -2874,26 +2882,37 @@ def test_theory_revision_resumes_interface_stage_from_validated_core(
             ),
             _theory_tool_response(
                 ClientToolCall(
-                    call_id="edit-revised-problem-card",
+                    call_id="write-invalid-revised-interface",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
                     input=_theory_artifact_writes(
                         {
                             "problem_card": revised_core["problem_card"],
-                            "estimator_specs": revised_core["estimator_specs"],
+                            "estimator_specs": invalid_specs,
                         }
                     ),
                 )
             ),
             _theory_tool_response(
                 ClientToolCall(
-                    call_id="inspect-final-document-before-interface-stage",
+                    call_id="fix-revised-interface-in-same-session",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_theory_artifact_writes(
+                        {"estimator_specs": valid_specs}
+                    ),
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id=(
+                        "inspect-final-document-after-interface-validation"
+                    ),
                     name="read_theory_workspace",
                     input={"document_paths": ["theory/workspace.md"]},
                 )
             ),
             _theory_checkpoint_response(),
         ],
-        generator_responses=[invalid_interface, still_invalid_interface],
+        generator_responses=[],
     )
     first_developer = LLMTheoryDeveloperAgent(
         provider=first_provider,
@@ -2907,97 +2926,38 @@ def test_theory_revision_resumes_interface_stage_from_validated_core(
         ),
     )
 
-    with pytest.raises(PacketValidationError) as exc_info:
-        first_developer.derive(question, architect_context=context)
+    packet = first_developer.derive(question, architect_context=context)
 
-    checkpoint = exc_info.value.recovery_checkpoint
-    assert checkpoint is not None
-    assert checkpoint["completed_phase"] == "artifact_workspace_revision"
-    assert checkpoint["failed_phase"] == "estimator_interface_authoring"
-    assert checkpoint["kernel_verified"] is False
+    assert validate_theory_packet(packet) == []
     assert first_provider.tool_requests[0].metadata[
         "theory_developer_phase"
     ] == "artifact_workspace_revision"
-    assert [
-        request.metadata["theory_developer_phase"]
-        for request in first_provider.generator_requests
-    ] == [
-        "estimator_interface_authoring",
-        "estimator_interface_authoring",
-    ]
-    assert first_provider.generator_requests[1].metadata[
-        "structured_output_retry_mode"
-    ] == (
-        "full_packet_regeneration"
+    assert first_provider.generator_requests == []
+    assert len(first_provider.tool_requests) == 5
+    assert "response field 0 missing normalization" in str(
+        first_provider.tool_requests[2].messages
     )
-    assert "allowed_semantic_reference_ids" in (
-        first_provider.generator_requests[1].user_prompt
+    assert packet["estimator_specs"][0]["required_assumptions"] == (
+        valid_specs[0]["required_assumptions"]
     )
-    assert "orthogonal_expansion" in (
-        first_provider.generator_requests[1].user_prompt
+    assert packet["estimator_specs"][0][
+        "estimator_interface_contract"
+    ] == valid_specs[0]["estimator_interface_contract"]
+    assert packet["estimator_specs"][0][
+        "estimator_interface_contract_id"
+    ] == estimator_interface_contract_id(
+        valid_specs[0]["estimator_interface_contract"]
     )
-    repair_payload = json.loads(
-        first_provider.generator_requests[1].user_prompt.split("\n\n", 1)[1]
+    assert packet["estimator_interface_authoring"]["disposition"] == (
+        "model_authored_or_revised_in_workspace"
     )
-    repair_errors = repair_payload["local_validation_errors"]
-    assert any(
-        f'interfaces["{estimator["id"]}"]' in error
-        for error in repair_errors
-    )
-    assert all("interfaces[0]" not in error for error in repair_errors)
-    assert "subsystem_repair_context" not in repair_payload
-    original_interface_payload = json.loads(
-        repair_payload["original_request"].split("\n\n", 1)[1]
-    )
-    assert original_interface_payload["frozen_core_theory"]["problem_card"] == {
-        field: revised_core["problem_card"][field]
-        for field in (
-            "observed_data",
-            "dgp",
-            "estimand",
-            "assumptions",
-            "asymptotic_regime",
-        )
-    }
-    assert json.loads(repair_payload["previous_candidate"]) == (
-        invalid_interface
-    )
-
-    retry_context = dict(context)
-    retry_context["theory_developer_source_environment_feedback"] = dict(
-        context["environment_feedback"]
-    )
-    retry_context["environment_feedback"] = {
-        "artifact_kind": "RuntimeTheoryDeveloperValidationFeedback",
-        "truncation_detected": False,
-        "recovery_checkpoint": checkpoint,
-    }
-    valid_interface = {
-        "interfaces": {estimator["id"]: expected_contract}
-    }
-    retry_provider = SequentialGeneratorBackend([valid_interface])
-    retry_developer = LLMTheoryDeveloperAgent(
-        provider=retry_provider,
-        config=ResearchArchitectConfig(
-            provider_name="anthropic",
-            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-            model_tier="haiku",
-            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-            serious_model_tier="haiku",
-            max_validation_retries=1,
-        ),
-    )
-
-    packet = retry_developer.derive(question, architect_context=retry_context)
-
-    assert validate_theory_packet(packet) == []
-    assert len(retry_provider.requests) == 1
-    assert retry_provider.requests[0].metadata["theory_developer_phase"] == (
-        "estimator_interface_authoring"
-    )
-    assert packet["theory_generation_phases"][0]["phase"] == (
+    assert packet["estimator_interface_authoring"]["model_call_used"] is True
+    assert packet["estimator_interface_authoring"][
+        "dedicated_model_call_used"
+    ] is False
+    assert [row["phase"] for row in packet["theory_generation_phases"]] == [
         "artifact_workspace_revision"
-    )
+    ]
     assert packet["theory_revision_transport"]["feedback_id"] == (
         context["environment_feedback"]["feedback_id"]
     )
