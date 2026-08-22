@@ -1,13 +1,13 @@
 {
-  "schema_version": 117,
+  "schema_version": 118,
   "updated_at": "2026-08-21",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "a0271fde7a5d2a32106a3d4c13b7aa6517ad89dc",
+  "validated_code_head": "fc7d335ccc582338609e77ce24d400f05fa80abd",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. The consumed exponential-rate MLE draw remains immutable 0/1: its mathematical and boolean-input defects receive no formula rule, special case, vote, retry, rerun, repair, or rescore. A post-run shared-mechanism audit removed the unused sample-size order/rate JSON that had duplicated document-authoritative mathematics inside the executable estimator ABI. Canonical handoffs now carry only callable identity, lifecycle binding, output meaning, normalization, and a derivation reference; Markdown/LaTeX remains mathematical authority, and legacy metadata is read-compatible but absent from new authoring and downstream prompts. Twenty-one scored tasks remain 0/21. Continue auditing only measured shared harness boundaries before any newly frozen disjoint exact-Haiku draw.",
+  "current_goal_focus": "Keep converging on a model-owned Codex-style scientific harness without importing a second scheduler or provider. The consumed exponential-rate MLE draw remains immutable 0/1: its mathematical and boolean-input defects receive no formula rule, special case, vote, retry, rerun, repair, or rescore. Canonical document-native Theory packets now give AlgorithmEngineer and SimulationEngineer the same exact hash-bound Markdown/LaTeX plus complete claim DAG in both planning and actual Python/R source-owner sessions; structured handoff carries only identity and executable ABI, while historical no-document packets remain replay-compatible. Twenty-one scored tasks remain 0/21. The next measured design debt is the separate structured planning turn before each scientific source workspace; remove it only by merging responsibilities into the existing model-tool-observation loop, never by adding another adapter, agent, or scheduler.",
   "latest_exponential_rate_mle_evaluation": {
     "task_id": "exponential_rate_mle_pivot_known_result",
     "run_id": "main_worker_research_l0_exponential_rate_mle_20260821_v1_codex_harness_exact_haiku",
@@ -121,8 +121,12 @@
     ]
   },
   "validated_change": {
-    "commit": "a0271fde7a5d2a32106a3d4c13b7aa6517ad89dc",
+    "commit": "fc7d335ccc582338609e77ce24d400f05fa80abd",
     "changes": [
+      "Commit fc7d335c makes the document-authority declaration true at the Python/R authoring boundary. AlgorithmEngineer and SimulationEngineer planning views and their actual source-owning model-tool-observation sessions now consume one shared context containing exact hash-bound Markdown/LaTeX documents, the complete compact claim DAG, and only estimator identity plus executable ABI.",
+      "For canonical document-native packets, duplicated problem-card, formula, algorithm-sketch, theorem-card, and ADeMP prose is absent from coding-agent contexts. Historical packets with no documents keep the old structured fallback for replay; a packet that presents documents with inconsistent authority metadata fails closed instead of silently choosing another authority.",
+      "The existing executable estimator projection is reused to omit retired legacy rate metadata without parsing, calculating, or repairing mathematics. Immutable replay of the consumed exponential-rate artifact reduced Algorithm planning context from 20,712 to 17,067 bytes and Simulation context from 16,271 to 15,123 bytes while preserving the 9,552-byte theory document and all claim identities.",
+      "The focused document, ABI, and runtime panel passed 79/79 and the full local suite passed 822/822 in 66.71 seconds. research_agent_runtime.py remains below its unchanged structural limit at 24,971 lines. No model call, benchmark rerun, retry, turn, agent, scheduler, provider, task rule, statistical formula, Lean rule, output repair, score, or capability credit was added; all twenty-one consumed tasks remain 0/21.",
       "Production tracing found no executor, metric arithmetic, proof promotion, evaluator computation, or routing decision that consumed estimator sample_size_order or sample_size_rate. The fields only duplicated model-authored mathematics across the interface schema, prompts, and validators after the authoritative Markdown/LaTeX derivation already existed.",
       "Commit a0271fde reduces canonical estimator interface authoring to request name, meaning, and lifecycle binding plus response name, meaning, normalization, and an exact derivation reference. New structured output and fallback authoring reject asymptotic order/rate metadata; runtime does not calculate, repair, or reinterpret any mathematical rate.",
       "Historical packets remain readable and source-normalized exactly for audit. Preflight and Simulation projections omit legacy rate metadata, while accepted implementation handoffs perform only a deterministic executable-field projection and retain the original source contract identity and parent handoff hash.",

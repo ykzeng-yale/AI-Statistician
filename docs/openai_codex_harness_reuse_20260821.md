@@ -692,3 +692,38 @@ resume, output repair, hidden-gold feedback, formula rule, retry, agent, schedul
 model escalation, mathematical acceptance, empirical credit, or proof credit was
 added. The exponential-rate task remains immutable `0/1`, and the scored ladder
 remains `0/21`.
+
+### Document-authority consumer implication
+
+The same consumed exponential-rate artifact exposed one remaining mismatch with
+Codex's workspace-first design. TheoryDeveloper had authored a 9,552-byte
+Markdown/LaTeX document as the declared mathematical authority, and the planning
+models received that exact file. The later Python/R source-owning sessions,
+however, still received only a copied estimator or ADeMP JSON object. Planning
+prompts also carried the exact document alongside duplicated problem, formula,
+theorem, algorithm-sketch, and simulation prose. The authority declaration was
+therefore not true at the point where source was actually edited.
+
+Commit `fc7d335c` supplies one shared, hash-bound theory context to both the
+AlgorithmEngineer and SimulationEngineer planning views and to their actual
+model -> source tool -> raw observation sessions. For a document-native packet,
+the context contains the exact documents, the complete compact claim DAG, and
+only estimator identity plus the projected executable ABI. It excludes the
+duplicated problem card, formula, algorithm sketch, theorem card, and ADeMP
+prose. A packet with documents but inconsistent authority metadata fails closed.
+Historical no-document packets keep their old structured fallback for replay.
+
+The existing executable-field projector is reused for old ABIs; it removes
+retired rate metadata without interpreting or repairing any mathematical claim.
+On immutable replay, the Algorithm planning context fell from 20,712 to 17,067
+bytes and the Simulation context from 16,271 to 15,123 bytes while preserving
+the complete document and claim identities. The focused panel passed `79/79`
+and the full local suite passed `822/822` in 66.71 seconds.
+
+This change adds no Codex app-server, provider, thread manager, scheduler,
+reviewer, repair layer, model call, retry, turn, task rule, formula parser, Lean
+rule, benchmark rerun, score, or capability credit. The remaining measured debt
+is the separate structured planning turn before each scientific source-owner
+session. That split should be removed only when source identity, frozen metric
+authority, and independent-review lineage can move into the same existing
+workspace loop; it must not be hidden behind another adapter or scheduler.
