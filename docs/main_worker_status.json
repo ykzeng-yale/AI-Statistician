@@ -1,5 +1,5 @@
 {
-  "schema_version": 136,
+  "schema_version": 137,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -7,7 +7,7 @@
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep the Codex-shaped shared inner workspace loop and one scientific outer graph. Commit 9fbbeaba now requires exact, isolated review authority before terminal Critic for every theory-required task, while theory-only work creates no empirical gate. Preserve the immutable 0/25 ladder and use only a newly frozen disjoint task for future capability evidence; do not add mathematical rules, a repair agent, another scheduler, model retries, or mandatory Formalizer work.",
+  "current_goal_focus": "Validate the Codex-shaped TheoryDeveloper plus isolated-referee topology on one newly frozen disjoint Basu-theorem task. Its visible identity and evaluator-only authority are calibrated before any product call; after the complete binding is pushed, permit exactly one exact-Haiku draw and then consume it permanently. Preserve the immutable 0/25 history and add no mathematical rules, repair agent, scheduler, model retries, or mandatory Formalizer work.",
   "latest_its_time_source_execution_calibration": {
     "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
@@ -519,7 +519,7 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model independently chooses every claim, dependency, research-source query, source handle, exact read, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, confirmatory replicate count, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, median-of-means, AR(1), Fisher-z, paired-ratio, and scalar-control-variate expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, automatic literature query or source selection, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback. Terminal disposition is generic control-plane capacity and cannot execute an extra research action; dependency and trace projections preserve identity, hashes, ABI, exact-output locations, and unique unreferenced observations without selecting or rewriting scientific content.",
     "verification": {
-      "full_pytest": "860 passed in 72.19s",
+      "full_pytest": "861 passed in 72.86s",
       "next_frozen_activation": "none currently authorized; the score-information task is permanently consumed, so any future product draw requires a newly frozen disjoint task and evaluator authority",
       "affected_subsystem_pytest": "Theory/Architect/evaluation/gold regressions passed 214/214; the complete repository passed 860/860 overall",
       "independent_theory_review_authority": "Commit 9fbbeaba requires an exact isolated review acceptance before terminal Critic whenever theory is required. Theory-only tasks create no metric gate, and bypass attempts block before the Critic model call.",
@@ -739,6 +739,29 @@
     "operator_audit": "docs/operator_audits/statlib_uniform_consistency_formal_l0_v1.md",
     "full_task_passed": false,
     "boundary": "The single authorized draw is consumed and permanently 0/1. The exact Lean target and active Statlib environment were visible; the human proof and evaluator remained outside repository and model context. Post-run generic observation fixes apply only to future tasks and cannot permit rerun, resume, repair, rescore, or proof credit."
+  },
+  "latest_basu_independence_preactivation": {
+    "task_id": "basu_complete_sufficient_ancillary_independence_known_result",
+    "family": "statistical_structure_and_ancillarity",
+    "status": "frozen_ready_gold_validated_no_product_call",
+    "visible_question_activation_commit": "77f58bccce7711a5ccd0cd6cccf35da67e4902e5",
+    "visible_question_activation_push_confirmed_on_work_branch_and_main": true,
+    "visible_questions_sha256": "81d80ac8a01f1f0ffe0e1f75c0bd4062611711de902292267378cbf9c9868bab",
+    "visible_question_hash": "c85761379c3ae87a1c09724c7d620f7907d1c8a165aaf9bf572e34a88eb4c5a9",
+    "gold_manifest_sha256": "f86ba4be31ecd34b1b855160ada36fa933502450ae07905f0ed9b7cb652f8895",
+    "gold_descriptor_hash": "e1dc9a8c3bbc5fddb328f91f7c8d225b71765ca3d484e2cd4e74b917da50ff16",
+    "hidden_mechanical_calibration": "reference 7/7 and seven negative variants rejected",
+    "hidden_semantic_calibration": "13/13 cases correct and evaluator reference 8/8 claims satisfied",
+    "hidden_semantic_calibration_model": "claude-haiku-4-5-20251001",
+    "hidden_semantic_calibration_model_calls": 2,
+    "hidden_gold_manifest_validated": true,
+    "preactivation_regression": "81 focused tests and 861/861 full-suite tests passed",
+    "formalization_requirement": "not_applicable",
+    "first_runtime_model_call_occurred": false,
+    "product_model_calls": 0,
+    "fresh_live_runs": 0,
+    "ladder_state": "26 fully gold configured, 25 consumed, 0 fully passed",
+    "boundary": "Evaluator authority is outside repository and model workspace. No product draw is authorized until the complete authority binding is committed and pushed to both canonical refs. After that, exactly one fresh exact-Haiku draw may run; no retry, repair, resume, or rescore is permitted."
   },
   "latest_score_information_bound_evaluation": {
     "id": "research_l0_score_information_bound_v1_exact_haiku_20260822",
