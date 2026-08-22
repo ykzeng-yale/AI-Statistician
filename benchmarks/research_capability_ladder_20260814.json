@@ -1705,7 +1705,7 @@
       "gold_manifest_sha256": "a81c1d2ca66b616d1f53baf876954e0a3af70aa610af677254775e9cdd45ab8f",
       "gold_descriptor_hash": "71410d786fed8ed38b72ff2267ce81a14b5231b4b9a5da67792e02eb734c0ed6",
       "gold_runtime_visibility": "evaluator_only_after_runtime",
-      "activation_status": "full_task_gold_frozen_v1_not_yet_run",
+      "activation_status": "full_task_gold_frozen_v1_activated_not_yet_run",
       "activation_evidence": {
         "public_reference": "NIST/SEMATECH exponential-distribution reference and SciPy v1.18.0 scipy.stats.expon and scipy.stats.chi2 references",
         "visible_questions_sha256": "d81f3c32786644bf7b6d3bdaf5be04087389a16e3d6a8c0ba9e94544213ee989",
@@ -1734,7 +1734,8 @@
         "hidden_gold_manifest_validated": true,
         "schema_v2_contract_entailment_audit": "Every hidden algorithm check cites exact public request, response, or invariant clauses. Every hidden empirical check cites a public empirical claim plus the exact estimator fields it consumes. Mathematical theory remains in the question and Markdown/LaTeX workspace; hidden rates, sample sizes, thresholds, seeds, and replicate totals are frozen evaluator configuration rather than runtime research rules.",
         "gold_frozen_before_first_runtime_model_call": true,
-        "activation_push_confirmed_on_work_branch_and_main": false,
+        "activation_commit": "2097c3102b7a4b936a1a0669bdb5e4f8f716f5ba",
+        "activation_push_confirmed_on_work_branch_and_main": true,
         "first_runtime_model_call_occurred": false,
         "fresh_live_runs": 0,
         "model_draw_resampling_blocked": true,
@@ -1772,6 +1773,6 @@
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
     "latest_diagnostic": "Twenty scored tasks are consumed and immutable at 0/20 full-task passes. Exponential rate MLE v1 is a new disjoint lifetime-rate task whose visible contract, three-document official source snapshot, schema-v2 hidden gold, 11/11 deterministic contract calibration, four rejected negative estimators, 15,000-draw empirical calibration, and 12/12 exact-Haiku semantic calibration are frozen before its first product model call.",
-    "next_step": "Commit and push the exponential-rate MLE v1 freeze to the work branch and main, bind that freeze commit in a separate activation record, then run exactly one fresh canonical research-eval draw with every enabled model role pinned to claude-haiku-4-5-20251001. Consume the task regardless of outcome and do not rerun, resume, repair, or rescore it."
+    "next_step": "Commit and push this activation record to the work branch and main, verify both remote refs and every frozen authority hash, then run exactly one fresh canonical research-eval draw with every enabled model role pinned to claude-haiku-4-5-20251001. Consume the task regardless of outcome and do not rerun, resume, repair, or rescore it."
   }
 }

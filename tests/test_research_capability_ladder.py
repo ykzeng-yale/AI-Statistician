@@ -1160,11 +1160,17 @@ def test_exponential_rate_mle_l0_authority_is_frozen_before_first_draw() -> None
     assert candidate["level"] == "L0"
     assert candidate["family"] == "lifetime_rate_inference"
     assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"] == "full_task_gold_frozen_v1_not_yet_run"
+    assert (
+        candidate["activation_status"]
+        == "full_task_gold_frozen_v1_activated_not_yet_run"
+    )
     evidence = candidate["activation_evidence"]
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_commit"] == (
+        "2097c3102b7a4b936a1a0669bdb5e4f8f716f5ba"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["first_runtime_model_call_occurred"] is False
     assert evidence["fresh_live_runs"] == 0
     assert evidence["algorithm_reference_contract_checks"] == "11/11"
