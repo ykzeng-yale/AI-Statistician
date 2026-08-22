@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import math
 import os
@@ -26,6 +27,7 @@ SCIENTIFIC_SANDBOX_PROFILES = (
     STDLIB_SANDBOX_PROFILE,
     SCIENTIFIC_WASM_SANDBOX_PROFILE,
 )
+MAX_SCIENTIFIC_INPUT_ARTIFACT_BYTES = 64 * 1024 * 1024
 SCIENTIFIC_SANDBOX_BOUNDARY = (
     "Generated scientific code executes as untrusted WebAssembly in a separate "
     "secret-free, resource-bounded process with network denial and a host-filesystem "
@@ -99,6 +101,16 @@ class ScientificEstimatorBinding:
 
 
 @dataclass(frozen=True)
+class ScientificInputArtifactBinding:
+    """Exact immutable data supplied separately from executable source."""
+
+    artifact_id: str
+    content: str
+    content_sha256: str
+    media_type: str = "text/plain"
+
+
+@dataclass(frozen=True)
 class ScientificSandboxExecution:
     status: str
     language: str
@@ -135,6 +147,9 @@ class ScientificSandboxExecution:
     estimator_binding_errors: tuple[str, ...] = ()
     estimator_runtime_failure_ids: tuple[str, ...] = ()
     estimator_runtime_errors: tuple[str, ...] = ()
+    input_artifact_paths: dict[str, str] = field(default_factory=dict)
+    input_artifact_hashes: dict[str, str] = field(default_factory=dict)
+    input_artifact_binding_hash: str = ""
     boundary: str = SCIENTIFIC_SANDBOX_BOUNDARY
 
     def to_json(self) -> dict[str, Any]:
@@ -756,11 +771,16 @@ def _empty_execution(
     resource_limits: Mapping[str, int],
     estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
     estimator_binding_errors: Sequence[str] = (),
+    input_artifacts: Sequence[ScientificInputArtifactBinding] = (),
     required_callable_exports: Sequence[str] = (),
 ) -> ScientificSandboxExecution:
     backend = "webr" if language == "r" else "pyodide"
     estimator_code_hashes = {
         binding.artifact_id: binding.code_hash for binding in estimator_bindings
+    }
+    input_artifact_hashes = {
+        binding.artifact_id: binding.content_sha256
+        for binding in input_artifacts
     }
     return ScientificSandboxExecution(
         status=status,
@@ -793,6 +813,12 @@ def _empty_execution(
             stable_hash(estimator_code_hashes) if estimator_code_hashes else ""
         ),
         estimator_binding_errors=tuple(estimator_binding_errors),
+        input_artifact_hashes=input_artifact_hashes,
+        input_artifact_binding_hash=(
+            stable_hash(input_artifact_hashes)
+            if input_artifact_hashes
+            else ""
+        ),
     )
 
 
@@ -810,6 +836,7 @@ def execute_scientific_sandbox(
     max_node_heap_mb: int = 768,
     runtime: ScientificSandboxRuntime | None = None,
     estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
+    input_artifacts: Sequence[ScientificInputArtifactBinding] = (),
     required_callable_exports: Sequence[str] = (),
 ) -> ScientificSandboxExecution:
     language = normalized_generated_code_language(language)
@@ -829,6 +856,15 @@ def execute_scientific_sandbox(
             ),
         )
         for binding in estimator_bindings
+    )
+    normalized_input_artifacts = tuple(
+        ScientificInputArtifactBinding(
+            artifact_id=str(binding.artifact_id or "").strip(),
+            content=str(binding.content or ""),
+            content_sha256=str(binding.content_sha256 or "").strip(),
+            media_type=str(binding.media_type or "text/plain").strip(),
+        )
+        for binding in input_artifacts
     )
     normalized_required_callable_exports = tuple(
         dict.fromkeys(
@@ -906,6 +942,32 @@ def execute_scientific_sandbox(
                 )
             )
     contract_errors.extend(binding_contract_errors)
+    input_artifact_errors: list[str] = []
+    input_artifact_ids: set[str] = set()
+    total_input_artifact_bytes = 0
+    for binding in normalized_input_artifacts:
+        if not binding.artifact_id:
+            input_artifact_errors.append("input artifact_id is required")
+        elif binding.artifact_id in input_artifact_ids:
+            input_artifact_errors.append(
+                "duplicate input artifact_id: " + binding.artifact_id
+            )
+        input_artifact_ids.add(binding.artifact_id)
+        encoded = binding.content.encode("utf-8")
+        total_input_artifact_bytes += len(encoded)
+        if binding.content_sha256 != hashlib.sha256(encoded).hexdigest():
+            input_artifact_errors.append(
+                "input artifact content hash mismatch: " + binding.artifact_id
+            )
+        if not binding.media_type:
+            input_artifact_errors.append(
+                "input artifact media_type is required: " + binding.artifact_id
+            )
+    if total_input_artifact_bytes > MAX_SCIENTIFIC_INPUT_ARTIFACT_BYTES:
+        input_artifact_errors.append(
+            "input artifacts exceed aggregate artifact-size boundary"
+        )
+    contract_errors.extend(input_artifact_errors)
     all_dependencies = tuple(
         dict.fromkeys(
             [
@@ -930,6 +992,7 @@ def execute_scientific_sandbox(
             resource_limits=limits,
             estimator_bindings=normalized_bindings,
             estimator_binding_errors=sorted(set(binding_contract_errors)),
+            input_artifacts=normalized_input_artifacts,
             required_callable_exports=normalized_required_callable_exports,
         )
     language_available = (
@@ -949,6 +1012,7 @@ def execute_scientific_sandbox(
             code_hash=code_hash,
             resource_limits=limits,
             estimator_bindings=normalized_bindings,
+            input_artifacts=normalized_input_artifacts,
             required_callable_exports=normalized_required_callable_exports,
         )
     cache_errors = (
@@ -967,6 +1031,7 @@ def execute_scientific_sandbox(
             code_hash=code_hash,
             resource_limits=limits,
             estimator_bindings=normalized_bindings,
+            input_artifacts=normalized_input_artifacts,
             required_callable_exports=normalized_required_callable_exports,
         )
 
@@ -988,6 +1053,10 @@ def execute_scientific_sandbox(
                 binding.artifact_id: binding.code_hash
                 for binding in normalized_bindings
             },
+            "input_artifacts": {
+                binding.artifact_id: binding.content_sha256
+                for binding in normalized_input_artifacts
+            },
             "required_callable_exports": list(
                 normalized_required_callable_exports
             ),
@@ -1007,6 +1076,13 @@ def execute_scientific_sandbox(
         )
         estimator_path.write_text(binding.code, encoding="utf-8")
         estimator_code_paths[binding.artifact_id] = estimator_path
+    input_artifact_paths: dict[str, Path] = {}
+    for index, binding in enumerate(normalized_input_artifacts):
+        input_path = sandbox_dir / (
+            f"{safe_id}_{execution_key}_input_{index}.txt"
+        )
+        input_path.write_text(binding.content, encoding="utf-8")
+        input_artifact_paths[binding.artifact_id] = input_path
     result_path.unlink(missing_ok=True)
     metrics_path.unlink(missing_ok=True)
     stdout_path.unlink(missing_ok=True)
@@ -1038,6 +1114,18 @@ def execute_scientific_sandbox(
                 "code_hash": binding.code_hash,
             }
             for binding in normalized_bindings
+        ],
+        "input_artifacts": [
+            {
+                "artifact_id": binding.artifact_id,
+                "media_type": binding.media_type,
+                "path": str(
+                    input_artifact_paths[binding.artifact_id].resolve()
+                ),
+                "sha256": binding.content_sha256,
+                "size_bytes": len(binding.content.encode("utf-8")),
+            }
+            for binding in normalized_input_artifacts
         ],
         "runtime": {
             "pyodide_entry": runtime.pyodide_entry,
@@ -1076,6 +1164,7 @@ def execute_scientific_sandbox(
                 code_path,
                 request_path,
                 *estimator_code_paths.values(),
+                *input_artifact_paths.values(),
             ),
             writable_paths=(result_path, stdout_path, stderr_path),
         ),
@@ -1202,6 +1291,10 @@ def execute_scientific_sandbox(
     estimator_code_hashes = {
         binding.artifact_id: binding.code_hash for binding in normalized_bindings
     }
+    input_artifact_hashes = {
+        binding.artifact_id: binding.content_sha256
+        for binding in normalized_input_artifacts
+    }
     return ScientificSandboxExecution(
         status=status,
         language=language,
@@ -1243,4 +1336,14 @@ def execute_scientific_sandbox(
         estimator_binding_errors=runtime_estimator_binding_errors,
         estimator_runtime_failure_ids=estimator_runtime_failure_ids,
         estimator_runtime_errors=estimator_runtime_errors,
+        input_artifact_paths={
+            artifact_id: str(path)
+            for artifact_id, path in input_artifact_paths.items()
+        },
+        input_artifact_hashes=input_artifact_hashes,
+        input_artifact_binding_hash=(
+            stable_hash(input_artifact_hashes)
+            if input_artifact_hashes
+            else ""
+        ),
     )

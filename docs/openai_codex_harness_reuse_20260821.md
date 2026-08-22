@@ -4,7 +4,7 @@
 
 - Repository: `https://github.com/openai/codex`
 - Audited branch: `main`
-- Audited commit: `4f39251a010a8bd7d692d25fb33832ff06f1635a`
+- Audited commit: `343074d4207d572809bd8cea15f4be1d09d98e0b`
 - License: Apache-2.0
 - Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex`
 - License SHA-256: `d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc`
@@ -41,6 +41,16 @@ All previously audited turn-loop, tool-dispatch, multi-agent, app-server,
 provider, review-evidence, thread-manager, executor-hook, and MCP files remain
 byte-identical. This is a distributed-ownership mechanism, not a new model
 workflow or scientific scheduler.
+
+The incremental recheck from `4f39251` to `343074d` contains one commit that
+reports runtime MCP connection status through the app-server protocol and TUI.
+The core turn loop, tool dispatcher, parallel-safety gate, multi-agent context
+selection, child spawning, provider contract, review evidence, thread manager,
+executor hooks, strict MCP outcomes, and unfinished-turn suspension remain
+byte-identical. The app-server README changes only to describe the new status
+field. This improves observability of an external tool connection; it does not
+add a reusable scientific workspace, model loop, scheduler, or collaboration
+policy.
 
 The new strict-review change preserves canonical denial, timeout, and abort
 outcomes instead of flattening them into a generic decline. That reinforces an
@@ -80,7 +90,7 @@ Primary inspected files and their SHA-256 identities:
 | `codex-rs/core/src/tools/parallel.rs` | typed dispatch, ordering, cancellation, fatal boundary | `48380e25abaf9c52e7a5de9cecf82cc4ddb84197683f73a11719de3b78c90e5a` |
 | `codex-rs/core/src/session/multi_agents.rs` | context-selective child agents and mailbox guidance | `44197c5fb2b32ec158c5488b419141e9e626614c64d524b6a2a90500a272f53f` |
 | `codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs` | zero/N/all-turn fork policy | `3bb8b56b430c095bea3f7e1ccebb9a73d2c889786a281942bb0cd2ca676a1300` |
-| `codex-rs/app-server/README.md` | thread/turn/item protocol, dynamic tools, and managed policy | `6255f38ce9fe1aaf6a19c79d0bccb00fbd35066267a410feec638ae504d387bd` |
+| `codex-rs/app-server/README.md` | thread/turn/item protocol, dynamic tools, managed policy, and MCP status reporting | `2cf7963a9e3c66d2e82a2f2be2f3ef73103384e8f8c48654d359f0c022508d2d` |
 | `codex-rs/model-provider-info/src/lib.rs` | provider transport contract with redacted secret-bearing values | `2168b93576dff1d336f0c3d390b6ff8c38376340fc8ed2eea8da9857ddb1eeb7` |
 | `codex-rs/core/src/context/guardian_review_evidence.rs` | bounded, runtime-only, authorization-bound review evidence | `b0d5cafa5529dd0ae55a44d3933a175b4d0999d73e78dc7963c1d2781088279f` |
 | `codex-rs/core/src/thread_manager.rs` | fresh parent-linked internal sessions | `3bbbd6f2c68cacc1f652e57493ac15a560b2d7da2f93f797ad492d794f4e8c9d` |
@@ -827,9 +837,9 @@ ladder remains immutable `0/21`.
 
 ### Exact session-contract implication
 
-The official `openai/codex` checkout was fetched again on 2026-08-22 and remains
+The official `openai/codex` checkout was fetched again on 2026-08-22 and is
 exactly at Apache-2.0 `main` commit
-`4f39251a010a8bd7d692d25fb33832ff06f1635a`. Its tool runtime admits explicitly
+`343074d4207d572809bd8cea15f4be1d09d98e0b`. Its tool runtime admits explicitly
 parallel-safe calls through a shared read lock and serializes all other calls
 through a write lock; its multi-agent guidance keeps immediate critical-path work
 with the current owner and delegates only bounded, nonduplicated sidecars. The
@@ -870,3 +880,33 @@ adds no OpenAI provider, Codex app-server, thread manager, scheduler, subagent,
 repair worker, model turn, retry, scientific rule, Lean grammar or tactic rule,
 benchmark draw, output repair, score, or capability credit. Existing consumed
 tasks and their recorded outcomes remain immutable.
+
+### File-backed artifact implication
+
+The first frozen Trimmed Match L1 draw exposed a direct violation of the same
+principle. Its exact source-replication manifest was about 207 KB because it
+retained two evaluator-authoritative CSV payloads. The hidden evaluator encoded
+that data inside generated Python source, so the scientific sandbox rejected the
+wrapper at its 100 KB source boundary before the identity harness ran. Separately,
+the model-authored report failed calibrated semantic review after the visible
+execution descriptor omitted the operator-fixed argument vector. The consumed
+task remains a `0/1` hidden-gold failure; neither defect is rescored or repaired
+post hoc.
+
+The shared correction follows Codex's artifact/item separation instead of adding
+another evaluator or repair path:
+
+- executable Python/R remains a small independently validated artifact;
+- selected input data is staged as a separate immutable file with exact SHA-256,
+  rechecked by the sandbox runner, then supplied to `run_sandbox` as data;
+- the hidden artifact evaluator uses that data binding rather than embedding a
+  candidate packet in source;
+- the operator-fixed source working directory and argument vector are included in
+  the model-visible, hash-bound execution descriptor and result observation;
+- TheoryDeveloper's existing scratch tool can receive selected published-source
+  result files, so the same model can write Python/R to inspect exact outputs.
+
+This adds no agent, scheduler, retry, content repair, statistical rule, benchmark
+exception, or model call. The evaluator still owns hidden acceptance; the model
+still owns interpretation. The focused regression is `114/114` and the full
+suite is `839/839` in 69.22 seconds.

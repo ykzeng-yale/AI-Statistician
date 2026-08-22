@@ -41,6 +41,7 @@ from .research_source_discovery import (
 )
 from .scientific_sandbox import (
     SCIENTIFIC_WASM_SANDBOX_PROFILE,
+    ScientificInputArtifactBinding,
     execute_scientific_sandbox,
     generated_code_draft_json_schema,
 )
@@ -145,15 +146,28 @@ def theory_scratchpad_client_tool() -> ClientToolDefinition:
     scratch_schema["properties"]["execution_profile"]["enum"] = [
         SCIENTIFIC_WASM_SANDBOX_PROFILE
     ]
+    scratch_schema["properties"]["source_result_artifact_paths"] = {
+        "type": "array",
+        "description": (
+            "Optional declared UTF-8 result paths from the completed published-"
+            "source run. When nonempty, define run_sandbox(seed, replicates, "
+            "artifacts); artifacts maps each selected path to exact content, "
+            "media_type, and sha256."
+        ),
+        "uniqueItems": True,
+        "maxItems": 8,
+        "items": {"type": "string", "minLength": 1},
+    }
     return ClientToolDefinition(
         name=THEORY_SCRATCHPAD_TOOL,
         description=(
             "Run one complete model-authored exploratory Python or R calculation, "
             "including exact symbolic algebra with SymPy when useful, "
             "in the isolated scientific sandbox. Define, but do not call, "
-            "run_sandbox(seed, replicates); it must return a named JSON-finite "
-            "metric object. Raw execution results return to this mathematical "
-            "session and never edit theory automatically."
+            "run_sandbox(seed, replicates); when selecting source-result artifacts, "
+            "accept the additional artifacts argument described in the schema. It "
+            "must return a named JSON-finite metric object. Raw execution results "
+            "return to this mathematical session and never edit theory automatically."
         ),
         input_schema=scratch_schema,
     )
@@ -167,6 +181,7 @@ def execute_theory_scratchpad_tool(
     artifact_id: str,
     run_index: int,
     owner_label: str,
+    input_artifacts: Sequence[ScientificInputArtifactBinding] = (),
 ) -> tuple[ClientToolExecutionResult, dict[str, Any]]:
     """Execute exact model-authored exploratory code and return compact lineage."""
 
@@ -199,6 +214,7 @@ def execute_theory_scratchpad_tool(
         replicates=int(scratchpad.replicates),
         timeout_s=int(scratchpad.timeout_s),
         max_output_bytes=64 * 1024,
+        input_artifacts=input_artifacts,
     )
     request_hash = execution.request_hash or stable_hash(
         {
@@ -215,6 +231,10 @@ def execute_theory_scratchpad_tool(
             "timeout_s": int(scratchpad.timeout_s),
             "max_output_bytes": 64 * 1024,
             "sandbox_binding_hash": stable_hash(list(sandbox_binding)),
+            "input_artifact_hashes": {
+                binding.artifact_id: binding.content_sha256
+                for binding in input_artifacts
+            },
         }
     )
     request_identity_source = (
@@ -240,6 +260,7 @@ def execute_theory_scratchpad_tool(
         "result_path": execution.result_path,
         "runtime_edited_source": False,
         "runtime_edited_theory": False,
+        "input_artifact_hashes": dict(execution.input_artifact_hashes),
         "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
     }
     observation = {
@@ -1495,6 +1516,59 @@ def run_theory_artifact_workspace(
                 raise ClientToolInputError(
                     "theory scratchpad run budget is exhausted"
                 )
+            raw_result_paths = tool_input.get(
+                "source_result_artifact_paths", []
+            )
+            if not isinstance(raw_result_paths, list) or not all(
+                isinstance(value, str) and value.strip()
+                for value in raw_result_paths
+            ):
+                raise ClientToolInputError(
+                    "theory scratchpad source_result_artifact_paths must be an "
+                    "array of nonempty paths"
+                )
+            input_artifacts: list[ScientificInputArtifactBinding] = []
+            if raw_result_paths:
+                if len(state["source_replication_manifests"]) != 1:
+                    raise ClientToolInputError(
+                        "theory scratchpad source-result inputs require one "
+                        "completed source run"
+                    )
+                source_manifest = state["source_replication_manifests"][0]
+                result_rows = {
+                    str(row.get("relative_path", "") or ""): row
+                    for row in source_manifest.get("result_artifacts", []) or []
+                    if isinstance(row, Mapping)
+                    and str(row.get("relative_path", "") or "")
+                }
+                for relative_path in dict.fromkeys(raw_result_paths):
+                    row = result_rows.get(relative_path)
+                    if row is None:
+                        raise ClientToolInputError(
+                            "unknown source result artifact: " + relative_path
+                        )
+                    content = row.get("raw_text")
+                    if not isinstance(content, str):
+                        raise ClientToolInputError(
+                            "source result artifact is not available as UTF-8 text: "
+                            + relative_path
+                        )
+                    expected_sha256 = str(row.get("sha256", "") or "")
+                    observed_sha256 = hashlib.sha256(
+                        content.encode("utf-8")
+                    ).hexdigest()
+                    if observed_sha256 != expected_sha256:
+                        raise ClientToolInputError(
+                            "source result artifact hash mismatch: " + relative_path
+                        )
+                    input_artifacts.append(
+                        ScientificInputArtifactBinding(
+                            artifact_id=relative_path,
+                            content=content,
+                            content_sha256=observed_sha256,
+                            media_type="text/plain",
+                        )
+                    )
             run_index = state["scratch_runs"] + 1
             execution_result, execution_ref = execute_theory_scratchpad_tool(
                 tool_input=tool_input,
@@ -1505,6 +1579,7 @@ def run_theory_artifact_workspace(
                 ),
                 run_index=run_index,
                 owner_label="TheoryDeveloper",
+                input_artifacts=input_artifacts,
             )
             state["scratch_runs"] = run_index
             state["scratch_execution_refs"].append(execution_ref)
@@ -1736,7 +1811,11 @@ def run_theory_artifact_workspace(
         "model-chosen SymPy reduction, numerical check, or counterexample would resolve "
         "a mathematical uncertainty. Submit "
         "complete source defining run_sandbox(seed, replicates); the isolated runtime "
-        "executes those exact bytes and returns the raw observation. Interpret the "
+        "executes those exact bytes and returns the raw observation. After a published-"
+        "source run, you may select declared UTF-8 result paths and define "
+        "run_sandbox(seed, replicates, artifacts) to query their exact hash-bound "
+        "contents with your own Python or R rather than asking the runtime to "
+        "interpret them. Interpret the "
         "observation yourself before editing theory. Scratch output is exploratory, "
         "not confirmatory simulation and not proof. Never promote finite scratch "
         "output into a universal mathematical premise; supply a mathematical "
@@ -1780,7 +1859,11 @@ def run_theory_artifact_workspace(
         "secret inheritance, runs the exact published entrypoint, and returns raw "
         "stdout/stderr plus any operator-declared result artifacts from an isolated "
         "copy-on-write source workspace to this same session. Inspect and interpret "
-        "that observation yourself. It is source-replication evidence, not model-authored "
+        "that observation yourself. The visible execution descriptor and returned "
+        "manifest state the exact working directory and argument vector. For larger "
+        "UTF-8 outputs, either read exact lines or select the result paths in your "
+        "existing scratch tool and analyze them with model-authored code. It is "
+        "source-replication evidence, not model-authored "
         "scientific code, confirmatory simulation, or theorem proof. "
         if research_source_execution is not None
         else ""

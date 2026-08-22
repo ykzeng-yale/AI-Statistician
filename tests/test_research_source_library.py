@@ -259,7 +259,7 @@ def _source_execution_fixture(tmp_path):
         "python_executable_sha256": executable_sha256,
         "runtime_read_roots": [str(Path(sys.executable).resolve().parent)],
         "working_directory_relative": ".",
-        "arguments": [],
+        "arguments": ["--operator-fixed"],
         "package_distributions": {"Demo": "demo"},
         "timeout_seconds": 30,
         "max_output_bytes": 8192,
@@ -645,6 +645,7 @@ def test_immutable_source_execution_uses_only_operator_bound_command(tmp_path) -
     assert calls[1]["command"] == (
         str(execution.python_executable),
         str(snapshot.document_path("published-example")),
+        "--operator-fixed",
     )
     assert calls[1]["source_paths"] == tuple(
         snapshot.document_path(document.document_id)
@@ -656,6 +657,11 @@ def test_immutable_source_execution_uses_only_operator_bound_command(tmp_path) -
     assert manifest["question_id"] == "published-source-task"
     assert manifest["execution_status"] == "EXECUTED"
     assert manifest["package_versions"] == {"Demo": "1.2.3"}
+    assert manifest["working_directory_relative"] == "."
+    assert manifest["arguments"] == ["--operator-fixed"]
+    descriptor = execution.descriptor(snapshot)
+    assert descriptor["working_directory_relative"] == "."
+    assert descriptor["arguments"] == ["--operator-fixed"]
     assert manifest["source_mutated"] is False
     assert manifest["runtime_edited_source"] is False
     assert manifest["command_owned_by_model"] is False
@@ -669,6 +675,9 @@ def test_immutable_source_execution_uses_only_operator_bound_command(tmp_path) -
     )
     persisted = json.loads(Path(manifest["manifest_path"]).read_text())
     assert persisted == manifest
+    observation = source_replication_model_observation(manifest)
+    assert observation["working_directory_relative"] == "."
+    assert observation["arguments"] == ["--operator-fixed"]
 
 
 def test_source_execution_fails_closed_when_snapshot_changes(tmp_path) -> None:

@@ -536,6 +536,51 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
         "ai_statistician.theory_workspace.execute_research_source",
         fake_execute_research_source,
     )
+    scratch_calls = []
+
+    def fake_execute_scientific_sandbox(**kwargs):
+        scratch_calls.append(kwargs)
+        input_hashes = {
+            binding.artifact_id: binding.content_sha256
+            for binding in kwargs["input_artifacts"]
+        }
+        return ScientificSandboxExecution(
+            status="EXECUTED",
+            language="python",
+            execution_profile="scientific_wasm",
+            backend="pyodide",
+            isolation_provider="test-isolation",
+            dependencies=(),
+            execution_attempted=True,
+            returncode=0,
+            metrics={"data_rows": 1},
+            errors=(),
+            stdout_summary="",
+            stderr_summary="",
+            result_parse_error="",
+            code_path=str(tmp_path / "scratch.py"),
+            request_path=str(tmp_path / "request.json"),
+            result_path=str(tmp_path / "result.json"),
+            code_hash=stable_hash(kwargs["code"]),
+            request_hash="source-result-scratch-request",
+            result_hash=stable_hash({"data_rows": 1}),
+            subprocess_environment_keys=("HOME", "PATH"),
+            resource_limits={"cpu_seconds": 9},
+            input_artifact_hashes=input_hashes,
+            input_artifact_binding_hash=stable_hash(input_hashes),
+        )
+
+    monkeypatch.setattr(
+        "ai_statistician.theory_workspace.execute_scientific_sandbox",
+        fake_execute_scientific_sandbox,
+    )
+    scratch_source = (
+        "import csv\nimport io\n\n"
+        "def run_sandbox(seed, replicates, artifacts):\n"
+        "    rows = list(csv.DictReader(io.StringIO("
+        "artifacts['results.csv']['content'])))\n"
+        "    return {'data_rows': len(rows)}\n"
+    )
     backend = ScriptedTheoryWorkspaceBackend(
         [
             _response(
@@ -543,6 +588,20 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
                     call_id="run-published-source",
                     name=RESEARCH_SOURCE_RUN_TOOL,
                     input={},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="analyze-published-result",
+                    name=THEORY_SCRATCHPAD_TOOL,
+                    input={
+                        "language": "python",
+                        "execution_profile": "scientific_wasm",
+                        "dependencies": [],
+                        "entrypoint": "run_sandbox",
+                        "code": scratch_source,
+                        "source_result_artifact_paths": ["results.csv"],
+                    },
                 )
             ),
             _response(
@@ -577,6 +636,12 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
         research_sources=research_sources,
         research_source_execution=source_execution,
         workspace_dir=tmp_path / "theory-workspace",
+        scratchpad=TheoryScratchpadConfig(
+            sandbox_dir=tmp_path / "scratch",
+            seed=17,
+            replicates=1,
+            max_runs=1,
+        ),
     )
 
     assert len(calls) == 1
@@ -592,7 +657,23 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
     ]
     assert "coef=0.5" in str(backend.requests[1].messages)
     assert "raw_text" not in str(backend.requests[1].messages)
-    assert "method,error" in str(backend.requests[2].messages)
+    assert "method,error" in str(backend.requests[3].messages)
+    assert len(scratch_calls) == 1
+    assert scratch_calls[0]["code"] == scratch_source
+    assert len(scratch_calls[0]["input_artifacts"]) == 1
+    bound_result = scratch_calls[0]["input_artifacts"][0]
+    assert bound_result.artifact_id == "results.csv"
+    assert bound_result.content == result_text
+    assert bound_result.content_sha256 == hashlib.sha256(
+        result_text.encode()
+    ).hexdigest()
+    scratch_observation = json.loads(
+        backend.requests[2].messages[-1]["content"][0]["content"]
+    )
+    assert scratch_observation["metrics"] == {"data_rows": 1}
+    assert scratch_observation["input_artifact_hashes"] == {
+        "results.csv": hashlib.sha256(result_text.encode()).hexdigest()
+    }
     assert result.evidence["source_replication_runs"] == 1
     assert result.evidence["source_replication_manifests"] == [manifest]
     assert result.evidence["source_result_read_refs"] == [

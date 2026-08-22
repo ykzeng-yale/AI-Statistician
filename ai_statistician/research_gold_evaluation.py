@@ -4,7 +4,6 @@ import hashlib
 import json
 import math
 import tempfile
-import zlib
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,6 +19,7 @@ from .estimator_interface_contract import (
 from .model_backend import AnthropicGeneratorBackend, GeneratorBackend
 from .scientific_sandbox import (
     ScientificEstimatorBinding,
+    ScientificInputArtifactBinding,
     execute_scientific_sandbox,
 )
 from .theory_workspace import load_theory_workspace_document_rows
@@ -1772,15 +1772,13 @@ def _run_hidden_artifact_harness(
         ensure_ascii=True,
         separators=(",", ":"),
     )
-    compressed_candidate = zlib.compress(candidate_json.encode("utf-8"), level=9)
     executable_code = (
         "import json as _gold_json\n"
-        + "import zlib as _gold_zlib\n"
         + harness_code.rstrip()
-        + "\n\n_gold_candidate = _gold_json.loads(_gold_zlib.decompress("
-        + repr(compressed_candidate)
-        + ").decode('utf-8'))\n"
-        + "def run_sandbox(seed, replicates):\n"
+        + "\n\ndef run_sandbox(seed, replicates, artifacts):\n"
+        + "    _gold_candidate = _gold_json.loads(\n"
+        + "        artifacts['candidate-artifact.json']['content']\n"
+        + "    )\n"
         + "    return evaluate_artifact(\n"
         + "        _gold_candidate, seed=seed, replicates=replicates\n"
         + "    )\n"
@@ -1794,6 +1792,16 @@ def _run_hidden_artifact_harness(
         seed=seed,
         replicates=replicates,
         timeout_s=timeout_s,
+        input_artifacts=(
+            ScientificInputArtifactBinding(
+                artifact_id="candidate-artifact.json",
+                content=candidate_json,
+                content_sha256=hashlib.sha256(
+                    candidate_json.encode("utf-8")
+                ).hexdigest(),
+                media_type="application/json",
+            ),
+        ),
     )
     return execution.to_json()
 

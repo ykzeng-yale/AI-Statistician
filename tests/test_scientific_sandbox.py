@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from ai_statistician.fingerprint import stable_hash
 from ai_statistician.scientific_sandbox import (
     SCIENTIFIC_SANDBOX_BOUNDARY,
     ScientificEstimatorBinding,
+    ScientificInputArtifactBinding,
     ScientificSandboxExecution,
     ScientificSandboxRuntime,
     discover_scientific_sandbox_runtime,
@@ -189,6 +191,93 @@ def test_scientific_runtime_unavailable_fails_closed_without_execution(
     assert result.status == "RUNTIME_UNAVAILABLE"
     assert result.execution_attempted is False
     assert result.metrics == {}
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_scientific_input_artifact_is_hash_bound_and_separate_from_source(
+    tmp_path: Path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Pyodide runtime is not installed on this host")
+
+    candidate = json.dumps({"payload": "x" * 150_000}, separators=(",", ":"))
+    candidate_sha256 = hashlib.sha256(
+        candidate.encode("utf-8")
+    ).hexdigest()
+    source = (
+        "import json\n\n"
+        "def run_sandbox(seed, replicates, artifacts):\n"
+        "    candidate = json.loads(artifacts['candidate.json']['content'])\n"
+        "    return {\n"
+        "        'payload_length': len(candidate['payload']),\n"
+        "        'artifact_sha256': artifacts['candidate.json']['sha256'],\n"
+        "    }\n"
+    )
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="large-input-artifact",
+        language="python",
+        code=source,
+        dependencies=[],
+        seed=7,
+        replicates=1,
+        timeout_s=60,
+        input_artifacts=(
+            ScientificInputArtifactBinding(
+                artifact_id="candidate.json",
+                content=candidate,
+                content_sha256=candidate_sha256,
+                media_type="application/json",
+            ),
+        ),
+    )
+
+    assert result.status == "EXECUTED"
+    assert result.metrics == {
+        "payload_length": 150_000,
+        "artifact_sha256": candidate_sha256,
+    }
+    assert result.input_artifact_hashes == {
+        "candidate.json": candidate_sha256
+    }
+    assert result.input_artifact_binding_hash
+    assert candidate not in Path(result.code_path).read_text(encoding="utf-8")
+    request = json.loads(Path(result.request_path).read_text(encoding="utf-8"))
+    assert request["input_artifacts"][0]["sha256"] == candidate_sha256
+    assert request["input_artifacts"][0]["size_bytes"] > 100_000
+
+
+def test_scientific_input_artifact_hash_mismatch_fails_before_execution(
+    tmp_path: Path,
+) -> None:
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="tampered-input-artifact",
+        language="python",
+        code=(
+            "def run_sandbox(seed, replicates, artifacts):\n"
+            "    return {'ok': True}\n"
+        ),
+        dependencies=[],
+        seed=7,
+        replicates=1,
+        timeout_s=2,
+        input_artifacts=(
+            ScientificInputArtifactBinding(
+                artifact_id="candidate.json",
+                content="{}",
+                content_sha256="0" * 64,
+                media_type="application/json",
+            ),
+        ),
+    )
+
+    assert result.status == "REJECTED_CONTRACT"
+    assert result.execution_attempted is False
+    assert result.errors == (
+        "input artifact content hash mismatch: candidate.json",
+    )
     assert list(tmp_path.iterdir()) == []
 
 

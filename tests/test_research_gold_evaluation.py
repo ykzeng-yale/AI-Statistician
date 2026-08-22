@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import ai_statistician.research_gold_evaluation as gold_evaluation_module
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.estimator_interface_contract import (
     frozen_estimator_execution_contract_id,
@@ -688,6 +689,57 @@ def test_source_replication_component_is_scored_post_runtime_without_algorithm(
     }
     assert task["task_passed"] is True
     assert task["failure_reasons"] == []
+
+
+def test_hidden_artifact_harness_transports_large_candidate_as_data(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class _Execution:
+        def to_json(self) -> dict:
+            return {
+                "execution_attempted": True,
+                "returncode": 0,
+                "errors": [],
+                "metrics": {"ok": True},
+            }
+
+    def fake_execute(**kwargs):
+        captured.update(kwargs)
+        return _Execution()
+
+    monkeypatch.setattr(
+        gold_evaluation_module,
+        "execute_scientific_sandbox",
+        fake_execute,
+    )
+    candidate = {"raw_text": "x" * 200_000}
+    result = gold_evaluation_module._run_hidden_artifact_harness(
+        sandbox_dir=tmp_path,
+        artifact_id="hidden-large-candidate",
+        harness_code=(
+            "def evaluate_artifact(candidate, seed, replicates):\n"
+            "    return {'ok': len(candidate['raw_text']) == 200000}\n"
+        ),
+        harness_dependencies=(),
+        candidate_artifact=candidate,
+        seed=1,
+        replicates=1,
+        timeout_s=10,
+    )
+
+    assert result["metrics"] == {"ok": True}
+    assert len(str(captured["code"])) < 100_000
+    assert "x" * 1_000 not in str(captured["code"])
+    input_artifacts = captured["input_artifacts"]
+    assert len(input_artifacts) == 1
+    assert input_artifacts[0].artifact_id == "candidate-artifact.json"
+    assert json.loads(input_artifacts[0].content) == candidate
+    assert input_artifacts[0].content_sha256 == hashlib.sha256(
+        input_artifacts[0].content.encode("utf-8")
+    ).hexdigest()
 
 
 @pytest.mark.parametrize(
