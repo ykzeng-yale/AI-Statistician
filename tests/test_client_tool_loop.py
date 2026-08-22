@@ -155,6 +155,7 @@ def test_bounded_client_tool_loop_returns_terminal_runtime_payload() -> None:
     assert first_observation["_client_tool_budget"] == {
         "standard_turns_remaining_after_current_turn": 2,
         "model_tool_calls_remaining_after_current_call": 4,
+        "terminal_disposition_calls_remaining_after_current_call": 1,
         "final_disposition_required": False,
     }
     assert result.history[0]["tool_calls"][0]["name"] == "edit"
@@ -252,11 +253,14 @@ def test_bounded_client_tool_loop_keeps_one_linear_model_tool_history() -> None:
     assert "'value': 2" in final_context
 
 
-def test_bounded_client_tool_loop_stops_repeated_no_tool_turns() -> None:
+def test_bounded_client_tool_loop_forces_disposition_after_no_tool_turns() -> None:
     response = _response(text="I will describe the change instead.")
-    backend = ScriptedToolTurnBackend([response, response, response])
+    backend = ScriptedToolTurnBackend([response, response, response, response])
 
-    with pytest.raises(ClientToolLoopError, match="without a client tool") as exc:
+    with pytest.raises(
+        ClientToolLoopError,
+        match="terminal client-tool turn omitted its decision",
+    ) as exc:
         run_bounded_client_tool_loop(
             backend=backend,
             request=_request(),
@@ -267,7 +271,7 @@ def test_bounded_client_tool_loop_stops_repeated_no_tool_turns() -> None:
         )
 
     assert exc.value.tool_calls == 0
-    assert exc.value.turns == 3
+    assert exc.value.turns == 4
     assert exc.value.messages
     assert exc.value.provider == "anthropic"
     assert exc.value.model == "claude-haiku-4-5-20251001"
@@ -280,7 +284,8 @@ def test_bounded_client_tool_loop_does_not_accept_early_terminal_call() -> None:
             _response(
                 ClientToolCall("call-submit", "submit", {}),
                 ClientToolCall("call-edit", "edit", {}),
-            )
+            ),
+            _response(ClientToolCall("call-submit-final", "submit", {})),
         ]
     )
 
@@ -299,24 +304,24 @@ def test_bounded_client_tool_loop_does_not_accept_early_terminal_call() -> None:
             observation_key="edit-after-submit",
         )
 
-    with pytest.raises(ClientToolLoopError, match="turn budget exhausted"):
-        run_bounded_client_tool_loop(
-            backend=backend,
-            request=replace(
-                _request(),
-                tools=(_tool("edit"), _tool("submit", terminal=True)),
-            ),
-            execute_tool=execute,
-            max_turns=1,
-            max_tool_calls=3,
-            max_no_progress_turns=1,
-        )
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=replace(
+            _request(),
+            tools=(_tool("edit"), _tool("submit", terminal=True)),
+        ),
+        execute_tool=execute,
+        max_turns=1,
+        max_tool_calls=3,
+        max_no_progress_turns=1,
+    )
 
     first_turn = backend.requests[0]
     assert first_turn.tool_choice == "any"
     assert [tool.name for tool in first_turn.tools] == ["edit", "submit"]
     assert first_turn.disable_parallel_tool_use is False
-    assert executed_tools == ["edit"]
+    assert executed_tools == ["edit", "submit"]
+    assert result.terminal_payload == {"accepted": True}
 
 
 def test_bounded_client_tool_loop_keeps_normal_final_turn_model_directed() -> None:
@@ -360,6 +365,52 @@ def test_bounded_client_tool_loop_keeps_normal_final_turn_model_directed() -> No
     assert backend.requests[1].metadata[
         "client_tool_loop_terminal_only_turn"
     ] is False
+
+
+def test_bounded_client_tool_loop_reserves_terminal_call_after_action_budget() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit", "edit", {"value": 2})),
+            _response(ClientToolCall("call-submit", "submit", {})),
+        ]
+    )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=lambda call, context: ClientToolExecutionResult(
+            content={"ok": True},
+            state_changed=call.name == "edit",
+            terminal=call.name == "submit",
+            terminal_payload=(
+                {"submitted": True} if call.name == "submit" else None
+            ),
+            observation_key=call.name,
+        ),
+        max_turns=3,
+        max_tool_calls=1,
+        max_no_progress_turns=1,
+    )
+
+    assert result.terminal_payload == {"submitted": True}
+    assert result.turns == 2
+    assert result.tool_calls == 2
+    assert result.runtime_executed_tool_calls == 2
+    final_action_observation = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert final_action_observation["_client_tool_budget"] == {
+        "standard_turns_remaining_after_current_turn": 2,
+        "model_tool_calls_remaining_after_current_call": 0,
+        "terminal_disposition_calls_remaining_after_current_call": 1,
+        "final_disposition_required": True,
+    }
+    assert backend.requests[1].metadata[
+        "client_tool_loop_terminal_decision_turn"
+    ] is True
+    assert backend.requests[1].metadata[
+        "client_tool_loop_terminal_decision_reason"
+    ] == "standard client-tool call budget exhausted"
 
 
 def test_bounded_client_tool_loop_allows_one_rejected_terminal_recovery() -> None:
@@ -640,27 +691,39 @@ def test_standard_submission_does_not_consume_forced_terminal_recovery() -> None
 
 def test_bounded_client_tool_loop_never_executes_unknown_tool() -> None:
     backend = ScriptedToolTurnBackend(
-        [_response(ClientToolCall("call-unknown", "shell", {"cmd": "rm -rf /"}))]
+        [
+            _response(
+                ClientToolCall("call-unknown", "shell", {"cmd": "rm -rf /"})
+            ),
+            _response(ClientToolCall("call-submit", "submit", {})),
+        ]
     )
     executions = 0
 
     def execute(call, context):
         nonlocal executions
         executions += 1
-        return ClientToolExecutionResult(content={"ok": True})
-
-    with pytest.raises(ClientToolLoopError, match="turn budget exhausted") as exc:
-        run_bounded_client_tool_loop(
-            backend=backend,
-            request=_request(),
-            execute_tool=execute,
-            max_turns=1,
-            max_tool_calls=2,
-            max_no_progress_turns=1,
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            terminal=call.name == "submit",
+            terminal_payload=(
+                {"submitted": True} if call.name == "submit" else None
+            ),
         )
 
-    assert executions == 0
-    assert exc.value.runtime_executed_tool_calls == 0
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute,
+        max_turns=1,
+        max_tool_calls=2,
+        max_no_progress_turns=1,
+    )
+
+    assert executions == 1
+    assert result.runtime_executed_tool_calls == 1
+    assert result.terminal_payload == {"submitted": True}
+    assert result.history[0]["tool_calls"][0]["executed_by_runtime"] is False
 
 
 def test_bounded_client_tool_loop_returns_only_declared_input_errors_to_model() -> None:
@@ -668,6 +731,7 @@ def test_bounded_client_tool_loop_returns_only_declared_input_errors_to_model() 
         [
             _response(ClientToolCall("call-safe", "edit", {})),
             _response(text="stop"),
+            _response(ClientToolCall("call-submit", "submit", {})),
         ]
     )
 

@@ -877,7 +877,9 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
             {"problem_card": {"claim": "still invalid"}}
         ),
     )
-    backend = ScriptedTheoryWorkspaceBackend([_response(rejected_call)])
+    backend = ScriptedTheoryWorkspaceBackend(
+        [_response(rejected_call), _response()]
+    )
 
     with pytest.raises(PacketValidationError) as exc_info:
         _run_workspace(
@@ -902,7 +904,10 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     assert checkpoint["model_owned_theory"] is True
     assert checkpoint["runtime_edited_theory"] is False
     assert checkpoint["kernel_verified"] is False
-    assert len(backend.requests) == 1
+    assert len(backend.requests) == 2
+    assert backend.requests[-1].metadata[
+        "client_tool_loop_terminal_decision_turn"
+    ] is True
 
 
 def test_model_can_stop_with_an_explicit_unresolved_theory_gap() -> None:
@@ -1633,8 +1638,9 @@ def test_theory_workspace_reserves_terminal_call_after_last_valid_write() -> Non
     assert valid_write_feedback["checkpoint_commit_ready"] is True
     assert valid_write_feedback["_client_tool_budget"] == {
         "standard_turns_remaining_after_current_turn": 1,
-        "model_tool_calls_remaining_after_current_call": 1,
-        "final_disposition_required": False,
+        "model_tool_calls_remaining_after_current_call": 0,
+        "terminal_disposition_calls_remaining_after_current_call": 1,
+        "final_disposition_required": True,
     }
     assert result.evidence["checkpoint_committed"] is True
     assert result.evidence["turns"] == 3

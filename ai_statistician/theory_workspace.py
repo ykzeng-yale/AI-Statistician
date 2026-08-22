@@ -1919,8 +1919,8 @@ def run_theory_artifact_workspace(
             "kernel_verified": False,
         }
 
-    # Reserve one control-plane terminal disposition after the research-action budget.
-    max_tool_calls = 1 + max(
+    # The shared loop reserves terminal disposition outside this action budget.
+    max_tool_calls = max(
         max_turns,
         max_reads
         + max_submissions

@@ -692,7 +692,8 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint() -> None:
                     name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
                     input=first_revision,
                 )
-            )
+            ),
+            _response(),
         ]
     )
 
