@@ -577,3 +577,24 @@ the evidence boundary held. It does not establish autonomous Lean proving. Post-
 changes to formal-intent propagation, axiom-audit-aware proof-state observations,
 and model-selected active-project declaration inspection are future-task mechanism
 evidence only; this task will not be rerun, resumed, repaired, or rescored.
+
+The twenty-seventh consumed task, Uniform endpoint L0 v1, is the clearest current
+test of the nonformal research graph. One exact-Haiku draw completed serious
+Markdown/LaTeX Theory, isolated artifact review with scratch execution, generated
+estimator execution, independent source review, frozen metric review, generated
+Simulation execution, independent Simulation review, and terminal Critic. Visible
+research evaluation was 1/1 complete and mode-conformant; Formalizer was correctly
+not applicable. Hidden gold remained 0/1: mechanical theory passed 7/7 but calibrated
+semantic theory failed, the estimator passed six of eight source checks but accepted
+an invalid request through permissive NumPy coercion, and empirical evaluation passed
+8/8 over 15,000 calls.
+
+This result changes benchmark diagnosis, not the score. The outer graph is now strong
+enough to expose scientific-judgment failures instead of routinely stopping on
+routing or packet transport. Future disjoint L0 selections should therefore keep one
+principal theorem, one explicit executable ABI, and one confirmatory target, while
+gold reports retain privacy-preserving per-claim and per-check references. The next
+draw must measure whether the same model-owned Theory/referee and source/reviewer
+sessions catch decisive mathematics and complete public-interface behavior; it must
+not add task formulas, deterministic scientific validators, hidden feedback, retries,
+or another scheduler. The immutable ladder remains 0/27.

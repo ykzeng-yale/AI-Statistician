@@ -1035,7 +1035,7 @@ def test_scalar_control_variate_l0_frozen_draw_is_consumed_and_closed() -> None:
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
@@ -1116,7 +1116,7 @@ def test_pearson_multinomial_gof_l0_frozen_draw_is_consumed_and_closed() -> None
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
@@ -1209,7 +1209,7 @@ def test_exponential_rate_mle_l0_authority_is_consumed_after_one_draw() -> None:
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
     assert ladder["current_readiness"]["active_scored_tasks"] == 27
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
@@ -1281,7 +1281,7 @@ def test_its_time_l1_draw_is_consumed_without_posthoc_rescore() -> None:
     assert "never rerun" in evidence["post_run_policy"].lower()
     assert evidence["full_task_passed"] is False
     assert ladder["current_readiness"]["active_scored_tasks"] == 27
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
@@ -1381,7 +1381,7 @@ def test_statlib_formal_l0_draw_is_consumed_without_proof_credit() -> None:
     assert "tendsto_of_tendsto" not in contract["lean_source_prefix"]
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert ladder["current_readiness"]["active_scored_tasks"] == 27
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 27
 
 
@@ -1449,7 +1449,7 @@ def test_score_information_l0_draw_is_consumed_without_review_credit() -> None:
         "214 focused tests and 860/860 full-suite tests passed"
     )
     assert evidence["formalization_requirement"] == "not_applicable"
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -1542,7 +1542,7 @@ def test_basu_theory_l0_draw_is_consumed_after_missing_routed_review() -> None:
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
     assert ladder["current_readiness"]["active_scored_tasks"] == 27
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
@@ -1576,7 +1576,7 @@ def test_basu_theory_l0_draw_is_consumed_after_missing_routed_review() -> None:
         assert hidden_name not in runtime_visible
 
 
-def test_uniform_endpoint_l0_authority_is_frozen_before_first_product_draw() -> None:
+def test_uniform_endpoint_l0_draw_is_consumed_after_hidden_gold_failure() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -1589,7 +1589,7 @@ def test_uniform_endpoint_l0_authority_is_frozen_before_first_product_draw() -> 
     assert candidate["family"] == "nonregular_endpoint_inference"
     assert candidate["status"] == "active_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_before_first_runtime_model_call"
+        "fresh_live_v1_hidden_gold_failed_theory_semantics_and_executable_interface"
     )
     assert candidate["gold_runtime_visibility"] == "evaluator_only_after_runtime"
     assert candidate["gold_manifest_sha256"] == (
@@ -1600,15 +1600,38 @@ def test_uniform_endpoint_l0_authority_is_frozen_before_first_product_draw() -> 
     )
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["product_model_calls"] == 0
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["product_model_calls"] == 24
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
-    assert evidence["model_draw_resampling_blocked"] is False
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["runtime_iterations"] == 10
+    assert evidence["visible_research_evaluation"] == (
+        "1/1_complete_mode_conformant_ready"
+    )
+    assert evidence["hidden_gold_evaluation"] == "0/1_failed"
+    assert evidence["hidden_theory_mechanical_checks"] == "7/7"
+    assert evidence["hidden_theory_semantic_calibration"] == "12/12"
+    assert evidence["hidden_theory_semantic_candidate_status"] == "FAIL"
+    assert evidence["hidden_algorithm_acceptance_checks"] == "6/8"
+    assert evidence["hidden_algorithm_failure"] == "invalid_requests_rejected"
+    assert evidence["hidden_empirical_checks"] == "8/8"
+    assert evidence["hidden_empirical_estimator_invocations"] == 15000
+    assert evidence["runtime_manifest_sha256"] == (
+        "01085f72d445675faaea88cce6de93fa84f1359e9c65f38e42293305a14ac2b8"
+    )
+    assert evidence["hidden_gold_report_sha256"] == (
+        "30a0b5e1fa2fc27d9bb72283ac967e66a225a6b856ce16d785390ceb7e8bc396"
+    )
+    assert evidence["operator_audit_path"] == (
+        "docs/operator_audits/uniform_endpoint_l0_v1.md"
+    )
+    assert evidence["post_run_shared_mechanism_fix_commit"] == "b49a8f5a"
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
     assert ladder["current_readiness"]["active_scored_tasks"] == 27
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
@@ -1711,7 +1734,7 @@ def test_trimmed_match_l1_draw_is_consumed_without_posthoc_rescore() -> None:
     assert evidence["rerun_resume_repair_or_rescore_performed"] is False
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 26
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 27
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])

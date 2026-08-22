@@ -1204,3 +1204,45 @@ The full repository passed `863/863` in 72.26 seconds, compile-all and diff chec
 passed, and architecture budgets remain below 25,000 runtime lines, 150,000 package
 lines, and 400 production-design lines. No product model call, benchmark draw,
 rerun, rescore, scientific rule, proof, or capability credit occurred.
+
+### Complete graph, incomplete scientific judgment
+
+The twenty-seventh disjoint draw is the first clean live separation between the
+Codex-shaped collaboration harness and scientific correctness. Uniform endpoint
+v1 completed Architect planning, an eight-turn TheoryDeveloper Markdown/LaTeX
+session, a five-turn isolated referee session with two scratch checks, Algorithm
+source execution, independent source review, frozen metric review, one exploratory
+Simulation source session, independent Simulation review, and terminal Critic.
+AgentRuntime ended `ACCEPTED`; visible `research_eval` was complete and
+mode-conformant. Formalizer correctly did not run because formal evidence was not
+applicable.
+
+Hidden gold nevertheless returned `0/1`. Mechanical theory checks passed `7/7`,
+but the calibrated semantic judge returned `FAIL`. The scientific harness passed
+formula, schema, output, permutation, and rescaling checks but rejected the public
+invalid-request behavior: the exact source converted sample elements to NumPy
+floats before type validation. Hidden empirical evaluation passed `8/8` over
+15,000 estimator invocations. Runtime review had false-accepted both artifacts.
+
+This is the desired evidence boundary working: a healthy trajectory and passing
+empirical component cannot masquerade as a correct full task. It also locates the
+next problem inside existing model-owned sessions rather than in a missing router,
+fallback, or repair worker. AlgorithmEngineer must exercise the complete visible
+ABI before commit, and the isolated source reviewer must compare actual language
+behavior with every public entrypoint, field, type, domain, shape, edge case, and
+rejection clause.
+
+Commit `b49a8f5a` implements exactly that shared correction. It adds one
+`executable_interface_alignment` dimension to the existing reviewer, strengthens
+the existing Algorithm source-owner prompt, and records privacy-preserving
+claim/check hashes plus statuses in evaluator-only reports. It adds no source edit,
+deterministic type grammar, retry, agent, scheduler, model call, statistical rule,
+or hidden feedback. The consumed candidate remains `0/1`; the ladder remains
+`0/27`.
+
+The focused regression passed `147/147`, the complete repository passed `865/865`
+in 68.54 seconds, and production Python remains below the unchanged architecture
+budget at 149,998 lines. This reinforces the official Codex reuse decision: keep
+the provider-neutral same-model tool loop and artifact/session lifecycle, but do
+not embed Codex app-server, Responses transport, thread manager, or a second
+scheduler around Claude specialists.
