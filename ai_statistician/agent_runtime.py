@@ -517,6 +517,49 @@ class ToolCallRecord:
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
+PERSISTED_TOOL_CALL_SUMMARY_CHAR_LIMIT = 16_000
+_PERSISTED_TOOL_CALL_TRUNCATION_MARKER = (
+    "\n...[persisted trace summary truncated; exact value is hash-bound]...\n"
+)
+
+
+def persisted_tool_call_projection(call: ToolCallRecord) -> dict[str, Any]:
+    """Bound duplicate trace text while preserving exact identity and locations."""
+
+    row = asdict(call)
+    has_external_output = bool(call.output_paths and call.output_hash)
+    for field_name in ("stdout_summary", "stderr_summary"):
+        exact = str(row.get(field_name, "") or "")
+        truncated = bool(
+            has_external_output
+            and len(exact) > PERSISTED_TOOL_CALL_SUMMARY_CHAR_LIMIT
+        )
+        if truncated:
+            available = max(
+                0,
+                PERSISTED_TOOL_CALL_SUMMARY_CHAR_LIMIT
+                - len(_PERSISTED_TOOL_CALL_TRUNCATION_MARKER),
+            )
+            head = available // 2
+            tail = available - head
+            exact_tail = exact[-tail:] if tail else ""
+            row[field_name] = (
+                exact[:head]
+                + _PERSISTED_TOOL_CALL_TRUNCATION_MARKER
+                + exact_tail
+            )
+        row[f"{field_name}_hash"] = stable_hash(exact)
+        row[f"{field_name}_characters"] = len(exact)
+        row[f"{field_name}_bytes"] = len(exact.encode("utf-8"))
+        row[f"{field_name}_truncated"] = truncated
+    row["summary_payload_policy"] = (
+        "bounded_trace_projection"
+        if has_external_output
+        else "inline_exact_without_external_output"
+    )
+    return row
+
+
 @dataclass(frozen=True)
 class EnvironmentObservation:
     observation_type: str
@@ -629,7 +672,12 @@ class RuntimeIterationTrace:
             else agent_task_reference(self.next_task)
         )
         row["observations"] = [asdict(obs) for obs in self.observations]
-        row["tool_calls"] = [asdict(call) for call in self.tool_calls]
+        row["tool_calls"] = [
+            asdict(call)
+            if include_task_payloads
+            else persisted_tool_call_projection(call)
+            for call in self.tool_calls
+        ]
         return row
 
 

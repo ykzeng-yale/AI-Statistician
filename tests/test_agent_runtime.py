@@ -488,6 +488,79 @@ def test_agent_runtime_dispatches_subsystems_and_records_observations() -> None:
     assert "inputs" not in next_task_ref
 
 
+def test_compact_runtime_trace_bounds_duplicate_tool_output() -> None:
+    exact_stdout = "stdout-head\n" + ("x" * 100_000) + "\nstdout-tail"
+    unbound_stderr = "stderr-head\n" + ("y" * 100_000) + "\nstderr-tail"
+
+    class LargeOutputSubsystem:
+        name = "LargeOutputSubsystem"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            return AgentStepResult(
+                status="ACCEPTED",
+                rationale="large exact output is stored by the execution artifact",
+                tool_calls=(
+                    ToolCallRecord(
+                        tool_name="python.generated_algorithm_sandbox",
+                        output_paths=("sandbox/exact-result.json",),
+                        output_hash="exact-result-hash",
+                        exit_status="0",
+                        stdout_summary=exact_stdout,
+                        safety_boundary="execution evidence, not proof",
+                    ),
+                    ToolCallRecord(
+                        tool_name="remote.provider_without_output_artifact",
+                        exit_status="failed",
+                        stderr_summary=unbound_stderr,
+                        safety_boundary="unique raw failure observation",
+                    ),
+                ),
+            )
+
+    runtime = AgentRuntime(
+        subsystems={"LargeOutputSubsystem": LargeOutputSubsystem()},
+        blackboard=BlackboardState(project_id="large-tool-output"),
+    )
+    result = runtime.run(
+        AgentTask(
+            task_id="large-output:q1",
+            owner_subsystem="LargeOutputSubsystem",
+            objective="record one exact execution",
+        )
+    )
+
+    full_call = result.to_json(include_task_payloads=True)["traces"][0][
+        "tool_calls"
+    ][0]
+    compact_call = result.to_json()["traces"][0]["tool_calls"][0]
+    unbound_call = result.to_json()["traces"][0]["tool_calls"][1]
+
+    assert full_call["stdout_summary"] == exact_stdout
+    assert "stdout_summary_hash" not in full_call
+    assert len(compact_call["stdout_summary"]) <= 16_000
+    assert compact_call["stdout_summary"].startswith("stdout-head")
+    assert compact_call["stdout_summary"].endswith("stdout-tail")
+    assert compact_call["stdout_summary_hash"] == stable_hash(exact_stdout)
+    assert compact_call["stdout_summary_characters"] == len(exact_stdout)
+    assert compact_call["stdout_summary_bytes"] == len(
+        exact_stdout.encode("utf-8")
+    )
+    assert compact_call["stdout_summary_truncated"] is True
+    assert compact_call["stderr_summary_truncated"] is False
+    assert compact_call["summary_payload_policy"] == "bounded_trace_projection"
+    assert compact_call["output_paths"] == ("sandbox/exact-result.json",)
+    assert compact_call["output_hash"] == "exact-result-hash"
+    assert unbound_call["stderr_summary"] == unbound_stderr
+    assert unbound_call["stderr_summary_truncated"] is False
+    assert unbound_call["summary_payload_policy"] == (
+        "inline_exact_without_external_output"
+    )
+
+
 def test_agent_runtime_checkpoints_exact_pending_task_at_budget_boundary() -> None:
     runtime = AgentRuntime(
         subsystems={"TheoryDeveloper": TheorySubsystem()},

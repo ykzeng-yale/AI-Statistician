@@ -20347,8 +20347,8 @@ def run_research_agent_runtime(
                     }
                 )
             raw_tool_calls = (
-                trace.get("tool_calls", [])
-                if isinstance(trace.get("tool_calls", []), list)
+                persisted_trace.get("tool_calls", [])
+                if isinstance(persisted_trace.get("tool_calls", []), list)
                 else []
             )
             for tool_call_index, tool_call in enumerate(raw_tool_calls):
@@ -20536,7 +20536,7 @@ def run_research_agent_runtime(
         "runtime_endpoint": "typed_agent_runtime",
         "runtime_formal_capability_source": "integrated_agent_runtime_only",
         "runtime_evaluation_mode": config.evaluation_mode,
-        "runtime_trace_task_payload_policy": "content_addressed_refs",
+        "runtime_trace_task_payload_policy": "content_addressed_refs_and_bounded_tool_summaries",
         "runtime_blackboard_artifact_payload_policy": "content_addressed_refs",
         "runtime_evaluation_claude_model_tier": (
             config.evaluation_claude_model_tier
