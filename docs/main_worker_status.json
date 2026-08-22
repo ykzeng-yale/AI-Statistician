@@ -1,13 +1,13 @@
 {
-  "schema_version": 139,
+  "schema_version": 140,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "8ef61b0b9625bf99e4f783dad7781b4c1bfdba77",
+  "validated_code_head": "6598ed348152999c317b83b9b2d48d1582231321",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve the consumed Basu-theorem draw at immutable 0/1 and treat commit 8ef61b0b as future-task mechanism evidence only. Continue toward a live AI Statistical Theory Lab by improving model-owned long-horizon theory and isolated referee judgment inside stable Codex-shaped workspaces, while adding no mathematical rules, reviewer, repair agent, scheduler, model retry, or mandatory Formalizer work. The capability ladder is 0/26.",
+  "current_goal_focus": "Preserve all twenty-six consumed tasks and treat commits 8ef61b0b and 6598ed34 as future-task mechanism evidence only. The next disjoint frozen evaluation must measure model-owned long-horizon theory, isolated referee judgment, and any task-selected downstream workspace without routine Architect resampling, mathematical rules, a reviewer, repair agent, scheduler, model retry, or mandatory Formalizer work. The capability ladder is 0/26.",
   "latest_its_time_source_execution_calibration": {
     "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
@@ -233,8 +233,11 @@
     ]
   },
   "validated_change": {
-    "commit": "8ef61b0b9625bf99e4f783dad7781b4c1bfdba77",
+    "commit": "6598ed348152999c317b83b9b2d48d1582231321",
     "changes": [
+      "Commit 6598ed34 removes the routine post-Theory Architect model call when independent theory acceptance is not required. AgentRuntime compiles the original validated Architect plan directly into the next applicable workspace; required-theory preflight and theory-revision dependency rebuild paths remain unchanged.",
+      "The integrated optional-Theory/required-code regression preserves the exact theory artifact, n_runs, seed, task intent, and original plan while routing directly to AlgorithmEngineer with no runtime_architect_operation. Runtime chooses no scientific content and adds no agent, scheduler, retry, repair action, or task-family rule.",
+      "The focused collaboration panel passed 135/135 and the complete repository passed 862/862 in 72.47 seconds. Compile-all and diff checks passed. Product runtime changed by one net line and remains below 25,000 lines; no model call or consumed-task score changed.",
       "The single Basu-theorem draw is consumed and immutable at 0/1. TheoryDeveloper completed eleven same-session exact-Haiku model/tool turns and committed a 304-line Markdown/LaTeX checkpoint, but a nonempty Architect plan omitted the runtime-owned independent-review field and shadowed the complete requested contract. The existing isolated referee never ran; terminal Critic correctly blocked before its model call, and hidden theory evaluation did not execute.",
       "Commit 8ef61b0b preserves independent_theory_review_required in canonical Architect contract projection and checks explicit theory-required task intent again at TheoryDeveloper's exit. The exact nonempty-plan shadowing shape now routes to the existing isolated preflight. No scientific content, reviewer, retry, repair action, scheduler, model turn, or Formalizer requirement was added.",
       "The focused Architect, TheoryDeveloper, and research-evaluation panel passed 123/123; the complete repository passed 861/861 in 72.84 seconds. Compile-all and diff checks passed. Basu remains 0/1, the ladder remains 0/26, and no consumed task was rerun, resumed, repaired, or rescored.",
@@ -522,9 +525,9 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model independently chooses every claim, dependency, research-source query, source handle, exact read, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, confirmatory replicate count, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, median-of-means, AR(1), Fisher-z, paired-ratio, and scalar-control-variate expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, automatic literature query or source selection, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback. Terminal disposition is generic control-plane capacity and cannot execute an extra research action; dependency and trace projections preserve identity, hashes, ABI, exact-output locations, and unique unreferenced observations without selecting or rewriting scientific content.",
     "verification": {
-      "full_pytest": "861 passed in 72.84s",
+      "full_pytest": "862 passed in 72.47s",
       "next_frozen_activation": "none currently authorized; the score-information task is permanently consumed, so any future product draw requires a newly frozen disjoint task and evaluator authority",
-      "affected_subsystem_pytest": "Architect, TheoryDeveloper, and research-evaluation regressions passed 123/123; the complete repository passed 861/861 overall",
+      "affected_subsystem_pytest": "Theory, Architect, research-evaluation, and fresh-start collaboration regressions passed 135/135; the complete repository passed 862/862 overall",
       "independent_theory_review_authority": "Commit 9fbbeaba requires an exact isolated review acceptance before terminal Critic whenever theory is required. Theory-only tasks create no metric gate, and bypass attempts block before the Critic model call.",
       "theory_workspace_action_budget": "Commit 9cf75411 replaces class-specific read/write quotas with one shared ordinary-tool budget selected by the TheoryDeveloper model. Turn/action bounds, no-progress termination, execution safety caps, and the separately reserved terminal disposition remain enforced; no model call or frozen-task activation occurred.",
       "simulation_dependency_prompt_projection": "immutable live replay reduced 6,812,024 bytes of recursive environment feedback to a 45,314-byte complete planning prompt; accepted estimator ABI plus source/result hashes remained visible, while source bytes and 4,000 historical smoke-result rows were absent",
@@ -550,7 +553,8 @@
       "theory_referee_workspace_continuation": "a two-segment independent review restores the exact prior Markdown read, task-bound source handle, document coverage, and terminal-validator observation; AgentRuntime uses one blackboard reference, calls the referee twice, calls Architect planning zero times, preserves cumulative source budgets, and blocks tamper or no-progress lineage before a provider call",
       "theory_referee_report_workspace": "the same isolated model writes, reads, hash-edits, and submits one Markdown report by SHA; terminal JSON contains no report body, checkpoints retain only a validated draft manifest, stale hashes return as actionable observations, and disk tampering fails before a provider call",
       "algorithm_source_workspace_planning": "fresh native-tool Algorithm tasks make zero structured proposal calls and one source-owner workspace call; accepted source bytes are rehash-checked and projected by identity for independent review, while an incomplete first segment resumes by source-workspace intent before any proposal exists",
-      "runtime_core_growth": "research_agent_runtime.py is 24947 lines and remains below the unchanged strict-under-25000-line regression budget. Commit 8ef61b0b adds only a task-intent authority backstop in the existing TheoryDeveloper exit path; no outer interface or scheduler was added."
+      "compiled_post_theory_transition": "Optional Theory plus required scientific code now routes the exact newly produced theory identity, original Architect plan, n_runs, and seed directly to AlgorithmEngineer with no second Architect model operation. Required-theory preflight and dependency rebuild routes remain unchanged.",
+      "runtime_core_growth": "research_agent_runtime.py is 24948 lines and remains below the unchanged strict-under-25000-line regression budget. Commit 6598ed34 replaces the routine post-Theory Architect task with direct compilation of the existing model-authored plan; product runtime changed by one net line and no outer interface or scheduler was added."
     },
     "evidence_boundary": "The Basu v1 draw remains immutable 0/1: a model-authored Markdown theory checkpoint without exact isolated-review acceptance is not accepted theory evidence. Post-run authority-projection corrections are deterministic future-task mechanism evidence only. All twenty-six scored tasks remain 0/26 full-task passes, no new draw is authorized, and exact development theorem closure remains 0/2."
   },

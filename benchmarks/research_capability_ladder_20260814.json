@@ -2213,7 +2213,8 @@
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
-    "latest_diagnostic": "All twenty-six scored tasks are consumed and immutable at 0/26 full-task passes. The Basu task produced a durable Markdown theory checkpoint, but its nonempty Architect plan omitted the runtime-owned independent-review flag; TheoryDeveloper skipped the isolated referee and terminal Critic correctly blocked before its model call. Hidden theory evaluation did not execute.",
-    "next_step": "Preserve Basu v1 at 0/1. Fix the shared task-intent projection and TheoryDeveloper exit backstop, verify the exact integrated route with deterministic tests, and do not authorize another product draw until that future-task mechanism is committed and pushed."
+    "latest_shared_mechanism_head": "6598ed348152999c317b83b9b2d48d1582231321",
+    "latest_diagnostic": "All twenty-six scored tasks are consumed and immutable at 0/26 full-task passes. Commits 8ef61b0b and 6598ed34 preserve required isolated review and remove the routine post-Theory Architect resampling call. These are deterministic future-task mechanism results; no consumed score changed and no mathematical capability success has been established.",
+    "next_step": "Preserve every consumed task. Before any new product draw, freeze and push one disjoint known-result authority that can distinguish Theory authoring, isolated review, and any selected downstream workspace. Use the unchanged exact-Haiku policy and permit no rerun, repair, resume, or rescore."
   }
 }

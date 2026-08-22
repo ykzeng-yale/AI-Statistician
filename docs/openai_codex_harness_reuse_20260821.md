@@ -1116,3 +1116,29 @@ app-server, Responses transport, provider, thread manager, or subagents. The
 focused suite passed `123/123`; the full repository passed `861/861` in 72.84
 seconds. The correction is future-task mechanism evidence only, and the immutable
 ladder remains `0/26`.
+
+### Compiled post-Theory collaboration edge
+
+Code commit `6598ed348152999c317b83b9b2d48d1582231321` removes one
+remaining routine outer-model hop. On a task where Theory is supporting rather
+than required final evidence, TheoryDeveloper previously committed its artifact
+and then created an `architect-after-theory` task asking Architect to choose again.
+The original validated Architect packet already contained the research path and
+applicable evidence dimensions, so this second sampling call added cost and could
+contradict the plan without adding new scientific evidence.
+
+AgentRuntime now compiles that existing model-authored plan directly into the next
+workspace. The transition uses current task intent, the plan's ordered workspaces,
+the newly produced theory identity, and its model-authored estimator interfaces.
+It does not inspect mathematical prose or select a statistical method. Required
+theory still routes through the isolated referee; a theory revision that invalidates
+descendants still follows the existing dependency-rebuild path; genuine
+independently established cross-workspace conflicts may still reach Architect.
+
+The exact regression uses optional Theory plus required scientific code and proves
+that the next task is AlgorithmEngineer with the same `n_runs`, seed, theory ID,
+and original Architect plan, with no `runtime_architect_operation`. The focused
+collaboration panel passed `135/135`; the complete repository passed `862/862` in
+72.47 seconds. Product runtime changed by one net line and remains below its
+25,000-line guard. No model call, task rerun, reviewer, repair action, scheduler,
+scientific rule, or capability credit was added; the ladder remains `0/26`.

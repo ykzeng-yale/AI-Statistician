@@ -135,6 +135,13 @@ continues, reports a gap, or calls `commit_theory_checkpoint`. The harness still
 total action and turn bounds, no-progress termination, execution safety caps, and the
 reserved terminal disposition. A commit proposes independent review; it is not evidence.
 
+When selected task intent does not require independent theory acceptance, completion
+of the supporting Theory workspace does not trigger another Architect model call.
+AgentRuntime compiles the already validated, model-authored Architect plan into the
+next applicable Python/R, Simulation, Lean, or Critic workspace. Required-theory
+review and cross-workspace conflicts still use their existing authority paths; the
+runtime does not invent a new research decision.
+
 When prior work is permitted, the same TheoryDeveloper session can inspect a frozen
 snapshot or model-selected public paper/repository text without a LiteratureAgent.
 An independent referee gets a separate opaque-handle session and chooses its own
