@@ -4,7 +4,7 @@
 
 - Repository: `https://github.com/openai/codex`
 - Audited branch: `main`
-- Audited commit: `970b7f2ff4f612b8e8cd340eb6b6d789d7141dd2`
+- Audited commit: `4f39251a010a8bd7d692d25fb33832ff06f1635a`
 - License: Apache-2.0
 - Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex-970b7f2f`
 - License SHA-256: `d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc`
@@ -31,6 +31,16 @@ granular sandbox approval, Guardian classification logging, and preservation of
 strict MCP review outcomes. Every core turn-loop, tool-dispatch, multi-agent,
 app-server, provider, Guardian-evidence, thread-manager, and executor-hook file
 listed below remains byte-identical.
+
+The incremental recheck from `970b7f2f` to `4f39251` contains one commit for
+safe suspension of an unfinished root turn before another runtime recovers the
+same turn ID. It flushes history before cancellation, refuses suspension while
+a loaded descendant remains live, closes the old history writer before
+announcing shutdown, and deliberately records neither completion nor abort.
+All previously audited turn-loop, tool-dispatch, multi-agent, app-server,
+provider, review-evidence, thread-manager, executor-hook, and MCP files remain
+byte-identical. This is a distributed-ownership mechanism, not a new model
+workflow or scientific scheduler.
 
 The new strict-review change preserves canonical denial, timeout, and abort
 outcomes instead of flattening them into a generic decline. That reinforces an
@@ -76,6 +86,7 @@ Primary inspected files and their SHA-256 identities:
 | `codex-rs/core/src/thread_manager.rs` | fresh parent-linked internal sessions | `3bbbd6f2c68cacc1f652e57493ac15a560b2d7da2f93f797ad492d794f4e8c9d` |
 | `codex-rs/core-plugins/src/executor_hooks.rs` | identity-allowlisted executor cleanup hooks | `fbdc87934d9dae73014f626dd079989986c1b1e8bcc8d068cb6f1d4fc555463a` |
 | `codex-rs/core/src/session/mcp.rs` | canonical strict-review outcome propagation | `65d807c77eb76c9c6f61a27c56ae943d052e50b1966674f721f02e6a42433e44` |
+| `codex-rs/core/src/session/turn_suspension.rs` | flush, descendant guard, writer close, and recoverable unfinished-turn handoff | `6b2b3be42758d1da86a6d56d823b1be886426892e54ae37a43caddb8b74f0a5d` |
 
 ## Best-leverage decision
 
@@ -104,6 +115,47 @@ client for that app-server, not a provider-neutral library containing a small
 agent loop we can import. Because AI-Statistician must use Claude Haiku/Sonnet,
 direct adoption would additionally require replacing the provider or building
 an Anthropic-to-Responses proxy. That is more harness, not better research.
+
+### Unfinished-session handoff decision
+
+The new upstream suspension primitive is correct for a runtime that transfers
+one active turn between workers. AI-Statistician currently has one owning
+process per research run. At its bounded outer edge it already records an exact
+`RuntimeAgentTaskContinuation` without marking the pending scientific task
+accepted, failed, or aborted; Theory, scientific-code, reviewer, and Lean
+workspaces also bind resumable progress to immutable predecessor checkpoints.
+There is therefore no measured concurrent-writer failure for a Codex-style
+suspension service to replace today.
+
+Do not add a lease manager, heartbeat, writer process, or app-server merely to
+imitate the upstream API. If AI-Statistician later permits two workers to take
+ownership of one active run, the adoption gate is concrete: flush authoritative
+artifacts, reject transfer while a child workspace is live, atomically fence the
+old owner, close its writer, and recover the same task and workspace identities
+without a terminal scientific disposition. That mechanism should replace the
+then-measured handoff code behind the existing provider-neutral checkpoint
+boundary; it must not become another research planner.
+
+### Canonical role rematerialization
+
+Codex does not justify separate harness implementations for each scientific
+role. AI-Statistician rematerializes one shared inner loop with different
+workspace tools and evidence visibility:
+
+| Role | Persistent authority | Model-owned loop | Cross-role output |
+| --- | --- | --- | --- |
+| TheoryDeveloper | Markdown/LaTeX claim and derivation files | read, write/edit, source lookup, Python/R scratch, checkpoint or honest gap | document and compact claim/ABI references |
+| AlgorithmEngineer | exact Python/R estimator source | replace source, execute, read raw sandbox result, revise or report a hash-bound dependency defect | independently reviewed source and ABI reference |
+| SimulationEngineer | exact Python/R experiment source plus frozen metric contract | execute against injected reviewed estimator, inspect raw or blinded observations, revise its own source or explicitly return a dependency defect | exploratory or confirmatory evidence artifact |
+| Formalizer | exact Lean source in one pinned project | inspect goal/context, task-bound RAG, edit, compile, and iterate from raw diagnostics | optional formal status or kernel-checked evidence |
+| Independent reviewer | isolated report workspace | inspect immutable author artifacts and permitted sources without inherited author turns | exact findings and disposition, never a repair |
+
+The outer `AgentRuntime` communicates these roles through content-addressed
+references and only arbitrates task intent, visibility, evidence authority, and
+genuine ownership conflicts. Routine compiler, sandbox, retrieval, or review
+feedback stays in the source owner's loop. This is the useful Codex composition:
+one generic coding-agent interaction model, several domain workspaces, and no
+second agent framework around them.
 
 ## Fit with AI-Statistician
 
