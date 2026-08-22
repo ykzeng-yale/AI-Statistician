@@ -536,3 +536,28 @@ preserving the full ABI and hashes. Two pathological regressions and the full 81
 suite passed. No second scheduler, provider, router, repair layer, model call, retry,
 budget increase, task rule, or statistical content was added. The consumed task
 remains `0/1` and was not resumed or rescored.
+
+### Persisted tool-trace implication
+
+The same immutable scalar run exposed a second, narrower artifact-boundary
+violation after model sampling was fixed. Its scientific executor had already
+written exact result artifacts and bound them by output paths and hash, but a
+3,215,807-character stdout value was copied into both the persisted runtime trace
+and the separate tool-call ledger. This did not alter model behavior, but it made
+two audit views carry another roughly 6.6 MB of duplicate payload.
+
+Commit `bd8961ab38c157e25a7fd323a017ecc5b7a9a550` keeps complete tool
+observations in the source-owner runtime and full execution artifacts. Compact
+trace serialization retains bounded head/tail text, exact text hash, character
+and UTF-8 byte counts, truncation status, output paths, and output hash. It may
+bound text only when both external output locations and identity exist; a large
+observation without external authoritative output remains exact inline. The
+separate tool-call ledger now derives from this same compact trace rather than
+copying the full in-memory call again.
+
+An immutable replay reduced the largest scalar tool record from 3,370,158 to
+18,379 bytes and the complete ten-row trace from 3,440,322 to 89,326 bytes, a
+38.51x reduction. The focused panel passed 18 tests and the full suite passed
+816 tests. No prompt, feedback loop, model call, agent, scheduler, provider,
+budget, scientific content, evaluator result, proof status, or frozen score
+changed; the ladder remains `0/19`.

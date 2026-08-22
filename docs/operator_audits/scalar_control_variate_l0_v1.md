@@ -117,3 +117,15 @@ simulation, so empirical component evidence cannot complete the product loop.
 These dimensions remain separate. Runtime preflight acceptance is not hidden
 theory authority, hidden empirical success is not runtime simulation acceptance,
 and none of them is theorem proof. The full task remains immutable at `0/1`.
+
+## Persistence Follow-up
+
+The immutable run also showed that its 3,215,807-character sandbox stdout was
+duplicated into both persisted trace views even though exact execution artifacts,
+output paths, and output hash already existed. Future-task code commit
+`bd8961ab38c157e25a7fd323a017ecc5b7a9a550` now keeps full output in the
+source-owner runtime and authoritative artifacts while persisting a bounded
+head/tail view plus exact text hash and byte counts. Large observations without
+external output identity remain exact inline. Replay reduced the complete trace
+from 3,440,322 to 89,326 bytes without changing this run, its model context, or
+its `0/1` result.
