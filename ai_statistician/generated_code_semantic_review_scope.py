@@ -447,14 +447,10 @@ def generated_code_semantic_review_upstream_dependency_projection(
             "exact_source_hash": str(
                 row.get("exact_source_hash", "") or ""
             ),
-            "exact_result": deepcopy(
-                row.get("exact_smoke_result", {})
-                if isinstance(row.get("exact_smoke_result", {}), Mapping)
-                else {}
-            ),
             "exact_result_hash": str(
                 row.get("exact_smoke_result_hash", "") or ""
             ),
+            "exact_result_included": False,
             "language": str(row.get("language", "") or ""),
             "dependencies": list(row.get("dependencies", []) or []),
             "estimator_interface_contract": deepcopy(
@@ -512,6 +508,22 @@ def generated_code_semantic_review_upstream_dependency_projection(
             "UPSTREAM_GENERATED_DEPENDENCY_NOT_PROOF_EVIDENCE"
         ),
     }
+
+
+def algorithm_handoff_artifacts(
+    exact_artifacts: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Keep reviewed executable code while referring to raw outcomes by hash."""
+
+    return [
+        {
+            str(key): deepcopy(value)
+            for key, value in row.items()
+            if str(key) != "exact_smoke_result"
+        }
+        for row in exact_artifacts
+        if isinstance(row, Mapping)
+    ]
 
 
 def _string_set(value: Any) -> set[str]:

@@ -97,12 +97,12 @@ from .generated_code_semantic_review_replan import (
     record_generated_code_semantic_review_lineage_action,
 )
 from .generated_code_semantic_review_scope import (
+    algorithm_handoff_artifacts,
     generated_code_semantic_review_proposal_projection,
     generated_code_semantic_review_scope_projection,
     generated_code_semantic_review_theory_projection,
     generated_code_semantic_review_upstream_dependency_projection,
 )
-
 from .scientific_sandbox import (
     SCIENTIFIC_WASM_SANDBOX_PROFILE,
     ScientificEstimatorBinding,
@@ -2162,7 +2162,7 @@ def _runtime_exact_algorithm_artifacts(
 def _runtime_materialized_exact_algorithm_artifacts(
     materialization: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
-    """Validate the compact executable projection retained after review."""
+    """Validate exact code and outcomes retained in the review materialization."""
 
     exact_artifacts: list[dict[str, Any]] = []
     for raw_row in materialization.get("exact_algorithm_artifacts", []) or []:
@@ -2194,7 +2194,7 @@ def _runtime_accepted_algorithm_handoff_from_review(
     execution_manifest: Mapping[str, Any],
     review_packet: Mapping[str, Any],
 ) -> dict[str, Any]:
-    exact_artifacts = _runtime_exact_algorithm_artifacts(review_material)
+    exact_artifacts = algorithm_handoff_artifacts(_runtime_exact_algorithm_artifacts(review_material))
     if not exact_artifacts:
         return {}
     payload = {
@@ -2403,7 +2403,7 @@ def _runtime_validated_algorithm_handoff(
         and execution.get("materialization_hash") == stable_hash(materialization)
         and packet.get("overall_verdict") == "ACCEPT"
         and review_input_identity_valid
-        and handoff.get("exact_algorithm_artifacts") == expected_artifacts
+        and handoff.get("exact_algorithm_artifacts") == algorithm_handoff_artifacts(expected_artifacts)
         and expected_artifacts
     ):
         return {}

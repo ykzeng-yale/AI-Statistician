@@ -332,8 +332,15 @@ def build_simulation_engineer_prompt(
     environment_feedback: Mapping[str, Any] | None = None,
     defer_source_authoring: bool = False,
 ) -> str:
+    raw_environment_feedback = environment_feedback or {}
+    upstream_algorithm_handoff = _compact_upstream_algorithm_handoff(
+        raw_environment_feedback.get("upstream_algorithm_handoff", {})
+        or _mapping(raw_environment_feedback.get("architect_context", {})).get(
+            "upstream_algorithm_handoff", {}
+        )
+    )
     compact_environment_feedback = _simulation_environment_observations(
-        environment_feedback or {}
+        raw_environment_feedback
     )
     runtime_execution_contract = _compact_simulation_runtime_execution_contract(
         compact_environment_feedback.get("runtime_execution_contract", {})
@@ -360,9 +367,6 @@ def build_simulation_engineer_prompt(
         else generated_metric_requirement_authority_policy_from_context(
             compact_environment_feedback
         )
-    )
-    upstream_algorithm_handoff = _compact_upstream_algorithm_handoff(
-        compact_environment_feedback.get("upstream_algorithm_handoff", {})
     )
     estimator_bound_execution = bool(upstream_algorithm_handoff)
     payload = {
@@ -666,11 +670,27 @@ def _compact_theory_packet_for_simulation(theory_packet: Mapping[str, Any]) -> d
 def _simulation_environment_observations(
     feedback: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Keep raw observations without runtime-authored fix routing."""
+    """Keep observations while projecting the dependency handoff exactly once."""
 
     if not isinstance(feedback, Mapping):
         return {}
-    return coding_agent_observations_only(feedback)
+
+    def remove_dependency_handoff(value: Any) -> Any:
+        if isinstance(value, Mapping):
+            return {
+                str(key): remove_dependency_handoff(item)
+                for key, item in value.items()
+                if str(key) != "upstream_algorithm_handoff"
+            }
+        if isinstance(value, list):
+            return [remove_dependency_handoff(item) for item in value]
+        if isinstance(value, tuple):
+            return [remove_dependency_handoff(item) for item in value]
+        return value
+
+    cleaned = remove_dependency_handoff(feedback)
+    projected = coding_agent_observations_only(cleaned)
+    return projected if isinstance(projected, dict) else {}
 
 
 def _compact_simulation_runtime_execution_contract(value: Any) -> dict[str, Any]:
@@ -749,14 +769,8 @@ def _compact_upstream_algorithm_handoff(value: Any) -> dict[str, Any]:
             "dependencies": _compact_string_list(
                 row.get("dependencies", []), limit=12, char_limit=80
             ),
-            "exact_source_code": str(row.get("exact_source_code", "") or "")[
-                :12000
-            ],
             "exact_source_hash": _truncate_text(
                 row.get("exact_source_hash", ""), limit=120
-            ),
-            "exact_smoke_result": _compact_mapping(
-                row.get("exact_smoke_result", {}), limit=12
             ),
             "exact_smoke_result_hash": _truncate_text(
                 row.get("exact_smoke_result_hash", ""), limit=120
@@ -800,6 +814,8 @@ def _compact_upstream_algorithm_handoff(value: Any) -> dict[str, Any]:
             value.get("theory_packet_id", ""), limit=180
         ),
         "exact_algorithm_artifacts": artifacts,
+        "exact_source_included": False,
+        "execution_results_included": False,
         "consumption_contract": _truncate_text(
             value.get("consumption_contract", ""), limit=480
         ),
