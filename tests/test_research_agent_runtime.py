@@ -1127,6 +1127,90 @@ def test_runtime_stores_theory_tool_history_as_separate_evidence() -> None:
     ]
 
 
+def test_optional_theory_compiles_existing_plan_without_architect_replan() -> None:
+    question = OpenResearchQuestion(
+        id="optional-theory-direct-plan-transition",
+        title="Optional theory direct plan transition",
+        description="Build an executable estimator from supporting theory.",
+        task_intent={
+            "theory": "optional",
+            "scientific_code": "required",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+    packet_id = "theory_derivation:optional-direct-transition"
+    packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": packet_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_derivation_contract": {},
+        "theory_derivation_packet": {},
+        "estimator_specs": [{"id": "estimator:optional-direct-transition"}],
+        "theorem_cards": [],
+        "formalization_requests": [],
+    }
+
+    class StaticTheoryDeveloper:
+        config = None
+        provider = None
+        research_source_execution = None
+
+        def derive(self, *_args, **_kwargs):
+            return packet
+
+    contract = runtime_module._runtime_requested_evidence_contract(
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+    )
+    result = runtime_module.TheoryDeveloperRuntimeSubsystem(
+        theory_developer=StaticTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=37,
+        seed=19,
+    ).run(
+        AgentTask(
+            task_id="theory:optional-direct-transition",
+            owner_subsystem="TheoryDeveloper",
+            objective="Author supporting theory and an estimator interface.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {
+                    "architect_coordinator_proposal_id": "architect:optional-direct",
+                    "architect_runtime_plan": {
+                        "packet_id": "architect:optional-direct",
+                        "evidence_contract": contract,
+                        "subsystem_execution_plan": [
+                            {"subsystem": "TheoryDeveloper"},
+                            {"subsystem": "AlgorithmEngineer"},
+                            {"subsystem": "GeneratedCodeSemanticReviewer"},
+                            {"subsystem": "CriticEvaluator"},
+                        ],
+                    },
+                    "runtime_requested_evidence_contract": contract,
+                },
+            },
+        ),
+        BlackboardState(project_id=question.id),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert result.next_task.inputs["theory_packet_id"] == packet_id
+    assert result.next_task.inputs["n_runs"] == 37
+    assert result.next_task.inputs["seed"] == 19
+    assert "runtime_architect_operation" not in result.next_task.inputs
+    next_context = result.next_task.inputs["architect_context"]
+    assert next_context["environment_feedback"]["compiled_next_owner"] == (
+        "AlgorithmEngineer"
+    )
+    assert next_context["runtime_feedback_loop"]["handoff"] == (
+        "validated_theory_to_planned_workspace"
+    )
+    assert "without another model routing call" in result.rationale
+
+
 def test_runtime_records_claim_revision_delta_against_exact_packet_bytes() -> None:
     question = OpenResearchQuestion(
         id="claim-revision-runtime",

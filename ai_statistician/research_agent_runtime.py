@@ -6206,6 +6206,10 @@ class TheoryDeveloperRuntimeSubsystem:
         elif dependency_rebuild_required:
             next_task = simulation_task
         else:
+            next_workspace_owner = _compiled_post_theory_workspace_owner(
+                context,
+                implementation_gaps=implementation_gaps,
+            )
             route_feedback_body = {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
                 "artifact_kind": "RuntimeTheoryDerivationAvailableObservation",
@@ -6219,12 +6223,15 @@ class TheoryDeveloperRuntimeSubsystem:
                     or ""
                 ),
                 "theory_revision": theory_revision,
+                "compiled_next_owner": next_workspace_owner,
+                "owner_selection_source": "model_authored_architect_plan",
                 "runtime_selected_owner": False,
                 "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
                 "boundary": (
-                    "A validated model-authored theory packet is available. This "
-                    "observation selects no empirical or formal worker and is not "
-                    "simulation, implementation, or proof evidence."
+                    "A validated model-authored theory packet is available. The next "
+                    "workspace is compiled from the existing model-authored Architect "
+                    "plan without another routing call. This is not simulation, "
+                    "implementation, or proof evidence."
                 ),
             }
             route_feedback_id = (
@@ -6246,37 +6253,31 @@ class TheoryDeveloperRuntimeSubsystem:
                     else {}
                 ),
                 "source_subsystem": "TheoryDeveloper",
-                "handoff": "validated_theory_to_architect_model",
+                "handoff": "validated_theory_to_planned_workspace",
                 "source_theory_packet_id": packet_id,
+                "compiled_next_owner": next_workspace_owner,
                 "runtime_selected_owner": False,
             }
-            next_task = AgentTask(
-                task_id=(
-                    f"architect-after-theory:{question.id}:"
-                    f"{stable_hash([task.task_id, route_feedback_id])[:8]}"
+            runtime_plan = _architect_runtime_plan(context)
+            routing_decision = _architect_initial_routing_decision(
+                question=question,
+                packet=runtime_plan,
+                architect_context=context,
+                packet_id=str(
+                    context.get("architect_coordinator_proposal_id", "")
+                    or runtime_plan.get("packet_id", "")
+                    or route_feedback_id
                 ),
-                owner_subsystem="ArchitectCoordinator",
-                objective=(
-                    "Choose the next evidence-producing subsystem from the validated "
-                    "theory packet and current model-authored research plan."
+                runtime_config=ResearchAgentRuntimeConfig(
+                    n_runs=self.n_runs,
+                    seed=self.seed,
                 ),
-                inputs={
-                    "question": _question_to_payload(question),
-                    "theory_packet_id": packet_id,
-                    "architect_context": context,
-                    "environment_feedback": route_feedback,
-                    "runtime_architect_operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
-                },
-                allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
-                expected_artifacts=("architect_feedback_route_decision",),
-                acceptance_gate=(
-                    "the Architect model selects one available evidence-producing "
-                    "subsystem or records a typed blocker"
-                ),
-                stop_condition=(
-                    "Architect model selects the next worker or records a blocker"
-                ),
+                blackboard=blackboard,
+                requested_subsystem_override=next_workspace_owner,
+                routing_source_override="architect_plan_workspace_transition",
+                honor_requested_subsystem=True,
             )
+            next_task = routing_decision["task"]
         return AgentStepResult(
             status="REROUTE",
             rationale=(
@@ -6288,10 +6289,10 @@ class TheoryDeveloperRuntimeSubsystem:
                     "rebuilding hash-bound empirical descendants through a "
                     "non-confirmatory simulation handoff."
                     if dependency_rebuild_required
-                    else "LLM TheoryDeveloper produced a proposal; runtime returned "
-                    "the validated theory observation to ArchitectCoordinator so the "
-                    "model can choose simulation-first, proof-first, or another "
-                    "available evidence worker."
+                    else "LLM TheoryDeveloper produced a proposal; AgentRuntime "
+                    "compiled the existing model-authored Architect plan directly "
+                    f"into the {next_task.owner_subsystem} workspace without another "
+                    "model routing call."
                 )
             ),
             produced_artifacts={
