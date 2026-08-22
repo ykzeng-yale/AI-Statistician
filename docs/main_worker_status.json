@@ -1,13 +1,13 @@
 {
-  "schema_version": 138,
+  "schema_version": 139,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "9fbbeaba610a48bfbce84a80b4b91802fe301ba9",
+  "validated_code_head": "8ef61b0b9625bf99e4f783dad7781b4c1bfdba77",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve the consumed Basu-theorem draw at immutable 0/1, then repair the shared authority projection that let a nonempty Architect plan shadow the runtime-owned independent-theory-review requirement. Verify direct TheoryDeveloper-to-isolated-referee routing without adding mathematical rules, a reviewer, repair agent, scheduler, model retry, or mandatory Formalizer work. The capability ladder is 0/26.",
+  "current_goal_focus": "Preserve the consumed Basu-theorem draw at immutable 0/1 and treat commit 8ef61b0b as future-task mechanism evidence only. Continue toward a live AI Statistical Theory Lab by improving model-owned long-horizon theory and isolated referee judgment inside stable Codex-shaped workspaces, while adding no mathematical rules, reviewer, repair agent, scheduler, model retry, or mandatory Formalizer work. The capability ladder is 0/26.",
   "latest_its_time_source_execution_calibration": {
     "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
@@ -233,8 +233,11 @@
     ]
   },
   "validated_change": {
-    "commit": "9fbbeaba610a48bfbce84a80b4b91802fe301ba9",
+    "commit": "8ef61b0b9625bf99e4f783dad7781b4c1bfdba77",
     "changes": [
+      "The single Basu-theorem draw is consumed and immutable at 0/1. TheoryDeveloper completed eleven same-session exact-Haiku model/tool turns and committed a 304-line Markdown/LaTeX checkpoint, but a nonempty Architect plan omitted the runtime-owned independent-review field and shadowed the complete requested contract. The existing isolated referee never ran; terminal Critic correctly blocked before its model call, and hidden theory evaluation did not execute.",
+      "Commit 8ef61b0b preserves independent_theory_review_required in canonical Architect contract projection and checks explicit theory-required task intent again at TheoryDeveloper's exit. The exact nonempty-plan shadowing shape now routes to the existing isolated preflight. No scientific content, reviewer, retry, repair action, scheduler, model turn, or Formalizer requirement was added.",
+      "The focused Architect, TheoryDeveloper, and research-evaluation panel passed 123/123; the complete repository passed 861/861 in 72.84 seconds. Compile-all and diff checks passed. Basu remains 0/1, the ladder remains 0/26, and no consumed task was rerun, resumed, repaired, or rescored.",
       "The consumed scalar score-information draw exposed one shared authority-edge defect: a serious 352-line Markdown theory checkpoint skipped the existing isolated referee because preflight was coupled to empirical metric authoring, and terminal Critic false-accepted it. Hidden gold correctly withheld credit; the task remains immutable 0/1 and the ladder remains 0/25.",
       "Commit 9fbbeaba makes independent artifact-grounded review mandatory whenever selected task intent requires theory. It reuses the existing isolated Markdown referee and same TheoryDeveloper source-return path. A theory-only acceptance compiles the existing Architect plan directly to Critic without creating metric, Algorithm, Simulation, Formalizer, retry, or repair authority.",
       "Terminal Critic now fails closed before its model call unless an exact preflight packet and acceptance bind the current theory ID and hash with no unresolved findings. Runtime and research evaluation share one lineage validator; no statistical formula, mathematical checklist, model turn, resource cap, scheduler, or benchmark exception was added.",
@@ -519,9 +522,9 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model independently chooses every claim, dependency, research-source query, source handle, exact read, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, confirmatory replicate count, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, median-of-means, AR(1), Fisher-z, paired-ratio, and scalar-control-variate expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, automatic literature query or source selection, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback. Terminal disposition is generic control-plane capacity and cannot execute an extra research action; dependency and trace projections preserve identity, hashes, ABI, exact-output locations, and unique unreferenced observations without selecting or rewriting scientific content.",
     "verification": {
-      "full_pytest": "861 passed in 72.86s",
+      "full_pytest": "861 passed in 72.84s",
       "next_frozen_activation": "none currently authorized; the score-information task is permanently consumed, so any future product draw requires a newly frozen disjoint task and evaluator authority",
-      "affected_subsystem_pytest": "Theory/Architect/evaluation/gold regressions passed 214/214; the complete repository passed 860/860 overall",
+      "affected_subsystem_pytest": "Architect, TheoryDeveloper, and research-evaluation regressions passed 123/123; the complete repository passed 861/861 overall",
       "independent_theory_review_authority": "Commit 9fbbeaba requires an exact isolated review acceptance before terminal Critic whenever theory is required. Theory-only tasks create no metric gate, and bypass attempts block before the Critic model call.",
       "theory_workspace_action_budget": "Commit 9cf75411 replaces class-specific read/write quotas with one shared ordinary-tool budget selected by the TheoryDeveloper model. Turn/action bounds, no-progress termination, execution safety caps, and the separately reserved terminal disposition remain enforced; no model call or frozen-task activation occurred.",
       "simulation_dependency_prompt_projection": "immutable live replay reduced 6,812,024 bytes of recursive environment feedback to a 45,314-byte complete planning prompt; accepted estimator ABI plus source/result hashes remained visible, while source bytes and 4,000 historical smoke-result rows were absent",
@@ -535,8 +538,8 @@
       "hidden_source_harness_calibration": "6/6: gold accepted and five source, environment, execution, stdout, or sign variants rejected",
       "git_diff_check": "passed",
       "model_policy_audit": "production tiers remain Haiku or Sonnet with Opus rejected; tests and live evaluations remain pinned to claude-haiku-4-5-20251001",
-      "fresh_live_research_draws": 3,
-      "fresh_live_result": "The Statlib exact-target v1 draw used exact claude-haiku-4-5-20251001 for every enabled role and exercised the same Formalizer source owner for 24 Lean checks and 10 RAG calls. One declaration elaborated only with sorryAx, independent axiom audit rejected it, no candidate reached kernel promotion, and hidden evaluation failed. The task is immutable and the ladder remains 0/24.",
+      "fresh_live_research_draws": 4,
+      "fresh_live_result": "The Basu theory-only v1 draw used exact claude-haiku-4-5-20251001 for every enabled role and produced a durable 304-line Markdown/LaTeX checkpoint. A shared contract-projection defect skipped the existing isolated referee; terminal Critic failed closed before its model call, hidden theory evaluation did not execute, and the task is immutable 0/1. The ladder remains 0/26.",
       "latest_formal_draw": "BLOCKED and hidden 0/1 after two same-owner workspace segments, 24 model-authored source updates, 24 local Lean checks, 10 formal-RAG calls, one sorryAx elaboration, zero kernel-verified subclaims, zero full-theorem proofs, and one formal gap",
       "post_formal_draw_regression": "Commit fe7c7055 passed 124/124 focused checks and 854/854 overall in 68.22 seconds; explicit formal intent now reaches the actual evidence contract, axiom audit annotates proof-state feedback, and active-project indexed declaration source is available to the same Formalizer session without an LSP dependency. This cannot rescore the consumed draw.",
       "post_run_semantic_diagnostic": "Runtime preflight acceptance is not hidden theory authority: deterministic checks passed but the calibrated 12/12 semantic judge returned INCONCLUSIVE. Hidden empirical checks passed over 9,000 invocations, while hidden algorithm acceptance did not fully pass and runtime generated no simulation. Commit dd3cb36c fixes only the shared projection mechanism for future tasks.",
@@ -547,9 +550,9 @@
       "theory_referee_workspace_continuation": "a two-segment independent review restores the exact prior Markdown read, task-bound source handle, document coverage, and terminal-validator observation; AgentRuntime uses one blackboard reference, calls the referee twice, calls Architect planning zero times, preserves cumulative source budgets, and blocks tamper or no-progress lineage before a provider call",
       "theory_referee_report_workspace": "the same isolated model writes, reads, hash-edits, and submits one Markdown report by SHA; terminal JSON contains no report body, checkpoints retain only a validated draft manifest, stale hashes return as actionable observations, and disk tampering fails before a provider call",
       "algorithm_source_workspace_planning": "fresh native-tool Algorithm tasks make zero structured proposal calls and one source-owner workspace call; accepted source bytes are rehash-checked and projected by identity for independent review, while an incomplete first segment resumes by source-workspace intent before any proposal exists",
-      "runtime_core_growth": "research_agent_runtime.py is 24745 lines; declaration-source inspection was extracted into the existing proof-state/source-index workspace boundary, explicit formal intent uses the existing evidence contract, and the unchanged strict-under-25000-line regression budget passes."
+      "runtime_core_growth": "research_agent_runtime.py is 24947 lines and remains below the unchanged strict-under-25000-line regression budget. Commit 8ef61b0b adds only a task-intent authority backstop in the existing TheoryDeveloper exit path; no outer interface or scheduler was added."
     },
-    "evidence_boundary": "The Statlib exact-target v1 draw remains immutable 0/1: source iteration, RAG, local elaboration, and a model gap report do not replace axiom-clean target-bound kernel evidence. Post-run evidence-contract, proof-state, and declaration-inspection corrections are deterministic future-task mechanism evidence only. All twenty-four scored tasks remain 0/24 full-task passes, no new draw is authorized, and exact development theorem closure remains 0/2."
+    "evidence_boundary": "The Basu v1 draw remains immutable 0/1: a model-authored Markdown theory checkpoint without exact isolated-review acceptance is not accepted theory evidence. Post-run authority-projection corrections are deterministic future-task mechanism evidence only. All twenty-six scored tasks remain 0/26 full-task passes, no new draw is authorized, and exact development theorem closure remains 0/2."
   },
   "latest_component_evidence": {
     "id": "research_l0_scalar_control_variate_v1_codex_harness_exact_haiku_20260821",
@@ -786,6 +789,8 @@
     "theory_document_bytes": 20551,
     "shared_harness_diagnostic": "The nonempty Architect plan omitted the runtime-owned independent-theory-review flag and shadowed the complete runtime-requested contract. TheoryDeveloper returned to Architect instead of the existing isolated referee; terminal Critic then correctly failed closed before its model call.",
     "operator_audit": "docs/operator_audits/basu_independence_l0_v1.md",
+    "post_run_shared_mechanism_fix_commit": "8ef61b0b9625bf99e4f783dad7781b4c1bfdba77",
+    "post_run_shared_mechanism_fix_verification": "123 focused tests and 861/861 full-suite tests passed",
     "model_draw_resampling_blocked": true,
     "ladder_state": "26 fully gold configured, 26 consumed, 0 fully passed",
     "boundary": "The single authorized draw and post-termination hidden evaluation are consumed. The candidate received no hidden semantic score because independent runtime acceptance was absent. Never rerun, resume, repair, or rescore it; shared post-run fixes apply only to future disjoint tasks."

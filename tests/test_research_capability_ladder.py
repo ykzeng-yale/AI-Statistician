@@ -1533,6 +1533,12 @@ def test_basu_theory_l0_draw_is_consumed_after_missing_routed_review() -> None:
     assert evidence["operator_audit_path"] == (
         "docs/operator_audits/basu_independence_l0_v1.md"
     )
+    assert evidence["post_run_shared_mechanism_fix_commit"] == (
+        "8ef61b0b9625bf99e4f783dad7781b4c1bfdba77"
+    )
+    assert evidence["post_run_shared_mechanism_fix_verification"] == (
+        "123 focused tests and 861/861 full-suite tests passed"
+    )
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
     assert ladder["current_readiness"]["active_scored_tasks"] == 26

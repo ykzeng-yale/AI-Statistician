@@ -85,3 +85,10 @@ mathematical checklists, retries, votes, repair agents, another scheduler, or
 hidden evaluator feedback.
 
 The consumed candidate remains 0/1 regardless of later regression results.
+
+Post-run code commit `8ef61b0b9625bf99e4f783dad7781b4c1bfdba77`
+preserves the runtime-owned requirement when an Architect plan is normalized and
+checks explicit theory-required task intent again at TheoryDeveloper's exit. The
+exact shadowing regression now routes to the existing preflight operation. The
+focused Architect, Theory, and evaluation panel passed 123/123; the complete
+repository passed 861/861 in 72.84 seconds. No model call or score changed.

@@ -1089,3 +1089,30 @@ and evaluation share one hash-lineage validator instead of maintaining parallel
 review rules. The relevant focused panel passed `214/214`; the complete repository
 passed `860/860` in 72.19 seconds. These facts apply to future disjoint tasks only;
 the immutable ladder remains `0/25`.
+
+### Required review projection after the twenty-sixth draw
+
+The disjoint Basu-theorem draw exercised the intended inner Theory workspace but
+found one remaining outer-graph projection defect. TheoryDeveloper used eleven
+same-session model/tool turns and committed a 304-line, 20,551-byte Markdown/LaTeX
+artifact. The runtime-requested contract required isolated review, but the
+nonempty Architect plan omitted that runtime-owned field and shadowed the complete
+contract. TheoryDeveloper therefore returned to Architect instead of the existing
+referee. Architect mislabeled terminal Critic as independent review; Critic's
+deterministic backstop correctly blocked before its model call. Hidden theory
+evaluation did not execute, and the consumed task remains `0/1`.
+
+Code commit `8ef61b0b9625bf99e4f783dad7781b4c1bfdba77` applies the
+strict-disposition part of the Codex harness lesson at the actual authority edge.
+Architect normalization now preserves the runtime-owned review requirement, and
+explicit `task_intent.theory=required` is checked again at TheoryDeveloper's exit.
+The exact live shadowing shape is a regression: a nonempty plan contract lacking
+the flag still routes the immutable Theory artifact to the existing isolated
+preflight operation.
+
+This adds no reviewer, model call, retry, repair action, scheduler, mathematical
+rule, task-family branch, or Formalizer requirement. It does not import Codex's
+app-server, Responses transport, provider, thread manager, or subagents. The
+focused suite passed `123/123`; the full repository passed `861/861` in 72.84
+seconds. The correction is future-task mechanism evidence only, and the immutable
+ladder remains `0/26`.

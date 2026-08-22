@@ -2176,6 +2176,9 @@
         "runtime_result_sha256": "5aec291ecfb3dd127385df6f62bed1c7876fd8dbfeab4d5f4a4c06a3ab6eb156",
         "runtime_diagnosis": "The nonempty Architect plan contract omitted the runtime-owned independent-theory-review requirement and shadowed the complete runtime-requested contract. TheoryDeveloper therefore returned to ArchitectCoordinator instead of the existing isolated referee. Terminal Critic correctly failed closed before its model call, but the intended review workflow never executed.",
         "operator_audit_path": "docs/operator_audits/basu_independence_l0_v1.md",
+        "post_run_shared_mechanism_fix_commit": "8ef61b0b9625bf99e4f783dad7781b4c1bfdba77",
+        "post_run_shared_mechanism_fix_verification": "123 focused tests and 861/861 full-suite tests passed",
+        "post_run_shared_mechanism_boundary": "Future Architect plans preserve the runtime-owned independent-review requirement, while explicit theory-required task intent is a final TheoryDeveloper-exit backstop. The correction cannot rerun, repair, or rescore this consumed candidate.",
         "model_draw_resampling_blocked": true,
         "formalization_requirement": "not_applicable",
         "full_task_passed": false
