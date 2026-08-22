@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "huber_location_m_estimator_known_result",
+      "title": "Huber location M-estimation, sandwich variance, and bounded influence",
+      "description": "Focused L0 known-result evaluation based on Peter J. Huber, Robust Estimation of a Location Parameter, Annals of Mathematical Statistics 35 (1964), 73-101, DOI 10.1214/aoms/1177703732. For an odd sample size n>=3 and a fixed tuning constant c>0 in the data's units, define rho_c(u)=u^2/2 for |u|<=c and c|u|-c^2/2 otherwise, with score psi_c(u)=clip(u,-c,c). Develop one authoritative Markdown/LaTeX derivation of the Huber location estimator as the unique root of sum_i psi_c(X_i-t)=0 and the minimizer of sum_i rho_c(X_i-t), explaining why the visible odd-n contract rules out a flat root interval. Under an iid location model X_i=mu+epsilon_i, state conditions sufficient for Fisher consistency and derive the asymptotic linearization sqrt(n)(mu_hat-mu)=A^{-1} n^{-1/2} sum_i psi_c(epsilon_i)+o_p(1), where A=E[1{|epsilon|<c}]>0 and B=E[psi_c(epsilon)^2], hence asymptotic variance factor B/A^2. For epsilon~N(0,1), derive A=2 Phi(c)-1 and B=A-2c phi(c)+2c^2(1-Phi(c)), and explain the c->infinity sample-mean limit. Derive the empirical sandwich estimate based on the active fraction and clipped squared residuals, translation equivariance, joint positive-rescaling equivariance when both the sample and c are scaled, and bounded influence psi_c/A. The required model-authored artifact is est_huber_location and must implement run_estimator(request) exactly. Exploratory computation may diagnose the estimating equation or implementation. A separately frozen confirmatory assessment uses independent normal and symmetric contaminated-normal samples to assess location bias, standard-error calibration, Wald coverage, and robust RMSE with Monte Carlo uncertainty. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "robust_statistics",
+        "m_estimation",
+        "sandwich_variance",
+        "influence_function",
+        "L0"
+      ],
+      "source": {
+        "title": "Robust Estimation of a Location Parameter",
+        "author": "Peter J. Huber",
+        "journal": "The Annals of Mathematical Statistics",
+        "year": 1964,
+        "volume": 35,
+        "pages": "73-101",
+        "doi": "10.1214/aoms/1177703732",
+        "url": "https://projecteuclid.org/euclid.aoms/1177703732"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_huber_location",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.sample",
+            "name": "sample",
+            "meaning": "Observed real values X_1,...,X_n for one Huber location estimate.",
+            "json_type": "array[number]",
+            "shape": "odd length n with n>=3; every entry is finite; at least two entries differ",
+            "units": "measurement",
+            "indexing": "entry i is observation i; ordering has no inferential meaning",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, even or too-short samples, and all-identical samples.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.tuning_constant",
+            "name": "tuning_constant",
+            "meaning": "The fixed positive Huber clipping threshold c in the same units as the sample.",
+            "json_type": "number",
+            "shape": "finite scalar strictly greater than zero",
+            "units": "measurement",
+            "indexing": "one value fixed before all calculations on the sample",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite values, and values less than or equal to zero.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.sample_size",
+            "name": "sample_size",
+            "meaning": "The odd number n of observations.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "observations",
+            "indexing": "equals len(sample)",
+            "edge_cases": "Must be an odd integer at least three.",
+            "normalization": "No normalization."
+          },
+          {
+            "clause_id": "response.tuning_constant",
+            "name": "tuning_constant",
+            "meaning": "The exact accepted clipping threshold c.",
+            "json_type": "number",
+            "shape": "positive finite scalar",
+            "units": "measurement",
+            "indexing": "echoes the request value",
+            "edge_cases": "Must equal the accepted request value.",
+            "normalization": "No normalization."
+          },
+          {
+            "clause_id": "response.location_estimate",
+            "name": "location_estimate",
+            "meaning": "The unique Huber location root mu_hat satisfying sum_i psi_c(X_i-mu_hat)=0.",
+            "json_type": "number",
+            "shape": "finite scalar",
+            "units": "measurement",
+            "indexing": "uses every sample entry",
+            "edge_cases": "Must lie between the sample minimum and maximum.",
+            "normalization": "Unique root of the clipped score equation."
+          },
+          {
+            "clause_id": "response.active_fraction",
+            "name": "active_fraction",
+            "meaning": "The empirical derivative factor A_hat=n^{-1} sum_i 1{|X_i-mu_hat|<c}.",
+            "json_type": "number",
+            "shape": "scalar in (0,1]",
+            "units": "proportion",
+            "indexing": "strict inequality is evaluated at every residual",
+            "edge_cases": "Must be finite and strictly positive.",
+            "normalization": "Divide the active residual count by sample_size."
+          },
+          {
+            "clause_id": "response.asymptotic_variance_factor",
+            "name": "asymptotic_variance_factor",
+            "meaning": "The plug-in factor B_hat/A_hat^2 for the asymptotic variance of sqrt(n)(mu_hat-mu).",
+            "json_type": "number",
+            "shape": "positive finite scalar",
+            "units": "measurement squared",
+            "indexing": "B_hat averages psi_c(X_i-mu_hat)^2 over all observations",
+            "edge_cases": "Must be finite and strictly positive.",
+            "normalization": "B_hat divided by active_fraction squared."
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "The plug-in standard error for the finite-sample location estimate.",
+            "json_type": "number",
+            "shape": "positive finite scalar",
+            "units": "measurement",
+            "indexing": "uses asymptotic_variance_factor and sample_size",
+            "edge_cases": "Must be finite and strictly positive.",
+            "normalization": "sqrt(asymptotic_variance_factor/sample_size)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.clipped_score_root",
+            "meaning": "The returned location is the unique zero, to numerical precision, of the sum of residuals clipped to [-c,c], and the variance fields equal the declared empirical sandwich formulas."
+          },
+          {
+            "clause_id": "invariant.permutation",
+            "meaning": "Permuting sample entries preserves every response field."
+          },
+          {
+            "clause_id": "invariant.translation",
+            "meaning": "Adding a constant a to every sample entry adds a to location_estimate and preserves all other response fields."
+          },
+          {
+            "clause_id": "invariant.positive_rescaling",
+            "meaning": "Multiplying every sample entry and tuning_constant by s>0 preserves sample_size and active_fraction, multiplies location_estimate, tuning_constant, and standard_error by s, and multiplies asymptotic_variance_factor by s^2."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.normal_calibration",
+            "meaning": "Under frozen N(mu,1) DGPs, the mean location estimate agrees with mu, the empirical variance agrees with the normal-theory factor [A-2c phi(c)+2c^2(1-Phi(c))]/A^2 divided by n, and plug-in Wald intervals have approximately nominal coverage up to Monte Carlo and finite-sample uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.symmetric_contamination",
+            "meaning": "Under the frozen symmetric contaminated-normal DGP, the Huber estimate remains centered at mu, its plug-in standard errors track repeated-sampling variation, and Wald coverage is assessed with Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.robust_rmse",
+            "meaning": "Under the frozen symmetric contaminated-normal DGP, the Huber estimator has lower repeated-sampling RMSE than the sample mean for the declared clipping threshold."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory call supplies the exact generated sample and frozen tuning constant and verifies schema, score, sandwich, permutation, translation, and joint-rescaling behavior before aggregating outcomes."
+          }
+        ]
+      }
+    }
+  ]
+}
