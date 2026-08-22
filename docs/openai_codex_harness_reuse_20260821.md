@@ -417,7 +417,7 @@ unstated hidden-check semantics. A hidden empirical check must additionally cite
 one of the compact public `empirical_claims`; no general theory schema was added.
 Structural clause references remain provenance, not proof that a hidden check is
 scientifically entailed; that preactivation audit and independent harness
-calibration remain operator responsibilities. All eighteen scored tasks are
+calibration remain operator responsibilities. All nineteen scored tasks are
 consumed and closed. No new live draw is authorized until a future unrelated
 task is frozen and pushed under schema v2 before its first model call.
 
@@ -514,3 +514,25 @@ and tool capacity, not a symbolic validator or mandatory ritual. A real isolated
 SymPy execution passed, the focused theory/scientific/referee panel passed 133 tests,
 and the full suite passed 810 tests in 67.07 seconds. No Claude call or frozen rerun
 occurred, so no theory, empirical, proof, or E2E credit is claimed.
+
+The scalar control-variate draw then supplied live evidence for both the terminal
+disposition and artifact-projection principles. After all ordinary theory actions
+were spent, the same exact-Haiku session successfully committed through its reserved
+terminal disposition. Theory review, algorithm execution and independent review,
+and metric review completed. The first Simulation planning request nevertheless
+failed before generation because a complete 4.7 MB accepted handoff, including
+4,000 raw smoke-result rows, was recursively copied into generic environment
+feedback as well as represented by the intended compact handoff. The resulting
+prompt contained 1,130,071 tokens.
+
+Commit `dd3cb36c236e360c52f397998464997b0c08c7c8` applies Codex's bounded
+sampling-context principle at that measured boundary. Exact source and raw outcomes
+remain authoritative content-addressed artifacts. The execution handoff keeps exact
+reviewed source plus immutable hashes but references smoke outcomes by hash; the
+Simulation model receives one identity/hash/ABI projection and no source or historical
+outcome bytes. The runtime still injects and executes the exact reviewed source.
+An immutable replay reduced 6.8 MB of live feedback to a 45,314-byte prompt while
+preserving the full ABI and hashes. Two pathological regressions and the full 815-test
+suite passed. No second scheduler, provider, router, repair layer, model call, retry,
+budget increase, task rule, or statistical content was added. The consumed task
+remains `0/1` and was not resumed or rescored.

@@ -983,7 +983,7 @@ def test_paired_ratio_l0_draw_is_consumed_and_hash_bound() -> None:
         assert hidden_name not in runtime_visible
 
 
-def test_scalar_control_variate_l0_is_frozen_before_first_product_draw() -> None:
+def test_scalar_control_variate_l0_frozen_draw_is_consumed_and_closed() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -994,12 +994,14 @@ def test_scalar_control_variate_l0_is_frozen_before_first_product_draw() -> None
     assert candidate["level"] == "L0"
     assert candidate["family"] == "monte_carlo_variance_reduction"
     assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"] == "full_task_gold_frozen_unconsumed"
+    assert candidate["activation_status"] == (
+        "full_task_gold_frozen_v1_failed_shared_simulation_prompt_artifact_expansion"
+    )
     evidence = candidate["activation_evidence"]
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["algorithm_reference_contract_checks"] == "13/13"
     assert evidence["algorithm_negative_variants_rejected"] == 4
     assert evidence["empirical_reference_dgps_passed"] == 3
@@ -1011,9 +1013,26 @@ def test_scalar_control_variate_l0_is_frozen_before_first_product_draw() -> None
         "e1e1f975322b4eaafc2809a112ac30b445753aa5"
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
-    assert evidence["model_draw_resampling_blocked"] is False
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_traces"] == 10
+    assert evidence["runtime_task_handoffs"] == 9
+    assert evidence["theory_checkpoint_committed"] is True
+    assert evidence["independent_theory_preflight_accepted"] is True
+    assert evidence["generated_algorithm_executions"] == 1
+    assert evidence["independent_algorithm_semantic_review_accepted"] is True
+    assert evidence["independent_metric_protocol_accepted"] is True
+    assert evidence["generated_simulation_executions"] == 0
+    assert evidence["hidden_theory_semantic_status"] == "INCONCLUSIVE"
+    assert evidence["hidden_algorithm_acceptance_checks_passed"] is False
+    assert evidence["hidden_empirical_checks_passed"] is True
+    assert evidence["post_run_shared_mechanism_fix_commit"] == (
+        "dd3cb36c236e360c52f397998464997b0c08c7c8"
+    )
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 19
+    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
         "source_manifest_sha256",
