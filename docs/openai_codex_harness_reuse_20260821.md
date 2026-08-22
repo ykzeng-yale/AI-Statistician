@@ -910,3 +910,34 @@ This adds no agent, scheduler, retry, content repair, statistical rule, benchmar
 exception, or model call. The evaluator still owns hidden acceptance; the model
 still owns interpretation. The focused regression is `114/114` and the full
 suite is `839/839` in 69.22 seconds.
+
+### Incremental Lean source implication
+
+Code commit `cb70e09c3fbd2c9b95c3ed5c06cc3f1646330898` closes one
+remaining mismatch with Codex's workspace-first coding loop. Formalizer already
+kept one persistent model/tool transcript and returned raw Lean diagnostics, but
+every correction required another complete `lean_source` value. For a long proof,
+that made a one-line model decision pay the transport and regeneration cost of the
+whole file.
+
+The same existing Formalizer session now offers `edit_current_lean_source` beside
+complete submission. The model supplies one exact `old_text` substring and its
+replacement. Runtime verifies that the substring occurs exactly once, including
+overlapping occurrences, materializes those model-authored bytes without parsing
+Lean, checks the complete resulting source in the active project, and returns the
+raw observation to the same model. Missing, ambiguous, unchanged, oversized, or
+previously checked results remain ordinary tool feedback. Complete submission is
+still used for first authoring, declaration-identity changes, and broad rewrites.
+
+This is not a Lean repair engine. Runtime chooses no theorem statement, import,
+identifier, proof term, tactic, or edit. A locally compiling result still requires
+the existing independent target-semantic review, axiom audit, and exact
+target-bound kernel promotion. Checkpoint continuation retains the exact current
+source and can continue with another model-authored edit without Architect or a
+second scheduler.
+
+The final focused Lean, semantic-review, and shared client-tool panel passed
+`77/77`; the full repository suite passed `843/843` in 67.93 seconds. No model
+call, retry, turn increase, agent, repair worker, Lean grammar or tactic rule,
+benchmark rerun, score, proof, or capability credit was added. The frozen ladder
+remains immutable `0/23`, and strict development closure remains `0/2`.

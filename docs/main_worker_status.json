@@ -1,13 +1,13 @@
 {
-  "schema_version": 126,
+  "schema_version": 127,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "c653295a3314589e4bea224c5b56635aaa4750ec",
+  "validated_code_head": "cb70e09c3fbd2c9b95c3ed5c06cc3f1646330898",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Keep converging on one model-owned, Codex-style scientific harness without importing a second scheduler, provider, or repair layer. The first frozen Trimmed Match L1 draw is permanently consumed at 0/1: exact source execution and the visible runtime contract completed, the hidden identity harness was blocked by evaluator data transport, and calibrated semantic review independently rejected the report. Commit c653295a now passes large scientific artifacts as separate hash-bound data, exposes the exact operator-fixed source command, and lets the same TheoryDeveloper session analyze selected outputs with model-authored Python/R. This is future-task mechanism evidence only; all twenty-three scored tasks remain immutable 0/23, and no new live call is authorized until a disjoint authority bundle is frozen and pushed.",
+  "current_goal_focus": "Keep converging on one model-owned, Codex-style scientific harness without importing a second scheduler, provider, or repair layer. Commit cb70e09c removes the Formalizer's full-source-only revision bottleneck: the same persistent Lean owner may now apply one exact model-authored text edit to its current source and immediately receive raw Lean feedback over the complete resulting bytes, while complete submission remains available for initial authoring or broad changes. Runtime parses no Lean and chooses no tactic; independent semantic review and kernel promotion remain mandatory. This is deterministic future-task mechanism evidence only: all twenty-three scored tasks remain immutable 0/23, exact development closure remains 0/2, and no new live call is authorized until a disjoint authority bundle is frozen and pushed.",
   "latest_its_time_source_execution_calibration": {
     "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
@@ -233,8 +233,12 @@
     ]
   },
   "validated_change": {
-    "commit": "c653295a3314589e4bea224c5b56635aaa4750ec",
+    "commit": "cb70e09c3fbd2c9b95c3ed5c06cc3f1646330898",
     "changes": [
+      "Commit cb70e09c aligns the existing Formalizer session with Codex's file-editing loop without importing Codex runtime. The model can use edit_current_lean_source with one exact unique old_text substring and arbitrary replacement; runtime materializes those bytes without Lean parsing, immediately checks the complete current source in the active project, and returns raw diagnostics to the same model.",
+      "Complete submit_lean_source remains available for initial authoring, declaration-identity changes, and broad replacement. Ambiguous, absent, unchanged, oversized, or previously checked exact edits fail through ordinary same-session tool feedback. Overlapping substring matches are counted explicitly, and a continued hash-bound Lean workspace can edit its exact checkpoint source without regenerating a packet or passing through Architect.",
+      "A successful exact edit is still only a model-authored local candidate. Existing independent semantic review, rejected-source identity, axiom audit, and runtime kernel-promotion gates are unchanged; evidence remains kernel_verified=false until those authorities run. No agent, scheduler, retry, turn, model call, Lean grammar/tactic rule, theorem-specific patch, benchmark rerun, score, or capability credit was added.",
+      "The final focused Lean, semantic-review, and shared client-tool panel passed 77/77; the complete local suite passed 843/843 in 67.93 seconds. Compile-all and git diff checks passed.",
       "Commit c653295a applies the useful OpenAI Codex harness principle directly: executable source, durable artifact state, and bounded observations remain separate. Scientific Python/R can now receive immutable UTF-8 input artifacts as exact SHA-256-bound data files; the sandbox runner rechecks each hash before exposing content to run_sandbox, while source validation and the existing network, secret, and resource boundaries remain unchanged.",
       "The hidden artifact evaluator no longer compresses a complete candidate into generated Python source. Its trusted harness remains small and receives candidate JSON through the shared data binding, so evaluator payload size cannot be misclassified as model code size. This fixes future evaluator transport only and does not rerun or rescore Trimmed Match.",
       "Operator-pinned source execution now exposes the exact working directory and argument vector in both the model-visible execution descriptor and the compact post-run observation. The harness still fixes the command and permits no model edit; the source-owning model is simply given the execution fact it must interpret.",
@@ -491,9 +495,9 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model independently chooses every claim, dependency, research-source query, source handle, exact read, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, confirmatory replicate count, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, median-of-means, AR(1), Fisher-z, paired-ratio, and scalar-control-variate expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, automatic literature query or source selection, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback. Terminal disposition is generic control-plane capacity and cannot execute an extra research action; dependency and trace projections preserve identity, hashes, ABI, exact-output locations, and unique unreferenced observations without selecting or rewriting scientific content.",
     "verification": {
-      "full_pytest": "839 passed in 68.33s",
+      "full_pytest": "843 passed in 67.93s",
       "next_frozen_activation": "none; all twenty-three scored tasks are consumed and closed, and a future disjoint task requires a new fully frozen and pushed authority bundle before its first model call",
-      "affected_subsystem_pytest": "Scientific input-artifact transport, exact source-command visibility, same-session Theory source-result analysis, hidden artifact evaluation, source replication, and existing specialist workspaces passed 114/114 focused checks and 839/839 overall",
+      "affected_subsystem_pytest": "Exact Lean source editing, ambiguous and overlapping edit feedback, workspace continuation, Formalizer semantic-review boundaries, and the shared client-tool loop passed 77/77 focused checks and 843/843 overall",
       "simulation_dependency_prompt_projection": "immutable live replay reduced 6,812,024 bytes of recursive environment feedback to a 45,314-byte complete planning prompt; accepted estimator ABI plus source/result hashes remained visible, while source bytes and 4,000 historical smoke-result rows were absent",
       "persisted_tool_call_projection": "immutable scalar replay reduced the largest tool record from 3,370,158 to 18,379 bytes and the complete ten-row trace from 3,440,322 to 89,326 bytes, preserving summary hash, output hash, and output paths; large observations without external authoritative output remain exact inline",
       "visible_estimator_contract": "schema-v2 executable tasks fail closed unless every public ABI field has explicit semantics, hidden checks cite valid public clauses under one estimator identity, and each hidden empirical check also cites a compact public empirical claim; the exact contract reaches scientific model contexts without being copied into agent result packets",
@@ -741,6 +745,7 @@
       "exact target-bound Lean kernel promotion"
     ],
     "fixed_in_validated_head": [
+      "Formalizer requiring a complete Lean source blob after every compiler observation even when the source-owning model selected one localized exact edit",
       "large evaluator or scientific input artifacts being embedded into generated Python/R source and rejected or duplicated as executable code instead of remaining separate hash-bound data",
       "operator-fixed source working directories and argument vectors being hidden from the same model asked to interpret the exact execution",
       "TheoryDeveloper being limited to line sampling of large exact source outputs instead of using its existing model-authored Python/R scratch loop over selected immutable result artifacts",
@@ -888,7 +893,7 @@
       "live Crossref/GitHub scouting and model-visible frozen snapshots support bounded public discovery, exact local paper/code reading, one scored immutable rerun, and one disjoint real-sandbox author-script calibration with declared file outputs; they still do not provide full paper/code/data acquisition, durable snapshot curation, or a passing report-semantic L1 task",
       "ordinary source errors stay local, callback semantics are transparent, and cross-workspace dependency transfer is model-selected and hash-validated; generic global lineage and stagnation semantics remain incomplete",
       "scientific execution has Pyodide/WebR foundations but live R, broad package support, and precision-driven confirmatory replication need integrated evidence",
-      "Formalizer has real RAG, local Lean, source revision, and semantic review but still lacks reliable exact statistical theorem closure",
+      "Formalizer has real RAG, local Lean, same-session complete replacement and exact localized source editing, proof-state feedback, and semantic review but still lacks reliable exact statistical theorem closure; cb70e09c is deterministic harness evidence only",
       "the atomic active-project declaration context has exact-Haiku component evidence but still needs a fresh integrated Formalizer run and cross-task ablation",
       "the research-capability ladder now has twenty-three consumed focused tasks and still lacks a passing full task. Trimmed Match executed exact author source and reached visible runtime acceptance, but hidden identity transport did not run and semantic report review failed; ITS-Time never entered source replication, while scalar control-variate remains the deepest multi-lane trajectory without generated simulation or full hidden acceptance",
       "the active Lean foundation pins Statlib 6575d611 on Lean 4.30, while fetched Statlib origin/main 01d2a03 adds EVariable and DPI foundations on Lean 4.33. The active importable corpus and latest upstream discovery corpus must retain distinct snapshot identities until a deliberate compatibility migration succeeds",
@@ -916,14 +921,16 @@
     "research_architect_lines": 5361,
     "architect_theory_execution_preflight_lines": 5229,
     "architect_metric_contract_authoring_lines": 2822,
-    "formalizer_llm_lines": 2421,
+    "formalizer_llm_lines": 2427,
+    "lean_candidate_revision_tool_loop_lines": 1781,
     "agent_runtime_lines": 1255,
     "cli_lines": 7138,
     "top_level_python_modules": 142,
-    "top_level_package_lines": 149205,
+    "top_level_package_lines": 149330,
     "latest_runtime_manifest_bytes": 50101
   },
   "next_gates": [
+    "Treat cb70e09c as future-task Formalizer harness evidence only. On a newly frozen unrelated formal task, measure whether the same exact-Haiku source owner chooses localized edits after real compiler or proof-state observations and reaches independent semantic acceptance plus kernel promotion. Do not rerun an existing failed theorem, increase turns, or count local compilation as proof.",
     "Preserve Trimmed Match L1 v1 at raw 0/1 without rerun, resume, report repair, hidden rescore, or component promotion. Treat separate hash-bound scientific input artifacts, exact source-command visibility, and model-authored Python/R queries over selected results as future-task regression evidence only; do not infer that the consumed report would have passed.",
     "Keep the specialist collaboration rule small: one persistent source owner per Theory, Python/R, Simulation, or Lean workspace; direct environment feedback stays with that owner; independent reviewers receive artifact-only context; Architect handles only initial intent, cross-workspace conflicts, and stopping. Do not import Codex app-server, provider transport, thread manager, or another scheduler.",
     "Preserve ITS-Time L1 v1 at raw 0/1 without rerun, resume, output repair, hidden rescore, or component promotion. Treat the source-replication intent topology and exact specialist-session persistence as future-task regression evidence only; before any new disjoint draw, freeze and push its visible task, source/data authority, hidden evaluator, and model policy.",
