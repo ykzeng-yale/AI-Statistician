@@ -4142,7 +4142,7 @@ def _selected_research_eval_requires_formal_lane(
 def _apply_research_agent_runtime_research_eval_profile(
     args: argparse.Namespace,
 ) -> None:
-    """Configure the live research loop without enabling the strict formal lane."""
+    """Configure the live research loop and honor selected formal task intent."""
 
     if not bool(getattr(args, "research_eval", False)):
         return
