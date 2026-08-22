@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "uniform_endpoint_maximum_exact_interval_known_result",
+      "title": "Uniform endpoint estimation, exact pivot interval, and nonregular limit",
+      "description": "Focused L0 known-result evaluation in nonregular endpoint inference. Let X_1,...,X_n be iid Uniform(0, theta) with theta>0 and fixed n>=2, and let M=max_i X_i. Develop one authoritative Markdown/LaTeX derivation of the likelihood support restriction, the endpoint MLE theta_hat=M, the exact CDF P_theta(M<=m)=(m/theta)^n on 0<=m<=theta, and the pivot (M/theta)^n~Uniform(0,1). Derive E_theta[M]=n theta/(n+1), the unbiased correction ((n+1)/n)M, and the exact equal-tail 1-alpha interval [M/(1-alpha/2)^(1/n), M/(alpha/2)^(1/n)]. Prove its exact coverage under the continuous model. Derive the nonregular endpoint limit n(theta-M)/theta => Exp(rate 1), and explain why a regular square-root-n normal approximation is inappropriate. Explain permutation invariance and positive-rescaling equivariance. The required model-authored artifact is est_uniform_endpoint_interval and must implement run_estimator(request) exactly. The request object has exactly sample and alpha; reject missing or extra fields. Exploratory computation may diagnose algebra or implementation. A separate frozen confirmatory assessment uses independent uniform samples from predeclared endpoints and sample sizes, verifies exact formulas, permutation, and rescaling identities, and assesses exact-interval coverage plus the finite-sample means of M and the unbiased correction with Monte Carlo uncertainty. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "endpoint_inference",
+        "uniform_distribution",
+        "order_statistics",
+        "nonregular_asymptotics",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_uniform_endpoint_interval",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.sample",
+            "name": "sample",
+            "meaning": "Observed values X_1,...,X_n from a Uniform(0, theta) endpoint model.",
+            "json_type": "array[number]",
+            "shape": "length n with n>=2; every entry is finite and nonnegative; the maximum is strictly positive",
+            "units": "measurement",
+            "indexing": "entry i is observation i; ordering has no inferential meaning",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, negative values, fewer than two observations, and an all-zero sample.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.alpha",
+            "name": "alpha",
+            "meaning": "Two-sided equal-tail error probability fixed before observing the sample.",
+            "json_type": "number",
+            "shape": "scalar strictly between zero and one",
+            "units": "probability",
+            "indexing": "one value for the entire interval",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite values, and values outside the open interval (0,1).",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.sample_size",
+            "name": "sample_size",
+            "meaning": "The number n of observed values.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "observations",
+            "indexing": "equals len(sample)",
+            "edge_cases": "Must be an integer at least two.",
+            "normalization": "No normalization."
+          },
+          {
+            "clause_id": "response.sample_maximum",
+            "name": "sample_maximum",
+            "meaning": "The maximum order statistic M=max_i X_i.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "measurement",
+            "indexing": "uses every sample entry",
+            "edge_cases": "Must be finite and strictly positive.",
+            "normalization": "max(sample)."
+          },
+          {
+            "clause_id": "response.mle_endpoint",
+            "name": "mle_endpoint",
+            "meaning": "The maximum-likelihood estimator of the upper endpoint theta.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "measurement",
+            "indexing": "equals the sample maximum",
+            "edge_cases": "Must be finite and strictly positive.",
+            "normalization": "sample_maximum."
+          },
+          {
+            "clause_id": "response.unbiased_endpoint",
+            "name": "unbiased_endpoint",
+            "meaning": "The finite-sample unbiased correction of the endpoint MLE.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "measurement",
+            "indexing": "uses sample_size and sample_maximum",
+            "edge_cases": "Must be finite and strictly positive.",
+            "normalization": "((sample_size+1)/sample_size)*sample_maximum."
+          },
+          {
+            "clause_id": "response.confidence_level",
+            "name": "confidence_level",
+            "meaning": "The declared nominal coverage probability.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "probability",
+            "indexing": "determined by alpha",
+            "edge_cases": "Must be finite and strictly between zero and one.",
+            "normalization": "1-alpha."
+          },
+          {
+            "clause_id": "response.exact_ci_lower",
+            "name": "exact_ci_lower",
+            "meaning": "The lower endpoint obtained by inverting the equal-tail distribution of the maximum pivot.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "measurement",
+            "indexing": "uses alpha, sample_size, and sample_maximum",
+            "edge_cases": "Must be finite, strictly positive, at least sample_maximum, and below exact_ci_upper.",
+            "normalization": "sample_maximum/(1-alpha/2)^(1/sample_size)."
+          },
+          {
+            "clause_id": "response.exact_ci_upper",
+            "name": "exact_ci_upper",
+            "meaning": "The upper endpoint obtained by inverting the equal-tail distribution of the maximum pivot.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "measurement",
+            "indexing": "uses alpha, sample_size, and sample_maximum",
+            "edge_cases": "Must be finite, strictly positive, and above exact_ci_lower.",
+            "normalization": "sample_maximum/(alpha/2)^(1/sample_size)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.exact_formulas",
+            "meaning": "All returned fields equal the declared maximum, endpoint MLE, unbiased correction, confidence level, and exact equal-tail endpoint formulas."
+          },
+          {
+            "clause_id": "invariant.permutation",
+            "meaning": "Permuting sample entries preserves every response field."
+          },
+          {
+            "clause_id": "invariant.positive_rescaling",
+            "meaning": "Multiplying every sample entry by c>0 leaves sample_size and confidence_level unchanged and multiplies sample_maximum, mle_endpoint, unbiased_endpoint, and both interval endpoints by c."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.exact_coverage",
+            "meaning": "For each frozen Uniform(0, theta) DGP, independently generated equal-tail intervals cover theta with probability 1-alpha up to Monte Carlo uncertainty because (M/theta)^n is exactly Uniform(0,1)."
+          },
+          {
+            "clause_id": "claim.empirical.finite_sample_means",
+            "meaning": "Across independent replicates, the mean sample maximum agrees with n theta/(n+1) and the mean unbiased_endpoint agrees with theta up to Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory call supplies the exact generated sample and frozen alpha and separately verifies formula, output-domain, permutation, and positive-rescaling behavior before aggregating coverage or estimator means."
+          }
+        ]
+      }
+    }
+  ]
+}
