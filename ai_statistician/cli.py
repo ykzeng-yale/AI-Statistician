@@ -3617,6 +3617,10 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
             temperature=args.temperature,
             provider_name=provider_name,
             max_validation_retries=args.max_validation_retries,
+            theory_workspace_max_turns=args.theory_workspace_max_turns,
+            theory_workspace_max_tool_calls=(
+                args.theory_workspace_max_tool_calls
+            ),
         ),
     )
     architect = ResearchArchitectAgent(
@@ -3871,6 +3875,10 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             temperature=args.temperature,
             provider_name=provider_name,
             max_validation_retries=args.theory_max_validation_retries,
+            theory_workspace_max_turns=args.theory_workspace_max_turns,
+            theory_workspace_max_tool_calls=(
+                args.theory_workspace_max_tool_calls
+            ),
         ),
     )
     try:
@@ -6376,6 +6384,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="model name for the TheoryDeveloper provider; Anthropic defaults to Claude Sonnet 4.6",
     )
     research_architect_theory.add_argument("--max-tokens", type=int, default=ResearchArchitectConfig().max_tokens)
+    research_architect_theory.add_argument(
+        "--theory-workspace-max-turns",
+        type=int,
+        default=ResearchArchitectConfig().theory_workspace_max_turns,
+        help="maximum model turns in one persistent TheoryDeveloper workspace segment",
+    )
+    research_architect_theory.add_argument(
+        "--theory-workspace-max-tool-calls",
+        type=int,
+        default=ResearchArchitectConfig().theory_workspace_max_tool_calls,
+        help=(
+            "one shared ordinary-tool budget for TheoryDeveloper reads, searches, "
+            "writes, edits, and scratch actions; no separate read/write quotas"
+        ),
+    )
     research_architect_theory.add_argument("--temperature", type=float, default=0.2)
     research_architect_theory.add_argument(
         "--max-validation-retries",
@@ -6560,6 +6583,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Claude tier for compact TheoryDeveloper handoff packets",
     )
     research_agent_runtime.add_argument("--max-tokens", type=int, default=ResearchArchitectConfig().max_tokens)
+    research_agent_runtime.add_argument(
+        "--theory-workspace-max-turns",
+        type=int,
+        default=ResearchArchitectConfig().theory_workspace_max_turns,
+        help="maximum model turns in one persistent TheoryDeveloper workspace segment",
+    )
+    research_agent_runtime.add_argument(
+        "--theory-workspace-max-tool-calls",
+        type=int,
+        default=ResearchArchitectConfig().theory_workspace_max_tool_calls,
+        help=(
+            "one shared ordinary-tool budget for TheoryDeveloper reads, searches, "
+            "writes, edits, and scratch actions; no separate read/write quotas"
+        ),
+    )
     research_agent_runtime.add_argument(
         "--serious-theory-llm-model",
         default="",

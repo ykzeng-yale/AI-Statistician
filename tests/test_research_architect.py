@@ -1717,9 +1717,11 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     )
     assert "one atomic call" not in initial_prompt
     assert (
-        f"at most {developer.config.theory_workspace_max_submissions} writes"
+        "one shared budget of at most "
+        f"{developer.config.theory_workspace_max_tool_calls} ordinary tool calls"
         in initial_prompt
     )
+    assert "there is no separate read or write quota" in initial_prompt
     assert question.description in str(provider.tool_requests[1].messages)
     assert "desired_theorem_type" in str(
         provider.tool_requests[1].messages
@@ -2560,11 +2562,28 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
 def test_default_theory_workspace_budget_allows_observation_recovery() -> None:
     config = ResearchArchitectConfig()
 
-    assert config.theory_workspace_max_turns >= (
-        config.theory_workspace_max_reads
-        + config.theory_workspace_max_submissions
-        + 2
+    assert config.theory_workspace_max_tool_calls >= (
+        2 * config.theory_workspace_max_turns
     )
+    assert not hasattr(config, "theory_workspace_max_reads")
+    assert not hasattr(config, "theory_workspace_max_submissions")
+
+
+def test_cli_exposes_one_shared_theory_workspace_tool_budget() -> None:
+    parser = build_parser()
+
+    for command in ("research-agent-runtime", "research-architect-theory"):
+        args = parser.parse_args(
+            [
+                command,
+                "--theory-workspace-max-turns",
+                "17",
+                "--theory-workspace-max-tool-calls",
+                "41",
+            ]
+        )
+        assert args.theory_workspace_max_turns == 17
+        assert args.theory_workspace_max_tool_calls == 41
 
 
 def test_postexecution_theory_revision_uses_current_parent_bound_feedback(

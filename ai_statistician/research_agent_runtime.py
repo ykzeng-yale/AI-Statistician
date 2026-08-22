@@ -21673,6 +21673,15 @@ def _llm_agent_topology_row(
                 "serious_max_tokens": int(
                     getattr(config, "serious_max_tokens", 0) or 0
                 ),
+                "theory_workspace_max_turns": int(
+                    getattr(config, "theory_workspace_max_turns", 0) or 0
+                ),
+                "theory_workspace_max_tool_calls": int(
+                    getattr(config, "theory_workspace_max_tool_calls", 0) or 0
+                ),
+                "theory_workspace_budget_policy": (
+                    "one_shared_ordinary_tool_call_budget"
+                ),
             }
         )
     return row

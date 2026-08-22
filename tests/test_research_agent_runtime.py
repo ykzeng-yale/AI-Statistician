@@ -44,6 +44,7 @@ from ai_statistician.research_agent_runtime import (
 from ai_statistician.research_agent_runtime_audit import (
     _formalizer_revision_summary,
 )
+from ai_statistician.research_architect import ResearchArchitectConfig
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.scientific_code_workspace import ScientificCodeWorkspaceResult
 from ai_statistician.simulation_engineer_llm import (
@@ -83,6 +84,32 @@ def test_research_evaluation_is_pinned_to_exact_haiku_snapshot() -> None:
                 evaluation_claude_model="claude-sonnet-4-5-20250929",
             )
         )
+
+
+def test_theory_topology_records_shared_workspace_budget() -> None:
+    config = ResearchArchitectConfig(
+        provider_name="static",
+        model="static-theory-model",
+        serious_model="static-theory-model",
+        theory_workspace_max_turns=17,
+        theory_workspace_max_tool_calls=41,
+    )
+    agent = SimpleNamespace(
+        config=config,
+        provider=SimpleNamespace(provider_name="static"),
+    )
+
+    row = runtime_module._llm_agent_topology_row(
+        "TheoryDeveloper",
+        agent,
+        role="model-owned mathematical workspace",
+    )
+
+    assert row["theory_workspace_max_turns"] == 17
+    assert row["theory_workspace_max_tool_calls"] == 41
+    assert row["theory_workspace_budget_policy"] == (
+        "one_shared_ordinary_tool_call_budget"
+    )
 
 
 def test_required_source_replication_precedes_non_applicable_model_route() -> None:

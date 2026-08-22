@@ -122,8 +122,7 @@ def _run_workspace(backend, **overrides):
         "temperature": 0.0,
         "max_tokens": 1200,
         "max_turns": 4,
-        "max_reads": 2,
-        "max_submissions": 2,
+        "max_tool_calls": 8,
         "max_no_progress_turns": 2,
         "workspace_id": "theory-workspace:q1",
         "question_id": "q1",
@@ -818,8 +817,7 @@ def test_source_only_intent_commits_markdown_report_without_theory_packet(
         workspace_dir=tmp_path / "source-only-workspace",
         require_document_authority=True,
         max_turns=3,
-        max_reads=1,
-        max_submissions=2,
+        max_tool_calls=4,
     )
 
     assert result.core_packet["artifact_kind"] == (
@@ -1015,8 +1013,7 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
         _run_workspace(
             backend,
             max_turns=1,
-            max_reads=1,
-            max_submissions=1,
+            max_tool_calls=1,
             max_no_progress_turns=1,
         )
 
@@ -1038,6 +1035,69 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     assert backend.requests[-1].metadata[
         "client_tool_loop_terminal_decision_turn"
     ] is True
+
+
+def test_workspace_uses_one_shared_read_write_tool_budget() -> None:
+    read_calls = [
+        ClientToolCall(
+            call_id=f"read-context-{index}",
+            name="read_theory_workspace",
+            input={"artifact_names": [f"context_{index}"]},
+        )
+        for index in range(1, 6)
+    ]
+    write_calls = [
+        ClientToolCall(
+            call_id=f"write-draft-{index}",
+            name=THEORY_WORKSPACE_WRITE_TOOL,
+            input=_artifact_writes(
+                {
+                    "problem_card": {"claim": f"draft claim {index}"},
+                    **(
+                        {"lemma_cards": [{"id": "final-lemma"}]}
+                        if index == 6
+                        else {}
+                    ),
+                }
+            ),
+        )
+        for index in range(1, 7)
+    ]
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            *[_response(call) for call in read_calls],
+            *[_response(call) for call in write_calls],
+            _response(_commit_checkpoint()),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        max_turns=11,
+        max_tool_calls=11,
+        read_only_artifacts={
+            f"context_{index}": {"value": index} for index in range(1, 6)
+        },
+        validate_candidate=lambda packet: (
+            []
+            if packet.get("artifacts", {}).get("problem_card", {}).get("claim")
+            == "draft claim 6"
+            and packet.get("artifacts", {}).get("lemma_cards")
+            == [{"id": "final-lemma"}]
+            else ["final draft and lemma are required"]
+        ),
+    )
+
+    assert result.evidence["reads"] == 5
+    assert result.evidence["submissions"] == 6
+    assert result.evidence["tool_calls"] == 12
+    assert result.evidence["runtime_executed_tool_calls"] == 12
+    assert result.evidence["checkpoint_committed"] is True
+    final_write_observation = json.loads(
+        backend.requests[-1].messages[-3]["content"][0]["content"]
+    )
+    assert "remaining_reads" not in final_write_observation
+    assert "remaining_submissions" not in final_write_observation
 
 
 def test_model_can_stop_with_an_explicit_unresolved_theory_gap() -> None:
@@ -1174,7 +1234,7 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
     final_write_observation = json.loads(
         backend.requests[2].messages[-1]["content"][0]["content"]
     )
-    assert final_write_observation["remaining_submissions"] == 0
+    assert "remaining_submissions" not in final_write_observation
 
     continuation = ScriptedTheoryWorkspaceBackend(
         [
@@ -1802,8 +1862,7 @@ def test_theory_workspace_reserves_terminal_call_after_last_valid_write() -> Non
     result = _run_workspace(
         backend,
         max_turns=3,
-        max_reads=2,
-        max_submissions=1,
+        max_tool_calls=3,
     )
 
     valid_write_feedback = json.loads(
@@ -1941,7 +2000,6 @@ def test_same_owner_continuation_can_commit_without_forced_document_reread(
         initial_documents={"derivations/C1.md": document},
         prior_changed_document_paths=["derivations/C1.md"],
         max_turns=2,
-        max_reads=1,
     )
 
     assert len(backend.requests) == 2
@@ -2001,7 +2059,6 @@ def test_model_chosen_partial_reread_is_evidence_not_checkpoint_authority(
         },
         initial_documents={"derivations/C1.md": parent},
         max_turns=4,
-        max_reads=2,
     )
 
     assert result.evidence["checkpoint_committed"] is True
@@ -2087,8 +2144,7 @@ def test_long_theory_document_supports_search_range_read_and_local_edit(
             "changed_documents": list(changed_documents),
         },
         max_turns=4,
-        max_reads=3,
-        max_submissions=1,
+        max_tool_calls=3,
     )
 
     initial_prompt = str(backend.requests[0].messages[0]["content"])

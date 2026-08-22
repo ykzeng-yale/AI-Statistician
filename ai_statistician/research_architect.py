@@ -228,8 +228,7 @@ class ResearchArchitectConfig:
     provider_name: str = "anthropic"
     max_validation_retries: int = 2
     theory_workspace_max_turns: int = 12
-    theory_workspace_max_reads: int = 4
-    theory_workspace_max_submissions: int = 5
+    theory_workspace_max_tool_calls: int = 24
     theory_workspace_max_no_progress_turns: int = 2
 
 
@@ -408,8 +407,7 @@ class LLMTheoryDeveloperAgent:
                 temperature=self.config.temperature,
                 max_tokens=effective_max_tokens,
                 max_turns=self.config.theory_workspace_max_turns,
-                max_reads=self.config.theory_workspace_max_reads,
-                max_submissions=self.config.theory_workspace_max_submissions,
+                max_tool_calls=self.config.theory_workspace_max_tool_calls,
                 max_no_progress_turns=(
                     self.config.theory_workspace_max_no_progress_turns
                 ),
@@ -440,8 +438,7 @@ class LLMTheoryDeveloperAgent:
                 temperature=self.config.temperature,
                 max_tokens=effective_max_tokens,
                 max_turns=self.config.theory_workspace_max_turns,
-                max_reads=self.config.theory_workspace_max_reads,
-                max_submissions=self.config.theory_workspace_max_submissions,
+                max_tool_calls=self.config.theory_workspace_max_tool_calls,
                 max_no_progress_turns=(
                     self.config.theory_workspace_max_no_progress_turns
                 ),
@@ -3172,7 +3169,7 @@ def _initial_theory_workspace_read_only_artifacts(
     question: OpenResearchQuestion,
     architect_context: Mapping[str, Any],
     theory_prompt_mode: str,
-    max_submissions: int,
+    max_tool_calls: int,
     formalization_authoring_required: bool,
     allow_source_replication_checkpoint: bool = False,
 ) -> dict[str, Any]:
@@ -3218,7 +3215,8 @@ def _initial_theory_workspace_read_only_artifacts(
                     "claim_index",
                     "sanity_check_index",
                 ],
-                "maximum_submissions": max(1, int(max_submissions)),
+                "maximum_tool_calls": max(1, int(max_tool_calls)),
+                "read_write_quota_policy": "one_shared_tool_call_budget",
                 "row_count_policy": "model_selected",
                 "row_counts_are_not_quality_metrics": True,
                 "formalization_authoring_required": bool(
@@ -3248,7 +3246,7 @@ def _initial_theory_workspace_prompt(
     *,
     question: OpenResearchQuestion,
     theory_prompt_mode: str,
-    max_submissions: int,
+    max_tool_calls: int,
     formalization_authoring_required: bool,
     allow_source_replication_checkpoint: bool = False,
     continuing_from_progress: bool = False,
@@ -3309,8 +3307,10 @@ def _initial_theory_workspace_prompt(
         "workspace in the same model session. A successful partial write remains in "
         "the workspace even while the combined workspace is invalid, so edit only "
         "the still-empty or intentionally revised artifacts on the next call. You "
-        f"have at most {max(1, int(max_submissions))} "
-        "writes. Use write_theory_document(path, content) for one complete new or "
+        f"have one shared budget of at most {max(1, int(max_tool_calls))} ordinary "
+        "tool calls for reads, searches, writes, edits, and scratch actions; there "
+        "is no separate read or write quota, so allocate those calls according to "
+        "the mathematical work. Use write_theory_document(path, content) for one complete new or "
         "replacement Markdown/LaTeX/BibTeX document. Use edit_theory_document for a "
         "hash-bound local text edit, and use write_theory_workspace only for compact "
         "structured handoff values. Do not put document bodies in the structured "
@@ -3710,8 +3710,7 @@ def _generate_initial_theory_artifact_workspace(
     temperature: float,
     max_tokens: int,
     max_turns: int,
-    max_reads: int,
-    max_submissions: int,
+    max_tool_calls: int,
     max_no_progress_turns: int,
     formalization_authoring_required: bool,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
@@ -3741,7 +3740,7 @@ def _generate_initial_theory_artifact_workspace(
         question=question,
         architect_context=architect_context,
         theory_prompt_mode=theory_prompt_mode,
-        max_submissions=max_submissions,
+        max_tool_calls=max_tool_calls,
         formalization_authoring_required=formalization_authoring_required,
         allow_source_replication_checkpoint=allow_source_checkpoint,
     )
@@ -3850,7 +3849,7 @@ def _generate_initial_theory_artifact_workspace(
         user_prompt=_initial_theory_workspace_prompt(
             question=question,
             theory_prompt_mode=theory_prompt_mode,
-            max_submissions=max_submissions,
+            max_tool_calls=max_tool_calls,
             formalization_authoring_required=(
                 formalization_authoring_required
             ),
@@ -3862,8 +3861,7 @@ def _generate_initial_theory_artifact_workspace(
         temperature=temperature,
         max_tokens=max_tokens,
         max_turns=max(1, max_turns),
-        max_reads=max(1, max_reads),
-        max_submissions=max(1, max_submissions),
+        max_tool_calls=max(1, max_tool_calls),
         max_no_progress_turns=max(1, max_no_progress_turns),
         workspace_id=workspace_id,
         question_id=question.id,
@@ -3981,8 +3979,7 @@ def _generate_theory_workspace_revision(
     temperature: float,
     max_tokens: int,
     max_turns: int,
-    max_reads: int,
-    max_submissions: int,
+    max_tool_calls: int,
     max_no_progress_turns: int,
     formalization_authoring_required: bool,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
@@ -4161,8 +4158,7 @@ def _generate_theory_workspace_revision(
         temperature=temperature,
         max_tokens=max_tokens,
         max_turns=max(1, max_turns),
-        max_reads=max(1, max_reads),
-        max_submissions=max(1, max_submissions),
+        max_tool_calls=max(1, max_tool_calls),
         max_no_progress_turns=max(1, max_no_progress_turns),
         workspace_id=workspace_id,
         question_id=question.id,

@@ -313,8 +313,7 @@ def run_theory_artifact_workspace(
     temperature: float,
     max_tokens: int,
     max_turns: int,
-    max_reads: int,
-    max_submissions: int,
+    max_tool_calls: int,
     max_no_progress_turns: int,
     workspace_id: str,
     question_id: str,
@@ -356,8 +355,7 @@ def run_theory_artifact_workspace(
         )
     for value, label in (
         (max_turns, "turn"),
-        (max_reads, "read"),
-        (max_submissions, "submission"),
+        (max_tool_calls, "tool-call"),
         (max_no_progress_turns, "no-progress"),
     ):
         if value < 1:
@@ -632,7 +630,6 @@ def run_theory_artifact_workspace(
                     "changed_artifact_names": list(changed),
                     "changed_document_paths": list(changed_documents),
                     "submissions": state["submissions"],
-                    "remaining_submissions": max_submissions - state["submissions"],
                     "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
                     "runtime_edited_theory": False,
                     "proof_evidence_status": (
@@ -677,7 +674,6 @@ def run_theory_artifact_workspace(
         state["last_candidate"] = candidate
         state["last_validation_errors"] = errors
         candidate_hash = stable_hash(candidate) if candidate else ""
-        remaining_submissions = max_submissions - state["submissions"]
         common_content = {
             "ok": True,
             "state_changed": state_changed,
@@ -685,7 +681,6 @@ def run_theory_artifact_workspace(
             "changed_artifact_names": list(changed),
             "changed_document_paths": list(changed_documents),
             "submissions": state["submissions"],
-            "remaining_submissions": remaining_submissions,
             "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
             "model_artifact_writes_applied": len(artifact_writes),
             "model_document_writes_applied": len(document_writes),
@@ -734,8 +729,6 @@ def run_theory_artifact_workspace(
         del context
         tool_input = dict(call.input)
         if call.name == "read_theory_workspace":
-            if state["reads"] >= max_reads:
-                raise ClientToolInputError("theory workspace read budget is exhausted")
             if set(tool_input) - {"artifact_names", "document_paths"}:
                 raise ClientToolInputError(
                     "read_theory_workspace accepts artifact_names and document_paths"
@@ -821,7 +814,6 @@ def run_theory_artifact_workspace(
                         for path in document_paths
                     },
                     "reads": state["reads"],
-                    "remaining_reads": max_reads - state["reads"],
                     "proof_evidence_status": (
                         "THEORY_WORKSPACE_READ_NOT_PROOF_EVIDENCE"
                     ),
@@ -840,10 +832,6 @@ def run_theory_artifact_workspace(
             )
 
         if call.name == THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
-            if state["reads"] >= max_reads:
-                raise ClientToolInputError(
-                    "theory workspace read budget is exhausted"
-                )
             if set(tool_input) != {"path", "line_start", "line_end"}:
                 raise ClientToolInputError(
                     "read_theory_document requires path, line_start, and line_end"
@@ -860,17 +848,12 @@ def run_theory_artifact_workspace(
                 content={
                     **observation,
                     "reads": state["reads"],
-                    "remaining_reads": max_reads - state["reads"],
                 },
                 observation_key="theory-document-read:"
                 + stable_hash(inspection_ref),
             )
 
         if call.name == THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL:
-            if state["reads"] >= max_reads:
-                raise ClientToolInputError(
-                    "theory workspace read budget is exhausted"
-                )
             if set(tool_input) - {"query", "document_paths", "max_results"}:
                 raise ClientToolInputError(
                     "search_theory_documents accepts query, document_paths, and "
@@ -890,7 +873,6 @@ def run_theory_artifact_workspace(
                 content={
                     **observation,
                     "reads": state["reads"],
-                    "remaining_reads": max_reads - state["reads"],
                 },
                 observation_key="theory-document-search:"
                 + stable_hash(inspection_ref),
@@ -1214,10 +1196,6 @@ def run_theory_artifact_workspace(
                 raise ClientToolInputError(
                     "write_theory_document is unavailable"
                 )
-            if state["submissions"] >= max_submissions:
-                raise ClientToolInputError(
-                    "theory workspace submission budget is exhausted"
-                )
             candidate_documents, document_write_record = (
                 _replace_theory_workspace_document(
                     state["documents"],
@@ -1231,10 +1209,6 @@ def run_theory_artifact_workspace(
             )
 
         if call.name == THEORY_WORKSPACE_WRITE_TOOL:
-            if state["submissions"] >= max_submissions:
-                raise ClientToolInputError(
-                    "theory workspace submission budget is exhausted"
-                )
             if set(tool_input) - {"writes"}:
                 raise ClientToolInputError(
                     "write_theory_workspace accepts only structured writes; "
@@ -1263,10 +1237,6 @@ def run_theory_artifact_workspace(
             if not require_document_authority:
                 raise ClientToolInputError(
                     "localized theory document editing is unavailable"
-                )
-            if state["submissions"] >= max_submissions:
-                raise ClientToolInputError(
-                    "theory workspace submission budget is exhausted"
                 )
             candidate_documents, edit_record = (
                 _edit_theory_workspace_document(
@@ -2093,13 +2063,6 @@ def run_theory_artifact_workspace(
         }
 
     # The shared loop reserves terminal disposition outside this action budget.
-    max_tool_calls = max(
-        max_turns,
-        max_reads
-        + max_submissions
-        + (scratchpad.max_runs if scratchpad is not None else 0)
-        + (1 if research_source_execution is not None else 0),
-    )
     effective_max_turns = (
         max(max_turns, max_tool_calls)
         if allow_source_replication_checkpoint
