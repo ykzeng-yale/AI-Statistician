@@ -2087,6 +2087,9 @@
         "runtime_result_sha256": "ae96b99dea74b3dccf892eb17b7e3491a9a082c96c586ec4fccf2fa94b611d88",
         "runtime_diagnosis": "The theory-only path skipped the existing isolated theory preflight because that gate was coupled to empirical metric authoring. Architect routed the first Theory draft directly to terminal Critic, which false-accepted active differentiation-under-integral and moving-support errors. Hidden gold correctly withheld theory credit because no independent preflight lineage existed.",
         "operator_audit_path": "docs/operator_audits/score_information_bound_l0_v1.md",
+        "post_run_shared_mechanism_fix_commit": "9fbbeaba610a48bfbce84a80b4b91802fe301ba9",
+        "post_run_shared_mechanism_fix_verification": "214 focused tests and 860/860 full-suite tests passed",
+        "post_run_shared_mechanism_boundary": "Future theory-required tasks must bind an isolated review acceptance to the exact theory artifact before terminal Critic. Theory-only tasks create no empirical metric gate. This generic authority correction cannot rerun, repair, or rescore this consumed candidate.",
         "model_draw_resampling_blocked": true,
         "formalization_requirement": "not_applicable",
         "full_task_passed": false

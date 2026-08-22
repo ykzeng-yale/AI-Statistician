@@ -1059,3 +1059,33 @@ passed `208/208`; the complete repository suite passed `857/857` in 68.13 second
 compile-all, model-policy, JSON, and diff checks passed. This is future-task regression
 evidence only. The consumed formal draw remains `0/1`, the ladder remains `0/24`, and
 strict development theorem closure remains `0/2`.
+
+### Theory authority edge after the twenty-fifth draw
+
+The first scalar score-information draw exposed a different harness defect. The
+TheoryDeveloper used the intended Codex-shaped inner loop: one persistent model
+session made ten model-selected tool calls, read the authoritative Markdown
+workspace, ran two scratch checks, and committed a 352-line derivation. The outer
+graph then skipped the existing isolated referee because that review edge was
+coupled to empirical metric authoring. Terminal Critic accepted the same author's
+unreviewed artifact, while hidden gold correctly withheld theory credit. The draw
+is consumed and remains `0/1`; it is never eligible for rerun or rescore.
+
+Code commit `9fbbeaba610a48bfbce84a80b4b91802fe301ba9` makes strict
+review outcome propagation an evidence-authority rule for every task that asks for
+theory. It reuses the existing artifact-only Markdown referee workspace. Rejection
+returns exact findings to the same TheoryDeveloper workspace; acceptance binds the
+review packet and exact theory hash, then compiles the already authored Architect
+plan. A theory-only task creates no metric gate and does not claim that Python/R,
+simulation, or Lean is applicable. A direct terminal-Critic call without that exact
+acceptance now stops before a Critic model request.
+
+This is the same separation used by Codex strict review: the model remains free to
+author and revise content inside its workspace, while the harness preserves the
+independent decision and prevents a later component from flattening or bypassing
+it. No theory formula, checklist item, repair agent, scheduler, retry, model turn,
+resource cap, Formalizer requirement, or benchmark exception was added. Runtime
+and evaluation share one hash-lineage validator instead of maintaining parallel
+review rules. The relevant focused panel passed `214/214`; the complete repository
+passed `860/860` in 72.19 seconds. These facts apply to future disjoint tasks only;
+the immutable ladder remains `0/25`.

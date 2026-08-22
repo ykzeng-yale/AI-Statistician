@@ -1442,6 +1442,12 @@ def test_score_information_l0_draw_is_consumed_without_review_credit() -> None:
     assert evidence[
         "authority_binding_push_confirmed_on_work_branch_and_main"
     ] is True
+    assert evidence["post_run_shared_mechanism_fix_commit"] == (
+        "9fbbeaba610a48bfbce84a80b4b91802fe301ba9"
+    )
+    assert evidence["post_run_shared_mechanism_fix_verification"] == (
+        "214 focused tests and 860/860 full-suite tests passed"
+    )
     assert evidence["formalization_requirement"] == "not_applicable"
     assert ladder["current_readiness"]["consumed_scored_tasks"] == 25
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0

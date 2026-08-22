@@ -1,13 +1,13 @@
 {
-  "schema_version": 135,
+  "schema_version": 136,
   "updated_at": "2026-08-22",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "e2ef191a4d243f3e81223945f5f83333cb7ebec3",
+  "validated_code_head": "9fbbeaba610a48bfbce84a80b4b91802fe301ba9",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Correct the shared evidence topology exposed by the consumed score-information draw. Its substantial Markdown Theory checkpoint went directly from Architect to terminal Critic without the existing isolated referee, so visible research_eval false-completed while hidden gold correctly withheld theory credit. Require artifact-only independent review for every theory-required task without adding mathematical rules, a repair agent, another scheduler, or any rerun of the now-immutable 0/25 ladder.",
+  "current_goal_focus": "Keep the Codex-shaped shared inner workspace loop and one scientific outer graph. Commit 9fbbeaba now requires exact, isolated review authority before terminal Critic for every theory-required task, while theory-only work creates no empirical gate. Preserve the immutable 0/25 ladder and use only a newly frozen disjoint task for future capability evidence; do not add mathematical rules, a repair agent, another scheduler, model retries, or mandatory Formalizer work.",
   "latest_its_time_source_execution_calibration": {
     "paper": "Thams, Sondergaard, Weichwald, and Peters (2024), JMLR 25(302), Identifying Causal Effects using Instrumental Time Series",
     "source_repository": "https://github.com/nikolajthams/its-time",
@@ -233,8 +233,12 @@
     ]
   },
   "validated_change": {
-    "commit": "c0065450d8d8e0b0b79ca79a74444391f9394857",
+    "commit": "9fbbeaba610a48bfbce84a80b4b91802fe301ba9",
     "changes": [
+      "The consumed scalar score-information draw exposed one shared authority-edge defect: a serious 352-line Markdown theory checkpoint skipped the existing isolated referee because preflight was coupled to empirical metric authoring, and terminal Critic false-accepted it. Hidden gold correctly withheld credit; the task remains immutable 0/1 and the ladder remains 0/25.",
+      "Commit 9fbbeaba makes independent artifact-grounded review mandatory whenever selected task intent requires theory. It reuses the existing isolated Markdown referee and same TheoryDeveloper source-return path. A theory-only acceptance compiles the existing Architect plan directly to Critic without creating metric, Algorithm, Simulation, Formalizer, retry, or repair authority.",
+      "Terminal Critic now fails closed before its model call unless an exact preflight packet and acceptance bind the current theory ID and hash with no unresolved findings. Runtime and research evaluation share one lineage validator; no statistical formula, mathematical checklist, model turn, resource cap, scheduler, or benchmark exception was added.",
+      "The focused Theory/Architect/evaluation/gold panel passed 214/214 and the complete repository passed 860/860 in 72.19 seconds. No product model call, consumed-task rerun, resume, repair, hidden rescore, proof, or capability credit occurred.",
       "The one authorized Statlib uniform-consistency exact-target draw is consumed and immutable at 0/1. Exact Haiku made 24 model-authored Lean source updates, 24 local checks, and 10 formal-RAG calls in two same-owner workspace segments; one source elaborated only with sorryAx, independent axiom audit rejected it, and zero candidates reached kernel promotion. Runtime and hidden evaluation both failed closed; all twenty-four scored tasks remain 0/24.",
       "The canonical capability ladder no longer falsely describes the consumed Statlib draw as unrun. It now records the exact runtime, hidden-report, progress, failure, completion, and topology hashes plus zero kernel closure; regression tests reject restoration of the stale pre-run state.",
       "A disjoint twenty-fifth L0 task isolates mathematical derivation and independent review for the scalar score-information lower bound, equality condition, efficient normal example, and moving-support failure. Scientific code, empirical simulation, formalization, source replication, and novelty are explicitly not applicable.",
@@ -515,9 +519,10 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model independently chooses every claim, dependency, research-source query, source handle, exact read, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, confirmatory replicate count, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, median-of-means, AR(1), Fisher-z, paired-ratio, and scalar-control-variate expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, automatic literature query or source selection, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback. Terminal disposition is generic control-plane capacity and cannot execute an extra research action; dependency and trace projections preserve identity, hashes, ABI, exact-output locations, and unique unreferenced observations without selecting or rewriting scientific content.",
     "verification": {
-      "full_pytest": "858 passed in 82.56s",
-      "next_frozen_activation": "scalar_score_information_bound_known_result; exactly one fresh exact-Haiku product draw is authorized after visible commit 15e982d4 and authority-binding commit c0065450 were pushed",
-      "affected_subsystem_pytest": "Capability-ladder, gold-evaluator, and semantic-authority checks passed 66/66; the complete repository passed 858/858 overall",
+      "full_pytest": "860 passed in 72.19s",
+      "next_frozen_activation": "none currently authorized; the score-information task is permanently consumed, so any future product draw requires a newly frozen disjoint task and evaluator authority",
+      "affected_subsystem_pytest": "Theory/Architect/evaluation/gold regressions passed 214/214; the complete repository passed 860/860 overall",
+      "independent_theory_review_authority": "Commit 9fbbeaba requires an exact isolated review acceptance before terminal Critic whenever theory is required. Theory-only tasks create no metric gate, and bypass attempts block before the Critic model call.",
       "theory_workspace_action_budget": "Commit 9cf75411 replaces class-specific read/write quotas with one shared ordinary-tool budget selected by the TheoryDeveloper model. Turn/action bounds, no-progress termination, execution safety caps, and the separately reserved terminal disposition remain enforced; no model call or frozen-task activation occurred.",
       "simulation_dependency_prompt_projection": "immutable live replay reduced 6,812,024 bytes of recursive environment feedback to a 45,314-byte complete planning prompt; accepted estimator ABI plus source/result hashes remained visible, while source bytes and 4,000 historical smoke-result rows were absent",
       "persisted_tool_call_projection": "immutable scalar replay reduced the largest tool record from 3,370,158 to 18,379 bytes and the complete ten-row trace from 3,440,322 to 89,326 bytes, preserving summary hash, output hash, and output paths; large observations without external authoritative output remain exact inline",
@@ -756,6 +761,9 @@
     "runtime_manifest_sha256": "7431cd7af241a48712eab0f18128aa23ac5119c0b01d32f2c0ca1439b50f2a8c",
     "hidden_gold_report_sha256": "908efc77f125bbe44e779bf0a353881ca1b22f57ffbf53fedcc067d346f12e59",
     "operator_audit": "docs/operator_audits/score_information_bound_l0_v1.md",
+    "post_run_shared_mechanism_fix_commit": "9fbbeaba610a48bfbce84a80b4b91802fe301ba9",
+    "post_run_shared_mechanism_fix_verification": "214 focused tests and 860/860 full-suite tests passed",
+    "post_run_product_model_calls": 0,
     "boundary": "The single fresh product draw and post-termination hidden evaluation are consumed. Runtime Critic acceptance is not independent theory authority. This task remains 0/1 and may never be rerun, resumed, repaired, or rescored."
   },
   "previous_authorized_evaluation": {
