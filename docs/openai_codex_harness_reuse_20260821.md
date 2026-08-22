@@ -1033,3 +1033,29 @@ benchmark rerun, hidden rescore, agent, scheduler, retry, turn increase, theorem
 rule, Lean grammar/tactic rule, proof, or capability credit was added. Exact run and
 authority hashes are recorded in
 `docs/operator_audits/statlib_uniform_consistency_formal_l0_v1.md`.
+
+### One Theory workspace action budget
+
+Code commit `9cf75411746fcc7b5bc400649a75442b2805c770` removes a remaining
+non-Codex-shaped control split from TheoryDeveloper. The same persistent model session
+previously faced independent read and write quotas in addition to its model-turn and
+tool-call boundaries. That classified budget could reject a mathematically useful sixth
+write even when unused reads or ordinary actions remained, so the harness rather than
+the model selected the research-action mix.
+
+TheoryDeveloper now receives one shared ordinary-tool budget for model-selected reads,
+searches, complete document writes, hash-bound local edits, and Python/R scratch work.
+The maximum model turns remain separately bounded, execution tools retain their real
+sandbox and source safety caps, no-progress termination remains active, and the shared
+client-tool loop still reserves one terminal checkpoint or honest-gap disposition
+outside the ordinary action budget. CLI configuration and topology evidence record the
+same policy explicitly.
+
+This adopts the useful Codex harness principle without importing Codex runtime: one
+source owner chooses environment actions from a stable tool surface and consumes raw
+observations in the same session. It adds no agent, scheduler, repair path, statistical
+formula, Lean rule, or product model call. The dependent Theory/Architect/runtime panel
+passed `208/208`; the complete repository suite passed `857/857` in 68.13 seconds, and
+compile-all, model-policy, JSON, and diff checks passed. This is future-task regression
+evidence only. The consumed formal draw remains `0/1`, the ladder remains `0/24`, and
+strict development theorem closure remains `0/2`.

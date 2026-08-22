@@ -108,14 +108,12 @@ The harness must not own:
 - hidden bridge, queue, materializer, promotion, or fallback workflows;
 - proof credit for retrieval hits, LLM judgments, pseudo-formal text, or compilation of a weaker theorem.
 
-`structured_output_retry.py` is transport, not a semantic repair system. It is
-limited to compact control and handoff envelopes. Substantive theory, Python, R,
-and Lean artifacts belong in model-owned workspaces where the same model receives
-raw observations and authors the next artifact state. Runtime may apply a standard
-model-authored edit, but never chooses it or fills content. Initial discovery and
-revision use one atomic complete-artifact replacement tool. The bounded estimator-
-interface handoff remains acceptable only while small, visible, and preserving
-owner feedback.
+`structured_output_retry.py` is transport for compact control and handoff envelopes,
+not semantic repair. Substantive theory, Python, R, and Lean belong in model-owned
+workspaces where the same model receives raw observations and authors the next state.
+Runtime may apply an exact model-authored write or edit but never chooses its content.
+Theory uses direct document reads, searches, complete writes, hash-bound local edits,
+and compact handoff writes in the same source-owner session.
 
 ## Theory workspace
 
@@ -131,10 +129,11 @@ edits apply, raw validation returns to the same model, and the editor contains n
 statistical rules, suggested values, or routing decisions. An explicit grounded gap
 blocks the lineage without treating model judgment as proof.
 
-Structural validity does not stop the session. `write_theory_workspace` retains the
-exact candidate; the model then continues useful work, reports a gap, or calls
-`commit_theory_checkpoint`. No fixed review ritual is required. A commit is only a
-proposal for independent review, never scientific acceptance or proof evidence.
+Structural validity does not stop the session. Within one shared ordinary-action budget,
+the model chooses its mix of reads, searches, writes, edits, and scratch work, then
+continues, reports a gap, or calls `commit_theory_checkpoint`. The harness still owns
+total action and turn bounds, no-progress termination, execution safety caps, and the
+reserved terminal disposition. A commit proposes independent review; it is not evidence.
 
 When prior work is permitted, the same TheoryDeveloper session can inspect a frozen
 snapshot or model-selected public paper/repository text without a LiteratureAgent.

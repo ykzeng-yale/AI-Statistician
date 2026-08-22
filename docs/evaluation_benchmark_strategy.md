@@ -134,6 +134,12 @@ sanity checks, and unresolved gaps. Independent review and empirical or formal
 observations can reopen the current theory lineage. A model-reported theory gap is
 an honest blocked result, never proof evidence.
 
+Within one TheoryDeveloper segment, reads, searches, writes, edits, and scratch work
+draw from one ordinary-action budget. Evaluation must not prescribe class-specific
+read or write counts: the model decides how to spend its workspace actions, while the
+harness preserves the total turn/action boundary and the separately reserved terminal
+checkpoint or gap disposition.
+
 The mathematical authority is now model-authored Markdown, LaTeX, and BibTeX in a
 content-addressed workspace. The structured handoff carries stable claim IDs, exact
 document paths, statuses, direct dependency edges, and only the typed ABIs selected
