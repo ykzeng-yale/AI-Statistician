@@ -576,17 +576,20 @@ def build_architect_theory_execution_preflight_prompt(
     }
 
     source_material = {
-        key: value
-        for key, value in material.items()
-        if key
-        not in {
-            "active_prior_finding_ids",
-            "active_prior_finding_ledger",
-            "anchor_catalog",
-            "prior_finding_ledger",
-            "retrieval_context",
-            "review_workspace_root",
-        }
+        key: deepcopy(material.get(key))
+        for key in (
+            "schema_version",
+            "artifact_kind",
+            "question_id",
+            "source_theory_packet_id",
+            "source_theory_packet_hash",
+            "execution_results_available",
+            "preflight_revision_index",
+            "formal_sources_applicable",
+            "proof_evidence_status",
+            "boundary",
+        )
+        if key in material
     }
     source_material["research_question"] = _compact_value(
         anchor_by_id.get("question", {}).get("content", {}),
@@ -617,21 +620,42 @@ def build_architect_theory_execution_preflight_prompt(
         == "authoritative_theory_document"
     ]
     source_material["authoritative_theory_documents"] = authoritative_documents
-    source_material["current_theory_anchors"] = [
-        {
-            "anchor_id": str(anchor.get("anchor_id", "") or ""),
-            "artifact_role": str(anchor.get("artifact_role", "") or ""),
-            "content": deepcopy(anchor.get("content")),
+    canonical_document_tool_context = bool(authoritative_documents) and not (
+        include_authoritative_document_content
+    )
+    inline_structured_anchor_ids = {
+        "theory.estimator_specs",
+        "theory.simulation_ademp_spec",
+    }
+    current_theory_anchors: list[dict[str, Any]] = []
+    for anchor in anchor_catalog:
+        anchor_id = str(anchor.get("anchor_id", "") or "")
+        artifact_role = str(anchor.get("artifact_role", "") or "")
+        if anchor_id in {"question", "architect.upstream_research_contract"}:
+            continue
+        if (
+            artifact_role == "authoritative_theory_document"
+            and not include_authoritative_document_content
+        ):
+            continue
+        row = {
+            "anchor_id": anchor_id,
+            "artifact_role": artifact_role,
         }
-        for anchor in anchor_catalog
-        if str(anchor.get("anchor_id", "") or "")
-        not in {"question", "architect.upstream_research_contract"}
-        and (
-            include_authoritative_document_content
-            or str(anchor.get("artifact_role", "") or "")
-            != "authoritative_theory_document"
-        )
-    ]
+        if (
+            not canonical_document_tool_context
+            or artifact_role == "authoritative_theory_document"
+            or anchor_id in inline_structured_anchor_ids
+        ):
+            row["content"] = deepcopy(anchor.get("content"))
+        else:
+            row["content_access"] = (
+                "authoritative_document_tools_or_model_directed_compact_search"
+                if compact_source_search_available
+                else "authoritative_document_tools"
+            )
+        current_theory_anchors.append(row)
+    source_material["current_theory_anchors"] = current_theory_anchors
     retrieval_context = material.get("retrieval_context", {})
     retrieval_context = (
         retrieval_context if isinstance(retrieval_context, Mapping) else {}
@@ -3955,9 +3979,10 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     tool_prompt = (
         prompt.split("\n\n", 1)[-1]
         + "\n\nThe prompt contains a hash-bound catalog, not duplicated full theory "
-        "documents. Read every line of every authoritative theory document; split long "
-        "documents into adjacent ranges, and independent reads may be issued together. "
-        "Coverage proves inspection only, so you must still "
+        "documents. Use document search and exact range reads to select the context "
+        "needed for the load-bearing dependency chain; independent reads may be issued "
+        "together. Read a complete document only when its structure requires that "
+        "context. Inspection provenance is not correctness, so you must still "
         "follow dependencies, reconstruct decisive transitions, and challenge them. "
         "Choose all searches and ranges yourself. When available, use "
         "search_research_sources and read_research_source for task-bound papers, code, "

@@ -2454,6 +2454,13 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
     )
     semantic["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
     semantic["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
+    semantic["theory_derivation_packet"]["derivation_steps"] = [
+        {
+            "id": "legacy_structured_duplicate",
+            "claim": "This row indexes mathematics owned by the document.",
+            "equation_or_argument": marker,
+        }
+    ]
     theory_material["source_theory_packet_hash"] = stable_hash(semantic)
 
     class DocumentInspectionBackend(_PreflightToolBackend):
@@ -2540,6 +2547,15 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
     assert all(
         row["artifact_role"] != "authoritative_theory_document"
         for row in prompt_payload["source_material"]["current_theory_anchors"]
+    )
+    derivation_anchor = next(
+        row
+        for row in prompt_payload["source_material"]["current_theory_anchors"]
+        if row["anchor_id"] == "theory.derivation_steps"
+    )
+    assert "content" not in derivation_anchor
+    assert derivation_anchor["content_access"] == (
+        "authoritative_document_tools_or_model_directed_compact_search"
     )
     first_rejection = _last_tool_result(backend.requests[1])
     assert first_rejection["error"] == (
