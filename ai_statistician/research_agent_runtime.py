@@ -8275,23 +8275,15 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 failure_classification="generated_code_semantic_review_verdict_invalid",
             )
 
-        review_document = review_packet.pop(
-            "_review_document_artifact",
-            {},
-        )
+        review_document = review_packet.pop("_review_document_artifact", {})
         if not isinstance(review_document, Mapping) or not str(
             review_document.get("document_id", "") or ""
         ).strip():
             return AgentStepResult(
                 status="BLOCKED",
-                rationale=(
-                    "GeneratedCodeSemanticReviewer did not bind its compact verdict "
-                    "to a model-authored Markdown review artifact."
-                ),
+                rationale="Semantic verdict lacks its model-authored Markdown review.",
                 produced_artifacts={materialization_id: materialization},
-                failure_classification=(
-                    "generated_code_semantic_review_document_missing"
-                ),
+                failure_classification="generated_code_semantic_review_document_missing",
             )
         review_document_id = str(review_document["document_id"])
         review_audit_artifacts[review_document_id] = dict(review_document)
