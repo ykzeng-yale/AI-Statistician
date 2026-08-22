@@ -321,6 +321,17 @@ placing another Codex thread manager around `AgentRuntime`.
     lookup, scratch work, and report editing do not require an outer AgentRuntime
     checkpoint. This removes a deterministic context-selection rule and adds no agent,
     scheduler, formula check, reviewer vote, or runtime-authored mathematical result.
+16. Canonical referee sampling no longer duplicates the legacy structured derivation,
+    equation, assumption, sanity-check, theorem-card, and lemma-card bodies beside the
+    authoritative document catalog. The prompt keeps the research question, task
+    contract, compact claim/dependency slots, and estimator/simulation interface; the
+    same model obtains mathematical bytes through exact document reads or an available
+    model-directed compact search. The full structured artifacts remain content-addressed
+    for runtime identity and tool retrieval. A deterministic reconstruction of the
+    consumed exponential-rate artifact produced a 23,835-byte sampling prompt while
+    omitting or tool-gating 16,697 bytes of duplicated structured-anchor content. This
+    changes context projection only and does not reinterpret, repair, rerun, or rescore
+    that artifact.
 
 These changes add no mandatory model call, retry, reflection turn, agent,
 scheduler, model tier, statistical formula, Lean grammar rule, or repair recipe.
