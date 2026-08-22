@@ -914,7 +914,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_document_inspection_and_model_directed_source_query_v14"
+        "client_tool_model_directed_document_and_source_inspection_v15"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
@@ -2270,9 +2270,12 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     protocol = " ".join(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL)
     for phrase in (
         "structured handoff is only an index",
-        "every line of every authoritative theory document",
+        "model-directed search and exact range reads",
+        "load-bearing definitions",
         "correct final statement does not cancel",
-        "discriminating special case",
+        "Try to falsify each load-bearing conclusion",
+        "order-of-magnitude check",
+        "standard result is not an independent check",
         "exact symbolic reduction",
         "final estimator or output distribution cannot establish",
         "complete semantic chain",
@@ -2567,7 +2570,7 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
     )
 
 
-def test_preflight_requires_complete_authoritative_document_reads(
+def test_preflight_allows_model_directed_authoritative_document_reads(
     tmp_path: Path,
 ) -> None:
     relative_path = "derivations/claim_chain.md"
@@ -2644,7 +2647,6 @@ This abandoned route is explicitly rejected.
                 cite_sources=False,
                 payload=payload,
             )
-            self.coverage_rejection = {}
 
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
@@ -2664,31 +2666,12 @@ This abandoned route is explicitly rejected.
             if turn == 2:
                 return _tool_response(
                     ClientToolCall(
-                        "submit-with-partial-coverage",
+                        "submit-after-model-directed-inspection",
                         "submit_theory_preflight_review",
                         self._submission(source_ref=""),
                     )
                 )
-            if turn == 3:
-                self.coverage_rejection = _last_tool_result(request)
-                return _tool_response(
-                    ClientToolCall(
-                        "read-main-theorem",
-                        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
-                        {
-                            "path": relative_path,
-                            "line_start": 5,
-                            "line_end": len(content.splitlines()),
-                        },
-                    )
-                )
-            return _tool_response(
-                ClientToolCall(
-                    "submit-with-active-claim-coverage",
-                    "submit_theory_preflight_review",
-                    self._submission(source_ref=""),
-                )
-            )
+            raise AssertionError("review should terminate after its focused inspection")
 
     backend = ClaimCoverageBackend()
     packet = _tool_review(
@@ -2696,14 +2679,9 @@ This abandoned route is explicitly rejected.
         theory_protocol_material=theory_material,
     )
 
-    assert backend.coverage_rejection["error"] == "preflight_submission_rejected"
-    assert any(
-        relative_path in error
-        and "not fully read" in error
-        for error in backend.coverage_rejection["validation_errors"]
-    )
     assert packet["overall_verdict"] == "ACCEPT"
-    assert packet["theory_document_inspection_count"] == 2
+    assert packet["theory_document_inspection_count"] == 1
+    assert packet["theory_document_inspection_refs"][0]["line_end"] == 4
     assert [row["claim_id"] for row in packet["claim_reviews"]] == [
         "definition_primitive",
         "theorem_main",

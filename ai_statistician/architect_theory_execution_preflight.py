@@ -66,7 +66,7 @@ from .theory_workspace import (
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 19
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 27
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 28
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -85,7 +85,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_document_inspection_and_model_directed_source_query_v14"
+    "client_tool_model_directed_document_and_source_inspection_v15"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = (
     "model_owned_markdown_referee_workspace_with_compact_status_envelope_v2"
@@ -106,7 +106,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REPORT_DRAFT_KIND = (
     "TheoryExecutionPreflightReviewDraft"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 12
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TERMINAL_RECOVERY_TURNS = 1
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS = 2
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND = (
@@ -128,17 +128,23 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "observed results, or proof claims."
     ),
     (
-        "Inspect every line of every authoritative theory document. For each central "
-        "conclusion, follow its declared dependencies back to "
-        "definitions and assumptions, then independently reconstruct at least one "
-        "decisive transition. A correct final statement does not cancel a false, "
-        "circular, or unsupported intermediate step."
+        "Use model-directed search and exact range reads to find the load-bearing "
+        "definitions, assumptions, and derivations. Spend the review on the smallest "
+        "dependency chain whose failure would invalidate the central conclusion, then "
+        "independently reconstruct its decisive transitions. Read an entire document "
+        "when its structure genuinely requires that context, but do not paraphrase "
+        "every line as a substitute for mathematical scrutiny. A correct final "
+        "statement does not cancel a false, circular, or unsupported intermediate step."
     ),
     (
-        "Try a discriminating special case, boundary case, counterexample, or "
-        "independent reduction for the central identity. When the candidate invokes "
+        "Try to falsify each load-bearing conclusion with a discriminating special "
+        "case, boundary case, counterexample, independent reduction, scale check, or "
+        "order-of-magnitude check. When the candidate invokes "
         "an external theorem, inspect its actual hypotheses and conclusion through "
         "the available source tool instead of accepting its name as verification. "
+        "An appeal to a standard result is not an independent check until its "
+        "normalization, limiting regime, and hypotheses are instantiated in the "
+        "candidate's notation. "
         "When scratch computation is useful, target the disputed intermediate claim "
         "or dependency transition with a model-authored exact symbolic reduction or "
         "discriminating numerical case. Agreement of a final estimator or output "
@@ -751,9 +757,11 @@ def build_architect_theory_execution_preflight_prompt(
             "inspected documents or indexed artifacts establish the required change; "
             "retract it only when the "
             "current derivation or independent source evidence defeats its premise. "
-            "Every active claim must receive its own independent check; any FAIL or "
-            "UNCERTAIN claim prevents acceptance. Otherwise keep prior findings "
-            "unresolved. Every blocker needs a checkable independent "
+            "Use the ordered claim slots as a compact disposition index, not as a "
+            "request to restate every claim. Deeply check the model-selected "
+            "load-bearing dependency chain and mark any claim that remains materially "
+            "unchecked as UNCERTAIN; any FAIL or UNCERTAIN claim prevents acceptance. "
+            "Otherwise keep prior findings unresolved. Every blocker needs a checkable independent "
             "derivation, reduction, or counterexample grounded in exact inspected "
             "documents or indexed artifacts; quoting candidate self-critique or prior "
             "reviewer prose is not "
@@ -805,43 +813,6 @@ def _preflight_authoritative_theory_documents(
             "byte_size": len(content.encode("utf-8")),
         }
     return documents
-
-
-def _preflight_partially_unread_theory_documents(
-    *,
-    material: Mapping[str, Any],
-    inspection_refs: Sequence[Mapping[str, Any]],
-) -> list[str]:
-    documents = _preflight_authoritative_theory_documents(material)
-    reads_by_path: dict[str, list[tuple[int, int]]] = {}
-    for ref in inspection_refs:
-        if str(ref.get("tool", "") or "") != THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
-            continue
-        path = str(ref.get("path", "") or "")
-        line_start = ref.get("line_start")
-        line_end = ref.get("line_end")
-        if (
-            path not in documents
-            or isinstance(line_start, bool)
-            or not isinstance(line_start, int)
-            or isinstance(line_end, bool)
-            or not isinstance(line_end, int)
-        ):
-            continue
-        reads_by_path.setdefault(path, []).append((line_start, line_end))
-
-    partially_unread: list[str] = []
-    for path, document in sorted(documents.items()):
-        next_unread_line = 1
-        for line_start, line_end in sorted(reads_by_path.get(path, [])):
-            if line_end < next_unread_line:
-                continue
-            if line_start > next_unread_line:
-                break
-            next_unread_line = max(next_unread_line, line_end + 1)
-        if next_unread_line <= int(document["line_count"]):
-            partially_unread.append(path)
-    return partially_unread
 
 
 def _search_preflight_theory_documents(
@@ -2057,16 +2028,6 @@ def _preflight_theory_document_inspection_errors(
                     )
         else:
             errors.append(f"theory document inspection {index} tool is invalid")
-    if expected_required:
-        partially_unread_documents = _preflight_partially_unread_theory_documents(
-            material=material,
-            inspection_refs=refs,
-        )
-        if partially_unread_documents:
-            errors.append(
-                "authoritative theory documents were not fully read: "
-                + ", ".join(partially_unread_documents[:16])
-            )
     return errors
 
 
