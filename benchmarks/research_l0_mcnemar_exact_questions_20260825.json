@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "mcnemar_exact_paired_binary_known_result",
+      "title": "Exact McNemar test for paired binary outcomes",
+      "description": "Focused L0 known-result evaluation grounded in Quinn McNemar, Note on the Sampling Error of the Difference Between Correlated Proportions or Percentages, Psychometrika 12(2), 1947, 153-157, DOI 10.1007/BF02295996. Let (A_i,B_i), i=1,...,n, be iid paired binary observations and let N_ab count pairs with A_i=a and B_i=b. Under marginal homogeneity P(A=1)=P(B=1), derive the equivalent restriction p_01=p_10 and, by conditioning the multinomial cell counts on M=N_01+N_10, derive N_01 given M=m as Binomial(m,1/2). Define the frozen exact two-sided p-value as min{1, 2 P[Binomial(m,1/2)<=min(N_01,N_10)]}; prove conditional rejection probability is at most alpha for every m and hence unconditional size is at most alpha. Handle M=0, equal discordant counts, discreteness, and pair-order exchange. Distinguish this exact conditional test from a one-sided test, a mid-p modification, the asymptotic chi-square McNemar statistic, and a test for two independent proportions. The required model-authored artifact is est_mcnemar_exact and must implement the frozen Python run_estimator(request) contract exactly. Exploratory Python or R may diagnose identities. A separately frozen confirmatory assessment uses predeclared paired-binary null laws with equal discordant probabilities and checks exact identities plus type-I calibration with Monte Carlo uncertainty. Simulation supports implementation and calibration; it is not a proof. Source-code replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "categorical_data",
+        "paired_binary",
+        "exact_test",
+        "conditional_inference",
+        "L0"
+      ],
+      "source": {
+        "title": "Note on the Sampling Error of the Difference Between Correlated Proportions or Percentages",
+        "author": "Quinn McNemar",
+        "journal": "Psychometrika",
+        "year": 1947,
+        "volume": 12,
+        "issue": 2,
+        "pages": "153-157",
+        "doi": "10.1007/BF02295996",
+        "url": "https://doi.org/10.1007/BF02295996"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_mcnemar_exact",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.pairs",
+            "name": "pairs",
+            "meaning": "The paired binary observations in stable subject order, with each row [A_i,B_i].",
+            "json_type": "array[array[integer]]",
+            "shape": "one nonempty outer array; every inner array has exactly two entries",
+            "units": "paired binary outcomes",
+            "indexing": "row i is one subject, first entry is A_i and second entry is B_i",
+            "edge_cases": "Reject booleans, floats, strings, values other than exact integers 0 and 1, malformed rows, nonarrays, and an empty outer array; do not coerce entries.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.alpha",
+            "name": "alpha",
+            "meaning": "The predeclared significance level used only to turn the exact p-value into a rejection decision.",
+            "json_type": "number",
+            "shape": "one finite scalar strictly between zero and one",
+            "units": "probability",
+            "indexing": "one value fixed for the request",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite values, zero, one, and values outside (0,1).",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n_pairs",
+            "name": "n_pairs",
+            "meaning": "The exact number n of admitted paired observations.",
+            "json_type": "integer",
+            "shape": "one positive integer",
+            "units": "pairs",
+            "indexing": "outer request length",
+            "edge_cases": "At least one because empty input is rejected.",
+            "normalization": "number of rows in pairs"
+          },
+          {
+            "clause_id": "response.count_00",
+            "name": "count_00",
+            "meaning": "The number N_00 of rows equal to [0,0].",
+            "json_type": "integer",
+            "shape": "one nonnegative integer",
+            "units": "pairs",
+            "indexing": "A=0,B=0 cell",
+            "edge_cases": "Zero is allowed.",
+            "normalization": "unscaled cell count"
+          },
+          {
+            "clause_id": "response.count_01",
+            "name": "count_01",
+            "meaning": "The number N_01 of rows equal to [0,1].",
+            "json_type": "integer",
+            "shape": "one nonnegative integer",
+            "units": "pairs",
+            "indexing": "A=0,B=1 discordant cell",
+            "edge_cases": "Zero is allowed and orientation must not be reversed.",
+            "normalization": "unscaled cell count"
+          },
+          {
+            "clause_id": "response.count_10",
+            "name": "count_10",
+            "meaning": "The number N_10 of rows equal to [1,0].",
+            "json_type": "integer",
+            "shape": "one nonnegative integer",
+            "units": "pairs",
+            "indexing": "A=1,B=0 discordant cell",
+            "edge_cases": "Zero is allowed and orientation must not be reversed.",
+            "normalization": "unscaled cell count"
+          },
+          {
+            "clause_id": "response.count_11",
+            "name": "count_11",
+            "meaning": "The number N_11 of rows equal to [1,1].",
+            "json_type": "integer",
+            "shape": "one nonnegative integer",
+            "units": "pairs",
+            "indexing": "A=1,B=1 cell",
+            "edge_cases": "Zero is allowed.",
+            "normalization": "unscaled cell count"
+          },
+          {
+            "clause_id": "response.discordant_total",
+            "name": "discordant_total",
+            "meaning": "The conditioning count M=N_01+N_10.",
+            "json_type": "integer",
+            "shape": "one integer between zero and n_pairs",
+            "units": "discordant pairs",
+            "indexing": "sum of the two off-diagonal cells",
+            "edge_cases": "May be zero, in which case the exact p-value is one.",
+            "normalization": "count_01 plus count_10"
+          },
+          {
+            "clause_id": "response.marginal_difference",
+            "name": "marginal_difference",
+            "meaning": "The observed B-success proportion minus the observed A-success proportion.",
+            "json_type": "number",
+            "shape": "one finite scalar in [-1,1]",
+            "units": "proportion difference",
+            "indexing": "B minus A orientation",
+            "edge_cases": "Equals zero when the discordant counts are equal.",
+            "normalization": "(count_01-count_10)/n_pairs"
+          },
+          {
+            "clause_id": "response.exact_two_sided_p_value",
+            "name": "exact_two_sided_p_value",
+            "meaning": "The frozen doubled-tail exact conditional p-value min{1,2 P[Binomial(M,1/2)<=min(N_01,N_10)]}.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1]",
+            "units": "probability",
+            "indexing": "two-sided conditional test",
+            "edge_cases": "Equals one when discordant_total is zero or count_01 equals count_10.",
+            "normalization": "twice the smaller conditional Binomial tail, capped at one"
+          },
+          {
+            "clause_id": "response.reject",
+            "name": "reject",
+            "meaning": "The exact decision under the public convention that the null is rejected when exact_two_sided_p_value<=alpha.",
+            "json_type": "boolean",
+            "shape": "one JSON boolean",
+            "units": "decision",
+            "indexing": "one decision for the request",
+            "edge_cases": "False for discordant_total zero for every admitted alpha.",
+            "normalization": "exact_two_sided_p_value less than or equal to alpha"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly pairs and alpha, and the response contains exactly the nine declared response fields; missing or extra fields are rejected rather than ignored or invented."
+          },
+          {
+            "clause_id": "invariant.count_partition",
+            "meaning": "The four cell counts are nonnegative integers summing to n_pairs, discordant_total equals count_01+count_10, and marginal_difference uses the declared B-minus-A orientation."
+          },
+          {
+            "clause_id": "invariant.pair_permutation",
+            "meaning": "Permuting subject rows preserves every response field."
+          },
+          {
+            "clause_id": "invariant.measurement_order_exchange",
+            "meaning": "Swapping A and B within every pair swaps count_01 with count_10, negates marginal_difference, and preserves n_pairs, concordant counts, discordant_total, exact_two_sided_p_value, and reject."
+          },
+          {
+            "clause_id": "invariant.concordant_augmentation",
+            "meaning": "Appending concordant [0,0] or [1,1] pairs changes only the associated concordant count, n_pairs, and the denominator-dependent marginal_difference; it preserves both discordant counts, discordant_total, exact_two_sided_p_value, and reject."
+          },
+          {
+            "clause_id": "invariant.no_discordance_boundary",
+            "meaning": "If all pairs are concordant, discordant_total is zero, marginal_difference is zero, exact_two_sided_p_value is one, and reject is false."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.conditional_exact_size",
+            "meaning": "For each frozen discordant total m and alpha, exact enumeration of N_01~Binomial(m,1/2) gives rejection probability at most alpha under the declared doubled-tail rule."
+          },
+          {
+            "clause_id": "claim.empirical.null_type_one_calibration",
+            "meaning": "For each frozen iid paired-binary null law with equal discordant probabilities, independently generated samples have a rejection frequency compatible with the exact unconditional rejection probability and not above alpha beyond declared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.cell_and_pvalue_identity",
+            "meaning": "Every frozen replicate verifies the returned four cell counts, discordant total, B-minus-A marginal difference, exact doubled-tail p-value, and decision against an independent implementation."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory setting fixes n, alpha, and all four paired-cell probabilities before outcomes, uses probabilities summing to one with p_01=p_10, and invokes the accepted estimator through the exact public request."
+          }
+        ]
+      }
+    }
+  ]
+}
