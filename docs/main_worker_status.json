@@ -1,31 +1,33 @@
 {
-  "schema_version": 150,
+  "schema_version": 151,
   "updated_at": "2026-08-25",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "91fff005efc8a49f4aacb3b3fcd5d619a8884e46",
+  "validated_code_head": "3c00a515040dff2e21e4ec4666fce7e70b45a8b7",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all thirty consumed tasks at immutable scores, now 1/30. Beta-Binomial is the first fully gold-covered non-formal pass and directly validates same-session model/tool correction, artifact-backed Markdown/LaTeX theory, isolated source review, frozen confirmatory simulation, and terminal evidence disclosure on one disjoint task. It is not proof of cross-family generalization, source replication, R research, or Lean closure; strict development closure remains 0/2. Continue with model-owned long-horizon Theory, Python/R, Simulation, and Lean workspaces connected by sparse hash-bound handoffs; do not embed Codex as a second runtime, add a repair agent, add a second scheduler, hardcode scientific content, or make Formalizer mandatory for non-formal tasks.",
+  "current_goal_focus": "Preserve all thirty-one consumed tasks at immutable scores, now 2/31. Beta-Binomial remains the first fully gold-covered theory-code-simulation pass; PyMLE is the first protocol-level exact source-replication pass. PyMLE's deterministic source identity and outputs passed, but operator audit found that the frozen Haiku report judge false-accepted contradictory scientific prose, so source interpretation is not yet reliable. Strict development Lean closure remains 0/2 and integrated R research remains unproved. Continue model-owned long-horizon Theory, Python/R, Simulation, source replication, and Lean workspaces connected by sparse hash-bound handoffs; do not embed Codex as a second runtime, add a repair agent, add a second scheduler, hardcode scientific content, or make Formalizer mandatory for non-formal tasks.",
   "latest_openai_codex_harness_adoption": {
     "upstream_repository": "https://github.com/openai/codex",
-    "upstream_commit": "7c6eb0eef113ddc16ae5b207ac9add364b489798",
+    "upstream_commit": "70b5cfc73b25458a7af225d24b16ef4794f8f380",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "91fff005efc8a49f4aacb3b3fcd5d619a8884e46",
+    "implementation_commit": "3c00a515040dff2e21e4ec4666fce7e70b45a8b7",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
       "cb9dcbe9d1d1cd38d73f43c6892c2234d9bca7be",
-      "91fff005efc8a49f4aacb3b3fcd5d619a8884e46"
+      "91fff005efc8a49f4aacb3b3fcd5d619a8884e46",
+      "3c00a515040dff2e21e4ec4666fce7e70b45a8b7"
     ],
     "decision": "Reuse Codex's persistent model-tool-observation loop, stable tool surface, external artifact state, sparse collaboration, and telemetry boundaries. Do not embed codex exec, app-server, or the Codex SDK as another scheduler or generator backend in the Claude-first canonical runtime.",
     "implemented_changes": [
       "Theory preflight keeps mathematical judgment in a persistent model-authored Markdown report and returns a compact hash-bound disposition instead of duplicating a scientific checklist packet.",
       "Theory, scientific-code, and Lean workspaces open a fresh context window only at a verified durable checkpoint while preserving exact parent transcript and artifact lineage.",
       "GeneratedCodeSemanticReviewer submits through the existing native client-tool loop; model-actionable validation failures return as error tool observations to the same isolated reviewer session, while repeated invalid submission fails closed.",
-      "Metric author and independent reviewer prompts require uncertainty arithmetic on the actual comparison scale and distinguish absolute, relative, MCSE, and standardized errors without adding a numeric detector or statistical formula."
+      "Metric author and independent reviewer prompts require uncertainty arithmetic on the actual comparison scale and distinguish absolute, relative, MCSE, and standardized errors without adding a numeric detector or statistical formula.",
+      "Future hidden semantic judgments retain their compact per-claim status map but bind every verdict to one exact decisive excerpt from the candidate document. The same Haiku model scans for contradictions; runtime validates only excerpt identity and stores its hash."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -35,11 +37,38 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-    "verification": "The terminal-tool mechanism passed its focused and full regression suites before activation. One subsequently frozen disjoint Beta-Binomial task completed the same-session Theory and Algorithm corrections, isolated algorithm and simulation review, frozen confirmatory execution, Critic disclosure, and evaluator-only full-task scoring at 1/1. The final metric, ladder, core, JSON, and related panel passed 105/105; the complete repository passed 872/872 in 69.48 seconds.",
-    "live_validation_runs": 1,
-    "fresh_live_client_tool_model_turns": 29,
+    "verification": "Beta-Binomial completed the same-session Theory and Algorithm corrections plus isolated algorithm/simulation review at 1/1. PyMLE then completed one exact source-replication workspace at 1/1 under the frozen evaluator, while operator audit exposed a semantic-judge false positive. The future-task grounded-judgment mechanism classified a new subtle contradiction as FAIL under exact Haiku after 2/2 calibration. The mechanism panel passed 73/73 and its complete suite passed 873/873; after ledger integration, 80 focused tests and the complete repository passed 874/874 in 67.79 seconds. Compile-all and architecture budgets passed.",
+    "live_validation_runs": 2,
+    "fresh_live_client_tool_model_turns": 43,
     "capability_credit": true,
-    "boundary": "No consumed task was rerun, resumed, repaired, or rescored. Beta-Binomial is immutable 1/1 and the aggregate ladder is 1/30. This validates one non-formal harness trajectory only; source replication, cross-family generalization, R, and exact Lean closure remain separate."
+    "boundary": "No consumed task was rerun, resumed, repaired, or rescored. Beta-Binomial and PyMLE are each immutable 1/1 and the aggregate ladder is 2/31. PyMLE validates source execution identity, not general scientific interpretation; cross-family generalization, integrated R, and exact Lean closure remain separate."
+  },
+  "latest_pymle_cir_source_replication_evaluation": {
+    "task_id": "pymle_jss_cir_example_public_replication",
+    "family": "stochastic_diffusion_source_replication",
+    "status": "consumed_full_task_gold_passed_with_operator_semantic_caveat",
+    "run_path": "runs/main_worker_l1_pymle_cir_exact_replication_20260825_v1_codex_harness_exact_haiku",
+    "runtime_model": "claude-haiku-4-5-20251001",
+    "runtime_model_policy_status": "OK",
+    "fresh_live_runs": 1,
+    "runtime_status": "ACCEPTED",
+    "runtime_iterations": 3,
+    "source_workspace": "14 model turns, 20 model-chosen tool calls, one unchanged author-source execution, and one 320-line Markdown checkpoint",
+    "source_replication_manifest_id": "source_replication:bf941a625398efb13363",
+    "source_replication_manifest_hash": "62f156834e12f41c9fdf0941d6ca5fac6cae24a0e27945bd33845e5d77047b20",
+    "visible_research_evaluation": "1/1 complete, mode-conformant, and ready",
+    "hidden_gold_evaluation": "1/1 under the frozen evaluator: source identity and outputs 11/11; report calibration 6/6; report claims 6/6 SATISFIED",
+    "operator_semantic_finding": "The report correctly denies bias inference from one path but also calls one estimate substantially biased downward; it additionally labels the Git commit as SHA-256 and offers an unsupported exact-density optimality explanation. The frozen report judge and runtime Critic both false-accepted this prose.",
+    "formalization_requirement": "not_applicable",
+    "formalizer_executed": false,
+    "runtime_manifest_sha256": "d543378a280ecda219c6b07c134030a5ceac214de8e60e57ad1185dcc8181173",
+    "hidden_gold_report_sha256": "eef4ff92e7bd655521219a1a821e21f8157f6cc3c9769603420128b853fb3c9f",
+    "runtime_result_sha256": "2b3c160fbe187e8d597533e358c9bd096acf4ff0471b13f0447bcc8f456cd0d4",
+    "operator_audit": "docs/operator_audits/pymle_jss_cir_replication_l1_v1.md",
+    "post_run_grounded_semantic_judgment_commit": "3c00a515040dff2e21e4ec4666fce7e70b45a8b7",
+    "full_task_score": "1/1 under the pre-frozen protocol",
+    "ladder_score_after_consumption": "2/31",
+    "boundary": "The sole draw is consumed. The protocol score is preserved, but capability credit is narrowed to source identity, execution, output parsing, and checkpoint lineage. The shared judge change is future-only and cannot revise this report or score."
   },
   "latest_beta_binomial_predictive_evaluation": {
     "task_id": "beta_binomial_conjugate_predictive_known_result",
@@ -410,8 +439,13 @@
     ]
   },
   "validated_change": {
-    "commit": "cb9dcbe9d1d1cd38d73f43c6892c2234d9bca7be",
+    "commit": "3c00a515040dff2e21e4ec4666fce7e70b45a8b7",
     "changes": [
+      "The single frozen PyMLE L1 draw completed exact author-source replication in three outer traces and scored 1/1 under its pre-frozen evaluator. It is the first source-replication full-task pass and moves the aggregate to 2/31; formalization was not applicable.",
+      "Operator audit found a substantive false positive in the frozen semantic judgment: contradictory one-path bias language and unsupported optimality interpretation were accepted despite correct caveats elsewhere. The score is immutable, while capability credit is explicitly narrowed.",
+      "Commit 3c00a515 keeps the existing two-call calibrated Haiku judge and compact claim-status map, but requires one exact decisive candidate excerpt per claim. Runtime validates only that the quote exists and persists its hash; no task phrase, formula, second judge, retry, or content repair was added.",
+      "A new unrelated subtle-contradiction diagnostic calibrated 2/2 and returned FAIL under exact claude-haiku-4-5-20251001. The focused panel passed 73/73 and the complete repository passed 873/873 in 68.00 seconds with the production package line budget unchanged.",
+      "The official Apache-2.0 openai/codex audit was refreshed from 7c6eb0e to 70b5cfc. Its three-commit delta affects Guardian transcript retention and Windows TUI probing; the adopted core turn loop, tool routing, model-actionable failure, compaction, and multi-agent message files are unchanged.",
       "Commit cb9dcbe9 adopts OpenAI Codex's model-actionable tool-failure semantics at the existing GeneratedCodeSemanticReviewer boundary. An invalid terminal submission returns exact bounded validation feedback to the same isolated reviewer session; a valid resubmission closes the workspace and repeated invalid submission fails closed.",
       "The change reuses client_tool_loop.py and adds no RepairAgent, Architect reroute, source edit, statistical formula, Lean rule, extra scheduler, OpenAI provider, or Codex runtime. Static backends retain deterministic one-shot parser behavior.",
       "One pre-frozen Ridge bias-variance draw used exact claude-haiku-4-5-20251001 for all 26 product calls and remains immutable 0/1. Theory and executable source completed, hidden theory was 8/9 INCONCLUSIVE, and the consumed one-shot reviewer transport blocked before simulation or hidden code and empirical evaluation.",
@@ -740,7 +774,7 @@
       "git_diff_check": "passed",
       "model_policy_audit": "production tiers remain Haiku or Sonnet with Opus rejected; tests and live evaluations remain pinned to claude-haiku-4-5-20251001",
       "fresh_live_research_draws": 8,
-      "fresh_live_result": "The Beta-Binomial v1 draw used exact claude-haiku-4-5-20251001 for all seven enabled roles. It completed ten outer traces and 29 client-tool model turns, corrected one Theory tool input and one failed Algorithm execution in their original sessions, accepted both executed sources through isolated review, passed all eight runtime metric contracts, and passed evaluator-only theory 7/7 plus 9/9 semantic claims, algorithm 10/10, and empirical 10/10. The task is immutable 1/1 and the aggregate ladder is 1/30; formalization was not applicable.",
+      "fresh_live_result": "Beta-Binomial v1 used exact claude-haiku-4-5-20251001 and completed the same-session theory-code-simulation path at immutable 1/1. PyMLE v1 then used exact Haiku to complete one unchanged author-source execution and hash-bound report checkpoint at immutable 1/1 under its frozen evaluator. The aggregate is 2/31; PyMLE carries an operator-recorded semantic false-positive caveat, and formalization was not applicable to either pass.",
       "latest_formal_draw": "BLOCKED and hidden 0/1 after two same-owner workspace segments, 24 model-authored source updates, 24 local Lean checks, 10 formal-RAG calls, one sorryAx elaboration, zero kernel-verified subclaims, zero full-theorem proofs, and one formal gap",
       "post_formal_draw_regression": "Commit fe7c7055 passed 124/124 focused checks and 854/854 overall in 68.22 seconds; explicit formal intent now reaches the actual evidence contract, axiom audit annotates proof-state feedback, and active-project indexed declaration source is available to the same Formalizer session without an LSP dependency. This cannot rescore the consumed draw.",
       "post_run_semantic_diagnostic": "Runtime preflight acceptance is not hidden theory authority: deterministic checks passed but the calibrated 12/12 semantic judge returned INCONCLUSIVE. Hidden empirical checks passed over 9,000 invocations, while hidden algorithm acceptance did not fully pass and runtime generated no simulation. Commit dd3cb36c fixes only the shared projection mechanism for future tasks.",
@@ -754,7 +788,7 @@
       "compiled_post_theory_transition": "Optional Theory plus required scientific code now routes the exact newly produced theory identity, original Architect plan, n_runs, and seed directly to AlgorithmEngineer with no second Architect model operation. Required-theory preflight and dependency rebuild routes remain unchanged.",
       "runtime_core_growth": "research_agent_runtime.py is 24986 lines and remains below the unchanged strict-under-25000-line regression budget. The complete top-level Python package is 149998 lines under its strict-under-150000-line budget; commit 91fff005 adds no outer interface or scheduler."
     },
-    "evidence_boundary": "Beta-Binomial v1 is immutable 1/1 and Ridge v1 remains immutable 0/1. The Beta pass validates one non-formal same-session trajectory but does not override any prior failure or supply formal proof. All thirty scored tasks remain at their consumed outcomes, the aggregate is 1/30, no new draw is authorized, and exact development theorem closure remains 0/2."
+    "evidence_boundary": "Beta-Binomial and PyMLE v1 are each immutable 1/1; Ridge and all other failed draws retain their outcomes. Beta validates one non-formal theory-code-simulation trajectory. PyMLE validates exact source execution identity but its report judge false-accepted contradictory prose. All thirty-one scored tasks are consumed, the aggregate is 2/31, no new draw is authorized, and exact development theorem closure remains 0/2."
   },
   "latest_component_evidence": {
     "id": "research_l0_scalar_control_variate_v1_codex_harness_exact_haiku_20260821",
@@ -842,33 +876,33 @@
     "boundary": "The run proves source-grounded document-authoritative theory generation and live referee use of full-document reads, source search, and model-owned scratch. It does not prove correct derivation or accepted review. Runtime provenance was contradictory, operator audit found active mathematical and ABI defects, and no downstream executable lane ran. The frozen task remains 0/1 with no rerun or manual repair."
   },
   "latest_frozen_evaluation": {
-    "id": "research_l0_beta_binomial_predictive_20260825_v1_exact_haiku",
-    "task_id": "beta_binomial_conjugate_predictive_known_result",
-    "family": "bayesian_conjugate_inference",
-    "status": "consumed_full_task_gold_passed",
-    "visible_questions_sha256": "c35434013c3eeeb5284045d8c77e35e9a6d6c0a86c41349c98b59d9c7b071534",
-    "visible_question_hash": "2ae2b821a2964fbede60da8d1313db1d855679bfa6048ab7103da99bede45bbf",
-    "gold_manifest_sha256": "0146a264fcdb3be8bf56d5ba266c9eab041cb64990060cbbeb17567bf22a4d5b",
-    "gold_descriptor_hash": "21d41355b5d992d38d5754e9965bc1335647d844386201f0f7aa81a5a1f10272",
-    "freeze_commit": "9129db099bdc5bc475766277cb024d201dbc1bee",
+    "id": "research_l1_pymle_cir_replication_20260825_v1_exact_haiku",
+    "task_id": "pymle_jss_cir_example_public_replication",
+    "family": "stochastic_diffusion_source_replication",
+    "status": "consumed_full_task_gold_passed_with_operator_semantic_caveat",
+    "visible_questions_sha256": "67d9e1e5abaae744b0f2ec30e1267b93b450fc74b0977034d0abc1e46f3b08b9",
+    "visible_question_hash": "c9798e144bcf6ed101ac198376184ee62ad6d4e690e84a1367cdecad7e645536",
+    "gold_manifest_sha256": "3b95e00a7cb6150d5a34342c2a55385e18ec9826c7101e180168df82e3887292",
+    "gold_descriptor_hash": "ea3789f34dd03433de0721533786eff876b89348f45624ebec2653cc3fa6855a",
+    "freeze_commit": "378d00df589952ae18c3f5e149293439bd5d0fe1",
     "activation_push_confirmed_on_work_branch_and_main": true,
-    "theory_authority": "model-authored Markdown/LaTeX; JSON is identity, claim index, executable ABI, and checkpoint metadata only",
+    "theory_authority": "not_applicable; task authority is an immutable source snapshot, exact execution manifest, and model-authored Markdown report",
     "formalization_status": "not_applicable",
     "first_runtime_model_call_occurred": true,
     "fresh_live_runs": 1,
-    "run_path": "runs/main_worker_research_l0_beta_binomial_predictive_20260825_v1_codex_checkpoint_exact_haiku",
-    "runtime_manifest_sha256": "85315b9324e316fe98067e8272ed6de580d524c247eb9cadcdffdd8ac7a5be94",
-    "hidden_gold_report_sha256": "5b72c3c5acd3e27feded9054df93343510662f4207d3eeed83c3d67a740b8a5b",
-    "runtime_completion_summary_sha256": "58a3360fb8327263612ceff6c5440e287c9bec7a8e63d020401d37549633129d",
-    "runtime_result_sha256": "6a68b22886b175460bbb37de6db9f833832071cdf95b2d1d4e4d2a70e0e3a4a8",
+    "run_path": "runs/main_worker_l1_pymle_cir_exact_replication_20260825_v1_codex_harness_exact_haiku",
+    "runtime_manifest_sha256": "d543378a280ecda219c6b07c134030a5ceac214de8e60e57ad1185dcc8181173",
+    "hidden_gold_report_sha256": "eef4ff92e7bd655521219a1a821e21f8157f6cc3c9769603420128b853fb3c9f",
+    "runtime_completion_summary_sha256": "74c4a26bc93a91aeb99001e1defef1bc66e6270f071a7f0a85a993577cd30b2e",
+    "runtime_result_sha256": "2b3c160fbe187e8d597533e358c9bd096acf4ff0471b13f0447bcc8f456cd0d4",
     "runtime_status": "ACCEPTED",
     "research_eval_complete": true,
     "hidden_gold_tasks_evaluated": 1,
-    "hidden_component_results": "theory structure 7/7 and calibrated semantics 9/9 PASS; hidden algorithm 10/10; hidden empirical 10/10; runtime completion and gap disclosure passed; full task 1/1",
-    "operator_audit": "docs/operator_audits/beta_binomial_predictive_l0_v1.md",
-    "post_frozen_shared_harness_fix_commit": "91fff005efc8a49f4aacb3b3fcd5d619a8884e46",
+    "hidden_component_results": "source identity, environment, execution, outputs, optimizer status, and warning checks 11/11; calibrated report semantics returned 6/6 SATISFIED; checkpoint and gap disclosure passed; operator audit later found the semantic verdict was a false positive",
+    "operator_audit": "docs/operator_audits/pymle_jss_cir_replication_l1_v1.md",
+    "post_frozen_shared_harness_fix_commit": "3c00a515040dff2e21e4ec4666fce7e70b45a8b7",
     "full_task_passed": true,
-    "boundary": "The only permitted runtime draw is complete and immutable. This is non-proof product evidence with formalization not applicable. The post-run metric-review prompt correction applies only to future tasks and cannot permit rerun, resume, artifact repair, or rescore."
+    "boundary": "The only permitted draw is complete and immutable. The protocol pass establishes exact source replication mechanics but not reliable report interpretation, theorem proof, or broader PyMLE validity. The post-run grounded-judgment correction is future-only."
   },
   "previous_frozen_evaluation": {
     "id": "research_l0_ridge_bias_variance_20260825_v1_exact_haiku",
@@ -1184,11 +1218,11 @@
       "scientific sandbox stdout already represented by content-addressed execution artifacts, output paths, and output hash being copied in full into both the persisted runtime trace and the separate tool-call ledger"
     ],
     "remaining_structural_problems": [
-      "source-report and theory semantic quality remains uneven under exact Haiku: Beta-Binomial demonstrates one correct long-horizon known-result derivation, while Trimmed Match misread operator-fixed execution versus source defaults, invented a geo-count anomaly, and was visibly accepted by the runtime Critic before the calibrated hidden semantic judge rejected it. One pass does not establish cross-family interpretation or source-replication quality",
+      "source-report and theory semantic quality remains uneven under exact Haiku: Beta-Binomial demonstrates one accepted long-horizon known-result derivation, Trimmed Match failed hidden report semantics, and PyMLE's calibrated hidden judge false-accepted an explicit one-path bias contradiction plus unsupported interpretation. Protocol passes do not establish cross-family semantic reliability",
       "the hidden artifact evaluator now has a correct file-backed transport in deterministic and synthetic live sandbox tests, but no consumed score may be changed and a future disjoint frozen task must supply the first integrated hidden identity execution through this path",
       "task nineteen, scalar control-variate v1, reached accepted theory, estimator-source, source-review, and metric-review checkpoints, but recursive artifact transport rejected the first Simulation planning request at 1,130,071 tokens before generation, so generated simulation remained absent and the full task remains 0/1",
       "strict development exact source-theorem closure remains 0/2",
-      "the research ladder has thirty gold-configured and consumed outcomes, no authorized unconsumed draw, and one full-task pass; the passing task is a focused non-formal known result rather than source replication, R, frontier research, or formal proof",
+      "the research ladder has thirty-one gold-configured and consumed outcomes, no authorized unconsumed draw, and two full-task protocol passes. Beta-Binomial is a focused non-formal known result; PyMLE is exact source replication with an operator semantic caveat. Integrated R, frontier research, and formal proof remain unpassed",
       "scalar control-variate supplies live evidence that terminal disposition and same-reviewer correction now work, but its hidden theory semantics remained inconclusive and its estimator did not pass every hidden algorithm acceptance check; robust theory judgment and source-code correctness remain capability problems rather than harness projection problems",
       "fresh exact-sign-test L0 v1 shows that exact Haiku will use the independent referee scratch tool, but the referee's second program violated the sandbox callable ABI and no review was accepted; live tool use does not establish correct counterexample choice, interpretation, or lower false-acceptance rate",
       "fresh exact-sign-test L0 v1 completed a source-grounded Markdown theory checkpoint but stopped at independent preflight because one runtime-owned failed scratch ref had no request hash; the shared provenance contradiction is regression-fixed, but the frozen task remains 0/1",
@@ -1238,7 +1272,7 @@
       "scientific execution has Pyodide/WebR foundations but live R, broad package support, and precision-driven confirmatory replication need integrated evidence",
       "Formalizer has real RAG, local Lean, same-session complete replacement and exact localized source editing, proof-state feedback, and semantic review but still lacks reliable exact statistical theorem closure; cb70e09c is deterministic harness evidence only",
       "the atomic active-project declaration context has exact-Haiku component evidence but still needs a fresh integrated Formalizer run and cross-task ablation",
-      "the research-capability ladder now has thirty consumed focused tasks and one passing full task. Beta-Binomial has complete hidden theory, algorithm, and empirical closure with formalization not applicable; Ridge and twenty-eight earlier tasks retain their original failures, so cross-family generalization and formal closure remain unestablished",
+      "the research-capability ladder now has thirty-one consumed focused tasks and two passing full tasks. Beta-Binomial has complete hidden theory, algorithm, and empirical closure; PyMLE has exact source-replication closure under its frozen evaluator with an operator-recorded semantic false positive. Cross-family generalization, integrated R, and formal closure remain unestablished",
       "the post-Ridge generated-code reviewer now uses the existing native client-tool loop so model-actionable terminal validation returns to the same isolated reviewer context; this is regression-tested future-task mechanism evidence and has not changed Ridge or any prior score",
       "the active Lean foundation pins Statlib 6575d611 on Lean 4.30, while fetched Statlib origin/main 01d2a03 adds EVariable and DPI foundations on Lean 4.33. The active importable corpus and latest upstream discovery corpus must retain distinct snapshot identities until a deliberate compatibility migration succeeds",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
@@ -1247,14 +1281,14 @@
     "wrong_next_move": "Do not add a repair worker, packet patcher, theorem-specific bridge, Lean grammar fixer, forced tactic policy, hardcoded statistical answer, fixed universal simulation count, more outer budget, or another scheduler."
   },
   "maturity_estimate": {
-    "evidence_and_control_plane": "about 88-91%",
+    "evidence_and_control_plane": "about 89-92%",
     "model_owned_scientific_workspace": "about 80-84%",
     "theory_development": "about 48-55%",
-    "source_replication_and_paper_ingest": "about 35%",
+    "source_replication_and_paper_ingest": "about 43-48%",
     "formalization_and_exact_proof_closure": "about 30-35%",
-    "product_research_end_to_end_readiness": "about 55-60%",
+    "product_research_end_to_end_readiness": "about 57-62%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "1/30 consumed tasks passed. Beta-Binomial completed hidden theory, algorithm, empirical, runtime-completion, and gap-disclosure authority with formalization not applicable. Ridge, Huber, Uniform endpoint, and the other prior tasks retain their original scores; component successes still cannot complete a failed task",
+    "fully_gold_covered_research_tasks": "2/31 consumed tasks passed under their pre-frozen protocols. Beta-Binomial completed hidden theory, algorithm, and empirical authority. PyMLE completed exact source identity, execution, output, checkpoint, and frozen report checks, but operator audit found a semantic-judge false positive; this narrows interpretation without changing its score. All prior failures retain their original outcomes",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
@@ -1271,10 +1305,10 @@
     "cli_lines": 7209,
     "top_level_python_modules": 142,
     "top_level_package_lines": 149998,
-    "latest_runtime_manifest_bytes": 51316
+    "latest_runtime_manifest_bytes": 52765
   },
   "next_gates": [
-    "Preserve Beta-Binomial L0 v1 at immutable 1/1, Ridge at immutable 0/1, and the aggregate ladder at 1/30. The disjoint Beta run now validates the same-session reviewer correction once. Treat 91fff005 as future-task metric-review evidence only; never rerun, resume, repair, or rescore either task.",
+    "Preserve Beta-Binomial and PyMLE at immutable 1/1, Ridge at immutable 0/1, and the aggregate ladder at 2/31. Treat 91fff005 and 3c00a515 as future-task mechanism evidence only; never rerun, resume, repair, or rescore a consumed task.",
     "Preserve Huber location L0 v1 at immutable 0/1. Treat commits 82083807, f5822f58, and a73be809 plus the one generic Haiku transport calibration as future-task harness evidence only; never rerun, resume, repair, or rescore Huber.",
     "Keep generated-code review model-owned in one isolated same-session tool loop: exact source plus raw execution enter the reviewer, substantive analysis lives in hashed Markdown, and runtime validates identity, evidence references, independence, and promotion. Return model-actionable terminal validation to that reviewer, but do not restore ordered dimensions, full-packet regeneration, a RepairAgent, Architect rerouting, or another scheduler.",
     "Preserve Uniform endpoint L0 v1 at immutable 0/1. Do not rerun, resume, repair, rescore, or feed hidden findings back to its source owners. Keep hidden empirical 8/8 as component evidence only; use commits b49a8f5a and 778b2aac solely as future-task regression evidence for full visible-ABI probing, executable-interface review, risk-directed theory review, canonical artifact parity, and auditable evaluator references.",

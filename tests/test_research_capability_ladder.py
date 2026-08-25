@@ -2082,7 +2082,7 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
         for row in scored
     )
     assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "91fff005efc8a49f4aacb3b3fcd5d619a8884e46"
+        "3c00a515040dff2e21e4ec4666fce7e70b45a8b7"
     )
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2109,3 +2109,51 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
         "semantic_calibration_cases.json",
     ):
         assert hidden_name not in runtime_visible
+
+
+def test_pymle_l1_draw_is_consumed_as_first_source_replication_pass() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "pymle_jss_cir_example_public_replication"
+    )
+
+    assert candidate["status"] == "consumed_scored"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_full_task_gold_passed_with_operator_semantic_caveat"
+    )
+    evidence = candidate["activation_evidence"]
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_enabled_model_tiers"] == {"haiku": 7}
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["runtime_iterations"] == 3
+    assert evidence["source_replication_runs"] == 1
+    assert evidence["runtime_outer_tool_calls"] == 0
+    assert evidence["hidden_source_replication_checks"] == "11/11"
+    assert evidence["hidden_source_report_semantic_calibration"] == "6/6"
+    assert evidence["hidden_gold_evaluation"] == (
+        "1/1_passed_under_frozen_evaluator"
+    )
+    assert "false-accepted" in evidence["operator_semantic_audit"]
+    assert evidence["post_run_grounded_semantic_judgment_commit"] == (
+        "3c00a515040dff2e21e4ec4666fce7e70b45a8b7"
+    )
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["full_task_passed"] is True
+    readiness = ladder["current_readiness"]
+    assert readiness["consumed_scored_tasks"] == 31
+    assert readiness["fully_gold_passed_tasks"] == 2
+    assert readiness["source_replication_components_passed"] == 1
+    assert readiness["source_replication_full_tasks_passed"] == 1
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]

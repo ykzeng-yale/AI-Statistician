@@ -3,20 +3,20 @@
 Date: 2026-08-25
 
 Upstream reviewed: [`openai/codex`](https://github.com/openai/codex) at
-`7c6eb0eef113ddc16ae5b207ac9add364b489798` (Apache-2.0).
+`70b5cfc73b25458a7af225d24b16ef4794f8f380` (Apache-2.0).
 
 Latest implementation commit:
-`cb9dcbe9d1d1cd38d73f43c6892c2234d9bca7be`.
+`3c00a515040dff2e21e4ec4666fce7e70b45a8b7`.
 
 Primary references:
 
-- [`run_turn`](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/core/src/session/turn.rs)
-- [`ToolRouter`](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/core/src/tools/router.rs)
-- [model-actionable tool failures](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/core/src/tools/parallel.rs)
-- [tool failure taxonomy](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/tools/src/function_call_error.rs)
-- [checkpoint context-window compaction](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/core/src/compact_token_budget.rs)
-- [app-server thread/turn/item protocol](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/app-server/README.md)
-- [multi-agent message tool](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [`run_turn`](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/core/src/session/turn.rs)
+- [`ToolRouter`](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/core/src/tools/router.rs)
+- [model-actionable tool failures](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/core/src/tools/parallel.rs)
+- [tool failure taxonomy](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/tools/src/function_call_error.rs)
+- [checkpoint context-window compaction](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/core/src/compact_token_budget.rs)
+- [app-server thread/turn/item protocol](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/app-server/README.md)
+- [multi-agent message tool](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
 - [OpenAI's agent-loop explanation](https://openai.com/index/unrolling-the-codex-agent-loop/)
 
 ## Decision
@@ -193,8 +193,8 @@ This is evidence for same-owner model/tool iteration and isolated review, not
 for importing Codex itself. The task used the existing Claude provider-neutral
 loop, one AgentRuntime, artifact hashes, and evaluator-only gold. It used no
 Codex app-server, Responses transport, thread manager, repair worker, or second
-scheduler. Formalization was not applicable, and the aggregate research ladder
-is only `1/30`; source replication and exact Lean closure remain unproved.
+scheduler. Formalization was not applicable. At that point the aggregate
+research ladder was `1/30`; exact Lean closure remained unproved.
 
 Operator review also found that the metric author and reviewer accepted an
 internally inconsistent explanation mixing absolute standard error, relative
@@ -202,6 +202,37 @@ error, and standardized error. The shared future-task correction is prompt
 level: the same models must recompute uncertainty on the metric's actual
 comparison scale and report unit or arithmetic contradictions. No task formula,
 numeric detector, output patch, rerun, or rescore was added.
+
+## Source replication and grounded judgment
+
+The next disjoint task reran the unchanged published PyMLE CIR example from a
+pinned repository commit and compatibility environment. The source-owning
+Haiku session selected 20 source/document tools over 14 turns, executed the
+author entrypoint once, wrote a 320-line Markdown report, and committed one
+hash-bound checkpoint. AgentRuntime used three outer traces and no unrelated
+code, simulation, or Formalizer lane. The frozen identity/output harness passed
+`11/11`, making PyMLE the first protocol-level source-replication pass and the
+aggregate `2/31`.
+
+Operator audit then found an important semantic false positive. The report
+correctly denied bias inference from one seeded path but elsewhere called one
+estimate substantially biased downward; the calibrated hidden Haiku judge
+marked every claim satisfied. This did not justify a repair worker, phrase
+detector, extra scheduler, or rescore. It justified a smaller terminal
+envelope: future claim statuses must include one decisive verbatim excerpt from
+the candidate, runtime verifies only that observation binding, and the public
+result stores only its hash. A new unrelated contradiction diagnostic
+calibrated `2/2` and failed correctly under exact Haiku.
+
+This is the same harness principle used by Codex tool turns: a model decision
+must be grounded in the actual observation that produced it. It is not a reason
+to import Codex's transport or orchestration stack. The implementation changed
+no net production Python lines and the full repository passed `873/873`.
+
+The official checkout was refreshed from `7c6eb0e` to `70b5cfc`. The three
+upstream commits adjust Guardian transcript-window retention and Windows TUI
+probing. The inspected core turn loop, tool router, model-actionable failure,
+context-compaction, and multi-agent message files are unchanged.
 
 ## Explicit non-adoptions
 
