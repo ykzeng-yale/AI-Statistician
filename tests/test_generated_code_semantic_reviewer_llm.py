@@ -30,6 +30,8 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
 )
 from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.model_backend import (
+    ClientToolCall,
+    ClientToolTurnResponse,
     GeneratorResponse,
     StaticJSONGeneratorBackend,
 )
@@ -448,6 +450,166 @@ def test_anthropic_reviewer_uses_provider_native_structured_output() -> None:
     assert backend.requests[0].model == "claude-haiku-4-5-20251001"
     assert backend.requests[0].metadata["provider_structured_output"] is True
     assert backend.requests[0].metadata["full_packet_regeneration_disabled"] is True
+
+
+def test_native_reviewer_returns_validation_error_to_same_model_session() -> None:
+    invalid_response = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\nThe executed source is aligned.",
+        "findings": [],
+        "source_revision_assessment": {
+            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "rationale": "No active finding requires a parent change.",
+            "evidence_refs": [
+                "Interface compliance: all response fields are present"
+            ],
+        },
+    }
+    valid_response = deepcopy(invalid_response)
+    valid_response["source_revision_assessment"]["evidence_refs"] = []
+
+    class ClientToolBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+            self.responses = [invalid_response, valid_response]
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            payload = self.responses.pop(0)
+            call_id = f"review-call-{len(self.requests)}"
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call_id,
+                        "name": "submit_generated_code_semantic_review",
+                        "input": payload,
+                    },
+                ),
+                tool_calls=(
+                    ClientToolCall(
+                        call_id=call_id,
+                        name="submit_generated_code_semantic_review",
+                        input=payload,
+                    ),
+                ),
+                text="",
+                provider="anthropic",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    backend = ClientToolBackend()
+    packet = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    ).review(
+        question=_question(),
+        review_material=_review_material(),
+        trusted_lineage=_trusted_lineage(),
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["client_tool_loop"] == {
+        **packet["client_tool_loop"],
+        "transport": "native_same_reviewer_session_v1",
+        "turns": 2,
+        "tool_calls": 2,
+        "runtime_executed_tool_calls": 2,
+        "validation_submissions": 2,
+        "validation_feedback_observed": True,
+        "full_packet_regeneration_used": False,
+    }
+    assert len(backend.requests) == 2
+    assert backend.requests[0].tool_choice == (
+        "submit_generated_code_semantic_review"
+    )
+    feedback = backend.requests[1].messages[-1]["content"][0]
+    assert feedback["type"] == "tool_result"
+    assert feedback["is_error"] is True
+    assert "source_revision_assessment cites missing evidence ref" in feedback[
+        "content"
+    ]
+    assert backend.requests[1].metadata[
+        "full_packet_regeneration_disabled"
+    ] is True
+
+
+def test_native_reviewer_fails_closed_after_same_session_rejection() -> None:
+    invalid_response = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\nThe executed source is aligned.",
+        "findings": [],
+        "source_revision_assessment": {
+            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "rationale": "No active finding requires a parent change.",
+            "evidence_refs": ["not a JSON pointer"],
+        },
+    }
+
+    class AlwaysInvalidClientToolBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            call_id = f"review-call-{len(self.requests)}"
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call_id,
+                        "name": "submit_generated_code_semantic_review",
+                        "input": invalid_response,
+                    },
+                ),
+                tool_calls=(
+                    ClientToolCall(
+                        call_id=call_id,
+                        name="submit_generated_code_semantic_review",
+                        input=invalid_response,
+                    ),
+                ),
+                text="",
+                provider="anthropic",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    backend = AlwaysInvalidClientToolBackend()
+    agent = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        agent.review(
+            question=_question(),
+            review_material=_review_material(),
+            trusted_lineage=_trusted_lineage(),
+        )
+
+    assert exc_info.value.attempts == 2
+    assert len(backend.requests) == 2
+    assert "source_revision_assessment cites missing evidence ref" in str(
+        exc_info.value
+    )
 
 
 def test_reviewer_accepts_without_selecting_a_repair_owner() -> None:

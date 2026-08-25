@@ -10,9 +10,20 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 from urllib.parse import unquote
 
+from .client_tool_loop import (
+    ClientToolExecutionContext,
+    ClientToolExecutionResult,
+    ClientToolInputError,
+    ClientToolLoopError,
+    run_bounded_client_tool_loop,
+)
 from .cross_family_eval_protocol import withhold_confirmatory_evaluation_seed
 from .fingerprint import stable_hash
-from .structured_output_retry import extract_json_object, generate_validated_json_packet
+from .structured_output_retry import (
+    PacketValidationError,
+    extract_json_object,
+    generate_validated_json_packet,
+)
 from .metric_protocol_finding_ledger import (
     METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT,
     METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_ARTIFACT,
@@ -23,6 +34,9 @@ from .metric_protocol_finding_ledger import (
 )
 from .model_backend import (
     PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY,
+    ClientToolCall,
+    ClientToolDefinition,
+    ClientToolTurnRequest,
     GeneratorBackend,
     GeneratorRequest,
     resolve_generator_model,
@@ -39,8 +53,9 @@ GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = (
     "statistical acceptance or theorem proof evidence."
 )
 GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = (
-    "model_authored_markdown_review_with_compact_verdict_envelope_v1"
+    "model_authored_markdown_review_with_native_client_tool_submission_v2"
 )
+GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
     "in_scope": [
         "implemented statistical object and metric meaning",
@@ -725,6 +740,17 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             getattr(self.provider, "provider_name", self.config.provider_name)
             or self.config.provider_name
         ).lower()
+
+        if callable(getattr(self.provider, "generate_client_tool_turn", None)):
+            return self._review_with_client_tool_submission(
+                question=question,
+                review_material=review_material,
+                trusted_lineage=trusted_lineage,
+                prompt=prompt,
+                request_model=request_model,
+                provider_name=provider_name,
+            )
+
         request = GeneratorRequest(
             system_prompt=GENERATED_CODE_SEMANTIC_REVIEW_SYSTEM_PROMPT,
             user_prompt=prompt,
@@ -780,6 +806,206 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             validation_label="generated-code semantic review packet",
             max_validation_retries=0,
         )
+
+    def _review_with_client_tool_submission(
+        self,
+        *,
+        question: OpenResearchQuestion,
+        review_material: Mapping[str, Any],
+        trusted_lineage: Mapping[str, Any],
+        prompt: str,
+        request_model: str,
+        provider_name: str,
+    ) -> dict[str, Any]:
+        """Keep verdict validation inside one native reviewer tool session."""
+
+        submission_schema = generated_code_semantic_review_json_schema(
+            review_material, question=question
+        )
+        submission_schema.pop("$schema", None)
+        request = ClientToolTurnRequest(
+            system_prompt=GENERATED_CODE_SEMANTIC_REVIEW_SYSTEM_PROMPT,
+            messages=(
+                {
+                    "role": "user",
+                    "content": (
+                        prompt
+                        + "\n\nWhen your independent review is complete, call "
+                        + GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL
+                        + ". If runtime rejects the submission, read the returned "
+                        "validation observation and submit a corrected complete "
+                        "judgment in this same reviewer session. Prose alone cannot "
+                        "submit or accept a review."
+                    ),
+                },
+            ),
+            tools=(
+                ClientToolDefinition(
+                    name=GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL,
+                    description=(
+                        "Submit the complete independent scientific-code judgment. "
+                        "Runtime validates evidence pointers and immutable lineage; "
+                        "a rejected submission returns exact validation observations "
+                        "to this same reviewer session."
+                    ),
+                    input_schema=submission_schema,
+                    terminal=True,
+                    strict=False,
+                ),
+            ),
+            model=request_model,
+            max_tokens=self.config.max_tokens,
+            temperature=self.config.temperature,
+            tool_choice=GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL,
+            disable_parallel_tool_use=True,
+            enable_prompt_caching=True,
+            metadata={
+                "subsystem": "GeneratedCodeSemanticReviewer",
+                "agent": "LLMGeneratedCodeSemanticReviewerAgent",
+                "model_tier": self.config.model_tier,
+                "review_input_fingerprint": stable_hash(review_material),
+                "observation_only_reviewer": True,
+                "review_transport": GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT,
+                "client_tool_transport": True,
+                "same_session_validation_feedback": True,
+                "full_packet_regeneration_disabled": True,
+            },
+        )
+        validation_history: list[dict[str, Any]] = []
+        last_errors: list[str] = []
+        last_invalid_packet: dict[str, Any] | None = None
+
+        def normalize_submission(
+            payload: Mapping[str, Any],
+            *,
+            model: str,
+            response_provider: str,
+        ) -> dict[str, Any]:
+            return _normalize_generated_code_semantic_review_packet(
+                payload,
+                question=question,
+                trusted_lineage=trusted_lineage,
+                review_material=review_material,
+                model=model or request_model,
+                model_tier=self.config.model_tier,
+                provider_name=self.config.provider_name or response_provider,
+                raw_response=json.dumps(payload, sort_keys=True, default=str),
+            )
+
+        def execute_tool(
+            call: ClientToolCall,
+            _context: ClientToolExecutionContext,
+        ) -> ClientToolExecutionResult:
+            nonlocal last_errors, last_invalid_packet
+            if call.name != GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL:
+                raise ClientToolInputError(
+                    "unsupported generated-code semantic review tool"
+                )
+            payload = dict(call.input)
+            packet = normalize_submission(
+                payload,
+                model=request_model,
+                response_provider=provider_name,
+            )
+            errors = validate_generated_code_semantic_review_packet(
+                packet, review_material=review_material
+            )
+            validation_history.append(
+                {
+                    "attempt_index": len(validation_history),
+                    "ok": not errors,
+                    "errors": list(errors),
+                    "submission_fingerprint": stable_hash(payload),
+                }
+            )
+            if errors:
+                last_errors = list(errors)
+                last_invalid_packet = deepcopy(packet)
+                rejection = {
+                    "ok": False,
+                    "error": "generated_code_semantic_review_submission_rejected",
+                    "validation_errors": list(errors[:12]),
+                    "allowed_evidence_roots": [
+                        "/question",
+                        "/reviewer_scope_contract",
+                        "/review_material",
+                    ],
+                    "instruction": (
+                        "Re-submit the complete judgment using every validation "
+                        "observation; immutable reviewed artifacts cannot change."
+                    ),
+                }
+                return ClientToolExecutionResult(
+                    content=rejection,
+                    is_error=True,
+                    observation_key=(
+                        "generated-code-semantic-review-rejected:"
+                        + stable_hash(rejection)
+                    ),
+                )
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    "submitted": True,
+                    "overall_verdict": packet.get("overall_verdict", ""),
+                    "packet_fingerprint": stable_hash(packet),
+                    "proof_evidence_status": GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE,
+                },
+                terminal=True,
+                terminal_payload={"review_payload": payload},
+                observation_key=(
+                    "generated-code-semantic-review-submitted:"
+                    + stable_hash(packet)
+                ),
+            )
+
+        try:
+            loop = run_bounded_client_tool_loop(
+                backend=self.provider,
+                request=request,
+                execute_tool=execute_tool,
+                max_turns=1,
+                max_tool_calls=1,
+                max_no_progress_turns=1,
+                max_terminal_recovery_turns=max(0, self.config.max_validation_retries),
+            )
+        except ClientToolLoopError as exc:
+            errors = last_errors or [exc.reason]
+            raise PacketValidationError(
+                validation_label="generated-code semantic review packet",
+                attempts=len(validation_history),
+                errors=list(errors),
+                history=list(validation_history),
+                last_invalid_packet=last_invalid_packet,
+            ) from exc
+
+        payload = loop.terminal_payload.get("review_payload", {})
+        if not isinstance(payload, Mapping):
+            raise PacketValidationError(
+                validation_label="generated-code semantic review packet",
+                attempts=len(validation_history),
+                errors=["accepted client-tool submission payload is malformed"],
+                history=list(validation_history),
+            )
+        packet = normalize_submission(
+            payload, model=loop.model, response_provider=loop.provider
+        )
+        packet["validation_errors"] = []
+        packet["ok"] = True
+        packet["client_tool_loop"] = {
+            "transport": "native_same_reviewer_session_v1",
+            "turns": loop.turns,
+            "tool_calls": loop.tool_calls,
+            "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
+            "transcript_fingerprint": loop.transcript_fingerprint,
+            "provider_usage": dict(loop.provider_usage),
+            "validation_submissions": len(validation_history),
+            "validation_feedback_observed": any(
+                not row.get("ok") for row in validation_history
+            ),
+            "full_packet_regeneration_used": False,
+        }
+        return packet
 
 
 def _normalize_dimension_reviews(value: Any) -> list[dict[str, Any]]:

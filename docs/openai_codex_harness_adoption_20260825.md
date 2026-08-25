@@ -3,16 +3,17 @@
 Date: 2026-08-25
 
 Upstream reviewed: [`openai/codex`](https://github.com/openai/codex) at
-`d52478c52ef09f001142a4b82339467c3880877f` (Apache-2.0).
+`7c6eb0eef113ddc16ae5b207ac9add364b489798` (Apache-2.0).
 
 Primary references:
 
-- [`run_turn`](https://github.com/openai/codex/blob/d52478c52ef09f001142a4b82339467c3880877f/codex-rs/core/src/session/turn.rs)
-- [`ToolRouter`](https://github.com/openai/codex/blob/d52478c52ef09f001142a4b82339467c3880877f/codex-rs/core/src/tools/router.rs)
-- [parallel tool execution](https://github.com/openai/codex/blob/d52478c52ef09f001142a4b82339467c3880877f/codex-rs/core/src/tools/parallel.rs)
-- [checkpoint context-window compaction](https://github.com/openai/codex/blob/d52478c52ef09f001142a4b82339467c3880877f/codex-rs/core/src/compact_token_budget.rs)
-- [app-server thread/turn/item protocol](https://github.com/openai/codex/blob/d52478c52ef09f001142a4b82339467c3880877f/codex-rs/app-server/README.md)
-- [multi-agent message tool](https://github.com/openai/codex/blob/d52478c52ef09f001142a4b82339467c3880877f/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [`run_turn`](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/core/src/session/turn.rs)
+- [`ToolRouter`](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/core/src/tools/router.rs)
+- [model-actionable tool failures](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/core/src/tools/parallel.rs)
+- [tool failure taxonomy](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/tools/src/function_call_error.rs)
+- [checkpoint context-window compaction](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/core/src/compact_token_budget.rs)
+- [app-server thread/turn/item protocol](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/app-server/README.md)
+- [multi-agent message tool](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
 - [OpenAI's agent-loop explanation](https://openai.com/index/unrolling-the-codex-agent-loop/)
 
 ## Decision
@@ -117,6 +118,42 @@ the only context-window boundary, so there is no token threshold, silent
 truncation, extra model call, or content-specific compression rule. Mathematics,
 code, Lean source, findings, and raw diagnostics remain external authoritative
 artifacts; conversation history remains non-authoritative lineage.
+
+## Generated-code reviewer submission
+
+The fresh ridge known-result draw exposed another direct harness mismatch. Its
+model-authored ridge source executed successfully, but the independent reviewer
+put five human-readable evidence descriptions where the compact envelope
+required RFC 6901 pointers. The old reviewer made one structured-output call and
+terminated the full research task on this transport error.
+
+Codex separates `FunctionCallError::RespondToModel` from fatal runtime errors.
+`ToolCallRuntime` turns the former into an unsuccessful function-call output,
+records it in the active conversation, and lets the same turn continue. AI
+Statistician now applies that behavior through its existing provider-neutral
+`client_tool_loop.py`:
+
+1. GeneratedCodeSemanticReviewer receives the exact source and review material
+   in an isolated native Claude client-tool session.
+2. The model submits its Markdown review and compact judgment through one
+   terminal tool.
+3. Runtime validates evidence pointers, immutable lineage, verdict consistency,
+   and document identity without changing the judgment.
+4. An invalid submission returns the exact bounded validation observation to
+   the same reviewer session as an error tool result.
+5. A valid resubmission closes that workspace; repeated invalid submission still
+   fails closed.
+
+This is not a repair agent or full-packet regeneration callback. The same model
+owns both submissions, the reviewed source never changes, Architect is not
+invoked, and no empirical or proof authority is promoted. The one corrective
+turn is available only after a real rejected terminal submission.
+
+The upstream delta from the previously reviewed `d52478c5` pin to `7c6eb0e`
+contains one commit. It scopes stop-hook rejection for unattended memory
+consolidation and documents private Multi-Agent V2 analytics; the adopted
+tool-error continuation, turn loop, parallel gate, and collaboration mechanisms
+are otherwise unchanged.
 
 ## Explicit non-adoptions
 
