@@ -2145,7 +2145,7 @@ def test_pymle_l1_draw_is_consumed_as_first_source_replication_pass() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is True
     readiness = ladder["current_readiness"]
-    assert readiness["consumed_scored_tasks"] == 31
+    assert readiness["consumed_scored_tasks"] == 32
     assert readiness["fully_gold_passed_tasks"] == 2
     assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
@@ -2159,7 +2159,7 @@ def test_pymle_l1_draw_is_consumed_as_first_source_replication_pass() -> None:
     assert question["task_intent"] == candidate["task_intent"]
 
 
-def test_poisson_garwood_r_l0_is_frozen_before_first_product_call() -> None:
+def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -2171,7 +2171,7 @@ def test_poisson_garwood_r_l0_is_frozen_before_first_product_call() -> None:
     assert candidate["family"] == "poisson_exposure_rate_exact_inference_r"
     assert candidate["status"] == "active_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_before_first_product_model_call"
+        "fresh_live_v1_full_task_gold_failed_with_evaluator_scope_caveat"
     )
     assert candidate["gold_manifest_sha256"] == (
         "b19e33dabf7c585451a822833d3ab4729ca244130d89a2a4719ce4d1becdbfaa"
@@ -2183,8 +2183,8 @@ def test_poisson_garwood_r_l0_is_frozen_before_first_product_call() -> None:
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["activation_commit"] == (
         "158bb602cb5719ee611baad6865a16c70243f8e1"
     )
@@ -2204,13 +2204,32 @@ def test_poisson_garwood_r_l0_is_frozen_before_first_product_call() -> None:
     assert evidence["semantic_calibration_cases_correct"] == 12
     assert evidence["semantic_reference_claims"] == 8
     assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_enabled_model_tiers"] == {"haiku": 7}
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["visible_research_evaluation"] == (
+        "1/1_complete_conformant_ready"
+    )
+    assert evidence["algorithm_final_source_language"] == "r"
+    assert evidence["algorithm_final_source_backend"] == "webr"
+    assert evidence["simulation_final_source_language"] == "r"
+    assert evidence["simulation_final_source_backend"] == "webr"
+    assert evidence["hidden_theory_mechanical_checks"] == "7/7"
+    assert evidence["hidden_theory_semantic_claims_satisfied"] == "8/8"
+    assert evidence["hidden_algorithm_checks"] == "8/10"
+    assert evidence["hidden_algorithm_failed_atomic_check"] == (
+        "invalid_requests_rejected"
+    )
+    assert evidence["hidden_empirical_checks"] == "6/6"
+    assert evidence["hidden_gold_evaluation"] == "0/1_failed_scientific_code"
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 32
-    assert readiness["consumed_scored_tasks"] == 31
+    assert readiness["consumed_scored_tasks"] == 32
     assert readiness["fully_gold_configured_tasks"] == 32
     assert readiness["fully_gold_passed_tasks"] == 2
     visible_path = Path(candidate["visible_questions_path"])

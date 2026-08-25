@@ -76,6 +76,16 @@ the operator still audits that every hidden assertion follows from the visible
 clauses and calibrates the hidden harness against independent valid and invalid
 implementations.
 
+That audit is performed at the granularity of one hidden behavior, not one
+aggregate boolean. Every hidden test vector must be entailed by at least one
+explicit visible clause, including missing-field, extra-field, coercion, and
+boundary behavior when any of those are scored. An aggregate check may summarize
+already declared atomic checks, but it must not introduce another behavior. A
+failure whose decisive hidden behavior was never stated in the visible ABI remains
+an immutable protocol failure for the consumed draw, but it is not evidence that
+the model violated the public contract. This is a benchmark-freeze obligation,
+not a product prompt, runtime validator, or source-repair rule.
+
 The full public contract is supplied to the source-owning Theory, Python/R,
 Simulation, review, and Critic model contexts. Agent result artifacts do not
 recursively copy it; the frozen question and content-derived contract identity
