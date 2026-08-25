@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "nonparametric_bootstrap_mean_variance_known_result",
+      "title": "Conditional variance of the nonparametric bootstrap mean",
+      "description": "Focused L0 known-result evaluation grounded in Bradley Efron, Bootstrap Methods: Another Look at the Jackknife, The Annals of Statistics 7(1), 1979, 1-26, DOI 10.1214/aos/1176344552. Fix a realized sample x_1,...,x_n with n>=2 and let F_n place mass 1/n on each indexed observation, including repeated values. Conditionally on this fixed sample, draw X_1^*,...,X_n^* independently from F_n and define the bootstrap mean bar X^*. Develop one authoritative Markdown/LaTeX derivation of E_*(bar X^*)=bar x and Var_*(bar X^*)=n^{-2} sum_i (x_i-bar x)^2=(n-1)s^2/n^2 when s^2 uses divisor n-1. Make the conditional probability space, iid-with-replacement construction, covariance cancellation, both variance denominators, repeated-value interpretation, and constant-sample boundary auditable. Separate this exact conditional finite-sample identity from asymptotic bootstrap consistency and from the unknown unconditional sampling variance of bar X. Do not treat resampling as without replacement, replace the empirical-distribution variance by s^2, use Monte Carlo replicate count as the variance denominator, or claim enumeration proves a population-level bootstrap theorem. The required model-authored artifact is est_bootstrap_mean_variance and must implement the frozen Python run_estimator(request) contract exactly. Exploratory Python or R may diagnose identities. A separately frozen confirmatory assessment enumerates all n^n ordered resamples for predeclared small samples and checks the conditional mean, conditional variance, normalization link, and constant-sample boundary. Enumeration is implementation evidence and does not replace the derivation. Source-code replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "bootstrap",
+        "resampling",
+        "conditional_inference",
+        "variance_estimation",
+        "L0"
+      ],
+      "source": {
+        "title": "Bootstrap Methods: Another Look at the Jackknife",
+        "author": "Bradley Efron",
+        "journal": "The Annals of Statistics",
+        "year": 1979,
+        "volume": 7,
+        "issue": 1,
+        "pages": "1-26",
+        "doi": "10.1214/aos/1176344552",
+        "url": "https://doi.org/10.1214/aos/1176344552"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_bootstrap_mean_variance",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.sample",
+            "name": "sample",
+            "meaning": "The fixed realized sample defining the empirical distribution, in stable observation order.",
+            "json_type": "array[number]",
+            "shape": "one finite numeric vector of length n>=2",
+            "units": "outcome units",
+            "indexing": "each index receives probability mass 1/n even when values repeat",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, nonarrays, and vectors shorter than two; do not silently drop or coerce entries.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n",
+            "name": "n",
+            "meaning": "The exact number of indexed observations in sample.",
+            "json_type": "integer",
+            "shape": "one integer at least two",
+            "units": "observations",
+            "indexing": "fixed sample size and bootstrap resample size",
+            "edge_cases": "Must not be returned as a boolean or fractional value.",
+            "normalization": "length of sample"
+          },
+          {
+            "clause_id": "response.sample_mean",
+            "name": "sample_mean",
+            "meaning": "The arithmetic mean of the fixed sample.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "fixed sample",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "sum(sample)/n"
+          },
+          {
+            "clause_id": "response.sample_variance",
+            "name": "sample_variance",
+            "meaning": "The ordinary unbiased sample variance of the fixed values.",
+            "json_type": "number",
+            "shape": "one nonnegative finite scalar",
+            "units": "squared outcome units",
+            "indexing": "fixed sample",
+            "edge_cases": "Zero is allowed for a constant sample.",
+            "normalization": "sum of squared deviations from sample_mean divided by n-1"
+          },
+          {
+            "clause_id": "response.empirical_variance",
+            "name": "empirical_variance",
+            "meaning": "The variance of one draw from the empirical distribution F_n.",
+            "json_type": "number",
+            "shape": "one nonnegative finite scalar",
+            "units": "squared outcome units",
+            "indexing": "one conditional bootstrap draw",
+            "edge_cases": "Zero is allowed for a constant sample.",
+            "normalization": "sum of squared deviations from sample_mean divided by n"
+          },
+          {
+            "clause_id": "response.bootstrap_mean_variance",
+            "name": "bootstrap_mean_variance",
+            "meaning": "The exact conditional variance of the mean of n iid draws from F_n.",
+            "json_type": "number",
+            "shape": "one nonnegative finite scalar",
+            "units": "squared outcome units",
+            "indexing": "one full size-n bootstrap resample",
+            "edge_cases": "Zero is allowed exactly for a constant fixed sample.",
+            "normalization": "empirical_variance/n, equivalently (n-1)*sample_variance/n^2"
+          },
+          {
+            "clause_id": "response.bootstrap_standard_error",
+            "name": "bootstrap_standard_error",
+            "meaning": "The nonnegative square root of bootstrap_mean_variance.",
+            "json_type": "number",
+            "shape": "one nonnegative finite scalar",
+            "units": "outcome units",
+            "indexing": "one full size-n bootstrap resample",
+            "edge_cases": "Equals zero exactly for a constant fixed sample.",
+            "normalization": "square root of bootstrap_mean_variance"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request object contains exactly sample and the response object contains exactly the six declared response fields. Missing or extra fields are rejected rather than ignored or invented."
+          },
+          {
+            "clause_id": "invariant.normalization_link",
+            "meaning": "empirical_variance=(n-1)*sample_variance/n and bootstrap_mean_variance=empirical_variance/n for every accepted sample."
+          },
+          {
+            "clause_id": "invariant.permutation_invariance",
+            "meaning": "Permuting sample indices leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.location_equivariance",
+            "meaning": "Adding finite c to every sample value adds c only to sample_mean and leaves all variance and standard-error fields unchanged."
+          },
+          {
+            "clause_id": "invariant.scale_equivariance",
+            "meaning": "Multiplying every sample value by finite c multiplies sample_mean by c, all variance fields by c^2, and bootstrap_standard_error by absolute(c)."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "For each frozen sample of size n, the assessment enumerates all n^n ordered index sequences, invokes the accepted estimator with the exact public request, and treats each sequence as equally likely."
+          },
+          {
+            "clause_id": "claim.empirical.conditional_mean",
+            "meaning": "Across all ordered size-n resamples, the exact average resample mean equals returned sample_mean."
+          },
+          {
+            "clause_id": "claim.empirical.conditional_variance",
+            "meaning": "Across all ordered size-n resamples, the population variance of resample means equals returned bootstrap_mean_variance."
+          },
+          {
+            "clause_id": "claim.empirical.normalization_link",
+            "meaning": "The returned sample_variance, empirical_variance, bootstrap_mean_variance, and n satisfy the two declared finite-sample normalization identities."
+          },
+          {
+            "clause_id": "claim.empirical.constant_boundary",
+            "meaning": "For a constant frozen sample, every enumerated resample mean is constant and all returned variance and standard-error fields are exactly zero."
+          }
+        ]
+      }
+    }
+  ]
+}

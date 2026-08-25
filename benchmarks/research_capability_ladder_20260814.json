@@ -2996,6 +2996,67 @@
         "novelty": "not_applicable",
         "unresolved_gaps": "required"
       }
+    },
+    {
+      "id": "nonparametric_bootstrap_mean_variance_known_result",
+      "level": "L0",
+      "family": "nonparametric_bootstrap",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l0_bootstrap_mean_questions_20260825.json",
+      "source_authority": "published_reference_metadata_and_model_visible_problem_statement",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l0-bootstrap-mean-20260825-v1",
+      "gold_manifest_sha256": "0ba332fbcb78cd99803ba6bec40bb7c4e215cc2a824ff0d667da4a279c450402",
+      "gold_descriptor_hash": "7c1c5be3b4df99de1adb31d53dc74f244cceff8db988928bc81a7a952eb26bb0",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "frozen_ready_v1_unrun",
+      "activation_evidence": {
+        "public_reference": "Bradley Efron, Bootstrap Methods: Another Look at the Jackknife, The Annals of Statistics 7(1), 1979, 1-26",
+        "public_reference_url": "https://doi.org/10.1214/aos/1176344552",
+        "preactivation_code_head": "b9ece43923ab05cb1185e1493e360658ae14c8fb",
+        "visible_questions_sha256": "8de9eb8f3ce52fe93436a3db2b2f4239b8f7b490c72e795210ad9acfeb085d35",
+        "visible_question_hash": "fadf0cad9f994bb6e594703f2ce5830384c9cebbaf96778d780b7f9f618c2dda",
+        "estimator_execution_contract_id": "frozen_estimator_execution_contract:9ce2c70bed30a8be6294",
+        "algorithm_reference_contract_checks": "13/13",
+        "algorithm_reference_maximum_relative_error": 0.0,
+        "algorithm_negative_variants_rejected": 3,
+        "empirical_reference_samples_passed": 4,
+        "empirical_reference_resamples_enumerated": 3664,
+        "empirical_reference_checks": "6/6",
+        "empirical_reference_maximum_conditional_mean_error": 0.0,
+        "empirical_reference_maximum_conditional_variance_error": 0.0,
+        "empirical_reference_maximum_normalization_error": 0.0,
+        "empirical_reference_constant_boundary_error": 0.0,
+        "semantic_calibration_model": "claude-haiku-4-5-20251001",
+        "semantic_calibration_model_calls": 2,
+        "semantic_calibration_cases": 9,
+        "semantic_calibration_cases_correct": 9,
+        "semantic_reference_claims": 7,
+        "semantic_reference_candidate_passed": true,
+        "blind_reconstruction_mechanism_head": "b9ece43923ab05cb1185e1493e360658ae14c8fb",
+        "metric_source_owner_mechanism_head": "e7d0174a0028aa8ee9371bf2794660a045c465d0",
+        "hidden_behavior_entailment_audit": "Every hidden behavior is atomic and cites an explicit public request, response, invariant, or empirical claim. Host-language containers that collapse under JSON transport are not scored. No aggregate row introduces another behavior.",
+        "hidden_gold_manifest_validated": true,
+        "gold_frozen_before_first_runtime_model_call": true,
+        "preactivation_product_model_calls": 0,
+        "first_runtime_model_call_occurred": false,
+        "fresh_live_runs": 0,
+        "runtime_model": "claude-haiku-4-5-20251001",
+        "runtime_model_policy_status": "PENDING_FIRST_DRAW",
+        "model_draw_resampling_blocked": false,
+        "formalization_requirement": "not_applicable",
+        "formalizer_executed": false,
+        "full_task_passed": false
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
     }
   ],
   "activation_requirements": [
@@ -3009,16 +3070,16 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 33,
+    "active_scored_tasks": 34,
     "consumed_scored_tasks": 33,
-    "fully_gold_configured_tasks": 33,
+    "fully_gold_configured_tasks": 34,
     "fully_gold_passed_tasks": 2,
     "runtime_source_replication_components_ready": 3,
     "source_replication_components_passed": 1,
     "source_replication_full_tasks_passed": 1,
     "candidate_queue_is_capability_evidence": false,
     "latest_shared_mechanism_head": "b9ece43923ab05cb1185e1493e360658ae14c8fb",
-    "latest_diagnostic": "Two of thirty-three consumed, fully gold-covered tasks pass. The disjoint complete-randomization task remains immutable 0/1: exact empirical identities passed 8/8, the public closed-object and no-coercion ABI passed only 13/15, and exact-Haiku author, preflight, and hidden semantic judge all false-accepted load-bearing intermediate algebra. Commits e7d0174a and b9ece439 subsequently supplied persistent metric source ownership and hash-audited blind theory reconstruction; regression evidence cannot alter the consumed score.",
-    "next_step": "Do not rerun, repair, or rescore complete randomization. Validate the metric source-owner loop and blind reconstruction chronology only on a future disjoint task frozen before its first call. Measure mathematical error detection without adding task formulas, parser rules, extra model calls, or another scheduler."
+    "latest_diagnostic": "Two of thirty-three consumed, fully gold-covered tasks pass. A thirty-fourth disjoint nonparametric-bootstrap task is fully calibrated and frozen but unrun. Its reference estimator passes 13/13 public-contract checks and 6/6 exact empirical checks over 3664 ordered resamples; three algorithm negatives are rejected, and exact Haiku classifies 9/9 semantic calibration cases including a correct-final/false-intermediate derivation. These are evaluator facts, not product capability.",
+    "next_step": "Commit and push the bootstrap visible task, opaque gold hashes, and activation regression before its first product model call. Then permit exactly one fresh exact-Haiku draw and one post-termination hidden evaluation. Never expose evaluator files or use the result to revise that draw."
   }
 }

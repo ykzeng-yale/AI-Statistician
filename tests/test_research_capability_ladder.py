@@ -2228,9 +2228,9 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 33
+    assert readiness["active_scored_tasks"] == 34
     assert readiness["consumed_scored_tasks"] == 33
-    assert readiness["fully_gold_configured_tasks"] == 33
+    assert readiness["fully_gold_configured_tasks"] == 34
     assert readiness["fully_gold_passed_tasks"] == 2
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -2370,9 +2370,9 @@ def test_complete_randomization_l0_draw_is_consumed_and_failed_closed() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 33
+    assert readiness["active_scored_tasks"] == 34
     assert readiness["consumed_scored_tasks"] == 33
-    assert readiness["fully_gold_configured_tasks"] == 33
+    assert readiness["fully_gold_configured_tasks"] == 34
     assert readiness["fully_gold_passed_tasks"] == 2
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2388,6 +2388,94 @@ def test_complete_randomization_l0_draw_is_consumed_and_failed_closed() -> None:
         row["clause_id"] == "invariant.closed_object_contract"
         for row in contract["invariants"]
     )
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
+        "hidden_harness.py",
+        "hidden_empirical_harness.py",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_bootstrap_mean_l0_is_frozen_before_first_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "nonparametric_bootstrap_mean_variance_known_result"
+    )
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "nonparametric_bootstrap"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == "frozen_ready_v1_unrun"
+    assert candidate["gold_manifest_sha256"] == (
+        "0ba332fbcb78cd99803ba6bec40bb7c4e215cc2a824ff0d667da4a279c450402"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "7c1c5be3b4df99de1adb31d53dc74f244cceff8db988928bc81a7a952eb26bb0"
+    )
+    evidence = candidate["activation_evidence"]
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_model_policy_status"] == "PENDING_FIRST_DRAW"
+    assert evidence["algorithm_reference_contract_checks"] == "13/13"
+    assert evidence["algorithm_negative_variants_rejected"] == 3
+    assert evidence["empirical_reference_samples_passed"] == 4
+    assert evidence["empirical_reference_resamples_enumerated"] == 3664
+    assert evidence["empirical_reference_checks"] == "6/6"
+    assert evidence["semantic_calibration_cases"] == 9
+    assert evidence["semantic_calibration_cases_correct"] == 9
+    assert evidence["semantic_reference_claims"] == 7
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["blind_reconstruction_mechanism_head"] == (
+        "b9ece43923ab05cb1185e1493e360658ae14c8fb"
+    )
+    assert evidence["metric_source_owner_mechanism_head"] == (
+        "e7d0174a0028aa8ee9371bf2794660a045c465d0"
+    )
+    assert evidence["model_draw_resampling_blocked"] is False
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["full_task_passed"] is False
+
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == 34
+    assert readiness["consumed_scored_tasks"] == 33
+    assert readiness["fully_gold_configured_tasks"] == 34
+    assert readiness["fully_gold_passed_tasks"] == 2
+    assert candidate["id"] not in {
+        row["id"] for row in ladder["evidence_dimensions"]
+    }
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["source"]["doi"] == "10.1214/aos/1176344552"
+    contract = question["estimator_execution_contract"]
+    assert contract["estimator_id"] == "est_bootstrap_mean_variance"
+    assert {row["clause_id"] for row in contract["empirical_claims"]} == {
+        "claim.empirical.protocol_identity",
+        "claim.empirical.conditional_mean",
+        "claim.empirical.conditional_variance",
+        "claim.empirical.normalization_link",
+        "claim.empirical.constant_boundary",
+    }
 
     runtime_visible = json.dumps(
         {"candidate": candidate, "question": question}, sort_keys=True
