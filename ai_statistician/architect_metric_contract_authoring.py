@@ -1182,16 +1182,8 @@ def review_architect_theory_execution_preflight(
                     packet.get("independent_invocation")
                 ),
                 "overall_verdict": "REVISE",
-                "dimension_reviews": [
-                    dict(row)
-                    for row in packet.get("dimension_reviews", []) or []
-                    if isinstance(row, Mapping)
-                ],
-                "estimator_execution_checks": [
-                    dict(row)
-                    for row in packet.get("estimator_execution_checks", []) or []
-                    if isinstance(row, Mapping)
-                ],
+                "review_scope": deepcopy(packet.get("review_scope", {})),
+                "review_report": deepcopy(packet.get("review_report", {})),
                 "prior_finding_reviews": [
                     dict(row)
                     for row in packet.get("prior_finding_reviews", []) or []

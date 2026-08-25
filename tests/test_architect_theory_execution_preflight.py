@@ -779,31 +779,42 @@ def _compact_submission(payload: dict[str, object]) -> dict[str, object]:
             value = str(row.get(field, "") or "").strip()
             if value:
                 report_parts.append(value)
+    reported_statuses = [
+        str(row.get("status", "") or "").strip().upper()
+        for row in [
+            *payload.get("claim_reviews", []),
+            *payload.get("dimension_reviews", []),
+            *payload.get("estimator_execution_checks", []),
+        ]
+        if isinstance(row, dict)
+    ]
+    prior_statuses = [
+        str(row.get("status", "") or "").strip().upper()
+        for row in payload.get("prior_finding_reviews", [])
+        if isinstance(row, dict)
+    ]
+    findings = deepcopy(payload.get("findings", []))
     compact: dict[str, object] = {
         "review_report_markdown": (
             "# Independent theory preflight\n\n"
             + "\n\n".join(report_parts or ["No additional blocker was identified."])
         ),
         "report_evidence_refs": evidence_refs or ["theory.estimator_specs"],
-        "claim_statuses": [
-            str(row.get("status", ""))
-            for row in payload.get("claim_reviews", [])
-            if isinstance(row, dict)
-        ],
-        "dimension_statuses": [
-            str(row.get("status", ""))
-            for row in payload.get("dimension_reviews", [])
-            if isinstance(row, dict)
-        ],
-        "estimator_execution_checks": [
-            {
-                "status": str(row.get("status", "")),
-                "blocking_gaps": deepcopy(row.get("blocking_gaps", [])),
-            }
-            for row in payload.get("estimator_execution_checks", [])
-            if isinstance(row, dict)
-        ],
-        "findings": deepcopy(payload.get("findings", [])),
+        "overall_verdict": (
+            "REVISE"
+            if findings
+            or any(status != "PASS" for status in reported_statuses)
+            or any(
+                status
+                not in {
+                    "RESOLVED_BY_CURRENT_THEORY",
+                    "RETRACTED_BY_CURRENT_EVIDENCE",
+                }
+                for status in prior_statuses
+            )
+            else "ACCEPT"
+        ),
+        "findings": findings,
     }
     if "prior_finding_reviews" in payload:
         compact["prior_finding_statuses"] = [
@@ -1407,7 +1418,11 @@ def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
     ]
     assert backend.requests[0].tools[-1].strict is False
     submit_schema = backend.requests[0].tools[-1].input_schema
-    assert submit_schema["properties"]["dimension_statuses"]["type"] == "array"
+    assert submit_schema["properties"]["overall_verdict"]["enum"] == [
+        "ACCEPT",
+        "REVISE",
+    ]
+    assert "dimension_statuses" not in submit_schema["properties"]
     assert submit_schema["properties"]["review_report_sha256"]["type"] == (
         "string"
     )
@@ -1773,16 +1788,18 @@ def test_preflight_client_tool_loop_returns_all_pass_finding_conflict_to_model()
                 payload = _payload(accept=True)
                 payload["findings"] = deepcopy(_payload(accept=False)["findings"])
                 payload["findings"][0]["source_evidence_refs"] = [self.source_ref]
+                submission = _compact_submission(payload)
+                submission["overall_verdict"] = "ACCEPT"
                 return _tool_response(
                     ClientToolCall(
                         "submit-inconsistent",
                         "submit_theory_preflight_review",
-                        _compact_submission(payload),
+                        submission,
                     )
                 )
             assert result["error"] == "preflight_submission_rejected"
             assert any(
-                "contradict the all-PASS" in error
+                "overall verdict contradicts" in error
                 for error in result["validation_errors"]
             )
             return _tool_response(
@@ -1808,7 +1825,7 @@ def test_preflight_client_tool_loop_returns_all_pass_finding_conflict_to_model()
     )
     assert rejected["name"] == "submit_theory_preflight_review"
     assert rejected["is_error"] is True
-    assert "contradict the all-PASS" in rejected["result_excerpt"]
+    assert "overall verdict contradicts" in rejected["result_excerpt"]
 
 
 def test_preflight_repairs_swapped_citation_namespaces_from_structured_feedback() -> None:
@@ -2049,8 +2066,8 @@ def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
                     )
                 )
             if turn == 3:
-                invalid = _compact_submission(_payload(accept=True))
-                invalid["dimension_statuses"] = []
+                invalid = _compact_submission(_payload(accept=False))
+                invalid["overall_verdict"] = "ACCEPT"
                 return _tool_response(
                     ClientToolCall(
                         "submit-structurally-incomplete-review",
@@ -2302,12 +2319,11 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         assert retired_corner_case not in protocol
     assert packet["overall_verdict"] == "ACCEPT"
     assert "runtime_estimator_status_normalizations" not in packet
-    assert packet["runtime_estimator_identity_bindings"][0][
-        "identity_source"
-    ] == "estimator_execution_checks_ordered_index"
-    assert packet["runtime_estimator_identity_bindings"][0][
-        "runtime_selected_semantics"
-    ] is False
+    assert packet["review_scope"]["required_estimator_ids"] == [
+        "generic_stream_method"
+    ]
+    assert packet["review_scope"]["model_reported_per_item_statuses"] is False
+    assert "runtime_estimator_identity_bindings" not in packet
     assert packet["execution_authorized"] is False
     assert packet["kernel_verified"] is False
     assert packet["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
@@ -2356,28 +2372,20 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert "do not carry downstream proof obligations" in (
         prompt_payload["verdict_policy"]
     )
-    dimension_schema = submit_schema["properties"]["dimension_statuses"]
-    assert dimension_schema["type"] == "array"
-    assert dimension_schema["minItems"] == len(
-        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-    )
-    assert dimension_schema["maxItems"] == len(
-        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-    )
-    estimator_schema = submit_schema["properties"][
-        "estimator_execution_checks"
+    assert submit_schema["properties"]["overall_verdict"]["enum"] == [
+        "ACCEPT",
+        "REVISE",
     ]
-    assert estimator_schema["type"] == "array"
-    assert estimator_schema["minItems"] == 1
-    assert estimator_schema["maxItems"] == 1
-    assert set(estimator_schema["items"]["properties"]) == {
-        "status",
-        "blocking_gaps",
-    }
+    for retired_field in (
+        "claim_statuses",
+        "dimension_statuses",
+        "estimator_execution_checks",
+    ):
+        assert retired_field not in submit_schema["properties"]
     assert "repair_instructions" not in submit_schema["properties"]
-    assert prompt_payload["ordered_review_slots"][
-        "estimator_execution_checks"
-    ] == [{"output_slot": "slot_0", "estimator_id": "generic_stream_method"}]
+    assert prompt_payload["review_scope"]["estimators"] == [
+        "generic_stream_method"
+    ]
     assert "prior_finding_statuses" not in submit_schema["properties"]
     assert validate_architect_theory_execution_preflight_packet(
         packet,
@@ -2707,20 +2715,17 @@ This abandoned route is explicitly rejected.
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["theory_document_inspection_count"] == 1
     assert packet["theory_document_inspection_refs"][0]["line_end"] == 4
-    assert [row["claim_id"] for row in packet["claim_reviews"]] == [
+    assert packet["review_scope"]["required_claim_ids"] == [
         "definition_primitive",
         "theorem_main",
     ]
-    assert len(packet["runtime_claim_identity_bindings"]) == 2
-    claim_schema = next(
+    submit_properties = next(
         tool
         for tool in backend.requests[0].tools
         if tool.name == "submit_theory_preflight_review"
-    ).input_schema["properties"]["claim_statuses"]
-    assert claim_schema["type"] == "array"
-    assert claim_schema["minItems"] == 2
-    assert claim_schema["maxItems"] == 2
-    assert claim_schema["items"]["enum"] == ["PASS", "FAIL", "UNCERTAIN"]
+    ).input_schema["properties"]
+    assert "claim_statuses" not in submit_properties
+    assert "overall_verdict" in submit_properties
 
 
 def test_one_failed_claim_review_blocks_preflight_acceptance(tmp_path: Path) -> None:
@@ -2824,7 +2829,10 @@ Assert an unsupported transition.
     )
 
     assert packet["overall_verdict"] == "REVISE"
-    assert packet["claim_reviews"][1]["status"] == "FAIL"
+    assert packet["review_scope"]["required_claim_ids"] == [
+        "definition_primitive",
+        "theorem_main",
+    ]
     assert packet["findings"][0]["category"] == (
         "invalid_active_claim_transition"
     )
@@ -2917,39 +2925,35 @@ def test_preflight_client_submit_schema_stays_compact_with_sixteen_claims() -> N
         "finding:2",
     ]
     schema = _architect_theory_execution_preflight_submit_schema(material)
+    small_material = deepcopy(material)
+    small_material["required_estimator_ids"] = ["estimator_a"]
+    small_material["required_claim_review_ids"] = ["claim:0"]
+    assert schema == _architect_theory_execution_preflight_submit_schema(
+        small_material
+    )
 
-    expected_counts = {
-        "claim_statuses": 16,
-        "dimension_statuses": len(
-            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-        ),
-        "estimator_execution_checks": 2,
-    }
-    for field, count in expected_counts.items():
-        field_schema = schema["properties"][field]
-        assert field_schema["type"] == "array"
-        assert field_schema["minItems"] == count
-        assert field_schema["maxItems"] == count
-        assert "properties" not in field_schema
+    for retired_field in (
+        "claim_statuses",
+        "dimension_statuses",
+        "estimator_execution_checks",
+    ):
+        assert retired_field not in schema["properties"]
+    assert schema["properties"]["overall_verdict"]["enum"] == [
+        "ACCEPT",
+        "REVISE",
+    ]
     prior_schema = schema["properties"]["prior_finding_statuses"]
     assert prior_schema["type"] == "array"
     assert prior_schema["minItems"] == 3
     assert prior_schema["maxItems"] == 3
-    estimator_properties = schema["properties"][
-        "estimator_execution_checks"
-    ]["items"]["properties"]
-    assert set(estimator_properties) == {
-        "blocking_gaps",
-        "status",
-    }
     assert "review_report_sha256" in schema["required"]
     assert "review_report_markdown" not in schema["properties"]
     assert "report_evidence_refs" in schema["required"]
-    assert "maxItems" not in schema["properties"]["report_evidence_refs"]
+    assert schema["properties"]["report_evidence_refs"]["maxItems"] == 32
+    assert "enum" not in schema["properties"]["report_evidence_refs"]["items"]
     assert "maxItems" not in schema["properties"]["findings"]
-    assert "maxItems" not in estimator_properties["blocking_gaps"]
     compact_size = len(json.dumps(schema, separators=(",", ":")))
-    assert compact_size < 6_500
+    assert compact_size < 5_000
 
 
 def test_client_tool_preflight_persists_markdown_referee_report(
@@ -3019,14 +3023,7 @@ def test_client_tool_preflight_persists_markdown_referee_report(
                             f"theory.document:{relative_path}",
                             "theory.estimator_specs",
                         ],
-                        "claim_statuses": ["PASS"],
-                        "dimension_statuses": [
-                            "PASS"
-                            for _ in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-                        ],
-                        "estimator_execution_checks": [
-                            {"status": "PASS", "blocking_gaps": []}
-                        ],
+                        "overall_verdict": "ACCEPT",
                         "findings": [],
                     },
                 )
@@ -3048,10 +3045,10 @@ def test_client_tool_preflight_persists_markdown_referee_report(
     review_path = Path(review_document["path"])
     assert review_path.read_text(encoding="utf-8") == report
     assert review_path.is_relative_to(tmp_path / "run" / "theory_reviews")
-    assert packet["claim_reviews"][0]["review_report_ref"] == (
-        review_document["document_id"]
-    )
-    assert "evidence_refs" not in packet["claim_reviews"][0]
+    assert packet["review_scope"]["required_claim_ids"] == [
+        "finite_identity"
+    ]
+    assert packet["review_scope"]["model_reported_per_item_statuses"] is False
     assert review_document["evidence_refs"] == [
         f"theory.document:{relative_path}",
         "theory.estimator_specs",
@@ -3078,6 +3075,7 @@ def test_client_tool_preflight_persists_markdown_referee_report(
     submit_schema = backend.requests[0].tools[-1].input_schema
     assert "claim_reviews" not in submit_schema["properties"]
     assert "dimension_reviews" not in submit_schema["properties"]
+    assert "claim_statuses" not in submit_schema["properties"]
 
 
 def test_preflight_referee_owns_hash_bound_report_iteration() -> None:
@@ -3298,27 +3296,20 @@ def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> No
             "active_prior_finding_ids": [],
         }
     )
-    estimator_schema = schema["properties"]["estimator_execution_checks"]
-
-    assert estimator_schema["minItems"] == 2
-    assert estimator_schema["maxItems"] == 2
-    assert estimator_schema["items"]["required"] == ["status", "blocking_gaps"]
-    assert set(estimator_schema["items"]["properties"]) == {
-        "status",
-        "blocking_gaps",
-    }
+    assert "estimator_execution_checks" not in schema["properties"]
+    assert schema["properties"]["overall_verdict"]["enum"] == [
+        "ACCEPT",
+        "REVISE",
+    ]
     assert "review_report_sha256" in schema["required"]
     assert "review_report_markdown" not in schema["properties"]
     assert "report_evidence_refs" in schema["required"]
+    assert "enum" not in schema["properties"]["report_evidence_refs"]["items"]
 
 
 def test_preflight_cannot_accept_a_failed_independent_identity_check() -> None:
-    packet, _backend = _review(accept=True)
-    packet["estimator_execution_checks"][0]["blocking_gaps"] = [
-        "The independent primitive recomputation does not match the candidate output."
-    ]
-    packet["estimator_execution_checks"][0]["status"] = "FAIL"
-    packet["overall_verdict"] = "REVISE"
+    packet, _backend = _review(accept=False)
+    packet["overall_verdict"] = "ACCEPT"
 
     errors = validate_architect_theory_execution_preflight_packet(
         packet,
@@ -3331,10 +3322,30 @@ def test_preflight_cannot_accept_a_failed_independent_identity_check() -> None:
         ),
     )
 
-    assert any("needs at least one finding" in error for error in errors)
+    assert any("overall verdict contradicts" in error for error in errors)
 
 
 def test_preflight_cannot_accept_pass_with_a_model_reported_blocking_gap() -> None:
+    packet, _backend = _review(accept=False)
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+    )
+    packet["overall_verdict"] = "ACCEPT"
+
+    errors = validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=material,
+    )
+
+    assert any("overall verdict contradicts" in error for error in errors)
+
+
+def test_preflight_revise_requires_a_model_authored_blocking_finding() -> None:
     packet, _backend = _review(accept=True)
     material = build_architect_theory_execution_preflight_material(
         question=_question(),
@@ -3344,50 +3355,18 @@ def test_preflight_cannot_accept_pass_with_a_model_reported_blocking_gap() -> No
             "simulation_targets": ["evaluate the declared risk"],
         },
     )
-    packet["estimator_execution_checks"][0]["blocking_gaps"] = [
-        "The source does not establish its claimed procedure identity."
-    ]
+    packet["overall_verdict"] = "REVISE"
 
     errors = validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
     )
 
-    assert any(
-        "status=PASS cannot report blocking_gaps" in error
-        and "estimator_id='generic_stream_method'" in error
-        for error in errors
-    )
-    assert any("overall verdict is not runtime-derived" in error for error in errors)
+    assert any("needs at least one finding" in error for error in errors)
+    assert any("overall verdict contradicts" in error for error in errors)
 
 
-def test_preflight_nonpass_estimator_requires_a_model_authored_blocking_gap() -> None:
-    packet, _backend = _review(accept=True)
-    material = build_architect_theory_execution_preflight_material(
-        question=_question(),
-        theory_protocol_material=_theory_material(),
-        upstream_research_contract={
-            "formal_targets": [],
-            "simulation_targets": ["evaluate the declared risk"],
-        },
-    )
-    packet["estimator_execution_checks"][0]["status"] = "UNCERTAIN"
-    packet["estimator_execution_checks"][0]["blocking_gaps"] = []
-
-    errors = validate_architect_theory_execution_preflight_packet(
-        packet,
-        material=material,
-    )
-
-    assert any(
-        "status=UNCERTAIN requires a model-authored blocking gap" in error
-        and "estimator_id='generic_stream_method'" in error
-        for error in errors
-    )
-    assert any("overall verdict is not runtime-derived" in error for error in errors)
-
-
-def test_preflight_preserves_model_owned_dimension_and_estimator_judgments() -> None:
+def test_preflight_carries_model_owned_finding_without_checklist_rows() -> None:
     payload = _payload(accept=False)
     payload["dimension_reviews"][1] = {
         "status": "PASS",
@@ -3421,6 +3400,9 @@ def test_preflight_preserves_model_owned_dimension_and_estimator_judgments() -> 
 
     assert len(backend.requests) == 1
     assert packet["overall_verdict"] == "REVISE"
+    assert packet["review_scope"]["model_reported_per_item_statuses"] is False
+    assert "dimension_reviews" not in packet
+    assert "estimator_execution_checks" not in packet
     assert "derived_consistency_warnings" not in packet
     assert validate_architect_theory_execution_preflight_packet(
         packet,
@@ -3428,7 +3410,7 @@ def test_preflight_preserves_model_owned_dimension_and_estimator_judgments() -> 
     ) == []
 
 
-def test_preflight_returns_inconsistent_estimator_pass_to_same_model() -> None:
+def test_preflight_returns_inconsistent_disposition_to_same_model() -> None:
     payload = _payload(accept=True)
     payload["dimension_reviews"][1] = {
         "status": "UNCERTAIN",
@@ -3465,15 +3447,17 @@ def test_preflight_returns_inconsistent_estimator_pass_to_same_model() -> None:
 
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
-            candidate = deepcopy(payload)
+            candidate = _compact_submission(deepcopy(payload))
+            candidate["overall_verdict"] = (
+                "ACCEPT" if len(self.requests) == 1 else "REVISE"
+            )
             if len(self.requests) > 1:
                 self.rejection = _last_tool_result(request)
-                candidate["estimator_execution_checks"][0]["status"] = "UNCERTAIN"
             return _tool_response(
                 ClientToolCall(
                     f"submit-{len(self.requests)}",
                     "submit_theory_preflight_review",
-                    _compact_submission(candidate),
+                    candidate,
                 )
             )
 
@@ -3503,11 +3487,6 @@ def test_preflight_returns_inconsistent_estimator_pass_to_same_model() -> None:
     )
 
     assert len(backend.requests) == 2
-    estimator_row = packet["estimator_execution_checks"][0]
-    assert estimator_row["status"] == "UNCERTAIN"
-    assert estimator_row["blocking_gaps"] == [
-        "The source does not establish every invoked theorem hypothesis."
-    ]
     assert packet["overall_verdict"] == "REVISE"
     assert packet["findings"][0]["category"] == (
         "unestablished_theorem_hypothesis"
@@ -3515,7 +3494,7 @@ def test_preflight_returns_inconsistent_estimator_pass_to_same_model() -> None:
     assert "runtime_estimator_status_normalizations" not in packet
     assert backend.rejection["error"] == "preflight_submission_rejected"
     assert any(
-        "status=PASS cannot report blocking_gaps" in error
+        "overall verdict contradicts" in error
         for error in backend.rejection["validation_errors"]
     )
     assert validate_architect_theory_execution_preflight_packet(
@@ -3537,14 +3516,16 @@ def test_preflight_regenerates_all_pass_finding_conflict_with_same_model() -> No
             if len(self.requests) == 1:
                 payload = _payload(accept=True)
                 payload["findings"] = deepcopy(_payload(accept=False)["findings"])
+                submission = _compact_submission(payload)
+                submission["overall_verdict"] = "ACCEPT"
             else:
                 self.rejection = _last_tool_result(request)
-                payload = _payload(accept=True)
+                submission = _compact_submission(_payload(accept=True))
             return _tool_response(
                 ClientToolCall(
                     f"submit-{len(self.requests)}",
                     "submit_theory_preflight_review",
-                    _compact_submission(payload),
+                    submission,
                 )
             )
 
@@ -3570,7 +3551,7 @@ def test_preflight_regenerates_all_pass_finding_conflict_with_same_model() -> No
     assert len(backend.requests) == 2
     assert {request.model for request in backend.requests} == {TEST_HAIKU_MODEL}
     assert any(
-        "contradict the all-PASS" in error
+        "overall verdict contradicts" in error
         for error in backend.rejection["validation_errors"]
     )
 
@@ -3628,8 +3609,8 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     assert prior_review_schema["maxItems"] == 1
     assert "RESOLVED_BY_CURRENT_THEORY" in prior_review_schema["items"]["enum"]
     prompt_payload = _preflight_prompt_payload(backend.requests[0])
-    prior_slot = prompt_payload["ordered_review_slots"][
-        "prior_finding_statuses"
+    prior_slot = prompt_payload["review_scope"][
+        "active_prior_finding_slots"
     ][0]
     assert prior_slot["finding_id"] == prior_finding_ids[0]
     assert prior_slot["prior_obligation"]["summary"] == (
@@ -4223,10 +4204,8 @@ def test_preflight_stops_when_no_prior_finding_closes() -> None:
             "semantic_review_packet_id": rejected_packet["packet_id"],
             "semantic_review_packet_hash": stable_hash(rejected_packet),
             "overall_verdict": "REVISE",
-            "dimension_reviews": rejected_packet["dimension_reviews"],
-            "estimator_execution_checks": rejected_packet[
-                "estimator_execution_checks"
-            ],
+            "review_scope": rejected_packet["review_scope"],
+            "review_report": rejected_packet["review_report"],
             "prior_finding_reviews": [
                 {
                     "finding_id": finding_id,
@@ -4302,10 +4281,8 @@ def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
             "semantic_review_packet_id": rejected_packet["packet_id"],
             "semantic_review_packet_hash": stable_hash(rejected_packet),
             "overall_verdict": "REVISE",
-            "dimension_reviews": rejected_packet["dimension_reviews"],
-            "estimator_execution_checks": rejected_packet[
-                "estimator_execution_checks"
-            ],
+            "review_scope": rejected_packet["review_scope"],
+            "review_report": rejected_packet["review_report"],
             "findings": [
                 {
                     "severity": "medium",

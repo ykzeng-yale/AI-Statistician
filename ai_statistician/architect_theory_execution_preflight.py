@@ -65,8 +65,8 @@ from .theory_workspace import (
     theory_scratchpad_client_tool,
 )
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 19
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 28
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 20
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 29
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -88,7 +88,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
     "client_tool_model_directed_document_and_source_inspection_v15"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = (
-    "model_owned_markdown_referee_workspace_with_compact_status_envelope_v2"
+    "model_owned_markdown_referee_workspace_with_compact_disposition_v3"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY = (
     "model_authored_markdown_referee_report"
@@ -708,36 +708,20 @@ def build_architect_theory_execution_preflight_prompt(
         ),
         "review_protocol_version": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION,
         "review_protocol": list(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL),
-        "ordered_review_slots": {
-            "claim_statuses": [
-                {
-                    "output_slot": f"slot_{index}",
-                    **deepcopy(dict(claim)),
-                }
-                for index, claim in enumerate(
-                    material.get("required_claim_reviews", []) or []
-                )
+        "review_scope": {
+            "claims": [
+                deepcopy(dict(claim))
+                for claim in material.get("required_claim_reviews", []) or []
                 if isinstance(claim, Mapping)
             ],
-            "dimension_statuses": [
-                {
-                    "output_slot": f"slot_{index}",
-                    "dimension": dimension,
-                }
-                for index, dimension in enumerate(
-                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-                )
+            "review_considerations": list(
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+            ),
+            "estimators": [
+                str(estimator_id)
+                for estimator_id in material.get("required_estimator_ids", []) or []
             ],
-            "estimator_execution_checks": [
-                {
-                    "output_slot": f"slot_{index}",
-                    "estimator_id": str(estimator_id),
-                }
-                for index, estimator_id in enumerate(
-                    material.get("required_estimator_ids", []) or []
-                )
-            ],
-            "prior_finding_statuses": [
+            "active_prior_finding_slots": [
                 prior_review_slot(index, finding_id)
                 for index, finding_id in enumerate(
                     material.get("active_prior_finding_ids", []) or []
@@ -772,22 +756,19 @@ def build_architect_theory_execution_preflight_prompt(
             ),
         },
         "verdict_policy": (
-            "Do not return an overall verdict. AgentRuntime derives it from the "
-            "ordered claim and dimension statuses, compact estimator checks, and "
-            "findings. Put the independent mathematical argument in one Markdown "
-            "referee report rather than repeating a rationale in every slot. "
-            + "A blocking finding, "
-            "including an UNRESOLVED prior finding, requires at least one FAIL or "
-            "UNCERTAIN claim, dimension, or estimator row. If every review row "
-            "is PASS, return no new findings. Resolve a prior finding only when current "
+            "Return your own overall ACCEPT or REVISE disposition, with the complete "
+            "mathematical argument in one Markdown referee report. The terminal "
+            "envelope carries only that disposition, actual blocking findings, and "
+            "ordered statuses for immutable prior findings; it is not an exhaustive "
+            "scientific checklist. ACCEPT requires no blocking finding and every "
+            "active prior finding closed from current evidence. Resolve a prior finding only when current "
             "inspected documents or indexed artifacts establish the required change; "
             "retract it only when the "
             "current derivation or independent source evidence defeats its premise. "
-            "Use the ordered claim slots as a compact disposition index, not as a "
-            "request to restate every claim. Deeply check the model-selected "
-            "load-bearing dependency chain and mark any claim that remains materially "
-            "unchecked as UNCERTAIN; any FAIL or UNCERTAIN claim prevents acceptance. "
-            "Otherwise keep prior findings unresolved. Every blocker needs a checkable independent "
+            "Otherwise keep prior findings unresolved and use REVISE. Inspect the "
+            "declared review scope, but use mathematical judgment to choose and deeply "
+            "check the load-bearing dependency chain rather than filling one status per "
+            "claim or consideration. Every blocker needs a checkable independent "
             "derivation, reduction, or counterexample grounded in exact inspected "
             "documents or indexed artifacts; quoting candidate self-critique or prior "
             "reviewer prose is not "
@@ -949,29 +930,10 @@ def _architect_theory_execution_preflight_submit_schema(
             "Short source_ref handles returned by the available source tools that "
             "support this blocking finding. Use S...H... handles here only. Runtime "
             "resolves them to immutable source_hit_id values. The separate "
-            "evidence_refs field accepts only theory anchor IDs from its enum."
+            "evidence_refs field is validated against hash-bound theory anchors."
         ),
     }
-    anchor_ids = [
-        str(row.get("anchor_id", "") or "")
-        for row in material.get("anchor_catalog", []) or []
-        if isinstance(row, Mapping)
-        and str(row.get("anchor_id", "") or "").strip()
-    ]
-    claim_count = len(material.get("required_claim_review_ids", []) or [])
-    estimator_count = len(material.get("required_estimator_ids", []) or [])
     prior_count = len(material.get("active_prior_finding_ids", []) or [])
-    def status_array(count: int, description: str) -> dict[str, Any]:
-        return {
-            "type": "array",
-            "minItems": count,
-            "maxItems": count,
-            "description": description,
-            "items": {
-                "type": "string",
-                "enum": ["PASS", "FAIL", "UNCERTAIN"],
-            },
-        }
     properties: dict[str, Any] = {
         "review_report_sha256": {
             "type": "string",
@@ -985,46 +947,26 @@ def _architect_theory_execution_preflight_submit_schema(
         "report_evidence_refs": {
             "type": "array",
             "minItems": 1,
-            "items": {"type": "string", "enum": anchor_ids},
+            "maxItems": 32,
+            "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240,
+            },
             "description": (
                 "Theory documents and compact handoff anchors actually inspected and "
-                "used by the Markdown report."
+                "used by the Markdown report. Runtime validates these references "
+                "against the hash-bound review material."
             ),
         },
-        "claim_statuses": status_array(
-            claim_count,
-            "One status per ordered claim slot. Detailed reasoning belongs in the report.",
-        ),
-        "dimension_statuses": status_array(
-            len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
-            "One status per ordered review dimension. Detailed reasoning belongs in the report.",
-        ),
-        "estimator_execution_checks": {
-            "type": "array",
-            "minItems": estimator_count,
-            "maxItems": estimator_count,
+        "overall_verdict": {
+            "type": "string",
+            "enum": ["ACCEPT", "REVISE"],
             "description": (
-                "One compact row per ordered estimator slot. Put mathematical and "
-                "execution analysis in the Markdown report; list only actual blockers here."
+                "The independent referee's disposition. ACCEPT is valid only when "
+                "the report identifies no blocking finding and closes every active "
+                "prior finding; otherwise use REVISE."
             ),
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["status", "blocking_gaps"],
-                "properties": {
-                    "status": {
-                        "type": "string",
-                        "enum": ["PASS", "FAIL", "UNCERTAIN"],
-                    },
-                    "blocking_gaps": {
-                        "type": "array",
-                        "items": {
-                            "type": "string",
-                            "minLength": 1,
-                        },
-                    },
-                },
-            },
         },
         "findings": {
             "type": "array",
@@ -1038,9 +980,7 @@ def _architect_theory_execution_preflight_submit_schema(
     required = [
         "review_report_sha256",
         "report_evidence_refs",
-        "claim_statuses",
-        "dimension_statuses",
-        "estimator_execution_checks",
+        "overall_verdict",
         "findings",
     ]
     if prior_count:
@@ -1071,7 +1011,12 @@ def _architect_theory_execution_preflight_submit_schema(
             "evidence_refs": {
                 "type": "array",
                 "minItems": 1,
-                "items": {"type": "string", "enum": anchor_ids},
+                "maxItems": 12,
+                "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240,
+                },
             },
             "source_evidence_refs": source_evidence_refs,
             "finding": _preflight_finding_submit_schema(material),
@@ -2088,27 +2033,9 @@ def _canonical_preflight_source_refs(
     return canonical
 
 
-def _all_execution_review_rows_pass(packet: Mapping[str, Any]) -> bool:
-    claim_rows = packet.get("claim_reviews", [])
-    dimension_rows = packet.get("dimension_reviews", [])
-    estimator_rows = packet.get("estimator_execution_checks", [])
-    return bool(dimension_rows) and bool(estimator_rows) and all(
-        isinstance(row, Mapping)
-        and str(row.get("status", "") or "").strip().upper() == "PASS"
-        for row in claim_rows
-    ) and all(
-        isinstance(row, Mapping)
-        and str(row.get("status", "") or "").strip().upper() == "PASS"
-        for row in dimension_rows
-    ) and all(
-        isinstance(row, Mapping)
-        and str(row.get("status", "") or "").strip().upper() == "PASS"
-        and not list(row.get("blocking_gaps", []) or [])
-        for row in estimator_rows
-    )
-
-
 def _derived_verdict(packet: Mapping[str, Any]) -> str:
+    """Return the only disposition consistent with blocking-finding lineage."""
+
     prior_finding_reviews = packet.get("prior_finding_reviews", [])
     all_prior_findings_resolved = all(
         isinstance(row, Mapping)
@@ -2118,9 +2045,7 @@ def _derived_verdict(packet: Mapping[str, Any]) -> str:
     )
     return (
         "ACCEPT"
-        if _all_execution_review_rows_pass(packet)
-        and all_prior_findings_resolved
-        and not packet.get("findings", [])
+        if all_prior_findings_resolved and not packet.get("findings", [])
         else "REVISE"
     )
 
@@ -2376,9 +2301,7 @@ def _validate_compact_preflight_submission(
     required_fields = {
         "review_report_markdown",
         "report_evidence_refs",
-        "claim_statuses",
-        "dimension_statuses",
-        "estimator_execution_checks",
+        "overall_verdict",
         "findings",
     }
     if material.get("active_prior_finding_ids", []) or []:
@@ -2395,21 +2318,20 @@ def _validate_compact_preflight_submission(
         raise ClientToolInputError(
             "review_report_markdown must contain the mathematical referee report"
         )
-    array_fields = required_fields - {"review_report_markdown"}
+    if str(payload.get("overall_verdict", "") or "").strip().upper() not in {
+        "ACCEPT",
+        "REVISE",
+    }:
+        raise ClientToolInputError(
+            "overall_verdict must be ACCEPT or REVISE"
+        )
+    array_fields = required_fields - {
+        "review_report_markdown",
+        "overall_verdict",
+    }
     for field in sorted(array_fields):
         if not isinstance(payload.get(field), list):
             raise ClientToolInputError(f"{field} must be a JSON array")
-    for index, row in enumerate(
-        payload.get("estimator_execution_checks", []) or []
-    ):
-        if not isinstance(row, Mapping) or set(row) != {
-            "status",
-            "blocking_gaps",
-        }:
-            raise ClientToolInputError(
-                "estimator_execution_checks must contain only status and "
-                f"blocking_gaps; invalid row index={index}"
-            )
     if any(
         not isinstance(row, Mapping)
         for row in payload.get("findings", []) or []
@@ -2448,28 +2370,22 @@ def _normalize_packet(
         evidence_refs=compact_report_refs,
     )
     report_ref = str(body["review_report"]["document_id"])
-    body["claim_reviews"] = [
-        {
-            "status": str(status or "").strip().upper(),
-            "review_report_ref": report_ref,
-        }
-        for status in body.get("claim_statuses", []) or []
-    ]
-    body["dimension_reviews"] = [
-        {
-            "status": str(status or "").strip().upper(),
-            "review_report_ref": report_ref,
-        }
-        for status in body.get("dimension_statuses", []) or []
-    ]
-    body["estimator_execution_checks"] = [
-        {
-            **dict(row),
-            "status": str(row.get("status", "") or "").strip().upper(),
-            "review_report_ref": report_ref,
-        }
-        for row in body.get("estimator_execution_checks", []) or []
-    ]
+    model_verdict = str(body.get("overall_verdict", "") or "").strip().upper()
+    body["review_scope"] = {
+        "required_claim_ids": [
+            str(value)
+            for value in material.get("required_claim_review_ids", []) or []
+        ],
+        "review_considerations": list(
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+        ),
+        "required_estimator_ids": [
+            str(value)
+            for value in material.get("required_estimator_ids", []) or []
+        ],
+        "scope_source": "runtime_bound_review_material",
+        "model_reported_per_item_statuses": False,
+    }
     if "prior_finding_statuses" in body:
         body["prior_finding_reviews"] = [
             {
@@ -2479,69 +2395,10 @@ def _normalize_packet(
             for status in body.get("prior_finding_statuses", []) or []
         ]
     for field in (
-        "claim_statuses",
-        "dimension_statuses",
         "prior_finding_statuses",
         "report_evidence_refs",
     ):
         body.pop(field, None)
-    raw_dimension_reviews = _ordered_review_slot_rows(
-        body.get("dimension_reviews", {}),
-        expected_count=len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
-    )
-    body["dimension_reviews"] = [
-        {
-            "dimension": dimension,
-            **{
-                key: (
-                    str(value or "").strip().upper()
-                    if key == "status"
-                    else value
-                )
-                for key, value in raw_dimension_reviews[index].items()
-                if key != "dimension"
-            },
-        }
-        for index, dimension in enumerate(
-            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-        )
-        if index in raw_dimension_reviews
-    ]
-    required_claim_review_ids = list(
-        material.get("required_claim_review_ids", []) or []
-    )
-    raw_claim_reviews = _ordered_review_slot_rows(
-        body.get("claim_reviews", {}),
-        expected_count=len(required_claim_review_ids),
-    )
-    claim_reviews: list[dict[str, Any]] = []
-    claim_identity_bindings: list[dict[str, Any]] = []
-    for transport_index, raw_claim_id in enumerate(required_claim_review_ids):
-        if transport_index not in raw_claim_reviews:
-            continue
-        claim_id = str(raw_claim_id)
-        model_row = {
-            key: (
-                str(value or "").strip().upper()
-                if key == "status"
-                else value
-            )
-            for key, value in raw_claim_reviews[transport_index].items()
-            if key != "claim_id"
-        }
-        claim_reviews.append({"claim_id": claim_id, **model_row})
-        claim_identity_bindings.append(
-            {
-                "transport_index": transport_index,
-                "claim_id": claim_id,
-                "model_reported_status": model_row.get("status"),
-                "model_row_fingerprint": stable_hash(model_row),
-                "identity_source": "claim_reviews_ordered_index",
-                "runtime_selected_semantics": False,
-            }
-        )
-    body["claim_reviews"] = claim_reviews
-    body["runtime_claim_identity_bindings"] = claim_identity_bindings
     active_prior_finding_ids = list(
         material.get("active_prior_finding_ids", []) or []
     )
@@ -2601,46 +2458,6 @@ def _normalize_packet(
                     )
                 prior_finding_continuations.append(continuation)
     body["prior_finding_reviews"] = normalized_prior_reviews
-    required_estimator_ids = list(
-        material.get("required_estimator_ids", []) or []
-    )
-    raw_estimator_rows = {
-        index: {
-            key: value
-            for key, value in row.items()
-            if key != "estimator_id"
-        }
-        for index, row in _ordered_review_slot_rows(
-            body.get("estimator_execution_checks", {}),
-            expected_count=len(required_estimator_ids),
-        ).items()
-    }
-    estimator_rows: list[dict[str, Any]] = []
-    estimator_identity_bindings: list[dict[str, Any]] = []
-    for transport_index, raw_estimator_id in enumerate(
-        required_estimator_ids
-    ):
-        if transport_index not in raw_estimator_rows:
-            continue
-        estimator_id = str(raw_estimator_id)
-        model_row = raw_estimator_rows[transport_index]
-        if "status" in model_row:
-            model_row["status"] = str(
-                model_row.get("status", "") or ""
-            ).strip().upper()
-        estimator_rows.append({"estimator_id": estimator_id, **model_row})
-        estimator_identity_bindings.append(
-            {
-                "transport_index": transport_index,
-                "estimator_id": estimator_id,
-                "model_reported_status": model_row.get("status"),
-                "model_row_fingerprint": stable_hash(model_row),
-                "identity_source": "estimator_execution_checks_ordered_index",
-                "runtime_selected_semantics": False,
-            }
-        )
-    body["estimator_execution_checks"] = estimator_rows
-    body["runtime_estimator_identity_bindings"] = estimator_identity_bindings
     normalized_findings: list[dict[str, Any]] = list(
         prior_finding_continuations
     )
@@ -2741,7 +2558,7 @@ def _normalize_packet(
                 "runtime_selected_semantics": False,
             }
         )
-    body["overall_verdict"] = _derived_verdict(body)
+    body["overall_verdict"] = model_verdict
     packet_identity_body = deepcopy(body)
     packet_identity_body.pop("review_report_markdown", None)
     report_identity = packet_identity_body.get("review_report", {})
@@ -2987,46 +2804,24 @@ def validate_architect_theory_execution_preflight_packet(
             "theory execution preflight review_input_fingerprint mismatch"
         )
 
-    dimension_rows = [
-        row
-        for row in packet.get("dimension_reviews", []) or []
-        if isinstance(row, Mapping)
-    ]
-    dimensions = [str(row.get("dimension", "") or "") for row in dimension_rows]
-    if dimensions != list(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS):
-        errors.append(
-            "theory execution preflight dimension slot mismatch: "
-            f"expected_count={len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS)} "
-            f"observed_count={len(dimensions)} observed_dimensions={dimensions}"
-        )
-    claim_rows = [
-        row
-        for row in packet.get("claim_reviews", []) or []
-        if isinstance(row, Mapping)
-    ]
-    claim_ids = [str(row.get("claim_id", "") or "") for row in claim_rows]
-    required_claim_ids = [
-        str(value)
-        for value in material.get("required_claim_review_ids", []) or []
-    ]
-    if claim_ids != required_claim_ids:
-        errors.append(
-            "theory execution preflight claim slot mismatch: "
-            f"expected_ids={required_claim_ids} observed_ids={claim_ids}"
-        )
-    estimator_rows = [
-        row
-        for row in packet.get("estimator_execution_checks", []) or []
-        if isinstance(row, Mapping)
-    ]
-    estimator_ids = [str(row.get("estimator_id", "") or "") for row in estimator_rows]
     required_estimator_ids = [
         str(value) for value in material.get("required_estimator_ids", []) or []
     ]
-    if estimator_ids != required_estimator_ids:
+    expected_review_scope = {
+        "required_claim_ids": [
+            str(value)
+            for value in material.get("required_claim_review_ids", []) or []
+        ],
+        "review_considerations": list(
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+        ),
+        "required_estimator_ids": required_estimator_ids,
+        "scope_source": "runtime_bound_review_material",
+        "model_reported_per_item_statuses": False,
+    }
+    if packet.get("review_scope") != expected_review_scope:
         errors.append(
-            "theory execution preflight estimator slot mismatch: "
-            f"expected_ids={required_estimator_ids} observed_ids={estimator_ids}"
+            "theory execution preflight runtime-bound review scope mismatch"
         )
 
     prior_finding_reviews = [
@@ -3063,94 +2858,6 @@ def validate_architect_theory_execution_preflight_packet(
     ):
         errors.append("theory execution preflight prior finding status is invalid")
 
-    for row_index, row in enumerate(estimator_rows):
-        status = str(row.get("status", "") or "").strip().upper()
-        estimator_id = str(row.get("estimator_id", "") or "").strip()
-        if not compact_report:
-            for field in (
-                "audit_rationale",
-                "identity_check",
-                "boundary_or_counterexample",
-            ):
-                if not str(row.get(field, "") or "").strip():
-                    errors.append(
-                        f"estimator_execution_checks[{row_index}] estimator_id="
-                        f"{estimator_id!r} missing model-authored {field}"
-                    )
-        blocking_gaps = row.get("blocking_gaps", [])
-        valid_blocking_gaps = isinstance(blocking_gaps, list) and all(
-            str(value or "").strip() for value in blocking_gaps
-        )
-        if not valid_blocking_gaps:
-            errors.append(
-                f"estimator_execution_checks[{row_index}] estimator_id="
-                f"{estimator_id!r} blocking_gaps must be an array of nonempty strings"
-            )
-            blocking_gaps = []
-        if status == "PASS" and blocking_gaps:
-            errors.append(
-                f"estimator_execution_checks[{row_index}] estimator_id="
-                f"{estimator_id!r} status=PASS cannot report blocking_gaps"
-            )
-        if status in {"FAIL", "UNCERTAIN"} and not blocking_gaps:
-            errors.append(
-                f"estimator_execution_checks[{row_index}] estimator_id="
-                f"{estimator_id!r} status={status} requires a model-authored blocking gap"
-            )
-    for row_index, row in enumerate(claim_rows):
-        claim_id = str(row.get("claim_id", "") or "").strip()
-        if not compact_report:
-            for field in ("independent_check", "rationale"):
-                if not str(row.get(field, "") or "").strip():
-                    errors.append(
-                        f"claim_reviews[{row_index}] claim_id={claim_id!r} "
-                        f"missing model-authored {field}"
-                    )
-    expected_claim_identity_bindings: list[dict[str, Any]] = []
-    for transport_index, row in enumerate(claim_rows):
-        claim_id = str(row.get("claim_id", "") or "").strip()
-        model_row = {
-            key: value for key, value in row.items() if key != "claim_id"
-        }
-        expected_claim_identity_bindings.append(
-            {
-                "transport_index": transport_index,
-                "claim_id": claim_id,
-                "model_reported_status": model_row.get("status"),
-                "model_row_fingerprint": stable_hash(model_row),
-                "identity_source": "claim_reviews_ordered_index",
-                "runtime_selected_semantics": False,
-            }
-        )
-    if packet.get("runtime_claim_identity_bindings", []) != (
-        expected_claim_identity_bindings
-    ):
-        errors.append("theory execution preflight claim identity bindings mismatch")
-    expected_estimator_identity_bindings: list[dict[str, Any]] = []
-    for transport_index, row in enumerate(estimator_rows):
-        estimator_id = str(row.get("estimator_id", "") or "").strip()
-        model_row = {
-            key: value
-            for key, value in row.items()
-            if key != "estimator_id"
-        }
-        model_reported_status = model_row.get("status")
-        expected_estimator_identity_bindings.append(
-            {
-                "transport_index": transport_index,
-                "estimator_id": estimator_id,
-                "model_reported_status": model_reported_status,
-                "model_row_fingerprint": stable_hash(model_row),
-                "identity_source": "estimator_execution_checks_ordered_index",
-                "runtime_selected_semantics": False,
-            }
-        )
-    if packet.get("runtime_estimator_identity_bindings", []) != (
-        expected_estimator_identity_bindings
-    ):
-        errors.append(
-            "theory execution preflight estimator identity bindings mismatch"
-        )
     valid_anchor_ids = {
         str(row.get("anchor_id", "") or "")
         for row in material.get("anchor_catalog", []) or []
@@ -3169,18 +2876,12 @@ def validate_architect_theory_execution_preflight_packet(
             errors.append(
                 "theory execution preflight review report uses unknown evidence refs"
             )
-        compact_rows = [
-            *claim_rows,
-            *dimension_rows,
-            *estimator_rows,
-            *prior_finding_reviews,
-        ]
         if not report_ref or any(
             str(row.get("review_report_ref", "") or "") != report_ref
-            for row in compact_rows
+            for row in prior_finding_reviews
         ):
             errors.append(
-                "theory execution preflight compact statuses are not bound to the "
+                "theory execution preflight prior-finding statuses are not bound to the "
                 "review report"
             )
     cited_rows = [
@@ -3188,24 +2889,10 @@ def validate_architect_theory_execution_preflight_packet(
         for row in packet.get("findings", []) or []
         if isinstance(row, Mapping)
     ]
-    if not compact_report:
-        cited_rows = [
-            *claim_rows,
-            *dimension_rows,
-            *estimator_rows,
-            *prior_finding_reviews,
-            *cited_rows,
-        ]
     for row in cited_rows:
         refs = [str(value) for value in row.get("evidence_refs", []) or []]
         if not refs or any(ref not in valid_anchor_ids for ref in refs):
             errors.append("theory execution preflight uses missing or unknown evidence refs")
-    valid_statuses = {"PASS", "FAIL", "UNCERTAIN"}
-    if any(
-        str(row.get("status", "") or "").strip().upper() not in valid_statuses
-        for row in [*claim_rows, *dimension_rows, *estimator_rows]
-    ):
-        errors.append("theory execution preflight status is invalid")
     findings = [
         row
         for row in packet.get("findings", []) or []
@@ -3299,20 +2986,15 @@ def validate_architect_theory_execution_preflight_packet(
             "findings; finding_ids="
             + json.dumps(closed_with_continuation)
         )
-    if findings and _all_execution_review_rows_pass(packet):
-        errors.append(
-            "blocking theory execution preflight findings contradict the all-PASS "
-            "dimension and estimator rows; submit a complete self-consistent review "
-            "with at least one FAIL or UNCERTAIN execution row, or remove new "
-            "findings and close prior findings from current evidence. Downstream "
-            "proof obligations are not execution blockers"
-        )
     expected_verdict = _derived_verdict(packet)
     if packet.get("overall_verdict") != expected_verdict:
-        errors.append("theory execution preflight overall verdict is not runtime-derived")
+        errors.append(
+            "theory execution preflight overall verdict contradicts its blocking "
+            "findings or prior-finding dispositions"
+        )
     if not required_estimator_ids and expected_verdict != "REVISE":
         errors.append("theory execution preflight cannot accept without an estimator")
-    if expected_verdict == "REVISE" and not findings:
+    if packet.get("overall_verdict") == "REVISE" and not findings:
         errors.append(
             "REVISE theory execution preflight needs at least one finding"
         )
@@ -3388,7 +3070,7 @@ smallest load-bearing dependency chain and highest-risk claims; read a
 complete authoritative Markdown or LaTeX document only when its structure requires it. Start from attempted falsification, then reconstruct decisive transitions.
 Treat every candidate claim, source, scratch result, and sanity check as unverified; exploratory execution is not proof or frozen confirmation.
 Do not silently repair a false derivation or accept it because a corrected argument reaches the desired result. Mark material uncertainty and report findings
-without task-family formulas in one mathematical Markdown referee report with a compact ordered-status envelope. Never claim proof evidence.
+without task-family formulas in one mathematical Markdown referee report with a compact disposition envelope. Never claim proof evidence.
 """
 
 
@@ -3934,8 +3616,8 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         ClientToolDefinition(
             name="submit_theory_preflight_review",
             description=(
-                "Submit the current hash-bound Markdown report with only compact "
-                "ordered statuses and actual findings. Use source_evidence_refs only "
+                "Submit the current hash-bound Markdown report with one compact "
+                "disposition and actual findings. Use source_evidence_refs only "
                 "when citing handles returned by an optional source tool."
             ),
             input_schema=submit_schema,
@@ -3991,7 +3673,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "use write_theory_preflight_report for a complete report, then read or edit "
         "that exact hash when another reasoning step changes it. Finally call "
         "submit_theory_preflight_review with the returned review_report_sha256 plus "
-        "only the compact status and finding envelope. A report write and terminal "
+        "only the compact disposition and finding envelope. A report write and terminal "
         "submission may be issued in the same turn when the terminal call is last. "
         "Do not regenerate the report body in the terminal JSON, duplicate a separate "
         "prose rationale for every claim or dimension, or answer outside the tools."

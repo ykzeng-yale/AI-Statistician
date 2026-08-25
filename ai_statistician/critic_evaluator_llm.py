@@ -815,14 +815,19 @@ def build_critic_canonical_evidence_view(
             "overall_verdict": str(
                 preflight_packet.get("overall_verdict", "") or ""
             ),
-            "dimension_reviews": [
+            "review_scope": deepcopy(preflight_packet.get("review_scope", {})),
+            "review_report": _artifact_identity(
+                preflight_packet.get("review_report", {})
+            ),
+            "findings": [
                 {
-                    "dimension": str(row.get("dimension", "") or ""),
-                    "status": str(row.get("status", "") or ""),
-                    "rationale": str(row.get("rationale", "") or "")[:1200],
+                    "finding_id": str(row.get("finding_id", "") or ""),
+                    "severity": str(row.get("severity", "") or ""),
+                    "category": str(row.get("category", "") or ""),
+                    "summary": str(row.get("summary", "") or "")[:1200],
                     "evidence_refs": list(row.get("evidence_refs", []) or []),
                 }
-                for row in preflight_packet.get("dimension_reviews", []) or []
+                for row in preflight_packet.get("findings", []) or []
                 if isinstance(row, Mapping)
             ],
             "active_unresolved_finding_ids": list(
