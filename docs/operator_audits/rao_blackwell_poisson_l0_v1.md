@@ -80,6 +80,23 @@ not applicable. Estimator ABI validation remains strict only when a downstream
 executable lane is requested. This needs no new agent, scheduler, task formula,
 mathematical parser, retry, turn increase, or model escalation.
 
+## Future-task correction
+
+Commit `3a6af4086eb229d6ff4f0fee393cb56e37da9d60` implements that shared
+boundary. The compact upstream contract preserves runtime-owned dimension
+requirements, and the existing preflight validator derives whether an
+executable handoff is required. It accepts a theory-only compact disposition
+without an estimator and still rejects the same omission for an executable
+task. The fixed six-row review-considerations transport was removed, leaving
+the isolated model to choose the load-bearing derivation in its Markdown
+workspace.
+
+Focused adjacent panels passed `162/162`; the complete repository passed
+`892/892` in 69.42 seconds. Production Python shrank to 149,984 lines. This is
+future-task regression evidence only: no model call, rerun, resume, repair,
+hidden evaluation, rescore, extra turn, task formula, checklist, scheduler, or
+model escalation occurred.
+
 ## Immutable artifact hashes
 
 - Runtime manifest: `9a3e86d9ee11c7ecc081c3b676d8cc59515206d7d9ed87fd01f9c7e746995ac3`

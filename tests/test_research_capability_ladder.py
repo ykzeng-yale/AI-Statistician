@@ -2082,7 +2082,7 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
         for row in scored
     )
     assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "be8d57ab6ec06ffa52f88e3a0e5ddd4a94ec9379"
+        "3a6af4086eb229d6ff4f0fee393cb56e37da9d60"
     )
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2338,6 +2338,10 @@ def test_rao_blackwell_poisson_theory_l0_records_one_consumed_draw() -> None:
     )
     assert evidence["hidden_theory_execution_attempted"] is False
     assert evidence["hidden_theory_semantic_execution_attempted"] is False
+    assert evidence["post_run_shared_change_commit"] == (
+        "3a6af4086eb229d6ff4f0fee393cb56e37da9d60"
+    )
+    assert evidence["post_run_score_changed"] is False
     assert evidence["mechanical_reference_checks"] == "7/7"
     assert evidence["mechanical_negative_variants_rejected"] == 7
     assert evidence["semantic_calibration_attempts"] == 1
@@ -2368,6 +2372,9 @@ def test_rao_blackwell_poisson_theory_l0_records_one_consumed_draw() -> None:
     assert readiness["consumed_scored_tasks"] == 37
     assert readiness["fully_gold_configured_tasks"] == 37
     assert readiness["fully_gold_passed_tasks"] == 2
+    assert readiness["latest_shared_mechanism_head"] == (
+        "3a6af4086eb229d6ff4f0fee393cb56e37da9d60"
+    )
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
     }
