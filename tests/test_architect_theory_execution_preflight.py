@@ -4194,13 +4194,27 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
     assert history[0]["execution_authorized"] is False
     assert history[0]["theory_execution_preflight_packet"] == rejected_packet
 
+    theory_only_question = OpenResearchQuestion(
+        id="generic_resource_bounded_procedure",
+        title="Review an ideal procedure and its finite observation",
+        description=(
+            "Develop and evaluate a statistical procedure whose ideal definition "
+            "may consume a data stream of unspecified length."
+        ),
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
     result = architect_preexecution_metric_protocol_rejection_result(
         task=AgentTask(
             task_id="architect:generic-preflight-rejection",
             owner_subsystem="ArchitectCoordinator",
             objective="Route the rejected theory handoff before coding.",
         ),
-        question=_question(),
+        question=theory_only_question,
         semantic_review_history=history,
         architect_context={
             "theory_packet_id": "theory_derivation:generic",
@@ -4221,6 +4235,9 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
     assert result.status == "REROUTE"
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.next_task.inputs["question"]["task_intent"] == (
+        theory_only_question.task_intent
+    )
     assert "runtime_architect_operation" not in result.next_task.inputs
     assert manifest["disposition"] == "THEORY_EXECUTION_PREFLIGHT_REJECTED"
     assert manifest["preexecution_review_stage"] == "theory_execution_preflight"

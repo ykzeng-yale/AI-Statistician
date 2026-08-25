@@ -130,8 +130,11 @@ def theory_handoff_requirements(
     )
     formal_handoff_required = bool(
         legacy_full_handoff
-        or formalization_authoring_required
         or dimensions["formal"] == "required"
+        or (
+            formalization_authoring_required
+            and dimensions["formal"] != "not_applicable"
+        )
     )
     return {
         "problem_card": True,
@@ -142,7 +145,7 @@ def theory_handoff_requirements(
         "simulation_ademp_spec": bool(
             legacy_full_handoff or dimensions["empirical"] == "required"
         ),
-        "formalization_requests": bool(formalization_authoring_required),
+        "formalization_requests": formal_handoff_required and formalization_authoring_required,
     }
 
 
@@ -638,11 +641,18 @@ def build_theory_developer_prompt(
 ) -> str:
     theory_prompt_mode = _theory_developer_prompt_mode(architect_context)
     if theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION:
+        formalization_authoring_required = (
+            _theory_formalization_authoring_required(architect_context)
+        )
+        revision_inputs = build_theory_developer_revision_inputs(
+            architect_context,
+            question=question,
+        )
         return _theory_workspace_revision_prompt(
             question=question,
-            revision_inputs=build_theory_developer_revision_inputs(
-                architect_context,
-                question=question,
+            revision_inputs=revision_inputs,
+            formalization_authoring_required=(
+                formalization_authoring_required
             ),
         )
 
@@ -769,8 +779,7 @@ def build_theory_developer_prompt(
         }
     payload = {
         "question": research_question_payload(
-            question,
-            include_task_intent=True,
+            question, include_task_intent=True
         ),
         "prompt_mode": prompt_mode,
         "architect_context": compact_context,
@@ -3152,11 +3161,6 @@ def _theory_workspace_writable_handoff_names(
     }
     if requirements["theorem_cards"]:
         selected.add("lemma_cards")
-    selected.update(
-        field
-        for field, value in artifacts.items()
-        if value not in (None, "", [], {})
-    )
     return tuple(
         field
         for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
@@ -3359,14 +3363,23 @@ def _theory_workspace_revision_prompt(
     *,
     question: OpenResearchQuestion,
     revision_inputs: Mapping[str, Any],
+    formalization_authoring_required: bool,
     continuing_from_progress: bool = False,
 ) -> str:
     read_only_observations = _theory_workspace_read_only_observations(
         revision_inputs
     )
     reviewer_observations = read_only_observations["reviewer_observations"]
+    writable_artifacts = _theory_workspace_writable_handoff_names(
+        question=question,
+        formalization_authoring_required=formalization_authoring_required,
+        artifacts=revision_inputs.get("base_core_payload", {}),
+    )
     payload: dict[str, Any] = {
-        "question": research_question_payload(question),
+        "question": research_question_payload(
+            question,
+            include_task_intent=True,
+        ),
         "revision_mode": "model_owned_document_workspace",
         "immutable_lineage": {
             "revision_binding_id": revision_inputs.get("revision_binding_id", ""),
@@ -3398,7 +3411,7 @@ def _theory_workspace_revision_prompt(
             ),
             "n_findings": len(reviewer_observations.get("findings", []) or []),
         },
-        "workspace_artifacts": list(THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT),
+        "workspace_artifacts": list(writable_artifacts),
         "instructions": [
             (
                 "First read prior_theory_progress_checkpoint, inspect its exact next "
@@ -3433,17 +3446,11 @@ def _theory_workspace_revision_prompt(
             ),
             (
                 "Propagate each chosen revision through the authoritative documents and "
-                "all dependent estimator/theorem indices, simulation predictions, and "
-                "formalization requests that need to change. A self-critique, status "
-                "label, critic finding, or next action does not override contradictory "
-                "mathematics; rewrite every affected document before submitting."
-            ),
-            (
-                "The estimator interface contract is part of estimator_specs in this "
-                "same workspace. When estimator semantics or outputs change, inspect and "
-                "revise that executable ABI yourself; when they do not change, preserve "
-                "the parent value exactly. Runtime validates shape and claim references "
-                "but never authors the interface."
+                "each writable structured handoff that truly depends on it. Artifacts "
+                "outside workspace_artifacts are unavailable for this task intent and "
+                "remain byte-identical. A self-critique, status label, critic finding, "
+                "or next action does not override contradictory mathematics; rewrite "
+                "every affected document before submitting."
             ),
             (
                 "Keep only the current endorsed argument as authoritative mathematics. "
@@ -3479,6 +3486,14 @@ def _theory_workspace_revision_prompt(
         ],
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
     }
+    if "estimator_specs" in writable_artifacts:
+        payload["instructions"].append(
+            "The estimator interface contract is part of estimator_specs in this "
+            "same workspace. When estimator semantics or outputs change, inspect and "
+            "revise that executable ABI yourself; when they do not change, preserve "
+            "the parent value exactly. Runtime validates shape and claim references "
+            "but never authors the interface."
+        )
     if "transport_observations" in read_only_observations:
         payload["transport_observations"] = {
             "workspace_artifact": "transport_observations",
@@ -3782,6 +3797,11 @@ def _generate_initial_theory_artifact_workspace(
         if theory_workspace_root is not None
         else None
     )
+    writable_artifact_names = _theory_workspace_writable_handoff_names(
+        question=question,
+        formalization_authoring_required=formalization_authoring_required,
+        artifacts=initial_artifacts,
+    )
 
     def build_candidate(
         artifacts: Mapping[str, Any],
@@ -3880,13 +3900,7 @@ def _generate_initial_theory_artifact_workspace(
         task_intent=question.task_intent,
         workspace_dir=workspace_dir,
         require_document_authority=True,
-        writable_artifact_names=_theory_workspace_writable_handoff_names(
-            question=question,
-            formalization_authoring_required=(
-                formalization_authoring_required
-            ),
-            artifacts=initial_artifacts,
-        ),
+        writable_artifact_names=writable_artifact_names,
         prior_changed_artifact_names=(
             progress_checkpoint.get("changed_artifact_names", [])
             if progress_checkpoint
@@ -4069,6 +4083,11 @@ def _generate_theory_workspace_revision(
         if theory_workspace_root is not None
         else None
     )
+    writable_artifact_names = _theory_workspace_writable_handoff_names(
+        question=question,
+        formalization_authoring_required=formalization_authoring_required,
+        artifacts=initial_artifacts,
+    )
 
     def build_candidate(
         artifacts: Mapping[str, Any],
@@ -4151,6 +4170,9 @@ def _generate_theory_workspace_revision(
         user_prompt=_theory_workspace_revision_prompt(
             question=question,
             revision_inputs=revision_inputs,
+            formalization_authoring_required=(
+                formalization_authoring_required
+            ),
             continuing_from_progress=bool(progress_checkpoint),
         ),
         model=request_model,
@@ -4181,15 +4203,10 @@ def _generate_theory_workspace_revision(
         research_sources=research_sources,
         research_source_discovery=research_source_discovery,
         research_source_execution=research_source_execution,
+        task_intent=question.task_intent,
         workspace_dir=workspace_dir,
         require_document_authority=True,
-        writable_artifact_names=_theory_workspace_writable_handoff_names(
-            question=question,
-            formalization_authoring_required=(
-                formalization_authoring_required
-            ),
-            artifacts=initial_artifacts,
-        ),
+        writable_artifact_names=writable_artifact_names,
         prior_changed_artifact_names=(
             progress_checkpoint.get("changed_artifact_names", [])
             if progress_checkpoint

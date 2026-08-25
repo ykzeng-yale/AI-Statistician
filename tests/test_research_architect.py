@@ -276,7 +276,7 @@ def test_theory_handoff_requirements_follow_task_intent() -> None:
     assert formal_requirements["formalization_requests"] is True
 
 
-def test_nonformal_revision_keeps_existing_legacy_handoff_model_writable() -> None:
+def test_nonformal_revision_keeps_inapplicable_legacy_handoff_read_only() -> None:
     question = OpenResearchQuestion(
         id="nonformal-legacy-handoff",
         title="Nonformal legacy handoff",
@@ -299,11 +299,7 @@ def test_nonformal_revision_keeps_existing_legacy_handoff_model_writable() -> No
         artifacts=artifacts,
     )
 
-    assert writable == (
-        "problem_card",
-        "theory_derivation_packet",
-        "theorem_cards",
-    )
+    assert writable == ("problem_card", "theory_derivation_packet")
 
 
 def test_source_only_workspace_bypasses_full_theory_packet_contract(
@@ -1001,6 +997,43 @@ def _metric_theory_revision_context(
         THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY: binding,
         THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY: material,
     }
+
+
+def test_theory_only_revision_prompt_exposes_only_task_intent_handoffs(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="theory-only-revision-surface",
+        title="Theory-only revision surface",
+        description="Revise one mathematical argument without execution lanes.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+    parent, _ = _file_authority_theory_fixture(
+        _serious_sample_response(),
+        workspace_dir=tmp_path / "theory-only-parent",
+    )
+    context = _metric_theory_revision_context(
+        question=question,
+        parent=parent,
+    )
+
+    prompt = build_theory_developer_prompt(
+        question,
+        architect_context=context,
+    )
+    payload = json.loads(prompt.split("\n\n", 1)[1])
+
+    assert payload["question"]["task_intent"] == question.task_intent
+    assert payload["workspace_artifacts"] == [
+        "problem_card",
+        "theory_derivation_packet",
+    ]
+    assert "The estimator interface contract is part" not in prompt
 
 
 def test_research_architect_records_packet_in_document_workspace() -> None:

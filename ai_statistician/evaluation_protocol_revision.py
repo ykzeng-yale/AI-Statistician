@@ -25,7 +25,7 @@ from .metric_protocol_stage import (
     METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
 )
-from .research_schema import OpenResearchQuestion
+from .research_schema import OpenResearchQuestion, research_question_payload
 from .theory_revision_lineage import (
     RUNTIME_THEORY_REVISION_PROGRESS_CONTEXT_KEY,
 )
@@ -1115,12 +1115,9 @@ def architect_preexecution_metric_protocol_rejection_result(
                 "source-grounded preflight observations."
             ),
             inputs={
-                "question": {
-                    "id": question.id,
-                    "title": question.title,
-                    "description": question.description,
-                    "tags": list(question.tags),
-                },
+                "question": research_question_payload(
+                    question, include_task_intent=True
+                ),
                 "architect_context": next_context,
                 "environment_feedback": feedback,
                 "theory_packet_id": source_theory_packet_id,
