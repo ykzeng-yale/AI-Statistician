@@ -4228,6 +4228,86 @@ def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> No
     assert "model-authored pre-execution count for the entire portfolio" in prompt
 
 
+def test_metric_protocol_atomic_batch_rejects_partial_then_commits(
+    tmp_path: Path,
+) -> None:
+    initial_document = '{"a":0,"b":0}\n'
+    revised_document = '{"a":1,"b":2}\n'
+    initial_sha256 = hashlib.sha256(initial_document.encode("utf-8")).hexdigest()
+    revised_sha256 = hashlib.sha256(revised_document.encode("utf-8")).hexdigest()
+
+    def build_validated_packet(
+        content: str,
+    ) -> tuple[dict[str, object] | None, list[str]]:
+        value = json.loads(content)
+        return {"packet_id": "metric-authoring:atomic", **value}, []
+
+    class RecoveringAtomicBatchBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                edits = [
+                    {"old_text": '"a":0', "new_text": '"a":1'},
+                    {"old_text": '"missing":0', "new_text": '"missing":1'},
+                ]
+            elif len(self.requests) == 2:
+                edits = [
+                    {"old_text": '"a":0', "new_text": '"a":1'},
+                    {"old_text": '"b":0', "new_text": '"b":2'},
+                ]
+            else:
+                return _tool_response(
+                    ClientToolCall(
+                        "hash-only-commit",
+                        METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
+                        {"expected_sha256": revised_sha256},
+                    )
+                )
+            return _tool_response(
+                ClientToolCall(
+                    f"atomic-batch-edit-{len(self.requests)}",
+                    METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
+                    {
+                        "expected_parent_sha256": initial_sha256,
+                        "edits": edits,
+                    },
+                )
+            )
+
+    backend = RecoveringAtomicBatchBackend()
+    result = _run_metric_protocol_workspace(
+        provider=backend,  # type: ignore[arg-type]
+        config=ArchitectMetricContractAuthoringConfig(
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+        request_model=TEST_HAIKU_MODEL,
+        user_message="Apply an atomic revision and commit.",
+        build_validated_packet=build_validated_packet,
+        prior_document_content=initial_document,
+        workspace_dir=tmp_path,
+        session_id="metric-protocol-atomic-failure",
+    )
+
+    first_edit = result.loop.history[0]["tool_calls"][0]
+    assert first_edit["is_error"] is True
+    assert "edit index 1 found 0" in first_edit["result_excerpt"]
+    second_edit = result.loop.history[1]["tool_calls"][0]["result_excerpt"]
+    assert '"edit_count":2' in second_edit
+    assert result.loop.runtime_executed_tool_calls == 3
+    edit_schema = backend.requests[0].tools[1].input_schema
+    assert edit_schema["required"] == ["expected_parent_sha256", "edits"]
+    assert result.document_content == revised_document
+    assert (tmp_path / "metric_protocol.json").read_text(
+        encoding="utf-8"
+    ) == revised_document
+
+
 def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
     tmp_path: Path,
 ) -> None:
@@ -4272,8 +4352,10 @@ def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
                         METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
                         {
                             "expected_parent_sha256": scaffold_sha256,
-                            "old_text": METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT,
-                            "new_text": invalid_document,
+                            "edits": [{
+                                "old_text": METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT,
+                                "new_text": invalid_document,
+                            }],
                         },
                     )
                 )
@@ -4292,8 +4374,10 @@ def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
                         METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
                         {
                             "expected_parent_sha256": invalid_sha256,
-                            "old_text": invalid_document,
-                            "new_text": initial_document,
+                            "edits": [{
+                                "old_text": invalid_document,
+                                "new_text": initial_document,
+                            }],
                         },
                     )
                 )
@@ -4312,8 +4396,10 @@ def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
                         METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
                         {
                             "expected_parent_sha256": initial_sha256,
-                            "old_text": initial_document,
-                            "new_text": revised_document,
+                            "edits": [{
+                                "old_text": initial_document,
+                                "new_text": revised_document,
+                            }],
                         },
                     )
                 )
@@ -4469,8 +4555,10 @@ def test_metric_protocol_external_file_survives_truncated_edit_input(
                         METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
                         {
                             "expected_parent_sha256": scaffold_sha256,
-                            "old_text": METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT,
-                            "new_text": valid_document,
+                            "edits": [{
+                                "old_text": METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT,
+                                "new_text": valid_document,
+                            }],
                         },
                     )
                 )

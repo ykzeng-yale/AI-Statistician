@@ -715,7 +715,9 @@ def build_generated_code_semantic_review_prompt(
         "Act as an independent senior scientific-code reviewer. Inspect the exact executed "
         "source against the research question, authoritative theory, public interface, actual "
         "runtime arguments, and frozen measurement meanings. Choose the load-bearing checks "
-        "yourself; do not fill a fixed dimension checklist. The empirical evaluator owns "
+        "yourself; do not fill a fixed dimension checklist. Actively try to falsify explicit "
+        "public acceptance, rejection, and boundary behavior instead of checking only a happy "
+        "path. The empirical evaluator owns "
         "realized outcome values, thresholds, Monte Carlo precision, power, and efficiency, "
         "so those values are withheld and cannot by themselves create a source finding.\n\n"
         "Return a compact JSON envelope matching the response schema. Put the actual scientific "
@@ -944,8 +946,10 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         + (
                             " You may first call "
                             + GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL
-                            + " to actively test an exact current estimator; choose "
-                            "the diagnostic cases and interpretation yourself."
+                            + " to actively test an exact current estimator. When useful, "
+                            "prefer one broad model-authored probe that covers multiple "
+                            "load-bearing public boundary cases; choose the cases and "
+                            "interpretation yourself."
                             if probe_targets
                             else ""
                         )

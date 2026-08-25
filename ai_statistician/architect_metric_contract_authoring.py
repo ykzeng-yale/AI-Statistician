@@ -83,7 +83,7 @@ FROZEN_METRIC_PROTOCOL_REBINDING_GATE_MUTABLE_FIELDS = frozenset(
     {"source_anchors", "rationale"}
 )
 METRIC_PROTOCOL_WORKSPACE_TRANSPORT = (
-    "persistent_model_owned_external_metric_protocol_workspace_v2"
+    "persistent_model_owned_external_metric_protocol_workspace_v3"
 )
 METRIC_PROTOCOL_WORKSPACE_CHECKPOINT_KIND = "MetricProtocolWorkspaceCheckpoint"
 METRIC_PROTOCOL_WORKSPACE_READ_TOOL = "read_metric_protocol"
@@ -503,17 +503,30 @@ def _metric_protocol_workspace_tools() -> tuple[ClientToolDefinition, ...]:
         _metric_protocol_tool(
             METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
             (
-                "Apply one exact model-authored text replacement to the external "
-                "metric_protocol.json. Bind the edit to the current SHA-256; old_text "
-                "must occur exactly once. Runtime applies bytes literally and does "
-                "not interpret or author scientific content."
+                "Atomically apply an ordered batch of exact model-authored text "
+                "replacements to the external metric_protocol.json. Bind the batch "
+                "to the current SHA-256; each old_text must occur exactly once in "
+                "the progressively revised bytes. Runtime validates the whole batch "
+                "before updating bytes and does not interpret or author scientific "
+                "content."
             ),
             properties={
                 "expected_parent_sha256": hash_field,
-                "old_text": {"type": "string", "minLength": 1},
-                "new_text": {"type": "string"},
+                "edits": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "old_text": {"type": "string", "minLength": 1},
+                            "new_text": {"type": "string"},
+                        },
+                        "required": ["old_text", "new_text"],
+                    },
+                },
             },
-            required=("expected_parent_sha256", "old_text", "new_text"),
+            required=("expected_parent_sha256", "edits"),
         ),
         _metric_protocol_tool(
             METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
@@ -615,9 +628,12 @@ def _run_metric_protocol_workspace(
         system_prompt=(
             "You are the MetricProtocol source owner inside the AI Statistician. "
             "Work on one persistent external metric_protocol.json through exact read, "
-            "literal edit, and hash-only commit tools. Read the current scaffold or "
+            "atomic literal edits, and hash-only commit tools. Read the current "
+            "scaffold or "
             "document before editing. You may replace the whole file or make smaller "
-            "exact edits; keep incomplete work in the file until it is ready. Scientific "
+            "exact edits; group independent corrections against one parent version "
+            "into one ordered atomic batch. Keep incomplete work in the file until "
+            "it is ready. Scientific "
             "measurement semantics, numeric gates, replicate design, and their "
             "rationales are yours. Runtime only parses the declared ABI, validates "
             "identity and safety, and invokes an isolated pre-outcome reviewer. "
@@ -676,33 +692,46 @@ def _run_metric_protocol_workspace(
                 ),
             )
         if call.name == METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL:
-            require_fields("expected_parent_sha256", "old_text", "new_text")
+            require_fields("expected_parent_sha256", "edits")
             parent_sha256 = _metric_protocol_document_sha256(document)
             if payload.get("expected_parent_sha256") != parent_sha256:
                 raise ClientToolInputError(
                     "edit_metric_protocol parent hash is stale"
                 )
-            old_text = payload.get("old_text")
-            new_text = payload.get("new_text")
-            if not isinstance(old_text, str) or not old_text:
+            raw_edits = payload.get("edits")
+            if not isinstance(raw_edits, list) or not raw_edits:
                 raise ClientToolInputError(
-                    "edit_metric_protocol old_text must be nonempty text"
+                    "edit_metric_protocol edits must be a nonempty array"
                 )
-            if not isinstance(new_text, str):
-                raise ClientToolInputError(
-                    "edit_metric_protocol new_text must be text"
-                )
-            if old_text == new_text:
-                raise ClientToolInputError(
-                    "edit_metric_protocol replacement must change the document"
-                )
-            occurrence_count = document.count(old_text)
-            if occurrence_count != 1:
-                raise ClientToolInputError(
-                    "edit_metric_protocol old_text must occur exactly once; "
-                    f"found {occurrence_count}"
-                )
-            revised = document.replace(old_text, new_text, 1)
+            revised = document
+            for edit_index, raw_edit in enumerate(raw_edits):
+                if not isinstance(raw_edit, Mapping) or set(raw_edit) != {
+                    "old_text", "new_text"
+                }:
+                    raise ClientToolInputError(
+                        "edit_metric_protocol edits must contain exactly old_text and "
+                        f"new_text; invalid edit index {edit_index}"
+                    )
+                old_text = raw_edit.get("old_text")
+                new_text = raw_edit.get("new_text")
+                if not (
+                    isinstance(old_text, str)
+                    and old_text
+                    and isinstance(new_text, str)
+                    and old_text != new_text
+                ):
+                    raise ClientToolInputError(
+                        "edit_metric_protocol edits require distinct nonempty old_text "
+                        "and textual new_text; "
+                        f"invalid edit index {edit_index}"
+                    )
+                occurrence_count = revised.count(old_text)
+                if occurrence_count != 1:
+                    raise ClientToolInputError(
+                        "edit_metric_protocol old_text must occur exactly once; "
+                        f"edit index {edit_index} found {occurrence_count}"
+                    )
+                revised = revised.replace(old_text, new_text, 1)
             if not revised.strip():
                 raise ClientToolInputError(
                     "edit_metric_protocol cannot leave the document empty"
@@ -714,6 +743,7 @@ def _run_metric_protocol_workspace(
                 content={
                     "ok": True,
                     "edited": True,
+                    "edit_count": len(raw_edits),
                     "parent_sha256": parent_sha256,
                     "current_sha256": current_sha256,
                     "content_chars": len(document),

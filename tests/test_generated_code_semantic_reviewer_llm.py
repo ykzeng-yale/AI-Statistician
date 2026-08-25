@@ -215,6 +215,8 @@ def test_semantic_review_delegates_load_bearing_checks_to_the_model() -> None:
 
     assert "Choose the load-bearing checks yourself" in prompt
     assert "do not fill a fixed dimension checklist" in prompt
+    assert "Actively try to falsify explicit public" in prompt
+    assert "instead of checking only a happy path" in prompt
     assert "actual_runtime_arguments" in prompt
     assert "runtime_argument_rule" in prompt
 
@@ -825,6 +827,9 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
         "run_exact_estimator_review_probe",
         "submit_generated_code_semantic_review",
     ]
+    assert "one broad model-authored probe" in str(
+        backend.requests[0].messages[0]["content"]
+    )
     assert "accepted_numeric_string" in str(backend.requests[1].messages[-1])
     assert packet["overall_verdict"] == "REVISE"
     probe_record = packet["client_tool_loop"]["review_probe_executions"][0]
