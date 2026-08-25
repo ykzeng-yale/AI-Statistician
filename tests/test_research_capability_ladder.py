@@ -2145,7 +2145,7 @@ def test_pymle_l1_draw_is_consumed_as_first_source_replication_pass() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is True
     readiness = ladder["current_readiness"]
-    assert readiness["consumed_scored_tasks"] == 36
+    assert readiness["consumed_scored_tasks"] == 37
     assert readiness["fully_gold_passed_tasks"] == 2
     assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
@@ -2229,7 +2229,7 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 37
-    assert readiness["consumed_scored_tasks"] == 36
+    assert readiness["consumed_scored_tasks"] == 37
     assert readiness["fully_gold_configured_tasks"] == 37
     assert readiness["fully_gold_passed_tasks"] == 2
     visible_path = Path(candidate["visible_questions_path"])
@@ -2259,7 +2259,7 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
         assert hidden_name not in runtime_visible
 
 
-def test_rao_blackwell_poisson_theory_l0_is_frozen_before_first_draw() -> None:
+def test_rao_blackwell_poisson_theory_l0_records_one_consumed_draw() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -2272,7 +2272,9 @@ def test_rao_blackwell_poisson_theory_l0_is_frozen_before_first_draw() -> None:
     assert candidate["level"] == "L0"
     assert candidate["family"] == "conditional_expectation_variance_reduction"
     assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"] == "frozen_ready_v1_unrun"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_hidden_gold_failed_theory_only_estimator_gate_conflation"
+    )
     assert candidate["gold_bundle_id"] == (
         "research-l0-rao-blackwell-poisson-20260825-v1"
     )
@@ -2295,10 +2297,47 @@ def test_rao_blackwell_poisson_theory_l0_is_frozen_before_first_draw() -> None:
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["product_model_calls"] == 51
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
-    assert evidence["runtime_model_policy_status"] == "PENDING_FIRST_DRAW"
+    assert evidence["runtime_model_policy_status"] == "OK"
+    assert evidence["runtime_head"] == (
+        "5c6f77569df0caa37069b756d76448b95e28021f"
+    )
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_failure_classification"] == (
+        "theory_developer_packet_validation_failed"
+    )
+    assert evidence["runtime_outer_traces"] == 5
+    assert evidence["runtime_architect_traces"] == 3
+    assert evidence["runtime_handoffs"] == 4
+    assert evidence["runtime_observations"] == 5
+    assert evidence["runtime_outer_tool_calls"] == 0
+    assert evidence["theory_initial_client_tool_model_turns"] == 9
+    assert evidence["theory_revision_client_tool_model_turns"] == 13
+    assert evidence["theory_total_client_tool_model_turns"] == 22
+    assert evidence["independent_theory_preflight_segments"] == 2
+    assert evidence["independent_theory_preflight_client_tool_model_turns"] == 28
+    assert evidence["independent_theory_review_attempted"] is True
+    assert evidence["independent_theory_review_accepted"] is False
+    assert evidence["independent_referee_report_model_verdict"] == "ACCEPT"
+    assert (
+        evidence[
+            "independent_referee_accept_submissions_rejected_for_missing_estimator"
+        ]
+        == 2
+    )
+    assert evidence["preflight_final_overall_verdict"] == "REVISE"
+    assert evidence["visible_research_evaluation"] == (
+        "0/1 incomplete but mode-conformant"
+    )
+    assert evidence["hidden_gold_evaluation"] == (
+        "0/1; no independently accepted serious theory packet was observed, so "
+        "hidden structural and semantic theory evaluators did not execute"
+    )
+    assert evidence["hidden_theory_execution_attempted"] is False
+    assert evidence["hidden_theory_semantic_execution_attempted"] is False
     assert evidence["mechanical_reference_checks"] == "7/7"
     assert evidence["mechanical_negative_variants_rejected"] == 7
     assert evidence["semantic_calibration_attempts"] == 1
@@ -2310,7 +2349,7 @@ def test_rao_blackwell_poisson_theory_l0_is_frozen_before_first_draw() -> None:
     assert evidence["semantic_calibration_model"] == (
         "claude-haiku-4-5-20251001"
     )
-    assert evidence["model_draw_resampling_blocked"] is False
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
@@ -2326,7 +2365,7 @@ def test_rao_blackwell_poisson_theory_l0_is_frozen_before_first_draw() -> None:
     }
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 37
-    assert readiness["consumed_scored_tasks"] == 36
+    assert readiness["consumed_scored_tasks"] == 37
     assert readiness["fully_gold_configured_tasks"] == 37
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
@@ -2468,7 +2507,7 @@ def test_complete_randomization_l0_draw_is_consumed_and_failed_closed() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 37
-    assert readiness["consumed_scored_tasks"] == 36
+    assert readiness["consumed_scored_tasks"] == 37
     assert readiness["fully_gold_configured_tasks"] == 37
     assert readiness["fully_gold_passed_tasks"] == 2
 
@@ -2584,7 +2623,7 @@ def test_bootstrap_mean_l0_records_one_consumed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 37
-    assert readiness["consumed_scored_tasks"] == 36
+    assert readiness["consumed_scored_tasks"] == 37
     assert readiness["fully_gold_configured_tasks"] == 37
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
@@ -2694,7 +2733,7 @@ def test_mann_whitney_u_r_l0_records_sole_consumed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 37
-    assert readiness["consumed_scored_tasks"] == 36
+    assert readiness["consumed_scored_tasks"] == 37
     assert readiness["fully_gold_configured_tasks"] == 37
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
@@ -2808,7 +2847,7 @@ def test_inverse_variance_meta_analysis_r_l0_records_sole_consumed_draw() -> Non
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 37
-    assert readiness["consumed_scored_tasks"] == 36
+    assert readiness["consumed_scored_tasks"] == 37
     assert readiness["fully_gold_configured_tasks"] == 37
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
