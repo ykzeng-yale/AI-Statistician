@@ -2185,6 +2185,10 @@ def test_poisson_garwood_r_l0_is_frozen_before_first_product_call() -> None:
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["first_runtime_model_call_occurred"] is False
     assert evidence["fresh_live_runs"] == 0
+    assert evidence["activation_commit"] == (
+        "158bb602cb5719ee611baad6865a16c70243f8e1"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["required_model_owned_estimator_language"] == "r"
     assert evidence["required_model_owned_simulation_language"] == "r"
     assert evidence["webr_available"] is True

@@ -2795,7 +2795,8 @@
         "fresh_live_runs": 0,
         "hidden_evaluator_language_transport_commit": "776463ae0a6fdbab967f793a817197b29c38a909",
         "semantic_evidence_reference_commit": "98415b0ad050d87913415d6be1ab70c2d0afd51a",
-        "activation_commit_pending_until_current_snapshot_is_committed": true,
+        "activation_commit": "158bb602cb5719ee611baad6865a16c70243f8e1",
+        "activation_push_confirmed_on_work_branch_and_main": true,
         "formalization_requirement": "not_applicable",
         "formalizer_executed": false,
         "full_task_passed": false
