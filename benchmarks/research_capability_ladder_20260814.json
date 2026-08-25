@@ -3592,8 +3592,8 @@
     "source_replication_components_passed": 1,
     "source_replication_full_tasks_passed": 1,
     "candidate_queue_is_capability_evidence": false,
-    "latest_shared_mechanism_head": "8c736798bbcf39ef3b91be199c5bc9be05be0f6c",
-    "latest_diagnostic": "Two of thirty-eight consumed, fully gold-covered tasks pass. Neyman-Pearson/Bernoulli remains immutable 0/1: a persistent Markdown theory workspace and isolated referee both ran, but the direct review handoff lost frozen task intent, activated irrelevant execution/formalization handoffs, and the revision failed closed. Separate operator audit also finds mathematical errors in both candidate and referee. Commit 8c736798 corrects only the shared future-task handoff and writable-tool surface; it cannot alter the consumed score.",
+    "latest_shared_mechanism_head": "ccd05f0e8b6ad0a26a2c2745fd4ab1001c269d62",
+    "latest_diagnostic": "Two of thirty-eight consumed, fully gold-covered tasks pass. Neyman-Pearson/Bernoulli remains immutable 0/1: a persistent Markdown theory workspace and isolated referee both ran, but the direct review handoff lost frozen task intent, activated irrelevant execution/formalization handoffs, and the revision failed closed. Separate operator audit also finds mathematical errors in both candidate and referee. Commit 8c736798 corrects only the shared future-task handoff and writable-tool surface. Later commit ccd05f0e sanitizes Git remote credentials at persistence boundaries and preserves bounded tool schemas in provider regression; neither change can alter a consumed score.",
     "next_step": "Preserve all thirty-eight outcomes. Improve long-horizon theory and independent mathematical falsification on future disjoint, pre-frozen tasks; do not add task formulas, equation parsers, repair agents, schedulers, retries, turns, or model escalation, and never rerun, resume, hidden-evaluate, repair, rescore, or resample a consumed task."
   }
 }

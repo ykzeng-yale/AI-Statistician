@@ -3,27 +3,29 @@
 Date: 2026-08-25
 
 Upstream reviewed: [`openai/codex`](https://github.com/openai/codex) at
-`7c1e36c23fef471dc6843e0cac2706d0901f1796` (Apache-2.0).
+`42624fd63bb8b818cccda0e485828479763fff30` (Apache-2.0).
 
 Latest implementation commit:
-`3a6af4086eb229d6ff4f0fee393cb56e37da9d60`.
+`ccd05f0e8b6ad0a26a2c2745fd4ab1001c269d62`.
 
 Primary references:
 
-- [`run_turn`](https://github.com/openai/codex/blob/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/core/src/session/turn.rs)
-- [`ToolRouter`](https://github.com/openai/codex/blob/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/core/src/tools/router.rs)
-- [`ToolOrchestrator`](https://github.com/openai/codex/blob/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/core/src/tools/orchestrator.rs)
-- [`TurnContext`](https://github.com/openai/codex/blob/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/core/src/session/turn_context.rs)
-- [`apply_patch` runtime](https://github.com/openai/codex/blob/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/core/src/tools/runtimes/apply_patch.rs)
-- [atomic step activation](https://github.com/openai/codex/blob/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/core/src/session/step_activation.rs)
-- [committed step settings](https://github.com/openai/codex/blob/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/core/src/session/step_settings.rs)
-- [model-actionable tool failures](https://github.com/openai/codex/blob/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/core/src/tools/parallel.rs)
-- [tool failure taxonomy](https://github.com/openai/codex/blob/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/tools/src/function_call_error.rs)
-- [terminal-error pending-input preservation](https://github.com/openai/codex/blob/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/core/src/tasks/regular.rs)
-- [checkpoint context-window compaction](https://github.com/openai/codex/blob/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/core/src/compact_token_budget.rs)
-- [paginated thread history](https://github.com/openai/codex/blob/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/app-server-protocol/src/protocol/v2/thread.rs)
-- [multi-agent input lineage](https://github.com/openai/codex/blob/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/core/src/session/input_queue.rs)
-- [standalone sandbox implementation](https://github.com/openai/codex/tree/7c1e36c23fef471dc6843e0cac2706d0901f1796/codex-rs/sandboxing)
+- [`run_turn`](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/core/src/session/turn.rs)
+- [`ToolRouter`](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/core/src/tools/router.rs)
+- [`ToolOrchestrator`](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/core/src/tools/orchestrator.rs)
+- [`TurnContext`](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/core/src/session/turn_context.rs)
+- [`apply_patch` runtime](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/core/src/tools/runtimes/apply_patch.rs)
+- [atomic step activation](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/core/src/session/step_activation.rs)
+- [committed step settings](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/core/src/session/step_settings.rs)
+- [model-actionable tool failures](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/core/src/tools/parallel.rs)
+- [tool failure taxonomy](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/tools/src/function_call_error.rs)
+- [terminal-error pending-input preservation](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/core/src/tasks/regular.rs)
+- [checkpoint context-window compaction](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/core/src/compact_token_budget.rs)
+- [paginated thread history](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/app-server-protocol/src/protocol/v2/thread.rs)
+- [multi-agent input lineage](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/core/src/session/input_queue.rs)
+- [standalone sandbox implementation](https://github.com/openai/codex/tree/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/sandboxing)
+- [credential-safe Git metadata](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/protocol/src/sanitized_git_url.rs)
+- [bounded reserved-tool schemas](https://github.com/openai/codex/blob/42624fd63bb8b818cccda0e485828479763fff30/codex-rs/tools/src/json_schema.rs)
 - [OpenAI's agent-loop explanation](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [OpenAI's App Server harness explanation](https://openai.com/index/unlocking-the-codex-harness/)
 
@@ -560,6 +562,32 @@ repository passes `894/894`, and production Python remains under budget at 149,9
 lines. Operator audit separately finds mathematical defects in both candidate and
 referee; neither those findings nor the post-run correction can repair, rerun,
 hidden-evaluate, or rescore the consumed draw. The aggregate remains `2/38`.
+
+## Credential-safe metadata and bounded schemas
+
+The upstream delta from `7c1e36c` to `42624fd6` contains three harness-level
+changes relevant to this system. Codex strips authentication material from Git
+remote metadata before it reaches model requests, API responses, thread state,
+or rollouts; reserved tool-schema parsing now preserves numeric and string
+bounds; managed worktrees gain atomic no-clobber thread ownership metadata.
+
+Commit `ccd05f0e` adopts the first boundary directly. Research source inventory,
+LeanBlueprint and Autoform profiles, formal-source topology, and Lean RAG package
+audits now sanitize URL userinfo and nonstandard SCP usernames before persistence.
+The conventional SSH `git@` transport identity remains, malformed helper command
+payloads fail closed, and duplicate local Git subprocess wrappers were removed.
+
+AI Statistician already sends client-tool schemas directly to Anthropic or into
+the SDK strict-schema transform. A regression now carries `minimum`, `maximum`,
+and `maxLength` through that boundary, preventing a future adapter from silently
+dropping model-visible limits. The worktree ownership implementation is not
+imported: one persistent source owner and immutable artifact lineage already
+provide the relevant scientific ownership rule without a Codex worktree manager.
+
+The focused metadata/provider panel passes `46/46`; the complete repository
+passes `895/895` in 69.87 seconds; production Python is 149,999 lines. There was
+no model call, scientific-content rule, new module, agent, scheduler, retry,
+turn, task rerun, hidden evaluation, or score change.
 
 ## Standalone sandbox boundary
 

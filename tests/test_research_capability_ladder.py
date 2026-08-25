@@ -2082,7 +2082,7 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
         for row in scored
     )
     assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "8c736798bbcf39ef3b91be199c5bc9be05be0f6c"
+        "ccd05f0e8b6ad0a26a2c2745fd4ab1001c269d62"
     )
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2373,7 +2373,7 @@ def test_rao_blackwell_poisson_theory_l0_records_one_consumed_draw() -> None:
     assert readiness["fully_gold_configured_tasks"] == 38
     assert readiness["fully_gold_passed_tasks"] == 2
     assert readiness["latest_shared_mechanism_head"] == (
-        "8c736798bbcf39ef3b91be199c5bc9be05be0f6c"
+        "ccd05f0e8b6ad0a26a2c2745fd4ab1001c269d62"
     )
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
@@ -2492,7 +2492,7 @@ def test_neyman_pearson_theory_l0_draw_is_consumed_and_failed_closed() -> None:
     assert readiness["fully_gold_configured_tasks"] == 38
     assert readiness["fully_gold_passed_tasks"] == 2
     assert readiness["latest_shared_mechanism_head"] == (
-        "8c736798bbcf39ef3b91be199c5bc9be05be0f6c"
+        "ccd05f0e8b6ad0a26a2c2745fd4ab1001c269d62"
     )
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
