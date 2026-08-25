@@ -3392,6 +3392,8 @@
         "hidden_behavior_entailment_audit": "Every semantic claim is an atomic consequence or scope boundary explicitly requested in the visible question: common parameter-free conditioning, orthogonal squared-risk decomposition, expectation and variance identities, Poisson factorization, conditional-binomial mass, exact risk reduction, equality boundaries, and no unsupported UMVU or evidence promotion. No hidden claim introduces implementation, simulation, formal proof, completeness, a different loss, or another estimator.",
         "hidden_gold_manifest_validated": true,
         "gold_frozen_before_first_runtime_model_call": true,
+        "activation_commit": "c776b8f0ec8fbd9c6ed2bf3d76ffe4611e735fe1",
+        "activation_push_confirmed_on_work_branch_and_main": true,
         "preactivation_product_model_calls": 0,
         "first_runtime_model_call_occurred": false,
         "fresh_live_runs": 0,
