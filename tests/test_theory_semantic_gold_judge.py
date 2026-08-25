@@ -95,8 +95,8 @@ def _keyed_candidate_packet(*, violated: str = "") -> dict[str, object]:
                     )
                     for claim_id in CLAIM_IDS
                 },
-                "decisive_excerpts": {
-                    claim_id: "candidate" for claim_id in CLAIM_IDS
+                "decisive_evidence_refs": {
+                    claim_id: "candidate:0:0" for claim_id in CLAIM_IDS
                 },
             }
         }
@@ -211,7 +211,7 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
     candidate_schema = candidate_assessments["properties"]["candidate"]
     assert candidate_schema["required"] == [
         "claim_statuses",
-        "decisive_excerpts",
+        "decisive_evidence_refs",
     ]
     assert "status" not in candidate_schema["properties"]
     assert candidate_schema["properties"]["claim_statuses"]["required"] == (
@@ -319,15 +319,15 @@ def test_keyed_candidate_schema_fails_closed_on_missing_claim() -> None:
         )
 
 
-def test_candidate_grounding_must_quote_the_candidate_exactly() -> None:
+def test_candidate_grounding_must_select_a_supplied_evidence_ref() -> None:
     candidate = _keyed_candidate_packet()
-    candidate["assessments"]["candidate"]["decisive_excerpts"][
+    candidate["assessments"]["candidate"]["decisive_evidence_refs"][
         "claim:definition"
-    ] = "invented evidence"
+    ] = "invented:evidence:ref"
 
     with pytest.raises(
         ValueError,
-        match="every claim needs an exact decisive candidate excerpt",
+        match="every claim needs a valid decisive candidate evidence ref",
     ):
         _run(_RecordingProvider([_keyed_calibration_packet(), candidate]))
 

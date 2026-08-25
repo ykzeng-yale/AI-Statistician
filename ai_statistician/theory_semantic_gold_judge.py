@@ -28,12 +28,13 @@ def _theory_semantic_gold_judge_schema(
     *,
     required_case_ids: Sequence[str],
     claim_ids: Sequence[str],
+    evidence_refs: Sequence[str],
 ) -> dict[str, Any]:
     if claim_ids:
         assessment_schema: dict[str, Any] = {
             "type": "object",
             "additionalProperties": False,
-            "required": ["claim_statuses", "decisive_excerpts"],
+            "required": ["claim_statuses", "decisive_evidence_refs"],
             "properties": {
                 "claim_statuses": {
                     "type": "object",
@@ -44,11 +45,13 @@ def _theory_semantic_gold_judge_schema(
                         for claim_id in claim_ids
                     },
                 },
-                "decisive_excerpts": {
+                "decisive_evidence_refs": {
                     "type": "object",
                     "additionalProperties": False,
                     "required": list(claim_ids),
-                    "properties": {claim_id: {"type": "string"} for claim_id in claim_ids},
+                    "properties": {
+                        claim_id: {"type": "string", "enum": list(evidence_refs)} for claim_id in claim_ids
+                    },
                 },
             },
         }
@@ -82,6 +85,7 @@ def _materialize_semantic_assessment_packet(
     payload: Mapping[str, Any],
     *,
     claim_ids: Sequence[str],
+    evidence_by_ref: Mapping[str, str],
 ) -> dict[str, Any]:
     raw_assessments = payload.get("assessments")
     if not isinstance(raw_assessments, Mapping):
@@ -92,13 +96,13 @@ def _materialize_semantic_assessment_packet(
         if claim_ids:
             raw_statuses = assessment.get("claim_statuses", {})
             raw_statuses = raw_statuses if isinstance(raw_statuses, Mapping) else {}
-            raw_excerpts = assessment.get("decisive_excerpts", {})
-            raw_excerpts = raw_excerpts if isinstance(raw_excerpts, Mapping) else {}
+            raw_refs = assessment.get("decisive_evidence_refs", {})
+            raw_refs = raw_refs if isinstance(raw_refs, Mapping) else {}
             claim_assessments = [
                 {
                     "claim_id": str(claim_id),
                     "status": str(status),
-                    "decisive_excerpt": str(raw_excerpts.get(claim_id, "")),
+                    "decisive_excerpt": str(evidence_by_ref.get(str(raw_refs.get(claim_id, "")), "")),
                 }
                 for claim_id, status in raw_statuses.items()
             ]
@@ -111,6 +115,26 @@ def _materialize_semantic_assessment_packet(
             status = str(assessment.get("status", "") or "")
         assessments.append({"case_id": str(case_id), "status": status, "claim_assessments": claim_assessments})
     return {"assessments": assessments}
+
+
+def _semantic_evidence_units(document_cases: Sequence[Mapping[str, Any]]) -> list[dict[str, str]]:
+    return [
+        {
+            "case_id": str(case.get("case_id", "") or ""),
+            "document_path": str(document.get("path", "") or ""),
+            "evidence_ref": f"{case.get('case_id', '')}:{document_index}:{paragraph_index}",
+            "content": content,
+        }
+        for case in document_cases
+        if isinstance(case, Mapping)
+        for document_index, document in enumerate(case.get("documents", []) or [])
+        if isinstance(document, Mapping)
+        for paragraph_index, content in enumerate(
+            value.strip()
+            for value in str(document.get("content", "") or "").split("\n\n")
+            if value.strip()
+        )
+    ]
 
 
 def _generate_semantic_assessment_batch(
@@ -129,6 +153,8 @@ def _generate_semantic_assessment_batch(
     artifact_role: str,
     phase: str,
 ) -> tuple[dict[str, Any], Any]:
+    evidence_units = _semantic_evidence_units(document_cases)
+    evidence_by_ref = {row["evidence_ref"]: row["content"] for row in evidence_units}
     payload = {
         "task": {
             "id": task_id,
@@ -137,7 +163,7 @@ def _generate_semantic_assessment_batch(
         },
         "reference_documents": deepcopy(list(reference_documents)),
         "claim_rubric": deepcopy(dict(rubric)),
-        "document_cases": deepcopy(list(document_cases)),
+        "document_evidence_units": evidence_units,
         "required_document_case_ids": list(required_case_ids),
         "required_claim_ids": list(claim_ids),
         "adjudication_phase": phase,
@@ -145,28 +171,24 @@ def _generate_semantic_assessment_batch(
     }
     request = GeneratorRequest(
         system_prompt=(
-            "You are an independent scientific-document adjudicator. Compare every "
-            "document set with the reference and claim rubric at the level of "
-            "statistical and mathematical meaning. Accept equivalent notation and "
-            "algebra. For each rubric claim, inspect the complete endorsed derivation, "
-            "including intermediate displayed equations and dependencies; a correct "
-            "final conclusion does not cancel a false, circular, or unsupported step. "
-            "Treat the candidate as the conjunction of every assertion it contains. "
-            "For every rubric claim, scan the complete candidate for both supporting "
-            "and conflicting passages before deciding. A later correct caveat or "
-            "disclaimer does not erase an earlier false or unsupported assertion. "
-            "Reject contradictory assumptions, incorrect method identification, "
-            "unjustified limits, unsupported source/result claims, or evidence-authority "
-            "violations. Do not grade wording, formatting, or keyword overlap. "
-            "Reconstruct decisive equations or counterexamples when needed. Calibration "
-            "cases are unlabeled, and the candidate phase contains no calibration cases. "
-            "Think through the comparison, but follow the keyed response schema exactly. "
-            "During calibration, assessments is keyed by the frozen case IDs and each "
-            "value contains only an overall status. During candidate adjudication, each "
-            "assessment contains claim_statuses and decisive_excerpts keyed by every "
-            "frozen claim ID. Each excerpt must quote the candidate verbatim. Prefer any "
-            "passage that violates the criterion over supporting text; only if none exists "
-            "quote the strongest support. The evaluator derives overall status mechanically."
+            "You are an independent scientific-document adjudicator. Compare every document set "
+            "with the reference and claim rubric at the level of statistical and mathematical "
+            "meaning. Accept equivalent notation and algebra. For each rubric claim, inspect the "
+            "complete endorsed derivation, including intermediate displayed equations and "
+            "dependencies; a correct final conclusion does not cancel a false, circular, or "
+            "unsupported step. Treat the candidate as the conjunction of every assertion it "
+            "contains. Scan for both supporting and conflicting passages before deciding; a later "
+            "correct caveat does not erase an earlier false or unsupported assertion. Reject "
+            "contradictory assumptions, incorrect method identification, unjustified limits, "
+            "unsupported source/result claims, or evidence-authority violations. Do not grade "
+            "wording, formatting, or keyword overlap. Reconstruct decisive equations or "
+            "counterexamples when needed. Calibration cases are unlabeled, and the candidate phase "
+            "contains no calibration cases. Follow the keyed response schema exactly. During "
+            "calibration, each assessment contains only overall status. During candidate "
+            "adjudication, claim_statuses and decisive_evidence_refs are keyed by every frozen "
+            "claim ID. Select one supplied evidence_ref per claim, preferring a violating paragraph "
+            "over support. Do not copy or rewrite it; the evaluator resolves the reference and "
+            "derives overall status."
         ),
         user_prompt=json.dumps(payload, ensure_ascii=False, default=str),
         model=model,
@@ -175,6 +197,7 @@ def _generate_semantic_assessment_batch(
         schema=_theory_semantic_gold_judge_schema(
             required_case_ids=required_case_ids,
             claim_ids=claim_ids,
+            evidence_refs=tuple(evidence_by_ref),
         ),
         metadata={
             "subsystem": (
@@ -191,25 +214,22 @@ def _generate_semantic_assessment_batch(
     )
     response = provider.generate(request)
     raw_packet = extract_json_object(response.text, label=f"hidden {phase} semantic gold judgment")
-    packet = _materialize_semantic_assessment_packet(raw_packet, claim_ids=claim_ids)
+    packet = _materialize_semantic_assessment_packet(
+        raw_packet,
+        claim_ids=claim_ids,
+        evidence_by_ref=evidence_by_ref,
+    )
     errors = validate_theory_semantic_gold_judgment(
         packet,
         claim_ids=claim_ids,
         required_case_ids=required_case_ids,
     )
-    candidate_text = "\n".join(
-        str(document.get("content", "") or "")
-        for case in document_cases
-        for document in case.get("documents", []) or []
-        if isinstance(case, Mapping) and isinstance(document, Mapping)
-    )
     if claim_ids and any(
         not str(row.get("decisive_excerpt", "") or "").strip()
-        or str(row.get("decisive_excerpt")) not in candidate_text
         for assessment in packet.get("assessments", [])
         for row in assessment.get("claim_assessments", [])
     ):
-        errors.append("every claim needs an exact decisive candidate excerpt")
+        errors.append("every claim needs a valid decisive candidate evidence ref")
     if errors:
         raise ValueError(
             f"invalid hidden {phase} semantic judgment: " + "; ".join(errors)
@@ -331,9 +351,7 @@ def run_theory_semantic_gold_judge(
         "calibration_results": calibration_results,
         "semantic_judge_calibrated": calibrated,
         "candidate_status": candidate_status,
-        "candidate_claim_status_counts": _claim_status_counts(
-            candidate_assessment
-        ),
+        "candidate_claim_status_counts": _claim_status_counts(candidate_assessment),
         "candidate_claim_assessments": [
             {
                 "claim_id_hash": stable_hash(str(row["claim_id"])),
@@ -343,18 +361,12 @@ def run_theory_semantic_gold_judge(
             for row in candidate_assessment["claim_assessments"]
         ],
         "passed": passed,
-        "calibration_raw_response_fingerprint": stable_hash(
-            calibration_response.text
-        ),
-        "candidate_raw_response_fingerprint": stable_hash(
-            candidate_response.text
-        ),
-        "raw_response_fingerprint": stable_hash(
-            {
-                "calibration": calibration_response.text,
-                "candidate": candidate_response.text,
-            }
-        ),
+        "calibration_raw_response_fingerprint": stable_hash(calibration_response.text),
+        "candidate_raw_response_fingerprint": stable_hash(candidate_response.text),
+        "raw_response_fingerprint": stable_hash({
+            "calibration": calibration_response.text,
+            "candidate": candidate_response.text,
+        }),
         "proof_evidence_status": "SEMANTIC_GOLD_JUDGMENT_NOT_PROOF_EVIDENCE",
         "boundary": THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY,
     }
@@ -373,11 +385,7 @@ def validate_theory_semantic_gold_judgment(
     assessments = packet.get("assessments", [])
     if not isinstance(assessments, list):
         return ["assessments must be an array"]
-    expected_case_ids = (
-        list(required_case_ids)
-        if required_case_ids is not None
-        else [*calibration_case_ids, "candidate"]
-    )
+    expected_case_ids = list(required_case_ids) if required_case_ids is not None else [*calibration_case_ids, "candidate"]
     observed_case_ids = [
         str(row.get("case_id", "") or "")
         for row in assessments
@@ -455,14 +463,9 @@ def _derived_document_status(
         return "FAIL"
     if "INCONCLUSIVE" in claim_statuses:
         return "INCONCLUSIVE"
-    if (
+    if claim_statuses and len(claim_statuses) == expected_claim_count and set(
         claim_statuses
-        and len(claim_statuses) == expected_claim_count
-        and all(
-            status in THEORY_SEMANTIC_CLAIM_STATUSES
-            for status in claim_statuses
-        )
-    ):
+    ) <= THEORY_SEMANTIC_CLAIM_STATUSES:
         return "PASS"
     return ""
 
@@ -476,10 +479,12 @@ def _rubric_claim_ids(rubric: Mapping[str, Any]) -> list[str]:
         for row in claims
         if isinstance(row, Mapping)
     ]
-    if len(claim_ids) != len(claims) or any(not value for value in claim_ids):
-        raise ValueError("hidden theory semantic rubric claim identities are invalid")
-    if len(set(claim_ids)) != len(claim_ids):
-        raise ValueError("hidden theory semantic rubric claim identities repeat")
+    if (
+        len(claim_ids) != len(claims)
+        or any(not value for value in claim_ids)
+        or len(set(claim_ids)) != len(claim_ids)
+    ):
+        raise ValueError("hidden theory semantic rubric claim identities are invalid or repeat")
     return claim_ids
 
 
@@ -487,23 +492,18 @@ def _calibration_case_ids(cases: Sequence[Mapping[str, Any]]) -> list[str]:
     if not cases:
         raise ValueError("hidden theory semantic calibration cases are missing")
     case_ids = [str(row.get("case_id", "") or "") for row in cases]
-    if any(not value for value in case_ids) or len(set(case_ids)) != len(case_ids):
-        raise ValueError("hidden theory semantic calibration identities are invalid")
-    if any(
-        str(row.get("expected_status", "") or "")
-        not in THEORY_SEMANTIC_DOCUMENT_STATUSES
+    invalid_status = any(
+        str(row.get("expected_status", "") or "") not in THEORY_SEMANTIC_DOCUMENT_STATUSES
         for row in cases
-    ):
-        raise ValueError("hidden theory semantic calibration expectations are invalid")
+    )
+    if any(not value for value in case_ids) or len(set(case_ids)) != len(case_ids) or invalid_status:
+        raise ValueError("hidden theory semantic calibration identities or expectations are invalid")
     return case_ids
 
 
 def _claim_status_counts(assessment: Mapping[str, Any]) -> dict[str, int]:
     rows = assessment.get("claim_assessments", [])
     return {
-        status: sum(
-            isinstance(row, Mapping) and row.get("status") == status
-            for row in rows
-        )
+        status: sum(isinstance(row, Mapping) and row.get("status") == status for row in rows)
         for status in sorted(THEORY_SEMANTIC_CLAIM_STATUSES)
     }
