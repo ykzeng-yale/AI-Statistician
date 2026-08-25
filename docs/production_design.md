@@ -222,17 +222,17 @@ crossed a desired threshold.
 The minimal source-owner pattern is:
 
 ```text
-metric owner submits complete protocol source against its parent hash
+metric owner reads the scaffold and applies exact hash-bound literal edits
   -> runtime validates and returns raw errors to the same model session
   -> independent reviewer reports source-grounded pre-outcome findings
-  -> the same owner submits changed complete source against the current hash
+  -> the same owner edits the file, then commits only its exact current SHA-256
   -> accept and freeze, or block the source workspace
   -> execution evaluates only an accepted frozen protocol
 ```
 
 Metric row limits are execution/review budgets, not statistical rules. The reviewer supplies a theory-consistent positive control that the frozen evaluator executes. Runtime reports that observation; models still own protocol semantics and revisions. There is no whole-packet repair worker or runtime-authored statistical transformation.
 
-The authoritative `metric_protocol.json` is external workspace state, not a structured-output response packet. Its only tools are exact read and complete source submission against the current parent SHA-256. Runtime stores submissions unchanged, returns validation observations, never edits scientific content, and seals terminal state without automatic replay.
+The authoritative `metric_protocol.json` is external workspace state, not a structured-output response packet. Its stable tools are exact read, exact unique-literal replacement against the current parent SHA-256, and hash-only commit. The terminal tool never carries the document body. Runtime initializes only the structural schema scaffold, stores model edits unchanged, returns validation observations, never edits scientific content, and seals terminal state without automatic replay.
 
 A rejected `metric_contract_review` returns exact findings to the same metric owner. A still-rejected revision blocks with full lineage; only a separately evidenced cross-workspace inconsistency reaches Architect.
 

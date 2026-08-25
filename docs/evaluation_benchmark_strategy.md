@@ -679,6 +679,43 @@ intermediate equations on a disjoint task frozen before its first call. The
 complete-randomization draw remains immutable and cannot be rerun, repaired, or
 rescored; commit `b9ece439` receives regression evidence only.
 
+## Mann-Whitney U R L0 v1 and external metric state
+
+The thirty-fifth scored task used the same frozen known-result protocol with R as
+the required implementation language and formalization marked not applicable. Its
+sole exact-Haiku product draw remains immutable `0/1`: the runtime blocked before
+Simulation because metric authoring never committed a valid protocol. This leaves
+the aggregate at `2/35`; no post-run mechanism may rerun, repair, or rescore it.
+
+The failure sharply separated scientific components from harness liveness. Frozen
+authority passed the model-authored Markdown/LaTeX theory `7/7` mechanically and
+`7/7` semantically after `9/9` calibration. The exact R estimator passed `14/14`,
+and exact empirical enumeration passed `6/6` over all 41 assignments. The isolated
+code reviewer voluntarily executed two R falsification probes against exact
+hash-bound source and recovered from an invalid terminal envelope in the same
+session. Those are component facts, not full-task promotion.
+
+The metric transcript exposed that commit `e7d0174a` was only an intermediate
+source-workspace design. Four complete terminal payloads were truncated and never
+executed; a fifth 8,041-byte payload reached validation with incorrect top-level
+schema. Although the file was persisted, the only write operation still carried
+the entire document inside the terminal call, so artifact bytes competed with the
+final-disposition budget.
+
+Post-consumption commit `be8d57ab` corrects that shared transport for future tasks.
+The model reads a small structural scaffold, applies exact unique-literal edits to
+the external file, receives raw validation errors in the same session, and commits
+only the current SHA-256. A provider-truncated edit is not executed, and the file
+survives for continuation. Runtime owns schema, hashes, and validation; the model
+owns every metric and edit. There is no field patcher, scientific rule, retry,
+RepairAgent, Architect route, or second scheduler.
+
+A deterministic replay of the consumed prompt projection reduced 54,053 characters
+to 25,751 while preserving all 16 authority leaves, the portfolio schema, hard
+requirements, and implementation ABI. The full repository passed `887/887` after
+the change. This is future-task regression evidence only; Mann-Whitney v1 remains
+`0/1` and must never be rerun or rescored.
+
 ## Bootstrap L0 v1 and executable source review
 
 The thirty-fourth scored task reconstructed the bootstrap mean and variance theory,

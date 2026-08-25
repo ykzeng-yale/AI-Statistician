@@ -2082,7 +2082,7 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
         for row in scored
     )
     assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "5daec039b8564100b9d2f812bfefdc8cb6e2b24b"
+        "be8d57ab6ec06ffa52f88e3a0e5ddd4a94ec9379"
     )
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2585,6 +2585,9 @@ def test_mann_whitney_u_r_l0_records_sole_consumed_draw() -> None:
     assert evidence["hidden_algorithm_checks"] == "14/14"
     assert evidence["hidden_empirical_checks"] == "6/6"
     assert evidence["generated_code_reviewer_exact_estimator_probes"] == 2
+    assert evidence["post_consumption_external_metric_workspace_head"] == (
+        "be8d57ab6ec06ffa52f88e3a0e5ddd4a94ec9379"
+    )
     assert evidence["metric_protocol_truncated_terminal_inputs"] == 4
     assert evidence["metric_protocol_executed_rejected_submissions"] == 1
     assert evidence["model_draw_resampling_blocked"] is True

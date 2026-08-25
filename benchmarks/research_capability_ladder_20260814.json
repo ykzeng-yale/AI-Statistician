@@ -3208,6 +3208,8 @@
         "hidden_empirical_estimator_invocations": 41,
         "generated_code_reviewer_exact_estimator_probes": 2,
         "generated_code_reviewer_probe_language": "r",
+        "post_consumption_external_metric_workspace_head": "be8d57ab6ec06ffa52f88e3a0e5ddd4a94ec9379",
+        "post_consumption_external_metric_workspace_evidence": "future-task regression only: structural scaffold, exact hash-bound literal editing, hash-only terminal commit, same-session validation continuation, provider-truncation preservation, and compact prompt projection; no model call, rerun, resume, repair, or rescore",
         "metric_protocol_workspace_message_count": 13,
         "metric_protocol_truncated_terminal_inputs": 4,
         "metric_protocol_executed_rejected_submissions": 1,
@@ -3257,8 +3259,8 @@
     "source_replication_components_passed": 1,
     "source_replication_full_tasks_passed": 1,
     "candidate_queue_is_capability_evidence": false,
-    "latest_shared_mechanism_head": "5daec039b8564100b9d2f812bfefdc8cb6e2b24b",
+    "latest_shared_mechanism_head": "be8d57ab6ec06ffa52f88e3a0e5ddd4a94ec9379",
     "latest_diagnostic": "Two of thirty-five consumed, fully gold-covered tasks pass. The sole Mann-Whitney R draw remains 0/1 because its metric-protocol source workspace never produced an accepted protocol, so Simulation and Critic were not reached. Independently frozen evaluator authority passed the model-authored theory 7/7 mechanically and 7/7 semantically after 9/9 calibration, the exact R estimator 14/14, and all six empirical checks over 41 assignments. These are component facts and do not promote the failed research loop.",
-    "next_step": "Preserve Mann-Whitney v1 without rerun, resume, repair, or rescore. Replace the shared metric source owner's complete-JSON terminal transport with a Codex-shaped external file workspace and compact hash-bound commit, then validate only by deterministic regression and unrelated future tasks. Do not encode Mann-Whitney metrics, increase retries, or add another agent or scheduler."
+    "next_step": "Preserve Mann-Whitney v1 without rerun, resume, repair, or rescore. Commit be8d57ab replaces the shared complete-JSON terminal transport with a Codex-shaped external file workspace and hash-only commit; treat it as future-task regression evidence only and validate capability on an unrelated pre-frozen task. Do not encode Mann-Whitney metrics, increase retries, or add another agent or scheduler."
   }
 }

@@ -3,24 +3,27 @@
 Date: 2026-08-25
 
 Upstream reviewed: [`openai/codex`](https://github.com/openai/codex) at
-`a9e447a69dee4f2789dd8d8c776e314772c1f049` (Apache-2.0).
+`7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8` (Apache-2.0).
 
 Latest implementation commit:
-`26b8e12449aac0f4b6f031cf65896768ae7316ac`.
+`be8d57ab6ec06ffa52f88e3a0e5ddd4a94ec9379`.
 
 Primary references:
 
-- [`run_turn`](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/session/turn.rs)
-- [`ToolRouter`](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/tools/router.rs)
-- [`ToolOrchestrator`](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/tools/orchestrator.rs)
-- [`TurnContext`](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/turn_context.rs)
-- [model-actionable tool failures](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/tools/parallel.rs)
-- [tool failure taxonomy](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/tools/src/function_call_error.rs)
-- [terminal-error pending-input preservation](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/tasks/regular.rs)
-- [checkpoint context-window compaction](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/compact_token_budget.rs)
-- [app-server thread/turn/item protocol](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/app-server/README.md)
-- [multi-agent message tool](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
-- [standalone sandbox implementation](https://github.com/openai/codex/tree/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/sandboxing)
+- [`run_turn`](https://github.com/openai/codex/blob/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/core/src/session/turn.rs)
+- [`ToolRouter`](https://github.com/openai/codex/blob/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/core/src/tools/router.rs)
+- [`ToolOrchestrator`](https://github.com/openai/codex/blob/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/core/src/tools/orchestrator.rs)
+- [`TurnContext`](https://github.com/openai/codex/blob/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/core/src/session/turn_context.rs)
+- [`apply_patch` runtime](https://github.com/openai/codex/blob/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/core/src/tools/runtimes/apply_patch.rs)
+- [atomic step activation](https://github.com/openai/codex/blob/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/core/src/session/step_activation.rs)
+- [committed step settings](https://github.com/openai/codex/blob/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/core/src/session/step_settings.rs)
+- [model-actionable tool failures](https://github.com/openai/codex/blob/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/core/src/tools/parallel.rs)
+- [tool failure taxonomy](https://github.com/openai/codex/blob/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/tools/src/function_call_error.rs)
+- [terminal-error pending-input preservation](https://github.com/openai/codex/blob/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/core/src/tasks/regular.rs)
+- [checkpoint context-window compaction](https://github.com/openai/codex/blob/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/core/src/compact_token_budget.rs)
+- [app-server thread/turn/item protocol](https://github.com/openai/codex/blob/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/app-server/README.md)
+- [multi-agent message tool](https://github.com/openai/codex/blob/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [standalone sandbox implementation](https://github.com/openai/codex/tree/7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8/codex-rs/sandboxing)
 - [OpenAI's agent-loop explanation](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [OpenAI's App Server harness explanation](https://openai.com/index/unlocking-the-codex-harness/)
 
@@ -310,7 +313,7 @@ preflight, and hidden semantic judge all accepted a derivation containing false
 load-bearing intermediate algebra even though their prompts already required
 reconstruction.
 
-Commit `e7d0174a` applies the same source-owner lifecycle to future metric
+Commit `e7d0174a` was the first application of the same source-owner lifecycle to future metric
 protocols. It replaces detached structured-output regeneration with one
 persistent `metric_protocol.json` and two stable tools: exact read and complete
 source submission against the current parent SHA-256. Mechanical validation
@@ -331,6 +334,9 @@ production Python is 149,919 lines, below its unchanged 150,000-line budget.
 
 This is future-task mechanism evidence only. The complete-randomization run stays
 immutable `0/1`, and its false intermediate mathematics remains unresolved.
+The Mann-Whitney live validation below showed that this two-tool form was still an
+intermediate design because the complete document remained inside a terminal call;
+commit `be8d57ab` supersedes that transport without changing this historical result.
 
 Commit `b9ece439` applies the same persistent-workspace principle to theory review.
 Before candidate-document access, the existing isolated referee must write its own
@@ -414,6 +420,51 @@ commits concern managed plugins, MCP reconnect behavior, cloud-config retry,
 Guardian proxy state, goal continuation, and command migration. They do not alter the
 adopted `run_turn`, `ToolRouter`, or `ToolOrchestrator` lifecycle in a way that
 justifies importing Codex core, app-server, provider transport, or thread management.
+
+## Mann-Whitney live validation and external metric state
+
+The next disjoint Mann-Whitney R task remains immutable `0/1`, but it supplied a
+cleaner diagnosis. Theory passed frozen mechanical and semantic authority `7/7`,
+the exact R estimator passed `14/14`, and exact empirical enumeration passed `6/6`
+over all 41 assignments. The isolated code reviewer voluntarily ran two R probes
+against exact source and recovered from one invalid terminal envelope in the same
+session. Simulation and Critic were never reached because metric authoring failed.
+
+That metric session persisted 13 messages. Four complete terminal inputs were
+provider-truncated and correctly not executed. A fifth 8,041-byte document reached
+validation but used the wrong top-level schema. This proved that the `e7d0174a`
+two-tool interface was not yet truly external-state authoring: its terminal tool
+still carried the whole artifact, coupling document length to disposition liveness.
+
+Commit `be8d57ab` adopts the closer Codex analogue for future tasks. Runtime creates
+only a structural `metric_protocol.json` scaffold. The same source-owning model can
+read it, apply exact unique-literal replacements against the current parent SHA-256,
+receive raw tool or schema observations, and continue editing. The terminal
+`commit_metric_protocol` call contains only the exact current file hash, never the
+document body. A truncated edit input is not executed, while the already external
+file and transcript remain available to the same session.
+
+This deliberately reuses the principle behind Codex `apply_patch`, not its product
+runtime: model-selected deltas mutate external state; exact state identity is checked
+at commit; observations return to the same turn loop. The current upstream step
+activation/settings code additionally reinforces that one operation should bind to
+one committed settings snapshot. AI Statistician does not import Codex app-server,
+thread management, provider transport, subagents, or another scheduler.
+
+The shared prompt projection now always removes duplicated artifact trees while
+preserving authority leaves, portfolio schema, hard requirements, and implementation
+ABI. On a deterministic replay of the consumed transcript it reduced 54,053
+characters to 25,751 and preserved all 16 authority leaves. Provider truncation,
+same-session invalid-commit correction, reviewer continuation, hash lineage, and
+schema validation are regression tested; the full repository passes `887/887`.
+Production Python is 149,954 lines, `research_agent_runtime.py` remains 24,973 lines,
+and no module, agent, scheduler, task formula, numeric rule, model escalation, or
+automatic retry was added. No model call or consumed-task rerun established this
+post-consumption evidence, so Mann-Whitney v1 remains `0/1`.
+
+The official checkout was then fast-forwarded from `a9e447a` to `7e1ee6d`. The
+relevant new changes make per-step settings and activation explicit and atomic;
+other app-server and product changes do not alter the selective-adoption decision.
 
 ## Standalone sandbox boundary
 

@@ -100,3 +100,15 @@ validate, and return raw errors, but must not author metrics, translate this
 candidate, increase retries, or add another agent or scheduler.
 
 Nothing in that shared correction can change this task's immutable `0/1`.
+
+Post-consumption commit
+`be8d57ab6ec06ffa52f88e3a0e5ddd4a94ec9379` implements the shared correction for
+future tasks. Metric authoring now starts from a structural-only external JSON
+file, uses exact parent-hash-bound literal edits, and terminates with a compact
+hash-only commit whose tool input contains no document body. Invalid commit
+validation and independent reviewer findings return to the same source-owning
+session. A deterministic replay projected the consumed 54,053-character prompt
+to 25,751 characters while preserving all 16 authority leaves, portfolio schema,
+hard requirements, and implementation ABI. Provider-truncation, continuation,
+validation, and lineage regressions passed as part of `887/887` repository tests.
+No model call, rerun, resume, repair, or rescore was used to establish this evidence.
