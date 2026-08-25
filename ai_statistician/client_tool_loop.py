@@ -14,6 +14,7 @@ from .model_backend import (
     ClientToolDefinition,
     ClientToolTurnRequest,
     ClientToolTurnResponse,
+    LiveGeneratorTimeoutError,
 )
 
 
@@ -93,7 +94,7 @@ class ClientToolInputError(ValueError):
     """A caller-reviewed tool error whose bounded detail is safe for the model."""
 
 
-class ClientToolRuntimeError(RuntimeError):
+class ClientToolRuntimeError(ClientToolLoopError):
     """A non-model-actionable tool failure with secret-free diagnostics."""
 
     def __init__(
@@ -103,15 +104,34 @@ class ClientToolRuntimeError(RuntimeError):
         turn_index: int,
         call_index: int,
         exception_type: str,
+        turns: int,
+        tool_calls: int,
+        runtime_executed_tool_calls: int,
+        history: list[Mapping[str, Any]],
+        messages: list[Mapping[str, Any]],
+        provider: str,
+        model: str,
+        final_response_metadata: Mapping[str, Any],
     ) -> None:
         self.tool_name = str(tool_name)
         self.turn_index = int(turn_index)
         self.call_index = int(call_index)
         self.exception_type = str(exception_type)
         super().__init__(
-            "client tool runtime failed outside the model-actionable boundary: "
-            f"{self.tool_name} raised {self.exception_type} at turn "
-            f"{self.turn_index}, call {self.call_index}; detail withheld"
+            reason=(
+                "client tool runtime failed outside the model-actionable boundary: "
+                f"{self.tool_name} raised {self.exception_type} at turn "
+                f"{self.turn_index}, call {self.call_index}; detail withheld; "
+                "pending workspace state preserved for explicit continuation"
+            ),
+            turns=turns,
+            tool_calls=tool_calls,
+            runtime_executed_tool_calls=runtime_executed_tool_calls,
+            history=history,
+            messages=messages,
+            provider=provider,
+            model=model,
+            final_response_metadata=final_response_metadata,
         )
 
 
@@ -439,7 +459,11 @@ def run_bounded_client_tool_loop(
             runtime_executed_tool_calls=runtime_executed_tool_calls,
             history=history,
             messages=messages,
-            provider=(last_response.provider if last_response else ""),
+            provider=(
+                last_response.provider
+                if last_response
+                else str(getattr(backend, "provider_name", "") or "")
+            ),
             model=(last_response.model if last_response else request.model),
             final_response_metadata=(
                 last_response.metadata if last_response else {}
@@ -493,55 +517,86 @@ def run_bounded_client_tool_loop(
                 ),
             },
         ):
-            response = generate_turn(
-                replace(
-                    request,
-                    messages=tuple(messages),
-                    tools=turn_tools,
-                    tool_choice=(
-                        turn_tools[0].name
-                        if terminal_only_turn and len(turn_tools) == 1
-                        else request.tool_choice
-                    ),
-                    disable_parallel_tool_use=(
-                        True
-                        if terminal_only_turn or terminal_decision_turn
-                        else request.disable_parallel_tool_use
-                    ),
-                    metadata={
-                        **dict(request.metadata),
-                        "client_tool_loop_turn_index": turn_index,
-                        "client_tool_loop_max_turns": max_turns,
-                        "client_tool_loop_max_terminal_recovery_turns": (
-                            max_terminal_recovery_turns
+            provider_failure: tuple[str, str] | None = None
+            try:
+                response = generate_turn(
+                    replace(
+                        request,
+                        messages=tuple(messages),
+                        tools=turn_tools,
+                        tool_choice=(
+                            turn_tools[0].name
+                            if terminal_only_turn and len(turn_tools) == 1
+                            else request.tool_choice
                         ),
-                        "client_tool_loop_max_total_turns": total_turn_budget,
-                        "client_tool_loop_calls_before": total_calls,
-                        "client_tool_loop_max_calls": max_tool_calls,
-                        "client_tool_loop_standard_calls_before": (
-                            standard_tool_calls
+                        disable_parallel_tool_use=(
+                            True
+                            if terminal_only_turn or terminal_decision_turn
+                            else request.disable_parallel_tool_use
                         ),
-                        "client_tool_loop_max_standard_calls": max_tool_calls,
-                        "client_tool_loop_terminal_calls_before": (
-                            terminal_decision_tool_calls
-                        ),
-                        "client_tool_loop_max_terminal_calls": (
-                            terminal_decision_budget
-                        ),
-                        "client_tool_loop_terminal_only_turn": (
-                            terminal_only_turn
-                        ),
-                        "client_tool_loop_terminal_decision_turn": (
-                            terminal_decision_turn
-                        ),
-                        "client_tool_loop_terminal_decision_reason": (
-                            terminal_decision_reason
-                            if terminal_decision_turn
-                            else ""
-                        ),
-                    },
+                        metadata={
+                            **dict(request.metadata),
+                            "client_tool_loop_turn_index": turn_index,
+                            "client_tool_loop_max_turns": max_turns,
+                            "client_tool_loop_max_terminal_recovery_turns": (
+                                max_terminal_recovery_turns
+                            ),
+                            "client_tool_loop_max_total_turns": total_turn_budget,
+                            "client_tool_loop_calls_before": total_calls,
+                            "client_tool_loop_max_calls": max_tool_calls,
+                            "client_tool_loop_standard_calls_before": standard_tool_calls,
+                            "client_tool_loop_max_standard_calls": max_tool_calls,
+                            "client_tool_loop_terminal_calls_before": (
+                                terminal_decision_tool_calls
+                            ),
+                            "client_tool_loop_max_terminal_calls": terminal_decision_budget,
+                            "client_tool_loop_terminal_only_turn": terminal_only_turn,
+                            "client_tool_loop_terminal_decision_turn": (
+                                terminal_decision_turn
+                            ),
+                            "client_tool_loop_terminal_decision_reason": (
+                                terminal_decision_reason
+                                if terminal_decision_turn
+                                else ""
+                            ),
+                        },
+                    )
                 )
-            )
+            except Exception as exc:
+                if not _is_terminal_provider_turn_error(exc):
+                    raise
+                provider_failure = (
+                    type(exc).__name__,
+                    type(exc).__module__,
+                )
+            if provider_failure is not None:
+                exception_type, exception_module = provider_failure
+                history.append(
+                    {
+                        "turn_index": turn_index,
+                        "provider": str(
+                            getattr(backend, "provider_name", "") or ""
+                        ),
+                        "model": request.model,
+                        "stop_reason": "provider_terminal_error",
+                        "provider_output_truncated": False,
+                        "n_tool_calls": 0,
+                        "tool_calls": [],
+                        "response_metadata": {
+                            "exception_type": exception_type,
+                            "exception_module": exception_module,
+                            "pending_workspace_input_preserved": True,
+                            "automatic_turn_restart": False,
+                        },
+                    }
+                )
+                raise loop_error(
+                    "provider turn ended with "
+                    f"{exception_type}; pending workspace input preserved for "
+                    "explicit continuation",
+                    turns=turn_index + 1,
+                    tool_calls=total_calls,
+                )
         if not isinstance(response, ClientToolTurnResponse):
             raise TypeError(
                 "client-tool backend returned the wrong response type"
@@ -757,12 +812,6 @@ def run_bounded_client_tool_loop(
                             ),
                         )
                     except Exception as exc:
-                        runtime_failure = ClientToolRuntimeError(
-                            tool_name=call.name,
-                            turn_index=turn_index,
-                            call_index=call_index,
-                            exception_type=type(exc).__name__,
-                        )
                         execution = ClientToolExecutionResult(
                             content={
                                 "ok": False,
@@ -775,6 +824,40 @@ def run_bounded_client_tool_loop(
                                 "client_tool_internal_failure:"
                                 + stable_hash([call.name, type(exc).__name__])
                             ),
+                        )
+                        result_text = _client_tool_result_text(execution.content)
+                        turn_row["tool_calls"].append(
+                            {
+                                "call_index": call_index,
+                                "call_id": call.call_id,
+                                "name": call.name,
+                                "input_fingerprint": stable_hash(dict(call.input)),
+                                "result_fingerprint": stable_hash(
+                                    [execution.is_error, execution.content]
+                                ),
+                                "result_excerpt": result_text[:2000],
+                                "is_error": True,
+                                "executed_by_runtime": True,
+                                "state_changed": False,
+                                "terminal": False,
+                                "observation_key": execution.observation_key,
+                            }
+                        )
+                        runtime_failure = ClientToolRuntimeError(
+                            tool_name=call.name,
+                            turn_index=turn_index,
+                            call_index=call_index,
+                            exception_type=type(exc).__name__,
+                            turns=turn_index + 1,
+                            tool_calls=total_calls,
+                            runtime_executed_tool_calls=(
+                                runtime_executed_tool_calls
+                            ),
+                            history=history,
+                            messages=messages,
+                            provider=response.provider,
+                            model=response.model,
+                            final_response_metadata=response.metadata,
                         )
                     if isinstance(progress_metadata, dict):
                         progress_metadata.update(
@@ -1001,6 +1084,13 @@ def _compact_tool_response_metadata(
         for key in keys
         if key in metadata
     }
+
+
+def _is_terminal_provider_turn_error(exc: Exception) -> bool:
+    if isinstance(exc, LiveGeneratorTimeoutError):
+        return True
+    provider_module = type(exc).__module__.split(".", 1)[0].lower()
+    return provider_module in {"anthropic", "httpcore", "httpx", "openai"}
 
 
 def _provider_usage_totals(

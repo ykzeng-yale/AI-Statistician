@@ -23,13 +23,17 @@ from ai_statistician.model_backend import (
     ClientToolDefinition,
     ClientToolTurnRequest,
     ClientToolTurnResponse,
+    LiveGeneratorTimeoutError,
 )
 
 
 class ScriptedToolTurnBackend:
     provider_name = "scripted_tool_turn"
 
-    def __init__(self, responses: list[ClientToolTurnResponse]) -> None:
+    def __init__(
+        self,
+        responses: list[ClientToolTurnResponse | Exception],
+    ) -> None:
         self.responses = list(responses)
         self.requests: list[ClientToolTurnRequest] = []
 
@@ -40,7 +44,10 @@ class ScriptedToolTurnBackend:
         self.requests.append(request)
         if not self.responses:
             raise AssertionError("ScriptedToolTurnBackend exhausted")
-        return self.responses.pop(0)
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 
 def _tool(name: str, *, terminal: bool = False) -> ClientToolDefinition:
@@ -974,8 +981,62 @@ def test_bounded_client_tool_loop_returns_only_declared_input_errors_to_model() 
     assert len(internal_backend.requests) == 1
     assert exc.value.tool_name == "edit"
     assert exc.value.exception_type == "RuntimeError"
+    assert isinstance(exc.value, ClientToolLoopError)
+    assert exc.value.turns == 1
+    assert len(exc.value.messages) == 2
+    assert exc.value.history[0]["tool_calls"][0]["is_error"] is True
     assert secret not in str(exc.value)
     assert exc.value.__context__ is None
+
+
+def test_terminal_provider_error_preserves_pending_workspace_input(tmp_path) -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit", "edit", {})),
+            LiveGeneratorTimeoutError("private provider detail"),
+        ]
+    )
+
+    with pytest.raises(ClientToolLoopError) as exc_info:
+        run_bounded_client_tool_loop(
+            backend=backend,
+            request=_request(),
+            execute_tool=lambda call, context: ClientToolExecutionResult(
+                content={"ok": True, "artifact_hash": "updated"},
+                state_changed=True,
+            ),
+            max_turns=3,
+            max_tool_calls=3,
+            max_no_progress_turns=2,
+        )
+
+    error = exc_info.value
+    assert len(backend.requests) == 2
+    assert error.turns == 2
+    assert error.tool_calls == 1
+    assert [message["role"] for message in error.messages] == [
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert error.history[-1]["stop_reason"] == "provider_terminal_error"
+    metadata = error.history[-1]["response_metadata"]
+    assert metadata["pending_workspace_input_preserved"] is True
+    assert metadata["automatic_turn_restart"] is False
+    assert "private provider detail" not in str(error)
+
+    reference = persist_client_tool_session(
+        session_dir=tmp_path,
+        session_id="theory:q1",
+        request=_request(),
+        messages=error.messages,
+    )
+    assert load_client_tool_session(
+        reference,
+        session_dir=tmp_path,
+        session_id="theory:q1",
+        request=_request(),
+    ) == tuple(error.messages)
 
 
 def test_bounded_client_tool_loop_uses_existing_runtime_substage(

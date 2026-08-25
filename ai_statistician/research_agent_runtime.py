@@ -351,7 +351,6 @@ class ResearchAgentRuntimeConfig:
     theory_scratch_timeout_seconds: int = 20
     theory_scratch_max_runs: int = 3
     max_iterations: int = 12
-    max_subsystem_retries: int = 1
     max_critic_revision_rounds: int = 1
     generated_code_semantic_review_max_revisions: int = 1
     formal_target_semantic_review_required: bool = False
@@ -14125,9 +14124,6 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
                         environment_feedback=environment_feedback,
                         exc=exc,
-                        max_provider_retries=(
-                            self.runtime_config.max_subsystem_retries
-                        ),
                 )
             proposal_source = "llm_formalizer_proof_engineer_proposal"
         if proposal_packet is not None:
@@ -15238,24 +15234,16 @@ def _formalizer_provider_failure_result(
     algorithm_sandbox_manifest_id: str,
     environment_feedback: Mapping[str, Any],
     exc: Exception,
-    max_provider_retries: int = 1,
 ) -> AgentStepResult:
-    """Return a transport failure to the same source-producing agent."""
+    """Record one terminal provider failure without restarting the workspace."""
 
     failure_classification = _formalizer_provider_failure_classification(exc)
-    retry_attempt = max(
-        0,
-        _int_like(task.inputs.get("formalizer_provider_retry_attempt", 0)),
-    )
-    max_provider_retries = max(0, int(max_provider_retries or 0))
-    retry_allowed = retry_attempt < max_provider_retries
     failure_summary = f"{type(exc).__name__}: {str(exc)[:2000]}"
     failure_id = "formalizer_provider_failure:" + stable_hash(
         [
             task.task_id,
             theory_packet_id,
             failure_classification,
-            retry_attempt,
             failure_summary,
         ]
     )[:20]
@@ -15266,9 +15254,7 @@ def _formalizer_provider_failure_result(
         "failure_id": failure_id,
         "failure_classification": failure_classification,
         "provider_error": failure_summary,
-        "attempt": retry_attempt + 1,
-        "max_retries": max_provider_retries,
-        "retry_allowed": retry_allowed,
+        "automatic_workspace_restart": False,
         "prior_environment_observations": prior_observations,
         "runtime_edits_source": False,
         "runtime_selects_mathematics_or_lean": False,
@@ -15286,24 +15272,6 @@ def _formalizer_provider_failure_result(
         "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
     }
 
-    next_task: AgentTask | None = None
-    if retry_allowed:
-        next_inputs = dict(task.inputs)
-        next_inputs["environment_feedback"] = feedback
-        next_inputs["formalizer_provider_retry_attempt"] = retry_attempt + 1
-        next_task = replace(
-            task,
-            task_id=(
-                f"formalizer-provider-retry:{question.id}:"
-                f"{stable_hash([failure_id, retry_attempt])[:8]}"
-            ),
-            objective=(
-                "Retry the same Formalizer workspace after the recorded provider "
-                "transport failure; preserve the unchanged target and source lineage."
-            ),
-            inputs=next_inputs,
-        )
-
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
         task_id=task.task_id,
@@ -15313,17 +15281,15 @@ def _formalizer_provider_failure_result(
         boundary=KERNEL_PROOF_BOUNDARY,
         payload={
             "failure_classification": failure_classification,
-            "retry_allowed": retry_allowed,
+            "automatic_workspace_restart": False,
             "proof_evidence_status": artifact["proof_evidence_status"],
         },
     )
     return AgentStepResult(
-        status="REVISE" if retry_allowed else "BLOCKED",
+        status="BLOCKED",
         rationale=(
-            "The provider failure and prior observations were returned unchanged to "
-            "the same Formalizer workspace for one bounded retry."
-            if retry_allowed
-            else "The bounded provider retry budget was exhausted without proof evidence."
+            "The terminal provider failure was recorded without restarting the "
+            "Formalizer workspace or promoting proof evidence."
         ),
         produced_artifacts={failure_id: artifact},
         observations=(
@@ -15334,12 +15300,7 @@ def _formalizer_provider_failure_result(
             ),
         ),
         evidence_entries=(evidence,),
-        next_task=next_task,
-        failure_classification=(
-            failure_classification
-            if retry_allowed
-            else "formalizer_provider_retry_exhausted"
-        ),
+        failure_classification=failure_classification,
     )
 
 def _formalizer_packet_validation_failure_result(
@@ -20330,7 +20291,6 @@ def run_research_agent_runtime(
         result = runtime.run(
             initial_task,
             max_iterations=config.max_iterations,
-            max_transient_subsystem_retries=config.max_subsystem_retries,
             progress_callback=record_progress,
         )
         result_json = result.to_json(include_task_payloads=True)

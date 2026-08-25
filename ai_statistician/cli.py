@@ -3957,7 +3957,6 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 or 60
             ),
             max_iterations=args.max_iterations,
-            max_subsystem_retries=args.max_subsystem_retries,
             max_critic_revision_rounds=args.max_critic_revision_rounds,
             generated_code_semantic_review_max_revisions=int(
                 getattr(
@@ -6629,9 +6628,9 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
         help=(
-            "wall-clock timeout for each live LLM generator request; timeout "
-            "retries remain bounded by --max-subsystem-retries for provider API "
-            "timeouts, while local tool and generic timeout exceptions fail fast"
+            "wall-clock timeout for each live LLM generator request; provider-local "
+            "transport retries preserve the exact request, while a terminal error "
+            "ends the workspace turn without an implicit subsystem restart"
         ),
     )
     research_agent_runtime.add_argument(
@@ -7056,16 +7055,6 @@ def build_parser() -> argparse.ArgumentParser:
             "optional runtime research-path request. Leave unset to let the "
             "Architect choose under --formal-verification-policy=optional; set "
             "to simulation_first, proof_first, or dual_track for controlled evals"
-        ),
-    )
-    research_agent_runtime.add_argument(
-        "--max-subsystem-retries",
-        type=int,
-        default=1,
-        help=(
-            "runtime-level retries for transient provider/subsystem exceptions "
-            "such as API connection errors and provider API timeouts; local tool "
-            "timeouts are not retried, and retry observations are recorded in traces"
         ),
     )
     research_agent_runtime.add_argument(

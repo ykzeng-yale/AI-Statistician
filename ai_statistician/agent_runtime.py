@@ -753,13 +753,11 @@ class AgentRuntime:
         initial_task: AgentTask,
         *,
         max_iterations: int = 4,
-        max_transient_subsystem_retries: int = 0,
         progress_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> AgentRuntimeResult:
         task = deepcopy(initial_task)
         traces: list[RuntimeIterationTrace] = []
         final_status: RuntimeStatus = "MAX_ITERATIONS_REACHED"
-        max_retries = max(0, int(max_transient_subsystem_retries))
 
         for iteration in range(1, max_iterations + 1):
             subsystem = self.subsystems.get(task.owner_subsystem)
@@ -772,7 +770,6 @@ class AgentRuntime:
                 iteration=iteration,
                 task=task,
                 subsystem=task.owner_subsystem if subsystem is None else getattr(subsystem, "name", task.owner_subsystem),
-                max_retries=max_retries,
             )
             if subsystem is None:
                 trace = RuntimeIterationTrace(
@@ -801,125 +798,65 @@ class AgentRuntime:
                 final_status = "BLOCKED"
                 break
 
-            retry_observations: list[EnvironmentObservation] = []
-            for attempt in range(max_retries + 1):
-                progress_token = _ACTIVE_PROGRESS_CONTEXT.set(
-                    {
-                        "progress_callback": progress_callback,
-                        "iteration": iteration,
-                        "task": task,
-                        "subsystem": getattr(
-                            subsystem,
-                            "name",
-                            task.owner_subsystem,
-                        ),
-                    }
+            progress_token = _ACTIVE_PROGRESS_CONTEXT.set(
+                {
+                    "progress_callback": progress_callback,
+                    "iteration": iteration,
+                    "task": task,
+                    "subsystem": getattr(subsystem, "name", task.owner_subsystem),
+                }
+            )
+            try:
+                execution_inputs = _resolve_runtime_artifact_references(
+                    task.inputs,
+                    self.blackboard.artifacts,
+                    bindings=task_artifact_bindings,
                 )
-                try:
-                    execution_inputs = _resolve_runtime_artifact_references(
-                        task.inputs,
-                        self.blackboard.artifacts,
-                        bindings=task_artifact_bindings,
-                    )
-                    execution_task = replace(
-                        task,
-                        inputs=execution_inputs,
-                    )
-                    result = subsystem.run(execution_task, self.blackboard)
-                    if retry_observations:
-                        result = AgentStepResult(
-                            status=result.status,
-                            rationale=result.rationale,
-                            produced_artifacts=result.produced_artifacts,
-                            observations=tuple(retry_observations) + result.observations,
-                            tool_calls=result.tool_calls,
-                            evidence_entries=result.evidence_entries,
-                            next_task=result.next_task,
-                            failure_classification=result.failure_classification,
-                        )
-                    break
-                except Exception as exc:  # pragma: no cover - defensive runtime boundary
-                    retryable = _is_transient_subsystem_exception(exc)
-                    if retryable and attempt < max_retries:
-                        retry_observations.append(
-                            EnvironmentObservation(
-                                observation_type="subsystem_exception_retry",
-                                summary=(
-                                    f"{exc.__class__.__name__}: {exc}; "
-                                    f"retrying subsystem attempt {attempt + 1}/{max_retries}"
-                                ),
-                                payload={
-                                    "exception_type": exc.__class__.__name__,
-                                    "exception_module": exc.__class__.__module__,
-                                    **_exception_debug_payload(exc),
-                                    "retry_attempt": attempt + 1,
-                                    "max_retries": max_retries,
-                                    "retryable": True,
-                                },
-                            )
-                        )
-                        _emit_progress(
-                            progress_callback,
-                            event_type="subsystem_retry",
-                            iteration=iteration,
-                            task=task,
-                            subsystem=getattr(subsystem, "name", task.owner_subsystem),
-                            status="FAILED",
-                            rationale=f"retrying after {exc.__class__.__name__}",
-                            failure_classification="transient_subsystem_exception_retry",
-                            retry_attempt=attempt + 1,
-                            max_retries=max_retries,
-                        )
-                        continue
-                    artifact_reference_failure = isinstance(
-                        exc,
-                        RuntimeArtifactReferenceError,
-                    )
-                    failure_classification = "subsystem_exception"
-                    rationale = f"subsystem raised {exc.__class__.__name__}: {exc}"
-                    observation_type = "subsystem_exception"
-                    if retry_observations and retryable:
-                        failure_classification = (
-                            "transient_subsystem_exception_exhausted"
-                        )
-                    if artifact_reference_failure:
-                        failure_classification = "task_artifact_reference_invalid"
-                        rationale = f"task artifact reference invalid: {exc}"
-                        observation_type = "task_artifact_reference_invalid"
-                    result = AgentStepResult(
-                        status="FAILED",
-                        rationale=rationale,
-                        observations=tuple(retry_observations)
-                        + (
-                            EnvironmentObservation(
-                                observation_type=observation_type,
-                                summary=str(exc),
-                                payload={
-                                    "exception_type": exc.__class__.__name__,
-                                    "exception_module": exc.__class__.__module__,
-                                    **_exception_debug_payload(exc),
-                                    "retryable": retryable,
-                                    "retry_attempts": len(retry_observations),
-                                },
-                            ),
+                execution_task = replace(task, inputs=execution_inputs)
+                result = subsystem.run(execution_task, self.blackboard)
+            except Exception as exc:  # pragma: no cover - defensive runtime boundary
+                artifact_reference_failure = isinstance(
+                    exc, RuntimeArtifactReferenceError
+                )
+                failure_classification = (
+                    "task_artifact_reference_invalid"
+                    if artifact_reference_failure
+                    else "subsystem_exception"
+                )
+                rationale = (
+                    f"task artifact reference invalid: {exc}"
+                    if artifact_reference_failure
+                    else f"subsystem raised {exc.__class__.__name__}: {exc}"
+                )
+                result = AgentStepResult(
+                    status="FAILED",
+                    rationale=rationale,
+                    observations=(
+                        EnvironmentObservation(
+                            observation_type=failure_classification,
+                            summary=str(exc),
+                            payload={
+                                "exception_type": exc.__class__.__name__,
+                                "exception_module": exc.__class__.__module__,
+                                **_exception_debug_payload(exc),
+                                "automatic_subsystem_restart": False,
+                            },
                         ),
-                        failure_classification=failure_classification,
-                    )
-                    _emit_progress(
-                        progress_callback,
-                        event_type="subsystem_exception",
-                        iteration=iteration,
-                        task=task,
-                        subsystem=getattr(subsystem, "name", task.owner_subsystem),
-                        status=result.status,
-                        rationale=result.rationale,
-                        failure_classification=failure_classification,
-                        retry_attempt=len(retry_observations),
-                        max_retries=max_retries,
-                    )
-                    break
-                finally:
-                    _ACTIVE_PROGRESS_CONTEXT.reset(progress_token)
+                    ),
+                    failure_classification=failure_classification,
+                )
+                _emit_progress(
+                    progress_callback,
+                    event_type="subsystem_exception",
+                    iteration=iteration,
+                    task=task,
+                    subsystem=getattr(subsystem, "name", task.owner_subsystem),
+                    status=result.status,
+                    rationale=result.rationale,
+                    failure_classification=failure_classification,
+                )
+            finally:
+                _ACTIVE_PROGRESS_CONTEXT.reset(progress_token)
 
             subsystem_name = getattr(subsystem, "name", task.owner_subsystem)
             if self.handoff_policy is not None:
@@ -1002,8 +939,6 @@ class AgentRuntime:
                 handoff_id=trace.handoff_id,
                 next_task_id=trace.next_task_id,
                 failure_classification=trace.failure_classification,
-                retry_attempt=len(retry_observations),
-                max_retries=max_retries,
             )
 
             if result.status == "ACCEPTED":
@@ -1025,12 +960,9 @@ class AgentRuntime:
             pending_task_checkpoint_reason = "outer_iteration_budget_exhausted"
         elif (
             final_status == "FAILED"
-            and terminal_failure_classification
-            == "transient_subsystem_exception_exhausted"
+            and terminal_failure_classification == "subsystem_exception"
         ):
-            pending_task_checkpoint_reason = (
-                "transient_subsystem_exception_exhausted"
-            )
+            pending_task_checkpoint_reason = "terminal_subsystem_error"
         pending_task = (
             deepcopy(task) if pending_task_checkpoint_reason else None
         )
@@ -1146,8 +1078,6 @@ def _emit_progress(
     handoff_id: str = "",
     next_task_id: str = "",
     failure_classification: str = "",
-    retry_attempt: int = 0,
-    max_retries: int = 0,
     substage: str = "",
     elapsed_seconds: float = 0.0,
     metadata: Mapping[str, Any] | None = None,
@@ -1169,8 +1099,6 @@ def _emit_progress(
             "handoff_id": handoff_id,
             "next_task_id": next_task_id,
             "failure_classification": failure_classification,
-            "retry_attempt": retry_attempt,
-            "max_retries": max_retries,
             "substage": substage,
             "elapsed_seconds": max(0.0, float(elapsed_seconds or 0.0)),
             "metadata": dict(metadata or {}),
@@ -1206,30 +1134,6 @@ def _build_task_handoff_record(
         next_task_acceptance_gate=next_task.acceptance_gate,
         failure_classification=result.failure_classification,
     )
-
-
-def _is_transient_subsystem_exception(exc: Exception) -> bool:
-    name = type(exc).__name__.lower()
-    module = type(exc).__module__.lower()
-    text = str(exc).lower()
-    haystack = f"{module}.{name} {text}"
-    if name == "apitimeouterror" and (
-        module.startswith("anthropic") or module.startswith("openai")
-    ):
-        return True
-    if "timeout" in haystack or "timed out" in haystack:
-        return False
-    retry_markers = (
-        "apiconnectionerror",
-        "api_connection_error",
-        "ratelimiterror",
-        "rate_limit_error",
-        "connection",
-        "temporarily unavailable",
-        "server error",
-        "overloaded",
-    )
-    return any(marker in haystack for marker in retry_markers)
 
 
 def _exception_debug_payload(exc: Exception) -> dict[str, str]:
