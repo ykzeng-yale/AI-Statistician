@@ -900,6 +900,8 @@
         "hidden_gold_manifest_validated": true,
         "hidden_gold_activated_before_first_product_model_call": true,
         "preactivation_product_model_calls": 0,
+        "activation_commit": "378d00df589952ae18c3f5e149293439bd5d0fe1",
+        "activation_push_confirmed_on_work_branch_and_main": true,
         "runtime_source_replication_lane_available": true,
         "full_task_passed": false
       },
