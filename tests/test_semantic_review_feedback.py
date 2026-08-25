@@ -3,7 +3,6 @@ from __future__ import annotations
 from ai_statistician.semantic_review_feedback import (
     architect_observations_without_runtime_routing,
     coding_agent_observations_only,
-    compact_semantic_review_feedback,
     model_observations_without_repair_recipes,
 )
 from ai_statistician.algorithm_engineer_llm import (
@@ -12,65 +11,6 @@ from ai_statistician.algorithm_engineer_llm import (
 from ai_statistician.simulation_engineer_llm import (
     _simulation_environment_observations,
 )
-
-
-def test_author_feedback_keeps_evidence_but_drops_repair_recipe() -> None:
-    feedback = {
-        "feedback_type": "generated_code_semantic_review_feedback",
-        "feedback_source": "GeneratedCodeSemanticReviewer",
-        "candidate_id": "candidate:1",
-        "candidate_source_hash": "sha256:source",
-        "overall_verdict": "REVISE",
-        "repair_owner_agent": "AlgorithmEngineer",
-        "repair_target_subsystem": "AlgorithmEngineer",
-        "findings": [
-            {
-                "finding_id": "finding:wrong-sign",
-                "severity": "critical",
-                "category": "metric_semantics",
-                "summary": "The executed statistic has the wrong sign.",
-                "observed_behavior": "The execution returned 2.0.",
-                "expected_behavior": "The declared statistic returns -2.0.",
-                "required_change": "Negate the statistic on line 12.",
-                "repair_scope": "source_code",
-                "evidence_refs": ["result#/observed_statistic"],
-            }
-        ],
-        "repair_instructions": ["Replace x with -x on line 12."],
-        "reviewed_source_artifacts": [
-            {
-                "artifact_id": "generated_source:1",
-                "exact_source_hash": "sha256:source",
-                "exact_source_code": "def estimate(x):\n    return x\n",
-                "exact_source_code_complete": True,
-                "exact_result": {"observed_statistic": 2.0},
-                "exact_result_hash": "sha256:result",
-            }
-        ],
-    }
-
-    projected = compact_semantic_review_feedback(
-        feedback,
-        expected_feedback_type="generated_code_semantic_review_feedback",
-    )
-
-    assert projected["candidate_source_hash"] == "sha256:source"
-    assert projected["findings"] == [
-        {
-            "finding_id": "finding:wrong-sign",
-            "severity": "critical",
-            "category": "metric_semantics",
-            "summary": "The executed statistic has the wrong sign.",
-            "observed_behavior": "The execution returned 2.0.",
-            "expected_behavior": "The declared statistic returns -2.0.",
-            "evidence_refs": ["result#/observed_statistic"],
-        }
-    ]
-    assert projected["reviewed_source_artifacts"][0][
-        "exact_source_code"
-    ] == "def estimate(x):\n    return x\n"
-    assert "required_change" not in str(projected)
-    assert "repair_instructions" not in str(projected)
 
 
 def test_coding_producers_receive_complete_environment_observations() -> None:

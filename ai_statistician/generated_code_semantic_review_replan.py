@@ -28,15 +28,6 @@ def advance_generated_code_semantic_review_lineage_budget(
     """Bound repeated producer regenerations for one reviewed source lineage."""
 
     finding_signature = {
-        "failed_dimensions": sorted(
-            (
-                _normalized_text(row.get("dimension")),
-                _normalized_text(row.get("status")),
-            )
-            for row in review_packet.get("dimension_reviews", []) or []
-            if isinstance(row, Mapping)
-            and _normalized_text(row.get("status")) != "pass"
-        ),
         "findings": sorted(
             (
                 _normalized_text(row.get("finding_id")),

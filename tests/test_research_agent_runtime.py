@@ -24,7 +24,6 @@ from ai_statistician.algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
 )
 from ai_statistician.generated_code_semantic_reviewer_llm import (
-    GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
     GeneratedCodeSemanticReviewerConfig,
     LLMGeneratedCodeSemanticReviewerAgent,
 )
@@ -5219,18 +5218,8 @@ def test_cross_artifact_review_skips_another_source_regeneration(tmp_path) -> No
     assert dispatch is not None
     response = {
         "prior_finding_reviews": [],
-        "dimension_reviews": {
-            dimension: {
-                "status": (
-                    "FAIL" if dimension == "metric_semantics_alignment" else "PASS"
-                ),
-                "rationale": "The cited artifacts establish this judgment.",
-                "evidence_refs": [
-                    "/exact_executed_artifacts/0/exact_source_code"
-                ],
-            }
-            for dimension in GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
-        },
+        "overall_verdict": "REVISE",
+        "review_document": "# Review\n\nThe immutable parents conflict.",
         "findings": [
             {
                 "severity": "high",

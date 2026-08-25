@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
+
+import ai_statistician.generated_code_semantic_reviewer_llm as reviewer_module
 
 from ai_statistician.agent_runtime import AgentTask
 from ai_statistician.fingerprint import stable_hash
@@ -19,7 +22,6 @@ from ai_statistician.generated_code_semantic_review_scope import (
     generated_code_semantic_review_upstream_dependency_projection,
 )
 from ai_statistician.generated_code_semantic_reviewer_llm import (
-    GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
     GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA,
     GeneratedCodeSemanticReviewerConfig,
     LLMGeneratedCodeSemanticReviewerAgent,
@@ -36,6 +38,17 @@ from ai_statistician.model_backend import (
     StaticJSONGeneratorBackend,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
+
+
+_LEGACY_REVIEW_DIMENSIONS = (
+    "question_alignment",
+    "theory_assumption_alignment",
+    "executable_interface_alignment",
+    "frozen_measurement_protocol_alignment",
+    "execution_argument_alignment",
+    "experiment_non_vacuity_and_identifiability",
+    "metric_semantics_alignment",
+)
 
 
 def _question() -> OpenResearchQuestion:
@@ -161,6 +174,39 @@ def _trusted_lineage() -> dict[str, object]:
     }
 
 
+def _algorithm_review_material(
+    *, language: str, source: str, dependencies: list[str]
+) -> dict[str, object]:
+    material = _review_material()
+    material["source_subsystem"] = "AlgorithmEngineer"
+    material["exact_executed_artifacts"] = [
+        {
+            "artifact_id": "candidate",
+            "source_row": {
+                "estimator_id": "candidate",
+                "language": language,
+                "dependencies": dependencies,
+                "script_hash": stable_hash(source),
+                "smoke_passed": True,
+            },
+            "exact_source_code": source,
+            "exact_source_hash": stable_hash(source),
+            "exact_result": {"estimate": 3.0},
+            "exact_result_hash": stable_hash({"estimate": 3.0}),
+        }
+    ]
+    return material
+
+
+def _algorithm_lineage() -> dict[str, object]:
+    lineage = _trusted_lineage()
+    lineage["source_task_id"] = "algorithm-task:1"
+    lineage["source_subsystem"] = "AlgorithmEngineer"
+    lineage["source_manifest_id"] = "algorithm-manifest:1"
+    lineage["reviewed_artifacts"] = [{"artifact_id": "candidate"}]
+    return lineage
+
+
 def test_semantic_review_delegates_load_bearing_checks_to_the_model() -> None:
     prompt = build_generated_code_semantic_review_prompt(
         question=_question(),
@@ -218,7 +264,7 @@ def _dimension_rows(*, failed: str = "") -> dict[str, dict[str, object]]:
                 "/exact_executed_artifacts/0/exact_source_code"
             ],
         }
-        for dimension in GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
+        for dimension in _LEGACY_REVIEW_DIMENSIONS
     }
 
 
@@ -633,6 +679,238 @@ def test_native_reviewer_fails_closed_after_same_session_rejection() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("language", "dependencies", "estimator_source", "probe_source"),
+    [
+        (
+            "python",
+            [],
+            "def run_estimator(request):\n    return {'estimate': float(request['value'])}\n",
+            "def run_sandbox(seed, replicates, estimators):\n"
+            "    return {'accepted_numeric_string': "
+            "estimators['candidate']({'value': '2'})['estimate'] == 2.0}\n",
+        ),
+        (
+            "r",
+            ["base", "stats"],
+            "run_estimator <- function(request) list(estimate=as.numeric(request$value))\n",
+            "run_sandbox <- function(seed, replicates, estimators) { "
+            "list(accepted_numeric_string=estimators[['candidate']]"
+            "(list(value='2'))$estimate == 2) }\n",
+        ),
+    ],
+)
+def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
+    monkeypatch,
+    tmp_path,
+    language: str,
+    dependencies: list[str],
+    estimator_source: str,
+    probe_source: str,
+) -> None:
+    material = _algorithm_review_material(
+        language=language,
+        source=estimator_source,
+        dependencies=dependencies,
+    )
+    probe_input = {
+        "artifact_id": "candidate",
+        "dependencies": dependencies,
+        "code": probe_source,
+        "seed": 17,
+        "replicates": 4,
+    }
+    submission = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "REVISE",
+        "review_document": (
+            "# Review\n\nThe active probe showed that a numeric string is silently accepted."
+        ),
+        "findings": [
+            {
+                "severity": "high",
+                "category": "input_contract",
+                "summary": "The estimator silently coerces numeric strings.",
+                "observed_behavior": "The exact estimator accepted a string input.",
+                "expected_behavior": "The public numeric interface should reject strings.",
+                "evidence_refs": [
+                    "/review_material/exact_executed_artifacts/0/exact_source_code"
+                ],
+            }
+        ],
+        "source_revision_assessment": {
+            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "rationale": "The current estimator source owns this behavior.",
+            "evidence_refs": [
+                "/review_material/exact_executed_artifacts/0/exact_source_code"
+            ],
+        },
+    }
+
+    class ProbeThenSubmitBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            name, payload = (
+                ("run_exact_estimator_review_probe", probe_input)
+                if len(self.requests) == 1
+                else ("submit_generated_code_semantic_review", submission)
+            )
+            call_id = f"review-call-{len(self.requests)}"
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {"type": "tool_use", "id": call_id, "name": name, "input": payload},
+                ),
+                tool_calls=(
+                    ClientToolCall(call_id=call_id, name=name, input=payload),
+                ),
+                text="",
+                provider="anthropic",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    executed = {}
+
+    def fake_execute_scientific_sandbox(**kwargs):
+        executed.update(kwargs)
+        return SimpleNamespace(
+            status="EXECUTED",
+            metrics={"accepted_numeric_string": True},
+            errors=(),
+            stdout_summary="",
+            stderr_summary="",
+            estimator_invocation_counts={"candidate": 1},
+            estimator_runtime_errors=(),
+            request_hash="request-hash",
+            result_hash="result-hash",
+            code_path=str(tmp_path / "probe-source"),
+            result_path=str(tmp_path / "probe-result"),
+        )
+
+    monkeypatch.setattr(
+        reviewer_module,
+        "execute_scientific_sandbox",
+        fake_execute_scientific_sandbox,
+    )
+    backend = ProbeThenSubmitBackend()
+    packet = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+        ),
+    ).review(
+        question=_question(),
+        review_material=material,
+        trusted_lineage=_algorithm_lineage(),
+        probe_sandbox_dir=tmp_path,
+        probe_timeout_s=11,
+    )
+
+    binding = executed["estimator_bindings"][0]
+    assert binding.code == estimator_source
+    assert binding.code_hash == stable_hash(estimator_source)
+    assert binding.language == language
+    assert binding.dependencies == tuple(dependencies)
+    assert executed["code"] == probe_source
+    assert executed["timeout_s"] == 11
+    assert backend.requests[0].tool_choice == "any"
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        "run_exact_estimator_review_probe",
+        "submit_generated_code_semantic_review",
+    ]
+    assert "accepted_numeric_string" in str(backend.requests[1].messages[-1])
+    assert packet["overall_verdict"] == "REVISE"
+    probe_record = packet["client_tool_loop"]["review_probe_executions"][0]
+    assert probe_record["target_source_hash"] == stable_hash(estimator_source)
+    assert probe_record["metrics"] == {"accepted_numeric_string": True}
+    assert probe_record["authority"].endswith("NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF")
+
+
+@pytest.mark.parametrize("tamper_hash", [False, True])
+def test_reviewer_probe_tool_is_unavailable_outside_verified_algorithm_target(
+    tmp_path,
+    tamper_hash: bool,
+) -> None:
+    material = _review_material()
+    lineage = _trusted_lineage()
+    if tamper_hash:
+        source = "def run_estimator(request): return {'estimate': 0.0}\n"
+        material = _algorithm_review_material(
+            language="python", source=source, dependencies=[]
+        )
+        material["exact_executed_artifacts"][0]["exact_source_hash"] = "tampered"
+        lineage = _algorithm_lineage()
+    response = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\nThe supplied current artifact is aligned.",
+        "findings": [],
+        "source_revision_assessment": {
+            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "rationale": "No current-source defect was found.",
+            "evidence_refs": [],
+        },
+    }
+
+    class ImmediateSubmitBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": "submit",
+                        "name": "submit_generated_code_semantic_review",
+                        "input": response,
+                    },
+                ),
+                tool_calls=(
+                    ClientToolCall(
+                        call_id="submit",
+                        name="submit_generated_code_semantic_review",
+                        input=response,
+                    ),
+                ),
+                text="",
+                provider="anthropic",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    backend = ImmediateSubmitBackend()
+    packet = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+        ),
+    ).review(
+        question=_question(),
+        review_material=material,
+        trusted_lineage=lineage,
+        probe_sandbox_dir=tmp_path,
+    )
+
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        "submit_generated_code_semantic_review"
+    ]
+    assert backend.requests[0].tool_choice == "submit_generated_code_semantic_review"
+    assert packet["client_tool_loop"]["review_probe_executions"] == []
+
+
 def test_reviewer_accepts_without_selecting_a_repair_owner() -> None:
     packet = _agent(
         {
@@ -816,6 +1094,7 @@ def test_reviewer_can_flag_cross_artifact_conflict_without_selecting_owner() -> 
 def test_all_pass_review_cannot_emit_blocking_findings() -> None:
     response = {
         "prior_finding_reviews": [],
+        "overall_verdict": "ACCEPT",
         "dimension_reviews": _dimension_rows(),
         "findings": [
             {
@@ -836,9 +1115,7 @@ def test_all_pass_review_cannot_emit_blocking_findings() -> None:
             trusted_lineage=_trusted_lineage(),
         )
 
-    assert "all-PASS semantic reviews must leave findings empty" in str(
-        exc_info.value
-    )
+    assert "model verdict must agree with active findings" in str(exc_info.value)
 
 
 def test_legacy_repair_fields_are_reduced_to_descriptive_observations() -> None:
@@ -914,14 +1191,17 @@ def test_equivalent_evidence_pointer_namespaces_are_canonicalized(
 ) -> None:
     response = {
         "prior_finding_reviews": [],
-        "dimension_reviews": {
-            dimension: {
-                **row,
+        "overall_verdict": "REVISE",
+        "findings": [
+            {
+                "severity": "high",
+                "category": "interface",
+                "summary": "The source violates its interface.",
+                "observed_behavior": "The current source returns a constant.",
+                "expected_behavior": "The source should implement the declared object.",
                 "evidence_refs": [evidence_ref],
             }
-            for dimension, row in _dimension_rows().items()
-        },
-        "findings": [],
+        ],
     }
 
     packet = _agent(response).review(
@@ -930,11 +1210,9 @@ def test_equivalent_evidence_pointer_namespaces_are_canonicalized(
         trusted_lineage=_trusted_lineage(),
     )
 
-    assert all(
-        row["evidence_refs"]
-        == ["/review_material/exact_executed_artifacts/0/exact_source_code"]
-        for row in packet["dimension_reviews"]
-    )
+    assert packet["findings"][0]["evidence_refs"] == [
+        "/review_material/exact_executed_artifacts/0/exact_source_code"
+    ]
     assert validate_generated_code_semantic_review_packet(
         packet,
         review_material=_review_material(),

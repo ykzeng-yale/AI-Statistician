@@ -7,6 +7,7 @@ import re
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 from urllib.parse import unquote
 
@@ -42,9 +43,16 @@ from .model_backend import (
     resolve_generator_model,
 )
 from .research_schema import OpenResearchQuestion, research_question_payload
+from .scientific_sandbox import (
+    SCIENTIFIC_SANDBOX_LANGUAGES,
+    ScientificEstimatorBinding,
+    execute_scientific_sandbox,
+    normalized_generated_code_language,
+    normalized_scientific_dependencies,
+)
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 23
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 24
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -53,9 +61,11 @@ GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = (
     "statistical acceptance or theorem proof evidence."
 )
 GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = (
-    "model_authored_markdown_review_with_native_client_tool_submission_v2"
+    "model_authored_markdown_review_with_optional_exact_probe_v3"
 )
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
+GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
+GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES = 3
 GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
     "in_scope": [
         "implemented statistical object and metric meaning",
@@ -93,15 +103,6 @@ GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
         "arguments, or emitted-statistic structure supplies no direct defect evidence."
     ),
 }
-GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS = (
-    "question_alignment",
-    "theory_assumption_alignment",
-    "executable_interface_alignment",
-    "frozen_measurement_protocol_alignment",
-    "execution_argument_alignment",
-    "experiment_non_vacuity_and_identifiability",
-    "metric_semantics_alignment",
-)
 GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_SUBSYSTEMS = (
     "AlgorithmEngineer",
     "SimulationEvaluator",
@@ -135,6 +136,49 @@ SOURCE_REVISION_SCOPES = (
     SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE,
     SOURCE_REVISION_SCOPE_PARENT_CHANGE,
 )
+
+
+def _exact_estimator_probe_targets(
+    review_material: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Return only immutable Algorithm artifacts safe to bind into a probe."""
+
+    if review_material.get("source_subsystem") != "AlgorithmEngineer":
+        return {}
+    targets: dict[str, dict[str, Any]] = {}
+    for raw in review_material.get("exact_executed_artifacts", []) or []:
+        if not isinstance(raw, Mapping) or not isinstance(
+            raw.get("source_row"), Mapping
+        ):
+            continue
+        row = raw["source_row"]
+        artifact_id = str(raw.get("artifact_id", "") or "").strip()
+        source = str(raw.get("exact_source_code", "") or "")
+        language = normalized_generated_code_language(row.get("language"))
+        source_hash = stable_hash(source)
+        if not (
+            artifact_id
+            and artifact_id not in targets
+            and source
+            and language in SCIENTIFIC_SANDBOX_LANGUAGES
+            and raw.get("exact_source_hash") == source_hash
+            and row.get("script_hash") == source_hash
+            and (
+                row.get("smoke_passed") is True
+                or row.get("execution_smoke_passed") is True
+            )
+        ):
+            continue
+        targets[artifact_id] = {
+            "artifact_id": artifact_id,
+            "language": language,
+            "code": source,
+            "code_hash": source_hash,
+            "dependencies": normalized_scientific_dependencies(
+                row.get("dependencies", []), language=language
+            ),
+        }
+    return targets
 
 def generated_code_semantic_review_finding_id(
     *,
@@ -728,6 +772,8 @@ class LLMGeneratedCodeSemanticReviewerAgent:
         question: OpenResearchQuestion,
         review_material: Mapping[str, Any],
         trusted_lineage: Mapping[str, Any],
+        probe_sandbox_dir: Path | None = None,
+        probe_timeout_s: int = 60,
     ) -> dict[str, Any]:
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
@@ -751,6 +797,8 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 prompt=prompt,
                 request_model=request_model,
                 provider_name=provider_name,
+                probe_sandbox_dir=probe_sandbox_dir,
+                probe_timeout_s=probe_timeout_s,
             )
 
         request = GeneratorRequest(
@@ -818,13 +866,69 @@ class LLMGeneratedCodeSemanticReviewerAgent:
         prompt: str,
         request_model: str,
         provider_name: str,
+        probe_sandbox_dir: Path | None,
+        probe_timeout_s: int,
     ) -> dict[str, Any]:
-        """Keep verdict validation inside one native reviewer tool session."""
+        """Keep executable falsification and verdict in one reviewer session."""
 
         submission_schema = generated_code_semantic_review_json_schema(
             review_material, question=question
         )
         submission_schema.pop("$schema", None)
+        probe_targets = (
+            _exact_estimator_probe_targets(review_material)
+            if probe_sandbox_dir is not None
+            else {}
+        )
+        probe_tool = ClientToolDefinition(
+            name=GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL,
+            description=(
+                "Run reviewer-authored Python or R diagnostic source against one "
+                "exact immutable estimator. Define run_sandbox(seed, replicates, "
+                "estimators), call estimators[artifact_id] in Python or "
+                "estimators[[artifact_id]] in R, and return a diagnostic object. "
+                "This can falsify source claims but cannot edit source, inspect "
+                "confirmatory outcomes, or confer empirical acceptance."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "artifact_id",
+                    "dependencies",
+                    "code",
+                    "seed",
+                    "replicates",
+                ],
+                "properties": {
+                    "artifact_id": {"type": "string", "enum": list(probe_targets)},
+                    "dependencies": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "uniqueItems": True,
+                    },
+                    "code": {"type": "string", "minLength": 1},
+                    "seed": {"type": "integer"},
+                    "replicates": {"type": "integer", "minimum": 1},
+                },
+            },
+        )
+        tools = (
+            (probe_tool,) if probe_targets else ()
+        ) + (
+            ClientToolDefinition(
+                name=GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL,
+                description=(
+                    "Submit the complete independent scientific-code judgment. "
+                    "Runtime validates evidence pointers and immutable lineage; "
+                    "a rejected submission returns exact validation observations "
+                    "to this same reviewer session."
+                ),
+                input_schema=submission_schema,
+                terminal=True,
+                strict=False,
+            ),
+        )
         request = ClientToolTurnRequest(
             system_prompt=GENERATED_CODE_SEMANTIC_REVIEW_SYSTEM_PROMPT,
             messages=(
@@ -836,29 +940,26 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         + GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL
                         + ". If runtime rejects the submission, read the returned "
                         "validation observation and submit a corrected complete "
-                        "judgment in this same reviewer session. Prose alone cannot "
-                        "submit or accept a review."
+                        "judgment in this same reviewer session."
+                        + (
+                            " You may first call "
+                            + GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL
+                            + " to actively test an exact current estimator; choose "
+                            "the diagnostic cases and interpretation yourself."
+                            if probe_targets
+                            else ""
+                        )
+                        + " Prose alone cannot submit or accept a review."
                     ),
                 },
             ),
-            tools=(
-                ClientToolDefinition(
-                    name=GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL,
-                    description=(
-                        "Submit the complete independent scientific-code judgment. "
-                        "Runtime validates evidence pointers and immutable lineage; "
-                        "a rejected submission returns exact validation observations "
-                        "to this same reviewer session."
-                    ),
-                    input_schema=submission_schema,
-                    terminal=True,
-                    strict=False,
-                ),
-            ),
+            tools=tools,
             model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
-            tool_choice=GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL,
+            tool_choice=(
+                "any" if probe_targets else GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL
+            ),
             disable_parallel_tool_use=True,
             enable_prompt_caching=True,
             metadata={
@@ -870,10 +971,12 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 "review_transport": GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT,
                 "client_tool_transport": True,
                 "same_session_validation_feedback": True,
+                "exact_estimator_probe_available": bool(probe_targets),
                 "full_packet_regeneration_disabled": True,
             },
         )
         validation_history: list[dict[str, Any]] = []
+        probe_executions: list[dict[str, Any]] = []
         last_errors: list[str] = []
         last_invalid_packet: dict[str, Any] | None = None
 
@@ -896,9 +999,76 @@ class LLMGeneratedCodeSemanticReviewerAgent:
 
         def execute_tool(
             call: ClientToolCall,
-            _context: ClientToolExecutionContext,
+            context: ClientToolExecutionContext,
         ) -> ClientToolExecutionResult:
             nonlocal last_errors, last_invalid_packet
+            if call.name == GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL:
+                if len(probe_executions) >= GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES:
+                    raise ClientToolInputError("review probe budget exhausted")
+                probe_input = dict(call.input)
+                required = {"artifact_id", "dependencies", "code", "seed", "replicates"}
+                if set(probe_input) != required:
+                    raise ClientToolInputError(
+                        "review probe requires exactly artifact_id, dependencies, "
+                        "code, seed, and replicates"
+                    )
+                if not isinstance(probe_input["dependencies"], list) or not str(
+                    probe_input["code"] or ""
+                ).strip():
+                    raise ClientToolInputError(
+                        "review probe dependencies must be an array and code must be nonempty"
+                    )
+                if type(probe_input["seed"]) is not int or not (
+                    type(probe_input["replicates"]) is int
+                    and probe_input["replicates"] > 0
+                ):
+                    raise ClientToolInputError(
+                        "review probe seed must be an integer and replicates positive"
+                    )
+                target = probe_targets.get(str(probe_input["artifact_id"] or ""))
+                if not target or probe_sandbox_dir is None:
+                    raise ClientToolInputError("unknown exact estimator probe target")
+                probe_code = str(probe_input["code"] or "")
+                execution = execute_scientific_sandbox(
+                    sandbox_dir=(
+                        probe_sandbox_dir / f"probe-{context.total_calls_before}"
+                    ),
+                    artifact_id="semantic-review-probe:"
+                    + stable_hash(probe_input)[:20],
+                    language=target["language"],
+                    code=probe_code,
+                    dependencies=probe_input["dependencies"],
+                    seed=probe_input["seed"],
+                    replicates=probe_input["replicates"],
+                    timeout_s=max(1, int(probe_timeout_s)),
+                    estimator_bindings=(ScientificEstimatorBinding(**target),),
+                )
+                record = {
+                    "probe_index": len(probe_executions),
+                    "target_artifact_id": target["artifact_id"],
+                    "target_source_hash": target["code_hash"],
+                    "probe_source_hash": stable_hash(probe_code),
+                    "status": execution.status,
+                    "metrics": _prompt_projection_value(execution.metrics),
+                    "metrics_hash": stable_hash(execution.metrics),
+                    "errors": list(execution.errors),
+                    "stdout_summary": execution.stdout_summary,
+                    "stderr_summary": execution.stderr_summary,
+                    "estimator_invocation_counts": dict(
+                        execution.estimator_invocation_counts
+                    ),
+                    "estimator_runtime_errors": list(execution.estimator_runtime_errors),
+                    "request_hash": execution.request_hash,
+                    "result_hash": execution.result_hash,
+                    "code_path": execution.code_path,
+                    "result_path": execution.result_path,
+                    "authority": "REVIEWER_DIAGNOSTIC_NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF",
+                }
+                probe_executions.append(record)
+                return ClientToolExecutionResult(
+                    content=record,
+                    observation_key="generated-code-review-probe:" + stable_hash(record),
+                )
             if call.name != GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL:
                 raise ClientToolInputError(
                     "unsupported generated-code semantic review tool"
@@ -966,8 +1136,16 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 backend=self.provider,
                 request=request,
                 execute_tool=execute_tool,
-                max_turns=1,
-                max_tool_calls=1,
+                max_turns=(
+                    GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES
+                    if probe_targets
+                    else 1
+                ),
+                max_tool_calls=(
+                    GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES
+                    if probe_targets
+                    else 1
+                ),
                 max_no_progress_turns=1,
                 max_terminal_recovery_turns=max(0, self.config.max_validation_retries),
             )
@@ -1005,38 +1183,11 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             "validation_feedback_observed": any(
                 not row.get("ok") for row in validation_history
             ),
+            "review_probe_executions": probe_executions,
+            "review_probe_execution_fingerprint": stable_hash(probe_executions),
             "full_packet_regeneration_used": False,
         }
         return packet
-
-
-def _normalize_dimension_reviews(value: Any) -> list[dict[str, Any]]:
-    if isinstance(value, Mapping):
-        items = [
-            (dimension, value.get(dimension))
-            for dimension in GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
-        ]
-    elif isinstance(value, list):
-        items = [
-            (str(row.get("dimension", "") or ""), row)
-            for row in value
-            if isinstance(row, Mapping)
-        ]
-    else:
-        items = []
-    rows: list[dict[str, Any]] = []
-    for dimension, raw in items:
-        if not isinstance(raw, Mapping):
-            continue
-        rows.append(
-            {
-                "dimension": dimension,
-                "status": str(raw.get("status", "") or "").strip().upper(),
-                "rationale": str(raw.get("rationale", "") or "").strip(),
-                "evidence_refs": _evidence_ref_list(raw.get("evidence_refs", [])),
-            }
-        )
-    return rows
 
 
 def _normalize_prior_reviews(
@@ -1095,22 +1246,6 @@ def _normalize_source_revision_assessment(
     }
 
 
-def _derived_verdict(
-    dimensions: Sequence[Mapping[str, Any]],
-    findings: Sequence[Mapping[str, Any]],
-    prior_reviews: Sequence[Mapping[str, Any]] = (),
-) -> str:
-    passed = dimensions and all(
-        str(row.get("status", "") or "") == "PASS" for row in dimensions
-    )
-    priors_closed = all(
-        str(row.get("status", "") or "")
-        in GENERATED_CODE_SEMANTIC_REVIEW_CLOSED_PRIOR_FINDING_STATUSES
-        for row in prior_reviews
-    )
-    return "ACCEPT" if passed and priors_closed and not findings else "REVISE"
-
-
 def _normalize_generated_code_semantic_review_packet(
     payload: Mapping[str, Any],
     *,
@@ -1125,7 +1260,6 @@ def _normalize_generated_code_semantic_review_packet(
     source_subsystem = str(
         trusted_lineage.get("source_subsystem", "") or ""
     ).strip()
-    dimensions = _normalize_dimension_reviews(payload.get("dimension_reviews", {}))
     prior_reviews = _normalize_prior_reviews(
         payload.get("prior_finding_reviews", []),
         review_material=review_material,
@@ -1139,7 +1273,16 @@ def _normalize_generated_code_semantic_review_packet(
     source_revision_assessment = _normalize_source_revision_assessment(
         payload.get("source_revision_assessment", {})
     )
-    legacy_verdict = _derived_verdict(dimensions, findings, prior_reviews)
+    legacy_verdict = (
+        "ACCEPT"
+        if not findings
+        and all(
+            row.get("status")
+            in GENERATED_CODE_SEMANTIC_REVIEW_CLOSED_PRIOR_FINDING_STATUSES
+            for row in prior_reviews
+        )
+        else "REVISE"
+    )
     requested_verdict = str(
         payload.get("overall_verdict", "") or legacy_verdict
     ).strip().upper()
@@ -1150,7 +1293,6 @@ def _normalize_generated_code_semantic_review_packet(
     ).strip()
     if not review_document_content:
         snapshot = {
-            "dimension_reviews": dimensions,
             "findings": findings,
         }
         review_document_content = (
@@ -1201,7 +1343,6 @@ def _normalize_generated_code_semantic_review_packet(
         "question_context": question_context,
         "source_subsystem": source_subsystem,
         "prior_finding_reviews": prior_reviews,
-        "dimension_reviews": dimensions,
         "findings": findings,
         "source_revision_assessment": source_revision_assessment,
         "model_requested_overall_verdict": requested_verdict,
@@ -1327,35 +1468,12 @@ def validate_generated_code_semantic_review_packet(
         errors.append(
             "generated-code semantic review evidence document fingerprint mismatch"
         )
-    dimensions = packet.get("dimension_reviews", [])
-    dimension_rows = [row for row in dimensions if isinstance(row, Mapping)] if isinstance(dimensions, list) else []
-    dimension_names = [str(row.get("dimension", "") or "") for row in dimension_rows]
-    if dimension_rows and dimension_names != list(
-        GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
-    ):
-        errors.append("dimension_reviews must cover each required dimension in order")
-    for row in dimension_rows:
-        dimension = str(row.get("dimension", "") or "")
-        if row.get("status") not in {"PASS", "FAIL", "UNCERTAIN"}:
-            errors.append(f"dimension {dimension} has invalid status")
-        if not str(row.get("rationale", "") or "").strip():
-            errors.append(f"dimension {dimension} is missing rationale")
-        for ref in _string_list(row.get("evidence_refs", [])):
-            if not _json_pointer_exists(evidence_document, ref):
-                errors.append(f"dimension {dimension} cites missing evidence ref: {ref}")
     findings = packet.get("findings", [])
     finding_rows = [row for row in findings if isinstance(row, Mapping)] if isinstance(findings, list) else []
     if not isinstance(findings, list) or len(finding_rows) != len(findings):
         errors.append("findings must be objects")
     if len(finding_rows) > GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS:
         errors.append("generated-code semantic review has too many findings")
-    if finding_rows and dimension_rows and all(
-        row.get("status") == "PASS" for row in dimension_rows
-    ):
-        errors.append(
-            "blocking findings require at least one FAIL or UNCERTAIN dimension; "
-            "all-PASS semantic reviews must leave findings empty"
-        )
     for index, row in enumerate(finding_rows):
         label = f"findings[{index}]"
         if row.get("severity") not in GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES:
@@ -1413,8 +1531,7 @@ def validate_generated_code_semantic_review_packet(
         row.get("status") not in GENERATED_CODE_SEMANTIC_REVIEW_CLOSED_PRIOR_FINDING_STATUSES
         for row in normalized_prior_rows
     )
-    failed_legacy_dimension = any(row.get("status") != "PASS" for row in dimension_rows)
-    expected_verdict = "REVISE" if finding_rows or open_prior or failed_legacy_dimension else "ACCEPT"
+    expected_verdict = "REVISE" if finding_rows or open_prior else "ACCEPT"
     if requested_verdict in {"ACCEPT", "REVISE"} and (
         requested_verdict != expected_verdict
     ):

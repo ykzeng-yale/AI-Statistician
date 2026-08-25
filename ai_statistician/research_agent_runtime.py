@@ -7776,9 +7776,13 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         *,
         reviewer: LLMGeneratedCodeSemanticReviewerAgent,
         max_revisions: int = 1,
+        probe_sandbox_root: Path | None = None,
+        probe_timeout_s: int = 60,
     ) -> None:
         self.reviewer = reviewer
         self.max_revisions = max(0, int(max_revisions or 0))
+        self.probe_sandbox_root = probe_sandbox_root
+        self.probe_timeout_s = max(1, int(probe_timeout_s or 1))
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -8142,6 +8146,13 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     question=question,
                     review_material=review_material,
                     trusted_lineage=trusted_lineage,
+                    probe_sandbox_dir=(
+                        self.probe_sandbox_root
+                        / stable_hash([question.id, work_order_id])[:20]
+                        if self.probe_sandbox_root is not None
+                        else None
+                    ),
+                    probe_timeout_s=self.probe_timeout_s,
                 )
         except PacketValidationError as exc:
             last_invalid_packet = (
@@ -8158,7 +8169,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     "overall_verdict",
                     "review_document_ref",
                     "prior_finding_reviews",
-                    "dimension_reviews",
                     "findings",
                     "proof_evidence_status",
                 )
@@ -8543,9 +8553,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "confirmatory_empirical_evidence_eligible": (
                 confirmatory_empirical_evidence_eligible
             ),
-            "dimension_reviews": list(
-                review_packet.get("dimension_reviews", []) or []
-            ),
             "prior_finding_reviews": list(
                 review_packet.get("prior_finding_reviews", []) or []
             ),
@@ -8911,9 +8918,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                         source_revision_assessment
                     ),
                     "findings": deepcopy(routed_findings),
-                    "dimension_reviews": deepcopy(
-                        list(review_packet.get("dimension_reviews", []) or [])
-                    ),
                     "active_unresolved_finding_ids": deepcopy(
                         list(
                             review_packet.get(
@@ -20168,6 +20172,10 @@ def run_research_agent_runtime(
                     max_revisions=(
                         config.generated_code_semantic_review_max_revisions
                     ),
+                    probe_sandbox_root=(
+                        out_dir / "generated_code_review_probe_sandbox"
+                    ),
+                    probe_timeout_s=config.generated_simulation_timeout_seconds,
                 )
             )
         if formal_target_semantic_reviewer is not None:
