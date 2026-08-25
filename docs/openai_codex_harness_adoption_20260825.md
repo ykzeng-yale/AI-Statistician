@@ -5,6 +5,9 @@ Date: 2026-08-25
 Upstream reviewed: [`openai/codex`](https://github.com/openai/codex) at
 `7c6eb0eef113ddc16ae5b207ac9add364b489798` (Apache-2.0).
 
+Latest implementation commit:
+`cb9dcbe9d1d1cd38d73f43c6892c2234d9bca7be`.
+
 Primary references:
 
 - [`run_turn`](https://github.com/openai/codex/blob/7c6eb0eef113ddc16ae5b207ac9add364b489798/codex-rs/core/src/session/turn.rs)
@@ -63,6 +66,25 @@ Code, Cursor, or similar agents as a pure `GeneratorBackend` remains correct.
 | shell/tool sandbox | scientific Python/R sandbox and Lean project boundary |
 | parent-child message | typed `AgentTask` plus artifact/finding references |
 | turn/item telemetry | `agent_runtime_substage` and compact manifests |
+
+## Specialist collaboration
+
+Codex supplies a reusable inner-loop principle, not the scientific workflow.
+AI Statistician keeps one source-owning session for each active workspace:
+
+| Workspace | Model-owned state and actions | Harness-owned boundary |
+| --- | --- | --- |
+| TheoryDeveloper | Markdown/LaTeX claims, derivations, source reads, Python/R scratch, checkpoint or honest gap | file/hash lineage, sandbox, task intent, isolated referee |
+| AlgorithmEngineer | Python/R source, tests, direct execution-driven revisions | executable ABI identity, sandbox, source/result hashes |
+| SimulationEngineer | exploratory or frozen confirmatory source and interpretation of raw outcomes | accepted dependency refs, blinded outcomes, frozen evaluator authority |
+| Formalizer | Lean source edits, declaration search, proof-state inspection, compile-driven revisions | active Statlib/Mathlib project, target identity, axiom audit, kernel promotion |
+
+Ordinary source, compiler, or tool-input failures remain inside the owning
+session. Independent reviewers get only exact artifact references and their own
+isolated tools. Architect chooses initial task intent and resolves genuine
+cross-workspace conflicts or stopping; it is not a routine error router.
+Formalizer may scout in parallel, but deep proof blocks completion only when the
+frozen task intent requires formal evidence.
 
 ## Correction made from this audit
 

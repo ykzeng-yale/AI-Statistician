@@ -1035,7 +1035,7 @@ def test_scalar_control_variate_l0_frozen_draw_is_consumed_and_closed() -> None:
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 28
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
@@ -1116,7 +1116,7 @@ def test_pearson_multinomial_gof_l0_frozen_draw_is_consumed_and_closed() -> None
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 28
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
@@ -1208,9 +1208,9 @@ def test_exponential_rate_mle_l0_authority_is_consumed_after_one_draw() -> None:
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["active_scored_tasks"] == 28
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 28
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 28
+    assert ladder["current_readiness"]["active_scored_tasks"] == 29
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
@@ -1280,9 +1280,9 @@ def test_its_time_l1_draw_is_consumed_without_posthoc_rescore() -> None:
     assert evidence["hidden_gold_full_task_result"] == "0/1"
     assert "never rerun" in evidence["post_run_policy"].lower()
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["active_scored_tasks"] == 28
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 28
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 28
+    assert ladder["current_readiness"]["active_scored_tasks"] == 29
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -1380,9 +1380,9 @@ def test_statlib_formal_l0_draw_is_consumed_without_proof_credit() -> None:
     assert contract["lean_source_prefix"].rstrip().endswith(":= by")
     assert "tendsto_of_tendsto" not in contract["lean_source_prefix"]
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
-    assert ladder["current_readiness"]["active_scored_tasks"] == 28
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 28
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 28
+    assert ladder["current_readiness"]["active_scored_tasks"] == 29
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
 
 
 def test_score_information_l0_draw_is_consumed_without_review_credit() -> None:
@@ -1449,7 +1449,7 @@ def test_score_information_l0_draw_is_consumed_without_review_credit() -> None:
         "214 focused tests and 860/860 full-suite tests passed"
     )
     assert evidence["formalization_requirement"] == "not_applicable"
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 28
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -1541,9 +1541,9 @@ def test_basu_theory_l0_draw_is_consumed_after_missing_routed_review() -> None:
     )
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["active_scored_tasks"] == 28
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 28
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 28
+    assert ladder["current_readiness"]["active_scored_tasks"] == 29
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -1630,9 +1630,9 @@ def test_uniform_endpoint_l0_draw_is_consumed_after_hidden_gold_failure() -> Non
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["active_scored_tasks"] == 28
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 28
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 28
+    assert ladder["current_readiness"]["active_scored_tasks"] == 29
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -1751,7 +1751,7 @@ def test_huber_location_l0_draw_is_consumed_after_review_packet_failure() -> Non
     ]
     assert "remains 0/1" in evidence["post_run_shared_mechanism_boundary"]
     assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "a73be809"
+        "cb9dcbe9d1d1cd38d73f43c6892c2234d9bca7be"
     )
     assert evidence["algorithm_reference_contract_checks"] == "7/7"
     assert evidence["algorithm_negative_variants_rejected"] == 4
@@ -1759,9 +1759,9 @@ def test_huber_location_l0_draw_is_consumed_after_review_packet_failure() -> Non
     assert evidence["semantic_calibration_cases_correct"] == 12
     assert evidence["semantic_reference_candidate_passed"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
-    assert ladder["current_readiness"]["active_scored_tasks"] == 28
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 28
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 28
+    assert ladder["current_readiness"]["active_scored_tasks"] == 29
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     assert candidate["task_intent"] == {
         "source_replication": "not_applicable",
@@ -1793,6 +1793,153 @@ def test_huber_location_l0_draw_is_consumed_after_review_packet_failure() -> Non
         "asymptotic_variance_factor",
         "standard_error",
     ]
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
+        "hidden_harness.py",
+        "hidden_empirical_harness.py",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_ridge_bias_variance_l0_draw_is_consumed_after_review_tool_failure() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "fixed_design_ridge_bias_variance_known_result"
+    )
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "fixed_design_ridge_regression"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_blocked_invalid_generated_code_semantic_review_packet"
+    )
+    assert candidate["gold_manifest_sha256"] == (
+        "6f977e367f5c110f9960767718f8e8c38af16501a5d797e8432cb3b15c4bb800"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "a46c2e1edcddb7495baa80188ffc312085c491af94568a780b372c67de5a75bc"
+    )
+    evidence = candidate["activation_evidence"]
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["visible_question_activation_commit"] == (
+        "bf599f4b19ae45bc0ebe8e0b707360188b64c721"
+    )
+    assert evidence[
+        "visible_question_activation_push_confirmed_on_work_branch_and_main"
+    ] is True
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["product_model_calls"] == 26
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_failure_classification"] == (
+        "generated_code_semantic_review_packet_invalid"
+    )
+    assert evidence["runtime_iterations"] == 6
+    assert evidence["runtime_traces"] == 6
+    assert evidence["runtime_task_handoffs"] == 5
+    assert evidence["theory_model_tool_turns"] == 12
+    assert evidence["theory_derivation_lines"] == 206
+    assert evidence["theory_derivation_sha256"] == (
+        "4301d0e2d265968925c39d1b1ee9e3b4a106668d294e403fda804022d1b5dc1a"
+    )
+    assert evidence["independent_theory_review_model_tool_turns"] == 10
+    assert evidence["independent_theory_review_accepted"] is True
+    assert evidence["independent_theory_review_lines"] == 281
+    assert evidence["independent_theory_review_sha256"] == (
+        "fdc6a5b4c598004f8003ffb30ae5ff5dedc40ddd8a35956a7b22f21328627e13"
+    )
+    assert evidence["algorithm_model_tool_turns"] == 2
+    assert evidence["algorithm_source_executions"] == 1
+    assert evidence["algorithm_final_source_lines"] == 202
+    assert evidence["algorithm_final_source_sha256"] == (
+        "f84a9e96b6b8b26e642eda9cd6cccb128b33f5ef446e99dfe4a49c72098d5691"
+    )
+    assert evidence["generated_code_semantic_review_attempts"] == 1
+    assert evidence["generated_code_semantic_review_substantive_verdict"] == (
+        "ACCEPT"
+    )
+    assert evidence["generated_code_semantic_review_accepted"] is False
+    assert "RFC 6901" in evidence[
+        "generated_code_semantic_review_validation_error"
+    ]
+    assert evidence["generated_simulation_executed"] is False
+    assert evidence["hidden_theory_mechanical_checks"] == "7/7"
+    assert evidence["hidden_theory_semantic_calibration"] == "12/12"
+    assert evidence["hidden_theory_semantic_claims_satisfied"] == "8/9"
+    assert evidence["hidden_theory_semantic_candidate_status"] == "INCONCLUSIVE"
+    assert evidence["hidden_theory_combined_passed"] is False
+    assert evidence["hidden_algorithm_execution_attempted"] is False
+    assert evidence["hidden_empirical_execution_attempted"] is False
+    assert evidence["post_run_shared_mechanism_fix_commit"] == (
+        "cb9dcbe9d1d1cd38d73f43c6892c2234d9bca7be"
+    )
+    assert "same isolated reviewer context" in evidence[
+        "post_run_shared_mechanism_fix"
+    ]
+    assert "remains 0/1" in evidence["post_run_shared_mechanism_boundary"]
+    assert evidence["operator_audit_path"] == (
+        "docs/operator_audits/ridge_bias_variance_l0_v1.md"
+    )
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["full_task_passed"] is False
+    assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
+        "cb9dcbe9d1d1cd38d73f43c6892c2234d9bca7be"
+    )
+    assert ladder["current_readiness"]["active_scored_tasks"] == 29
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
+    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
+    assert candidate["task_intent"] == {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert visible_path.is_file()
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    contract = question["estimator_execution_contract"]
+    assert question["id"] == candidate["id"]
+    assert candidate["task_intent"] == question["task_intent"]
+    assert contract["estimator_id"] == "est_fixed_design_ridge"
+    assert contract["entrypoint"] == "run_estimator"
+    assert [row["name"] for row in contract["request_fields"]] == [
+        "design_matrix",
+        "response",
+        "penalty",
+    ]
+    assert [row["name"] for row in contract["response_fields"]] == [
+        "n_observations",
+        "n_features",
+        "penalty",
+        "coefficients",
+        "fitted_values",
+        "residual_sum_squares",
+        "effective_degrees_of_freedom",
+    ]
+    assert "authoritative Markdown/LaTeX derivation" in question["description"]
+    assert "Lean formalization is not applicable" in question["description"]
 
     runtime_visible = json.dumps(
         {"candidate": candidate, "question": question}, sort_keys=True
@@ -1863,7 +2010,7 @@ def test_trimmed_match_l1_draw_is_consumed_without_posthoc_rescore() -> None:
     assert evidence["rerun_resume_repair_or_rescore_performed"] is False
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 28
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])
