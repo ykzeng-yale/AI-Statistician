@@ -2082,7 +2082,7 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
         for row in scored
     )
     assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "3c00a515040dff2e21e4ec4666fce7e70b45a8b7"
+        "98415b0ad050d87913415d6be1ab70c2d0afd51a"
     )
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2157,3 +2157,80 @@ def test_pymle_l1_draw_is_consumed_as_first_source_replication_pass() -> None:
     question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
     assert question["id"] == candidate["id"]
     assert question["task_intent"] == candidate["task_intent"]
+
+
+def test_poisson_garwood_r_l0_is_frozen_before_first_product_call() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "poisson_garwood_rate_interval_r_known_result"
+    )
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "poisson_exposure_rate_exact_inference_r"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "frozen_ready_before_first_product_model_call"
+    )
+    assert candidate["gold_manifest_sha256"] == (
+        "b19e33dabf7c585451a822833d3ab4729ca244130d89a2a4719ce4d1becdbfaa"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "f6c1ca29ca9be25ccd97e0a5030286640e21d00e041f55dce8ac6bcfc45fcdf1"
+    )
+    evidence = candidate["activation_evidence"]
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["required_model_owned_estimator_language"] == "r"
+    assert evidence["required_model_owned_simulation_language"] == "r"
+    assert evidence["webr_available"] is True
+    assert evidence["algorithm_reference_contract_checks"] == "10/10"
+    assert evidence["algorithm_negative_variants_rejected"] == 4
+    assert evidence["empirical_reference_dgps_passed"] == 3
+    assert evidence["empirical_reference_replicates_per_dgp"] == 16000
+    assert evidence["semantic_calibration_attempts"] == 3
+    assert evidence["semantic_calibration_model_calls"] == 6
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert evidence["semantic_calibration_cases_correct"] == 12
+    assert evidence["semantic_reference_claims"] == 8
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["full_task_passed"] is False
+
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == 32
+    assert readiness["consumed_scored_tasks"] == 31
+    assert readiness["fully_gold_configured_tasks"] == 32
+    assert readiness["fully_gold_passed_tasks"] == 2
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["estimator_execution_contract"]["estimator_id"] == (
+        "est_poisson_garwood_rate"
+    )
+    assert "Do not substitute Python" in question["description"]
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
+        "hidden_harness.R",
+        "hidden_empirical_harness.R",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible

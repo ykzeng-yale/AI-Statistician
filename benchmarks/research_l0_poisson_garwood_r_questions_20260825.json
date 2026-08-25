@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "poisson_garwood_rate_interval_r_known_result",
+      "title": "Garwood exact interval for a Poisson exposure rate in R",
+      "description": "Focused L0 known-result evaluation grounded in F. Garwood, Fiducial Limits for the Poisson Distribution, Biometrika 28(3-4), 1936, 437-442, DOI 10.1093/biomet/28.3-4.437. Let independent counts over known positive exposures have Poisson means lambda times exposure, so their aggregate count Y over total exposure T>0 is Poisson(lambda T). For confidence level 1-alpha, develop one authoritative Markdown/LaTeX derivation of the equal-tailed Garwood interval by inverting Poisson tails and establishing the Poisson-Gamma-chi-square identities. Derive L=0 for Y=0 and L=qchisq(alpha/2,2Y)/(2T) otherwise, U=qchisq(1-alpha/2,2(Y+1))/(2T), and the MLE Y/T. Prove frequentist coverage is at least 1-alpha while explaining discreteness and conservatism; establish endpoint ordering, the zero-count boundary, exposure-scale equivariance, count monotonicity, and confidence-level nesting. The required model-authored artifact is est_poisson_garwood_rate and must implement the frozen run_estimator(request) contract as R source using language=r, execution_profile=scientific_wasm, and only declared base/stats dependencies. Do not substitute Python. Exploratory computation may diagnose identities. A separately frozen confirmatory simulation must also be model-authored R source and compare empirical coverage with independently enumerated exact coverage at predeclared low, moderate, and high expected counts using Monte Carlo uncertainty. Simulation supports implementation behavior and is not a proof. Source replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal R capability task.",
+      "tags": [
+        "poisson_inference",
+        "exact_confidence_interval",
+        "exposure_rate",
+        "r_language",
+        "L0"
+      ],
+      "source": {
+        "title": "Fiducial Limits for the Poisson Distribution",
+        "author": "F. Garwood",
+        "journal": "Biometrika",
+        "year": 1936,
+        "volume": 28,
+        "issue": "3-4",
+        "pages": "437-442",
+        "doi": "10.1093/biomet/28.3-4.437",
+        "url": "https://doi.org/10.1093/biomet/28.3-4.437"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_poisson_garwood_rate",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.count",
+            "name": "count",
+            "meaning": "The aggregate observed Poisson count Y.",
+            "json_type": "integer",
+            "shape": "one nonnegative whole-valued scalar",
+            "units": "events",
+            "indexing": "one aggregate count",
+            "edge_cases": "Zero is allowed; reject logical values, fractional values, negative values, nonfinite values, and nonscalars rather than coercing them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.exposure",
+            "name": "exposure",
+            "meaning": "The known strictly positive finite aggregate exposure T.",
+            "json_type": "number",
+            "shape": "one strictly positive finite scalar",
+            "units": "exposure units",
+            "indexing": "one aggregate exposure",
+            "edge_cases": "Reject logical, nonnumeric, nonfinite, zero, negative, and nonscalar values.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.confidence_level",
+            "name": "confidence_level",
+            "meaning": "The desired two-sided confidence level 1-alpha.",
+            "json_type": "number",
+            "shape": "one finite scalar strictly between zero and one",
+            "units": "probability",
+            "indexing": "one interval level",
+            "edge_cases": "Reject logical, nonnumeric, nonfinite, zero, one, out-of-range, and nonscalar values.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.mle_rate",
+            "name": "mle_rate",
+            "meaning": "The Poisson exposure-rate maximum likelihood estimate Y/T.",
+            "json_type": "number",
+            "shape": "one nonnegative finite scalar",
+            "units": "events per exposure unit",
+            "indexing": "one point estimate",
+            "edge_cases": "Equals zero when count is zero.",
+            "normalization": "count divided by exposure."
+          },
+          {
+            "clause_id": "response.lower_rate",
+            "name": "lower_rate",
+            "meaning": "The lower equal-tailed Garwood confidence endpoint for lambda.",
+            "json_type": "number",
+            "shape": "one nonnegative finite scalar",
+            "units": "events per exposure unit",
+            "indexing": "lower endpoint",
+            "edge_cases": "Defined as zero when count is zero.",
+            "normalization": "For positive count, the alpha/2 chi-square quantile with 2*count degrees of freedom divided by 2*exposure."
+          },
+          {
+            "clause_id": "response.upper_rate",
+            "name": "upper_rate",
+            "meaning": "The upper equal-tailed Garwood confidence endpoint for lambda.",
+            "json_type": "number",
+            "shape": "one strictly positive finite scalar",
+            "units": "events per exposure unit",
+            "indexing": "upper endpoint",
+            "edge_cases": "Remains positive when count is zero.",
+            "normalization": "The 1-alpha/2 chi-square quantile with 2*(count+1) degrees of freedom divided by 2*exposure."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.poisson_aggregation",
+            "meaning": "Independent Poisson counts with means lambda times their exposures aggregate to a Poisson count with mean lambda times total exposure, so only total count and exposure enter the interval."
+          },
+          {
+            "clause_id": "invariant.endpoint_order",
+            "meaning": "Every admitted request returns lower_rate <= mle_rate < upper_rate, with equality between lower_rate and mle_rate only at count zero."
+          },
+          {
+            "clause_id": "invariant.zero_count_boundary",
+            "meaning": "At count zero, lower_rate and mle_rate are zero while upper_rate is the exact positive one-sided tail inversion at the requested two-sided level."
+          },
+          {
+            "clause_id": "invariant.exposure_scale",
+            "meaning": "For fixed count and confidence level, multiplying exposure by c>0 divides both endpoints and the MLE by c."
+          },
+          {
+            "clause_id": "invariant.confidence_nesting",
+            "meaning": "For fixed count and exposure, increasing the confidence level cannot increase the lower endpoint or decrease the upper endpoint."
+          },
+          {
+            "clause_id": "invariant.count_monotonicity",
+            "meaning": "For fixed exposure and confidence level, both Garwood endpoints and the MLE are nondecreasing in the observed count."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.coverage_calibration",
+            "meaning": "At each frozen Poisson rate and exposure, empirical interval coverage is compatible with independently enumerated exact coverage up to declared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.nominal_coverage",
+            "meaning": "Independently enumerated exact coverage is at least the requested confidence level; empirical fluctuation is not itself used to prove this property."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory setting binds the exact frozen rate, exposure, confidence level, seed, and precision-driven replicate count before outcomes and invokes the accepted estimator without rewriting it."
+          }
+        ]
+      }
+    }
+  ]
+}
