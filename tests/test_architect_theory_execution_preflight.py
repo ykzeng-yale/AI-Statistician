@@ -907,7 +907,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_model_directed_document_and_source_inspection_v15"
+        "client_tool_model_directed_document_and_source_inspection_v16"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
@@ -1321,6 +1321,20 @@ def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
             if turn == 1:
                 return _tool_response(
                     ClientToolCall(
+                        "write-independent-reconstruction",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+                        {
+                            "content": (
+                                "# Independent reconstruction\n\nThe question and "
+                                "contract require a finite total procedure; the "
+                                "candidate derivation has not been inspected.\n"
+                            )
+                        },
+                    )
+                )
+            if turn == 2:
+                return _tool_response(
+                    ClientToolCall(
                         "read-theory-document",
                         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
                         {
@@ -1330,7 +1344,7 @@ def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
                         },
                     )
                 )
-            if turn == 2:
+            if turn == 3:
                 return _tool_response(
                     ClientToolCall(
                         "search-research-source",
@@ -1341,10 +1355,8 @@ def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
                         },
                     )
                 )
-            result = json.loads(
-                request.messages[-1]["content"][0]["content"]
-            )
-            if turn == 3:
+            result = json.loads(request.messages[-1]["content"][0]["content"])
+            if turn == 4:
                 hit = result["hits"][0]
                 return _tool_response(
                     ClientToolCall(
@@ -2018,6 +2030,20 @@ def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
             if turn == 1:
                 return _tool_response(
                     ClientToolCall(
+                        "write-independent-reconstruction",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+                        {
+                            "content": (
+                                "# Independent reconstruction\n\nThe finite target must "
+                                "be derived without assuming the candidate's "
+                                "conditioning argument.\n"
+                            )
+                        },
+                    )
+                )
+            if turn == 2:
+                return _tool_response(
+                    ClientToolCall(
                         "read-authoritative-derivation",
                         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
                         {
@@ -2027,7 +2053,7 @@ def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
                         },
                     )
                 )
-            if turn == 2:
+            if turn == 3:
                 return _tool_response(
                     ClientToolCall(
                         "search-task-bound-source",
@@ -2039,7 +2065,7 @@ def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
                         },
                     )
                 )
-            if turn == 3:
+            if turn == 4:
                 invalid = _compact_submission(_payload(accept=False))
                 invalid["overall_verdict"] = "ACCEPT"
                 return _tool_response(
@@ -2465,12 +2491,26 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
             if turn == 1:
                 return _tool_response(
                     ClientToolCall(
-                        "submit-before-document-read",
-                        "submit_theory_preflight_review",
-                        self._submission(source_ref=""),
+                        "search-before-independent-reconstruction",
+                        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+                        {"query": "late_document_claim_marker"},
                     )
                 )
             if turn == 2:
+                return _tool_response(
+                    ClientToolCall(
+                        "write-independent-reconstruction",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+                        {
+                            "content": (
+                                "# Independent reconstruction\n\nThe question alone "
+                                "does not establish the candidate's asymptotic "
+                                "transition; it must be checked after inspection.\n"
+                            )
+                        },
+                    )
+                )
+            if turn == 3:
                 return _tool_response(
                     ClientToolCall(
                         "search-authoritative-document",
@@ -2478,7 +2518,7 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
                         {"query": "late_document_claim_marker"},
                     )
                 )
-            if turn == 3:
+            if turn == 4:
                 search_result = json.loads(
                     request.messages[-1]["content"][0]["content"]
                 )
@@ -2549,10 +2589,12 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
         "authoritative_document_tools_or_model_directed_compact_search"
     )
     first_rejection = _last_tool_result(backend.requests[1])
-    assert first_rejection["error"] == (
-        "authoritative_theory_document_read_required"
+    assert first_rejection["error"] == "client_tool_input_rejected"
+    assert first_rejection["detail"] == (
+        "write an independent referee reconstruction before inspecting candidate "
+        "theory documents"
     )
-    search_observation = _last_tool_result(backend.requests[2])
+    search_observation = _last_tool_result(backend.requests[3])
     assert search_observation["hits"][0]["line"] == marker
     assert packet["theory_document_inspection_required"] is True
     assert packet["theory_document_inspection_count"] == 4
@@ -2661,6 +2703,19 @@ This abandoned route is explicitly rejected.
             if turn == 1:
                 return _tool_response(
                     ClientToolCall(
+                        "write-independent-reconstruction",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+                        {
+                            "content": (
+                                "# Independent reconstruction\n\nThe primitive should "
+                                "determine the theorem through its declared dependency.\n"
+                            )
+                        },
+                    )
+                )
+            if turn == 2:
+                return _tool_response(
+                    ClientToolCall(
                         "read-definition",
                         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
                         {
@@ -2670,7 +2725,7 @@ This abandoned route is explicitly rejected.
                         },
                     )
                 )
-            if turn == 2:
+            if turn == 3:
                 return _tool_response(
                     ClientToolCall(
                         "submit-after-model-directed-inspection",
@@ -2774,6 +2829,20 @@ Assert an unsupported transition.
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
             if len(self.requests) == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "write-independent-reconstruction",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+                        {
+                            "content": (
+                                "# Independent reconstruction\n\nThe theorem must follow "
+                                "from the primitive definition; no such implication is "
+                                "yet available from the question alone.\n"
+                            )
+                        },
+                    )
+                )
+            if len(self.requests) == 2:
                 return _tool_response(
                     ClientToolCall(
                         "read-all-claims",
@@ -2960,6 +3029,10 @@ def test_client_tool_preflight_persists_markdown_referee_report(
         }
     ]
     theory_material["source_theory_packet_hash"] = stable_hash(semantic)
+    initial_report = (
+        "# Independent reconstruction\n\nThe question requires a finite total "
+        "procedure, but the candidate identity has not yet been inspected.\n"
+    )
     report = (
         "# Independent theory preflight\n\n"
         "I reconstructed the finite identity from the declared definition and "
@@ -2976,6 +3049,14 @@ def test_client_tool_preflight_persists_markdown_referee_report(
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
             if len(self.requests) == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "write-independent-reconstruction",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+                        {"content": initial_report},
+                    )
+                )
+            if len(self.requests) == 2:
                 return _tool_response(
                     ClientToolCall(
                         "read-candidate",
@@ -3019,6 +3100,18 @@ def test_client_tool_preflight_persists_markdown_referee_report(
     review_path = Path(review_document["path"])
     assert review_path.read_text(encoding="utf-8") == report
     assert review_path.is_relative_to(tmp_path / "run" / "theory_reviews")
+    chronology = packet["theory_independent_reconstruction_chronology"]
+    initial_sha256 = hashlib.sha256(initial_report.encode("utf-8")).hexdigest()
+    assert chronology == {
+        "required": True,
+        "initial_report_sha256": initial_sha256,
+        "candidate_document_inspected": True,
+        "revised_report_sha256": review_document["sha256"],
+        "comparison_completed": True,
+        "runtime_selected_mathematics": False,
+    }
+    reconstruction_path = review_path.parent / f"review-draft-{initial_sha256}.md"
+    assert reconstruction_path.read_text(encoding="utf-8") == initial_report
     assert packet["review_scope"]["required_claim_ids"] == [
         "finite_identity"
     ]
@@ -3043,6 +3136,17 @@ def test_client_tool_preflight_persists_markdown_referee_report(
         "path escapes its workspace" in error
         for error in validate_architect_theory_execution_preflight_packet(
             escaped_packet,
+            material=material,
+        )
+    )
+    chronology_tamper = deepcopy(packet)
+    chronology_tamper["theory_independent_reconstruction_chronology"][
+        "revised_report_sha256"
+    ] = initial_sha256
+    assert any(
+        "reconstruction chronology is incomplete" in error
+        for error in validate_architect_theory_execution_preflight_packet(
+            chronology_tamper,
             material=material,
         )
     )
