@@ -1,13 +1,40 @@
 {
-  "schema_version": 146,
-  "updated_at": "2026-08-22",
+  "schema_version": 147,
+  "updated_at": "2026-08-25",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "a73be809",
+  "validated_code_head": "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all twenty-eight consumed tasks at immutable 0/28. Huber location reached durable Markdown theory, isolated scratch-backed review, and same-owner Python revision, but blocked before simulation and hidden theory left empirical targets inconclusive. Commits 82083807, f5822f58, and a73be809 simplify the generated-code reviewer to one compact model verdict plus a hashed Markdown review; this is future-task harness evidence only. Return focus to model-owned long-horizon derivation, adversarial independent review, and complete executable ABI testing inside persistent source-owner sessions. Keep task intent, provenance, blinding, evaluator isolation, and kernel authority as the outer boundaries; do not add scientific formulas, a repair agent, second scheduler, reviewer vote, model regeneration, or mandatory Formalizer work.",
+  "current_goal_focus": "Preserve all twenty-eight consumed tasks at immutable 0/28. The OpenAI Codex harness audit confirms the canonical direction: one persistent model-owned tool loop per workspace, raw environment observations returned to the same session, durable external artifacts, and sparse hash-bound collaboration. Commit b4900679 removes the live Theory preflight referee's per-claim, per-dimension, and per-estimator checklist transport in favor of one model-authored Markdown report plus a compact disposition and actual findings; this is future-task mechanism evidence only. Continue improving long-horizon Theory and Lean sessions only from demonstrated cross-workspace failures. Do not embed Codex as a second runtime, add scientific formulas, a repair agent, a second scheduler, task-specific prompts, or mandatory Formalizer work.",
+  "latest_openai_codex_harness_adoption": {
+    "upstream_repository": "https://github.com/openai/codex",
+    "upstream_commit": "d52478c52ef09f001142a4b82339467c3880877f",
+    "upstream_license": "Apache-2.0",
+    "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
+    "implementation_commit": "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
+    "decision": "Reuse Codex's persistent model-tool-observation loop, stable tool surface, external artifact state, sparse collaboration, and telemetry boundaries. Do not embed codex exec, app-server, or the Codex SDK as another scheduler or generator backend in the Claude-first canonical runtime.",
+    "implemented_change": "Theory preflight protocol v29 now keeps mathematical judgment in a persistent model-authored Markdown referee report and returns only its exact hash, inspected evidence refs, model-owned ACCEPT or REVISE disposition, actual blocking findings, and ordered immutable prior-finding dispositions.",
+    "removed_live_fields": [
+      "claim_statuses and normalized claim_reviews",
+      "dimension_statuses and normalized dimension_reviews",
+      "estimator_execution_checks",
+      "runtime claim and estimator identity bindings derived from checklist positions"
+    ],
+    "preserved_boundaries": [
+      "independent reviewer invocation",
+      "source and theory hash binding",
+      "exact Markdown report identity and persistence",
+      "runtime validation of evidence refs and prior-finding lineage",
+      "same-session raw validation feedback",
+      "execution and Lean-kernel evidence remain false"
+    ],
+    "verification": "57/57 focused preflight tests and 867/867 full-suite tests passed after the final change; compile-all, diff hygiene, compact-schema invariance across claim and estimator counts, downstream metric-authoring projection, and Critic evidence projection passed.",
+    "live_model_calls": 0,
+    "capability_credit": false,
+    "boundary": "No consumed task was rerun, resumed, repaired, or rescored. The ladder remains 0/28; this mechanism applies only to future disjoint tasks."
+  },
   "latest_huber_location_l0_evaluation": {
     "task_id": "huber_location_m_estimator_known_result",
     "status": "consumed_failed_closed",
