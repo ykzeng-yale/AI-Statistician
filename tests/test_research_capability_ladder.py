@@ -1689,9 +1689,9 @@ def test_aitken_gls_l0_freezes_theory_authority_before_first_draw() -> None:
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["activation_commit"] == (
-        "pending_before_first_runtime_model_call"
+        "a25ec10ebcbf6830ffa4385ae37a10463bada434"
     )
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["first_runtime_model_call_occurred"] is False
     assert evidence["fresh_live_runs"] == 0
