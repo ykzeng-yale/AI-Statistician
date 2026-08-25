@@ -1302,6 +1302,10 @@ def _build_architect_coordinator_agent_from_args(
         preflight_source_retriever=formal_source_retriever,
         preflight_research_sources=research_sources,
         preflight_research_source_discovery=research_source_discovery,
+        metric_protocol_workspace_root=(
+            Path(getattr(args, "out", "runs/agent_runtime"))
+            / "metric_protocol_workspaces"
+        ),
         config=ArchitectCoordinatorConfig(
             model=model,
             model_tier=model_tier,

@@ -1,12 +1,24 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Mapping
+from pathlib import Path
+from typing import Any, Callable, Mapping, Sequence
 
 from .agent_runtime import agent_runtime_substage
+from .client_tool_loop import (
+    CLIENT_TOOL_TRANSCRIPT_POLICY,
+    ClientToolExecutionContext,
+    ClientToolExecutionResult,
+    ClientToolInputError,
+    ClientToolLoopError,
+    ClientToolLoopResult,
+    persist_client_tool_session,
+    run_bounded_client_tool_loop,
+)
 from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS,
     ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
@@ -16,13 +28,9 @@ from .architect_metric_semantic_reviewer_llm import (
 )
 from .fingerprint import stable_hash
 from .generated_metric_contract import (
-    GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS,
-    GENERATED_METRIC_CONTRACT_AGGREGATIONS,
-    GENERATED_METRIC_CONTRACT_OPERATORS,
     GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS,
     GENERATED_METRIC_REQUIREMENT_BOUNDARY,
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
-    GENERATED_METRIC_VALUE_KINDS,
     GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
     generated_metric_acceptance_authority_catalog,
     generated_metric_acceptance_authority_prompt_catalog,
@@ -41,9 +49,13 @@ from .implementation_metric_handoff import (
 from .structured_output_retry import (
     PacketValidationError,
     extract_json_object,
-    generate_validated_json_packet,
 )
-from .model_backend import GeneratorBackend, GeneratorRequest
+from .model_backend import (
+    ClientToolCall,
+    ClientToolDefinition,
+    ClientToolTurnRequest,
+    GeneratorBackend,
+)
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
 )
@@ -59,7 +71,6 @@ from .semantic_review_feedback import model_observations_without_repair_recipes
 
 ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 6
 _METRIC_AUTHORING_LARGE_PROMPT_CHARS = 60_000
-_METRIC_AUTHORING_LARGE_RESPONSE_TOKENS = 8_000
 MAX_CONFIRMATORY_METRIC_REQUIREMENTS = 8
 FRESH_METRIC_AUTHORING_AUTHORITY_KIND = "architect_preregistered_design"
 FROZEN_METRIC_PROTOCOL_REBINDING_MUTABLE_FIELDS = frozenset(
@@ -72,6 +83,15 @@ FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD = "gate_field_authorities"
 FROZEN_METRIC_PROTOCOL_REBINDING_GATE_MUTABLE_FIELDS = frozenset(
     {"source_anchors", "rationale"}
 )
+METRIC_PROTOCOL_WORKSPACE_TRANSPORT = (
+    "persistent_model_owned_metric_protocol_workspace_v1"
+)
+METRIC_PROTOCOL_WORKSPACE_CHECKPOINT_KIND = "MetricProtocolWorkspaceCheckpoint"
+METRIC_PROTOCOL_WORKSPACE_READ_TOOL = "read_metric_protocol"
+METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL = "submit_metric_protocol_candidate"
+METRIC_PROTOCOL_WORKSPACE_MAX_TURNS = 8
+METRIC_PROTOCOL_WORKSPACE_MAX_TOOL_CALLS = 10
+METRIC_PROTOCOL_WORKSPACE_MAX_NO_PROGRESS_TURNS = 2
 
 
 def _frozen_metric_protocol_rebinding_mutable_fields(
@@ -428,149 +448,335 @@ class ArchitectMetricContractAuthoringConfig:
     metric_semantic_reviewer_max_revisions: int = 1
 
 
-def _metric_authoring_model_support_schema(
+@dataclass(frozen=True)
+class MetricProtocolWorkspaceResult:
+    packet: Mapping[str, Any]
+    document_content: str
+    loop: ClientToolLoopResult
+    session_ref: Mapping[str, Any]
+    relative_document_path: str
+
+
+def _metric_protocol_tool(
+    name: str,
+    description: str,
     *,
-    authority_anchor_ids: list[str],
-    include_value: bool,
-) -> dict[str, Any]:
-    required = ["source_anchors", "rationale"]
-    properties: dict[str, Any] = {
-        "source_anchors": {
-            "type": "array",
-            "minItems": 1,
-            "uniqueItems": True,
-            "items": {
-                "type": "string",
-                "enum": list(authority_anchor_ids),
-            },
-        },
-        "rationale": {"type": "string", "minLength": 1},
-    }
-    if include_value:
-        required.insert(0, "value")
-        properties = {"value": {"type": "number"}, **properties}
-    return {
+    properties: Mapping[str, Any] | None = None,
+    required: Sequence[str] = (),
+    terminal: bool = False,
+) -> ClientToolDefinition:
+    schema: dict[str, Any] = {
         "type": "object",
         "additionalProperties": False,
-        "required": required,
-        "properties": properties,
+        "properties": dict(properties or {}),
     }
-
-
-def _metric_authoring_model_requirement_schema(
-    *,
-    authority_anchor_ids: list[str],
-) -> dict[str, Any]:
-    """Return the compact model ACI; final evaluator fields are runtime mirrors."""
-
-    predicate_authority = _metric_authoring_model_support_schema(
-        authority_anchor_ids=authority_anchor_ids,
-        include_value=False,
+    if required:
+        schema["required"] = list(required)
+    return ClientToolDefinition(
+        name=name,
+        description=description,
+        input_schema=schema,
+        terminal=terminal,
+        strict=False,
     )
-    gate_authority = _metric_authoring_model_support_schema(
-        authority_anchor_ids=authority_anchor_ids,
-        include_value=True,
-    )
-    return {
-        "type": "object",
-        "additionalProperties": False,
-        "required": [
-            "requirement_id",
-            "metric_semantics",
-            "metric_value_kind",
-            "measurement_protocol",
-            "operator",
-            "aggregation",
-            "predicate_authority",
-            "gate_fields",
-        ],
-        "properties": {
-            "requirement_id": {"type": "string", "minLength": 1},
-            "metric_semantics": {"type": "string", "minLength": 1},
-            "metric_value_kind": {
-                "type": "string",
-                "enum": list(GENERATED_METRIC_VALUE_KINDS),
-                "description": (
-                    "Use numeric for a measured scalar and boolean only for an "
-                    "intrinsically boolean predicate. Boolean rows use operator == "
-                    "and omit threshold/tolerance gate_fields because the runtime "
-                    "materializes the canonical truth comparison."
-                ),
-            },
-            "measurement_protocol": {"type": "string", "minLength": 1},
-            "operator": {
-                "type": "string",
-                "enum": list(GENERATED_METRIC_CONTRACT_OPERATORS),
-                "description": (
-                    "Boolean rows must use ==. Numeric rows use the comparison "
-                    "authorized by their cited acceptance source."
-                ),
-            },
-            "aggregation": {
-                "type": "string",
-                "enum": list(GENERATED_METRIC_CONTRACT_AGGREGATIONS),
-                "description": (
-                    "identity/mean/min/max/all/any have no quorum gate field. "
-                    "at_least_count requires only minimum_pass_count; "
-                    "at_least_fraction requires only minimum_pass_fraction. "
-                    "In particular, all already means every comparison passes, "
-                    "so never add minimum_pass_count or minimum_pass_fraction to all."
-                ),
-            },
-            "predicate_authority": predicate_authority,
-            "gate_fields": {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {
-                    field: deepcopy(gate_authority)
-                    for field in GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS
+
+
+def _metric_protocol_workspace_tools() -> tuple[ClientToolDefinition, ...]:
+    hash_field = {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    return (
+        _metric_protocol_tool(
+            METRIC_PROTOCOL_WORKSPACE_READ_TOOL,
+            "Read the exact current metric_protocol.json and SHA-256.",
+        ),
+        _metric_protocol_tool(
+            METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL,
+            (
+                "Submit one complete model-authored metric_protocol.json candidate "
+                "against the exact current parent hash. Runtime stores and validates "
+                "the bytes unchanged; rejection returns to this same session."
+            ),
+            properties={
+                "expected_parent_sha256": {
+                    "anyOf": [{"const": ""}, hash_field]
                 },
-                "description": (
-                    "Key each active substantive model-authored number exactly once "
-                    "by evaluator field name. Numeric rows include threshold, or "
-                    "lower then upper for between, plus any active tolerance/quorum "
-                    "field. Boolean rows omit threshold and tolerance; the runtime "
-                    "materializes == 1 with zero tolerance. all and any never take a "
-                    "quorum field; only at_least_count takes minimum_pass_count and "
-                    "only at_least_fraction takes minimum_pass_fraction."
-                ),
+                "content": {"type": "string", "minLength": 2},
             },
-        },
-    }
+            required=("expected_parent_sha256", "content"),
+            terminal=True,
+        ),
+    )
 
 
-def _metric_authoring_model_response_schema(
+def _metric_protocol_document_sha256(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _run_metric_protocol_workspace(
     *,
-    authority_anchor_ids: list[str],
-) -> dict[str, Any]:
-    return {
-        "type": "object",
-        "additionalProperties": False,
-        "required": [
-            "required_runtime_replicates",
-            "empirical_metric_requirements",
-        ],
-        "properties": {
-            "required_runtime_replicates": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
-                "description": (
-                    "One pre-execution confirmatory replicate count for the whole "
-                    "portfolio. Select it from quantitative Monte Carlo precision "
-                    "and execution-feasibility reasoning, not a runtime default."
-                ),
-            },
-            "empirical_metric_requirements": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": MAX_CONFIRMATORY_METRIC_REQUIREMENTS,
-                "items": _metric_authoring_model_requirement_schema(
-                    authority_anchor_ids=authority_anchor_ids,
-                ),
-            },
+    provider: GeneratorBackend,
+    config: ArchitectMetricContractAuthoringConfig,
+    request_model: str,
+    user_message: str,
+    build_validated_packet: Callable[
+        [str], tuple[dict[str, Any] | None, list[str]]
+    ],
+    prior_messages: Sequence[Mapping[str, Any]] = (),
+    prior_document_content: str = "",
+    workspace_dir: Path | None = None,
+    session_id: str = "",
+    revision_index: int = 0,
+) -> MetricProtocolWorkspaceResult:
+    """Let one model own an editable protocol document and its validation loop."""
+
+    generate_turn = getattr(provider, "generate_client_tool_turn", None)
+    if not callable(generate_turn):
+        raise ValueError(
+            "metric protocol authoring requires native client-tool turns; "
+            "full-packet generation is not a canonical fallback"
+        )
+    normalized_user_message = str(user_message or "").strip()
+    if not normalized_user_message:
+        raise ValueError("metric protocol workspace requires a user observation")
+    document = str(prior_document_content or "")
+    root = workspace_dir.resolve() if workspace_dir is not None else None
+    document_path = root / "metric_protocol.json" if root is not None else None
+    relative_document_path = document_path.name if document_path else ""
+    if root is not None:
+        root.mkdir(parents=True, exist_ok=True)
+    if document_path is not None:
+        if document_path.exists():
+            existing = document_path.read_text(encoding="utf-8")
+            if existing != document:
+                raise ValueError(
+                    "metric protocol workspace bytes do not match source-owner state"
+                )
+        elif document:
+            document_path.write_text(document, encoding="utf-8")
+
+    def persist_document() -> None:
+        if document_path is not None:
+            document_path.write_text(document, encoding="utf-8")
+
+    def inspect_document() -> tuple[dict[str, Any] | None, list[str]]:
+        if not document.strip():
+            return None, ["metric_protocol.json is empty"]
+        try:
+            packet, errors = build_validated_packet(document)
+        except Exception as exc:
+            return None, [
+                "metric_protocol.json invalid: "
+                f"{type(exc).__name__}: {str(exc)[:500]}"
+            ]
+        return packet, [str(error) for error in errors if str(error).strip()]
+
+    def seal_session(messages: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+        normalized_id = str(session_id or "").strip()
+        return (
+            persist_client_tool_session(
+                session_dir=root,
+                session_id=normalized_id,
+                request=request,
+                messages=messages,
+            )
+            if root is not None and normalized_id
+            else {}
+        )
+
+    tools = _metric_protocol_workspace_tools()
+    messages = [deepcopy(dict(message)) for message in prior_messages]
+    messages.append({"role": "user", "content": normalized_user_message})
+    request = ClientToolTurnRequest(
+        system_prompt=(
+            "You are the MetricProtocol source owner inside the AI Statistician. "
+            "Work on one persistent metric_protocol.json document through read and "
+            "complete-source submission tools. Scientific "
+            "measurement semantics, numeric gates, replicate design, and their "
+            "rationales are yours. Runtime only parses the declared ABI, validates "
+            "identity and safety, and invokes an isolated pre-outcome reviewer. "
+            "Read exact reviewer observations, revise your own document, and submit "
+            "the exact current hash. Do not ask Architect or runtime to repair "
+            "content, claim that execution occurred, or treat this as proof."
+        ),
+        messages=tuple(messages),
+        tools=tools,
+        model=request_model,
+        max_tokens=max(1, int(config.max_tokens)),
+        temperature=0.0,
+        tool_choice="any",
+        disable_parallel_tool_use=True,
+        enable_prompt_caching=True,
+        metadata={
+            "subsystem": "MetricProtocolWorkspace",
+            "agent": "MetricProtocolSourceOwner",
+            "provider_name": config.provider_name,
+            "model_tier": config.model_tier,
+            "revision_index": int(revision_index),
+            "workspace_transport": METRIC_PROTOCOL_WORKSPACE_TRANSPORT,
+            "full_packet_regeneration_required": False,
         },
-    }
+    )
+
+    def execute_tool(
+        call: ClientToolCall,
+        _context: ClientToolExecutionContext,
+    ) -> ClientToolExecutionResult:
+        nonlocal document
+        payload = dict(call.input)
+
+        def require_fields(*names: str) -> None:
+            if set(payload) != set(names):
+                raise ClientToolInputError(
+                    f"{call.name} requires exactly {', '.join(names) or 'no fields'}"
+                )
+
+        if call.name == METRIC_PROTOCOL_WORKSPACE_READ_TOOL:
+            require_fields()
+            sha256 = _metric_protocol_document_sha256(document) if document else ""
+            return ClientToolExecutionResult(
+                content={
+                    "ok": bool(document),
+                    "exists": bool(document),
+                    "content": document,
+                    "sha256": sha256,
+                    "content_chars": len(document),
+                },
+                observation_key=(
+                    "metric-protocol-read:" + (sha256 or "empty")
+                ),
+            )
+        if call.name == METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL:
+            require_fields("expected_parent_sha256", "content")
+            parent_sha256 = (
+                _metric_protocol_document_sha256(document) if document else ""
+            )
+            if payload.get("expected_parent_sha256") != parent_sha256:
+                raise ClientToolInputError(
+                    "submit_metric_protocol_candidate parent hash is stale"
+                )
+            candidate = payload.get("content")
+            if not isinstance(candidate, str) or not candidate.strip():
+                raise ClientToolInputError(
+                    "submit_metric_protocol_candidate content must be nonempty"
+                )
+            changed = candidate != document
+            document = candidate
+            persist_document()
+            current_sha256 = _metric_protocol_document_sha256(document)
+            packet, errors = inspect_document()
+            if packet is None or errors:
+                rejection = {
+                    "ok": False,
+                    "error": "metric_protocol_submission_rejected",
+                    "current_sha256": current_sha256,
+                    "validation_errors": errors[:16],
+                    "instruction": (
+                        "Revise the current protocol in this same source-owner "
+                        "session and submit its new exact hash."
+                    ),
+                }
+                return ClientToolExecutionResult(
+                    content=rejection,
+                    is_error=True,
+                    state_changed=changed,
+                    observation_key=(
+                        "metric-protocol-submit-rejected:"
+                        + stable_hash(rejection)
+                    ),
+                )
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    "submitted": True,
+                    "sha256": current_sha256,
+                    "packet_id": str(packet.get("packet_id", "") or ""),
+                    "requirement_set_id": str(
+                        packet.get("empirical_metric_requirement_set_id", "")
+                        or ""
+                    ),
+                    "proof_evidence_status": (
+                        "ARCHITECT_METRIC_REQUIREMENT_AUTHORING_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                terminal=True,
+                terminal_payload={"authoring_packet": packet},
+                state_changed=changed,
+                observation_key="metric-protocol-submitted:" + current_sha256,
+            )
+        raise ClientToolInputError("unsupported metric protocol workspace tool")
+
+    try:
+        loop = run_bounded_client_tool_loop(
+            backend=provider,
+            request=request,
+            execute_tool=execute_tool,
+            max_turns=METRIC_PROTOCOL_WORKSPACE_MAX_TURNS,
+            max_tool_calls=METRIC_PROTOCOL_WORKSPACE_MAX_TOOL_CALLS,
+            max_no_progress_turns=(
+                METRIC_PROTOCOL_WORKSPACE_MAX_NO_PROGRESS_TURNS
+            ),
+            max_terminal_recovery_turns=max(
+                0, int(config.max_validation_retries)
+            ),
+        )
+    except ClientToolLoopError as exc:
+        session_ref = seal_session(exc.messages)
+        current_packet, current_errors = inspect_document()
+        checkpoint_body = {
+            "schema_version": 1,
+            "artifact_kind": METRIC_PROTOCOL_WORKSPACE_CHECKPOINT_KIND,
+            "session_id": str(session_id or "").strip(),
+            "revision_index": int(revision_index),
+            "relative_document_path": relative_document_path,
+            "document_sha256": (
+                _metric_protocol_document_sha256(document) if document else ""
+            ),
+            "current_candidate_mechanically_valid": bool(
+                current_packet is not None and not current_errors
+            ),
+            "current_validation_errors": list(current_errors),
+            "client_tool_session_ref": deepcopy(dict(session_ref)),
+            "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
+            "model_owned_content": True,
+            "runtime_edited_content": False,
+            "automatic_retry_authorized": False,
+            "proof_evidence_status": (
+                "METRIC_PROTOCOL_WORKSPACE_CHECKPOINT_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        checkpoint = {
+            **checkpoint_body,
+            "checkpoint_id": (
+                "metric_protocol_workspace_checkpoint:"
+                + stable_hash(checkpoint_body)[:20]
+            ),
+        }
+        raise PacketValidationError(
+            validation_label="LLM Architect metric-requirement packet",
+            attempts=exc.turns,
+            errors=list(dict.fromkeys([exc.reason, *current_errors])),
+            history=[deepcopy(dict(row)) for row in exc.history],
+            last_invalid_packet=(
+                deepcopy(dict(current_packet))
+                if isinstance(current_packet, Mapping) and current_errors
+                else None
+            ),
+            recovery_checkpoint=checkpoint,
+        ) from exc
+    packet = loop.terminal_payload.get("authoring_packet", {})
+    if not isinstance(packet, Mapping):
+        raise PacketValidationError(
+            validation_label="LLM Architect metric-requirement packet",
+            attempts=loop.turns,
+            errors=["metric protocol terminal payload is malformed"],
+            history=[dict(row) for row in loop.history],
+        )
+    return MetricProtocolWorkspaceResult(
+        packet=deepcopy(dict(packet)),
+        document_content=document,
+        loop=loop,
+        session_ref=seal_session(loop.messages),
+        relative_document_path=relative_document_path,
+    )
 
 
 def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
@@ -1279,6 +1485,7 @@ def author_reviewed_architect_metric_requirements(
     frozen_requirement_rebinding_context: Mapping[str, Any] | None = None,
     accepted_theory_preflight_context: Mapping[str, Any] | None = None,
     accepted_implementation_interface_context: Mapping[str, Any] | None = None,
+    metric_protocol_workspace_root: Path | None = None,
 ) -> dict[str, Any]:
     if (
         runtime_contract.get("research_evaluation_requires_typed_metric_contracts")
@@ -1422,163 +1629,10 @@ def author_reviewed_architect_metric_requirements(
         "generated_metric_acceptance_authority_catalog:"
         + stable_hash(acceptance_authority_catalog)[:20]
     )
-    response_requirement_schema = generated_metric_requirement_json_schema(
-        require_acceptance_authority=True,
-        authority_anchor_ids=acceptance_authority_anchor_ids,
-        require_gate_field_authorities=True,
-    )
-    response_requirement_schema["required"] = [
-        field
-        for field in response_requirement_schema.get("required", [])
-        if field != "gate_field_authority_mode"
-    ]
-    for runtime_owned_field in ("gate_field_authority_mode",):
-        response_requirement_schema.get("properties", {}).pop(
-            runtime_owned_field,
-            None,
-        )
-    if frozen_rebinding:
-        frozen_source_rows = [
-            dict(row)
-            for row in frozen_rebinding.get(
-                "source_requirement_rows", []
-            )
-            if isinstance(row, Mapping)
-        ]
-        source_requirement_ids = [
-            str(row.get("requirement_id", "") or "")
-            for row in frozen_source_rows
-        ]
-        frozen_field_bound = any(
-            FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD in row
-            for row in frozen_source_rows
-        )
-        all_frozen_rows_field_bound = bool(frozen_source_rows) and all(
-            FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD in row
-            for row in frozen_source_rows
-        )
-        frozen_required_fields = [
-            "requirement_id",
-            "source_anchors",
-            "acceptance_authority_rationale",
-        ]
-        if all_frozen_rows_field_bound:
-            frozen_required_fields.append(
-                FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
-            )
-        frozen_properties: dict[str, Any] = {
-            "requirement_id": {
-                "type": "string",
-                "enum": source_requirement_ids,
-            },
-            "source_anchors": {
-                "type": "array",
-                "minItems": 1,
-                "items": {
-                    "type": "string",
-                    "enum": acceptance_authority_anchor_ids,
-                },
-            },
-            "acceptance_authority_rationale": {
-                "type": "string",
-                "minLength": 1,
-            },
-        }
-        if frozen_field_bound:
-            frozen_properties[
-                FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
-            ] = {
-                "type": "array",
-                "maxItems": len(
-                    GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS
-                ),
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": [
-                        "field",
-                        "authority_kind",
-                        "source_anchors",
-                        "rationale",
-                    ],
-                    "properties": {
-                        "field": {
-                            "type": "string",
-                            "enum": list(
-                                GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS
-                            ),
-                        },
-                        "authority_kind": {
-                            "type": "string",
-                            "enum": list(
-                                GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS
-                            ),
-                        },
-                        "source_anchors": {
-                            "type": "array",
-                            "minItems": 1,
-                            "items": {
-                                "type": "string",
-                                "enum": acceptance_authority_anchor_ids,
-                            },
-                        },
-                        "rationale": {
-                            "type": "string",
-                            "minLength": 1,
-                        },
-                    },
-                },
-            }
-        response_requirement_schema = {
-            "type": "object",
-            "additionalProperties": False,
-            "required": frozen_required_fields,
-            "properties": frozen_properties,
-        }
-    if frozen_rebinding:
-        response_schema = {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["empirical_metric_requirements"],
-            "properties": {
-                "empirical_metric_requirements": {
-                    "type": "array",
-                    "minItems": 1,
-                    "maxItems": MAX_CONFIRMATORY_METRIC_REQUIREMENTS,
-                    "items": response_requirement_schema,
-                }
-            },
-        }
-        frozen_row_count = len(
-            frozen_rebinding.get("source_requirement_rows", []) or []
-        )
-        response_schema["properties"]["empirical_metric_requirements"].update(
-            {
-                "minItems": frozen_row_count,
-                "maxItems": frozen_row_count,
-            }
-        )
-    else:
-        response_schema = _metric_authoring_model_response_schema(
-            authority_anchor_ids=acceptance_authority_anchor_ids,
-        )
     requirement_prompt_schema = (
         generated_metric_requirement_prompt_schema()
         if frozen_rebinding
         else _metric_authoring_model_requirement_prompt_schema()
-    )
-    runtime_replicate_field_binding = (
-        {}
-        if frozen_rebinding
-        else {
-            "required_runtime_replicates": {
-                "source": "model_portfolio_field",
-                "model_authored_once": True,
-                "runtime_copies_to_evaluator_rows": True,
-                "runtime_selected_semantics": False,
-                "binding_stage": "before_hash_validation_and_review",
-            }
-        }
     )
     required_target_rows = (
         []
@@ -1632,46 +1686,18 @@ def author_reviewed_architect_metric_requirements(
             else {}
         ),
         "confirmatory_required_rows_only": confirmatory_required_rows_only,
-        "runtime_owned_field_bindings": {
-            "target_subsystems": {
-                "source": "generated_metric_target_namespace",
-                "value": list(GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS),
-                "model_authored": False,
-                "binding_stage": "before_hash_validation_and_review",
-            },
-            "required": {
-                "source": "confirmatory_acceptance_portfolio",
-                "value": True,
-                "model_authored": False,
-                "binding_stage": "before_hash_validation_and_review",
-            },
-            "acceptance_authority_kind": {
-                "source": "preexecution_architect_authorship",
-                "value": FRESH_METRIC_AUTHORING_AUTHORITY_KIND,
-                "model_authored": False,
-                "binding_stage": "before_hash_validation_and_review",
-            },
-            "gate_field_authority_mode": {
-                "source": "runtime_field_authority_abi",
-                "model_authored": False,
-                "binding_stage": "before_hash_validation_and_review",
-            },
-            "flat_gate_values_and_authorities": {
-                "source": "model_gate_fields",
-                "model_authored_once": True,
-                "runtime_expands_evaluator_abi": True,
-                "runtime_selected_semantics": False,
-                "binding_stage": "before_hash_validation_and_review",
-            },
-            **runtime_replicate_field_binding,
-            "source_anchors": {
-                "source": (
-                    "model_semantic_context_plus_gate_field_anchor_union"
-                ),
-                "model_authored": True,
-                "runtime_augmented": True,
-                "binding_stage": "before_hash_validation_and_review",
-            },
+        "field_ownership": {
+            "runtime_owned": list(
+                ("target_subsystems", "required", "acceptance_authority_kind",
+                 "gate_field_authority_mode")
+            ),
+            "model_authored_then_materialized": [
+                "gate_fields",
+                "source_anchors",
+                *(("required_runtime_replicates",) if not frozen_rebinding else ()),
+            ],
+            "binding_stage": "before_hash_validation_and_review",
+            "runtime_selected_semantics": False,
         },
         "target_namespace": generated_metric_requirement_target_namespace_contract(),
         "metric_evaluation_semantics": (
@@ -1681,105 +1707,47 @@ def author_reviewed_architect_metric_requirements(
         "required_target_rows": required_target_rows,
         "hard_requirements": [
             (
-                "Return the smallest nonredundant pre-execution acceptance portfolio "
-                "that covers the requested generated empirical-evaluation subsystem. "
-                "Each row must govern one independently comparable returned quantity. "
-                "Represent repeated DGP, sample-size, or stress scenarios as one "
-                "returned vector with an explicit aggregation instead of creating one "
-                "required row per scenario. Preserve the requested scientific claim "
-                "granularity: extra stress settings, nominal levels, nuisance values, "
-                "or boundary diagnostics remain exploratory unless the question or "
-                "accepted theory declares them as distinct confirmatory claims. Do not "
-                "promote them into additional required gates merely to make the "
-                "portfolio look comprehensive. The row budget is an execution/review "
-                "budget, not a statistical threshold."
+                "Return the smallest nonredundant portfolio, one independently "
+                "compared quantity per row; aggregate repeated scenarios in one "
+                "vector. Preserve the requested scientific claim granularity: extra "
+                "diagnostics remain exploratory unless theory makes them claims."
             ),
             (
-                "Author the complete measurement semantics, operator, aggregation, "
-                "active gate_fields, numeric values, source anchors, and rationales. "
-                "gate_fields is an object keyed by each unique active evaluator "
-                "field, so do not repeat the field name inside its value. For numeric "
-                "rows, it contains the active comparison and "
-                "optional quorum numbers. For intrinsically boolean rows, use "
-                "operator == and omit threshold/tolerance gate_fields; AgentRuntime "
-                "materializes the canonical == 1 truth comparison with zero "
-                "tolerance. aggregation=all or any has no quorum gate field; all "
-                "already requires every elementwise comparison to pass. Only "
-                "at_least_count may emit minimum_pass_count and only "
-                "at_least_fraction may emit minimum_pass_fraction. AgentRuntime only "
-                "expands those choices into the "
-                "evaluator ABI; it does not select their statistical semantics."
+                "Author complete measurement semantics, operator, aggregation, "
+                "active gate_fields, values, anchors, and rationales according to the "
+                "declared schema. Boolean predicates use == without numeric gate "
+                "fields; all/any use no quorum; only at_least_count/fraction use their "
+                "matching quorum. Runtime materializes this ABI without choosing it."
             ),
             (
                 "Keep every gate in the same numeric coordinates as the declared "
-                "returned metric. AgentRuntime applies the operator and active numeric "
-                "gate fields directly to that returned metric after the declared "
-                "aggregation; it does not implicitly subtract a target, center, take "
-                "an absolute value, or normalize. If the intended predicate is a "
-                "deviation from a target, either declare and return that deviation (or "
-                "absolute deviation) or place absolute bounds around the target. Never "
-                "pair a raw level with bounds expressed only as offsets from an "
-                "unstated target."
+                "metric: runtime applies the declared operator directly and never "
+                "centers, normalizes, or takes absolute values implicitly. Return the "
+                "intended deviation or declare absolute bounds around its target."
             ),
             (
                 "Copy every source anchor exactly from acceptance_authority_catalog. "
-                "Use those anchors to identify the statistical context supporting each "
-                "predicate and numeric choice. Fresh rows are recorded by AgentRuntime "
-                "as architect_preregistered_design because this Architect authors and "
-                "freezes them before execution; do not emit provenance labels yourself. "
-                "Diagnostic-only material is excluded because this packet contains "
-                "required confirmatory rows only."
+                "Runtime records fresh rows as architect_preregistered_design; do not "
+                "emit provenance labels or promote diagnostic-only material."
             ),
             (
-                "When a necessary finite-sample decision is not fixed upstream, the "
-                "Architect may preregister it as architect_preregistered_design and "
-                "must justify it from decision relevance, attainable behavior, the "
-                "available execution capacity, and Monte Carlo uncertainty. Choose one "
-                "required_runtime_replicates value for the whole portfolio before any "
-                "outcome is observed; derive it from the desired Monte Carlo error, tail "
-                "behavior, dependence, and joint decision, rather than copying a default. "
-                "The supplied maximum and timeout are safety constraints, not a suggested "
-                "replicate count or statistical justification. "
-                "Every stochastic gate must measure the target statistic at the declared "
-                "transformation and aggregation, with a tolerance attainable under its "
-                "replicate budget, uncertainty, and tail behavior. Compute the joint "
-                "acceptance behavior of the whole required portfolio, including dependence, "
-                "multiplicity, aggregation, and the probability of accepting a valid "
-                "candidate under the preregistered count. Put a quantitative uncertainty or "
-                "sampling-error calculation in each stochastic gate's rationale; phrases "
-                "such as 'stringent but attainable' are not evidence. If the supplied "
-                "metric is transformed, perform that calculation on the actual comparison "
-                "scale and explicitly distinguish absolute error, relative error, standard "
-                "error or Monte Carlo standard error, and standardized error. Recompute any "
-                "claimed number of standard errors after applying the declared transformation; "
-                "do not compare a relative threshold with an absolute standard error or use "
-                "the bare O(1/sqrt(n)) rate as a dimensioned uncertainty estimate. If the supplied "
-                "capacity cannot support a defensible gate, use an uncertainty-aware returned "
-                "quantity, simplify a nonessential gate, or report the design infeasible "
-                "instead of inventing precision. "
-                "An expectation, consistency, or asymptotic theorem does not alone justify "
-                "a tight finite-run threshold. A DGP assumption imposed by construction "
-                "should be audited from that construction unless the objective explicitly "
-                "asks for a calibrated empirical diagnostic. An analytic identity need not "
-                "be a finite-run equality gate."
+                "Before outcomes, derive the portfolio replicate count and stochastic "
+                "gates from attainable joint Monte Carlo uncertainty, tail behavior, "
+                "dependence, and execution capacity. Include a quantitative uncertainty "
+                "or sampling-error calculation; 'stringent but attainable' are not "
+                "evidence. Work on the actual comparison scale and distinguish absolute "
+                "error, relative error, standard/Monte Carlo standard error, and "
+                "standardized error. The bare O(1/sqrt(n)) rate is not a dimensioned "
+                "uncertainty estimate, and an asymptotic theorem does not alone justify "
+                "a tight finite-run threshold. Report infeasibility instead of inventing "
+                "precision; do not turn construction assumptions or analytic identities "
+                "into unnecessary finite-run gates."
             ),
             (
-                "Use theory_developer_protocol_material for the estimand, DGP, method, "
-                "assumptions, and guarantees. The accepted implementation handoff is "
-                "only an invocation/output ABI and supplies no statistical authority."
-            ),
-            (
-                "Follow requirement_schema and metric_evaluation_semantics exactly. "
-                "Return raw numeric measurements when available; use a boolean metric "
-                "only for an intrinsically boolean predicate."
-            ),
-            (
-                "Do not emit runtime-owned provenance fields, diagnostics that cannot affect "
-                "the acceptance decision, execution claims, or unsupported thresholds."
-            ),
-            (
-                "The candidate is frozen before confirmatory execution and is empirical "
-                "control evidence only, never theorem or kernel-proof evidence."
+                "Theory supplies statistical authority; implementation supplies only "
+                "the ABI. Follow the evaluator schema, prefer raw numeric measurements, "
+                "and emit no runtime-owned fields or execution claims. The accepted "
+                "protocol freezes before execution and is never theorem-proof evidence."
             ),
         ],
         "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
@@ -1796,48 +1764,45 @@ def author_reviewed_architect_metric_requirements(
         )
         prompt_payload["hard_requirements"] = [
             (
-                "Return the exact same ordered requirement_id values from "
-                "frozen_metric_protocol_theory_rebinding.source_requirement_rows. "
-                "Each output row must contain only requirement_id, source_anchors, "
-                "and acceptance_authority_rationale"
+                "Preserve exact ordered frozen requirement_id values. Emit only id, "
+                "current source_anchors, acceptance_authority_rationale"
                 + (
-                    ", plus gate_field_authorities for field-bound source rows"
+                    ", and field-bound gate_field_authorities"
                     if frozen_rebinding_includes_field_authorities
                     else ""
                 )
                 + "."
             ),
             (
-                "Rebind source_anchors and acceptance_authority_rationale to the "
-                "current revised theory. "
+                "Rebind only authority text to current theory. "
                 + (
-                    "For each gate_field_authorities entry, preserve its exact "
-                    "ordered field and authority_kind and update only source_anchors "
-                    "and rationale. "
+                    "Preserve every ordered field and authority_kind. "
                     if frozen_rebinding_includes_field_authorities
                     else ""
                 )
-                + "Runtime owns and reconstructs every omitted field from the "
-                "frozen rows, including target_subsystems, semantics, protocol, "
-                "replicates, operator, thresholds, bounds, tolerance, aggregation, "
-                "quorum, required, authority kind, and boundary."
+                + "Runtime reconstructs all omitted frozen gate semantics."
             ),
             (
-                "Use only exact current anchor IDs from "
-                "acceptance_authority_catalog. Rebinding authority does not permit "
-                "adding, deleting, relaxing, or reinterpreting any empirical gate."
-            ),
-            (
-                "Do not use prior execution values or outcomes. This packet will "
-                "undergo a fresh independent semantic review against the revised "
-                "theory before any new descendant execution."
-            ),
-            (
-                "These rows remain empirical controls and are never theorem proof "
-                "evidence."
+                "Use exact current catalog anchors without outcome access, gate "
+                "changes, or reinterpretation. Independent review remains required; "
+                "these empirical controls are never theorem-proof evidence."
             ),
         ]
-        prompt_payload["requirement_schema"] = response_requirement_schema
+        prompt_payload["requirement_schema"] = {
+            "requirement_id": "exact frozen requirement_id",
+            "source_anchors": ["exact current acceptance-authority anchor_id"],
+            "acceptance_authority_rationale": "current-theory binding rationale",
+            **(
+                {
+                    "gate_field_authorities": [
+                        "preserve field and authority_kind; revise only anchors "
+                        "and rationale"
+                    ]
+                }
+                if frozen_rebinding_includes_field_authorities
+                else {}
+            ),
+        }
         prompt_payload["required_target_rows"] = []
     semantic_review_history: list[dict[str, Any]] = []
     prior_authoring_packet: dict[str, Any] = {}
@@ -1920,6 +1885,32 @@ def author_reviewed_architect_metric_requirements(
     max_semantic_revisions = max(
         0, int(config.metric_semantic_reviewer_max_revisions or 0)
     )
+    metric_workspace_messages: tuple[Mapping[str, Any], ...] = ()
+    metric_workspace_document = ""
+    metric_workspace_dir = (
+        metric_protocol_workspace_root.resolve()
+        / stable_hash(
+            [
+                question.id,
+                theory_material.get("source_theory_packet_id", ""),
+                theory_material.get("source_theory_packet_hash", ""),
+                implementation_interface.get("handoff_id", ""),
+                frozen_rebinding.get("source_requirement_set_id", ""),
+            ]
+        )[:20]
+        if metric_protocol_workspace_root is not None
+        else None
+    )
+    metric_workspace_session_id = (
+        "metric-protocol:"
+        + stable_hash(
+            [
+                question.id,
+                theory_material.get("source_theory_packet_id", ""),
+                implementation_interface.get("handoff_id", ""),
+            ]
+        )[:24]
+    )
     for revision_index in range(max_semantic_revisions + 1):
         active_finding_ledger = active_metric_protocol_finding_ledger(
             cumulative_finding_ledger
@@ -1949,13 +1940,17 @@ def author_reviewed_architect_metric_requirements(
                             )
                             or ""
                         ),
-                        "rejected_empirical_metric_requirements": [
-                            dict(row)
-                            for row in prior_authoring_packet.get(
-                                "empirical_metric_requirements", []
-                            )
-                            if isinstance(row, Mapping)
-                        ],
+                        "rejected_empirical_metric_requirements": (
+                            []
+                            if metric_workspace_document
+                            else [
+                                dict(row)
+                                for row in prior_authoring_packet.get(
+                                    "empirical_metric_requirements", []
+                                )
+                                if isinstance(row, Mapping)
+                            ]
+                        ),
                         "semantic_review_packet_id": str(
                             prior_review_packet.get("packet_id", "") or ""
                         ),
@@ -2008,7 +2003,9 @@ def author_reviewed_architect_metric_requirements(
                         ),
                     },
                     preserve_exact_keys=(
-                        "rejected_empirical_metric_requirements",
+                        ("rejected_empirical_metric_requirements",)
+                        if not metric_workspace_document
+                        else ()
                     ),
                 )
             )
@@ -2018,61 +2015,51 @@ def author_reviewed_architect_metric_requirements(
         ) = _compact_metric_authoring_prompt_payload(
             candidate_prompt_payload
         )
+        model_visible_turn_payload = (
+            {
+                "independent_semantic_review_feedback": deepcopy(
+                    candidate_prompt_payload.get(
+                        "independent_semantic_review_feedback", {}
+                    )
+                ),
+                "current_metric_protocol_document_sha256": (
+                    _metric_protocol_document_sha256(
+                        metric_workspace_document
+                    )
+                    if metric_workspace_document
+                    else ""
+                ),
+                "current_metric_protocol_document_available_through_tools": True,
+                "revision_rule": (
+                    "Resolve the independent findings in the existing document. "
+                    "Submit changed complete source while preserving unrelated "
+                    "accepted content."
+                ),
+            }
+            if metric_workspace_messages
+            else model_prompt_payload
+        )
         request_user_prompt = json.dumps(
-            model_prompt_payload,
+            model_visible_turn_payload,
             separators=(",", ":"),
             default=str,
             ensure_ascii=False,
         )
-        request_max_tokens = min(
-            _METRIC_AUTHORING_LARGE_RESPONSE_TOKENS,
-            max(
-                1,
-                int(config.max_tokens),
-                (
-                    _METRIC_AUTHORING_LARGE_RESPONSE_TOKENS
-                    if prompt_projection["applied"]
-                    else 1
-                ),
-            ),
-        )
-        request = GeneratorRequest(
-            system_prompt=(
-                "You are the ArchitectMetricContractPlanner inside the AI Statistician. "
-                "Author domain-appropriate, executable empirical gates before either "
-                "coding agent sees the task. Return JSON only."
-            ),
-            user_prompt=request_user_prompt,
-            model=request_model,
-            max_tokens=request_max_tokens,
-            temperature=0.0,
-            schema=response_schema,
-            metadata={
-                "subsystem": "ArchitectMetricContractPlanner",
-                "agent": "LLMArchitectCoordinatorAgent",
-                "provider_name": config.provider_name,
-                "model_tier": config.model_tier,
-                "resolved_model": request_model,
-                "provider_structured_output": True,
-                "user_prompt_chars": len(request_user_prompt),
-                "metric_authoring_prompt_projection": dict(
-                    prompt_projection
-                ),
-                "semantic_review_revision_index": revision_index,
-                "semantic_review_feedback_packet_id": str(
-                    prior_review_packet.get("packet_id", "") or ""
-                ),
-                "active_prior_finding_count": len(active_finding_ids),
-                "active_prior_finding_ledger_fingerprint": (
-                    active_finding_ledger_fingerprint
-                ),
-                "frozen_metric_protocol_rebinding": bool(frozen_rebinding),
-                "source_requirement_set_id": str(
-                    frozen_rebinding.get("source_requirement_set_id", "")
-                    or ""
-                ),
-            },
-        )
+        workspace_user_message = (
+            (
+                "Create the initial metric_protocol.json from the following "
+                "pre-execution scientific context. Submit one complete source "
+                "candidate against the empty parent hash.\n\n"
+            )
+            if not metric_workspace_messages
+            else (
+                "The independent pre-outcome reviewer rejected the exact current "
+                "metric protocol. The authoritative document remains in your "
+                "workspace. Read it if needed, then submit changed complete source "
+                "against its current hash using the observations below. Preserve "
+                "unrelated accepted content.\n\n"
+            )
+        ) + request_user_prompt
 
         def extract_authoring_payload(raw_text: str) -> dict[str, Any]:
             payload = extract_json_object(
@@ -2120,8 +2107,6 @@ def author_reviewed_architect_metric_requirements(
 
         def build_packet(
             payload: Mapping[str, Any],
-            response: Any,
-            _raw_text: str,
         ) -> dict[str, Any]:
             requirements = payload.get("empirical_metric_requirements", [])
             omitted_nonrequired_rows = [
@@ -2267,8 +2252,11 @@ def author_reviewed_architect_metric_requirements(
                     acceptance_authority_catalog
                 ),
                 "source_agent": "ArchitectMetricContractPlanner",
-                "provider_name": response.provider,
-                "model": response.model or request_model,
+                "provider_name": str(
+                    getattr(provider, "provider_name", "")
+                    or config.provider_name
+                ),
+                "model": request_model,
                 "model_tier": config.model_tier,
                 "semantic_review_revision_index": revision_index,
                 "parent_authoring_packet_id": parent_packet_id,
@@ -2279,62 +2267,6 @@ def author_reviewed_architect_metric_requirements(
                 "revision_target_finding_ledger_fingerprint": (
                     active_finding_ledger_fingerprint
                 ),
-                "runtime_owned_requirement_bindings": {
-                    "target_subsystems": {
-                        "source": "generated_metric_target_namespace",
-                        "value": list(
-                            GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
-                        ),
-                        "model_authored": False,
-                        "binding_stage": (
-                            "before_hash_validation_and_review"
-                        ),
-                    },
-                    "required": {
-                        "source": "confirmatory_acceptance_portfolio",
-                        "value": True,
-                        "model_authored": False,
-                        "binding_stage": (
-                            "before_hash_validation_and_review"
-                        ),
-                    },
-                    "acceptance_authority_kind": {
-                        "source": "preexecution_architect_authorship",
-                        "value": FRESH_METRIC_AUTHORING_AUTHORITY_KIND,
-                        "model_authored": False,
-                        "binding_stage": (
-                            "before_hash_validation_and_review"
-                        ),
-                    },
-                    "gate_field_authority_mode": {
-                        "source": "runtime_field_authority_abi",
-                        "model_authored": False,
-                        "binding_stage": (
-                            "before_hash_validation_and_review"
-                        ),
-                    },
-                    "flat_gate_values_and_authorities": {
-                        "source": "model_gate_fields",
-                        "model_authored_once": True,
-                        "runtime_expands_evaluator_abi": True,
-                        "runtime_selected_semantics": False,
-                        "binding_stage": (
-                            "before_hash_validation_and_review"
-                        ),
-                    },
-                    **runtime_replicate_field_binding,
-                    "source_anchors": {
-                        "source": (
-                            "model_semantic_context_plus_"
-                            "gate_field_anchor_union"
-                        ),
-                        "model_authored": True,
-                        "runtime_augmented": True,
-                        "binding_stage": (
-                            "before_hash_validation_and_review"
-                        ),
-                    },
-                },
                 "model_authored_runtime_replicates": (
                     model_authored_runtime_replicates
                 ),
@@ -2479,19 +2411,65 @@ def author_reviewed_architect_metric_requirements(
             metadata={
                 "revision_index": revision_index,
                 "model_tier": config.model_tier,
-                "max_packet_regeneration_attempts": config.max_validation_retries,
+                "workspace_transport": METRIC_PROTOCOL_WORKSPACE_TRANSPORT,
+                "full_packet_regeneration_required": False,
                 "active_prior_finding_count": len(active_finding_ids),
             },
         ):
-            authoring_packet = generate_validated_json_packet(
+            def build_validated_workspace_packet(
+                document_content: str,
+            ) -> tuple[dict[str, Any] | None, list[str]]:
+                payload = extract_authoring_payload(document_content)
+                packet = build_packet(payload)
+                return packet, validate_packet(packet)
+
+            workspace_result = _run_metric_protocol_workspace(
                 provider=provider,
-                request=request,
-                extract_payload=extract_authoring_payload,
-                build_packet=build_packet,
-                validate_packet=validate_packet,
-                validation_label="LLM Architect metric-requirement packet",
-                max_validation_retries=config.max_validation_retries,
+                config=config,
+                request_model=request_model,
+                user_message=workspace_user_message,
+                build_validated_packet=build_validated_workspace_packet,
+                prior_messages=metric_workspace_messages,
+                prior_document_content=metric_workspace_document,
+                workspace_dir=metric_workspace_dir,
+                session_id=metric_workspace_session_id,
+                revision_index=revision_index,
             )
+        loop = workspace_result.loop
+        metric_workspace_messages = loop.messages
+        metric_workspace_document = workspace_result.document_content
+        authoring_packet = dict(workspace_result.packet)
+        authoring_packet["provider_name"] = loop.provider
+        authoring_packet["model"] = loop.model or request_model
+        authoring_packet["model_requirement_transport"] = (
+            METRIC_PROTOCOL_WORKSPACE_TRANSPORT
+        )
+        authoring_packet["metric_protocol_workspace"] = {
+            "artifact_kind": "MetricProtocolWorkspaceEvidence",
+            "transport": METRIC_PROTOCOL_WORKSPACE_TRANSPORT,
+            "source_owner": "MetricProtocolSourceOwner",
+            "revision_index": revision_index,
+            "document_sha256": _metric_protocol_document_sha256(
+                metric_workspace_document
+            ),
+            "document_chars": len(metric_workspace_document),
+            "relative_document_path": workspace_result.relative_document_path,
+            "client_tool_session_ref": dict(workspace_result.session_ref),
+            "segment_turns": loop.turns,
+            "segment_tool_calls": loop.tool_calls,
+            "segment_runtime_executed_tool_calls": (
+                loop.runtime_executed_tool_calls
+            ),
+            "transcript_fingerprint": loop.transcript_fingerprint,
+            "provider_usage": dict(loop.provider_usage),
+            "prompt_projection": dict(prompt_projection),
+            "runtime_edited_content": False,
+            "same_source_owner_session": True,
+            "full_packet_regeneration_required": False,
+            "proof_evidence_status": (
+                "ARCHITECT_METRIC_REQUIREMENT_AUTHORING_NOT_PROOF_EVIDENCE"
+            ),
+        }
         authoring_packet_hash = stable_hash(authoring_packet)
         review_material = {
             "review_stage": "pre_execution_metric_contract_review",
@@ -2703,6 +2681,13 @@ def author_reviewed_architect_metric_requirements(
                         or []
                         if isinstance(row, Mapping)
                     ]
+                ),
+                "metric_protocol_workspace": deepcopy(
+                    dict(
+                        authoring_packet.get(
+                            "metric_protocol_workspace", {}
+                        )
+                    )
                 ),
                 "semantic_review_packet_id": str(
                     semantic_review_packet["packet_id"]

@@ -214,6 +214,16 @@ def architect_metric_requirement_validation_failure_result(
     """Fail closed after exhausted authoring without laundering candidate choices."""
 
     validation_errors = [str(error) for error in exc.errors if str(error)]
+    raw_workspace_checkpoint = getattr(exc, "recovery_checkpoint", None)
+    workspace_checkpoint = (
+        deepcopy(dict(raw_workspace_checkpoint))
+        if isinstance(raw_workspace_checkpoint, Mapping)
+        and raw_workspace_checkpoint.get("artifact_kind")
+        == "MetricProtocolWorkspaceCheckpoint"
+        and raw_workspace_checkpoint.get("runtime_edited_content") is False
+        and raw_workspace_checkpoint.get("automatic_retry_authorized") is False
+        else {}
+    )
     numeric_authority_failure = any(
         is_generated_metric_numeric_authority_error(error)
         for error in validation_errors
@@ -288,6 +298,14 @@ def architect_metric_requirement_validation_failure_result(
         "validation_errors": validation_errors,
         "validation_attempts": exc.attempts,
         "structured_output_retry_history": [dict(row) for row in exc.history],
+        "metric_protocol_workspace_checkpoint_available": bool(
+            workspace_checkpoint
+        ),
+        **(
+            {"metric_protocol_workspace_checkpoint": workspace_checkpoint}
+            if workspace_checkpoint
+            else {}
+        ),
         "final_invalid_packet_available": bool(final_invalid_packet),
         "final_invalid_packet_fingerprint": (
             stable_hash(final_invalid_packet) if final_invalid_packet else ""
@@ -351,6 +369,9 @@ def architect_metric_requirement_validation_failure_result(
                 payload={
                     "failure_id": failure_id,
                     "validation_errors": validation_errors,
+                    "metric_protocol_workspace_checkpoint_available": bool(
+                        workspace_checkpoint
+                    ),
                     "next_owner_subsystem": "",
                     "execution_authorized": False,
                     "proof_evidence_status": failure_artifact[

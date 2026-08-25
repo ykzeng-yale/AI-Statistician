@@ -4,6 +4,7 @@ import json
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping
 
 from .agent_runtime import agent_runtime_substage
@@ -253,9 +254,11 @@ class LLMArchitectCoordinatorAgent:
         preflight_source_retriever: Any = None,
         preflight_research_sources: Any = None,
         preflight_research_source_discovery: Any = None,
+        metric_protocol_workspace_root: Path | None = None,
     ) -> None:
         self.provider = provider
         self.config = config
+        self.metric_protocol_workspace_root = metric_protocol_workspace_root
         self.metric_semantic_reviewer = metric_semantic_reviewer
         if (
             self.metric_semantic_reviewer is None
@@ -396,6 +399,9 @@ class LLMArchitectCoordinatorAgent:
                         Mapping,
                     )
                     else {}
+                ),
+                metric_protocol_workspace_root=(
+                    self.metric_protocol_workspace_root
                 ),
             )
         effective_architect_context = (
@@ -1682,18 +1688,6 @@ def _architect_context_with_metric_requirement_authoring(
                 )
                 or ""
             ),
-            "runtime_owned_requirement_bindings": dict(
-                metric_authoring_packet.get(
-                    "runtime_owned_requirement_bindings", {}
-                )
-            )
-            if isinstance(
-                metric_authoring_packet.get(
-                    "runtime_owned_requirement_bindings"
-                ),
-                Mapping,
-            )
-            else {},
             "theory_execution_preflight": (
                 _architect_theory_execution_preflight_summary(
                     metric_authoring_packet
@@ -1765,21 +1759,6 @@ def _architect_context_with_metric_requirement_authoring(
 def _architect_metric_requirement_authoring_summary(
     packet: Mapping[str, Any],
 ) -> dict[str, Any]:
-    history = packet.get("structured_output_retry_history", [])
-    last_history = (
-        history[-1]
-        if isinstance(history, list)
-        and history
-        and isinstance(history[-1], Mapping)
-        else {}
-    )
-    response_metadata = (
-        last_history.get("response_metadata", {})
-        if isinstance(last_history, Mapping)
-        else {}
-    )
-    if not isinstance(response_metadata, Mapping):
-        response_metadata = {}
     semantic_review = packet.get("semantic_review_packet", {})
     if not isinstance(semantic_review, Mapping):
         semantic_review = {}
@@ -1801,25 +1780,13 @@ def _architect_metric_requirement_authoring_summary(
         "empirical_metric_requirement_set_id": str(
             packet.get("empirical_metric_requirement_set_id", "") or ""
         ),
-        "runtime_owned_requirement_bindings": dict(
-            packet.get("runtime_owned_requirement_bindings", {})
+        "metric_protocol_workspace": deepcopy(
+            dict(packet.get("metric_protocol_workspace", {}))
         )
-        if isinstance(
-            packet.get("runtime_owned_requirement_bindings"),
-            Mapping,
-        )
+        if isinstance(packet.get("metric_protocol_workspace"), Mapping)
         else {},
         "theory_execution_preflight": (
             _architect_theory_execution_preflight_summary(packet)
-        ),
-        "structured_output_retry_attempts": int(
-            packet.get("structured_output_retry_attempts", 0) or 0
-        ),
-        "provider_structured_output_requested": bool(
-            response_metadata.get("provider_structured_output_requested")
-        ),
-        "provider_structured_output_applied": bool(
-            response_metadata.get("provider_structured_output_applied")
         ),
         "semantic_review_status": str(
             packet.get("semantic_review_status", "") or ""

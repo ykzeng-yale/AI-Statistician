@@ -8,15 +8,18 @@ from pathlib import Path
 
 import pytest
 
-from ai_statistician.agent_runtime import AgentTask
-from ai_statistician.client_tool_loop import ClientToolInputError
+from ai_statistician.agent_runtime import AgentTask, BlackboardState
+from ai_statistician.client_tool_loop import (
+    ClientToolInputError,
+)
 from ai_statistician.architect_metric_contract_authoring import (
     ArchitectMetricContractAuthoringConfig,
     ArchitectMetricSemanticReviewRejected,
     FRESH_METRIC_AUTHORING_AUTHORITY_KIND,
+    METRIC_PROTOCOL_WORKSPACE_READ_TOOL,
+    METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL,
     _materialize_metric_authoring_model_requirement,
-    _metric_authoring_model_requirement_schema,
-    _metric_authoring_model_response_schema,
+    _run_metric_protocol_workspace,
     author_reviewed_architect_metric_requirements,
 )
 from ai_statistician.architect_theory_execution_preflight import (
@@ -41,6 +44,7 @@ from ai_statistician.architect_theory_execution_preflight import (
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.evaluation_protocol_revision import (
+    architect_metric_requirement_validation_failure_result,
     architect_preexecution_metric_protocol_rejection_result,
 )
 from ai_statistician.metric_protocol_stage import (
@@ -134,36 +138,6 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
 
 def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
     anchor_id = "theory#/guarantee"
-    schema = _metric_authoring_model_requirement_schema(
-        authority_anchor_ids=[anchor_id]
-    )
-    predicate_properties = schema["properties"]["predicate_authority"][
-        "properties"
-    ]
-    gate_schema = schema["properties"]["gate_fields"]
-    gate_properties = gate_schema["properties"]["threshold"]["properties"]
-    assert "authority_kind" not in predicate_properties
-    assert "authority_kind" not in gate_properties
-    assert gate_schema["type"] == "object"
-    assert gate_schema["additionalProperties"] is False
-    assert "all already means every comparison passes" in schema["properties"][
-        "aggregation"
-    ]["description"]
-    assert "all and any never take a quorum field" in gate_schema["description"]
-    assert "required_runtime_replicates" not in schema["required"]
-    assert "required_runtime_replicates" not in schema["properties"]
-    portfolio_schema = _metric_authoring_model_response_schema(
-        authority_anchor_ids=[anchor_id]
-    )
-    assert "required_runtime_replicates" in portfolio_schema["required"]
-    assert portfolio_schema["properties"]["required_runtime_replicates"][
-        "maximum"
-    ] == 100_000
-    portfolio_row_schema = portfolio_schema["properties"][
-        "empirical_metric_requirements"
-    ]["items"]
-    assert "required_runtime_replicates" not in portfolio_row_schema["properties"]
-
     materialized, errors = _materialize_metric_authoring_model_requirement(
         {
             "requirement_id": "generic-risk-bound",
@@ -4092,7 +4066,7 @@ def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> No
             return accepted_packet
 
     provider = _Backend({})
-    with pytest.raises(PacketValidationError):
+    with pytest.raises(PacketValidationError) as exc_info:
         author_reviewed_architect_metric_requirements(
             provider=provider,
             config=ArchitectMetricContractAuthoringConfig(
@@ -4115,9 +4089,17 @@ def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> No
             theory_protocol_material=_theory_material(),
         )
 
-    assert len(provider.requests) == 1
+    assert exc_info.value.validation_label == (
+        "LLM Architect metric-requirement packet"
+    )
+    assert exc_info.value.recovery_checkpoint["artifact_kind"] == (
+        "MetricProtocolWorkspaceCheckpoint"
+    )
+    assert exc_info.value.recovery_checkpoint["runtime_edited_content"] is False
+    assert exc_info.value.recovery_checkpoint["automatic_retry_authorized"] is False
+    assert provider.requests
     request = provider.requests[0]
-    prompt = request.user_prompt
+    prompt = str(request.messages[0]["content"])
     assert "quantitative uncertainty or sampling-error calculation" in prompt
     assert "'stringent but attainable' are not evidence" in prompt
     assert "actual comparison scale" in prompt
@@ -4126,14 +4108,205 @@ def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> No
     assert "does not alone justify a tight finite-run threshold" in prompt
     assert "Preserve the requested scientific claim granularity" in prompt
     assert "remain exploratory" in prompt
-    assert request.schema["required"] == [
-        "required_runtime_replicates",
-        "empirical_metric_requirements",
+    assert [tool.name for tool in request.tools] == [
+        METRIC_PROTOCOL_WORKSPACE_READ_TOOL,
+        METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL,
     ]
-    assert "required_runtime_replicates" not in request.schema["properties"][
-        "empirical_metric_requirements"
-    ]["items"]["properties"]
+    assert request.enable_prompt_caching is True
+    assert request.disable_parallel_tool_use is True
+    assert request.metadata["full_packet_regeneration_required"] is False
     assert "model-authored pre-execution count for the entire portfolio" in prompt
+
+
+def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
+    tmp_path: Path,
+) -> None:
+    invalid_document = '{\n  "value": 0\n}\n'
+    initial_document = '{\n  "value": 1\n}\n'
+    revised_document = '{\n  "value": 2\n}\n'
+    invalid_sha256 = hashlib.sha256(invalid_document.encode("utf-8")).hexdigest()
+    initial_sha256 = hashlib.sha256(initial_document.encode("utf-8")).hexdigest()
+
+    def build_validated_packet(
+        content: str,
+    ) -> tuple[dict[str, object] | None, list[str]]:
+        try:
+            value = json.loads(content)
+        except json.JSONDecodeError as exc:
+            return None, [f"invalid JSON: {exc.msg}"]
+        if not isinstance(value, dict) or value.get("value") not in {1, 2}:
+            return None, ["value must be one of the test candidates"]
+        return {
+            "packet_id": f"metric-authoring:{value['value']}",
+            "empirical_metric_requirement_set_id": f"metric-set:{value['value']}",
+            "value": value["value"],
+        }, []
+
+    class MetricWorkspaceBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "submit-invalid-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL,
+                        {
+                            "expected_parent_sha256": "",
+                            "content": invalid_document,
+                        },
+                    )
+                )
+            if turn == 2:
+                return _tool_response(
+                    ClientToolCall(
+                        "submit-initial-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL,
+                        {
+                            "expected_parent_sha256": invalid_sha256,
+                            "content": initial_document,
+                        },
+                    )
+                )
+            if turn == 3:
+                return _tool_response(
+                    ClientToolCall(
+                        "submit-reviewed-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL,
+                        {
+                            "expected_parent_sha256": initial_sha256,
+                            "content": revised_document,
+                        },
+                    )
+                )
+            raise AssertionError("metric protocol workspace exceeded expected turns")
+
+    backend = MetricWorkspaceBackend()
+    config = ArchitectMetricContractAuthoringConfig(
+        model_tier="haiku",
+        max_validation_retries=0,
+    )
+    first = _run_metric_protocol_workspace(
+        provider=backend,  # type: ignore[arg-type]
+        config=config,
+        request_model=TEST_HAIKU_MODEL,
+        user_message="Author the initial protocol from the accepted theory.",
+        build_validated_packet=build_validated_packet,
+        workspace_dir=tmp_path,
+        session_id="metric-protocol-source-owner",
+    )
+    reviewer_observation = (
+        "Independent reviewer finding: the current finite-run threshold is too "
+        "strict for its declared uncertainty calculation. Revise the protocol."
+    )
+    second = _run_metric_protocol_workspace(
+        provider=backend,  # type: ignore[arg-type]
+        config=config,
+        request_model=TEST_HAIKU_MODEL,
+        user_message=reviewer_observation,
+        build_validated_packet=build_validated_packet,
+        prior_messages=first.loop.messages,
+        prior_document_content=first.document_content,
+        workspace_dir=tmp_path,
+        session_id="metric-protocol-source-owner",
+        revision_index=1,
+    )
+
+    assert len(backend.requests) == 3
+    rejected_submission = _last_tool_result(backend.requests[1])
+    assert rejected_submission["error"] == "metric_protocol_submission_rejected"
+    assert rejected_submission["current_sha256"] == invalid_sha256
+    assert rejected_submission["validation_errors"] == [
+        "value must be one of the test candidates"
+    ]
+    assert tuple(backend.requests[2].messages[:-1]) == first.loop.messages
+    assert backend.requests[2].messages[-1] == {
+        "role": "user",
+        "content": reviewer_observation,
+    }
+    assert backend.requests[0].system_prompt == backend.requests[2].system_prompt
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        tool.name for tool in backend.requests[2].tools
+    ]
+    assert [
+        call["name"]
+        for turn in second.loop.history
+        for call in turn["tool_calls"]
+    ] == [
+        METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL,
+    ]
+    assert second.document_content == revised_document
+    assert (tmp_path / "metric_protocol.json").read_text(
+        encoding="utf-8"
+    ) == revised_document
+    assert second.packet["value"] == 2
+    assert second.loop.runtime_executed_tool_calls == 1
+    assert second.session_ref["session_id"] == "metric-protocol-source-owner"
+    assert first.session_ref["relative_path"] != second.session_ref["relative_path"]
+    assert second.session_ref["transcript_fingerprint"] == (
+        second.loop.transcript_fingerprint
+    )
+
+
+def test_metric_protocol_failure_preserves_checkpoint_without_auto_retry() -> None:
+    theory_packet_id = "theory_derivation:generic"
+    checkpoint = {
+        "schema_version": 1,
+        "artifact_kind": "MetricProtocolWorkspaceCheckpoint",
+        "checkpoint_id": "metric_protocol_workspace_checkpoint:test",
+        "session_id": "metric-protocol:test",
+        "relative_document_path": "metric_protocol.json",
+        "document_sha256": "a" * 64,
+        "runtime_edited_content": False,
+        "automatic_retry_authorized": False,
+        "proof_evidence_status": (
+            "METRIC_PROTOCOL_WORKSPACE_CHECKPOINT_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    result = architect_metric_requirement_validation_failure_result(
+        task=AgentTask(
+            task_id="architect:metric-workspace-blocked",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Record one exhausted metric source workspace.",
+        ),
+        question=_question(),
+        architect_context={
+            "theory_packet_id": theory_packet_id,
+            "architect_metric_protocol_theory_material": {
+                "source_theory_packet_id": theory_packet_id,
+            },
+        },
+        blackboard=BlackboardState(
+            project_id="metric-workspace-test",
+            artifacts={
+                theory_packet_id: {
+                    "packet_id": theory_packet_id,
+                    "artifact_kind": "TheoryDerivationPacket",
+                }
+            },
+        ),
+        exc=PacketValidationError(
+            validation_label="LLM Architect metric-requirement packet",
+            attempts=2,
+            errors=["terminal provider failure"],
+            history=[],
+            recovery_checkpoint=checkpoint,
+        ),
+    )
+
+    failure = next(iter(result.produced_artifacts.values()))
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert failure["metric_protocol_workspace_checkpoint_available"] is True
+    assert failure["metric_protocol_workspace_checkpoint"] == checkpoint
+    assert result.observations[0].payload[
+        "metric_protocol_workspace_checkpoint_available"
+    ] is True
 
 
 def test_metric_review_exhaustion_blocks_in_source_workspace() -> None:
