@@ -1035,8 +1035,6 @@ def test_scalar_control_variate_l0_frozen_draw_is_consumed_and_closed() -> None:
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
         "source_manifest_sha256",
@@ -1116,8 +1114,6 @@ def test_pearson_multinomial_gof_l0_frozen_draw_is_consumed_and_closed() -> None
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
         "source_manifest_sha256",
@@ -1208,10 +1204,6 @@ def test_exponential_rate_mle_l0_authority_is_consumed_after_one_draw() -> None:
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["active_scored_tasks"] == 29
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     for field in (
         "source_snapshot_hash",
         "source_manifest_sha256",
@@ -1280,10 +1272,6 @@ def test_its_time_l1_draw_is_consumed_without_posthoc_rescore() -> None:
     assert evidence["hidden_gold_full_task_result"] == "0/1"
     assert "never rerun" in evidence["post_run_policy"].lower()
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["active_scored_tasks"] == 29
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -1380,9 +1368,6 @@ def test_statlib_formal_l0_draw_is_consumed_without_proof_credit() -> None:
     assert contract["lean_source_prefix"].rstrip().endswith(":= by")
     assert "tendsto_of_tendsto" not in contract["lean_source_prefix"]
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
-    assert ladder["current_readiness"]["active_scored_tasks"] == 29
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
 
 
 def test_score_information_l0_draw_is_consumed_without_review_credit() -> None:
@@ -1449,8 +1434,6 @@ def test_score_information_l0_draw_is_consumed_without_review_credit() -> None:
         "214 focused tests and 860/860 full-suite tests passed"
     )
     assert evidence["formalization_requirement"] == "not_applicable"
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -1541,10 +1524,6 @@ def test_basu_theory_l0_draw_is_consumed_after_missing_routed_review() -> None:
     )
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["active_scored_tasks"] == 29
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -1630,10 +1609,6 @@ def test_uniform_endpoint_l0_draw_is_consumed_after_hidden_gold_failure() -> Non
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["active_scored_tasks"] == 29
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -1750,19 +1725,12 @@ def test_huber_location_l0_draw_is_consumed_after_review_packet_failure() -> Non
         "post_run_generic_transport_calibration"
     ]
     assert "remains 0/1" in evidence["post_run_shared_mechanism_boundary"]
-    assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "cb9dcbe9d1d1cd38d73f43c6892c2234d9bca7be"
-    )
     assert evidence["algorithm_reference_contract_checks"] == "7/7"
     assert evidence["algorithm_negative_variants_rejected"] == 4
     assert evidence["empirical_negative_variants_rejected"] == 3
     assert evidence["semantic_calibration_cases_correct"] == 12
     assert evidence["semantic_reference_candidate_passed"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
-    assert ladder["current_readiness"]["active_scored_tasks"] == 29
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     assert candidate["task_intent"] == {
         "source_replication": "not_applicable",
         "theory": "required",
@@ -1896,13 +1864,6 @@ def test_ridge_bias_variance_l0_draw_is_consumed_after_review_tool_failure() -> 
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "cb9dcbe9d1d1cd38d73f43c6892c2234d9bca7be"
-    )
-    assert ladder["current_readiness"]["active_scored_tasks"] == 29
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
     assert candidate["task_intent"] == {
         "source_replication": "not_applicable",
         "theory": "required",
@@ -2010,8 +1971,6 @@ def test_trimmed_match_l1_draw_is_consumed_without_posthoc_rescore() -> None:
     assert evidence["rerun_resume_repair_or_rescore_performed"] is False
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["full_task_passed"] is False
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 29
-    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 0
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -2036,6 +1995,101 @@ def test_trimmed_match_l1_draw_is_consumed_without_posthoc_rescore() -> None:
     for hidden_name in (
         "gold_manifest.json",
         "hidden_source_replication_harness.py",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "beta_binomial_conjugate_predictive_known_result"
+    )
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "bayesian_conjugate_inference"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == "fresh_live_v1_full_task_gold_passed"
+    assert candidate["gold_manifest_sha256"] == (
+        "0146a264fcdb3be8bf56d5ba266c9eab041cb64990060cbbeb17567bf22a4d5b"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "21d41355b5d992d38d5754e9965bc1335647d844386201f0f7aa81a5a1f10272"
+    )
+    evidence = candidate["activation_evidence"]
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["visible_question_activation_commit"] == (
+        "9129db099bdc5bc475766277cb024d201dbc1bee"
+    )
+    assert evidence[
+        "visible_question_activation_push_confirmed_on_work_branch_and_main"
+    ] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_model_policy_status"] == "OK"
+    assert evidence["runtime_enabled_model_tiers"] == {"haiku": 7}
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["runtime_iterations"] == 10
+    assert evidence["client_tool_model_turns"] == 29
+    assert evidence["theory_document_count"] == 2
+    assert evidence["theory_document_lines"] == 450
+    assert evidence["theory_same_session_tool_error_corrected"] is True
+    assert evidence["independent_theory_review_accepted"] is True
+    assert evidence["algorithm_source_executions"] == 2
+    assert evidence["algorithm_same_session_execution_feedback_corrected"] is True
+    assert evidence["algorithm_semantic_review_accepted"] is True
+    assert evidence["metric_protocol_preexecution_review_accepted"] is True
+    assert evidence["runtime_metric_contracts_passed"] == "8/8"
+    assert evidence["simulation_source_executions"] == 1
+    assert evidence["simulation_semantic_review_accepted"] is True
+    assert evidence["critic_research_disposition"] == "ACCEPT"
+    assert evidence["critic_gap_disclosure"] == "COMPLETE"
+    assert evidence["hidden_gold_evaluation"] == "1/1_passed"
+    assert evidence["hidden_theory_mechanical_checks"] == "7/7"
+    assert evidence["hidden_theory_semantic_calibration"] == "12/12"
+    assert evidence["hidden_theory_semantic_claims_satisfied"] == "9/9"
+    assert evidence["hidden_algorithm_checks"] == "10/10"
+    assert evidence["hidden_empirical_checks"] == "10/10"
+    assert evidence["post_run_generic_metric_review_fix_commit"] == (
+        "91fff005efc8a49f4aacb3b3fcd5d619a8884e46"
+    )
+    assert "did not rerun" in evidence["post_run_shared_mechanism_boundary"]
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["full_task_passed"] is True
+    assert ladder["current_readiness"]["active_scored_tasks"] == 30
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == 30
+    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 30
+    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 1
+    assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
+        "91fff005efc8a49f4aacb3b3fcd5d619a8884e46"
+    )
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["estimator_execution_contract"]["estimator_id"] == (
+        "est_beta_binomial_posterior"
+    )
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
+        "hidden_harness.py",
+        "hidden_empirical_harness.py",
         "semantic_reference.md",
         "semantic_rubric.json",
         "semantic_calibration_cases.json",

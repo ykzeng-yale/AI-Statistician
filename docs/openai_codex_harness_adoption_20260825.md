@@ -177,6 +177,32 @@ consolidation and documents private Multi-Agent V2 analytics; the adopted
 tool-error continuation, turn loop, parallel gate, and collaboration mechanisms
 are otherwise unchanged.
 
+## First disjoint live validation
+
+The next pre-frozen task, Beta-Binomial posterior and predictive moments, used
+the corrected harness in one fresh exact-Haiku run. It completed the canonical
+non-formal graph and passed evaluator-only theory, executable-interface,
+algorithm, and empirical authority (`1/1`). Two ordinary failures demonstrate
+the useful mechanism directly: TheoryDeveloper corrected one invalid document
+tool input in the same session, and AlgorithmEngineer corrected a failing
+model-authored smoke check after receiving the raw sandbox result in the same
+source-owning session. The compact generated-code terminal tool accepted both
+executed sources, so the Ridge transport failure did not recur.
+
+This is evidence for same-owner model/tool iteration and isolated review, not
+for importing Codex itself. The task used the existing Claude provider-neutral
+loop, one AgentRuntime, artifact hashes, and evaluator-only gold. It used no
+Codex app-server, Responses transport, thread manager, repair worker, or second
+scheduler. Formalization was not applicable, and the aggregate research ladder
+is only `1/30`; source replication and exact Lean closure remain unproved.
+
+Operator review also found that the metric author and reviewer accepted an
+internally inconsistent explanation mixing absolute standard error, relative
+error, and standardized error. The shared future-task correction is prompt
+level: the same models must recompute uncertainty on the metric's actual
+comparison scale and report unit or arithmetic contradictions. No task formula,
+numeric detector, output patch, rerun, or rescore was added.
+
 ## Explicit non-adoptions
 
 - No Codex TUI, app-server, MCP server, approval UI, or thread database inside
