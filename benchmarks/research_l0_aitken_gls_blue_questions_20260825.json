@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "aitken_gls_blue_known_result",
+      "title": "Aitken generalized least squares and the BLUE covariance order",
+      "description": "Focused known-result theory evaluation grounded in A. C. Aitken, On Least Squares and Linear Combination of Observations, Proceedings of the Royal Society of Edinburgh 55 (1936), pages 42-48, DOI 10.1017/S0370164600014346. In one authoritative Markdown/LaTeX theory workspace, consider the fixed-design linear model Y=X beta+epsilon with deterministic X in R^{n by p} of full column rank, E(epsilon)=0, and positive-definite covariance Sigma. Define the generalized least-squares coefficient matrix B=(X^T Sigma^{-1} X)^{-1}X^T Sigma^{-1}. Derive dimensions and existence conditions, prove BX=I_p, and calculate the expectation and covariance of B Y. For an arbitrary linear estimator A Y that is unbiased for beta for every beta, derive AX=I_p, write D=A-B, and prove the cross terms vanish from DX=0 rather than asserting orthogonality by name. Derive the exact covariance decomposition Cov(A Y)-Cov(B Y)=D Sigma D^T and prove its positive-semidefinite Loewner meaning. State the resulting inequality for every scalar contrast, characterize contrast-specific equality and full matrix equality under positive-definite Sigma, and explain uniqueness of the BLUE in this estimator class. Also derive the whitening interpretation, recover ordinary least squares when Sigma is a positive scalar multiple of the identity, and state which assumptions are unnecessary, including Gaussianity and independence beyond the stated covariance. Treat covariance known only up to a positive scale honestly. Delimit what changes or becomes unproved for biased or nonlinear estimators, rank-deficient X, or singular Sigma, and do not confuse positive-semidefinite order with entrywise variance or covariance inequalities. Keep active and rejected calculations visibly distinct and disclose unresolved algebraic or scope gaps. This L0 task evaluates mathematical derivation and independent review only. Source replication, Python/R implementation, simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "Aitken theorem",
+        "generalized least squares",
+        "Gauss-Markov theorem",
+        "BLUE",
+        "Loewner order",
+        "known result",
+        "theory only",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "On Least Squares and Linear Combination of Observations",
+        "author": "A. C. Aitken",
+        "journal": "Proceedings of the Royal Society of Edinburgh",
+        "year": 1936,
+        "volume": 55,
+        "pages": "42-48",
+        "doi": "10.1017/S0370164600014346",
+        "url": "https://www.cambridge.org/core/journals/proceedings-of-the-royal-society-of-edinburgh/article/abs/ivon-least-squares-and-linear-combination-of-observations/7106C26F19F2EBF75BCEE7FA285780B9"
+      }
+    }
+  ]
+}
