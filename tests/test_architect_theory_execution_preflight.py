@@ -23,9 +23,9 @@ from ai_statistician.architect_metric_contract_authoring import (
     _materialize_metric_authoring_model_requirement,
     _run_metric_protocol_workspace,
     author_reviewed_architect_metric_requirements,
+    build_architect_upstream_research_contract,
 )
 from ai_statistician.architect_theory_execution_preflight import (
-    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL,
@@ -129,9 +129,8 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "canned checklist" in protocol
     assert "Do not silently repair a false derivation" in prompt
     assert "corrected argument" in prompt
-    assert "exploratory_confirmatory_evidence_chronology" in (
-        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-    )
+    assert "exploratory" in protocol
+    assert "confirmatory" in protocol
     assert "First challenge unresolved risks" in (
         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL[1]
     )
@@ -644,6 +643,30 @@ def _theory_material() -> dict[str, object]:
     }
 
 
+def _theory_material_without_estimators() -> dict[str, object]:
+    material = deepcopy(_theory_material())
+    semantic = material["theory_semantic_material"]
+    assert isinstance(semantic, dict)
+    semantic["estimator_specs"] = []
+    semantic["simulation_ademp_spec"] = {}
+    material["source_theory_packet_hash"] = stable_hash(semantic)
+    return material
+
+
+def _theory_only_evidence_contract() -> dict[str, object]:
+    return {
+        "dimension_requirements": {
+            "source_replication": "not_applicable",
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+            "novelty": "not_applicable",
+            "unresolved_gaps": "required",
+        }
+    }
+
+
 def _payload(*, accept: bool) -> dict[str, object]:
     status = "PASS" if accept else "FAIL"
     return {
@@ -660,7 +683,7 @@ def _payload(*, accept: bool) -> dict[str, object]:
                     "theory.estimator_specs",
                 ],
             }
-            for _dimension in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+            for _dimension in range(2)
         ],
         "estimator_execution_checks": [
             {
@@ -2388,11 +2411,75 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert prompt_payload["review_scope"]["estimators"] == [
         "generic_stream_method"
     ]
+    assert prompt_payload["review_scope"]["execution_handoff_required"] is True
     assert "prior_finding_statuses" not in submit_schema["properties"]
     assert validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
     ) == []
+
+
+def test_theory_only_preflight_accepts_without_an_estimator_handoff() -> None:
+    theory_material = _with_test_review_workspace(
+        _theory_material_without_estimators()
+    )
+    evidence_contract = build_architect_upstream_research_contract(
+        _theory_only_evidence_contract()
+    )
+    backend = _PreflightToolBackend(accept=True)
+
+    packet = _tool_review(
+        backend,
+        theory_protocol_material=theory_material,
+        upstream_research_contract=evidence_contract,
+    )
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=theory_material,
+        upstream_research_contract=evidence_contract,
+    )
+
+    assert material["execution_handoff_required"] is False
+    assert material["required_estimator_ids"] == []
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["review_scope"]["required_estimator_ids"] == []
+    prompt_payload = _preflight_prompt_payload(backend.requests[0])
+    assert "only when review_scope requests" in prompt_payload["task"]
+    assert "otherwise do not invent one" in prompt_payload["verdict_policy"]
+    assert validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=material,
+    ) == []
+
+def test_executable_preflight_still_rejects_accept_without_an_estimator() -> None:
+    theory_material = _with_test_review_workspace(
+        _theory_material_without_estimators()
+    )
+    runtime_contract = {
+        "dimension_requirements": {
+            **_theory_only_evidence_contract()["dimension_requirements"],
+            "scientific_code": "required",
+        }
+    }
+    evidence_contract = build_architect_upstream_research_contract(runtime_contract)
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=theory_material,
+        upstream_research_contract=evidence_contract,
+    )
+
+    assert material["execution_handoff_required"] is True
+    assert material["required_estimator_ids"] == []
+    with pytest.raises(PacketValidationError) as caught:
+        _tool_review(
+            _PreflightToolBackend(accept=True),
+            theory_protocol_material=theory_material,
+            upstream_research_contract=evidence_contract,
+        )
+    assert "cannot accept without an estimator" in json.dumps(
+        caught.value.history,
+        sort_keys=True,
+    )
 
 
 def test_preflight_source_search_exposes_late_theory_entries() -> None:

@@ -65,16 +65,8 @@ from .theory_workspace import (
     theory_scratchpad_client_tool,
 )
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 21
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 30
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
-    "question_estimand_dgp_and_regime_alignment",
-    "primitive_mathematical_consistency",
-    "ideal_to_executable_observation_mapping",
-    "termination_censoring_and_resource_feasibility",
-    "guarantee_transport_and_measurement_identifiability",
-    "exploratory_confirmatory_evidence_chronology",
-)
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 22
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 31
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -103,11 +95,9 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND = (
     "ArchitectTheoryExecutionPreflightWorkspaceCheckpoint"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_BOUNDARY = (
-    "This independent pre-execution review can reject a TheoryDeveloper handoff "
-    "that is mathematically inconsistent or cannot be represented by a finite "
-    "executable experiment. It does not require theorem-proof closure before an "
-    "exact finite estimator can be tested. It is not generated execution, empirical "
-    "acceptance, or theorem proof evidence."
+    "This independent review can reject mathematically inconsistent theory. It "
+    "reviews a finite estimator handoff only when the frozen task contract requests "
+    "executable evidence; it is not execution, empirical acceptance, or proof."
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
     (
@@ -504,6 +494,13 @@ def build_architect_theory_execution_preflight_material(
         and str(dimension_requirements.get("formal", "") or "").strip()
         == "not_applicable"
     )
+    execution_handoff_required = not (
+        isinstance(dimension_requirements, Mapping)
+        and dimension_requirements
+        and dimension_requirements.get("scientific_code")
+        == dimension_requirements.get("empirical")
+        == "not_applicable"
+    )
     source_theory_packet_hash = str(
         theory_protocol_material.get("source_theory_packet_hash", "") or ""
     )
@@ -516,6 +513,7 @@ def build_architect_theory_execution_preflight_material(
         ),
         "source_theory_packet_hash": source_theory_packet_hash,
         "execution_results_available": False,
+        "execution_handoff_required": execution_handoff_required,
         "required_estimator_ids": estimator_ids,
         "required_claim_reviews": required_claim_reviews,
         "required_claim_review_ids": [
@@ -692,21 +690,19 @@ def build_architect_theory_execution_preflight_prompt(
 
     payload = {
         "task": (
-            "Decide whether this theory handoff is mathematically coherent and "
-            "representable by a finite generated-code and simulation workflow before "
-            "metric authoring or execution."
+            "Decide whether this theory handoff is mathematically coherent and, only "
+            "when review_scope requests an execution handoff, representable by a "
+            "finite generated-code and simulation workflow."
         ),
         "review_protocol_version": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION,
         "review_protocol": list(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL),
         "review_scope": {
+            "execution_handoff_required": material.get("execution_handoff_required", True),
             "claims": [
                 deepcopy(dict(claim))
                 for claim in material.get("required_claim_reviews", []) or []
                 if isinstance(claim, Mapping)
             ],
-            "review_considerations": list(
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-            ),
             "estimators": [
                 str(estimator_id)
                 for estimator_id in material.get("required_estimator_ids", []) or []
@@ -764,7 +760,9 @@ def build_architect_theory_execution_preflight_prompt(
             "reviewer prose is not "
             "independent support. Keep each rationale to the decisive calculation or "
             "observation and do not carry downstream proof obligations as execution "
-            "blockers."
+            "blockers. Require a finite estimator only when review_scope marks the "
+            "execution handoff required; otherwise do not invent one as a condition "
+            "of mathematical ACCEPT."
         ),
     }
     return (
@@ -2399,9 +2397,6 @@ def _normalize_packet(
             str(value)
             for value in material.get("required_claim_review_ids", []) or []
         ],
-        "review_considerations": list(
-            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-        ),
         "required_estimator_ids": [
             str(value)
             for value in material.get("required_estimator_ids", []) or []
@@ -2835,9 +2830,6 @@ def validate_architect_theory_execution_preflight_packet(
             str(value)
             for value in material.get("required_claim_review_ids", []) or []
         ],
-        "review_considerations": list(
-            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-        ),
         "required_estimator_ids": required_estimator_ids,
         "scope_source": "runtime_bound_review_material",
         "model_reported_per_item_statuses": False,
@@ -3015,7 +3007,9 @@ def validate_architect_theory_execution_preflight_packet(
             "theory execution preflight overall verdict contradicts its blocking "
             "findings or prior-finding dispositions"
         )
-    if not required_estimator_ids and expected_verdict != "REVISE":
+    if material.get("execution_handoff_required", True) and not (
+        required_estimator_ids or expected_verdict == "REVISE"
+    ):
         errors.append("theory execution preflight cannot accept without an estimator")
     if packet.get("overall_verdict") == "REVISE" and not findings:
         errors.append(

@@ -1337,6 +1337,8 @@ def build_architect_upstream_research_contract(
             "proof, implementation, or simulation evidence."
         ),
     }
+    if dimension_requirements := runtime_contract.get("dimension_requirements"):
+        contract["dimension_requirements"] = deepcopy(dimension_requirements)
     contract["contract_fingerprint"] = stable_hash(contract)
     return contract
 
