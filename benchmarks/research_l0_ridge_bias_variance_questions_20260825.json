@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "fixed_design_ridge_bias_variance_known_result",
+      "title": "Fixed-design ridge regression bias, covariance, and coefficient risk",
+      "description": "Focused L0 known-result evaluation based on Arthur E. Hoerl and Robert W. Kennard, Ridge Regression: Biased Estimation for Nonorthogonal Problems, Technometrics 12 (1970), 55-67, DOI 10.1080/00401706.1970.10488634. Let y=X beta+epsilon for a fixed finite real n by p design X with n>p>=1 and full column rank, E(epsilon|X)=0, and Cov(epsilon|X)=sigma^2 I_n with sigma^2>0. For lambda>=0, define beta_hat_lambda=(X^T X+lambda I_p)^{-1}X^T y. Develop one authoritative Markdown/LaTeX derivation of its conditional expectation, bias, covariance, and total coefficient mean-squared error E[||beta_hat_lambda-beta||_2^2|X]. Diagonalize X^T X to express the risk coordinate by coordinate, recover OLS at lambda=0, and show from the risk derivative at zero that some sufficiently small positive penalty strictly lowers total coefficient risk relative to OLS while introducing bias. Keep finite-sample identities distinct from Gaussian distributional statements and do not infer universal optimality of one penalty. The required model-authored artifact is est_fixed_design_ridge and must implement run_estimator(request) exactly for the frozen public contract. Exploratory Python or R may check matrix identities or implementation behavior. A separately frozen confirmatory assessment uses independent Gaussian errors at predeclared fixed full-rank designs to compare repeated-sampling coefficient means, covariances, total coefficient risk, and a paired ridge-versus-OLS risk contrast with Monte Carlo uncertainty. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "linear_models",
+        "ridge_regression",
+        "bias_variance",
+        "fixed_design",
+        "L0"
+      ],
+      "source": {
+        "title": "Ridge Regression: Biased Estimation for Nonorthogonal Problems",
+        "author": "Arthur E. Hoerl and Robert W. Kennard",
+        "journal": "Technometrics",
+        "year": 1970,
+        "volume": 12,
+        "issue": 1,
+        "pages": "55-67",
+        "doi": "10.1080/00401706.1970.10488634",
+        "url": "https://doi.org/10.1080/00401706.1970.10488634"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_fixed_design_ridge",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.design_matrix",
+            "name": "design_matrix",
+            "meaning": "The fixed real n by p design matrix X, represented by observations in rows and features in columns.",
+            "json_type": "array[array[number]]",
+            "shape": "rectangular n by p with n>p>=1, every entry finite, and full column rank",
+            "units": "feature-specific measurement units",
+            "indexing": "outer index i is observation row i and inner index j is feature column j",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, ragged or empty rows, n<=p, and rank-deficient designs.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.response",
+            "name": "response",
+            "meaning": "The finite observed response vector y aligned row-for-row with design_matrix.",
+            "json_type": "array[number]",
+            "shape": "length n with every entry finite",
+            "units": "response measurement",
+            "indexing": "entry i is the response for design row i",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries and any length different from n.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.penalty",
+            "name": "penalty",
+            "meaning": "The nonnegative ridge penalty lambda applied equally to every coefficient.",
+            "json_type": "number",
+            "shape": "finite scalar greater than or equal to zero",
+            "units": "squared design units under the stated parameterization",
+            "indexing": "one scalar for all p diagonal penalty entries",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite values and negative penalties.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n_observations",
+            "name": "n_observations",
+            "meaning": "The number n of design rows and aligned responses.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "observations",
+            "indexing": "equals len(design_matrix) and len(response)",
+            "edge_cases": "Must be an integer strictly larger than n_features.",
+            "normalization": "No normalization."
+          },
+          {
+            "clause_id": "response.n_features",
+            "name": "n_features",
+            "meaning": "The number p of design columns and ridge coefficients.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "features",
+            "indexing": "equals the common row length of design_matrix",
+            "edge_cases": "Must be a positive integer smaller than n_observations.",
+            "normalization": "No normalization."
+          },
+          {
+            "clause_id": "response.penalty",
+            "name": "penalty",
+            "meaning": "The exact accepted nonnegative ridge penalty lambda.",
+            "json_type": "number",
+            "shape": "nonnegative finite scalar",
+            "units": "squared design units",
+            "indexing": "echoes the request value",
+            "edge_cases": "Must equal the accepted request value.",
+            "normalization": "No normalization."
+          },
+          {
+            "clause_id": "response.coefficients",
+            "name": "coefficients",
+            "meaning": "The p-vector (X^T X+lambda I_p)^{-1}X^T y in design-column order.",
+            "json_type": "array[number]",
+            "shape": "length p with every entry finite",
+            "units": "response units per corresponding feature unit",
+            "indexing": "entry j is the coefficient for design column j",
+            "edge_cases": "Must remain finite at lambda=0 because the admitted design is full column rank.",
+            "normalization": "No sample-size rescaling of X^T X or lambda."
+          },
+          {
+            "clause_id": "response.fitted_values",
+            "name": "fitted_values",
+            "meaning": "The n-vector X beta_hat_lambda in design-row order.",
+            "json_type": "array[number]",
+            "shape": "length n with every entry finite",
+            "units": "response measurement",
+            "indexing": "entry i corresponds to design row i",
+            "edge_cases": "Must use the returned coefficient vector without clipping.",
+            "normalization": "Matrix product X times coefficients."
+          },
+          {
+            "clause_id": "response.residual_sum_squares",
+            "name": "residual_sum_squares",
+            "meaning": "The unnormalized squared Euclidean residual norm ||y-X beta_hat_lambda||_2^2.",
+            "json_type": "number",
+            "shape": "nonnegative finite scalar",
+            "units": "squared response units",
+            "indexing": "uses every aligned response and fitted value once",
+            "edge_cases": "Roundoff-scale negative values are not valid outputs.",
+            "normalization": "No division by n or residual degrees of freedom."
+          },
+          {
+            "clause_id": "response.effective_degrees_of_freedom",
+            "name": "effective_degrees_of_freedom",
+            "meaning": "trace[X(X^T X+lambda I_p)^{-1}X^T].",
+            "json_type": "number",
+            "shape": "finite scalar in (0,p]",
+            "units": "dimensionless",
+            "indexing": "uses the same X and lambda as coefficients",
+            "edge_cases": "Equals p at lambda=0 and is strictly below p for lambda>0.",
+            "normalization": "Unnormalized trace of the ridge hat matrix."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.normal_equation",
+            "meaning": "The returned coefficients satisfy (X^T X+lambda I_p) coefficients=X^T y to numerical precision, and every derived response field uses that same vector."
+          },
+          {
+            "clause_id": "invariant.row_permutation",
+            "meaning": "Applying one common row permutation to design_matrix and response preserves coefficients, penalty, residual_sum_squares, and effective_degrees_of_freedom and applies that permutation to fitted_values."
+          },
+          {
+            "clause_id": "invariant.response_rescaling",
+            "meaning": "Multiplying response by a finite scalar a multiplies coefficients and fitted_values by a, multiplies residual_sum_squares by a^2, and preserves dimensions, penalty, and effective_degrees_of_freedom."
+          },
+          {
+            "clause_id": "invariant.ols_boundary",
+            "meaning": "At penalty zero, coefficients equal the ordinary full-rank least-squares solution and effective_degrees_of_freedom equals p."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.moment_calibration",
+            "meaning": "At each frozen fixed design, beta, sigma, and positive penalty, repeated Gaussian-error ridge coefficients have means and covariance compatible with the finite-sample conditional formulas up to declared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.risk_calibration",
+            "meaning": "At each frozen setting, repeated coefficient squared error is compatible with squared bias plus covariance trace, with Monte Carlo uncertainty reported rather than treated as proof."
+          },
+          {
+            "clause_id": "claim.empirical.small_penalty_improvement",
+            "meaning": "For the predeclared fixed designs and coefficient vectors, a predeclared positive penalty has lower paired repeated-sampling coefficient squared error than penalty zero, with the paired Monte Carlo standard error reported."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory call supplies the exact frozen design, generated response, and penalty and verifies the public ridge formula and output schema before aggregating outcomes."
+          }
+        ]
+      }
+    }
+  ]
+}
