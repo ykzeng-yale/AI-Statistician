@@ -2145,7 +2145,7 @@ def test_pymle_l1_draw_is_consumed_as_first_source_replication_pass() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is True
     readiness = ladder["current_readiness"]
-    assert readiness["consumed_scored_tasks"] == 34
+    assert readiness["consumed_scored_tasks"] == 35
     assert readiness["fully_gold_passed_tasks"] == 2
     assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
@@ -2229,7 +2229,7 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 35
-    assert readiness["consumed_scored_tasks"] == 34
+    assert readiness["consumed_scored_tasks"] == 35
     assert readiness["fully_gold_configured_tasks"] == 35
     assert readiness["fully_gold_passed_tasks"] == 2
     visible_path = Path(candidate["visible_questions_path"])
@@ -2371,7 +2371,7 @@ def test_complete_randomization_l0_draw_is_consumed_and_failed_closed() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 35
-    assert readiness["consumed_scored_tasks"] == 34
+    assert readiness["consumed_scored_tasks"] == 35
     assert readiness["fully_gold_configured_tasks"] == 35
     assert readiness["fully_gold_passed_tasks"] == 2
 
@@ -2487,7 +2487,7 @@ def test_bootstrap_mean_l0_records_one_consumed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 35
-    assert readiness["consumed_scored_tasks"] == 34
+    assert readiness["consumed_scored_tasks"] == 35
     assert readiness["fully_gold_configured_tasks"] == 35
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
@@ -2527,7 +2527,7 @@ def test_bootstrap_mean_l0_records_one_consumed_draw() -> None:
         assert hidden_name not in runtime_visible
 
 
-def test_mann_whitney_u_r_l0_is_frozen_before_first_draw() -> None:
+def test_mann_whitney_u_r_l0_records_sole_consumed_draw() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -2538,7 +2538,9 @@ def test_mann_whitney_u_r_l0_is_frozen_before_first_draw() -> None:
     assert candidate["level"] == "L0"
     assert candidate["family"] == "two_sample_rank_inference_r"
     assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"] == "frozen_ready_v1_unrun"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_full_task_gold_failed_metric_protocol_liveness"
+    )
     assert candidate["gold_manifest_sha256"] == (
         "798d7289053073417c44922f0fe8f7f21c91da6015ed8d701a9188598c167994"
     )
@@ -2553,10 +2555,10 @@ def test_mann_whitney_u_r_l0_is_frozen_before_first_draw() -> None:
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
-    assert evidence["runtime_model_policy_status"] == "PENDING_FIRST_DRAW"
+    assert evidence["runtime_model_policy_status"] == "OK"
     assert evidence["required_model_owned_estimator_language"] == "r"
     assert evidence["required_model_owned_simulation_language"] == "r"
     assert evidence["webr_available"] is True
@@ -2572,14 +2574,27 @@ def test_mann_whitney_u_r_l0_is_frozen_before_first_draw() -> None:
     assert evidence["exact_estimator_reviewer_probe_mechanism_head"] == (
         "5daec039b8564100b9d2f812bfefdc8cb6e2b24b"
     )
-    assert evidence["model_draw_resampling_blocked"] is False
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_failure_classification"] == (
+        "architect_metric_requirement_packet_validation_failed"
+    )
+    assert evidence["runtime_research_evaluation"] == "0/1"
+    assert evidence["hidden_gold_evaluation"] == "0/1"
+    assert evidence["hidden_theory_checks"] == "7/7"
+    assert evidence["hidden_theory_semantic_checks"] == "7/7"
+    assert evidence["hidden_algorithm_checks"] == "14/14"
+    assert evidence["hidden_empirical_checks"] == "6/6"
+    assert evidence["generated_code_reviewer_exact_estimator_probes"] == 2
+    assert evidence["metric_protocol_truncated_terminal_inputs"] == 4
+    assert evidence["metric_protocol_executed_rejected_submissions"] == 1
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 35
-    assert readiness["consumed_scored_tasks"] == 34
+    assert readiness["consumed_scored_tasks"] == 35
     assert readiness["fully_gold_configured_tasks"] == 35
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
