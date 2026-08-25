@@ -3680,15 +3680,22 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     def run_generated_simulation_sandbox(**kwargs):
         sandbox_calls.append(dict(kwargs))
         source = str(kwargs["code_draft"]["code"])
-        metrics = {"generic_metric": 0.2}
-        source_path = tmp_path / "confirmatory.py"
-        result_path = tmp_path / "confirmatory.json"
+        diagnostic = bool(
+            kwargs["validation_context"].get("source_authoring_diagnostic")
+        )
+        value = 0.95 if diagnostic else 0.2
+        metrics = {"generic_metric": value}
+        phase = "diagnostic" if diagnostic else "confirmatory"
+        source_path = tmp_path / f"{phase}.py"
+        result_path = tmp_path / f"{phase}.json"
         source_path.write_text(source, encoding="utf-8")
         result_path.write_text(json.dumps(metrics), encoding="utf-8")
         return (
             {
                 "simulation_id": str(kwargs["simulation_id"]),
-                "prototype_status": "FAILED_METRIC_GATE",
+                "prototype_status": (
+                    "EXECUTED" if diagnostic else "FAILED_METRIC_GATE"
+                ),
                 "executor": "generated_simulation_sandbox",
                 "language": "python",
                 "requested_execution_profile": "stdlib",
@@ -3701,12 +3708,18 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
                 "result_path": str(result_path),
                 "result_hash": runtime_module.stable_hash(metrics),
                 "metrics": metrics,
-                "smoke_passed": False,
+                "runtime_seed": kwargs["seed"],
+                "runtime_replicates": kwargs["n_runs"],
+                "smoke_passed": diagnostic,
                 "execution_smoke_passed": True,
                 "execution_attempted": True,
                 "returncode": 0,
-                "stdout_summary": "generic_metric=0.2",
-                "metric_gate_errors": ["observed 0.2 is below frozen 0.9"],
+                "stdout_summary": f"generic_metric={value}",
+                "metric_gate_errors": (
+                    []
+                    if diagnostic
+                    else ["observed 0.2 is below frozen 0.9"]
+                ),
                 "metric_contracts": [
                     {
                         "contract_id": "frozen-gate",
@@ -3717,14 +3730,14 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
                 "metric_requirement_set_id": "metric-requirements:frozen",
                 "metric_contract_evaluation": {
                     "n_contracts": 1,
-                    "n_passed": 0,
-                    "n_failed": 1,
+                    "n_passed": 1 if diagnostic else 0,
+                    "n_failed": 0 if diagnostic else 1,
                     "evaluations": [
                         {
                             "contract_id": "frozen-gate",
-                            "passed": False,
-                            "resolved_values_preview": [0.2],
-                            "aggregate_value": 0.2,
+                            "passed": diagnostic,
+                            "resolved_values_preview": [value],
+                            "aggregate_value": value,
                         }
                     ],
                 },
@@ -3805,7 +3818,10 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     assert SimulationAgent.source_calls == 1
     assert source_checks[0]["accepted"] is True
     source_observation = source_checks[0]["prototype"]
-    assert source_observation["empirical_outcomes_withheld"] is True
+    assert "empirical_outcomes_withheld" not in source_observation
+    assert source_observation["metrics_preview"] == {"generic_metric": 0.95}
+    assert source_observation["runtime_replicates"] == 7_300
+    assert source_observation["runtime_seed"] != 11
     assert "0.2" not in str(source_observation)
     assert "metric_gate_errors" not in source_observation
     assert result.status == "REROUTE"
@@ -3859,8 +3875,19 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     assert SimulationAgent.source_calls == 1
     assert source_workspace_operations == ["initial_authoring"]
     assert len(source_initial_observations) == 1
-    assert len(sandbox_calls) == 1
-    assert sandbox_calls[0]["n_runs"] == 7_300
+    assert len(sandbox_calls) == 2
+    diagnostic_call, confirmatory_call = sandbox_calls
+    assert diagnostic_call["n_runs"] == 7_300
+    assert confirmatory_call["n_runs"] == 7_300
+    assert diagnostic_call["seed"] != confirmatory_call["seed"] == 11
+    assert diagnostic_call["validation_context"][
+        "source_authoring_diagnostic"
+    ] is True
+    assert confirmatory_call["validation_context"][
+        "source_authoring_diagnostic"
+    ] is False
+    assert "authoring-diagnostic" in str(diagnostic_call["sandbox_dir"])
+    assert "authoring-diagnostic" not in str(confirmatory_call["sandbox_dir"])
     assert not any(
         isinstance(artifact, dict)
         and artifact.get("artifact_kind")

@@ -21,6 +21,7 @@ from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
     load_scientific_code_workspace_checkpoint,
     run_scientific_code_workspace,
+    run_source_owner_scientific_workspace,
     scientific_workspace_prototype_observation,
 )
 from ai_statistician.structured_output_retry import PacketValidationError
@@ -236,6 +237,132 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
     assert len(backend.requests) == 2
+
+
+def test_blind_confirmatory_executes_once_after_model_owned_diagnostic_loop() -> None:
+    first = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates): return {'score': 0.2}\n",
+    }
+    revised = {
+        **first,
+        "code": "def run_sandbox(seed, replicates): return {'score': 0.95}\n",
+    }
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="submit-revised",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=revised,
+                )
+            ),
+            _commit_response(),
+        ]
+    )
+
+    class SourceAgent:
+        provider = backend
+
+        @classmethod
+        def iterate_code_with_tools(cls, **kwargs):
+            return run_scientific_code_workspace(
+                provider=cls.provider,
+                system_prompt="Use the scientific source tools.",
+                user_prompt="Implement and diagnose the current simulation source.",
+                model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+                model_tier="haiku",
+                temperature=0.0,
+                max_tokens=1200,
+                max_turns=4,
+                max_no_progress_turns=3,
+                artifact_id=kwargs["artifact_id"],
+                initial_code_draft=kwargs["code_draft"],
+                initial_check_result=kwargs["initial_observation"],
+                check_candidate=kwargs["check_candidate"],
+                workspace_operation=kwargs["workspace_operation"],
+            )
+
+    diagnostic_sources: list[str] = []
+    confirmatory_sources: list[str] = []
+
+    def diagnostic(candidate):
+        source = str(candidate["code"])
+        diagnostic_sources.append(source)
+        score = 0.95 if candidate == revised else 0.2
+        return (
+            {
+                "script_hash": stable_hash(source),
+                "result_hash": stable_hash({"score": score}),
+                "runtime_seed": 17,
+                "runtime_replicates": 200,
+                "execution_attempted": True,
+                "execution_smoke_passed": True,
+                "smoke_passed": score >= 0.9,
+                "metrics": {"score": score},
+                "metric_gate_errors": (
+                    [] if score >= 0.9 else ["diagnostic score below 0.9"]
+                ),
+                "metric_contract_evaluation": {
+                    "evaluations": [
+                        {
+                            "contract_id": "diagnostic-score",
+                            "passed": score >= 0.9,
+                            "aggregate_value": score,
+                        }
+                    ]
+                },
+            },
+            f"diagnostic:{len(diagnostic_sources)}",
+        )
+
+    def confirmatory(candidate):
+        source = str(candidate["code"])
+        confirmatory_sources.append(source)
+        return (
+            {
+                "script_hash": stable_hash(source),
+                "result_hash": "confirmatory-secret-result-hash",
+                "runtime_seed": 29,
+                "runtime_replicates": 2_000,
+                "execution_attempted": True,
+                "execution_smoke_passed": True,
+                "smoke_passed": False,
+                "metrics": {"score": 0.1},
+                "metric_gate_errors": ["confirmatory-secret-failure"],
+            },
+            "confirmatory",
+        )
+
+    prototype, tool_calls = run_source_owner_scientific_workspace(
+        proposal_agent=SourceAgent(),
+        question=object(),
+        artifact_id="question:blind-simulation",
+        code_draft=first,
+        source_deferred=False,
+        workspace_context={},
+        execute_candidate=confirmatory,
+        execute_authoring_diagnostic=diagnostic,
+        failure_identity={"simulation_id": "blind-simulation"},
+        confirmatory_result_blind=True,
+    )
+
+    assert diagnostic_sources == [first["code"], revised["code"]]
+    assert confirmatory_sources == [revised["code"]]
+    assert tool_calls == ["diagnostic:1", "diagnostic:2", "confirmatory"]
+    assert prototype["metric_gate_errors"] == ["confirmatory-secret-failure"]
+    workspace = prototype["scientific_code_workspace"]
+    assert workspace["authoring_execution_phase"] == "exploratory_diagnostic"
+    assert workspace["authoring_diagnostic_accepted"] is True
+    assert workspace["confirmatory_execution_after_model_commit"] is True
+    assert workspace["confirmatory_outcomes_returned_to_source_model"] is False
+    transcript = str([request.messages for request in backend.requests])
+    assert "diagnostic score below 0.9" in transcript
+    assert '"score":0.95' in transcript
+    assert "confirmatory-secret" not in transcript
 
 
 def test_same_model_can_revise_after_technically_successful_execution() -> None:

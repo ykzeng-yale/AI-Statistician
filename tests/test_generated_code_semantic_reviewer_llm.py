@@ -184,6 +184,27 @@ def test_semantic_review_receives_exact_source_and_public_interface() -> None:
     assert "For executable_interface_alignment" not in prompt
 
 
+def test_semantic_review_keeps_current_artifact_distinct_from_dependency() -> None:
+    material = _review_material()
+    material["upstream_generated_dependency"] = {
+        "exact_dependency_artifacts": [
+            {
+                "artifact_id": "estimator:upstream",
+                "exact_source_code": "def run_estimator(request): return {'estimate': 0.0}",
+            }
+        ]
+    }
+
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question(),
+        review_material=material,
+    )
+
+    assert "exact_executed_artifacts as the current target" in prompt
+    assert "upstream_generated_dependency as context only" in prompt
+    assert "never substitute an upstream review" in prompt
+
+
 def _dimension_rows(*, failed: str = "") -> dict[str, dict[str, object]]:
     return {
         dimension: {

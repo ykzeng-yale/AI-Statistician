@@ -39,6 +39,7 @@ from .structured_output_retry import PacketValidationError
 
 
 ScientificCodeCheck = Callable[[Mapping[str, Any]], Mapping[str, Any]]
+ScientificCandidateExecutor = Callable[[Mapping[str, Any]], tuple[dict[str, Any], Any | Sequence[Any]]]
 
 SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS = "native_client_tools"
 SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET = "structured_packet"
@@ -663,10 +664,8 @@ def run_source_owner_scientific_workspace(
     code_draft: Mapping[str, Any],
     source_deferred: bool,
     workspace_context: Mapping[str, Any],
-    execute_candidate: Callable[
-        [Mapping[str, Any]],
-        tuple[dict[str, Any], Any | Sequence[Any]],
-    ],
+    execute_candidate: ScientificCandidateExecutor,
+    execute_authoring_diagnostic: ScientificCandidateExecutor | None = None,
     failure_identity: Mapping[str, Any],
     external_initial_observation: Mapping[str, Any] | None = None,
     confirmatory_result_blind: bool = False,
@@ -677,28 +676,27 @@ def run_source_owner_scientific_workspace(
 ) -> tuple[dict[str, Any], list[Any]]:
     """Run one source owner's direct model/tool feedback loop."""
 
+    if execute_authoring_diagnostic and not confirmatory_result_blind:
+        raise ValueError("authoring diagnostic requires blinded confirmation")
+
     can_use_workspace = bool(
         proposal_agent is not None
-        and callable(
-            getattr(
-                getattr(proposal_agent, "provider", None),
-                "generate_client_tool_turn",
-                None,
-            )
-        )
+        and callable(getattr(
+            getattr(proposal_agent, "provider", None),
+            "generate_client_tool_turn", None,
+        ))
         and callable(getattr(proposal_agent, "iterate_code_with_tools", None))
     )
     tool_calls: list[Any] = []
     last_checked_prototype: dict[str, Any] = {}
-    bound_execution_fields = (
-        {
-            "required_estimator_ids": deepcopy(
-                list(code_draft.get("required_estimator_ids", []) or [])
-            )
-        }
-        if "required_estimator_ids" in code_draft
-        else {}
-    )
+    authoring_diagnostic_enabled = bool(confirmatory_result_blind and execute_authoring_diagnostic and can_use_workspace)
+    workspace_executor = execute_authoring_diagnostic if authoring_diagnostic_enabled else execute_candidate
+    workspace_result_blind = confirmatory_result_blind and not authoring_diagnostic_enabled
+    bound_execution_fields = {}
+    if "required_estimator_ids" in code_draft:
+        bound_execution_fields["required_estimator_ids"] = deepcopy(
+            list(code_draft.get("required_estimator_ids", []) or [])
+        )
 
     def record_tool_calls(value: Any | Sequence[Any]) -> None:
         if isinstance(value, (list, tuple)):
@@ -706,16 +704,32 @@ def run_source_owner_scientific_workspace(
         else:
             tool_calls.append(value)
 
+    def failed_prototype(status: str, **details: Any) -> dict[str, Any]:
+        return {
+            **dict(failure_identity),
+            "prototype_status": status,
+            "smoke_passed": False,
+            "execution_smoke_passed": False,
+            **details,
+        }
+
+    def source_draft(row: Mapping[str, Any]) -> dict[str, Any]:
+        return {
+            key: deepcopy(row[key])
+            for key in ("language", "execution_profile", "dependencies", "entrypoint", "code")
+            if key in row
+        }
+
     def source_candidate_accepted(prototype: Mapping[str, Any]) -> bool:
         return scientific_source_candidate_accepted(
             prototype,
-            confirmatory_result_blind=confirmatory_result_blind,
+            confirmatory_result_blind=workspace_result_blind,
         )
 
     def source_observation(prototype: Mapping[str, Any]) -> dict[str, Any]:
         return scientific_workspace_prototype_observation(
             prototype,
-            include_empirical_outcomes=not confirmatory_result_blind,
+            include_empirical_outcomes=not workspace_result_blind,
         )
 
     def check_candidate(candidate: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -726,23 +740,20 @@ def run_source_owner_scientific_workspace(
             candidate_source
             and candidate_source_hash in disallowed_unchanged_source_hashes
         ):
-            prototype = {
-                **dict(failure_identity),
-                "prototype_status": "UNCHANGED_SOURCE_REJECTED",
-                "source_code": candidate_source,
-                "script_hash": candidate_source_hash,
-                "parent_script_hash": candidate_source_hash,
-                "execution_attempted": False,
-                "execution_smoke_passed": False,
-                "smoke_passed": False,
-                "runtime_errors": [
+            prototype = failed_prototype(
+                "UNCHANGED_SOURCE_REJECTED",
+                source_code=candidate_source,
+                script_hash=candidate_source_hash,
+                parent_script_hash=candidate_source_hash,
+                execution_attempted=False,
+                runtime_errors=[
                     "The candidate source hash matches a released parent source; "
                     "an unchanged candidate cannot consume a fresh evaluation cohort."
                 ],
-                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-            }
+                proof_evidence_status="NOT_PROOF_EVIDENCE",
+            )
         else:
-            prototype, tool_call = execute_candidate(execution_candidate)
+            prototype, tool_call = workspace_executor(execution_candidate)
             record_tool_calls(tool_call)
         last_checked_prototype.clear()
         last_checked_prototype.update(deepcopy(dict(prototype)))
@@ -751,9 +762,7 @@ def run_source_owner_scientific_workspace(
             "accepted": source_candidate_accepted(prototype),
             "prototype": source_observation(prototype),
         }
-        disposition = str(
-            prototype.get("source_iteration_disposition", "") or ""
-        ).strip()
+        disposition = str(prototype.get("source_iteration_disposition", "") or "").strip()
         if disposition:
             check["source_iteration_disposition"] = disposition
         source_owner = prototype.get("source_owner", {})
@@ -761,60 +770,39 @@ def run_source_owner_scientific_workspace(
             check["source_owner"] = deepcopy(dict(source_owner))
         return check
 
-    active_recovery_checkpoint = (
-        deepcopy(dict(recovery_checkpoint))
-        if isinstance(recovery_checkpoint, Mapping) and recovery_checkpoint
-        else {}
-    )
+    active_recovery_checkpoint = {}
+    if isinstance(recovery_checkpoint, Mapping) and recovery_checkpoint:
+        active_recovery_checkpoint = deepcopy(dict(recovery_checkpoint))
     if active_recovery_checkpoint:
         try:
-            workspace_draft, initial_observation = (
-                load_scientific_code_workspace_checkpoint(
-                    active_recovery_checkpoint,
-                    artifact_id=artifact_id,
-                )
+            workspace_draft, initial_observation = load_scientific_code_workspace_checkpoint(
+                active_recovery_checkpoint, artifact_id=artifact_id
             )
         except ValueError as exc:
             return (
-                {
-                    **dict(failure_identity),
-                    "prototype_status": "SCIENTIFIC_WORKSPACE_CHECKPOINT_INVALID",
-                    "smoke_passed": False,
-                    "execution_smoke_passed": False,
-                    "scientific_code_workspace_failure": {
+                failed_prototype(
+                    "SCIENTIFIC_WORKSPACE_CHECKPOINT_INVALID",
+                    scientific_code_workspace_failure={
                         "validation_errors": [str(exc)],
                         "recovery_checkpoint": active_recovery_checkpoint,
                         "runtime_edited_source": False,
                     },
-                },
+                ),
                 tool_calls,
             )
-        workspace_operation = str(
-            active_recovery_checkpoint.get(
-                "workspace_operation", "targeted_revision"
-            )
-            or "targeted_revision"
-        )
-        prototype = {
-            **dict(failure_identity),
-            "prototype_status": "MODEL_SOURCE_WORKSPACE_FAILED",
-            "smoke_passed": False,
-            "execution_smoke_passed": False,
-        }
+        workspace_operation = str(active_recovery_checkpoint.get(
+            "workspace_operation", "targeted_revision"
+        ) or "targeted_revision")
+        prototype = failed_prototype("MODEL_SOURCE_WORKSPACE_FAILED")
     elif source_deferred:
         if not can_use_workspace:
             return (
-                {
-                    **dict(failure_identity),
-                    "prototype_status": "MODEL_SOURCE_WORKSPACE_UNAVAILABLE",
-                    "smoke_passed": False,
-                    "execution_smoke_passed": False,
-                    "reason": (
-                        "The planning envelope deferred source to native client "
-                        "tools, but the source-owning provider has no callable "
-                        "workspace."
+                failed_prototype(
+                    "MODEL_SOURCE_WORKSPACE_UNAVAILABLE",
+                    reason=(
+                        "Deferred source requires a callable source-owner workspace."
                     ),
-                },
+                ),
                 tool_calls,
             )
         workspace_draft: Mapping[str, Any] | None = None
@@ -825,66 +813,41 @@ def run_source_owner_scientific_workspace(
             "artifact_id": artifact_id,
             "execution_attempted": False,
             "observation": (
-                "No source exists yet; author and run the complete candidate in "
-                "this workspace."
+                "No source exists; author and run the complete candidate here."
             ),
         }
-        prototype = {
-            **dict(failure_identity),
-            "prototype_status": "MODEL_SOURCE_WORKSPACE_FAILED",
-            "smoke_passed": False,
-            "execution_smoke_passed": False,
-        }
+        prototype = failed_prototype("MODEL_SOURCE_WORKSPACE_FAILED")
     elif external_initial_observation and can_use_workspace:
-        workspace_draft = {
-            key: deepcopy(code_draft[key])
-            for key in (
-                "language",
-                "execution_profile",
-                "dependencies",
-                "entrypoint",
-                "code",
-            )
-            if key in code_draft
-        }
+        workspace_draft = source_draft(code_draft)
         workspace_operation = "targeted_revision"
         initial_observation = {
             **deepcopy(dict(external_initial_observation)),
             "code_draft_hash": stable_hash(workspace_draft),
             "accepted": False,
         }
-        prototype = {
-            **dict(failure_identity),
-            "prototype_status": "MODEL_SOURCE_WORKSPACE_FAILED",
-            "smoke_passed": False,
-            "execution_smoke_passed": False,
-        }
+        prototype = failed_prototype("MODEL_SOURCE_WORKSPACE_FAILED")
     else:
-        prototype, tool_call = execute_candidate(code_draft)
+        prototype, tool_call = workspace_executor(code_draft)
         record_tool_calls(tool_call)
+        last_checked_prototype.clear()
+        last_checked_prototype.update(deepcopy(dict(prototype)))
         if (
-            source_candidate_accepted(prototype)
-            or prototype.get("source_iteration_disposition")
+            prototype.get("source_iteration_disposition")
             == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
             or not can_use_workspace
+            or not authoring_diagnostic_enabled and source_candidate_accepted(prototype)
         ):
             return prototype, tool_calls
-        workspace_draft = {
-            key: deepcopy(code_draft[key])
-            for key in (
-                "language",
-                "execution_profile",
-                "dependencies",
-                "entrypoint",
-                "code",
-            )
-            if key in code_draft
-        }
+        workspace_draft = source_draft(code_draft)
         workspace_operation = "targeted_revision"
+        initial_accepted = source_candidate_accepted(prototype)
         initial_observation = {
             "code_draft_hash": stable_hash(workspace_draft),
-            "accepted": False,
+            "accepted": initial_accepted,
             "prototype": source_observation(prototype),
+            "source_iteration_disposition": (
+                "accepted" if initial_accepted else SCIENTIFIC_SOURCE_REVISE_CURRENT
+            ),
         }
 
     try:
@@ -913,25 +876,46 @@ def run_source_owner_scientific_workspace(
         return prototype, tool_calls
 
     if not last_checked_prototype:
-        raise RuntimeError(
-            "scientific workspace accepted without a persisted sandbox result"
-        )
-    prototype = deepcopy(last_checked_prototype)
+        raise RuntimeError("scientific workspace accepted without a sandbox result")
     terminal_check = dict(workspace_result.check_result)
-    if (
-        terminal_check.get("source_iteration_disposition")
-        == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
-    ):
+    if terminal_check.get(
+        "source_iteration_disposition"
+    ) == SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER:
+        prototype = deepcopy(last_checked_prototype)
         prototype["source_iteration_disposition"] = (
             SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER
         )
-        prototype["source_owner"] = deepcopy(
-            dict(terminal_check.get("source_owner", {}))
-        )
-        prototype["dependency_failure_report"] = deepcopy(
-            dict(terminal_check.get("dependency_failure_report", {}))
-        )
-    prototype["scientific_code_workspace"] = dict(workspace_result.evidence)
+        prototype["source_owner"] = deepcopy(dict(terminal_check.get("source_owner", {})))
+        prototype["dependency_failure_report"] = deepcopy(dict(
+            terminal_check.get("dependency_failure_report", {})
+        ))
+        prototype["scientific_code_workspace"] = dict(workspace_result.evidence)
+        return prototype, tool_calls
+
+    if authoring_diagnostic_enabled:
+        committed_draft = {**dict(workspace_result.code_draft), **bound_execution_fields}
+        prototype, tool_call = execute_candidate(committed_draft)
+        record_tool_calls(tool_call)
+        workspace_evidence = {
+            **dict(workspace_result.evidence),
+            "authoring_execution_phase": "exploratory_diagnostic",
+            "authoring_diagnostic_accepted": terminal_check.get("accepted") is True,
+            "authoring_diagnostic_source_hash": str(
+                last_checked_prototype.get("script_hash", "") or ""),
+            "authoring_diagnostic_result_hash": str(
+                last_checked_prototype.get("result_hash", "") or ""),
+            "confirmatory_execution_after_model_commit": True,
+            "confirmatory_outcomes_returned_to_source_model": False,
+            "evidence_boundary": (
+                "The model iterates on diagnostic execution; exact committed bytes "
+                "then execute once on a blinded confirmatory cohort whose outcome "
+                "is not returned to the authoring session."
+            ),
+        }
+    else:
+        prototype = deepcopy(last_checked_prototype)
+        workspace_evidence = dict(workspace_result.evidence)
+    prototype["scientific_code_workspace"] = workspace_evidence
     return prototype, tool_calls
 
 
@@ -1023,6 +1007,8 @@ def scientific_workspace_prototype_observation(
             (
                 "prototype_status",
                 "smoke_passed",
+                "runtime_seed",
+                "runtime_replicates",
                 "stdout_summary",
                 "metric_gate_errors",
                 "result_hash",

@@ -10211,12 +10211,26 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "metric_requirement_target_subsystem": (
                         "SimulationEngineer"
                     ),
+                    "source_authoring_diagnostic": False,
                 },
                 "upstream_algorithm_handoff": upstream_algorithm_handoff,
                 "n_runs": n_runs,
                 "seed": seed,
                 "timeout_s": self.timeout_s,
             }
+            authoring_diagnostic_kwargs = deepcopy(execution_kwargs)
+            authoring_diagnostic_kwargs["sandbox_dir"] /= "authoring-diagnostic"
+            authoring_diagnostic_kwargs["validation_context"]["architect_context"].pop(
+                CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY,
+                None,
+            )
+            authoring_diagnostic_kwargs["validation_context"][
+                "source_authoring_diagnostic"
+            ] = True
+            authoring_diagnostic_kwargs["seed"] = (
+                seed + 1 + int(stable_hash([question.id, task.task_id, simulation_id])[:8], 16)
+                % 2_147_483_646
+            ) % 2_147_483_647
 
             parent_source_hash = confirmatory_source_parent_hashes.get(
                 simulation_id, ""
@@ -10310,6 +10324,11 @@ class SimulationEvaluatorRuntimeSubsystem:
                             code_draft=candidate,
                             **execution_kwargs,
                         )
+                    ),
+                    execute_authoring_diagnostic=(
+                        None if exploratory_diagnostic or consumer_resume_manifest_id
+                        else lambda candidate: _run_generated_simulation_sandbox(
+                            code_draft=candidate, **authoring_diagnostic_kwargs)
                     ),
                     failure_identity={
                         "simulation_id": simulation_id,
