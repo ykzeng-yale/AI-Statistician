@@ -6,7 +6,7 @@ Upstream reviewed: [`openai/codex`](https://github.com/openai/codex) at
 `7e1ee6df6c9d2b483ed627f50f5bd44608c00cd8` (Apache-2.0).
 
 Latest implementation commit:
-`be8d57ab6ec06ffa52f88e3a0e5ddd4a94ec9379`.
+`27f3893a2c760a5bd90ca84b6c86e0525e3e99ec`.
 
 Primary references:
 
@@ -465,6 +465,44 @@ post-consumption evidence, so Mann-Whitney v1 remains `0/1`.
 The official checkout was then fast-forwarded from `a9e447a` to `7e1ee6d`. The
 relevant new changes make per-step settings and activation explicit and atomic;
 other app-server and product changes do not alter the selective-adoption decision.
+
+## Fixed-effect meta-analysis validation and atomic edits
+
+The next disjoint fixed-effect meta-analysis R task also remains immutable `0/1`.
+Its three-document Markdown/LaTeX theory passed `7/7` hidden mechanical checks and
+`7/7` calibrated semantic claims. Exact empirical behavior passed `7/7` checks over
+12,000 estimator calls. The generated R estimator passed only `12/15` public-interface
+checks, however: it did not reject malformed request keys or a named `theta0`, and the
+isolated reviewer missed both explicit public boundaries with its one optional probe.
+
+The runtime then exposed a narrower workspace issue. One commit observation reported
+three invalid operator values. The source-owning model understood the feedback but the
+v2 tool could replace only one exact literal per turn. It repaired two rows, exhausted
+the standard workspace turns, and correctly failed its terminal commit with the third
+row still invalid. Simulation and Critic did not run.
+
+Commit `27f3893a` keeps the same model, session, three tool names, turn budget, and
+hash-only terminal commit. `edit_metric_protocol` now accepts one ordered batch of
+model-authored exact replacements under the current parent SHA-256. Runtime validates
+every replacement against progressively revised bytes before mutating the external
+document; if any match is absent, none of the batch is stored. There is no arbitrary
+edit-count ceiling beyond the existing request-token boundary. The obsolete v2 input
+shape was removed rather than retained as a hidden fallback.
+
+The same commit asks the existing source reviewer to actively falsify explicit public
+acceptance, rejection, and boundary behavior. When its exact-artifact probe is
+available, the reviewer is encouraged to cover several load-bearing cases in one
+model-authored probe. The harness still does not prescribe cases, maintain a fixed
+checklist, inspect hidden outcomes, interpret probe results, patch source, or add a
+reviewer, retry, call, turn, scheduler, or model escalation.
+
+One regression deliberately supplies a malformed second replacement, confirms that
+the first replacement was not persisted, and then succeeds from the unchanged parent
+hash in the same session. Reviewer, workspace, core architecture, and full-repository
+tests pass `889/889` in 70.09 seconds. Production Python remains below the unchanged
+budget at 149,988 lines; `research_agent_runtime.py` remains 24,973 lines and
+`AgentRuntime` remains 1,159 lines. This is future-task mechanism evidence only and
+cannot repair or rescore the consumed meta-analysis draw.
 
 ## Standalone sandbox boundary
 
