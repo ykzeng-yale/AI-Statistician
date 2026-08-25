@@ -3,29 +3,29 @@
 Date: 2026-08-25
 
 Upstream reviewed: [`openai/codex`](https://github.com/openai/codex) at
-`62bfa41a837a3c402ee1888ac0e25ea479083723` (Apache-2.0).
+`4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest implementation commit:
-`1862946b69d2819b23ad294bf2876ab65d9fb764`.
+`1a1f11d993654cef8760d1296701155f9b3c68fd`.
 
 Primary references:
 
-- [`run_turn`](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/core/src/session/turn.rs)
-- [`ToolRouter`](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/core/src/tools/router.rs)
-- [`ToolOrchestrator`](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/core/src/tools/orchestrator.rs)
-- [`TurnContext`](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/core/src/session/turn_context.rs)
-- [`apply_patch` runtime](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/core/src/tools/runtimes/apply_patch.rs)
-- [atomic step activation](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/core/src/session/step_activation.rs)
-- [committed step settings](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/core/src/session/step_settings.rs)
-- [model-actionable tool failures](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/core/src/tools/parallel.rs)
-- [tool failure taxonomy](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/tools/src/function_call_error.rs)
-- [terminal-error pending-input preservation](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/core/src/tasks/regular.rs)
-- [checkpoint context-window compaction](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/core/src/compact_token_budget.rs)
-- [paginated thread history](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/app-server-protocol/src/protocol/v2/thread.rs)
-- [multi-agent input lineage](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/core/src/session/input_queue.rs)
-- [standalone sandbox implementation](https://github.com/openai/codex/tree/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/sandboxing)
-- [credential-safe Git metadata](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/protocol/src/sanitized_git_url.rs)
-- [bounded reserved-tool schemas](https://github.com/openai/codex/blob/62bfa41a837a3c402ee1888ac0e25ea479083723/codex-rs/tools/src/json_schema.rs)
+- [`run_turn`](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/session/turn.rs)
+- [`ToolRouter`](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/tools/router.rs)
+- [`ToolOrchestrator`](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/tools/orchestrator.rs)
+- [`TurnContext`](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/session/turn_context.rs)
+- [`apply_patch` runtime](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/tools/runtimes/apply_patch.rs)
+- [atomic step activation](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/session/step_activation.rs)
+- [committed step settings](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/session/step_settings.rs)
+- [model-actionable tool failures](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/tools/parallel.rs)
+- [tool failure taxonomy](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/tools/src/function_call_error.rs)
+- [terminal-error pending-input preservation](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/tasks/regular.rs)
+- [checkpoint context-window compaction](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/compact_token_budget.rs)
+- [paginated thread history](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/app-server-protocol/src/protocol/v2/thread.rs)
+- [multi-agent input lineage](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/session/input_queue.rs)
+- [standalone sandbox implementation](https://github.com/openai/codex/tree/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/sandboxing)
+- [credential-safe Git metadata](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/protocol/src/sanitized_git_url.rs)
+- [bounded reserved-tool schemas](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/tools/src/json_schema.rs)
 - [OpenAI's agent-loop explanation](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [OpenAI's App Server harness explanation](https://openai.com/index/unlocking-the-codex-harness/)
 
@@ -594,6 +594,17 @@ three-commit delta changes a documentation link, enterprise MCP OAuth, and TUI
 hyperlink wrapping. None of the audited core harness files changed, so it adds
 no research-runtime mechanism to adopt.
 
+A final refresh advanced upstream `main` to `4213b38f`. Its three commits add
+SQLite-log and skill-attribution telemetry plus attachment-owned MCP permission
+profiles. Of the audited core harness files, only `TurnContext` changed: remote
+workspace roots are now materialized from `PathUri` values when constructing a
+tool permission profile. The model/tool loop, router, orchestrator, patch
+runtime, checkpoint semantics, and collaboration lineage remain unchanged. The
+owner-scoped permission principle is correct, but AI-Statistician already binds
+each scientific workspace to an explicit sandbox and artifact root. Importing
+Codex MCP or app-server authority would therefore duplicate the control plane;
+no product code change is justified by this upstream delta.
+
 ## Observation reconciliation inside theory workspaces
 
 The immutable Neyman-Pearson/Bernoulli referee trace exposed a more specific
@@ -616,6 +627,33 @@ Focused regressions pass `89/89`; the complete repository passes `895/895` in
 agent, retry, scheduler, task rerun, hidden evaluation, or score change occurred.
 The consumed draw remains `0/1`, the aggregate remains `2/38`, and exact
 development Lean closure remains `0/2`.
+
+## Terminal validation stays with the source owner
+
+The next frozen McNemar draw exposed a control-flow mismatch rather than a need
+for another repair layer. TheoryDeveloper used thirteen exact-Haiku turns to
+write and revise a 210-line Markdown/LaTeX derivation plus its compact handoff.
+Its final `commit_theory_checkpoint` returned a real structural-validation tool
+error for two unresolved handoff references. Because TheoryDeveloper alone had
+configured zero rejected-terminal recovery turns, the retained model session
+ended before it could choose the existing resumable progress disposition.
+
+Commit `1a1f11d9` reuses the shared client-tool loop's existing Codex-shaped
+terminal recovery. It reserves one opportunity only after a terminal action is
+rejected. Ordinary read, edit, search, scratch, execution, and outer-iteration
+budgets do not change. The exact validator observation returns to the same
+source-owning model, which may make another terminal disposition: commit valid
+state, report a scientific gap, or checkpoint partial work for explicit
+same-owner continuation. No nonterminal research action is permitted during
+that recovery turn.
+
+This is not a RepairAgent or automatic replay. The runtime neither changes the
+packet nor interprets its mathematics. The immutable McNemar draft also contains
+substantive conditional-distribution and two-sided-size errors, so its score
+remains `0/1` independently of the transport defect. Focused client-tool and
+Theory tests pass `47/47`, the complete repository passes `897/897`, and
+production Python is 149,999 lines. The aggregate is `2/39`; exact development
+Lean closure remains `0/2`.
 
 ## Standalone sandbox boundary
 
