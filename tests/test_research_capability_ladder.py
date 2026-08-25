@@ -2280,6 +2280,10 @@ def test_complete_randomization_l0_is_frozen_before_first_draw() -> None:
     evidence = candidate["activation_evidence"]
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_commit"] == (
+        "7db5330283f32cf4f296b3615568ac3de16b23d9"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["first_runtime_model_call_occurred"] is False
     assert evidence["fresh_live_runs"] == 0
