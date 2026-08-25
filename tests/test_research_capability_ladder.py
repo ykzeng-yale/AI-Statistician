@@ -2082,7 +2082,7 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
         for row in scored
     )
     assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "700f3360fddae0f31e42224ab17ffb42df50b9c1"
+        "e7d0174a0028aa8ee9371bf2794660a045c465d0"
     )
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2145,7 +2145,7 @@ def test_pymle_l1_draw_is_consumed_as_first_source_replication_pass() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is True
     readiness = ladder["current_readiness"]
-    assert readiness["consumed_scored_tasks"] == 32
+    assert readiness["consumed_scored_tasks"] == 33
     assert readiness["fully_gold_passed_tasks"] == 2
     assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
@@ -2229,7 +2229,7 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 33
-    assert readiness["consumed_scored_tasks"] == 32
+    assert readiness["consumed_scored_tasks"] == 33
     assert readiness["fully_gold_configured_tasks"] == 33
     assert readiness["fully_gold_passed_tasks"] == 2
     visible_path = Path(candidate["visible_questions_path"])
@@ -2259,7 +2259,7 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
         assert hidden_name not in runtime_visible
 
 
-def test_complete_randomization_l0_is_frozen_before_first_draw() -> None:
+def test_complete_randomization_l0_draw_is_consumed_and_failed_closed() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -2270,7 +2270,9 @@ def test_complete_randomization_l0_is_frozen_before_first_draw() -> None:
     assert candidate["level"] == "L0"
     assert candidate["family"] == "finite_population_randomization_inference"
     assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"] == "frozen_ready_v1_unrun"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_full_task_gold_failed_metric_protocol_and_operator_theory"
+    )
     assert candidate["gold_manifest_sha256"] == (
         "fd54b0f306ab7d1a5cb31bc295a58f96a09103889550875d7f17f9ba3bfc9967"
     )
@@ -2285,9 +2287,28 @@ def test_complete_randomization_l0_is_frozen_before_first_draw() -> None:
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_model_policy_status"] == "OK"
+    assert evidence["runtime_head"] == (
+        "0ef27a25e97d24965d6df9d60a4ee46b3f0ea43d"
+    )
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_terminal_kind"] == "blocked"
+    assert evidence["runtime_failure_classification"] == (
+        "architect_metric_protocol_source_workspace_exhausted"
+    )
+    assert evidence["runtime_outer_iterations"] == 7
+    assert evidence["runtime_task_handoffs"] == 6
+    assert evidence["runtime_client_tool_model_turns"] == 35
+    assert evidence["theory_developer_model_turns"] == 13
+    assert evidence["theory_preflight_model_turns"] == 10
+    assert evidence["algorithm_engineer_model_turns"] == 5
+    assert evidence["generated_code_semantic_reviewer_model_turns"] == 2
+    assert evidence["metric_author_model_turns"] == 2
+    assert evidence["metric_semantic_reviewer_model_turns"] == 2
+    assert evidence["architect_initial_model_turns"] == 1
     assert evidence["algorithm_reference_contract_checks"] == "15/15"
     assert evidence["algorithm_negative_variants_rejected"] == 4
     assert evidence["empirical_reference_populations_passed"] == 3
@@ -2296,8 +2317,57 @@ def test_complete_randomization_l0_is_frozen_before_first_draw() -> None:
     assert evidence["semantic_calibration_cases_correct"] == 12
     assert evidence["semantic_reference_claims"] == 9
     assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["theory_markdown_checkpoint_committed"] is True
+    assert evidence["theory_preexecution_review_accepted"] is True
+    assert evidence["generated_algorithm_executed"] is True
+    assert evidence["generated_algorithm_runtime_review_accepted"] is True
+    assert evidence["metric_protocol_independently_accepted"] is False
+    assert evidence["metric_protocol_candidate_count"] == 2
+    assert evidence["metric_protocol_unresolved_high_findings"] == 2
+    assert evidence["generated_simulation_executed"] is False
+    assert evidence["visible_research_evaluation"] == "0/1"
+    assert evidence["hidden_algorithm_checks"] == "13/15"
+    assert evidence["hidden_algorithm_failed_atomic_checks"] == [
+        "reject_missing_or_extra_request_keys",
+        "reject_outcome_entries",
+    ]
+    assert evidence["hidden_empirical_checks"] == "8/8"
+    assert evidence["hidden_empirical_assignments_enumerated"] == 70
+    assert evidence["hidden_theory_mechanical_checks"] == "7/7"
+    assert evidence["hidden_theory_semantic_claims"] == "9/9 SATISFIED"
+    assert "false intermediate" in evidence["operator_theory_audit"]
+    assert evidence["hidden_gold_evaluation"] == "0/1"
+    assert evidence["runtime_manifest_sha256"] == (
+        "60c5d5b64aab812015bfcfcccf6f176ee3873f8f4ddf0f5e5b0eb00d83106b35"
+    )
+    assert evidence["hidden_gold_report_sha256"] == (
+        "5f1a116d4bde2546d4d0a73cdd1015dab3d8b80976c51f5bd49eb4db55a32492"
+    )
+    assert evidence["runtime_result_sha256"] == (
+        "b52959cde21e5d1dcdea436ac44f0316b8ba71a8bef3defb8dd3d5d6b587cdcc"
+    )
+    assert evidence["runtime_progress_sha256"] == (
+        "ac29391b71af5e3a30d496893315a5bfd621d7e4538be02fc43cfb01c26dda55"
+    )
+    assert evidence["operator_audit_path"] == (
+        "docs/operator_audits/complete_randomization_neyman_l0_v1.md"
+    )
+    assert evidence["post_consumption_shared_metric_source_loop_head"] == (
+        "e7d0174a0028aa8ee9371bf2794660a045c465d0"
+    )
+    assert evidence["post_consumption_shared_metric_source_loop_evidence"] == (
+        "future_tasks_regression_only_no_rerun_repair_rescore_or_capability_credit"
+    )
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
+    assert evidence["full_task_passed"] is False
+
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == 33
+    assert readiness["consumed_scored_tasks"] == 33
+    assert readiness["fully_gold_configured_tasks"] == 33
+    assert readiness["fully_gold_passed_tasks"] == 2
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (

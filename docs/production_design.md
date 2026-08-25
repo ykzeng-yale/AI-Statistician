@@ -219,26 +219,22 @@ be small and adaptive but are labelled non-confirmatory. Confirmatory replicatio
 may stop only by its predeclared precision rule, never because the observed result
 crossed a desired threshold.
 
-The minimal control pattern is:
+The minimal source-owner pattern is:
 
 ```text
-Architect authors one complete protocol
-  -> independent reviewer reports source-grounded findings
-  -> author may revise the complete pre-result protocol once within budget
+metric owner submits complete protocol source against its parent hash
+  -> runtime validates and returns raw errors to the same model session
+  -> independent reviewer reports source-grounded pre-outcome findings
+  -> the same owner submits changed complete source against the current hash
   -> accept and freeze, or block the source workspace
   -> execution evaluates only an accepted frozen protocol
 ```
 
-Metric row limits are execution/review budgets, not statistical rules. The reviewer
-supplies a theory-consistent positive control that the frozen evaluator executes.
-Runtime reports that observation; models still own protocol semantics and revisions.
-There is no whole-packet repair worker or runtime-authored statistical transformation.
+Metric row limits are execution/review budgets, not statistical rules. The reviewer supplies a theory-consistent positive control that the frozen evaluator executes. Runtime reports that observation; models still own protocol semantics and revisions. There is no whole-packet repair worker or runtime-authored statistical transformation.
 
-A rejected `metric_contract_review` returns the exact findings to the same metric
-author inside that bounded operation. If the revised candidate remains rejected,
-the operation blocks with its full lineage; it does not ask Architect to reinterpret
-a protocol defect as a TheoryDeveloper task. A later outer-plan change requires a
-separately evidenced cross-workspace inconsistency.
+The authoritative `metric_protocol.json` is external workspace state, not a structured-output response packet. Its only tools are exact read and complete source submission against the current parent SHA-256. Runtime stores submissions unchanged, returns validation observations, never edits scientific content, and seals terminal state without automatic replay.
+
+A rejected `metric_contract_review` returns exact findings to the same metric owner. A still-rejected revision blocks with full lineage; only a separately evidenced cross-workspace inconsistency reaches Architect.
 
 A rejected theory preflight returns exact observations to the parent-bound theory
 workspace. The reviewer may query task-bound literature or formal RAG, and every

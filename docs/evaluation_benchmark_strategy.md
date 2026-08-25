@@ -614,3 +614,51 @@ draw must measure whether the same model-owned Theory/referee and source/reviewe
 sessions catch decisive mathematics and complete public-interface behavior; it must
 not add task formulas, deterministic scientific validators, hidden feedback, retries,
 or another scheduler. The immutable ladder remains 0/27.
+
+## Complete-randomization L0 v1 and the Codex harness boundary
+
+The thirty-third scored task was frozen and pushed before its first product
+call. It asks for one finite-population complete-randomization result, one
+strict Python estimator ABI, and exact assignment enumeration; formalization is
+not applicable. The reference estimator passed `15/15`, four wrong estimators
+were rejected, exact empirical calibration passed `8/8` over 70 assignments,
+and the hidden exact-Haiku semantic authority passed `12/12` calibration cases.
+Those are evaluator facts, not product capability.
+
+Exactly one fresh exact-Haiku draw then terminated `BLOCKED` and scored `0/1`.
+TheoryDeveloper and its isolated referee completed persistent Markdown and
+scratch workspaces; AlgorithmEngineer observed a real execution error and a
+provider-truncated unexecuted tool input in the same session, revised its own
+source, executed, and committed. The generated-code reviewer similarly recovered
+from one invalid terminal envelope in the same isolated session. These events
+validate the selectively adopted Codex lifecycle: tool errors are observations,
+pending state survives, and no whole subsystem is replayed.
+
+The run failed at the remaining full-packet metric interface. An independent
+reviewer found two threshold/measurement contradictions. The same author received
+the exact findings but regenerated the complete structured packet, changed its
+rationales, and retained both rejected numeric fields. Confirmatory simulation
+correctly never ran. Hidden evaluation also found that the accepted source passed
+exact empirical behavior `8/8` but only `13/15` strict ABI checks because it
+accepted extra request keys and coerced forbidden outcome values.
+
+Operator inspection invalidates the apparent automated theory pass. The final
+Neyman formulas are correct, but the Markdown derivation uses the wrong
+finite-population correction under its declared normalization, makes false
+algebraic equalities, and abandons another derivation before citing a standard
+result. The runtime referee and calibrated hidden judge both false-accepted those
+steps. Their prompts already require decisive-equation reconstruction, so another
+checklist or task-specific formula detector is not the answer.
+
+The post-consumption shared correction gives future metric authoring the same
+model-owned source lifecycle as Python/R and Lean. A persistent
+`metric_protocol.json` has only exact read and complete-source submission tools;
+each submission is parent-hash bound, validator observations return to the same
+author transcript, and independent pre-outcome findings return to that same owner.
+Commit `e7d0174a` adds no task formula, field patcher, RepairAgent, Architect route,
+or scheduler, and its regression evidence cannot change this task's score.
+
+Future theory benchmarks should calibrate reviewers against plausible incorrect
+intermediate equations and can use an independent reconstruction/challenger pass
+when final theory authority is required. The complete-randomization draw remains
+immutable and cannot be rerun, repaired, or rescored.

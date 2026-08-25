@@ -3,22 +3,22 @@
 Date: 2026-08-25
 
 Upstream reviewed: [`openai/codex`](https://github.com/openai/codex) at
-`ed42068c45c1b0ab92eaf495c2880c63ca06fa09` (Apache-2.0).
+`34c5303f49d08a5a41294e2531d1e64b40c0302d` (Apache-2.0).
 
 Latest implementation commit:
-`700f3360fddae0f31e42224ab17ffb42df50b9c1`.
+`e7d0174a0028aa8ee9371bf2794660a045c465d0`.
 
 Primary references:
 
-- [`run_turn`](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/core/src/session/turn.rs)
-- [`ToolRouter`](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/core/src/tools/router.rs)
-- [model-actionable tool failures](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/core/src/tools/parallel.rs)
-- [tool failure taxonomy](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/tools/src/function_call_error.rs)
-- [terminal-error pending-input preservation](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/core/src/tasks/regular.rs)
-- [checkpoint context-window compaction](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/core/src/compact_token_budget.rs)
-- [app-server thread/turn/item protocol](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/app-server/README.md)
-- [multi-agent message tool](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
-- [standalone sandbox implementation](https://github.com/openai/codex/tree/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/sandboxing)
+- [`run_turn`](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/core/src/session/turn.rs)
+- [`ToolRouter`](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/core/src/tools/router.rs)
+- [model-actionable tool failures](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/core/src/tools/parallel.rs)
+- [tool failure taxonomy](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/tools/src/function_call_error.rs)
+- [terminal-error pending-input preservation](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/core/src/tasks/regular.rs)
+- [checkpoint context-window compaction](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/core/src/compact_token_budget.rs)
+- [app-server thread/turn/item protocol](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/app-server/README.md)
+- [multi-agent message tool](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [standalone sandbox implementation](https://github.com/openai/codex/tree/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/sandboxing)
 - [OpenAI's agent-loop explanation](https://openai.com/index/unrolling-the-codex-agent-loop/)
 
 ## Decision
@@ -275,6 +275,61 @@ counting serialized JSON bytes. The third is the terminal-error pending-input
 fix adopted above. The tool router, model-actionable failure taxonomy,
 context-compaction, and multi-agent message boundaries remain otherwise
 compatible with the prior audit.
+
+The checkout was subsequently fast-forwarded to `34c5303`. The relevant later
+changes add a bounded Guardian transcript window, preserve authorization context,
+parse Codex-managed worktree settings, instrument shell snapshots, and avoid
+routing directory changes to closed agents. None warrants importing another
+runtime component. AI Statistician's independent scientific reviewers should
+read exact hash-bound artifacts, not a lossy parent-chat transcript, and its
+canonical research graph does not own Git worktrees or user approval UI. The
+general lifecycle lesson remains useful: closed specialist sessions are not
+valid routing targets, while durable artifacts remain available to a fresh
+explicitly authorized session.
+
+## Complete-randomization live validation
+
+The third disjoint post-adoption run exercised the lifecycle more sharply. In
+one exact-Haiku source-owner session, a failed Python execution returned its raw
+traceback, a later provider-truncated tool input was recorded without execution,
+and the model then submitted and committed a passing source. An isolated source
+reviewer made an invalid terminal tool submission, received the bounded validator
+observation in the same context, and submitted a valid envelope. No outer
+subsystem replay, RepairAgent, or Architect error route occurred.
+
+The run still failed `0/1`, which separates harness mechanics from scientific
+capability. The accepted estimator violated two explicit public ABI clauses;
+exact empirical enumeration nevertheless passed `8/8`. The metric author then
+received two exact independent findings but regenerated a large structured
+packet whose prose changed while the two rejected numeric fields did not. The
+reviewer correctly blocked confirmatory execution. Finally, author, isolated
+preflight, and hidden semantic judge all accepted a derivation containing false
+load-bearing intermediate algebra even though their prompts already required
+reconstruction.
+
+Commit `e7d0174a` applies the same source-owner lifecycle to future metric
+protocols. It replaces detached structured-output regeneration with one
+persistent `metric_protocol.json` and two stable tools: exact read and complete
+source submission against the current parent SHA-256. Mechanical validation
+errors return to the same author transcript; an isolated pre-outcome reviewer
+then returns exact findings to that same source owner, which submits changed
+complete source without an Architect route or content patch. Terminal provider
+or tool-loop failure seals a compact transcript/file checkpoint and authorizes no
+automatic retry.
+
+The implementation deliberately became smaller while doing this. Obsolete
+response schemas, structured-output retry telemetry, duplicated ownership truth
+tables, and cumulative segment counters left the canonical path. It imports no
+Codex runtime component and adds no JSON patcher, RepairAgent, scheduler, formula,
+numeric detector, or model escalation. Regression tests exercise invalid source
+submission, exact validator feedback, parent-hash continuation, isolated review,
+and same-session revision. The complete suite passed `879/879`; top-level
+production Python is 149,919 lines, below its unchanged 150,000-line budget.
+
+This is future-task mechanism evidence only. The complete-randomization run stays
+immutable `0/1`, and its false intermediate mathematics remains unresolved.
+Future theory evaluation must include plausible false derivations and genuine
+independent reconstruction; no consumed run may be rerun or rescored.
 
 ## Standalone sandbox boundary
 
