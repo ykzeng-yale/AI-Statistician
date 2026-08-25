@@ -501,6 +501,10 @@ def test_prompt_projects_semantic_inputs_without_long_derivation_replay() -> Non
     assert "independently quantify or bound finite-run uncertainty" in prompt
     assert "safety constraints, not a statistical default" in prompt
     assert "unsupported assertion that a threshold is attainable" in prompt
+    assert "actual comparison scale" in prompt
+    assert "Distinguish absolute error, relative error" in prompt
+    assert "dimensionless O(1/sqrt(n)) rate" in prompt
+    assert "Prefer a studentized or MCSE-calibrated returned quantity" in prompt
     assert "does not by itself localize a defect" in prompt
     assert "one declared empirical claim" in prompt
     assert "distinct confirmatory claims" in prompt

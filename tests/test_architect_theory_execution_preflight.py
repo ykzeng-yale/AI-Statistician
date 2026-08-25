@@ -4120,6 +4120,9 @@ def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> No
     prompt = request.user_prompt
     assert "quantitative uncertainty or sampling-error calculation" in prompt
     assert "'stringent but attainable' are not evidence" in prompt
+    assert "actual comparison scale" in prompt
+    assert "distinguish absolute error, relative error" in prompt
+    assert "bare O(1/sqrt(n)) rate" in prompt
     assert "does not alone justify a tight finite-run threshold" in prompt
     assert "Preserve the requested scientific claim granularity" in prompt
     assert "remain exploratory" in prompt

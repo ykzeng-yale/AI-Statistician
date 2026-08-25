@@ -34,7 +34,7 @@ from .theory_workspace import TheoryScratchpadConfig
 
 
 ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 20
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 18
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 19
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -68,6 +68,15 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "are safety constraints, not a statistical default or justification. An "
         "unsupported assertion that "
         "a threshold is attainable is not a calculation and must be UNCERTAIN or FAIL. "
+        "Recompute every numerical precision claim on the metric's actual comparison "
+        "scale. Distinguish absolute error, relative error, standard error or Monte "
+        "Carlo standard error, and standardized error; verify units and arithmetic after "
+        "every declared transformation. A relative threshold compared directly with an "
+        "absolute standard error, a dimensionless O(1/sqrt(n)) rate presented as a "
+        "dimensioned standard error, or an inconsistent claimed number of standard "
+        "errors is a semantic finding. Prefer a studentized or MCSE-calibrated returned "
+        "quantity when the supplied statistic and uncertainty make that possible, but "
+        "do not invent unavailable distributional assumptions. "
         "Do not turn an expectation, consistency, or asymptotic theorem into a tight "
         "finite-run gate without a justified sampling distribution or error bound."
     ),
