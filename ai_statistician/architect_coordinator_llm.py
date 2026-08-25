@@ -338,7 +338,10 @@ class LLMArchitectCoordinatorAgent:
             metric_authoring_packet = author_reviewed_architect_metric_requirements(
                 provider=self.provider,
                 config=ArchitectMetricContractAuthoringConfig(
-                    max_tokens=self.config.max_tokens,
+                    max_tokens=max(
+                        self.config.max_tokens,
+                        ArchitectMetricContractAuthoringConfig().max_tokens,
+                    ),
                     model_tier=self.config.model_tier,
                     provider_name=self.config.provider_name,
                     max_validation_retries=min(

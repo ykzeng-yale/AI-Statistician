@@ -16,8 +16,10 @@ from ai_statistician.architect_metric_contract_authoring import (
     ArchitectMetricContractAuthoringConfig,
     ArchitectMetricSemanticReviewRejected,
     FRESH_METRIC_AUTHORING_AUTHORITY_KIND,
+    METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
+    METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
+    METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT,
     METRIC_PROTOCOL_WORKSPACE_READ_TOOL,
-    METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL,
     _materialize_metric_authoring_model_requirement,
     _run_metric_protocol_workspace,
     author_reviewed_architect_metric_requirements,
@@ -4214,11 +4216,15 @@ def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> No
     assert "remain exploratory" in prompt
     assert [tool.name for tool in request.tools] == [
         METRIC_PROTOCOL_WORKSPACE_READ_TOOL,
-        METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL,
+        METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
+        METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
     ]
     assert request.enable_prompt_caching is True
     assert request.disable_parallel_tool_use is True
     assert request.metadata["full_packet_regeneration_required"] is False
+    assert request.metadata["document_body_in_terminal_tool"] is False
+    assert request.metadata["runtime_initialized_structural_scaffold"] is True
+    assert request.max_tokens == 8000
     assert "model-authored pre-execution count for the entire portfolio" in prompt
 
 
@@ -4230,6 +4236,10 @@ def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
     revised_document = '{\n  "value": 2\n}\n'
     invalid_sha256 = hashlib.sha256(invalid_document.encode("utf-8")).hexdigest()
     initial_sha256 = hashlib.sha256(initial_document.encode("utf-8")).hexdigest()
+    revised_sha256 = hashlib.sha256(revised_document.encode("utf-8")).hexdigest()
+    scaffold_sha256 = hashlib.sha256(
+        METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT.encode("utf-8")
+    ).hexdigest()
 
     def build_validated_packet(
         content: str,
@@ -4258,34 +4268,61 @@ def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
             if turn == 1:
                 return _tool_response(
                     ClientToolCall(
-                        "submit-invalid-protocol",
-                        METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL,
+                        "edit-invalid-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
                         {
-                            "expected_parent_sha256": "",
-                            "content": invalid_document,
+                            "expected_parent_sha256": scaffold_sha256,
+                            "old_text": METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT,
+                            "new_text": invalid_document,
                         },
                     )
                 )
             if turn == 2:
                 return _tool_response(
                     ClientToolCall(
-                        "submit-initial-protocol",
-                        METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL,
-                        {
-                            "expected_parent_sha256": invalid_sha256,
-                            "content": initial_document,
-                        },
+                        "commit-invalid-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
+                        {"expected_sha256": invalid_sha256},
                     )
                 )
             if turn == 3:
                 return _tool_response(
                     ClientToolCall(
-                        "submit-reviewed-protocol",
-                        METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL,
+                        "edit-initial-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
+                        {
+                            "expected_parent_sha256": invalid_sha256,
+                            "old_text": invalid_document,
+                            "new_text": initial_document,
+                        },
+                    )
+                )
+            if turn == 4:
+                return _tool_response(
+                    ClientToolCall(
+                        "commit-initial-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
+                        {"expected_sha256": initial_sha256},
+                    )
+                )
+            if turn == 5:
+                return _tool_response(
+                    ClientToolCall(
+                        "edit-reviewed-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
                         {
                             "expected_parent_sha256": initial_sha256,
-                            "content": revised_document,
+                            "old_text": initial_document,
+                            "new_text": revised_document,
                         },
+                    )
+                )
+            if turn == 6:
+                return _tool_response(
+                    ClientToolCall(
+                        "commit-reviewed-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
+                        {"expected_sha256": revised_sha256},
                     )
                 )
             raise AssertionError("metric protocol workspace exceeded expected turns")
@@ -4321,15 +4358,15 @@ def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
         revision_index=1,
     )
 
-    assert len(backend.requests) == 3
-    rejected_submission = _last_tool_result(backend.requests[1])
+    assert len(backend.requests) == 6
+    rejected_submission = _last_tool_result(backend.requests[2])
     assert rejected_submission["error"] == "metric_protocol_submission_rejected"
     assert rejected_submission["current_sha256"] == invalid_sha256
     assert rejected_submission["validation_errors"] == [
         "value must be one of the test candidates"
     ]
-    assert tuple(backend.requests[2].messages[:-1]) == first.loop.messages
-    assert backend.requests[2].messages[-1] == {
+    assert tuple(backend.requests[4].messages[:-1]) == first.loop.messages
+    assert backend.requests[4].messages[-1] == {
         "role": "user",
         "content": reviewer_observation,
     }
@@ -4342,19 +4379,132 @@ def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
         for turn in second.loop.history
         for call in turn["tool_calls"]
     ] == [
-        METRIC_PROTOCOL_WORKSPACE_SUBMIT_TOOL,
+        METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
+        METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
     ]
     assert second.document_content == revised_document
     assert (tmp_path / "metric_protocol.json").read_text(
         encoding="utf-8"
     ) == revised_document
     assert second.packet["value"] == 2
-    assert second.loop.runtime_executed_tool_calls == 1
+    assert second.loop.runtime_executed_tool_calls == 2
+    commit_calls = [
+        block
+        for loop in (first.loop, second.loop)
+        for message in loop.messages
+        for block in (
+            message.get("content", [])
+            if isinstance(message.get("content"), list)
+            else []
+        )
+        if block.get("type") == "tool_use"
+        and block.get("name") == METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL
+    ]
+    assert commit_calls
+    assert all(set(call["input"]) == {"expected_sha256"} for call in commit_calls)
     assert second.session_ref["session_id"] == "metric-protocol-source-owner"
     assert first.session_ref["relative_path"] != second.session_ref["relative_path"]
     assert second.session_ref["transcript_fingerprint"] == (
         second.loop.transcript_fingerprint
     )
+
+
+def test_metric_protocol_external_file_survives_truncated_edit_input(
+    tmp_path: Path,
+) -> None:
+    valid_document = '{\n  "value": 1\n}\n'
+    scaffold_sha256 = hashlib.sha256(
+        METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT.encode("utf-8")
+    ).hexdigest()
+    valid_sha256 = hashlib.sha256(valid_document.encode("utf-8")).hexdigest()
+
+    def build_validated_packet(
+        content: str,
+    ) -> tuple[dict[str, object] | None, list[str]]:
+        value = json.loads(content)
+        if value != {"value": 1}:
+            return None, ["value must equal one"]
+        return {
+            "packet_id": "metric-authoring:one",
+            "empirical_metric_requirement_set_id": "metric-set:one",
+        }, []
+
+    class TruncatedEditBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                call = ClientToolCall(
+                    "truncated-edit",
+                    METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
+                    {"expected_parent_sha256": scaffold_sha256},
+                )
+                return ClientToolTurnResponse(
+                    content_blocks=(
+                        {
+                            "type": "tool_use",
+                            "id": call.call_id,
+                            "name": call.name,
+                            "input": dict(call.input),
+                        },
+                    ),
+                    tool_calls=(call,),
+                    text="",
+                    provider="anthropic",
+                    model=TEST_HAIKU_MODEL,
+                    metadata={
+                        "client_tool_transport": True,
+                        "tools_executed_by_backend": False,
+                        "provider_stop_reason": "max_tokens",
+                    },
+                )
+            if len(self.requests) == 2:
+                return _tool_response(
+                    ClientToolCall(
+                        "complete-edit",
+                        METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
+                        {
+                            "expected_parent_sha256": scaffold_sha256,
+                            "old_text": METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT,
+                            "new_text": valid_document,
+                        },
+                    )
+                )
+            if len(self.requests) == 3:
+                return _tool_response(
+                    ClientToolCall(
+                        "hash-only-commit",
+                        METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
+                        {"expected_sha256": valid_sha256},
+                    )
+                )
+            raise AssertionError("metric protocol workspace exceeded expected turns")
+
+    backend = TruncatedEditBackend()
+    result = _run_metric_protocol_workspace(
+        provider=backend,  # type: ignore[arg-type]
+        config=ArchitectMetricContractAuthoringConfig(
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+        request_model=TEST_HAIKU_MODEL,
+        user_message="Author one generic protocol.",
+        build_validated_packet=build_validated_packet,
+        workspace_dir=tmp_path,
+        session_id="metric-protocol-truncated-edit",
+    )
+
+    assert result.document_content == valid_document
+    assert result.loop.history[0]["provider_output_truncated"] is True
+    assert result.loop.history[0]["tool_calls"][0]["executed_by_runtime"] is False
+    assert result.loop.runtime_executed_tool_calls == 2
+    assert (tmp_path / "metric_protocol.json").read_text(
+        encoding="utf-8"
+    ) == valid_document
 
 
 def test_metric_protocol_failure_preserves_checkpoint_without_auto_retry() -> None:
