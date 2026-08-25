@@ -20,6 +20,10 @@ from ai_statistician.research_agent_runtime import (
     ResearchAgentRuntimeConfig,
     run_research_agent_runtime,
 )
+from ai_statistician.scientific_sandbox import (
+    ScientificEstimatorBinding,
+    discover_scientific_sandbox_runtime,
+)
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_HANDOFF_ROLE,
@@ -1052,6 +1056,63 @@ def test_full_task_pass_requires_hidden_theory_code_and_empirical_checks(
     assert "private_empirical_check" not in serialized
     assert sandbox_paths
     assert all(not path.exists() for path in sandbox_paths)
+
+
+def test_gold_manifest_rejects_unsupported_hidden_harness_language(
+    tmp_path: Path,
+) -> None:
+    path = _full_task_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text())
+    manifest["active_tasks"][0]["hidden_algorithm_evaluator"]["language"] = (
+        "unsupported"
+    )
+    path.write_text(json.dumps(manifest))
+
+    with pytest.raises(ValueError, match="hidden algorithm language is invalid"):
+        validate_research_gold_benchmark_manifest(path)
+
+
+def test_hidden_scientific_harness_executes_r_harness_with_r_estimator(
+    tmp_path: Path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.r_available:
+        pytest.skip("pinned WebR runtime is not installed on this host")
+    estimator = (
+        "run_estimator <- function(request) {\n"
+        "  list(result=as.numeric(request$value) + 1)\n"
+        "}\n"
+    )
+    harness = (
+        "run_sandbox <- function(seed, replicates, estimators) {\n"
+        "  observed <- estimators[['candidate']](list(value=seed))\n"
+        "  list(exact=abs(observed$result - (seed + 1)) < 1e-12, "
+        "replicates=replicates)\n"
+        "}\n"
+    )
+
+    result = gold_evaluation_module._run_hidden_scientific_harness(
+        sandbox_dir=tmp_path,
+        artifact_id="gold-r-transport",
+        harness_language="r",
+        harness_code=harness,
+        harness_dependencies=("base", "stats"),
+        estimator_binding=ScientificEstimatorBinding(
+            artifact_id="candidate",
+            language="r",
+            code=estimator,
+            code_hash=stable_hash(estimator),
+            dependencies=("base", "stats"),
+        ),
+        seed=7,
+        replicates=11,
+        timeout_s=60,
+    )
+
+    assert result["status"] == "EXECUTED"
+    assert result["backend"] == "webr"
+    assert result["metrics"] == {"exact": True, "replicates": 11}
+    assert result["estimator_invocation_counts"] == {"candidate": 1}
 
 
 def test_theory_only_full_task_counts_hidden_theory_evaluation(

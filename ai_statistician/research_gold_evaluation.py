@@ -19,6 +19,7 @@ from .estimator_interface_contract import (
 from .model_backend import AnthropicGeneratorBackend, GeneratorBackend
 from .research_schema import frozen_formal_target_contract_errors
 from .scientific_sandbox import (
+    SCIENTIFIC_SANDBOX_LANGUAGES,
     ScientificEstimatorBinding,
     ScientificInputArtifactBinding,
     execute_scientific_sandbox,
@@ -37,24 +38,14 @@ GoldArtifactHarnessRunner = Callable[..., Mapping[str, Any]]
 GoldTheorySemanticJudgeRunner = Callable[..., Mapping[str, Any]]
 
 
-def _visible_question_hash_payload(
-    question: Mapping[str, Any],
-) -> dict[str, Any]:
-    payload = {
+def _visible_question_hash_payload(question: Mapping[str, Any]) -> dict[str, Any]:
+    base = ("id", "title", "description", "tags")
+    optional = ("task_intent", "estimator_execution_contract", "formal_target_contract")
+    return {
         key: question.get(key)
-        for key in ("id", "title", "description", "tags")
+        for key in (*base, *optional)
+        if key in base or key in question
     }
-    if "task_intent" in question:
-        payload["task_intent"] = question.get("task_intent")
-    if "estimator_execution_contract" in question:
-        payload["estimator_execution_contract"] = question.get(
-            "estimator_execution_contract"
-        )
-    if "formal_target_contract" in question:
-        payload["formal_target_contract"] = question.get(
-            "formal_target_contract"
-        )
-    return payload
 
 
 def validate_research_gold_benchmark_manifest(path: Path) -> dict[str, Any]:
@@ -843,6 +834,7 @@ def _evaluate_gold_task(
         run_harness(
             sandbox_dir=sandbox_root / task_id / "algorithm",
             artifact_id=f"gold-{task_id}",
+            harness_language=str(evaluator.get("language", "") or "python"),
             harness_code=harness_code,
             harness_dependencies=tuple(
                 str(value) for value in evaluator.get("dependencies", []) or []
@@ -895,6 +887,9 @@ def _evaluate_gold_task(
             run_harness(
                 sandbox_dir=sandbox_root / task_id / "empirical",
                 artifact_id=f"gold-empirical-{task_id}",
+                harness_language=str(
+                    empirical_evaluator.get("language", "") or "python"
+                ),
                 harness_code=empirical_harness_path.read_text(encoding="utf-8"),
                 harness_dependencies=tuple(
                     str(value)
@@ -1778,6 +1773,7 @@ def _run_hidden_scientific_harness(
     *,
     sandbox_dir: Path,
     artifact_id: str,
+    harness_language: str,
     harness_code: str,
     harness_dependencies: Sequence[str],
     estimator_binding: ScientificEstimatorBinding,
@@ -1788,7 +1784,7 @@ def _run_hidden_scientific_harness(
     execution = execute_scientific_sandbox(
         sandbox_dir=sandbox_dir,
         artifact_id=artifact_id,
-        language="python",
+        language=harness_language,
         code=harness_code,
         dependencies=harness_dependencies,
         seed=seed,
@@ -2360,6 +2356,11 @@ def _hidden_evaluator_validation_errors(
     required_contract_clause_ids: set[str] | None = None,
 ) -> list[str]:
     errors: list[str] = []
+    if (
+        str(evaluator.get("language", "") or "")
+        not in SCIENTIFIC_SANDBOX_LANGUAGES
+    ):
+        errors.append(f"active task {task_index} hidden {label} language is invalid")
     harness_path = _project_path(
         str(evaluator.get("harness_path", "") or ""),
         project_root=project_root,
