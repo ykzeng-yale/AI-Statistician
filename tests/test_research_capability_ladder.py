@@ -2678,6 +2678,10 @@ def test_inverse_variance_meta_analysis_r_l0_is_frozen_before_first_draw() -> No
     assert evidence["semantic_calibration_final_cases_correct"] == 9
     assert evidence["semantic_reference_claims"] == 7
     assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["activation_commit"] == (
+        "74ceafe62d5e22618dd96356252cce949a55e58c"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["external_metric_workspace_mechanism_head"] == (
         "be8d57ab6ec06ffa52f88e3a0e5ddd4a94ec9379"
     )
