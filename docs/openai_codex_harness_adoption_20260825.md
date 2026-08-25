@@ -385,6 +385,30 @@ tests passed.
 The bootstrap result remains immutable `0/1`. This commit has future-task mechanism
 evidence only.
 
+Commit `5daec039` closes the corresponding Algorithm review harness gap without
+adding a repair path. When, and only when, the current review target is an
+Algorithm artifact whose exact source and manifest hashes agree, the same isolated
+reviewer session may choose `run_exact_estimator_review_probe`. The reviewer authors
+an ordinary Python or R `run_sandbox` diagnostic, and the existing scientific
+sandbox binds the immutable estimator bytes behind the `estimators` interface. Raw
+diagnostic output returns to that reviewer context before its terminal verdict.
+
+The tool does not edit estimator source, select test cases, interpret results, inspect
+the blinded confirmatory cohort, route work, or confer empirical/proof authority.
+Simulation artifacts and hash-inconsistent Algorithm artifacts receive no probe tool.
+The model may submit a review without probing. At most three ordinary probe turns are
+available; the shared client-tool loop separately reserves the terminal disposition.
+Thus the harness supplies executable observation while the reviewer still owns the
+scientific judgment.
+
+This is a direct selective reuse of Codex's `run_turn` principle: model-selected tool
+action, caller-owned execution boundary, raw observation, then the same model context.
+It is not an import of Codex core or another scheduler. The change also removes the
+generated-code reviewer's obsolete fixed-dimension compatibility layer and a 247-line
+unused feedback-copy utility. Production Python falls from 149,999 to 149,868 lines;
+the complete repository passes `885/885`. The consumed bootstrap draw remains `0/1`,
+and this mechanism requires a future disjoint frozen task for capability credit.
+
 The upstream checkout was also refreshed from `34c5303` to `a9e447a`. The intervening
 commits concern managed plugins, MCP reconnect behavior, cloud-config retry,
 Guardian proxy state, goal continuation, and command migration. They do not alter the

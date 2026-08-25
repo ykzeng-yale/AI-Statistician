@@ -1,19 +1,19 @@
 {
-  "schema_version": 157,
+  "schema_version": 158,
   "updated_at": "2026-08-25",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "26b8e12449aac0f4b6f031cf65896768ae7316ac",
+  "validated_code_head": "5daec039b8564100b9d2f812bfefdc8cb6e2b24b",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all thirty-four consumed tasks at immutable scores, now 2/34. The bootstrap draw gives positive live evidence for persistent Markdown/LaTeX Theory and blind referee reconstruction, but remains 0/1 because the estimator violated one explicit no-coercion clause and generated Simulation failed one frozen contract while both source reviewers missed the relevant defect. Commit 26b8e124 applies the selectively adopted Codex lifecycle to future Simulation work: one source-owning session sees raw separate-seed exploratory diagnostics, explicitly commits exact bytes, and cannot see blinded confirmatory outcomes; isolated review is focused on the exact current artifact. The main scientific bottleneck remains trustworthy long-horizon theory and source review; strict development Lean closure remains 0/2. Continue Theory, Python/R, Simulation, source replication, and optional/required Lean workspaces through sparse hash-bound handoffs without importing Codex runtime, adding a repair agent or scheduler, hardcoding science, or making Formalizer mandatory for non-formal tasks.",
+  "current_goal_focus": "Preserve all thirty-four consumed tasks at immutable scores, now 2/34. The bootstrap draw gives positive live evidence for persistent Markdown/LaTeX Theory and blind referee reconstruction, but remains 0/1 because the estimator violated one explicit no-coercion clause and generated Simulation failed one frozen contract while both source reviewers missed the relevant defect. Commit 26b8e124 gives future Simulation source owners raw separate-seed diagnostics before blinded confirmation. Commit 5daec039 gives an isolated Algorithm reviewer a model-selected Python/R falsification tool over exact hash-bound estimator bytes in the same session, without source edits, deterministic scientific judgment, hidden outcomes, routing, or acceptance authority. The main scientific bottleneck remains trustworthy long-horizon theory and source review; strict development Lean closure remains 0/2. Validate the shared reviewer mechanism only on a future disjoint frozen task while continuing Theory, Python/R, Simulation, source replication, and optional/required Lean workspaces through sparse hash-bound handoffs without importing Codex runtime, adding a repair agent or scheduler, hardcoding science, or making Formalizer mandatory for non-formal tasks.",
   "latest_openai_codex_harness_adoption": {
     "upstream_repository": "https://github.com/openai/codex",
     "upstream_commit": "a9e447a69dee4f2789dd8d8c776e314772c1f049",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "26b8e12449aac0f4b6f031cf65896768ae7316ac",
+    "implementation_commit": "5daec039b8564100b9d2f812bfefdc8cb6e2b24b",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -23,7 +23,8 @@
       "700f3360fddae0f31e42224ab17ffb42df50b9c1",
       "e7d0174a0028aa8ee9371bf2794660a045c465d0",
       "b9ece43923ab05cb1185e1493e360658ae14c8fb",
-      "26b8e12449aac0f4b6f031cf65896768ae7316ac"
+      "26b8e12449aac0f4b6f031cf65896768ae7316ac",
+      "5daec039b8564100b9d2f812bfefdc8cb6e2b24b"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "f6894b5cb290cf25549427be33591c75c0d82a4f942e5d52de04f61cfce3ba79",
@@ -43,7 +44,8 @@
       "AgentRuntime and Formalizer no longer perform whole-subsystem provider retries. Provider-local retries may repeat only the identical unanswered request; any later workspace continuation must be explicit and hash-bound.",
       "MetricProtocolSourceOwner now keeps one persistent metric_protocol.json and a stable two-tool surface: exact read plus complete source submission against the current parent SHA-256. Mechanical failures and independent pre-outcome findings return to the same source-owner transcript; runtime never patches content or automatically retries.",
       "Fresh Simulation authoring now uses one Codex-shaped source-owner loop: a separate-seed exploratory diagnostic returns raw sandbox output to the same model before explicit commit, and exact committed bytes then execute once on a blinded confirmatory cohort whose outcome is withheld. Exact consumer replay still makes zero source calls.",
-      "Generated-code review now names exact_executed_artifacts as the current target and upstream_generated_dependency as context only, so artifact ownership is prompt-visible without adding a router, second reviewer, formula, or deterministic content rule."
+      "Generated-code review now names exact_executed_artifacts as the current target and upstream_generated_dependency as context only, so artifact ownership is prompt-visible without adding a router, second reviewer, formula, or deterministic content rule.",
+      "For verified Algorithm targets only, the same isolated reviewer session may author and run a Python/R falsification harness against exact immutable estimator bytes before submitting its verdict. The model chooses the probe and interpretation; runtime supplies only hash binding, sandbox execution, raw observation, budget, and non-authority lineage. Simulation and hash-inconsistent targets receive no probe tool."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -53,12 +55,12 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-    "verification": "The Simulation source-owner diagnostic boundary, exact consumer replay, generated-code reviewer targeting, AgentRuntime, contract, and cross-task panels passed; the complete repository passed 882/882 in 70.39 seconds. Compile-all and diff hygiene passed. Top-level production Python is 149,999 lines, architect_theory_execution_preflight.py is 4,942 lines, AgentRuntime is 1,159 lines, and research_agent_runtime.py is 24,965 lines. The bootstrap task received one pre-authorized immutable live draw; no consumed task was rerun, resumed, repaired, or rescored.",
+    "verification": "The exact-estimator probe passed Python/R same-session, tamper, Simulation-isolation, client-tool, scientific sandbox, source-owner, research-eval, model-policy, runtime, and architecture regressions. The final complete repository passed 885/885 in 69.95 seconds. Compile-all, diff hygiene, and secret scan passed. Top-level production Python fell from 149,999 to 149,868 lines, AgentRuntime remains 1,159 lines, and research_agent_runtime.py is 24,973 lines. No model call or consumed-task rerun, resume, repair, or rescore occurred.",
     "live_validation_runs": 4,
     "fresh_live_client_tool_model_turns": 112,
     "capability_credit": true,
     "latest_mechanism_capability_credit": false,
-    "boundary": "No consumed task was rerun, resumed, repaired, or rescored. Beta-Binomial and PyMLE are each immutable 1/1; bootstrap-mean, Poisson-Garwood, and complete randomization are immutable 0/1; the aggregate ladder is 2/34. Bootstrap validates blind theory reconstruction but exposes source-testing and reviewer-target failures. Commit 26b8e124 supplies only future-task regression evidence for the shared Simulation diagnostic and review-target boundaries; exact Lean closure remains separate."
+    "boundary": "No consumed task was rerun, resumed, repaired, or rescored. Beta-Binomial and PyMLE are each immutable 1/1; bootstrap-mean, Poisson-Garwood, and complete randomization are immutable 0/1; the aggregate ladder is 2/34. Bootstrap validates blind theory reconstruction but exposes source-testing and reviewer-target failures. Commits 26b8e124 and 5daec039 supply only future-task regression evidence for shared Simulation diagnostics, review-target identity, and model-selected exact-estimator probes; exact Lean closure remains separate."
   },
   "latest_bootstrap_mean_l0_evaluation": {
     "task_id": "nonparametric_bootstrap_mean_variance_known_result",
@@ -90,8 +92,8 @@
     "operator_audit": "docs/operator_audits/bootstrap_mean_l0_v1.md",
     "full_task_score": "0/1 under the pre-frozen protocol",
     "ladder_score_after_consumption": "2/34",
-    "post_run_shared_change": "Commit 26b8e124 gives one future Simulation source owner raw separate-seed exploratory diagnostics before explicit commit, keeps exact committed-source confirmation blinded and single-shot, and focuses isolated review on exact_executed_artifacts rather than the upstream dependency.",
-    "post_run_shared_change_evidence": "future-task regression only; 882/882 tests passed; no rerun, resume, repair, rescore, additional agent, scheduler, formula, numeric detector, or model escalation",
+    "post_run_shared_change": "Commit 26b8e124 gives one future Simulation source owner raw separate-seed exploratory diagnostics before explicit commit, keeps exact committed-source confirmation blinded and single-shot, and focuses isolated review on exact_executed_artifacts rather than the upstream dependency. Commit 5daec039 lets one future isolated Algorithm reviewer optionally author and run Python/R falsification code against exact hash-bound estimator bytes before its verdict.",
+    "post_run_shared_change_evidence": "future-task regression only; 885/885 tests passed; production Python decreased; no rerun, resume, repair, rescore, additional agent, scheduler, formula, numeric detector, or model escalation",
     "boundary": "The sole draw is consumed. Never rerun, resume, repair, rescore, or feed hidden/operator findings back to its source owners. Theory success and exact empirical success are component evidence only and do not close failed scientific-code, empirical-acceptance, or gap-disclosure dimensions."
   },
   "latest_complete_randomization_evaluation": {

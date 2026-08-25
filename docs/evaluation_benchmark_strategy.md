@@ -678,3 +678,27 @@ Future theory benchmarks should calibrate this mechanism against plausible incor
 intermediate equations on a disjoint task frozen before its first call. The
 complete-randomization draw remains immutable and cannot be rerun, repaired, or
 rescored; commit `b9ece439` receives regression evidence only.
+
+## Bootstrap L0 v1 and executable source review
+
+The thirty-fourth scored task reconstructed the bootstrap mean and variance theory,
+but its accepted estimator violated an explicit no-coercion ABI clause and its
+isolated reviewer claimed the opposite. The generated Simulation also failed one of
+eight frozen contracts while its reviewer inspected the upstream estimator instead
+of the current simulation source. The immutable task remains `0/1`; neither hidden
+finding may be fed back to that consumed run.
+
+Future Algorithm review now follows the same minimal agent loop as source authoring.
+An isolated reviewer may author and execute a Python or R falsification harness
+against the exact hash-bound current estimator, observe the sandbox result in the
+same context, and then submit its Markdown judgment. Probe choice, cases, and
+interpretation remain model-owned. Runtime owns only source identity, sandboxing,
+turn budget, result lineage, blinding, and the final evidence boundary. It does not
+translate a diagnostic value into a verdict or source patch.
+
+This mechanism must be evaluated on a new pre-frozen disjoint task. A reviewer may
+still choose not to probe or may misinterpret an observation, and regression tests
+cannot establish improved scientific judgment. Generated Simulation review remains
+source-inspection based until a second cross-task failure justifies a similarly
+general executable interface; one bootstrap-specific failure is not enough reason
+to invent a Simulation probe ABI.
