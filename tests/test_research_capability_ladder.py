@@ -2082,7 +2082,7 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
         for row in scored
     )
     assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "98415b0ad050d87913415d6be1ab70c2d0afd51a"
+        "700f3360fddae0f31e42224ab17ffb42df50b9c1"
     )
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2228,9 +2228,9 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 32
+    assert readiness["active_scored_tasks"] == 33
     assert readiness["consumed_scored_tasks"] == 32
-    assert readiness["fully_gold_configured_tasks"] == 32
+    assert readiness["fully_gold_configured_tasks"] == 33
     assert readiness["fully_gold_passed_tasks"] == 2
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -2252,6 +2252,71 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
         "hidden_theory_harness.py",
         "hidden_harness.R",
         "hidden_empirical_harness.R",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_complete_randomization_l0_is_frozen_before_first_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "complete_randomization_neyman_variance_known_result"
+    )
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "finite_population_randomization_inference"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == "frozen_ready_v1_unrun"
+    assert candidate["gold_manifest_sha256"] == (
+        "fd54b0f306ab7d1a5cb31bc295a58f96a09103889550875d7f17f9ba3bfc9967"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "4dfb3bd9a11f4d81881286301cb35e05c0befb575aaa98322eee8518c19fa749"
+    )
+    evidence = candidate["activation_evidence"]
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["algorithm_reference_contract_checks"] == "15/15"
+    assert evidence["algorithm_negative_variants_rejected"] == 4
+    assert evidence["empirical_reference_populations_passed"] == 3
+    assert evidence["empirical_reference_assignments_enumerated"] == 70
+    assert evidence["empirical_reference_checks"] == "8/8"
+    assert evidence["semantic_calibration_cases_correct"] == 12
+    assert evidence["semantic_reference_claims"] == 9
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    contract = question["estimator_execution_contract"]
+    assert contract["estimator_id"] == "est_complete_randomization_neyman"
+    assert any(
+        row["clause_id"] == "invariant.closed_object_contract"
+        for row in contract["invariants"]
+    )
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
+        "hidden_harness.py",
+        "hidden_empirical_harness.py",
         "semantic_reference.md",
         "semantic_rubric.json",
         "semantic_calibration_cases.json",

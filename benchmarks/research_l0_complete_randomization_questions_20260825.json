@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "complete_randomization_neyman_variance_known_result",
+      "title": "Neyman variance for a completely randomized experiment",
+      "description": "Focused L0 known-result evaluation grounded in Jerzy Splawa-Neyman, On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9, Statistical Science 5(4), 1990 translation of the 1923 paper, 465-472, DOI 10.1214/ss/1177012031. Consider a fixed finite population of N units with potential outcomes Y_i(1) and Y_i(0). Exactly n_1 units are selected uniformly without replacement for treatment and n_0=N-n_1 receive control, with n_1>=2 and n_0>=2. Develop one authoritative Markdown/LaTeX derivation showing that the observed treated-minus-control mean estimates the finite-population average treatment effect without bias. Derive its exact randomization variance S_1^2/n_1+S_0^2/n_0-S_tau^2/N when all finite-population variances use divisor N-1. Then derive the expectation of the usual observable Neyman variance estimator s_1^2/n_1+s_0^2/n_0, show that its upward bias is S_tau^2/N, and state exactly when equality holds. Make the sampling-without-replacement covariance identities, fixed-potential-outcome conditioning, variance denominators, unidentifiable treatment-effect variance, constant-effect boundary, and distinction between exact randomization identities and simulation auditable. Do not claim that treatment assignments are independent Bernoulli draws, that the conservative estimator identifies the exact variance under heterogeneous effects, or that a normal approximation is an exact finite-sample theorem. The required model-authored artifact is est_complete_randomization_neyman and must implement the frozen run_estimator(request) contract exactly in Python. Exploratory Python or R may diagnose identities. A separately frozen confirmatory assessment enumerates every admissible assignment for predeclared small finite populations and checks estimator unbiasedness, the exact randomization variance, the expected Neyman estimator, its heterogeneity gap, and the constant-effect equality case. Enumeration supports implementation and finite-population identities but does not replace the derivation. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "causal_inference",
+        "randomized_experiments",
+        "finite_population",
+        "design_based_inference",
+        "L0"
+      ],
+      "source": {
+        "title": "On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9",
+        "author": "Jerzy Splawa-Neyman; translated and edited by D. M. Dabrowska and T. P. Speed",
+        "journal": "Statistical Science",
+        "year": 1990,
+        "volume": 5,
+        "issue": 4,
+        "pages": "465-472",
+        "doi": "10.1214/ss/1177012031",
+        "url": "https://doi.org/10.1214/ss/1177012031"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_complete_randomization_neyman",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.outcomes",
+            "name": "outcomes",
+            "meaning": "The observed outcome Y_i^obs for each finite-population unit, in stable unit order.",
+            "json_type": "array[number]",
+            "shape": "one finite numeric vector of length N>=4",
+            "units": "outcome units",
+            "indexing": "element i is the observed outcome for the same unit indexed by treatment[i]",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, nonarrays, empty arrays, and lengths that do not match treatment; do not silently drop or coerce entries.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.treatment",
+            "name": "treatment",
+            "meaning": "The complete-randomization assignment Z_i in the same stable unit order as outcomes, with integer 1 for treated and integer 0 for control.",
+            "json_type": "array[integer]",
+            "shape": "one length-N vector containing only exact integers 0 and 1, with at least two of each",
+            "units": "assignment indicator",
+            "indexing": "element i refers to the same unit as outcomes[i]",
+            "edge_cases": "Reject booleans, fractional or other integer values, nonarrays, mismatched lengths, fewer than two treated units, and fewer than two control units; do not coerce truthy values.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.estimate",
+            "name": "estimate",
+            "meaning": "The observed treated mean minus the observed control mean.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "one assignment-level estimate",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "treated_mean minus control_mean"
+          },
+          {
+            "clause_id": "response.treated_mean",
+            "name": "treated_mean",
+            "meaning": "The arithmetic mean of outcomes whose treatment indicator is 1.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "treated group",
+            "edge_cases": "Defined because at least two treated units are required.",
+            "normalization": "sum of treated outcomes divided by n_treated"
+          },
+          {
+            "clause_id": "response.control_mean",
+            "name": "control_mean",
+            "meaning": "The arithmetic mean of outcomes whose treatment indicator is 0.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "control group",
+            "edge_cases": "Defined because at least two control units are required.",
+            "normalization": "sum of control outcomes divided by n_control"
+          },
+          {
+            "clause_id": "response.treated_variance",
+            "name": "treated_variance",
+            "meaning": "The ordinary within-treated sample variance of observed outcomes.",
+            "json_type": "number",
+            "shape": "one nonnegative finite scalar",
+            "units": "squared outcome units",
+            "indexing": "treated group",
+            "edge_cases": "Zero is allowed for a constant treated sample.",
+            "normalization": "sum of squared deviations from treated_mean divided by n_treated-1"
+          },
+          {
+            "clause_id": "response.control_variance",
+            "name": "control_variance",
+            "meaning": "The ordinary within-control sample variance of observed outcomes.",
+            "json_type": "number",
+            "shape": "one nonnegative finite scalar",
+            "units": "squared outcome units",
+            "indexing": "control group",
+            "edge_cases": "Zero is allowed for a constant control sample.",
+            "normalization": "sum of squared deviations from control_mean divided by n_control-1"
+          },
+          {
+            "clause_id": "response.neyman_variance",
+            "name": "neyman_variance",
+            "meaning": "The observable conservative Neyman variance estimate for the treated-minus-control mean.",
+            "json_type": "number",
+            "shape": "one nonnegative finite scalar",
+            "units": "squared outcome units",
+            "indexing": "one assignment-level variance estimate",
+            "edge_cases": "Zero is allowed only when both observed within-group sample variances are zero.",
+            "normalization": "treated_variance/n_treated plus control_variance/n_control"
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "The nonnegative square root of neyman_variance.",
+            "json_type": "number",
+            "shape": "one nonnegative finite scalar",
+            "units": "outcome units",
+            "indexing": "one assignment-level standard error",
+            "edge_cases": "Equals zero exactly when neyman_variance is zero.",
+            "normalization": "square root of neyman_variance"
+          },
+          {
+            "clause_id": "response.n_treated",
+            "name": "n_treated",
+            "meaning": "The exact number of integer-one treatment indicators.",
+            "json_type": "integer",
+            "shape": "one integer at least two",
+            "units": "units",
+            "indexing": "treated group size",
+            "edge_cases": "Must not be returned as a boolean or fractional value.",
+            "normalization": "count of treatment entries equal to integer 1"
+          },
+          {
+            "clause_id": "response.n_control",
+            "name": "n_control",
+            "meaning": "The exact number of integer-zero treatment indicators.",
+            "json_type": "integer",
+            "shape": "one integer at least two",
+            "units": "units",
+            "indexing": "control group size",
+            "edge_cases": "Must not be returned as a boolean or fractional value.",
+            "normalization": "count of treatment entries equal to integer 0"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request object must contain exactly outcomes and treatment, and the response object must contain exactly the nine declared response fields. Missing or extra fields are rejected rather than ignored or invented."
+          },
+          {
+            "clause_id": "invariant.group_partition",
+            "meaning": "n_treated+n_control equals the common input length, and every admitted unit appears in exactly one group without reordering the unit alignment."
+          },
+          {
+            "clause_id": "invariant.location_equivariance",
+            "meaning": "Adding the same finite constant to every observed outcome adds that constant to both group means while preserving estimate, both within-group variances, neyman_variance, and standard_error."
+          },
+          {
+            "clause_id": "invariant.scale_equivariance",
+            "meaning": "Multiplying every observed outcome by finite c multiplies estimate and both means by c, both variances and neyman_variance by c^2, and standard_error by absolute(c)."
+          },
+          {
+            "clause_id": "invariant.label_exchange",
+            "meaning": "Replacing every treatment indicator by one minus itself swaps group counts, means, and variances, negates estimate, and preserves neyman_variance and standard_error."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.exact_unbiasedness",
+            "meaning": "For each frozen finite population and treated count, exact enumeration over every complete-randomization assignment makes the average returned estimate equal the finite-population average treatment effect."
+          },
+          {
+            "clause_id": "claim.empirical.randomization_variance",
+            "meaning": "For each frozen finite population, exact assignment enumeration makes the variance of returned estimates equal S_1^2/n_1+S_0^2/n_0-S_tau^2/N when S_1^2, S_0^2, and S_tau^2 use divisor N-1."
+          },
+          {
+            "clause_id": "claim.empirical.neyman_expectation",
+            "meaning": "For each frozen finite population, the assignment average of returned neyman_variance equals S_1^2/n_1+S_0^2/n_0, so its gap above the exact randomization variance equals S_tau^2/N."
+          },
+          {
+            "clause_id": "claim.empirical.constant_effect_boundary",
+            "meaning": "For a frozen population with a constant unit-level treatment effect, S_tau^2 is zero and exact assignment enumeration makes the average returned neyman_variance equal the randomization variance of the estimator."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every enumerated assignment constructs observed outcomes from the same frozen ordered potential-outcome vectors, invokes the accepted estimator with the exact public request, and evaluates all assignments with exactly n_1 treated units."
+          }
+        ]
+      }
+    }
+  ]
+}
