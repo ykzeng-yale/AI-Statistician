@@ -94,7 +94,10 @@ def _keyed_candidate_packet(*, violated: str = "") -> dict[str, object]:
                         "VIOLATED" if claim_id == violated else "SATISFIED"
                     )
                     for claim_id in CLAIM_IDS
-                }
+                },
+                "decisive_excerpts": {
+                    claim_id: "candidate" for claim_id in CLAIM_IDS
+                },
             }
         }
     }
@@ -168,6 +171,7 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
         {
             "claim_id_hash": stable_hash(claim_id),
             "status": "SATISFIED",
+            "decisive_excerpt_hash": stable_hash("candidate"),
         }
         for claim_id in CLAIM_IDS
     ]
@@ -205,7 +209,10 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
     ]
     assert candidate_assessments["required"] == ["candidate"]
     candidate_schema = candidate_assessments["properties"]["candidate"]
-    assert candidate_schema["required"] == ["claim_statuses"]
+    assert candidate_schema["required"] == [
+        "claim_statuses",
+        "decisive_excerpts",
+    ]
     assert "status" not in candidate_schema["properties"]
     assert candidate_schema["properties"]["claim_statuses"]["required"] == (
         CLAIM_IDS
@@ -286,10 +293,12 @@ def test_candidate_document_status_is_derived_from_keyed_claim_statuses() -> Non
         {
             "claim_id_hash": stable_hash("claim:definition"),
             "status": "SATISFIED",
+            "decisive_excerpt_hash": stable_hash("candidate"),
         },
         {
             "claim_id_hash": stable_hash("claim:limit"),
             "status": "VIOLATED",
+            "decisive_excerpt_hash": stable_hash("candidate"),
         },
     ]
     assert result["passed"] is False
@@ -308,6 +317,19 @@ def test_keyed_candidate_schema_fails_closed_on_missing_claim() -> None:
                 [_keyed_calibration_packet(), candidate]
             )
         )
+
+
+def test_candidate_grounding_must_quote_the_candidate_exactly() -> None:
+    candidate = _keyed_candidate_packet()
+    candidate["assessments"]["candidate"]["decisive_excerpts"][
+        "claim:definition"
+    ] = "invented evidence"
+
+    with pytest.raises(
+        ValueError,
+        match="every claim needs an exact decisive candidate excerpt",
+    ):
+        _run(_RecordingProvider([_keyed_calibration_packet(), candidate]))
 
 
 def test_semantic_judge_validator_rejects_inconsistent_overall_status() -> None:

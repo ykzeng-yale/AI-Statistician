@@ -20,12 +20,8 @@ THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY = (
     "AgentRuntime termination. It cannot revise the candidate, route a runtime "
     "task, enter model RAG, or become theorem proof evidence."
 )
-THEORY_SEMANTIC_CLAIM_STATUSES = frozenset(
-    {"SATISFIED", "VIOLATED", "INCONCLUSIVE"}
-)
-THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset(
-    {"PASS", "FAIL", "INCONCLUSIVE"}
-)
+THEORY_SEMANTIC_CLAIM_STATUSES = frozenset({"SATISFIED", "VIOLATED", "INCONCLUSIVE"})
+THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset({"PASS", "FAIL", "INCONCLUSIVE"})
 
 
 def _theory_semantic_gold_judge_schema(
@@ -37,20 +33,23 @@ def _theory_semantic_gold_judge_schema(
         assessment_schema: dict[str, Any] = {
             "type": "object",
             "additionalProperties": False,
-            "required": ["claim_statuses"],
+            "required": ["claim_statuses", "decisive_excerpts"],
             "properties": {
                 "claim_statuses": {
                     "type": "object",
                     "additionalProperties": False,
                     "required": list(claim_ids),
                     "properties": {
-                        claim_id: {
-                            "type": "string",
-                            "enum": sorted(THEORY_SEMANTIC_CLAIM_STATUSES),
-                        }
+                        claim_id: {"type": "string", "enum": sorted(THEORY_SEMANTIC_CLAIM_STATUSES)}
                         for claim_id in claim_ids
                     },
-                }
+                },
+                "decisive_excerpts": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": list(claim_ids),
+                    "properties": {claim_id: {"type": "string"} for claim_id in claim_ids},
+                },
             },
         }
     else:
@@ -58,12 +57,7 @@ def _theory_semantic_gold_judge_schema(
             "type": "object",
             "additionalProperties": False,
             "required": ["status"],
-            "properties": {
-                "status": {
-                    "type": "string",
-                    "enum": sorted(THEORY_SEMANTIC_DOCUMENT_STATUSES),
-                }
-            },
+            "properties": {"status": {"type": "string", "enum": sorted(THEORY_SEMANTIC_DOCUMENT_STATUSES)}},
         }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -94,20 +88,17 @@ def _materialize_semantic_assessment_packet(
         return deepcopy(dict(payload))
     assessments: list[dict[str, Any]] = []
     for case_id, raw_assessment in raw_assessments.items():
-        assessment = (
-            dict(raw_assessment)
-            if isinstance(raw_assessment, Mapping)
-            else {}
-        )
+        assessment = dict(raw_assessment) if isinstance(raw_assessment, Mapping) else {}
         if claim_ids:
             raw_statuses = assessment.get("claim_statuses", {})
-            raw_statuses = (
-                raw_statuses if isinstance(raw_statuses, Mapping) else {}
-            )
+            raw_statuses = raw_statuses if isinstance(raw_statuses, Mapping) else {}
+            raw_excerpts = assessment.get("decisive_excerpts", {})
+            raw_excerpts = raw_excerpts if isinstance(raw_excerpts, Mapping) else {}
             claim_assessments = [
                 {
                     "claim_id": str(claim_id),
                     "status": str(status),
+                    "decisive_excerpt": str(raw_excerpts.get(claim_id, "")),
                 }
                 for claim_id, status in raw_statuses.items()
             ]
@@ -118,13 +109,7 @@ def _materialize_semantic_assessment_packet(
         else:
             claim_assessments = []
             status = str(assessment.get("status", "") or "")
-        assessments.append(
-            {
-                "case_id": str(case_id),
-                "status": status,
-                "claim_assessments": claim_assessments,
-            }
-        )
+        assessments.append({"case_id": str(case_id), "status": status, "claim_assessments": claim_assessments})
     return {"assessments": assessments}
 
 
@@ -166,6 +151,10 @@ def _generate_semantic_assessment_batch(
             "algebra. For each rubric claim, inspect the complete endorsed derivation, "
             "including intermediate displayed equations and dependencies; a correct "
             "final conclusion does not cancel a false, circular, or unsupported step. "
+            "Treat the candidate as the conjunction of every assertion it contains. "
+            "For every rubric claim, scan the complete candidate for both supporting "
+            "and conflicting passages before deciding. A later correct caveat or "
+            "disclaimer does not erase an earlier false or unsupported assertion. "
             "Reject contradictory assumptions, incorrect method identification, "
             "unjustified limits, unsupported source/result claims, or evidence-authority "
             "violations. Do not grade wording, formatting, or keyword overlap. "
@@ -174,10 +163,10 @@ def _generate_semantic_assessment_batch(
             "Think through the comparison, but follow the keyed response schema exactly. "
             "During calibration, assessments is keyed by the frozen case IDs and each "
             "value contains only an overall status. During candidate adjudication, each "
-            "assessment contains only claim_statuses keyed by every frozen claim ID; the "
-            "evaluator derives the overall status mechanically. Include no rationale, "
-            "commentary, copied IDs, or extra fields. Do not infer a desired label from "
-            "case order."
+            "assessment contains claim_statuses and decisive_excerpts keyed by every "
+            "frozen claim ID. Each excerpt must quote the candidate verbatim. Prefer any "
+            "passage that violates the criterion over supporting text; only if none exists "
+            "quote the strongest support. The evaluator derives overall status mechanically."
         ),
         user_prompt=json.dumps(payload, ensure_ascii=False, default=str),
         model=model,
@@ -201,19 +190,26 @@ def _generate_semantic_assessment_batch(
         },
     )
     response = provider.generate(request)
-    raw_packet = extract_json_object(
-        response.text,
-        label=f"hidden {phase} semantic gold judgment",
-    )
-    packet = _materialize_semantic_assessment_packet(
-        raw_packet,
-        claim_ids=claim_ids,
-    )
+    raw_packet = extract_json_object(response.text, label=f"hidden {phase} semantic gold judgment")
+    packet = _materialize_semantic_assessment_packet(raw_packet, claim_ids=claim_ids)
     errors = validate_theory_semantic_gold_judgment(
         packet,
         claim_ids=claim_ids,
         required_case_ids=required_case_ids,
     )
+    candidate_text = "\n".join(
+        str(document.get("content", "") or "")
+        for case in document_cases
+        for document in case.get("documents", []) or []
+        if isinstance(case, Mapping) and isinstance(document, Mapping)
+    )
+    if claim_ids and any(
+        not str(row.get("decisive_excerpt", "") or "").strip()
+        or str(row.get("decisive_excerpt")) not in candidate_text
+        for assessment in packet.get("assessments", [])
+        for row in assessment.get("claim_assessments", [])
+    ):
+        errors.append("every claim needs an exact decisive candidate excerpt")
     if errors:
         raise ValueError(
             f"invalid hidden {phase} semantic judgment: " + "; ".join(errors)
@@ -339,7 +335,11 @@ def run_theory_semantic_gold_judge(
             candidate_assessment
         ),
         "candidate_claim_assessments": [
-            {"claim_id_hash": stable_hash(str(row["claim_id"])), "status": str(row["status"])}
+            {
+                "claim_id_hash": stable_hash(str(row["claim_id"])),
+                "status": str(row["status"]),
+                "decisive_excerpt_hash": stable_hash(row["decisive_excerpt"]),
+            }
             for row in candidate_assessment["claim_assessments"]
         ],
         "passed": passed,
