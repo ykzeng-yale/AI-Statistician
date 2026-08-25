@@ -1,13 +1,13 @@
 {
-  "schema_version": 147,
+  "schema_version": 148,
   "updated_at": "2026-08-25",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
+  "validated_code_head": "ddc66099bd5991310bb5280cccbe361edaa8355e",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all twenty-eight consumed tasks at immutable 0/28. The OpenAI Codex harness audit confirms the canonical direction: one persistent model-owned tool loop per workspace, raw environment observations returned to the same session, durable external artifacts, and sparse hash-bound collaboration. Commit b4900679 removes the live Theory preflight referee's per-claim, per-dimension, and per-estimator checklist transport in favor of one model-authored Markdown report plus a compact disposition and actual findings; this is future-task mechanism evidence only. Continue improving long-horizon Theory and Lean sessions only from demonstrated cross-workspace failures. Do not embed Codex as a second runtime, add scientific formulas, a repair agent, a second scheduler, task-specific prompts, or mandatory Formalizer work.",
+  "current_goal_focus": "Preserve all twenty-eight consumed tasks at immutable 0/28. The OpenAI Codex harness audit now has two evidence-backed adoptions: b4900679 keeps Theory referee mathematics in a persistent Markdown report with a compact disposition, and ddc66099 resets model context only at durable Theory, scientific-code, or Lean checkpoints while preserving exact transcript and artifact lineage. These are future-task mechanisms, not capability credit. Continue from measured scientific failures with model-owned long-horizon workspaces; do not embed Codex as a second runtime, add summary agents, token-threshold truncation, scientific formulas, a repair agent, a second scheduler, task-specific prompts, or mandatory Formalizer work.",
   "latest_openai_codex_harness_adoption": {
     "upstream_repository": "https://github.com/openai/codex",
     "upstream_commit": "d52478c52ef09f001142a4b82339467c3880877f",
@@ -34,6 +34,40 @@
     "live_model_calls": 0,
     "capability_credit": false,
     "boundary": "No consumed task was rerun, resumed, repaired, or rescored. The ladder remains 0/28; this mechanism applies only to future disjoint tasks."
+  },
+  "latest_durable_checkpoint_context_window": {
+    "implementation_commit": "ddc66099bd5991310bb5280cccbe361edaa8355e",
+    "shared_mechanism": "TheoryDeveloper, scientific Python/R source, and Lean candidate workspaces now keep linear model-tool history inside each segment but open a fresh context window at an existing hash-bound durable checkpoint.",
+    "measured_live_evidence": {
+      "theory_session_sizes_bytes": [
+        97560,
+        110790,
+        115142,
+        122033
+      ],
+      "lean_parent_session_bytes": 97951,
+      "lean_parent_messages": 41,
+      "lean_parent_content_characters": 92881,
+      "lean_new_authoritative_prompt_characters": 21169,
+      "lean_first_resumed_request_content_characters": 114050,
+      "lean_resumed_session_bytes": 124119,
+      "lean_parent_was_exact_replayed_prefix": true,
+      "scientific_source_session_bytes": 79212
+    },
+    "new_boundary": {
+      "parent_transcript_bytes_model_tool_contract_and_hash_verified": true,
+      "new_window_bound_to_current_checkpoint_identity": true,
+      "prior_transcript_replayed": false,
+      "model_or_runtime_summary_used": false,
+      "current_authoritative_documents_source_and_diagnostics_visible": true,
+      "within_segment_history_linear": true
+    },
+    "verification": "104/104 client-tool, Theory, scientific-code, and Lean focused tests passed; 868/868 full-suite tests passed in 79.61 seconds; compile-all and diff hygiene passed. Regressions prove checkpoint identity binding, parent-session tamper rejection, current document/source/diagnostic visibility, and absence of prior tool-call replay.",
+    "central_runtime_changed": false,
+    "research_agent_runtime_lines": 24986,
+    "live_model_calls": 0,
+    "capability_credit": false,
+    "boundary": "No consumed task was rerun, resumed, repaired, or rescored. Existing session artifacts were read only. The research ladder remains 0/28 and future live validation requires a newly frozen disjoint task."
   },
   "latest_huber_location_l0_evaluation": {
     "task_id": "huber_location_m_estimator_known_result",
