@@ -115,6 +115,9 @@ Post-consumption commit `e7d0174a` implemented the shared metric correction as
 one persistent source-owner loop with parent-hash-bound complete submissions,
 direct validator feedback, and isolated review. It added no repair agent,
 formula detector, scheduler, or score change and is future-task regression
-evidence only. The next scientific priority is adversarial derivation checking
-or independent reconstruction on future disjoint tasks, while provisional
+evidence only. Post-consumption commit `b9ece439` then required the existing
+isolated referee to persist an independent pre-candidate reconstruction and a
+distinct post-inspection comparison under exact hashes. That change adds no
+agent, call, formula, or mathematical validator and also has regression evidence
+only. It must be evaluated on a future disjoint frozen task while provisional
 theory may still open exploratory coding. Nothing can alter this consumed result.

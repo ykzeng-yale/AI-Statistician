@@ -2082,7 +2082,7 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
         for row in scored
     )
     assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "e7d0174a0028aa8ee9371bf2794660a045c465d0"
+        "b9ece43923ab05cb1185e1493e360658ae14c8fb"
     )
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2356,6 +2356,12 @@ def test_complete_randomization_l0_draw_is_consumed_and_failed_closed() -> None:
         "e7d0174a0028aa8ee9371bf2794660a045c465d0"
     )
     assert evidence["post_consumption_shared_metric_source_loop_evidence"] == (
+        "future_tasks_regression_only_no_rerun_repair_rescore_or_capability_credit"
+    )
+    assert evidence["post_consumption_shared_theory_reconstruction_head"] == (
+        "b9ece43923ab05cb1185e1493e360658ae14c8fb"
+    )
+    assert evidence["post_consumption_shared_theory_reconstruction_evidence"] == (
         "future_tasks_regression_only_no_rerun_repair_rescore_or_capability_credit"
     )
     assert evidence["model_draw_resampling_blocked"] is True

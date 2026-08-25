@@ -237,13 +237,17 @@ The authoritative `metric_protocol.json` is external workspace state, not a stru
 A rejected `metric_contract_review` returns exact findings to the same metric owner. A still-rejected revision blocks with full lineage; only a separately evidenced cross-workspace inconsistency reaches Architect.
 
 A rejected theory preflight returns exact observations to the parent-bound theory
-workspace. The reviewer may query task-bound literature or formal RAG, and every
-cited source is snapshot-verified. Prior findings remain immutable records but may
-be resolved or retracted by the independent model using current evidence; runtime
-only validates lineage.
+workspace. Before candidate-document inspection, the same referee writes an independent
+reconstruction from the task contract and model-selected source or scratch observations; runtime retains that version by hash. After inspection, the referee revises the same
+Markdown report by explicit comparison. Runtime validates chronology, bytes, hashes,
+and lineage only, never selecting mathematics or judging correctness.
 
-The independent reviewer may author an isolated Python/R/SymPy scratch countercheck and interpret its raw result in the existing tool loop.
-When useful it targets the disputed intermediate claim; final-output agreement cannot establish that derivation. Runtime stores hash-bound lineage only: exploratory, never confirmatory/proof, with no added reviewer, vote, repair worker, or route.
+The reviewer may query task-bound literature or formal RAG, and every cited source
+is snapshot-verified. It may also author an isolated Python/R/SymPy countercheck and
+interpret the raw result in the existing tool loop. Prior findings remain immutable
+records but may be resolved or retracted by the model. All scratch evidence remains
+exploratory, never confirmatory/proof, with no added reviewer, vote, repair worker,
+model call, or route.
 
 ## Lean formalization workspace
 

@@ -6,7 +6,7 @@ Upstream reviewed: [`openai/codex`](https://github.com/openai/codex) at
 `34c5303f49d08a5a41294e2531d1e64b40c0302d` (Apache-2.0).
 
 Latest implementation commit:
-`e7d0174a0028aa8ee9371bf2794660a045c465d0`.
+`b9ece43923ab05cb1185e1493e360658ae14c8fb`.
 
 Primary references:
 
@@ -328,8 +328,20 @@ production Python is 149,919 lines, below its unchanged 150,000-line budget.
 
 This is future-task mechanism evidence only. The complete-randomization run stays
 immutable `0/1`, and its false intermediate mathematics remains unresolved.
-Future theory evaluation must include plausible false derivations and genuine
-independent reconstruction; no consumed run may be rerun or rescored.
+
+Commit `b9ece439` applies the same persistent-workspace principle to theory review.
+Before candidate-document access, the existing isolated referee must write its own
+reconstruction from the question, contract, and any model-selected source or scratch
+observations. The same session then inspects the candidate and revises the same
+Markdown report by explicit comparison. Runtime retains every version under its
+SHA-256 and validates only ordering, file identity, and final-report binding. It does
+not parse equations, choose a derivation, add a reviewer, make another model call, or
+create a second scheduler. Checkpoint continuation preserves this chronology through
+the already existing transcript and content-addressed files.
+
+Future theory evaluation must test plausible false derivations on a disjoint frozen
+task. The new chronology has regression evidence only; no consumed run may be rerun
+or rescored.
 
 ## Standalone sandbox boundary
 

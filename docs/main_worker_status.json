@@ -1,19 +1,19 @@
 {
-  "schema_version": 155,
+  "schema_version": 156,
   "updated_at": "2026-08-25",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "e7d0174a0028aa8ee9371bf2794660a045c465d0",
+  "validated_code_head": "b9ece43923ab05cb1185e1493e360658ae14c8fb",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all thirty-three consumed tasks at immutable scores, now 2/33. Commit e7d0174a replaced detached full-JSON metric regeneration with a persistent model-owned source loop: exact read, complete parent-hash-bound submission, direct validator feedback, isolated pre-outcome review, and same-session revision. This is regression evidence only and complete randomization remains 0/1. The main scientific bottleneck is now trustworthy long-horizon theory development and adversarial reconstruction of load-bearing equations; strict development Lean closure remains 0/2. Continue Theory, Python/R, Simulation, source replication, and optional/required Lean workspaces through sparse hash-bound handoffs without importing Codex runtime, adding a repair agent or scheduler, hardcoding science, or making Formalizer mandatory for non-formal tasks.",
+  "current_goal_focus": "Preserve all thirty-three consumed tasks at immutable scores, now 2/33. Commits e7d0174a and b9ece439 apply the selectively adopted Codex lifecycle to metric ownership and theory review: persistent external source, direct same-session observations, blind referee reconstruction before candidate access, explicit post-inspection comparison, and content-addressed chronology. Both are regression evidence only and complete randomization remains 0/1. The main scientific bottleneck remains trustworthy long-horizon theory development; strict development Lean closure remains 0/2. Continue Theory, Python/R, Simulation, source replication, and optional/required Lean workspaces through sparse hash-bound handoffs without importing Codex runtime, adding a repair agent or scheduler, hardcoding science, or making Formalizer mandatory for non-formal tasks.",
   "latest_openai_codex_harness_adoption": {
     "upstream_repository": "https://github.com/openai/codex",
     "upstream_commit": "34c5303f49d08a5a41294e2531d1e64b40c0302d",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "e7d0174a0028aa8ee9371bf2794660a045c465d0",
+    "implementation_commit": "b9ece43923ab05cb1185e1493e360658ae14c8fb",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -21,11 +21,13 @@
       "91fff005efc8a49f4aacb3b3fcd5d619a8884e46",
       "3c00a515040dff2e21e4ec4666fce7e70b45a8b7",
       "700f3360fddae0f31e42224ab17ffb42df50b9c1",
-      "e7d0174a0028aa8ee9371bf2794660a045c465d0"
+      "e7d0174a0028aa8ee9371bf2794660a045c465d0",
+      "b9ece43923ab05cb1185e1493e360658ae14c8fb"
     ],
     "decision": "Reuse Codex's persistent model-tool-observation loop, stable tool surface, external artifact state, terminal-error pending-input preservation, sparse collaboration, and telemetry boundaries. Do not embed codex exec, app-server, or the Codex SDK as another scheduler or generator backend in the Claude-first canonical runtime. Treat standalone Codex sandboxing as a future pinned native execution provider only after cross-platform isolation calibration.",
     "implemented_changes": [
       "Theory preflight keeps mathematical judgment in a persistent model-authored Markdown report and returns a compact hash-bound disposition instead of duplicating a scientific checklist packet.",
+      "The same isolated theory referee now writes an independent reconstruction before candidate-document access, then revises the same Markdown report by explicit comparison. Every version is retained by SHA-256; runtime validates chronology and identity only, with no new agent, call, scheduler, equation parser, or task formula.",
       "Theory, scientific-code, and Lean workspaces open a fresh context window only at a verified durable checkpoint while preserving exact parent transcript and artifact lineage.",
       "GeneratedCodeSemanticReviewer submits through the existing native client-tool loop; model-actionable validation failures return as error tool observations to the same isolated reviewer session, while repeated invalid submission fails closed.",
       "Metric author and independent reviewer prompts require uncertainty arithmetic on the actual comparison scale and distinguish absolute, relative, MCSE, and standardized errors without adding a numeric detector or statistical formula.",
@@ -42,12 +44,12 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-    "verification": "The metric source-owner, reviewer-continuation, AgentRuntime, client-tool, contract, CLI, and architecture-budget panels passed; the complete repository passed 879/879 in 69.62 seconds. Compile-all and diff hygiene passed. Top-level production Python is 149,919 lines, architect_metric_contract_authoring.py is 2,805 lines, AgentRuntime is 1,159 lines, and research_agent_runtime.py is 24,946 lines. No live model call or consumed-task replay occurred.",
+    "verification": "The blind-reconstruction referee, metric source-owner, AgentRuntime, client-tool, contract, CLI, ladder, and architecture-budget panels passed; the complete repository passed 879/879 in 69.41 seconds. Compile-all and diff hygiene passed. Top-level production Python is 149,992 lines, architect_theory_execution_preflight.py is 4,942 lines, AgentRuntime is 1,159 lines, and research_agent_runtime.py is 24,946 lines. No live model call or consumed-task replay occurred.",
     "live_validation_runs": 3,
     "fresh_live_client_tool_model_turns": 78,
     "capability_credit": true,
     "latest_mechanism_capability_credit": false,
-    "boundary": "No consumed task was rerun, resumed, repaired, or rescored. Beta-Binomial and PyMLE are each immutable 1/1; Poisson-Garwood and complete randomization are immutable 0/1; the aggregate ladder is 2/33. The complete-randomization run exposed false mathematical review and detached full-packet metric authoring. Commit e7d0174a supplies only future-task regression evidence for the latter; exact Lean closure remains separate."
+    "boundary": "No consumed task was rerun, resumed, repaired, or rescored. Beta-Binomial and PyMLE are each immutable 1/1; Poisson-Garwood and complete randomization are immutable 0/1; the aggregate ladder is 2/33. The complete-randomization run exposed false mathematical review and detached full-packet metric authoring. Commits e7d0174a and b9ece439 supply only future-task regression evidence for those shared mechanisms; exact Lean closure remains separate."
   },
   "latest_complete_randomization_evaluation": {
     "task_id": "complete_randomization_neyman_variance_known_result",
@@ -77,7 +79,7 @@
     "operator_audit": "docs/operator_audits/complete_randomization_neyman_l0_v1.md",
     "full_task_score": "0/1 under the pre-frozen protocol",
     "ladder_score_after_consumption": "2/33",
-    "next_shared_change": "The persistent parent-hash-bound metric source workspace is implemented in e7d0174a. Next improve future adversarial derivation evaluation and long-horizon theory reconstruction without task formulas, output patches, forced extra calls, or another scheduler.",
+    "next_shared_change": "The persistent metric source workspace is implemented in e7d0174a and blind referee reconstruction chronology in b9ece439. Validate both only on a future disjoint frozen task; do not add task formulas, output patches, forced extra calls, or another scheduler.",
     "boundary": "The sole draw is consumed. Never rerun, resume, repair, rescore, or feed hidden/operator findings back to its source owners. Correct final formulas and exact empirical checks do not validate false intermediate derivation or the full research loop."
   },
   "latest_poisson_garwood_r_evaluation": {
@@ -505,8 +507,12 @@
     ]
   },
   "validated_change": {
-    "commit": "e7d0174a0028aa8ee9371bf2794660a045c465d0",
+    "commit": "b9ece43923ab05cb1185e1493e360658ae14c8fb",
     "changes": [
+      "Commit b9ece439 keeps theory review inside the existing isolated client-tool workspace but requires a blind first report before candidate-document search or read. After candidate inspection, the same referee must submit a changed Markdown report that explicitly compares its reconstruction with the candidate.",
+      "Every review-draft version is stored under its full SHA-256. The terminal packet binds initial and revised hashes, candidate-inspection chronology, and the final report; runtime validates bytes, ordering, and lineage only and sets runtime_selected_mathematics=false.",
+      "The change adds no agent, scheduler, model call, retry, formula, equation parser, statistical rule, or mathematical patch. Existing checkpoint state preserves the chronology without a new state layer, and no consumed task was rerun, repaired, or rescored.",
+      "Focused preflight and core regressions passed 66/66 and the final complete repository passed 879/879 in 69.41 seconds. Compile-all, secret scan, and diff hygiene passed; production Python is 149,992 lines under the unchanged 150,000-line budget.",
       "Commit e7d0174a replaces detached structured-output regeneration in future metric authoring with one persistent model-owned metric_protocol.json. The stable client-tool surface is exact read plus complete source submission against the current parent SHA-256; validator observations and isolated pre-outcome findings return to the same source owner.",
       "Runtime stores and validates exact submitted bytes, never patches fields or chooses statistical semantics. Terminal loop failure seals a compact transcript/file checkpoint with automatic_retry_authorized=false; the existing typed AgentRuntime records it without a RepairAgent, Architect route, second scheduler, task formula, or model escalation.",
       "The implementation removed obsolete response schemas, structured-output retry telemetry, duplicated ownership truth tables, and cumulative segment counters. Top-level production Python fell from 149,942 to 149,919 lines while adding the source-owner lifecycle and regressions.",
@@ -834,15 +840,15 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model independently chooses every claim, dependency, research-source query, source handle, exact read, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, confirmatory replicate count, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, median-of-means, AR(1), Fisher-z, paired-ratio, and scalar-control-variate expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, automatic literature query or source selection, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback. Terminal disposition is generic control-plane capacity and cannot execute an extra research action; dependency and trace projections preserve identity, hashes, ABI, exact-output locations, and unique unreferenced observations without selecting or rewriting scientific content.",
     "verification": {
-      "full_pytest": "879 passed in 69.62s",
+      "full_pytest": "879 passed in 69.41s",
       "next_frozen_activation": "none currently authorized; Beta-Binomial and Ridge are permanently consumed, so any future product draw requires a newly frozen disjoint task and evaluator authority",
-      "affected_subsystem_pytest": "Metric source-owner submission, direct validator feedback, parent-hash continuation, isolated reviewer return, AgentRuntime integration, client-tool, contract, CLI, and architecture-budget regressions passed; the complete repository passed 879/879.",
+      "affected_subsystem_pytest": "Blind reconstruction ordering, immutable report snapshots, post-inspection revision, tamper rejection, checkpoint continuation, metric source ownership, AgentRuntime, client-tool, contract, CLI, and architecture-budget regressions passed; the complete repository passed 879/879.",
       "independent_theory_review_authority": "Commit 9fbbeaba requires an exact isolated review acceptance before terminal Critic whenever theory is required. Theory-only tasks create no metric gate, and bypass attempts block before the Critic model call.",
       "theory_workspace_action_budget": "Commit 9cf75411 replaces class-specific read/write quotas with one shared ordinary-tool budget selected by the TheoryDeveloper model. Turn/action bounds, no-progress termination, execution safety caps, and the separately reserved terminal disposition remain enforced; no model call or frozen-task activation occurred.",
       "simulation_dependency_prompt_projection": "immutable live replay reduced 6,812,024 bytes of recursive environment feedback to a 45,314-byte complete planning prompt; accepted estimator ABI plus source/result hashes remained visible, while source bytes and 4,000 historical smoke-result rows were absent",
       "persisted_tool_call_projection": "immutable scalar replay reduced the largest tool record from 3,370,158 to 18,379 bytes and the complete ten-row trace from 3,440,322 to 89,326 bytes, preserving summary hash, output hash, and output paths; large observations without external authoritative output remain exact inline",
       "visible_estimator_contract": "schema-v2 executable tasks fail closed unless every public ABI field has explicit semantics, hidden checks cite valid public clauses under one estimator identity, and each hidden empirical check also cites a compact public empirical claim; the exact contract reaches scientific model contexts without being copied into agent result packets",
-      "openai_codex_harness_audit": "official openai/codex main was re-fetched and pinned at 34c5303f49d08a5a41294e2531d1e64b40c0302d under Apache-2.0. AI-Statistician selectively adopts the persistent model-tool-observation loop, stable tools, external artifact state, terminal-error pending-input preservation, sparse hash-bound collaboration, and lifecycle telemetry. Commit e7d0174a applies it to metric_protocol.json through exact read and complete parent-hash-bound source submission. It does not import Codex app-server, Responses transport, provider, SDK, thread manager, subagents, Guardian transcript scorer, worktree manager, or scheduler. Standalone Codex sandboxing remains a possible future native Python/R backend only after a version is pinned and isolation is calibrated across macOS and Linux.",
+      "openai_codex_harness_audit": "official openai/codex main was re-fetched and pinned at 34c5303f49d08a5a41294e2531d1e64b40c0302d under Apache-2.0. AI-Statistician selectively adopts the persistent model-tool-observation loop, stable tools, external artifact state, terminal-error pending-input preservation, sparse hash-bound collaboration, and lifecycle telemetry. Commit e7d0174a applies it to metric_protocol.json; b9ece439 applies it to a blind-reconstruction then candidate-comparison theory-referee chronology in the same existing session. It does not import Codex app-server, Responses transport, provider, SDK, thread manager, subagents, Guardian transcript scorer, worktree manager, or scheduler. Standalone Codex sandboxing remains a possible future native Python/R backend only after a version is pinned and isolation is calibrated across macOS and Linux.",
       "independent_public_source_referee": "author and referee sessions share provider policy but not opaque handles; reviewer search metadata is non-citable, exact reads become hash-bound S#H# observations, source bodies are redacted from final evidence history, and frozen cross-family evaluation keeps live discovery disabled",
       "neutral_exact_haiku_transport_probe": "Anthropic accepted five client tools with a 5,201-character sixteen-claim submit schema under claude-haiku-4-5-20251001, returned tool_use, and reported zero strict tools; no research content or frozen task was executed",
       "source_retrieval_ablation": "A representative query reconstructed from persisted L1 matched terms returned five distinct top-5 documents, including the exact DoubleMLIRM implementation. The failed live run did not persist its raw query text, so this is not an exact-query replay and provides no report-correctness credit.",

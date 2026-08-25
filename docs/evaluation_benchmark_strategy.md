@@ -658,7 +658,14 @@ author transcript, and independent pre-outcome findings return to that same owne
 Commit `e7d0174a` adds no task formula, field patcher, RepairAgent, Architect route,
 or scheduler, and its regression evidence cannot change this task's score.
 
-Future theory benchmarks should calibrate reviewers against plausible incorrect
-intermediate equations and can use an independent reconstruction/challenger pass
-when final theory authority is required. The complete-randomization draw remains
-immutable and cannot be rerun, repaired, or rescored.
+Post-consumption commit `b9ece439` now requires the same isolated referee to write
+an independent reconstruction before candidate-document access, then revise that
+same Markdown report by explicit comparison after inspection. Every report version
+is retained by content hash, and runtime validates only chronology and identity.
+This is a Codex-style improvement to model-owned context and iteration, not another
+agent, model call, mathematical validator, or theory result.
+
+Future theory benchmarks should calibrate this mechanism against plausible incorrect
+intermediate equations on a disjoint task frozen before its first call. The
+complete-randomization draw remains immutable and cannot be rerun, repaired, or
+rescored; commit `b9ece439` receives regression evidence only.
