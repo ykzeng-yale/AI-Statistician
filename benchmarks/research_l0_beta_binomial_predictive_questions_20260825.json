@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "beta_binomial_conjugate_predictive_known_result",
+      "title": "Beta-Binomial conjugate posterior and predictive moments",
+      "description": "Focused L0 known-result evaluation grounded in Persi Diaconis and Donald Ylvisaker, Conjugate Priors for Exponential Families, The Annals of Statistics 7 (1979), 269-281, DOI 10.1214/aos/1176344611. Let theta have a Beta(alpha,beta) prior with alpha>0 and beta>0. Given theta, observe S successes in n conditionally independent Bernoulli trials, where n is a nonnegative integer and 0<=S<=n. Develop one authoritative Markdown/LaTeX derivation of the Beta(alpha+S,beta+n-S) posterior, its exact mean and variance, and the Beta-Binomial posterior predictive distribution for Y successes in m future Bernoulli trials. Derive the predictive probability mass function, mean, and variance using conditional expectation and variance; distinguish posterior uncertainty from a plug-in Binomial model. Establish success-failure exchange symmetry, sequential updating coherence, the no-data boundary, and the one-future-trial predictive boundary. The required model-authored artifact is est_beta_binomial_posterior and must implement run_estimator(request) exactly for the frozen public contract. Exploratory Python or R may check identities. A separately frozen confirmatory assessment draws from the posterior and posterior predictive distribution at predeclared inputs and compares empirical moments with the exact formulas using Monte Carlo uncertainty. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "bayesian_inference",
+        "conjugate_priors",
+        "beta_binomial",
+        "posterior_predictive",
+        "L0"
+      ],
+      "source": {
+        "title": "Conjugate Priors for Exponential Families",
+        "author": "Persi Diaconis and Donald Ylvisaker",
+        "journal": "The Annals of Statistics",
+        "year": 1979,
+        "volume": 7,
+        "issue": 2,
+        "pages": "269-281",
+        "doi": "10.1214/aos/1176344611",
+        "url": "https://doi.org/10.1214/aos/1176344611"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_beta_binomial_posterior",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.successes",
+            "name": "successes",
+            "meaning": "The observed number S of Bernoulli successes.",
+            "json_type": "integer",
+            "shape": "scalar integer satisfying 0<=S<=n",
+            "units": "successes",
+            "indexing": "one aggregate count",
+            "edge_cases": "Reject booleans, nonintegers, negative values, and values larger than trials.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.trials",
+            "name": "trials",
+            "meaning": "The observed number n of conditionally independent Bernoulli trials.",
+            "json_type": "integer",
+            "shape": "nonnegative scalar integer",
+            "units": "trials",
+            "indexing": "one aggregate count",
+            "edge_cases": "Zero is allowed for the no-data boundary; reject booleans, nonintegers, and negative values.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.prior_alpha",
+            "name": "prior_alpha",
+            "meaning": "The strictly positive finite alpha shape parameter of the Beta prior for theta.",
+            "json_type": "number",
+            "shape": "strictly positive finite scalar",
+            "units": "dimensionless prior shape",
+            "indexing": "success-side shape",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite values, zero, and negative values.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.prior_beta",
+            "name": "prior_beta",
+            "meaning": "The strictly positive finite beta shape parameter of the Beta prior for theta.",
+            "json_type": "number",
+            "shape": "strictly positive finite scalar",
+            "units": "dimensionless prior shape",
+            "indexing": "failure-side shape",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite values, zero, and negative values.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.future_trials",
+            "name": "future_trials",
+            "meaning": "The fixed number m of future conditionally independent Bernoulli trials in the posterior predictive experiment.",
+            "json_type": "integer",
+            "shape": "nonnegative scalar integer",
+            "units": "future trials",
+            "indexing": "one predictive horizon",
+            "edge_cases": "Zero is allowed and must give zero predictive mean and variance; reject booleans, nonintegers, and negative values.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.posterior_alpha",
+            "name": "posterior_alpha",
+            "meaning": "The exact posterior success-side shape alpha+S.",
+            "json_type": "number",
+            "shape": "strictly positive finite scalar",
+            "units": "dimensionless posterior shape",
+            "indexing": "success-side shape",
+            "edge_cases": "Equals prior_alpha when successes is zero.",
+            "normalization": "No rescaling."
+          },
+          {
+            "clause_id": "response.posterior_beta",
+            "name": "posterior_beta",
+            "meaning": "The exact posterior failure-side shape beta+n-S.",
+            "json_type": "number",
+            "shape": "strictly positive finite scalar",
+            "units": "dimensionless posterior shape",
+            "indexing": "failure-side shape",
+            "edge_cases": "Equals prior_beta when every observed trial succeeds.",
+            "normalization": "No rescaling."
+          },
+          {
+            "clause_id": "response.posterior_mean",
+            "name": "posterior_mean",
+            "meaning": "The exact posterior expectation E(theta|S,n).",
+            "json_type": "number",
+            "shape": "finite scalar strictly between zero and one",
+            "units": "success probability",
+            "indexing": "one posterior summary",
+            "edge_cases": "Uses the prior mean when trials is zero.",
+            "normalization": "posterior_alpha divided by posterior_alpha plus posterior_beta."
+          },
+          {
+            "clause_id": "response.posterior_variance",
+            "name": "posterior_variance",
+            "meaning": "The exact posterior variance Var(theta|S,n).",
+            "json_type": "number",
+            "shape": "strictly positive finite scalar",
+            "units": "squared success probability",
+            "indexing": "one posterior summary",
+            "edge_cases": "Remains positive for every admitted finite input.",
+            "normalization": "a*b divided by (a+b)^2*(a+b+1), for posterior shapes a and b."
+          },
+          {
+            "clause_id": "response.predictive_mean",
+            "name": "predictive_mean",
+            "meaning": "The exact posterior predictive expectation E(Y|S,n) for future_trials=m.",
+            "json_type": "number",
+            "shape": "finite scalar between zero and m",
+            "units": "future successes",
+            "indexing": "one predictive horizon",
+            "edge_cases": "Equals zero when future_trials is zero.",
+            "normalization": "m times the posterior mean."
+          },
+          {
+            "clause_id": "response.predictive_variance",
+            "name": "predictive_variance",
+            "meaning": "The exact posterior predictive variance Var(Y|S,n) after integrating over theta.",
+            "json_type": "number",
+            "shape": "nonnegative finite scalar",
+            "units": "squared future-success count",
+            "indexing": "one predictive horizon",
+            "edge_cases": "Equals zero for m=0 and posterior_mean*(1-posterior_mean) for m=1.",
+            "normalization": "m*a*b*(a+b+m) divided by (a+b)^2*(a+b+1), for posterior shapes a and b."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.parameter_update",
+            "meaning": "Posterior shapes equal prior_alpha+successes and prior_beta+trials-successes exactly, and all returned moments use those same shapes."
+          },
+          {
+            "clause_id": "invariant.success_failure_exchange",
+            "meaning": "Replacing successes by trials-successes and swapping prior_alpha with prior_beta swaps posterior shapes, changes posterior_mean to one minus its original value, preserves posterior and predictive variances, and changes predictive_mean to future_trials minus its original value."
+          },
+          {
+            "clause_id": "invariant.sequential_coherence",
+            "meaning": "Updating on two batches sequentially by using the first posterior shapes as the second prior gives the same posterior and predictive moments as one pooled update."
+          },
+          {
+            "clause_id": "invariant.no_data_boundary",
+            "meaning": "When trials and successes are zero, posterior shapes and posterior moments equal their prior counterparts."
+          },
+          {
+            "clause_id": "invariant.one_trial_predictive",
+            "meaning": "For future_trials=1, predictive_mean equals posterior_mean and predictive_variance equals posterior_mean times one minus posterior_mean."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.posterior_moment_calibration",
+            "meaning": "At each frozen admitted input, independent Beta draws from the exact posterior have empirical mean and variance compatible with the returned posterior moments up to declared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.predictive_moment_calibration",
+            "meaning": "At each frozen admitted input, independent posterior-predictive counts generated by first drawing theta from the posterior and then a Binomial count have empirical mean and variance compatible with the returned predictive moments up to declared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.predictive_overdispersion",
+            "meaning": "For every frozen future horizon m>1, the returned predictive variance exceeds the plug-in Binomial variance m*posterior_mean*(1-posterior_mean), reflecting posterior uncertainty rather than being silently replaced by a plug-in model."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory setting supplies the exact frozen counts, prior shapes, and future horizon and verifies the public posterior and predictive formulas before aggregating Monte Carlo outcomes."
+          }
+        ]
+      }
+    }
+  ]
+}
