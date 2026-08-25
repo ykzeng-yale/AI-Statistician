@@ -2228,9 +2228,9 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 35
+    assert readiness["active_scored_tasks"] == 36
     assert readiness["consumed_scored_tasks"] == 35
-    assert readiness["fully_gold_configured_tasks"] == 35
+    assert readiness["fully_gold_configured_tasks"] == 36
     assert readiness["fully_gold_passed_tasks"] == 2
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -2370,9 +2370,9 @@ def test_complete_randomization_l0_draw_is_consumed_and_failed_closed() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 35
+    assert readiness["active_scored_tasks"] == 36
     assert readiness["consumed_scored_tasks"] == 35
-    assert readiness["fully_gold_configured_tasks"] == 35
+    assert readiness["fully_gold_configured_tasks"] == 36
     assert readiness["fully_gold_passed_tasks"] == 2
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2486,9 +2486,9 @@ def test_bootstrap_mean_l0_records_one_consumed_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 35
+    assert readiness["active_scored_tasks"] == 36
     assert readiness["consumed_scored_tasks"] == 35
-    assert readiness["fully_gold_configured_tasks"] == 35
+    assert readiness["fully_gold_configured_tasks"] == 36
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
@@ -2596,9 +2596,9 @@ def test_mann_whitney_u_r_l0_records_sole_consumed_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 35
+    assert readiness["active_scored_tasks"] == 36
     assert readiness["consumed_scored_tasks"] == 35
-    assert readiness["fully_gold_configured_tasks"] == 35
+    assert readiness["fully_gold_configured_tasks"] == 36
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
@@ -2620,6 +2620,108 @@ def test_mann_whitney_u_r_l0_records_sole_consumed_draw() -> None:
         "claim.empirical.exact_mean",
         "claim.empirical.exact_variance",
         "claim.empirical.complement_symmetry",
+    }
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
+        "hidden_harness.R",
+        "hidden_empirical_harness.R",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_inverse_variance_meta_analysis_r_l0_is_frozen_before_first_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"]
+        == "inverse_variance_fixed_effect_meta_analysis_r_known_result"
+    )
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "fixed_effect_meta_analysis_r"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == "frozen_ready_v1_unrun"
+    assert candidate["gold_manifest_sha256"] == (
+        "8005263b0d339b04aeba9a3417c217c90814544dd9aa7fd223bda8fff9b34ef1"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "136f974374dc57862c0d5e91c7caaff23f7c95bef3df4ce553ad68d8f7af581a"
+    )
+    evidence = candidate["activation_evidence"]
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_model_policy_status"] == "PENDING_FIRST_DRAW"
+    assert evidence["required_model_owned_estimator_language"] == "r"
+    assert evidence["required_model_owned_simulation_language"] == "r"
+    assert evidence["webr_available"] is True
+    assert evidence["algorithm_reference_contract_checks"] == "14/14"
+    assert evidence["algorithm_negative_variants_rejected"] == 3
+    assert evidence["empirical_reference_configurations_passed"] == 3
+    assert evidence["empirical_reference_estimator_invocations"] == 12000
+    assert evidence["empirical_reference_checks"] == "7/7"
+    assert evidence["semantic_calibration_attempts"] == 2
+    assert evidence["semantic_calibration_total_model_calls"] == 4
+    assert evidence["semantic_calibration_initial_cases_correct"] == 8
+    assert evidence["semantic_calibration_final_cases_correct"] == 9
+    assert evidence["semantic_reference_claims"] == 7
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["external_metric_workspace_mechanism_head"] == (
+        "be8d57ab6ec06ffa52f88e3a0e5ddd4a94ec9379"
+    )
+    assert evidence["model_draw_resampling_blocked"] is False
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["full_task_passed"] is False
+
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == 36
+    assert readiness["consumed_scored_tasks"] == 35
+    assert readiness["fully_gold_configured_tasks"] == 36
+    assert readiness["fully_gold_passed_tasks"] == 2
+    assert candidate["id"] not in {
+        row["id"] for row in ladder["evidence_dimensions"]
+    }
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["source"]["doi"] == "10.2307/3001666"
+    contract = question["estimator_execution_contract"]
+    assert contract["estimator_id"] == "est_fixed_effect_inverse_variance"
+    assert "using language=r" in question["description"]
+    assert {row["name"] for row in contract["request_fields"]} == {
+        "estimates",
+        "variances",
+        "theta0",
+    }
+    assert {row["name"] for row in contract["response_fields"]} == {
+        "k",
+        "weights",
+        "estimate",
+        "variance",
+        "standard_error",
+        "z",
+    }
+    assert {row["clause_id"] for row in contract["empirical_claims"]} == {
+        "claim.empirical.protocol_identity",
+        "claim.empirical.gaussian_calibration",
     }
 
     runtime_visible = json.dumps(

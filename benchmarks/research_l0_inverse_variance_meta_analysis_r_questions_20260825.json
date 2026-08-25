@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "inverse_variance_fixed_effect_meta_analysis_r_known_result",
+      "title": "Inverse-variance combination of independent Gaussian estimates in R",
+      "description": "Focused L0 known-result evaluation grounded in W. G. Cochran, The Combination of Estimates from Different Experiments, Biometrics 10(1), 1954, 101-129, DOI 10.2307/3001666. Let Y_1,...,Y_k be independent Gaussian estimates with one common fixed effect theta and known finite variances v_i>0, where k>=2. Develop one authoritative Markdown/LaTeX derivation showing that the inverse-variance weighted estimator uses normalized weights proportional to 1/v_i, is unbiased, has variance 1/sum_i(1/v_i), and uniquely minimizes variance among linear unbiased combinations. Derive the equality condition rather than citing inverse-variance weighting by name, and show that the null-standardized statistic is exactly standard normal under theta=theta0 because it is a linear combination of independent Gaussian variables. Make independence, known variances, the common fixed effect, normalization, optimality scope, equal-variance boundary, permutation equivariance, location and positive-scale transformations, and the distinction from random-effects meta-analysis auditable. Do not substitute estimated standard errors, inverse-standard-deviation weights, Cochran's Q, a heterogeneity estimator, asymptotic normality, or simulation as proof. The required model-authored artifact is est_fixed_effect_inverse_variance and must implement the frozen run_estimator(request) contract as R source using language=r, execution_profile=scientific_wasm, and only declared base/stats dependencies. Do not substitute Python or call a meta-analysis package. Exploratory R may diagnose identities. A separately frozen confirmatory R assessment generates independent Gaussian estimates under predeclared unequal-variance configurations and checks the estimator's bias, variance, exact z calibration, and central-normal coverage using a replicate count justified before outcomes by Monte Carlo precision. Simulation is implementation evidence and does not replace the derivation. Source replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "fixed_effect_meta_analysis",
+        "inverse_variance_weighting",
+        "gaussian_linear_estimation",
+        "r_language",
+        "L0"
+      ],
+      "source": {
+        "title": "The Combination of Estimates from Different Experiments",
+        "authors": ["W. G. Cochran"],
+        "journal": "Biometrics",
+        "year": 1954,
+        "volume": 10,
+        "issue": 1,
+        "pages": "101-129",
+        "doi": "10.2307/3001666",
+        "url": "https://www.jstor.org/stable/3001666"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_fixed_effect_inverse_variance",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.estimates",
+            "name": "estimates",
+            "meaning": "The k independent observed study-level estimates Y_i of one common fixed effect theta.",
+            "json_type": "array[number]",
+            "shape": "one unnamed finite numeric vector of length k>=2",
+            "units": "common effect units",
+            "indexing": "study order shared with variances",
+            "edge_cases": "Reject logical, character, list, named, nonnumeric, nonfinite, or length-below-two vectors rather than coercing them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.variances",
+            "name": "variances",
+            "meaning": "The known sampling variances v_i corresponding one-to-one with estimates.",
+            "json_type": "array[number]",
+            "shape": "one unnamed finite numeric vector with the same length k as estimates",
+            "units": "squared effect units",
+            "indexing": "study order shared with estimates",
+            "edge_cases": "Reject logical, character, list, named, nonnumeric, nonfinite, zero, negative, or length-mismatched vectors rather than coercing them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.theta0",
+            "name": "theta0",
+            "meaning": "The finite scalar null value used only to center the returned z statistic.",
+            "json_type": "number",
+            "shape": "one finite numeric scalar",
+            "units": "common effect units",
+            "indexing": "one null value",
+            "edge_cases": "Reject logical, character, list, named, nonnumeric, nonfinite, empty, or nonscalar values rather than coercing them.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.k",
+            "name": "k",
+            "meaning": "The exact number of supplied study estimates.",
+            "json_type": "integer",
+            "shape": "one integer at least two",
+            "units": "studies",
+            "indexing": "input length",
+            "edge_cases": "Must not be logical or fractional.",
+            "normalization": "length(estimates)"
+          },
+          {
+            "clause_id": "response.weights",
+            "name": "weights",
+            "meaning": "The normalized inverse-variance weights in the original study order.",
+            "json_type": "array[number]",
+            "shape": "one finite strictly positive numeric vector of length k summing to one",
+            "units": "dimensionless",
+            "indexing": "study order shared with inputs",
+            "edge_cases": "Equal variances produce exactly equal weights up to floating-point arithmetic.",
+            "normalization": "(1/variances)/sum(1/variances)"
+          },
+          {
+            "clause_id": "response.estimate",
+            "name": "estimate",
+            "meaning": "The inverse-variance weighted estimate of the common fixed effect.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "effect units",
+            "indexing": "all k studies",
+            "edge_cases": "May lie anywhere on the real line.",
+            "normalization": "sum(weights*estimates)"
+          },
+          {
+            "clause_id": "response.variance",
+            "name": "variance",
+            "meaning": "The exact sampling variance of estimate under independent known-variance Gaussian inputs.",
+            "json_type": "number",
+            "shape": "one strictly positive finite scalar",
+            "units": "squared effect units",
+            "indexing": "all k studies",
+            "edge_cases": "Uses known variances without a heterogeneity component.",
+            "normalization": "1/sum(1/variances)"
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "The positive square root of the exact returned variance.",
+            "json_type": "number",
+            "shape": "one strictly positive finite scalar",
+            "units": "effect units",
+            "indexing": "all k studies",
+            "edge_cases": "Must be consistent with variance rather than independently estimated.",
+            "normalization": "sqrt(variance)"
+          },
+          {
+            "clause_id": "response.z",
+            "name": "z",
+            "meaning": "The null-standardized fixed-effect estimate.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "standard deviations",
+            "indexing": "the supplied theta0",
+            "edge_cases": "No estimated-variance or heterogeneity correction is applied.",
+            "normalization": "(estimate-theta0)/standard_error"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request is a named R list containing exactly estimates, variances, and theta0, and the response contains exactly the six declared fields. Missing or extra fields are rejected rather than ignored or invented."
+          },
+          {
+            "clause_id": "invariant.inverse_variance_identity",
+            "meaning": "Each returned weight is proportional to the reciprocal variance, all weights sum to one, and the returned estimate and uncertainty use those exact normalized weights."
+          },
+          {
+            "clause_id": "invariant.study_permutation",
+            "meaning": "Applying one permutation to estimates and variances permutes weights in the same way and leaves every scalar response unchanged."
+          },
+          {
+            "clause_id": "invariant.common_location_shift",
+            "meaning": "Adding one finite constant c to every estimate and to theta0 adds c to estimate while preserving weights, variance, standard_error, and z."
+          },
+          {
+            "clause_id": "invariant.positive_scale",
+            "meaning": "For finite a>0, multiplying estimates and theta0 by a and variances by a^2 preserves weights and z, multiplies estimate and standard_error by a, and multiplies variance by a^2."
+          },
+          {
+            "clause_id": "invariant.equal_variance_boundary",
+            "meaning": "When all known variances are equal, weights are uniform, estimate is the arithmetic mean, and variance is the common variance divided by k."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "For each frozen configuration, the assessment independently generates Gaussian estimates with the declared common theta and known variances, invokes the exact accepted estimator once per replicate, and fixes seed, configurations, precision rule, and replicate count before revealing outcomes."
+          },
+          {
+            "clause_id": "claim.empirical.gaussian_calibration",
+            "meaning": "Across frozen unequal-variance configurations, confirmatory Monte Carlo results agree with the derived unbiased mean and exact variance, and returned z values have standard-normal mean, variance, and central 95 percent coverage within predeclared Monte Carlo uncertainty. The protocol chooses enough replicates from explicit MCSE or interval-width reasoning rather than a universal count."
+          }
+        ]
+      }
+    }
+  ]
+}
