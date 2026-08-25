@@ -3,23 +3,26 @@
 Date: 2026-08-25
 
 Upstream reviewed: [`openai/codex`](https://github.com/openai/codex) at
-`34c5303f49d08a5a41294e2531d1e64b40c0302d` (Apache-2.0).
+`a9e447a69dee4f2789dd8d8c776e314772c1f049` (Apache-2.0).
 
 Latest implementation commit:
-`b9ece43923ab05cb1185e1493e360658ae14c8fb`.
+`26b8e12449aac0f4b6f031cf65896768ae7316ac`.
 
 Primary references:
 
-- [`run_turn`](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/core/src/session/turn.rs)
-- [`ToolRouter`](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/core/src/tools/router.rs)
-- [model-actionable tool failures](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/core/src/tools/parallel.rs)
-- [tool failure taxonomy](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/tools/src/function_call_error.rs)
-- [terminal-error pending-input preservation](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/core/src/tasks/regular.rs)
-- [checkpoint context-window compaction](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/core/src/compact_token_budget.rs)
-- [app-server thread/turn/item protocol](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/app-server/README.md)
-- [multi-agent message tool](https://github.com/openai/codex/blob/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
-- [standalone sandbox implementation](https://github.com/openai/codex/tree/34c5303f49d08a5a41294e2531d1e64b40c0302d/codex-rs/sandboxing)
+- [`run_turn`](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/session/turn.rs)
+- [`ToolRouter`](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/tools/router.rs)
+- [`ToolOrchestrator`](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/tools/orchestrator.rs)
+- [`TurnContext`](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/turn_context.rs)
+- [model-actionable tool failures](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/tools/parallel.rs)
+- [tool failure taxonomy](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/tools/src/function_call_error.rs)
+- [terminal-error pending-input preservation](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/tasks/regular.rs)
+- [checkpoint context-window compaction](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/compact_token_budget.rs)
+- [app-server thread/turn/item protocol](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/app-server/README.md)
+- [multi-agent message tool](https://github.com/openai/codex/blob/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [standalone sandbox implementation](https://github.com/openai/codex/tree/a9e447a69dee4f2789dd8d8c776e314772c1f049/codex-rs/sandboxing)
 - [OpenAI's agent-loop explanation](https://openai.com/index/unrolling-the-codex-agent-loop/)
+- [OpenAI's App Server harness explanation](https://openai.com/index/unlocking-the-codex-harness/)
 
 ## Decision
 
@@ -342,6 +345,51 @@ the already existing transcript and content-addressed files.
 Future theory evaluation must test plausible false derivations on a disjoint frozen
 task. The new chronology has regression evidence only; no consumed run may be rerun
 or rescored.
+
+## Bootstrap live validation and Simulation ownership
+
+The next disjoint bootstrap-mean draw validated the theory chronology but exposed a
+scientific-code lifecycle mismatch. TheoryDeveloper committed two authoritative
+Markdown/LaTeX documents after twelve model/tool turns. The isolated referee wrote a
+blind reconstruction before candidate access, inspected seven exact ranges, revised
+its report, and accepted a theory packet that subsequently passed all frozen hidden
+theory checks.
+
+The same run failed `0/1` for scientific code. The estimator accepted numeric strings
+through `float(value)` despite an explicit public no-coercion clause, and its isolated
+reviewer false-accepted that behavior. The generated simulation used exact floating
+equality in a location-shift check, so one of eight frozen contracts failed. More
+importantly for harness design, the source owner had received only a smoke-success
+observation before commit, while the isolated Simulation reviewer focused on the
+upstream estimator rather than the exact current simulation source.
+
+Commit `26b8e124` applies the existing Codex-shaped turn loop at that boundary:
+
+1. one Simulation source-owning model session chooses, authors, and executes a
+   separate-seed exploratory diagnostic;
+2. raw sandbox output returns to that same session, which may revise source and must
+   explicitly commit exact bytes;
+3. those exact committed bytes execute once on the blinded confirmatory cohort;
+4. confirmatory outcomes remain withheld, so a failed scored run cannot become a
+   source-repair prompt;
+5. the isolated generated-code reviewer is told that `exact_executed_artifacts` is
+   its current target and `upstream_generated_dependency` is context only.
+
+This is not a task-specific test prescription. The model owns the diagnostic program,
+source changes, and stopping decision. The harness owns only separate seed/sandbox
+identity, exact source lineage, confirmation blinding, and reviewer target identity.
+The existing replay path remains zero-sampling and deterministic. No agent, module,
+scheduler, retry, formula, numeric rule, or model escalation was added; `882/882`
+tests passed.
+
+The bootstrap result remains immutable `0/1`. This commit has future-task mechanism
+evidence only.
+
+The upstream checkout was also refreshed from `34c5303` to `a9e447a`. The intervening
+commits concern managed plugins, MCP reconnect behavior, cloud-config retry,
+Guardian proxy state, goal continuation, and command migration. They do not alter the
+adopted `run_turn`, `ToolRouter`, or `ToolOrchestrator` lifecycle in a way that
+justifies importing Codex core, app-server, provider transport, or thread management.
 
 ## Standalone sandbox boundary
 

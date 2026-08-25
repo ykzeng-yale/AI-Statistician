@@ -206,6 +206,15 @@ Exploratory runs may be cheaper and adaptive, but their labels and seeds cannot 
 promoted to confirmatory evidence. Confirmatory stopping may depend on a predeclared
 precision statistic, never on whether the scientific result looks favorable.
 
+Fresh model-authored Simulation source follows one source-owner lifecycle before
+confirmation. The same session authors and executes a separate-seed exploratory
+diagnostic, receives the raw sandbox observation, may revise its source, and then
+explicitly commits exact bytes. This diagnostic can test imports, interfaces,
+invariants, numerical stability, and the model's own scientific expectations; it is
+never confirmatory evidence. The exact committed bytes then execute once in the
+isolated blinded confirmatory sandbox against the frozen cohort and metric protocol.
+The confirmatory outcome is withheld from the source owner.
+
 A failed confirmatory outcome terminates that candidate lineage for the scored run.
 It may motivate a separately registered follow-up study, but it is not returned to
 the same source model for result-informed rewriting and another nominally
