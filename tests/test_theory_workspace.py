@@ -1010,7 +1010,7 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
         ),
     )
     backend = ScriptedTheoryWorkspaceBackend(
-        [_response(rejected_call), _response()]
+        [_response(rejected_call), _response(), _response()]
     )
 
     with pytest.raises(PacketValidationError) as exc_info:
@@ -1035,10 +1035,13 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     assert checkpoint["model_owned_theory"] is True
     assert checkpoint["runtime_edited_theory"] is False
     assert checkpoint["kernel_verified"] is False
-    assert len(backend.requests) == 2
+    assert len(backend.requests) == 3
     assert backend.requests[-1].metadata[
         "client_tool_loop_terminal_decision_turn"
     ] is True
+    assert backend.requests[-1].metadata[
+        "client_tool_loop_max_terminal_recovery_turns"
+    ] == 1
 
 
 def test_workspace_uses_one_shared_read_write_tool_budget() -> None:
@@ -1308,6 +1311,85 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
             checkpoint,
             question_id="q1",
         )
+
+
+def test_rejected_terminal_commit_can_checkpoint_same_owner_progress(tmp_path) -> None:
+    markdown = (
+        "# Partial theory\n\n"
+        "The authoritative derivation exists, but its compact dependency index "
+        "still needs one lemma reference.\n"
+    )
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="write-partial-document",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                    input={"path": "derivations/partial.md", "content": markdown},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-invalid-index",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {"problem_card": {"claim": "partial revised claim"}}
+                    ),
+                )
+            ),
+            _response(_commit_checkpoint("commit-invalid-index")),
+            _response(
+                ClientToolCall(
+                    call_id="checkpoint-after-commit-error",
+                    name=THEORY_WORKSPACE_PROGRESS_TOOL,
+                    input={
+                        "summary": "The derivation is written but the index is invalid.",
+                        "evidence_refs": ["derivations/partial.md#partial-theory"],
+                        "next_step": "Add the missing lemma reference and revalidate.",
+                    },
+                )
+            ),
+        ]
+    )
+
+    with pytest.raises(TheoryWorkspaceProgressError) as exc_info:
+        _run_workspace(
+            backend,
+            workspace_dir=tmp_path / "theory",
+            require_document_authority=True,
+            max_turns=2,
+            max_tool_calls=2,
+        )
+
+    assert len(backend.requests) == 4
+    rejected_commit_request = backend.requests[2]
+    recovery_request = backend.requests[3]
+    assert rejected_commit_request.metadata[
+        "client_tool_loop_terminal_decision_turn"
+    ] is True
+    assert recovery_request.metadata[
+        "client_tool_loop_terminal_decision_turn"
+    ] is True
+    assert recovery_request.metadata[
+        "client_tool_loop_max_terminal_recovery_turns"
+    ] == 1
+    assert "theory checkpoint is not structurally valid" in str(
+        recovery_request.messages[-1]
+    )
+    assert "revised claim and at least one lemma are required" in str(
+        recovery_request.messages[-1]
+    )
+    checkpoint = exc_info.value.progress_checkpoint
+    assert checkpoint["resumable"] is True
+    assert checkpoint["current_artifacts"]["problem_card"] == {
+        "claim": "partial revised claim"
+    }
+    assert checkpoint["last_validation_errors"] == [
+        "revised claim and at least one lemma are required"
+    ]
+    assert checkpoint["progress"]["next_step"] == (
+        "Add the missing lemma reference and revalidate."
+    )
 
 
 def test_targeted_revision_uses_atomic_model_owned_artifact_writes() -> None:
@@ -1902,7 +1984,7 @@ def test_theory_workspace_reserves_terminal_call_after_last_valid_write() -> Non
     assert valid_write_feedback["_client_tool_budget"] == {
         "standard_turns_remaining_after_current_turn": 1,
         "model_tool_calls_remaining_after_current_call": 0,
-        "terminal_disposition_calls_remaining_after_current_call": 1,
+        "terminal_disposition_calls_remaining_after_current_call": 2,
         "final_disposition_required": True,
     }
     assert result.evidence["checkpoint_committed"] is True

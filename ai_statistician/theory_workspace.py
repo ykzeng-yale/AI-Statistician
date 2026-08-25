@@ -2072,6 +2072,7 @@ def run_theory_artifact_workspace(
             max_turns=effective_max_turns,
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
+            max_terminal_recovery_turns=1,
         )
     except ClientToolLoopError as exc:
         client_tool_session_ref = persist_client_tool_session(
