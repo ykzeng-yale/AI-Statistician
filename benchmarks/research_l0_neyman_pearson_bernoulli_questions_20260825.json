@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "neyman_pearson_bernoulli_randomized_test_known_result",
+      "title": "Neyman-Pearson optimality and exact Bernoulli boundary randomization",
+      "description": "Focused known-result theory evaluation grounded in J. Neyman and E. S. Pearson, On the Problem of the Most Efficient Tests of Statistical Hypotheses, Philosophical Transactions of the Royal Society of London Series A 231 (1933), pages 289-337, DOI 10.1098/rsta.1933.0009. In one authoritative Markdown/LaTeX theory workspace, formulate the Neyman-Pearson result for two simple hypotheses P0 and P1 dominated by a common measure, with randomized tests phi taking values in [0,1]. Starting from a likelihood-ratio threshold rule, derive rather than merely quote why a test that rejects where f1>k f0, accepts where f1<k f0, and randomizes on equality is most powerful among all tests of size at most alpha. Display the sign argument under the dominating measure, include the possible size slack of a competitor, and state equality or uniqueness only to the extent justified by the threshold and boundary sets. Then take n>=1 iid Bernoulli(p) observations, 0<p0<p1<1, and test H0:p=p0 against H1:p=p1 at a prescribed alpha in (0,1). Derive the likelihood ratio as a function of S=sum_i X_i and prove its strict monotonicity. Choose an integer c satisfying P_p0(S>c)<=alpha<=P_p0(S>=c), derive gamma=[alpha-P_p0(S>c)]/P_p0(S=c), prove gamma is in [0,1], and give the resulting exact-size randomized test and its exact power under p1. Handle gamma=0 or 1 and the non-uniqueness within a likelihood-ratio tie honestly. Do not infer a uniformly most powerful composite test, a nonrandomized exact-alpha test for arbitrary alpha, a p-value construction, or Bayesian optimality from this simple-vs-simple lemma. Keep active and rejected calculations visibly distinct and disclose unresolved measure-theoretic or boundary gaps. This L0 task evaluates mathematical derivation and independent review only. Source replication, Python/R implementation, simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "Neyman-Pearson lemma",
+        "simple hypotheses",
+        "randomized test",
+        "Bernoulli testing",
+        "most powerful test",
+        "known result",
+        "theory only",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "On the Problem of the Most Efficient Tests of Statistical Hypotheses",
+        "authors": [
+          "J. Neyman",
+          "E. S. Pearson"
+        ],
+        "journal": "Philosophical Transactions of the Royal Society of London Series A",
+        "year": 1933,
+        "volume": 231,
+        "pages": "289-337",
+        "doi": "10.1098/rsta.1933.0009",
+        "url": "https://doi.org/10.1098/rsta.1933.0009"
+      }
+    }
+  ]
+}
