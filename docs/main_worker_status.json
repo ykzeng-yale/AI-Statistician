@@ -1,13 +1,13 @@
 {
-  "schema_version": 166,
+  "schema_version": 167,
   "updated_at": "2026-08-25",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "ccd05f0e8b6ad0a26a2c2745fd4ab1001c269d62",
+  "validated_code_head": "1862946b69d2819b23ad294bf2876ab65d9fb764",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all thirty-eight consumed tasks at immutable scores, now 2/38. Neyman-Pearson/Bernoulli remains 0/1: persistent Markdown theory and isolated review ran, but a direct handoff lost frozen task intent and exposed irrelevant execution/formalization artifacts. Operator audit separately finds mathematical defects in both candidate and referee. Commit 8c736798 fixes only the shared future-task identity and tool surface. Latest Codex delta adoption ccd05f0e sanitizes persisted Git remote metadata and locks bounded tool-schema transport; production Python is 149,999 lines and 895/895 tests pass. Never rerun, hidden-evaluate, repair, or rescore a consumed task. Trustworthy long-horizon theory, independent mathematical falsification, source replication, and exact development Lean closure 0/2 remain the central scientific bottlenecks.",
+  "current_goal_focus": "Preserve all thirty-eight consumed tasks at immutable scores, now 2/38. Neyman-Pearson/Bernoulli remains 0/1: persistent Markdown theory and isolated review ran, but the referee retained mutually contradictory scratch results and a stale conclusion. Commit 1862946b strengthens only the shared future-task model-tool-observation loop: scratch returns definition-derived discriminants and the same source-owning model reconciles later observations with active Markdown before checkpoint or submission. No mathematical parser, repair layer, reviewer, scheduler, retry, or extra turn was added. Production Python is 149,998 lines and 895/895 tests pass. Never rerun, hidden-evaluate, repair, or rescore a consumed task. Trustworthy long-horizon theory, independent mathematical falsification, source replication, and exact development Lean closure 0/2 remain the central scientific bottlenecks.",
   "latest_neyman_pearson_bernoulli_l0_evaluation": {
     "task_id": "neyman_pearson_bernoulli_randomized_test_known_result",
     "family": "simple_hypothesis_testing",
@@ -43,6 +43,10 @@
     "post_run_shared_change": "The direct reviewer return now uses the canonical task-intent-preserving question serializer. Explicit task intent vetoes inapplicable formal handoffs, and the existing revision prompt and client-tool schema expose only task-scoped writable artifacts while preserving all other parent bytes read-only.",
     "post_run_shared_change_evidence": "Future-task regression only: direct handoff identity, theory-only writable surface, stale nonapplicable handoff immutability, and executable/formal interfaces passed focused tests; the complete repository passed 894/894 in 69.96 seconds; production Python is 149,998 lines. No model call, content rule, formula, parser, repair agent, scheduler, retry, turn, rerun, resume, hidden evaluation, rescore, or model escalation was added.",
     "post_run_score_changed": false,
+    "post_audit_shared_change_commit": "1862946b69d2819b23ad294bf2876ab65d9fb764",
+    "post_audit_shared_change": "TheoryDeveloper and the isolated referee now ask model-authored scratch programs for definition-derived quantities, predicates, residuals, or witnesses rather than prewritten verdicts. The same source-owning model is instructed to reconcile later raw observations with active Markdown claims by revising, retracting, or marking contradictions uncertain before checkpoint or submission; runtime adds no mathematical interpretation or content repair.",
+    "post_audit_shared_change_evidence": "Future-task regression only: focused theory/referee tests passed 89/89 and the complete repository passed 895/895 in 69.78 seconds; production Python is 149,998 lines. No model call, additional turn, formula, parser, repair agent, reviewer, scheduler, retry, rerun, resume, hidden evaluation, rescore, or model escalation was added.",
+    "post_audit_score_changed": false,
     "boundary": "The sole draw is consumed. Never rerun, resume, repair, hidden-evaluate post hoc, rescore, or resample it. The operator mathematical audit and post-run regression cannot become feedback to this candidate or evidence of theory correctness."
   },
   "latest_rao_blackwell_poisson_l0_evaluation": {
@@ -117,10 +121,10 @@
   },
   "latest_openai_codex_harness_adoption": {
     "upstream_repository": "https://github.com/openai/codex",
-    "upstream_commit": "42624fd63bb8b818cccda0e485828479763fff30",
+    "upstream_commit": "62bfa41a837a3c402ee1888ac0e25ea479083723",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "ccd05f0e8b6ad0a26a2c2745fd4ab1001c269d62",
+    "implementation_commit": "1862946b69d2819b23ad294bf2876ab65d9fb764",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -136,7 +140,8 @@
       "27f3893a2c760a5bd90ca84b6c86e0525e3e99ec",
       "3a6af4086eb229d6ff4f0fee393cb56e37da9d60",
       "8c736798bbcf39ef3b91be199c5bc9be05be0f6c",
-      "ccd05f0e8b6ad0a26a2c2745fd4ab1001c269d62"
+      "ccd05f0e8b6ad0a26a2c2745fd4ab1001c269d62",
+      "1862946b69d2819b23ad294bf2876ab65d9fb764"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "678e03eebc72ffb02815cc017dbed26bc978e3a31056d6e57c59fedbd9d296d5",
@@ -171,7 +176,8 @@
       "Independent theory preflight now preserves the frozen runtime dimension requirements and derives whether an executable handoff is applicable. A theory-only mathematical review can accept without an estimator, while executable tasks still fail closed without one. The fixed six-row review-considerations transport was deleted, leaving the isolated referee to choose the load-bearing derivation in its Markdown workspace.",
       "The latest Codex paginated thread-history APIs reinforce content-addressed workspace checkpoints and compact handoffs. They do not justify importing Codex app-server, thread storage, Responses transport, code-mode hosts, or multi-agent scheduling.",
       "Direct independent-review returns now preserve the canonical task-intent-bearing question identity. TheoryDeveloper revision prompts and the existing client-tool schema expose only artifacts writable under that frozen intent; unrelated parent handoffs stay read-only rather than inviting model work in absent lanes.",
-      "Git remote userinfo is stripped before source inventory, formal topology, LeanBlueprint, Autoform, or Lean RAG metadata is persisted. Conventional git@ SSH identity remains, malformed helper payloads fail closed, and strict client-tool regressions preserve numeric and string bounds through provider transformation."
+      "Git remote userinfo is stripped before source inventory, formal topology, LeanBlueprint, Autoform, or Lean RAG metadata is persisted. Conventional git@ SSH identity remains, malformed helper payloads fail closed, and strict client-tool regressions preserve numeric and string bounds through provider transformation.",
+      "TheoryDeveloper and the isolated referee now ask model-authored scratch programs for definition-derived quantities, predicates, residuals, or witnesses rather than prewritten verdicts. The same source-owning model reconciles later raw observations with active Markdown claims before checkpoint or submission by revising, retracting, or marking contradictions uncertain; runtime adds no formula parser, content repair, reviewer, scheduler, retry, or extra turn."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -181,12 +187,12 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-    "verification": "Theory-only intent survives a direct review return and exposes only problem_card plus the compact derivation index; stale nonapplicable handoffs stay read-only, while executable and formal task interfaces remain strict. The latest upstream metadata/schema panel passed 46/46 and the complete repository passed 895/895 in 69.87 seconds. Diff hygiene and the production-line budget passed at 149,999 lines. No post-consumption model call, task rerun, resume, repair, hidden evaluation, rescore, retry, turn, scheduler, or model escalation occurred.",
+    "verification": "The exact Codex checkout is refreshed to 62bfa41a; the relevant audited source hashes are unchanged. Focused theory/referee observation-reconciliation regressions passed 89/89 and the complete repository passed 895/895 in 69.78 seconds. Diff hygiene and the production-line budget passed at 149,998 lines. No post-consumption model call, task rerun, resume, repair, hidden evaluation, rescore, retry, extra turn, scheduler, or model escalation occurred.",
     "live_validation_runs": 8,
     "fresh_live_client_tool_model_turns": 232,
     "capability_credit": true,
     "latest_mechanism_capability_credit": false,
-    "boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated, or rescored. Beta-Binomial and PyMLE are each immutable 1/1; Neyman-Pearson/Bernoulli, Rao-Blackwell/Poisson, fixed-effect meta-analysis, Mann-Whitney, bootstrap-mean, Poisson-Garwood, and complete randomization are immutable 0/1; the aggregate ladder is 2/38. Commit 8c736798 supplies only future-task regression evidence for task-intent-preserving reviewer returns, and ccd05f0e supplies only metadata/schema mechanism evidence; exact Lean closure remains separate."
+    "boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated, or rescored. Beta-Binomial and PyMLE are each immutable 1/1; Neyman-Pearson/Bernoulli, Rao-Blackwell/Poisson, fixed-effect meta-analysis, Mann-Whitney, bootstrap-mean, Poisson-Garwood, and complete randomization are immutable 0/1; the aggregate ladder is 2/38. Commits 8c736798, ccd05f0e, and 1862946b supply only future-task mechanism evidence; exact Lean closure remains 0/2 and separate."
   },
   "latest_mann_whitney_u_r_l0_evaluation": {
     "task_id": "mann_whitney_u_null_moments_r_known_result",
@@ -1056,15 +1062,15 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model independently chooses every claim, dependency, research-source query, source handle, exact read, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, confirmatory replicate count, progress summary, and next step. Exact sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, median-of-means, AR(1), Fisher-z, paired-ratio, and scalar-control-variate expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, automatic literature query or source selection, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback. Terminal disposition is generic control-plane capacity and cannot execute an extra research action; dependency and trace projections preserve identity, hashes, ABI, exact-output locations, and unique unreferenced observations without selecting or rewriting scientific content.",
     "verification": {
-      "full_pytest": "895 passed in 69.87s",
+      "full_pytest": "895 passed in 69.78s",
       "next_frozen_activation": "none currently authorized; all thirty-eight scored draws are permanently consumed, so any future product draw requires a newly frozen disjoint task and evaluator authority",
-      "affected_subsystem_pytest": "Git remote credential sanitization, formal source identity, inventory capture, strict client-tool schema bounds, and adjacent provider regressions passed 46/46; the complete repository passed 895/895.",
+      "affected_subsystem_pytest": "TheoryDeveloper and isolated-referee observation reconciliation passed 89/89; the complete repository passed 895/895.",
       "independent_theory_review_authority": "Commit 9fbbeaba requires an exact isolated review acceptance before terminal Critic whenever theory is required. Theory-only tasks create no metric gate, and bypass attempts block before the Critic model call.",
       "theory_workspace_action_budget": "Commit 9cf75411 replaces class-specific read/write quotas with one shared ordinary-tool budget selected by the TheoryDeveloper model. Turn/action bounds, no-progress termination, execution safety caps, and the separately reserved terminal disposition remain enforced; no model call or frozen-task activation occurred.",
       "simulation_dependency_prompt_projection": "immutable live replay reduced 6,812,024 bytes of recursive environment feedback to a 45,314-byte complete planning prompt; accepted estimator ABI plus source/result hashes remained visible, while source bytes and 4,000 historical smoke-result rows were absent",
       "persisted_tool_call_projection": "immutable scalar replay reduced the largest tool record from 3,370,158 to 18,379 bytes and the complete ten-row trace from 3,440,322 to 89,326 bytes, preserving summary hash, output hash, and output paths; large observations without external authoritative output remain exact inline",
       "visible_estimator_contract": "schema-v2 executable tasks fail closed unless every public ABI field has explicit semantics, hidden checks cite valid public clauses under one estimator identity, and each hidden empirical check also cites a compact public empirical claim; the exact contract reaches scientific model contexts without being copied into agent result packets",
-      "openai_codex_harness_audit": "official openai/codex main was re-fetched and pinned at 42624fd63bb8b818cccda0e485828479763fff30 under Apache-2.0. AI-Statistician selectively adopts the persistent model-tool-observation loop, stable ToolRouter/ToolOrchestrator boundary, apply_patch-style external artifact state, atomic committed-step identity, credential-safe persisted Git metadata, bounded tool schemas, terminal-error pending-input preservation, sparse hash-bound collaboration, paginated-history principle, and lifecycle telemetry. Commit 8c736798 preserves frozen task intent across direct independent-review return; commit ccd05f0e strips Git URL userinfo before source/RAG metadata persistence and tests provider-bound schema limits. It does not import Codex core, app-server, Responses transport, provider, SDK, thread store, subagents, worktree manager, or scheduler. Standalone Codex sandboxing remains a possible future native Python/R backend only after a version is pinned and isolation is calibrated across macOS and Linux.",
+      "openai_codex_harness_audit": "official openai/codex main was re-fetched and pinned at 62bfa41a837a3c402ee1888ac0e25ea479083723 under Apache-2.0; the three-commit delta after 42624fd changes documentation, enterprise MCP OAuth, and TUI hyperlink wrapping, while relevant audited source hashes remain unchanged. AI-Statistician selectively adopts the persistent model-tool-observation loop, stable ToolRouter/ToolOrchestrator boundary, external artifact state, atomic committed-step identity, credential-safe persisted Git metadata, bounded tool schemas, terminal-error pending-input preservation, sparse hash-bound collaboration, paginated-history principle, and lifecycle telemetry. Commit 1862946b keeps scratch discriminants and contradictory-observation reconciliation inside the same source-owning TheoryDeveloper or referee loop. It does not import Codex core, app-server, Responses transport, provider, SDK, thread store, subagents, worktree manager, or scheduler. Standalone Codex sandboxing remains a possible future native Python/R backend only after a version is pinned and isolation is calibrated across macOS and Linux.",
       "external_metric_workspace_regression": "Commit 27f3893a passed malformed-second-edit atomicity, unchanged-parent same-session recovery, hash-only commit, independent-review continuation, provider-truncated input preservation, hash lineage, schema validation, compact prompt projection, runtime, model-policy, and architecture regressions. The tool has one canonical batch input shape and no arbitrary edit-count cap; full repository 889/889.",
       "independent_public_source_referee": "author and referee sessions share provider policy but not opaque handles; reviewer search metadata is non-citable, exact reads become hash-bound S#H# observations, source bodies are redacted from final evidence history, and frozen cross-family evaluation keeps live discovery disabled",
       "neutral_exact_haiku_transport_probe": "Anthropic accepted five client tools with a 5,201-character sixteen-claim submit schema under claude-haiku-4-5-20251001, returned tool_use, and reported zero strict tools; no research content or frozen task was executed",
