@@ -52,11 +52,11 @@ model inspects objective and artifacts
 ```
 
 There is no post-runtime scheduler and no separate repair agent. A resumed run
-continues from content-addressed artifacts and workspace checkpoints in the same
-typed graph. Outer-budget or bounded transient-provider exhaustion atomically
-stores the exact pending `AgentTask`; manifests carry only its task and
-continuation refs, and resume hash-verifies and restores that task without
-rewriting its inputs. Substantive failures remain terminal.
+continues from content-addressed artifacts and workspace checkpoints in the same typed
+graph. Outer-budget exhaustion stores the exact pending `AgentTask`. A terminal
+provider or internal-tool error seals current source-owner state and stops without
+restarting the subsystem. Manifests carry only task, checkpoint, and continuation
+references; explicit resume hash-verifies them. Provider-local retries repeat only the same unanswered request; substantive failures remain terminal.
 
 The inner mechanism follows [Numina-Lean-Agent](https://github.com/project-numina/numina-lean-agent)
 and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general source agent,

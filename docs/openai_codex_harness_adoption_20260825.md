@@ -3,20 +3,22 @@
 Date: 2026-08-25
 
 Upstream reviewed: [`openai/codex`](https://github.com/openai/codex) at
-`70b5cfc73b25458a7af225d24b16ef4794f8f380` (Apache-2.0).
+`ed42068c45c1b0ab92eaf495c2880c63ca06fa09` (Apache-2.0).
 
 Latest implementation commit:
-`3c00a515040dff2e21e4ec4666fce7e70b45a8b7`.
+`700f3360fddae0f31e42224ab17ffb42df50b9c1`.
 
 Primary references:
 
-- [`run_turn`](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/core/src/session/turn.rs)
-- [`ToolRouter`](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/core/src/tools/router.rs)
-- [model-actionable tool failures](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/core/src/tools/parallel.rs)
-- [tool failure taxonomy](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/tools/src/function_call_error.rs)
-- [checkpoint context-window compaction](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/core/src/compact_token_budget.rs)
-- [app-server thread/turn/item protocol](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/app-server/README.md)
-- [multi-agent message tool](https://github.com/openai/codex/blob/70b5cfc73b25458a7af225d24b16ef4794f8f380/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [`run_turn`](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/core/src/session/turn.rs)
+- [`ToolRouter`](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/core/src/tools/router.rs)
+- [model-actionable tool failures](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/core/src/tools/parallel.rs)
+- [tool failure taxonomy](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/tools/src/function_call_error.rs)
+- [terminal-error pending-input preservation](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/core/src/tasks/regular.rs)
+- [checkpoint context-window compaction](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/core/src/compact_token_budget.rs)
+- [app-server thread/turn/item protocol](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/app-server/README.md)
+- [multi-agent message tool](https://github.com/openai/codex/blob/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [standalone sandbox implementation](https://github.com/openai/codex/tree/ed42068c45c1b0ab92eaf495c2880c63ca06fa09/codex-rs/sandboxing)
 - [OpenAI's agent-loop explanation](https://openai.com/index/unrolling-the-codex-agent-loop/)
 
 ## Decision
@@ -141,6 +143,44 @@ truncation, extra model call, or content-specific compression rule. Mathematics,
 code, Lean source, findings, and raw diagnostics remain external authoritative
 artifacts; conversation history remains non-authoritative lineage.
 
+## Terminal errors and pending workspace state
+
+Upstream commit `d7510aa` fixed a subtle lifecycle bug: pending user input or
+agent mail could immediately restart a turn after terminal compaction failure.
+Codex now completes the failed turn and preserves that pending input for a later
+explicit request. AI Statistician had the analogous problem one level higher.
+Its model backend already retries the exact unanswered provider request, but
+`AgentRuntime` could then rerun the entire subsystem after those request-local
+retries were exhausted. A partial Theory, R/Python, Simulation, or Lean session
+could therefore be discarded and regenerated from an older task payload.
+
+Commit `700f3360` removes that whole-subsystem retry plane. The shared client-tool
+loop now distinguishes three outcomes:
+
+1. a caller-declared input error is a model-visible tool observation in the same
+   session;
+2. a terminal provider error seals the exact pending transcript and history,
+   makes no automatic next model call, and enters the workspace's existing
+   checkpoint path;
+3. an internal tool failure remains secret-free and non-model-actionable, but it
+   also carries the exact transcript/history needed to seal the current workspace
+   rather than losing it.
+
+`AgentRuntime` executes each subsystem once per graph node. An uncaught terminal
+subsystem error records one content-addressed pending `AgentTask` for explicit
+resume; it does not emit a retry event or consume another source-owner session.
+Formalizer's separate provider-retry task was removed for the same reason. This
+deleted more code than it added and introduced no repair worker, scheduler,
+scientific rule, model escalation, or new iteration budget. Provider-local
+transport retries still repeat only an identical request that produced no model
+response.
+
+The regression evidence is compositional: the shared harness and outer runtime
+passed `41/41`; existing Theory, scientific Python/R, and Lean checkpoint suites
+passed `85/85`; adjacent runtime, CLI, Formalizer, and audit suites passed `93/93`.
+No live model call or consumed-task rerun occurred, so this is mechanism evidence
+only.
+
 ## Generated-code reviewer submission
 
 The fresh ridge known-result draw exposed another direct harness mismatch. Its
@@ -229,15 +269,36 @@ must be grounded in the actual observation that produced it. It is not a reason
 to import Codex's transport or orchestration stack. The implementation changed
 no net production Python lines and the full repository passed `873/873`.
 
-The official checkout was refreshed from `7c6eb0e` to `70b5cfc`. The three
-upstream commits adjust Guardian transcript-window retention and Windows TUI
-probing. The inspected core turn loop, tool router, model-actionable failure,
-context-compaction, and multi-agent message files are unchanged.
+The official checkout was refreshed from `70b5cfc` to `ed42068`. Two of the three
+upstream commits add a turn-scoped service tier and avoid allocating strings when
+counting serialized JSON bytes. The third is the terminal-error pending-input
+fix adopted above. The tool router, model-actionable failure taxonomy,
+context-compaction, and multi-agent message boundaries remain otherwise
+compatible with the prior audit.
+
+## Standalone sandbox boundary
+
+The open-source CLI exposes `codex sandbox` independently of model execution, so
+its Seatbelt, Landlock/bubblewrap, and Windows isolation code is a plausible
+future native Python/R execution provider. It is not yet a production dependency.
+The locally available `codex-cli 0.149.0-alpha.4.3` is not pinned to the reviewed
+source commit, and a successful `pwd` probe does not establish network denial,
+filesystem confinement, process restrictions, resource limits, or reproducible
+artifact capture.
+
+Adoption requires a pinned source/binary hash, macOS and Linux denial probes,
+explicit readable/writable roots, network-off verification, CPU/memory/output
+limits, secret-free environment tests, and result/source hash parity with the
+current sandbox envelope. Until then, Pyodide/WebR plus the existing Seatbelt
+profile remains the canonical scientific boundary. Codex sandboxing may add a
+native package-rich backend later; it cannot silently replace or weaken the WASM
+path.
 
 ## Explicit non-adoptions
 
 - No Codex TUI, app-server, MCP server, approval UI, or thread database inside
   the canonical research runtime.
+- No whole-subsystem automatic replay after a terminal provider or tool error.
 - No generic shell exposed to scientific workers where a narrower Python, R,
   Lean, source, or document tool provides a stronger execution boundary.
 - No task-family formulas, Lean grammar rules, tactic templates, or
