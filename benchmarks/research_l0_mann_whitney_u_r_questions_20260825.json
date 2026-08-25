@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "mann_whitney_u_null_moments_r_known_result",
+      "title": "Exact null moments of the Mann-Whitney U statistic in R",
+      "description": "Focused L0 known-result evaluation grounded in H. B. Mann and D. R. Whitney, On a Test of Whether one of Two Random Variables is Stochastically Larger than the Other, The Annals of Mathematical Statistics 18(1), 1947, 50-60, DOI 10.1214/aoms/1177730491. Let x_1,...,x_n and y_1,...,y_m be two nonempty samples whose N=n+m pooled observed values are all distinct. Define U_X=sum_{i=1}^n sum_{j=1}^m 1{x_i>y_j}. Under the identical continuous-distribution null, condition on the distinct pooled values so every choice of n pooled ranks for group X is equally likely. Develop one authoritative Markdown/LaTeX derivation of U_X=W_X-n(n+1)/2, E_0(U_X)=nm/2, and Var_0(U_X)=nm(N+1)/12 from simple random sampling without replacement of the ranks 1,...,N. Make the conditioning, exchangeability, no-tie requirement, finite-population covariance, orientation of U_X, group-swap complement, and distinction between exact random-labeling moments and asymptotic normal calibration auditable. Do not use an iid-with-replacement rank model, sample-variance divisor for the permutation distribution, tie correction, continuity correction, or simulation as proof. The required model-authored artifact is est_mann_whitney_u_moments and must implement the frozen run_estimator(request) contract as R source using language=r, execution_profile=scientific_wasm, and only declared base/stats dependencies. Do not substitute Python or call wilcox.test as the implementation. Exploratory R may diagnose identities. A separately frozen confirmatory R assessment enumerates every one of the choose(N,n) label assignments for predeclared distinct pooled samples and checks the exact mean, variance, complement symmetry, and complete enumeration. Enumeration is implementation evidence and does not replace the derivation. Source replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "mann_whitney",
+        "rank_inference",
+        "randomization_distribution",
+        "r_language",
+        "L0"
+      ],
+      "source": {
+        "title": "On a Test of Whether one of Two Random Variables is Stochastically Larger than the Other",
+        "authors": ["H. B. Mann", "D. R. Whitney"],
+        "journal": "The Annals of Mathematical Statistics",
+        "year": 1947,
+        "volume": 18,
+        "issue": 1,
+        "pages": "50-60",
+        "doi": "10.1214/aoms/1177730491",
+        "url": "https://doi.org/10.1214/aoms/1177730491"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_mann_whitney_u_moments",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.x",
+            "name": "x",
+            "meaning": "The observed values assigned to group X, whose pairwise wins over Y define U_X.",
+            "json_type": "array[number]",
+            "shape": "one unnamed finite numeric vector of length n>=1",
+            "units": "common outcome units",
+            "indexing": "group X observations in arbitrary stable order",
+            "edge_cases": "Reject logical, character, list, named, nonnumeric, nonfinite, or empty vectors rather than coercing them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.y",
+            "name": "y",
+            "meaning": "The observed values assigned to group Y and compared pairwise with X.",
+            "json_type": "array[number]",
+            "shape": "one unnamed finite numeric vector of length m>=1",
+            "units": "the same outcome units as x",
+            "indexing": "group Y observations in arbitrary stable order",
+            "edge_cases": "Reject logical, character, list, named, nonnumeric, nonfinite, or empty vectors rather than coercing them; reject any tie within or across the pooled vectors.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n_x",
+            "name": "n_x",
+            "meaning": "The exact number n of observations in x.",
+            "json_type": "integer",
+            "shape": "one positive integer",
+            "units": "observations",
+            "indexing": "group X size",
+            "edge_cases": "Must not be logical or fractional.",
+            "normalization": "length(x)"
+          },
+          {
+            "clause_id": "response.n_y",
+            "name": "n_y",
+            "meaning": "The exact number m of observations in y.",
+            "json_type": "integer",
+            "shape": "one positive integer",
+            "units": "observations",
+            "indexing": "group Y size",
+            "edge_cases": "Must not be logical or fractional.",
+            "normalization": "length(y)"
+          },
+          {
+            "clause_id": "response.u_x",
+            "name": "u_x",
+            "meaning": "The oriented Mann-Whitney count of ordered pairs (i,j) with x_i strictly greater than y_j.",
+            "json_type": "integer",
+            "shape": "one integer between zero and n*m",
+            "units": "pairwise wins",
+            "indexing": "X over Y orientation",
+            "edge_cases": "Zero and n*m are valid extreme-separation values.",
+            "normalization": "sum over all n*m strict pairwise comparisons"
+          },
+          {
+            "clause_id": "response.null_mean",
+            "name": "null_mean",
+            "meaning": "The exact conditional random-labeling mean of U_X under the no-tie identical-distribution null.",
+            "json_type": "number",
+            "shape": "one positive finite scalar",
+            "units": "pairwise wins",
+            "indexing": "all choose(n+m,n) label assignments",
+            "edge_cases": "May be half-integral.",
+            "normalization": "n*m/2"
+          },
+          {
+            "clause_id": "response.null_variance",
+            "name": "null_variance",
+            "meaning": "The exact conditional random-labeling variance of U_X when all pooled values are distinct.",
+            "json_type": "number",
+            "shape": "one strictly positive finite scalar",
+            "units": "squared pairwise wins",
+            "indexing": "all choose(n+m,n) label assignments",
+            "edge_cases": "The formula remains positive when either group has size one.",
+            "normalization": "n*m*(n+m+1)/12"
+          },
+          {
+            "clause_id": "response.standardized_z",
+            "name": "standardized_z",
+            "meaning": "The uncorrected centered statistic using the exact no-tie null standard deviation.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "standard deviations",
+            "indexing": "the observed oriented U_X",
+            "edge_cases": "No continuity or tie correction is applied.",
+            "normalization": "(u_x-null_mean)/sqrt(null_variance)"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request is a named R list containing exactly x and y, and the response contains exactly the six declared fields. Missing or extra fields are rejected rather than ignored or invented."
+          },
+          {
+            "clause_id": "invariant.no_ties",
+            "meaning": "Every admitted request has distinct pooled numeric values; ties are rejected because this focused contract has no tie correction."
+          },
+          {
+            "clause_id": "invariant.rank_sum_equivalence",
+            "meaning": "If W_X is the sum of pooled increasing ranks assigned to X, then u_x=W_X-n*(n+1)/2."
+          },
+          {
+            "clause_id": "invariant.within_group_permutation",
+            "meaning": "Permuting observations within x or within y leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.increasing_affine",
+            "meaning": "Applying the same transformation a+b*v with finite a and b>0 to both groups leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.group_swap_complement",
+            "meaning": "Swapping x and y changes group sizes accordingly, gives U_Y=n*m-U_X, preserves null_mean and null_variance, and negates standardized_z."
+          },
+          {
+            "clause_id": "invariant.extreme_separation",
+            "meaning": "If every x value is below every y value then u_x=0; if every x value is above every y value then u_x=n*m."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "For each frozen distinct pooled sample and group sizes, the assessment enumerates every choose(n+m,n) assignment of ranks to X exactly once and invokes the accepted estimator with the corresponding x and y vectors."
+          },
+          {
+            "clause_id": "claim.empirical.exact_mean",
+            "meaning": "Across all enumerated label assignments, the population mean of returned u_x equals returned null_mean."
+          },
+          {
+            "clause_id": "claim.empirical.exact_variance",
+            "meaning": "Across all enumerated label assignments, the population variance of returned u_x equals returned null_variance, using the number of assignments rather than a sample-variance divisor."
+          },
+          {
+            "clause_id": "claim.empirical.complement_symmetry",
+            "meaning": "The exact multiset of enumerated U_X values is invariant under u -> n*m-u."
+          }
+        ]
+      }
+    }
+  ]
+}
