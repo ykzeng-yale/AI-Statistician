@@ -535,6 +535,32 @@ program selection, onboarding, plugins, and UI recaps and were not adopted.
 This post-run mechanism evidence cannot accept, hidden-evaluate, rerun, or rescore the
 consumed Rao-Blackwell candidate.
 
+## Task-intent identity across review returns
+
+The next disjoint Neyman-Pearson/Bernoulli theory-only draw remains immutable `0/1`.
+TheoryDeveloper authored and revised one 262-line Markdown/LaTeX document, and an
+isolated referee authored a 181-line report. The direct referee-to-source-owner return
+then rebuilt the research question without its frozen `task_intent`. That identity
+loss exposed estimator, simulation, theorem, proof-plan, and formalization artifacts
+even though every non-theory lane was `not_applicable`. The model spent the remaining
+workspace turns trying to satisfy those irrelevant interfaces and correctly failed
+closed before hidden evaluation.
+
+Commit `8c736798` applies the Codex committed-step identity principle at the research
+boundary. Direct review returns now use the canonical task-intent-bearing question
+serializer. The existing TheoryDeveloper prompt and client-tool schema project only
+artifacts writable under that frozen intent; stale or inapplicable parent handoffs stay
+read-only. Executable and formal tasks retain their strict interfaces. The model still
+owns every mathematical statement, derivation, edit, and stopping decision.
+
+This is an identity and tool-surface correction, not a scientific repair. No formula,
+mathematical parser, packet patcher, repair agent, retry, model turn, scheduler, or
+task-specific branch was added. Focused regressions pass `128/128`, the complete
+repository passes `894/894`, and production Python remains under budget at 149,998
+lines. Operator audit separately finds mathematical defects in both candidate and
+referee; neither those findings nor the post-run correction can repair, rerun,
+hidden-evaluate, or rescore the consumed draw. The aggregate remains `2/38`.
+
 ## Standalone sandbox boundary
 
 The open-source CLI exposes `codex sandbox` independently of model execution, so

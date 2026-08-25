@@ -2082,7 +2082,7 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
         for row in scored
     )
     assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "3a6af4086eb229d6ff4f0fee393cb56e37da9d60"
+        "8c736798bbcf39ef3b91be199c5bc9be05be0f6c"
     )
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2145,7 +2145,7 @@ def test_pymle_l1_draw_is_consumed_as_first_source_replication_pass() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is True
     readiness = ladder["current_readiness"]
-    assert readiness["consumed_scored_tasks"] == 37
+    assert readiness["consumed_scored_tasks"] == 38
     assert readiness["fully_gold_passed_tasks"] == 2
     assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
@@ -2229,7 +2229,7 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 38
-    assert readiness["consumed_scored_tasks"] == 37
+    assert readiness["consumed_scored_tasks"] == 38
     assert readiness["fully_gold_configured_tasks"] == 38
     assert readiness["fully_gold_passed_tasks"] == 2
     visible_path = Path(candidate["visible_questions_path"])
@@ -2369,11 +2369,11 @@ def test_rao_blackwell_poisson_theory_l0_records_one_consumed_draw() -> None:
     }
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 38
-    assert readiness["consumed_scored_tasks"] == 37
+    assert readiness["consumed_scored_tasks"] == 38
     assert readiness["fully_gold_configured_tasks"] == 38
     assert readiness["fully_gold_passed_tasks"] == 2
     assert readiness["latest_shared_mechanism_head"] == (
-        "3a6af4086eb229d6ff4f0fee393cb56e37da9d60"
+        "8c736798bbcf39ef3b91be199c5bc9be05be0f6c"
     )
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
@@ -2402,7 +2402,7 @@ def test_rao_blackwell_poisson_theory_l0_records_one_consumed_draw() -> None:
         assert hidden_name not in runtime_visible
 
 
-def test_neyman_pearson_theory_l0_is_frozen_before_first_draw() -> None:
+def test_neyman_pearson_theory_l0_draw_is_consumed_and_failed_closed() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -2414,8 +2414,10 @@ def test_neyman_pearson_theory_l0_is_frozen_before_first_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "simple_hypothesis_testing"
-    assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"] == "frozen_ready_v1_unrun"
+    assert candidate["status"] == "consumed_scored"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_consumed_failed_theory_revision_task_intent_loss"
+    )
     assert candidate["gold_bundle_id"] == (
         "research-l0-neyman-pearson-bernoulli-20260825-v1"
     )
@@ -2438,10 +2440,27 @@ def test_neyman_pearson_theory_l0_is_frozen_before_first_draw() -> None:
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
-    assert evidence["runtime_model_policy_status"] == "PENDING_FIRST_DRAW"
+    assert evidence["runtime_model_policy_status"] == "OK"
+    assert evidence["runtime_enabled_model_tiers"] == {"haiku": 7}
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_failure_classification"] == (
+        "theory_developer_packet_validation_failed"
+    )
+    assert evidence["runtime_iterations"] == 4
+    assert evidence["product_model_calls"] == 36
+    assert evidence["client_tool_model_turns"] == 35
+    assert evidence["independent_theory_review_accepted"] is False
+    assert evidence["hidden_theory_execution_attempted"] is False
+    assert evidence["hidden_gold_evaluation"] == (
+        "0/1_not_executed_without_independently_accepted_theory"
+    )
+    assert evidence["post_run_shared_change_commit"] == (
+        "8c736798bbcf39ef3b91be199c5bc9be05be0f6c"
+    )
+    assert evidence["post_run_score_changed"] is False
     assert evidence["mechanical_reference_checks"] == "7/7"
     assert evidence["mechanical_negative_variants_rejected"] == 7
     assert evidence["semantic_calibration_attempts"] == 1
@@ -2453,7 +2472,7 @@ def test_neyman_pearson_theory_l0_is_frozen_before_first_draw() -> None:
     assert evidence["semantic_calibration_model"] == (
         "claude-haiku-4-5-20251001"
     )
-    assert evidence["model_draw_resampling_blocked"] is False
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
@@ -2469,9 +2488,12 @@ def test_neyman_pearson_theory_l0_is_frozen_before_first_draw() -> None:
     }
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 38
-    assert readiness["consumed_scored_tasks"] == 37
+    assert readiness["consumed_scored_tasks"] == 38
     assert readiness["fully_gold_configured_tasks"] == 38
     assert readiness["fully_gold_passed_tasks"] == 2
+    assert readiness["latest_shared_mechanism_head"] == (
+        "8c736798bbcf39ef3b91be199c5bc9be05be0f6c"
+    )
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
     }
@@ -2611,7 +2633,7 @@ def test_complete_randomization_l0_draw_is_consumed_and_failed_closed() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 38
-    assert readiness["consumed_scored_tasks"] == 37
+    assert readiness["consumed_scored_tasks"] == 38
     assert readiness["fully_gold_configured_tasks"] == 38
     assert readiness["fully_gold_passed_tasks"] == 2
 
@@ -2727,7 +2749,7 @@ def test_bootstrap_mean_l0_records_one_consumed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 38
-    assert readiness["consumed_scored_tasks"] == 37
+    assert readiness["consumed_scored_tasks"] == 38
     assert readiness["fully_gold_configured_tasks"] == 38
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
@@ -2837,7 +2859,7 @@ def test_mann_whitney_u_r_l0_records_sole_consumed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 38
-    assert readiness["consumed_scored_tasks"] == 37
+    assert readiness["consumed_scored_tasks"] == 38
     assert readiness["fully_gold_configured_tasks"] == 38
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
@@ -2951,7 +2973,7 @@ def test_inverse_variance_meta_analysis_r_l0_records_sole_consumed_draw() -> Non
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 38
-    assert readiness["consumed_scored_tasks"] == 37
+    assert readiness["consumed_scored_tasks"] == 38
     assert readiness["fully_gold_configured_tasks"] == 38
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
