@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .formal_source_topology import sanitize_git_remote
 from .research_source_inventory import LEGACY_AI_STATISTICIAN_ROOT
 
 
@@ -1032,7 +1033,7 @@ def _registry_clone_commands(rows: list[dict[str, object]]) -> tuple[dict[str, s
     commands: list[dict[str, str]] = []
     for row in rows:
         entry = dict(row.get("entry", {}) or {})
-        url = str(entry.get("url", ""))
+        url = sanitize_git_remote(entry.get("url", ""))
         local_path = str(entry.get("local_path", ""))
         if not url or not local_path:
             continue
@@ -1054,7 +1055,7 @@ def _preflight_registry_row(
     entry = dict(row.get("entry", {}) or {})
     name = str(entry.get("name", ""))
     normalized_name = _normalize_source_name(name)
-    url = str(entry.get("url", ""))
+    url = sanitize_git_remote(entry.get("url", ""))
     local_path = str(entry.get("local_path", ""))
     script_text = str(indexer_support.get("script_text_normalized", ""))
     indexer_supported = bool(normalized_name and normalized_name in script_text)
@@ -1069,7 +1070,7 @@ def _preflight_registry_row(
     hard_blocker = True
     reason = "candidate entry has no local_path"
     if path is not None and exists and is_git:
-        git_remote = _git(path, "remote", "get-url", "origin")
+        git_remote = sanitize_git_remote(_git(path, "remote", "get-url", "origin"))
         git_commit = _git(path, "rev-parse", "HEAD")
         git_branch = _git(path, "rev-parse", "--abbrev-ref", "HEAD")
         git_dirty = bool(_git(path, "status", "--short"))
@@ -1136,10 +1137,9 @@ def _registry_indexer_support(package_root: Path) -> dict[str, object]:
 
 
 def _same_git_remote(actual: str, expected: str) -> bool:
-    def normalize(value: str) -> str:
-        return value.strip().removesuffix(".git")
-
-    return normalize(actual) == normalize(expected)
+    return sanitize_git_remote(actual).removesuffix(".git") == sanitize_git_remote(
+        expected
+    ).removesuffix(".git")
 
 
 def _preflight_counts(rows: list[dict[str, object]]) -> dict[str, int]:
@@ -1353,7 +1353,7 @@ def _git_metadata(root: Path) -> dict[str, object]:
     branch = probe("rev-parse", "--abbrev-ref", "HEAD")
     commit = probe("rev-parse", "HEAD")
     short_commit = probe("rev-parse", "--short=12", "HEAD")
-    remote = probe("remote", "get-url", "origin")
+    remote = sanitize_git_remote(probe("remote", "get-url", "origin"))
     dirty_status, dirty_timed_out = _git_probe(root, "status", "--short")
     if dirty_timed_out:
         timeouts.append("status --short")

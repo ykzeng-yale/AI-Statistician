@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from .fingerprint import stable_hash
-from .research_source_inventory import LEAN_BLUEPRINT_ROOT, LEAN_BLUEPRINT_URL
+from .research_source_inventory import LEAN_BLUEPRINT_ROOT, LEAN_BLUEPRINT_URL, git_output, sanitize_git_remote
 
 
 LEAN_BLUEPRINT_KNOWLEDGE_SCHEMA_VERSION = 1
@@ -193,7 +192,7 @@ def _source_metadata(root: Path) -> dict[str, object]:
     has_blueprint_package = (root / "leanblueprint" / "Packages" / "blueprint.py").exists()
     has_client = (root / "leanblueprint" / "client.py").exists()
     local_ready = bool(exists and has_blueprint_package and has_client)
-    remote_url = _git_output(root, "remote", "get-url", "origin") if exists else ""
+    remote_url = sanitize_git_remote(git_output(root, "remote", "get-url", "origin")) if exists else ""
     return {
         "source_id": "lean_blueprint",
         "name": "LeanBlueprint",
@@ -208,7 +207,7 @@ def _source_metadata(root: Path) -> dict[str, object]:
         "availability_status": "local_ready" if local_ready else ("local_incomplete" if exists else "clone_required"),
         "license_policy": "Apache-2.0",
         "usage_policy": "integration_reference_no_training_export",
-        "git_commit": _git_output(root, "rev-parse", "HEAD") if exists else "",
+        "git_commit": git_output(root, "rev-parse", "HEAD") if exists else "",
         "remote_url": remote_url or LEAN_BLUEPRINT_URL,
         "has_blueprint_package": has_blueprint_package,
         "has_client": has_client,
@@ -363,18 +362,6 @@ def _recommended_actions(source: dict[str, object]) -> list[str]:
     if not source.get("exists"):
         actions.insert(0, f"Clone {LEAN_BLUEPRINT_URL} into {LEAN_BLUEPRINT_ROOT}.")
     return actions
-
-
-def _git_output(root: Path, *args: str) -> str:
-    try:
-        return subprocess.check_output(
-            ["git", "-C", str(root), *args],
-            text=True,
-            stderr=subprocess.DEVNULL,
-            timeout=10,
-        ).strip()
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return ""
 
 
 def _markdown_report(payload: dict[str, object]) -> str:

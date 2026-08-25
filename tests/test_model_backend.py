@@ -276,7 +276,14 @@ def test_anthropic_generator_backend_transforms_strict_client_tool_schema(
                     "type": "object",
                     "additionalProperties": False,
                     "required": ["status"],
-                    "properties": {"status": {"type": "string"}},
+                    "properties": {
+                        "status": {"type": "string", "maxLength": 120},
+                        "prior_index": {
+                            "type": "integer",
+                            "minimum": -1,
+                            "maximum": 8,
+                        },
+                    },
                 },
             }
         },

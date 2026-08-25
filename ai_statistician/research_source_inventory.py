@@ -10,6 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from .fingerprint import stable_hash
+from .formal_source_topology import sanitize_git_remote
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LEGACY_AI_STATISTICIAN_ROOT = PROJECT_ROOT / "legacy_sources" / "ai_statistician"
@@ -847,8 +848,8 @@ def _git_metadata(root: Path) -> tuple[str, str]:
     git_root = _nearest_git_root(root)
     if git_root is None:
         return "", ""
-    commit = _git_output(git_root, "rev-parse", "HEAD")
-    remote = _git_output(git_root, "remote", "get-url", "origin")
+    commit = git_output(git_root, "rev-parse", "HEAD")
+    remote = sanitize_git_remote(git_output(git_root, "remote", "get-url", "origin"))
     return commit, remote
 
 
@@ -859,7 +860,7 @@ def _nearest_git_root(root: Path) -> Path | None:
     return None
 
 
-def _git_output(git_root: Path, *args: str) -> str:
+def git_output(git_root: Path, *args: str) -> str:
     try:
         return subprocess.check_output(
             ["git", "-C", str(git_root), *args],

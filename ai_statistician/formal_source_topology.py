@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Mapping, Sequence
+from urllib.parse import urlsplit, urlunsplit
 
 
 FORMAL_SOURCE_TOPOLOGY_POLICY_PATH = (
@@ -401,14 +402,39 @@ def _compatibility_status(
     return "same_lean_toolchain_and_mathlib_revision"
 
 
+def sanitize_git_remote(value: object) -> str:
+    remote = str(value or "").strip()
+    prefix, marker, address = remote.rpartition("::")
+    prefix = prefix + marker if marker else ""
+    address = address if marker else remote
+    if not remote or any(character.isspace() for character in address) or (
+        prefix and not re.fullmatch(r"(?:[A-Za-z0-9+.-]+::)+", prefix)
+    ):
+        return ""
+    if "://" in address:
+        try:
+            parsed = urlsplit(address)
+        except ValueError:
+            return ""
+        if parsed.scheme == "file":
+            return remote if not parsed.netloc else ""
+        if not parsed.hostname:
+            return ""
+        preserve_git = parsed.scheme == "ssh" and parsed.netloc.startswith("git@")
+        netloc = ("git@" if preserve_git else "") + parsed.netloc.rsplit("@", 1)[-1]
+        return prefix + urlunsplit(parsed._replace(netloc=netloc))
+    authority, separator, path = address.partition(":")
+    if separator and "@" in authority:
+        user, host = authority.rsplit("@", 1)
+        if not user or not host: return ""
+        address = f"{'git@' if user == 'git' else ''}{host}:{path}"
+    return prefix + address
+
+
 def _normalize_git_remote(value: object) -> str:
-    remote = str(value or "").strip().lower().replace("\\", "/")
-    if remote.startswith("git@github.com:"):
-        remote = "github.com/" + remote[len("git@github.com:") :]
-    for prefix in ("https://", "http://", "ssh://git@"):
-        if remote.startswith(prefix):
-            remote = remote[len(prefix) :]
-    return remote.removesuffix(".git").rstrip("/")
+    remote = sanitize_git_remote(value).lower().replace("\\", "/")
+    remote = remote.removeprefix("https://").removeprefix("http://").removeprefix("ssh://git@")
+    return remote.replace("git@github.com:", "github.com/", 1).removesuffix(".git").rstrip("/")
 
 
 def _valid_revision(value: str) -> bool:

@@ -23,7 +23,28 @@ from ai_statistician.formal_source_topology import (
     expand_formal_source_scope_ids,
     identify_formal_source_topology,
     resolve_formal_source_topologies,
+    sanitize_git_remote,
 )
+
+
+def test_git_remote_metadata_strips_credentials_without_rewriting_identity() -> None:
+    assert sanitize_git_remote("https://user:token@github.com/org/repo.git") == (
+        "https://github.com/org/repo.git"
+    )
+    assert sanitize_git_remote("ssh://git@github.com/org/repo.git") == (
+        "ssh://git@github.com/org/repo.git"
+    )
+    assert sanitize_git_remote("token@github.com:org/repo.git") == (
+        "github.com:org/repo.git"
+    )
+    assert sanitize_git_remote("git@github.com:org/repo.git") == (
+        "git@github.com:org/repo.git"
+    )
+    assert sanitize_git_remote("helper::https://user:token@host/repo") == (
+        "helper::https://host/repo"
+    )
+    assert sanitize_git_remote("file:///tmp/repo") == "file:///tmp/repo"
+    assert sanitize_git_remote("ext::command with secret") == ""
 
 
 def test_configured_entry_modules_resolve_canonical_ids_and_aliases() -> None:

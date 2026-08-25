@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .fingerprint import stable_hash
-from .research_source_inventory import AUTOFORM_BOT_ROOT, AUTOFORM_BOT_URL
+from .research_source_inventory import AUTOFORM_BOT_ROOT, AUTOFORM_BOT_URL, git_output, sanitize_git_remote
 
 
 @dataclass(frozen=True)
@@ -86,8 +85,8 @@ def build_autoform_harness_profile(root: Path = AUTOFORM_BOT_ROOT) -> AutoformHa
     return AutoformHarnessProfile(
         root=str(root),
         exists=exists,
-        git_commit=_git_output(root, "rev-parse", "HEAD") if exists else "",
-        remote_url=(_git_output(root, "remote", "get-url", "origin") if exists else "") or AUTOFORM_BOT_URL,
+        git_commit=git_output(root, "rev-parse", "HEAD") if exists else "",
+        remote_url=(sanitize_git_remote(git_output(root, "remote", "get-url", "origin")) if exists else "") or AUTOFORM_BOT_URL,
         availability_status="local_ready" if local_execution_ready else ("local_incomplete" if exists else "clone_required"),
         local_execution_ready=local_execution_ready,
         has_statement_extraction=has_statement_extraction,
@@ -130,18 +129,6 @@ def audit_autoform_harness(out_dir: Path | None = None, root: Path = AUTOFORM_BO
         )
         (out_dir / "autoform_harness.md").write_text(_markdown_report(payload), encoding="utf-8")
     return payload
-
-
-def _git_output(root: Path, *args: str) -> str:
-    try:
-        return subprocess.check_output(
-            ["git", "-C", str(root), *args],
-            text=True,
-            stderr=subprocess.DEVNULL,
-            timeout=5,
-        ).strip()
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return ""
 
 
 def _markdown_report(payload: dict[str, object]) -> str:
