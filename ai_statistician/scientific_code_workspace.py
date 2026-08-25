@@ -15,11 +15,12 @@ from .agent_runtime import (
     runtime_artifact_reference,
 )
 from .client_tool_loop import (
+    CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
-    load_client_tool_session,
     persist_client_tool_session,
+    resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
@@ -1992,6 +1993,7 @@ def run_scientific_code_workspace(
     )
     resolved_session_dir = session_dir.resolve() if session_dir else None
     resumed_client_tool_session_ref: dict[str, Any] = {}
+    resumed_client_tool_context_window: dict[str, Any] = {}
     prior_client_tool_session_ref = resumed_checkpoint.get(
         "client_tool_session_ref", {}
     )
@@ -2002,27 +2004,17 @@ def run_scientific_code_workspace(
             raise ValueError(
                 "scientific client-tool session resume requires a persistent directory"
             )
-        prior_messages = load_client_tool_session(
-            prior_client_tool_session_ref,
-            session_dir=resolved_session_dir,
-            session_id=f"scientific:{artifact_id}",
-            request=request,
+        request, resumed_client_tool_context_window = (
+            resume_client_tool_session_from_checkpoint(
+                prior_client_tool_session_ref,
+                session_dir=resolved_session_dir,
+                session_id=f"scientific:{artifact_id}",
+                checkpoint_identity=resumed_checkpoint_id,
+                request=request,
+            )
         )
         resumed_client_tool_session_ref = deepcopy(
             dict(prior_client_tool_session_ref)
-        )
-        request = replace(
-            request,
-            messages=(*prior_messages, *request.messages),
-            metadata={
-                **dict(request.metadata),
-                "resumed_client_tool_session_fingerprint": str(
-                    prior_client_tool_session_ref.get(
-                        "transcript_fingerprint", ""
-                    )
-                    or ""
-                ),
-            },
         )
 
     try:
@@ -2066,6 +2058,13 @@ def run_scientific_code_workspace(
             "last_check": last_check,
             "last_check_hash": stable_hash(last_check),
             "resumed_from_checkpoint_id": resumed_checkpoint_id,
+            "resumed_from_client_tool_session_ref": deepcopy(
+                resumed_client_tool_session_ref
+            ),
+            "client_tool_checkpoint_window": deepcopy(
+                resumed_client_tool_context_window
+            ),
+            "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
             **(
                 {"client_tool_session_ref": client_tool_session_ref}
                 if client_tool_session_ref
@@ -2137,8 +2136,11 @@ def run_scientific_code_workspace(
         "resumed_from_client_tool_session_ref": deepcopy(
             resumed_client_tool_session_ref
         ),
-        "client_tool_session_continued": bool(
+        "client_tool_session_lineage_continued": bool(
             resumed_client_tool_session_ref
+        ),
+        "client_tool_checkpoint_window": deepcopy(
+            resumed_client_tool_context_window
         ),
         "parent_code_draft_hash": parent_hash,
         "initial_check_result_hash": stable_hash(dict(initial_check_result)),
@@ -2159,7 +2161,7 @@ def run_scientific_code_workspace(
         "model_commit_after_observation": bool(
             state["commit_turn_index"] > state["last_check_turn_index"] >= 0
         ),
-        "transcript_policy": "full_linear_history",
+        "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
         "turns": loop.turns,
         "tool_calls": loop.tool_calls,
         "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,

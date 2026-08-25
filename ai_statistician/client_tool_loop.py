@@ -123,6 +123,12 @@ ClientToolExecutor = Callable[
 
 CLIENT_TOOL_SESSION_KIND = "ClientToolWorkspaceSession"
 CLIENT_TOOL_SESSION_DIRECTORY = ".client_tool_sessions"
+CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY = (
+    "fresh_context_from_hash_bound_checkpoint_v1"
+)
+CLIENT_TOOL_TRANSCRIPT_POLICY = (
+    "linear_with_durable_checkpoint_windows_v1"
+)
 
 
 def client_tool_session_contract_fingerprint(
@@ -267,6 +273,85 @@ def load_client_tool_session(
     ):
         raise ValueError("client-tool session payload identity mismatch")
     return tuple(deepcopy(dict(message)) for message in messages)
+
+
+def resume_client_tool_session_from_checkpoint(
+    reference: Mapping[str, Any],
+    *,
+    session_dir: Path,
+    session_id: str,
+    checkpoint_identity: str,
+    request: ClientToolTurnRequest,
+) -> tuple[ClientToolTurnRequest, dict[str, Any]]:
+    """Start a fresh model context from an exact durable workspace checkpoint.
+
+    The sealed parent transcript is validated for lineage but is not replayed.
+    Callers must put the authoritative current artifact and environment state in
+    the new request or expose it through the unchanged workspace tools.
+    """
+
+    normalized_checkpoint_identity = str(checkpoint_identity or "").strip()
+    if not normalized_checkpoint_identity:
+        raise ValueError("checkpoint-window resume requires checkpoint identity")
+    prior_messages = load_client_tool_session(
+        reference,
+        session_dir=session_dir,
+        session_id=session_id,
+        request=request,
+    )
+    messages = [deepcopy(dict(message)) for message in request.messages]
+    if not messages or str(messages[0].get("role", "") or "") != "user":
+        raise ValueError(
+            "checkpoint-window resume requires an initial user workspace message"
+        )
+    ref = dict(reference)
+    window = {
+        "policy": CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY,
+        "parent_session_sha256": str(ref.get("sha256", "") or ""),
+        "parent_transcript_fingerprint": str(
+            ref.get("transcript_fingerprint", "") or ""
+        ),
+        "parent_message_count": len(prior_messages),
+        "checkpoint_identity": normalized_checkpoint_identity,
+        "prior_transcript_replayed": False,
+        "summary_used": False,
+        "authoritative_state_source": (
+            "hash_bound_checkpoint_and_current_workspace_tools"
+        ),
+        "evidence_role": "conversation_lineage_not_scientific_evidence",
+    }
+    notice = (
+        "A previous model/tool context window ended at a hash-bound durable "
+        "checkpoint. Its exact transcript was validated for lineage but is not "
+        "replayed in this window. Continue only from the authoritative current "
+        "checkpoint state below and the current workspace tools; do not treat the "
+        "prior conversation or this notice as scientific evidence.\n"
+        + json.dumps(window, sort_keys=True, separators=(",", ":"))
+    )
+    first_message = messages[0]
+    content = first_message.get("content", "")
+    if isinstance(content, list):
+        first_message["content"] = [
+            {"type": "text", "text": notice},
+            *deepcopy(content),
+        ]
+    else:
+        first_message["content"] = notice + "\n\n" + str(content)
+    messages[0] = first_message
+    return (
+        replace(
+            request,
+            messages=tuple(messages),
+            metadata={
+                **dict(request.metadata),
+                "resumed_client_tool_session_fingerprint": window[
+                    "parent_transcript_fingerprint"
+                ],
+                "client_tool_checkpoint_window": deepcopy(window),
+            },
+        ),
+        window,
+    )
 
 
 def run_bounded_client_tool_loop(

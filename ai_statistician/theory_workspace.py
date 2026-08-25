@@ -4,16 +4,17 @@ import hashlib
 import json
 import tempfile
 from copy import deepcopy
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence
 
 from .client_tool_loop import (
+    CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
-    load_client_tool_session,
     persist_client_tool_session,
+    resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
@@ -1969,32 +1970,23 @@ def run_theory_artifact_workspace(
         },
     )
     resumed_client_tool_session_ref: dict[str, Any] = {}
+    resumed_client_tool_context_window: dict[str, Any] = {}
     if prior_client_tool_session_ref:
         if resolved_workspace_dir is None:
             raise ValueError(
                 "theory client-tool session resume requires a persistent workspace"
             )
-        prior_messages = load_client_tool_session(
-            prior_client_tool_session_ref,
-            session_dir=resolved_workspace_dir,
-            session_id=workspace_id,
-            request=request,
+        request, resumed_client_tool_context_window = (
+            resume_client_tool_session_from_checkpoint(
+                prior_client_tool_session_ref,
+                session_dir=resolved_workspace_dir,
+                session_id=workspace_id,
+                checkpoint_identity=parent_hash,
+                request=request,
+            )
         )
         resumed_client_tool_session_ref = deepcopy(
             dict(prior_client_tool_session_ref)
-        )
-        request = replace(
-            request,
-            messages=(*prior_messages, *request.messages),
-            metadata={
-                **dict(request.metadata),
-                "resumed_client_tool_session_fingerprint": str(
-                    prior_client_tool_session_ref.get(
-                        "transcript_fingerprint", ""
-                    )
-                    or ""
-                ),
-            },
         )
 
     def recovery_checkpoint() -> dict[str, Any]:
@@ -2053,6 +2045,10 @@ def run_theory_artifact_workspace(
             "source_replication_manifests": deepcopy(
                 state["source_replication_manifests"]
             ),
+            "client_tool_checkpoint_window": deepcopy(
+                resumed_client_tool_context_window
+            ),
+            "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
             "last_validation_errors": list(state["last_validation_errors"]),
             "model_owned_theory": True,
             "runtime_edited_theory": False,
@@ -2115,9 +2111,13 @@ def run_theory_artifact_workspace(
         "resumed_from_client_tool_session_ref": deepcopy(
             resumed_client_tool_session_ref
         ),
-        "client_tool_session_continued": bool(
+        "client_tool_session_lineage_continued": bool(
             resumed_client_tool_session_ref
         ),
+        "client_tool_checkpoint_window": deepcopy(
+            resumed_client_tool_context_window
+        ),
+        "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
     }
     terminal = dict(loop.terminal_payload)
     if terminal.get("disposition") == "SOURCE_REPLICATION_CHECKPOINT_COMMITTED":

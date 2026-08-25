@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from .client_tool_loop import (
+    CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
-    load_client_tool_session,
     persist_client_tool_session,
+    resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
@@ -1088,6 +1089,7 @@ def run_lean_candidate_revision_tool_loop(
     )
     resolved_session_dir = session_dir.resolve() if session_dir else None
     resumed_client_tool_session_ref: dict[str, Any] = {}
+    resumed_client_tool_context_window: dict[str, Any] = {}
     prior_client_tool_session_ref = (
         recovery_checkpoint.get("client_tool_session_ref", {})
         if isinstance(recovery_checkpoint, Mapping)
@@ -1100,27 +1102,17 @@ def run_lean_candidate_revision_tool_loop(
             raise ValueError(
                 "Lean client-tool session resume requires a persistent directory"
             )
-        prior_messages = load_client_tool_session(
-            prior_client_tool_session_ref,
-            session_dir=resolved_session_dir,
-            session_id=f"lean:{candidate_id}",
-            request=request,
+        request, resumed_client_tool_context_window = (
+            resume_client_tool_session_from_checkpoint(
+                prior_client_tool_session_ref,
+                session_dir=resolved_session_dir,
+                session_id=f"lean:{candidate_id}",
+                checkpoint_identity=resume_metadata["resume_checkpoint_id"],
+                request=request,
+            )
         )
         resumed_client_tool_session_ref = deepcopy(
             dict(prior_client_tool_session_ref)
-        )
-        request = replace(
-            request,
-            messages=(*prior_messages, *request.messages),
-            metadata={
-                **dict(request.metadata),
-                "resumed_client_tool_session_fingerprint": str(
-                    prior_client_tool_session_ref.get(
-                        "transcript_fingerprint", ""
-                    )
-                    or ""
-                ),
-            },
         )
 
     # Permit one observation plus a final source action; terminal retries remain
@@ -1191,6 +1183,13 @@ def run_lean_candidate_revision_tool_loop(
             "resumed_from_checkpoint_id": resume_metadata[
                 "resume_checkpoint_id"
             ],
+            "resumed_from_client_tool_session_ref": deepcopy(
+                resumed_client_tool_session_ref
+            ),
+            "client_tool_checkpoint_window": deepcopy(
+                resumed_client_tool_context_window
+            ),
+            "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
             "turns": exc.turns,
             "tool_calls": exc.tool_calls,
             "max_terminal_recovery_turns": max_terminal_recovery_turns,
@@ -1282,6 +1281,9 @@ def run_lean_candidate_revision_tool_loop(
             resumed_client_tool_session_ref=(
                 resumed_client_tool_session_ref
             ),
+            client_tool_context_window=(
+                resumed_client_tool_context_window
+            ),
         )
     source = str(terminal.get("lean_source", "") or "")
     source_hash = str(terminal.get("source_hash", "") or "")
@@ -1340,6 +1342,7 @@ def run_lean_candidate_revision_tool_loop(
         segment_start_observation_count=segment_start_observation_count,
         client_tool_session_ref=client_tool_session_ref,
         resumed_client_tool_session_ref=resumed_client_tool_session_ref,
+        client_tool_context_window=resumed_client_tool_context_window,
     )
 
 
@@ -1376,6 +1379,7 @@ def _lean_candidate_revision_success_result(
     segment_start_observation_count: int,
     client_tool_session_ref: Mapping[str, Any],
     resumed_client_tool_session_ref: Mapping[str, Any],
+    client_tool_context_window: Mapping[str, Any],
 ) -> LeanCandidateRevisionToolLoopResult:
     source_hash = stable_hash(source)
     accepted_model_source = disposition == "AUTHOR_LEAN"
@@ -1417,8 +1421,11 @@ def _lean_candidate_revision_success_result(
         "resumed_from_client_tool_session_ref": deepcopy(
             dict(resumed_client_tool_session_ref)
         ),
-        "client_tool_session_continued": bool(
+        "client_tool_session_lineage_continued": bool(
             resumed_client_tool_session_ref
+        ),
+        "client_tool_checkpoint_window": deepcopy(
+            dict(client_tool_context_window)
         ),
         "workspace_segment_start_counters": dict(segment_start_counters),
         "workspace_segment_start_observation_count": (
@@ -1435,7 +1442,7 @@ def _lean_candidate_revision_success_result(
         "max_tool_calls": max_tool_calls,
         "max_no_progress_turns": max_no_progress_turns,
         "max_terminal_recovery_turns": max_terminal_recovery_turns,
-        "transcript_policy": "full_linear_history",
+        "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
         "tool_surface_policy": "stable_for_workspace",
         "submit_and_check_atomic": True,
         "model_source_action_and_check_atomic": True,

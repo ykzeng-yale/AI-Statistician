@@ -10,6 +10,7 @@ Primary references:
 - [`run_turn`](https://github.com/openai/codex/blob/d52478c52ef09f001142a4b82339467c3880877f/codex-rs/core/src/session/turn.rs)
 - [`ToolRouter`](https://github.com/openai/codex/blob/d52478c52ef09f001142a4b82339467c3880877f/codex-rs/core/src/tools/router.rs)
 - [parallel tool execution](https://github.com/openai/codex/blob/d52478c52ef09f001142a4b82339467c3880877f/codex-rs/core/src/tools/parallel.rs)
+- [checkpoint context-window compaction](https://github.com/openai/codex/blob/d52478c52ef09f001142a4b82339467c3880877f/codex-rs/core/src/compact_token_budget.rs)
 - [app-server thread/turn/item protocol](https://github.com/openai/codex/blob/d52478c52ef09f001142a4b82339467c3880877f/codex-rs/app-server/README.md)
 - [multi-agent message tool](https://github.com/openai/codex/blob/d52478c52ef09f001142a4b82339467c3880877f/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
 - [OpenAI's agent-loop explanation](https://openai.com/index/unrolling-the-codex-agent-loop/)
@@ -84,6 +85,39 @@ There is no deterministic content repair and no separate repair model; a
 rejected terminal envelope returns the exact validation observation to the same
 reviewer session.
 
+## Durable checkpoint context windows
+
+The next shared scaling defect was measured in immutable live artifacts rather
+than inferred from a framework diagram:
+
+- TheoryDeveloper sessions reached 95--122 KB and 19--27 messages across
+  unrelated known-result and replication tasks.
+- The Statlib Formalizer session persisted a 96 KB, 41-message window, then
+  resumed by replaying that complete transcript before another 21 KB current
+  Lean-workspace prompt. The first resumed request therefore carried 114,050
+  content characters, and its next persisted window grew to 121 KB.
+- Scientific-code sessions used the same full-replay resume mechanism and have
+  already reached 77 KB in a short source-revision workspace.
+
+Checkpoint resume now follows the Codex fresh-context-window principle without
+copying Codex's runtime or adding a summarizer. The shared client-tool helper:
+
+1. verifies the sealed parent transcript bytes, model, system prompt, stable
+   tool surface, session identity, and workspace root;
+2. binds the new window to the exact current Theory workspace hash or verified
+   scientific/Lean checkpoint ID;
+3. retains the parent transcript reference and fingerprint as lineage;
+4. starts the model from the current authoritative document/source,
+   environment observation, and unchanged workspace tools;
+5. explicitly records that the prior transcript was not replayed and no model
+   or runtime summary was used.
+
+History remains linear within each workspace segment. A durable checkpoint is
+the only context-window boundary, so there is no token threshold, silent
+truncation, extra model call, or content-specific compression rule. Mathematics,
+code, Lean source, findings, and raw diagnostics remain external authoritative
+artifacts; conversation history remains non-authoritative lineage.
+
 ## Explicit non-adoptions
 
 - No Codex TUI, app-server, MCP server, approval UI, or thread database inside
@@ -100,7 +134,6 @@ reviewer session.
 
 Do not add another abstraction merely because Codex has one. A further shared
 primitive is justified only when at least two workspaces exhibit the same live
-failure. The next likely candidate is provider-neutral transcript compaction at
-durable checkpoints for genuinely long-horizon Theory and Lean sessions. It
-must preserve exact artifact state and finding lineage and should be evaluated
-on disjoint frozen tasks before becoming canonical.
+failure. Candidate mechanisms must preserve exact artifact state and finding
+lineage, avoid a second scheduler, and be evaluated on disjoint frozen tasks
+before receiving capability credit.

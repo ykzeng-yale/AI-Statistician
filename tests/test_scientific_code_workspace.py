@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import pytest
 
+from ai_statistician.client_tool_loop import (
+    CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY,
+    CLIENT_TOOL_TRANSCRIPT_POLICY,
+)
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
@@ -813,7 +817,7 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
     assert dict(result.code_draft) == drafts[-1]
     assert result.evidence["source_updates"] == 5
     assert result.evidence["sandbox_checks"] == 5
-    assert result.evidence["transcript_policy"] == "full_linear_history"
+    assert result.evidence["transcript_policy"] == CLIENT_TOOL_TRANSCRIPT_POLICY
     assert [len(request.messages) for request in backend.requests] == [
         1,
         3,
@@ -949,13 +953,17 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
     ]
     assert result.evidence["source_updates"] == 2
     assert result.evidence["sandbox_checks"] == 2
-    assert result.evidence["client_tool_session_continued"] is True
+    assert result.evidence["client_tool_session_lineage_continued"] is True
     assert result.evidence["resumed_from_client_tool_session_ref"] == session_ref
+    window = result.evidence["client_tool_checkpoint_window"]
+    assert window["policy"] == CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY
+    assert window["parent_message_count"] == session_ref["message_count"]
+    assert window["checkpoint_identity"] == checkpoint["checkpoint_id"]
+    assert window["prior_transcript_replayed"] is False
+    assert result.evidence["transcript_policy"] == CLIENT_TOOL_TRANSCRIPT_POLICY
     assert checkpoint["checkpoint_id"] in str(second_backend.requests[0].messages)
-    assert "submit-first" in str(second_backend.requests[0].messages[:-1])
-    assert len(second_backend.requests[0].messages) == (
-        session_ref["message_count"] + 1
-    )
+    assert "submit-first" not in str(second_backend.requests[0].messages)
+    assert len(second_backend.requests[0].messages) == 1
 
     tampered = {**checkpoint, "current_code_draft_hash": "tampered"}
     with pytest.raises(ValueError, match="identity mismatch"):

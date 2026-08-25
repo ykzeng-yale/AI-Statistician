@@ -5,7 +5,11 @@ import json
 
 import pytest
 
-from ai_statistician.client_tool_loop import ClientToolInputError
+from ai_statistician.client_tool_loop import (
+    CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY,
+    CLIENT_TOOL_TRANSCRIPT_POLICY,
+    ClientToolInputError,
+)
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
@@ -1240,6 +1244,17 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
         [
             _response(
                 ClientToolCall(
+                    call_id="read-checkpoint-document",
+                    name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/progress.md",
+                        "line_start": 1,
+                        "line_end": 3,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
                     call_id="finish-theory-index",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
                     input=_artifact_writes(
@@ -1264,18 +1279,27 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
         prior_client_tool_session_ref=session_ref,
     )
 
-    assert result.evidence["client_tool_session_continued"] is True
+    assert result.evidence["client_tool_session_lineage_continued"] is True
     assert result.evidence["resumed_from_client_tool_session_ref"] == session_ref
+    window = result.evidence["client_tool_checkpoint_window"]
+    assert window["policy"] == CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY
+    assert window["parent_message_count"] == session_ref["message_count"]
+    assert window["checkpoint_identity"] == stable_hash(
+        {"artifacts": artifacts, "documents": documents}
+    )
+    assert window["prior_transcript_replayed"] is False
+    assert result.evidence["transcript_policy"] == CLIENT_TOOL_TRANSCRIPT_POLICY
     continued_messages = continuation.requests[0].messages
-    assert continued_messages[-1]["role"] == "user"
+    assert len(continued_messages) == 1
+    assert continued_messages[0]["role"] == "user"
     assert "Revise the theory from independent observations" in str(
-        continued_messages[-1]["content"]
+        continued_messages[0]["content"]
     )
-    assert "checkpoint-progress" in str(continued_messages[:-1])
-    assert "Derive and stress-test the remainder bound" in str(
-        continued_messages[:-1]
+    assert "checkpoint-progress" not in str(continued_messages)
+    assert "derivations/progress.md" in str(continued_messages)
+    assert "remainder bound is still open" in str(
+        continuation.requests[1].messages[-1]
     )
-    assert len(continued_messages) == session_ref["message_count"] + 1
 
     document_path = tmp_path / "theory" / "derivations" / "progress.md"
     document_path.write_text(markdown + "tampered\n", encoding="utf-8")
