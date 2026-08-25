@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "pymle_jss_cir_example_public_replication",
+      "title": "Exact replication and audit of the published PyMLE CIR example",
+      "description": "Conduct an L1 exact published-source replication of the CIR simulation and maximum-likelihood example accompanying Kirkby, Nguyen, Nguyen, and Nguyen, Journal of Statistical Software 113(4), 2025. Use only the operator-supplied hash-bound repository snapshot and operator-pinned execution. Inspect the paper/repository context, README, unchanged Example_CIR_MLE.py entrypoint, relevant CIR/simulator/density/optimizer source, package metadata, published requirements, license, and independent environment lock. Run the pinned source without editing, wrapping, replacing, or supplying model-authored arguments. In one durable Markdown report, record the paper, repository commit, snapshot, entrypoint, no-argument command, interpreter and package environment, simulation design, optimizer bounds and initial guess, every printed estimator result, termination diagnostics, stderr warnings, and the relationship between repeated-run numerical values and variable timing text. Audit any misleading source comment or compatibility discrepancy you observe. Interpret the fixed-seed estimates only to the extent justified by one simulated path. Distinguish this exact example rerun from reproduction of a paper table or figure, validation of every PyMLE model or approximation, a Monte Carlo performance study, confirmatory empirical evidence, an estimator-ranking theorem, or formal proof. No model-authored estimator, replacement simulation, novelty claim, or Lean formalization is required. Disclose all remaining source, environment, optimizer, interpretation, and scientific-scope gaps honestly.",
+      "tags": [
+        "stochastic differential equations",
+        "maximum likelihood",
+        "PyMLE",
+        "source replication",
+        "reproducibility",
+        "L1"
+      ],
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "paper_title": "pymle: A Python Package for Maximum Likelihood Estimation and Simulation of Stochastic Differential Equations",
+        "authors": [
+          "Justin L. Kirkby",
+          "Dang H. Nguyen",
+          "Duy Nguyen",
+          "Nhu Nguyen"
+        ],
+        "journal": "Journal of Statistical Software",
+        "year": 2025,
+        "volume": 113,
+        "issue": 4,
+        "pages": "1-40",
+        "paper_url": "https://doi.org/10.18637/jss.v113.i04",
+        "repository": "https://github.com/jkirkby3/pymle",
+        "repository_commit": "a68ee7b071a9eae8264c649719052ef711b47775",
+        "research_source_snapshot_id": "pymle-jss-2025-cir-public-replication-v1",
+        "research_source_snapshot_hash": "6aed2ddc96d822d1c253f67d69015c1de4c924955e573089939ac2f8edeaac78",
+        "research_source_manifest_sha256": "eb6e10cd7625b9a45810bcec1202d1873823dbf692ab8dcc5aebdba7d5835229"
+      }
+    }
+  ]
+}

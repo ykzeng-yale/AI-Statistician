@@ -2063,10 +2063,24 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is True
-    assert ladder["current_readiness"]["active_scored_tasks"] == 30
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 30
-    assert ladder["current_readiness"]["fully_gold_configured_tasks"] == 30
-    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 1
+    scored = [
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["status"] in {"active_scored", "consumed_scored"}
+    ]
+    consumed = [
+        row
+        for row in scored
+        if not row["activation_status"].startswith("frozen_ready_")
+    ]
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == len(scored)
+    assert readiness["consumed_scored_tasks"] == len(consumed)
+    assert readiness["fully_gold_configured_tasks"] == len(scored)
+    assert readiness["fully_gold_passed_tasks"] == sum(
+        row["activation_evidence"].get("full_task_passed") is True
+        for row in scored
+    )
     assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
         "91fff005efc8a49f4aacb3b3fcd5d619a8884e46"
     )

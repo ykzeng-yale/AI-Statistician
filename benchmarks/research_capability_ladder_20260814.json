@@ -862,6 +862,58 @@
       }
     },
     {
+      "id": "pymle_jss_cir_example_public_replication",
+      "level": "L1",
+      "family": "stochastic_diffusion_source_replication",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l1_pymle_cir_replication_questions_20260825.json",
+      "source_authority": "operator_provisioned_hash_bound_model_visible_snapshot",
+      "source_snapshot_id": "pymle-jss-2025-cir-public-replication-v1",
+      "source_snapshot_hash": "6aed2ddc96d822d1c253f67d69015c1de4c924955e573089939ac2f8edeaac78",
+      "source_manifest_sha256": "eb6e10cd7625b9a45810bcec1202d1873823dbf692ab8dcc5aebdba7d5835229",
+      "source_repository_commit": "a68ee7b071a9eae8264c649719052ef711b47775",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l1-pymle-jss-2025-v1",
+      "gold_manifest_sha256": "3b95e00a7cb6150d5a34342c2a55385e18ec9826c7101e180168df82e3887292",
+      "gold_descriptor_hash": "ea3789f34dd03433de0721533786eff876b89348f45624ebec2653cc3fa6855a",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "frozen_ready_before_first_product_model_call",
+      "activation_evidence": {
+        "preactivation_code_head": "3187f35577cba6f7214a4efa12ecabb13054db9b",
+        "visible_questions_sha256": "67d9e1e5abaae744b0f2ec30e1267b93b450fc74b0977034d0abc1e46f3b08b9",
+        "visible_question_hash": "c9798e144bcf6ed101ac198376184ee62ad6d4e690e84a1367cdecad7e645536",
+        "source_snapshot_documents": 15,
+        "source_entrypoint_sha256": "144422414f97528714b788cd5a8d07637c319c61d16cd83d4f58a7da69b1629e",
+        "environment_lock_sha256": "f22317e64ff99e8634bf4420ec2114e3f77de20d9e37252772c41926ac57bbd2",
+        "source_execution_spec_sha256": "6e3a634490c4212e63f04fed78d04f9a7741fe0c4a9b86d4722fcc1e78298ced",
+        "independent_rerun_summary_sha256": "b7560e12382e55e7c94fa7debc4b5a97e168511ab388363f101c21ba80340748",
+        "independent_reruns": "3/3_scientific_values_identical",
+        "raw_stdout_byte_identical": false,
+        "hidden_source_replication_harness_sha256": "8a1a35c892b6b831ad32b8ad90813227d15208cb9c357938bbd42b23fc55a8dd",
+        "source_replication_calibration_cases": "9/9",
+        "semantic_reference_sha256": "3648eb60b446e69dd10cf13e3f1d286a5fa44abf67764338168d7d5b27a00762",
+        "semantic_rubric_sha256": "4694befeab4cc31a1b635d72c8b2b9138914ef40481ec415440e96f068b49a83",
+        "semantic_calibration_cases_sha256": "55004dcc921dafaacc08476a9cd1c7aaf6c025477799f5dabe00f7ee08a40cd0",
+        "semantic_calibration_cases": "6/6",
+        "semantic_calibration_model": "claude-haiku-4-5-20251001",
+        "semantic_calibration_model_calls": 2,
+        "hidden_gold_manifest_validated": true,
+        "hidden_gold_activated_before_first_product_model_call": true,
+        "preactivation_product_model_calls": 0,
+        "runtime_source_replication_lane_available": true,
+        "full_task_passed": false
+      },
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
+    },
+    {
       "id": "model_x_public_paper_to_code_reproduction",
       "level": "L2",
       "family": "conditional_independence",
@@ -2656,16 +2708,16 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "active_scored_tasks": 30,
+    "active_scored_tasks": 31,
     "consumed_scored_tasks": 30,
-    "fully_gold_configured_tasks": 30,
+    "fully_gold_configured_tasks": 31,
     "fully_gold_passed_tasks": 1,
-    "runtime_source_replication_components_ready": 2,
+    "runtime_source_replication_components_ready": 3,
     "source_replication_components_passed": 0,
     "source_replication_full_tasks_passed": 0,
     "candidate_queue_is_capability_evidence": false,
     "latest_shared_mechanism_head": "91fff005efc8a49f4aacb3b3fcd5d619a8884e46",
-    "latest_diagnostic": "One of thirty consumed, fully gold-covered tasks now passes. Beta-Binomial completed model-owned Markdown/LaTeX theory, same-session execution feedback, isolated source review, a frozen eight-row confirmatory protocol, generated simulation, terminal Critic disclosure, and evaluator-only theory, algorithm, and empirical checks. Formalization was not applicable, so this is non-proof product evidence and does not change strict source-theorem closure 0/2.",
-    "next_step": "Preserve Beta-Binomial at immutable 1/1 and every failed draw at its original score. Validate actual-scale metric reasoning only on a newly frozen disjoint task; broaden the passing panel across unrelated theory, R, source-replication, and formal-required tasks without task formulas, repair agents, retries, or another scheduler."
+    "latest_diagnostic": "One of thirty consumed, fully gold-covered tasks passes. A thirty-first disjoint task is frozen but unconsumed: exact source replication of the published PyMLE CIR example, with three operator reruns, a 9/9 deterministic identity-and-output harness, and a 6/6 exact-Haiku semantic referee calibrated before any product call. This is readiness evidence only, not a task result.",
+    "next_step": "Commit and push the frozen PyMLE source-replication task before its first product call, then consume exactly one fresh exact-Haiku draw. Preserve every prior draw and the evaluator authority as immutable; apply only shared mechanism corrections justified by that new evidence."
   }
 }
