@@ -3506,6 +3506,8 @@
         "hidden_behavior_entailment_audit": "Every semantic claim is an atomic consequence or scope boundary explicitly requested in the visible question: randomized-test semantics, likelihood-threshold orientation, the size-slack sign proof, equality on tied sets, Bernoulli likelihood monotonicity, exact boundary randomization, exact power, and simple-hypothesis scope. No hidden claim introduces implementation, simulation, formal proof, a composite UMP theorem, a p-value, Bayesian optimality, or another model.",
         "hidden_gold_manifest_validated": true,
         "gold_frozen_before_first_runtime_model_call": true,
+        "activation_commit": "3cc278540dd9bbd2f82d0a45ceba5dcddc3d3c2b",
+        "activation_push_confirmed_on_work_branch_and_main": true,
         "preactivation_product_model_calls": 0,
         "first_runtime_model_call_occurred": false,
         "fresh_live_runs": 0,
