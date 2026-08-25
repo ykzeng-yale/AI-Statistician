@@ -129,8 +129,8 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "candidate's notation. "
         "When scratch computation is useful, target the disputed intermediate claim "
         "or dependency transition with a model-authored exact symbolic reduction or "
-        "discriminating numerical case. Agreement of a final estimator or output "
-        "distribution cannot establish the intermediate identity used to derive it."
+        "discriminating numerical case. Return quantities, predicates, residuals, or witnesses computed from definitions, not a prewritten verdict. Agreement of a "
+        "final estimator or output distribution cannot establish the intermediate identity used to derive it."
     ),
     (
         "Audit the complete semantic chain from question, estimand, DGP, probability "
@@ -161,10 +161,9 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "report. Use exact evidence IDs once in the compact envelope, then return only "
         "ordered PASS, FAIL, or UNCERTAIN statuses and one compact finding per actual "
         "blocker; do not duplicate a prose rationale for every claim or review "
-        "dimension. Resolve or retract a prior finding only from current inspected "
-        "evidence; otherwise leave it unresolved. AgentRuntime derives the verdict, "
-        "binds identities, and persists the exact report without choosing scientific "
-        "semantics."
+        "dimension. Before submission, reconcile later observations with every active report claim: revise or retract contradictions, or mark the point UNCERTAIN. "
+        "Resolve prior findings only from current inspected evidence. "
+        "AgentRuntime binds identities and persists the report without choosing semantics."
     ),
 )
 
@@ -3675,8 +3674,8 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             "An isolated exploratory Python/R scratchpad is available, including "
             "pinned SymPy for exact model-authored algebra. Use it only when a symbolic "
             "reduction, numerical special case, or counterexample would discriminate "
-            "a mathematical claim; interpret the raw result yourself. "
-            "Scratch output is neither confirmatory evidence nor proof. "
+            "a mathematical claim. Return definition-derived quantities or predicates, not a prewritten conclusion; interpret and reconcile the raw result with the "
+            "current report. Scratch output is neither evidence nor proof. "
             if theory_scratchpad is not None
             else ""
         )

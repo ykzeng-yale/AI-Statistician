@@ -2327,11 +2327,13 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         "order-of-magnitude check",
         "standard result is not an independent check",
         "exact symbolic reduction",
+        "not a prewritten verdict",
         "final estimator or output distribution cannot establish",
         "complete semantic chain",
         "canned checklist",
         "mathematical coherence from proof completeness",
         "pre-review Python or R scratch results as exploratory only",
+        "reconcile later observations",
         "one compact finding per actual blocker",
     ):
         assert phrase in protocol

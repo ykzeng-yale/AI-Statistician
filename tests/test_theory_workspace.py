@@ -1496,8 +1496,13 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
         THEORY_WORKSPACE_GAP_TOOL,
     ]
     first_prompt = str(backend.requests[0].messages[0]["content"])
-    assert "Never promote finite scratch output" in first_prompt
+    assert "rather than a prewritten conclusion" in first_prompt
+    assert "revise, retract, or mark the claim uncertain" in first_prompt
     assert "exact model-chosen SymPy reduction" in first_prompt
+    scratch_tool = next(
+        tool for tool in backend.requests[0].tools if tool.name == THEORY_SCRATCHPAD_TOOL
+    )
+    assert "not a prewritten verdict" in scratch_tool.description
     observation = json.loads(
         backend.requests[1].messages[-1]["content"][0]["content"]
     )

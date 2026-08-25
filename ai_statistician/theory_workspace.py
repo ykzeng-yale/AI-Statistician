@@ -167,8 +167,8 @@ def theory_scratchpad_client_tool() -> ClientToolDefinition:
             "in the isolated scientific sandbox. Define, but do not call, "
             "run_sandbox(seed, replicates); when selecting source-result artifacts, "
             "accept the additional artifacts argument described in the schema. It "
-            "must return a named JSON-finite metric object. Raw execution results "
-            "return to this mathematical session and never edit theory automatically."
+            "must return named JSON-finite quantities or predicates computed from the definitions, not a prewritten verdict or unconditional verification "
+            "flag. Raw results return here and never edit theory automatically."
         ),
         input_schema=scratch_schema,
     )
@@ -1786,11 +1786,11 @@ def run_theory_artifact_workspace(
         "source run, you may select declared UTF-8 result paths and define "
         "run_sandbox(seed, replicates, artifacts) to query their exact hash-bound "
         "contents with your own Python or R rather than asking the runtime to "
-        "interpret them. Interpret the "
-        "observation yourself before editing theory. Scratch output is exploratory, "
-        "not confirmatory simulation and not proof. Never promote finite scratch "
-        "output into a universal mathematical premise; supply a mathematical "
-        "argument or narrow the claim instead. "
+        "interpret them. Encode the disputed claim as computed quantities, predicates, "
+        "residuals, or witnesses rather than a prewritten conclusion. "
+        "Interpret the raw observation yourself. If it conflicts with an active "
+        "document or earlier calculation, rederive and revise, retract, or mark the claim uncertain before checkpointing. Scratch output is exploratory, not "
+        "confirmatory simulation or proof; a universal claim still needs an argument. "
         if scratchpad is not None
         else ""
     )
