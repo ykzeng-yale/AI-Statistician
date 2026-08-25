@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "rao_blackwell_poisson_variance_reduction_known_result",
+      "title": "Rao-Blackwell risk decomposition and a Poisson conditioning example",
+      "description": "Focused known-result theory evaluation grounded in David Blackwell, Conditional Expectation and Unbiased Sequential Estimation, The Annals of Mathematical Statistics 18(1), 1947, pages 105-110, DOI 10.1214/aoms/1177730497, and C. R. Rao, Information and Accuracy Attainable in the Estimation of Statistical Parameters, Bulletin of the Calcutta Mathematical Society 37(3), 1945, pages 81-91. In one authoritative Markdown/LaTeX theory workspace, let U be a square-integrable estimator of g(theta), let T be sufficient, and define delta(T)=E_theta[U given T] using a conditional law that is independent of theta. Derive rather than merely quote the exact squared-error decomposition E_theta[(U-g(theta))^2]=E_theta[(delta(T)-g(theta))^2]+E_theta[(U-delta(T))^2]. Establish the vanishing cross term through conditional expectation, state the integrability and parameter-version requirements, derive unbiasedness and the law-of-total-variance form, and characterize equality and strict improvement without claiming pointwise or uniform strictness. Then take n>=2 iid Poisson(lambda) observations, U=X_1, and S=sum_i X_i. Derive sufficiency of S by factorization, derive the full conditional mass function X_1 given S=s as Binomial(s,1/n) rather than naming a splitting fact, obtain delta(S)=S/n, and calculate its expectation, variance, squared-error risk, and exact improvement relative to X_1. Handle lambda=0 and n=1 honestly, explain why the conditional law is parameter-free, and distinguish Rao-Blackwell variance reduction from an unproved UMVU or completeness claim. Keep active and rejected calculations visibly distinct and disclose unresolved measure-theoretic or boundary gaps. This L0 task evaluates mathematical derivation and independent review only. Source replication, Python/R implementation, simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "Rao-Blackwell theorem",
+        "conditional expectation",
+        "sufficient statistic",
+        "Poisson conditioning",
+        "risk decomposition",
+        "known result",
+        "theory only",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "Conditional Expectation and Unbiased Sequential Estimation",
+        "author": "David Blackwell",
+        "journal": "The Annals of Mathematical Statistics",
+        "year": 1947,
+        "volume": 18,
+        "issue": 1,
+        "pages": "105-110",
+        "doi": "10.1214/aoms/1177730497",
+        "url": "https://projecteuclid.org/journals/annals-of-mathematical-statistics/volume-18/issue-1/Conditional-Expectation-and-Unbiased-Sequential-Estimation/10.1214/aoms/1177730497.full"
+      },
+      "secondary_source": {
+        "title": "Information and Accuracy Attainable in the Estimation of Statistical Parameters",
+        "author": "C. R. Rao",
+        "journal": "Bulletin of the Calcutta Mathematical Society",
+        "year": 1945,
+        "volume": 37,
+        "issue": 3,
+        "pages": "81-91",
+        "repository_url": "https://repository.ias.ac.in/71593/"
+      }
+    }
+  ]
+}

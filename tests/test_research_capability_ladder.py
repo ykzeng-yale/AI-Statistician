@@ -2228,9 +2228,9 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 36
+    assert readiness["active_scored_tasks"] == 37
     assert readiness["consumed_scored_tasks"] == 36
-    assert readiness["fully_gold_configured_tasks"] == 36
+    assert readiness["fully_gold_configured_tasks"] == 37
     assert readiness["fully_gold_passed_tasks"] == 2
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -2252,6 +2252,99 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
         "hidden_theory_harness.py",
         "hidden_harness.R",
         "hidden_empirical_harness.R",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_rao_blackwell_poisson_theory_l0_is_frozen_before_first_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"]
+        == "rao_blackwell_poisson_variance_reduction_known_result"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "conditional_expectation_variance_reduction"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == "frozen_ready_v1_unrun"
+    assert candidate["gold_bundle_id"] == (
+        "research-l0-rao-blackwell-poisson-20260825-v1"
+    )
+    assert candidate["gold_manifest_sha256"] == (
+        "92b0e4f3edc66351dea4ce459ec371111720e6dfb0e2742bad16e5afde5f05e0"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "ff98c895c2f8971093808e8feae0d098c4e64f3d618bf2640bb866388aaa4574"
+    )
+    assert candidate["gold_runtime_visibility"] == (
+        "evaluator_only_after_runtime"
+    )
+    assert evidence["preactivation_code_head"] == (
+        "1ac05127683e4b37fb45266842fb7c5c2de7f7cb"
+    )
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_model_policy_status"] == "PENDING_FIRST_DRAW"
+    assert evidence["mechanical_reference_checks"] == "7/7"
+    assert evidence["mechanical_negative_variants_rejected"] == 7
+    assert evidence["semantic_calibration_attempts"] == 1
+    assert evidence["semantic_calibration_total_model_calls"] == 2
+    assert evidence["semantic_calibration_cases"] == 11
+    assert evidence["semantic_calibration_cases_correct"] == 11
+    assert evidence["semantic_reference_claims"] == 8
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert evidence["model_draw_resampling_blocked"] is False
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["full_task_passed"] is False
+
+    assert candidate["task_intent"] == {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == 37
+    assert readiness["consumed_scored_tasks"] == 36
+    assert readiness["fully_gold_configured_tasks"] == 37
+    assert readiness["fully_gold_passed_tasks"] == 2
+    assert candidate["id"] not in {
+        row["id"] for row in ladder["evidence_dimensions"]
+    }
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["source"]["doi"] == "10.1214/aoms/1177730497"
+    assert question["secondary_source"]["year"] == 1945
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
         "semantic_reference.md",
         "semantic_rubric.json",
         "semantic_calibration_cases.json",
@@ -2370,9 +2463,9 @@ def test_complete_randomization_l0_draw_is_consumed_and_failed_closed() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 36
+    assert readiness["active_scored_tasks"] == 37
     assert readiness["consumed_scored_tasks"] == 36
-    assert readiness["fully_gold_configured_tasks"] == 36
+    assert readiness["fully_gold_configured_tasks"] == 37
     assert readiness["fully_gold_passed_tasks"] == 2
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2486,9 +2579,9 @@ def test_bootstrap_mean_l0_records_one_consumed_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 36
+    assert readiness["active_scored_tasks"] == 37
     assert readiness["consumed_scored_tasks"] == 36
-    assert readiness["fully_gold_configured_tasks"] == 36
+    assert readiness["fully_gold_configured_tasks"] == 37
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
@@ -2596,9 +2689,9 @@ def test_mann_whitney_u_r_l0_records_sole_consumed_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 36
+    assert readiness["active_scored_tasks"] == 37
     assert readiness["consumed_scored_tasks"] == 36
-    assert readiness["fully_gold_configured_tasks"] == 36
+    assert readiness["fully_gold_configured_tasks"] == 37
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
@@ -2710,9 +2803,9 @@ def test_inverse_variance_meta_analysis_r_l0_records_sole_consumed_draw() -> Non
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 36
+    assert readiness["active_scored_tasks"] == 37
     assert readiness["consumed_scored_tasks"] == 36
-    assert readiness["fully_gold_configured_tasks"] == 36
+    assert readiness["fully_gold_configured_tasks"] == 37
     assert readiness["fully_gold_passed_tasks"] == 2
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
