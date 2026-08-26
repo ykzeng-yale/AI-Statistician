@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence
 
 from .client_tool_loop import (
+    CLIENT_TOOL_RECENT_HISTORY_ROUNDS,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolExecutionResult,
     ClientToolInputError,
@@ -1984,6 +1985,7 @@ def run_theory_artifact_workspace(
                 session_id=workspace_id,
                 checkpoint_identity=parent_hash,
                 request=request,
+                replay_recent_tool_rounds=CLIENT_TOOL_RECENT_HISTORY_ROUNDS,
             )
         )
         resumed_client_tool_session_ref = deepcopy(

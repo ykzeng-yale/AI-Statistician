@@ -15,6 +15,7 @@ from .agent_runtime import (
     runtime_artifact_reference,
 )
 from .client_tool_loop import (
+    CLIENT_TOOL_RECENT_HISTORY_ROUNDS,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolExecutionResult,
     ClientToolInputError,
@@ -2036,6 +2037,7 @@ def run_scientific_code_workspace(
                 session_id=f"scientific:{artifact_id}",
                 checkpoint_identity=resumed_checkpoint_id,
                 request=request,
+                replay_recent_tool_rounds=CLIENT_TOOL_RECENT_HISTORY_ROUNDS,
             )
         )
         resumed_client_tool_session_ref = deepcopy(

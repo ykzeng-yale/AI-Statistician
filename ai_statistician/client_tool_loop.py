@@ -161,12 +161,53 @@ ClientToolExecutor = Callable[
 
 CLIENT_TOOL_SESSION_KIND = "ClientToolWorkspaceSession"
 CLIENT_TOOL_SESSION_DIRECTORY = ".client_tool_sessions"
-CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY = (
-    "fresh_context_from_hash_bound_checkpoint_v1"
-)
-CLIENT_TOOL_TRANSCRIPT_POLICY = (
-    "linear_with_durable_checkpoint_windows_v1"
-)
+CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY = "fresh_context_from_hash_bound_checkpoint_v1"
+CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY = "recent_complete_tool_rounds_from_hash_bound_checkpoint_v1"
+CLIENT_TOOL_RECENT_HISTORY_ROUNDS = 8
+CLIENT_TOOL_TRANSCRIPT_POLICY = "linear_with_durable_recent_history_checkpoint_windows_v2"
+
+
+def _client_tool_ids(content: Any, *, kind: str, identity: str) -> set[str]:
+    if not isinstance(content, list):
+        return set()
+    return {
+        str(block.get(identity, "") or "")
+        for block in content
+        if isinstance(block, Mapping)
+        and block.get("type") == kind
+        and str(block.get(identity, "") or "").strip()
+    }
+
+
+def _recent_complete_client_tool_rounds(
+    messages: Sequence[Mapping[str, Any]],
+    *,
+    max_rounds: int,
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    """Select recent exact tool-call/result pairs without synthesizing content."""
+
+    rounds = []
+    for index in range(1, len(messages) - 1):
+        assistant = messages[index]
+        user = messages[index + 1]
+        if (
+            str(assistant.get("role", "") or "") != "assistant"
+            or str(user.get("role", "") or "") != "user"
+        ):
+            continue
+        call_ids = _client_tool_ids(
+            assistant.get("content", []), kind="tool_use", identity="id"
+        )
+        result_ids = _client_tool_ids(
+            user.get("content", []), kind="tool_result", identity="tool_use_id"
+        )
+        if call_ids and call_ids == result_ids:
+            rounds.append((deepcopy(dict(assistant)), deepcopy(dict(user))))
+    return rounds[-max_rounds:]
+
+
+def _client_tool_content_blocks(content: Any) -> list[Any]:
+    return deepcopy(content) if isinstance(content, list) else [{"type": "text", "text": str(content)}]
 
 
 def client_tool_session_contract_fingerprint(
@@ -320,17 +361,15 @@ def resume_client_tool_session_from_checkpoint(
     session_id: str,
     checkpoint_identity: str,
     request: ClientToolTurnRequest,
+    replay_recent_tool_rounds: int = 0,
 ) -> tuple[ClientToolTurnRequest, dict[str, Any]]:
-    """Start a fresh model context from an exact durable workspace checkpoint.
-
-    The sealed parent transcript is validated for lineage but is not replayed.
-    Callers must put the authoritative current artifact and environment state in
-    the new request or expose it through the unchanged workspace tools.
-    """
+    """Resume from an exact checkpoint and optional recent complete tool rounds."""
 
     normalized_checkpoint_identity = str(checkpoint_identity or "").strip()
     if not normalized_checkpoint_identity:
         raise ValueError("checkpoint-window resume requires checkpoint identity")
+    if replay_recent_tool_rounds < 0:
+        raise ValueError("recent tool-round replay count cannot be negative")
     prior_messages = load_client_tool_session(
         reference,
         session_dir=session_dir,
@@ -343,39 +382,71 @@ def resume_client_tool_session_from_checkpoint(
             "checkpoint-window resume requires an initial user workspace message"
         )
     ref = dict(reference)
+    replayed_rounds = _recent_complete_client_tool_rounds(
+        prior_messages,
+        max_rounds=replay_recent_tool_rounds,
+    ) if replay_recent_tool_rounds else []
+    replayed_messages = [message for pair in replayed_rounds for message in pair]
+    replay_enabled = bool(replayed_messages)
     window = {
-        "policy": CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY,
+        "policy": (
+            CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY
+            if replay_enabled
+            else CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY
+        ),
         "parent_session_sha256": str(ref.get("sha256", "") or ""),
         "parent_transcript_fingerprint": str(
             ref.get("transcript_fingerprint", "") or ""
         ),
         "parent_message_count": len(prior_messages),
         "checkpoint_identity": normalized_checkpoint_identity,
-        "prior_transcript_replayed": False,
+        "prior_transcript_replayed": replay_enabled,
+        "replayed_tool_rounds": len(replayed_rounds),
+        "replayed_message_count": len(replayed_messages),
+        "replayed_messages_fingerprint": stable_hash(replayed_messages)
+        if replayed_messages
+        else "",
         "summary_used": False,
-        "authoritative_state_source": (
-            "hash_bound_checkpoint_and_current_workspace_tools"
-        ),
+        "authoritative_state_source": "hash_bound_checkpoint_and_current_workspace_tools",
         "evidence_role": "conversation_lineage_not_scientific_evidence",
     }
     notice = (
         "A previous model/tool context window ended at a hash-bound durable "
-        "checkpoint. Its exact transcript was validated for lineage but is not "
-        "replayed in this window. Continue only from the authoritative current "
-        "checkpoint state below and the current workspace tools; do not treat the "
-        "prior conversation or this notice as scientific evidence.\n"
+        "checkpoint. Its exact transcript was validated for lineage. "
+        + (
+            "Recent complete tool-call/result rounds are replayed below as working "
+            "context; any budget counters in them belong to the old window. "
+            if replay_enabled
+            else "The prior conversation is not replayed in this window. "
+        )
+        + "Continue only from the authoritative current checkpoint state and current "
+        "workspace tools; conversation history and this notice are not scientific "
+        "evidence.\n"
         + json.dumps(window, sort_keys=True, separators=(",", ":"))
     )
-    first_message = messages[0]
-    content = first_message.get("content", "")
-    if isinstance(content, list):
-        first_message["content"] = [
+    if replay_enabled:
+        if str(prior_messages[0].get("role", "") or "") != "user":
+            raise ValueError("recent-history resume requires a parent initial user message")
+        current_content = deepcopy(messages[0].get("content", ""))
+        messages = [deepcopy(dict(prior_messages[0])), *replayed_messages]
+        final_user = messages[-1]
+        final_user["content"] = [
+            *_client_tool_content_blocks(final_user.get("content", [])),
             {"type": "text", "text": notice},
-            *deepcopy(content),
+            *_client_tool_content_blocks(current_content),
         ]
+        messages[-1] = final_user
     else:
-        first_message["content"] = notice + "\n\n" + str(content)
-    messages[0] = first_message
+        first_message = messages[0]
+        content = first_message.get("content", "")
+        if isinstance(content, list):
+            first_message["content"] = [
+                {"type": "text", "text": notice},
+                *deepcopy(content),
+            ]
+        else:
+            first_message["content"] = notice + "\n\n" + str(content)
+        messages[0] = first_message
     return (
         replace(
             request,

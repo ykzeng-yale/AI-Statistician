@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from .client_tool_loop import (
+    CLIENT_TOOL_RECENT_HISTORY_ROUNDS,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolExecutionResult,
     ClientToolInputError,
@@ -1109,6 +1110,7 @@ def run_lean_candidate_revision_tool_loop(
                 session_id=f"lean:{candidate_id}",
                 checkpoint_identity=resume_metadata["resume_checkpoint_id"],
                 request=request,
+                replay_recent_tool_rounds=CLIENT_TOOL_RECENT_HISTORY_ROUNDS,
             )
         )
         resumed_client_tool_session_ref = deepcopy(

@@ -6,7 +6,7 @@ import json
 import pytest
 
 from ai_statistician.client_tool_loop import (
-    CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY,
+    CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolInputError,
 )
@@ -1285,20 +1285,20 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
     assert result.evidence["client_tool_session_lineage_continued"] is True
     assert result.evidence["resumed_from_client_tool_session_ref"] == session_ref
     window = result.evidence["client_tool_checkpoint_window"]
-    assert window["policy"] == CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY
+    assert window["policy"] == CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY
     assert window["parent_message_count"] == session_ref["message_count"]
     assert window["checkpoint_identity"] == stable_hash(
         {"artifacts": artifacts, "documents": documents}
     )
-    assert window["prior_transcript_replayed"] is False
+    assert window["prior_transcript_replayed"] is True
     assert result.evidence["transcript_policy"] == CLIENT_TOOL_TRANSCRIPT_POLICY
     continued_messages = continuation.requests[0].messages
-    assert len(continued_messages) == 1
+    assert len(continued_messages) >= 3
     assert continued_messages[0]["role"] == "user"
     assert "Revise the theory from independent observations" in str(
-        continued_messages[0]["content"]
+        continued_messages
     )
-    assert "checkpoint-progress" not in str(continued_messages)
+    assert "checkpoint-progress" in str(continued_messages)
     assert "derivations/progress.md" in str(continued_messages)
     assert "remainder bound is still open" in str(
         continuation.requests[1].messages[-1]

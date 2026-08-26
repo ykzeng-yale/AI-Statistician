@@ -16835,19 +16835,6 @@ def _runtime_architect_control_seed_from_artifacts(
     return controlled_seed
 
 
-def _runtime_architect_control_seed_from_context(
-    context: Any,
-    *,
-    subsystem: str,
-) -> dict[str, Any]:
-    if not isinstance(context, Mapping):
-        return {}
-    return _runtime_architect_control_seed_from_control(
-        _architect_control_payload(context, subsystem),
-        control_source="architect_context",
-    )
-
-
 def _runtime_architect_control_subsystem_for_artifact(
     artifact_id: str,
     artifact: Mapping[str, Any],
@@ -21135,19 +21122,6 @@ def _merge_resume_task_architect_context(
     return replace(task, inputs=inputs)
 
 
-def _runtime_llm_topology_enabled_agent_rows(
-    topology: Mapping[str, Any],
-) -> list[Mapping[str, Any]]:
-    agents = topology.get("llm_agents", [])
-    if not isinstance(agents, list):
-        return []
-    return [
-        row
-        for row in agents
-        if isinstance(row, Mapping) and bool(row.get("enabled", False))
-    ]
-
-
 def _runtime_llm_topology_row_is_live_generator(row: Mapping[str, Any]) -> bool:
     if not bool(row.get("enabled", False)):
         return False
@@ -21684,64 +21658,6 @@ def _generated_sandbox_row_with_live_provenance(
     if not _runtime_llm_proposal_packet_backend_provider(proposal_packet):
         enriched["source_llm_proposal_backend_inferred_from_topology"] = True
     return enriched
-
-
-def _generated_sandbox_metric_contract_counts_from_row(
-    row: Mapping[str, Any],
-) -> Counter[str]:
-    counts: Counter[str] = Counter()
-    contracts = row.get("metric_contracts", [])
-    if isinstance(contracts, list):
-        counts["typed_metric_contracts_declared"] += sum(
-            1 for contract in contracts if isinstance(contract, Mapping)
-        )
-        counts["typed_metric_contracts_authority_bound"] += sum(
-            1
-            for contract in contracts
-            if isinstance(contract, Mapping)
-            and str(
-                contract.get("authority_requirement_fingerprint", "") or ""
-            ).strip()
-        )
-    authority_required = bool(
-        row.get("metric_requirement_authority_required", False)
-    )
-    authority_validated = bool(
-        row.get("metric_requirement_authority_validated", False)
-    )
-    if authority_required:
-        counts["typed_metric_contract_artifacts_authority_required"] += 1
-    if authority_validated:
-        counts["typed_metric_contract_artifacts_authority_validated"] += 1
-    if str(row.get("prototype_status", "") or "") == (
-        "METRIC_REQUIREMENT_AUTHORITY_REJECTED"
-    ):
-        counts["typed_metric_contract_artifacts_authority_rejected"] += 1
-    evaluation = row.get("metric_contract_evaluation", {})
-    if not isinstance(evaluation, Mapping):
-        return counts
-    n_contracts = _generated_metric_contract_evaluation_count(row, "n_contracts")
-    if n_contracts <= 0:
-        return counts
-    counts["typed_metric_contract_artifacts_evaluated"] += 1
-    counts["typed_metric_contracts_evaluated"] += n_contracts
-    counts["typed_metric_contracts_passed"] += (
-        _generated_metric_contract_evaluation_count(row, "n_passed")
-    )
-    counts["typed_metric_contracts_failed"] += (
-        _generated_metric_contract_evaluation_count(row, "n_failed")
-    )
-    if evaluation.get("all_required_passed") is True:
-        counts["typed_metric_contract_artifacts_all_required_passed"] += 1
-        if authority_validated or evaluation.get(
-            "metric_requirement_authority_validated"
-        ) is True:
-            counts[
-                "typed_metric_contract_artifacts_authority_validated_all_required_passed"
-            ] += 1
-    else:
-        counts["typed_metric_contract_artifacts_with_required_failure"] += 1
-    return counts
 
 
 def _llm_topology_policy_violations(agents: list[dict[str, Any]]) -> list[str]:
@@ -23579,44 +23495,6 @@ def _runtime_theory_trace_consumption_contracts(
         if isinstance(contract, Mapping) and contract:
             contracts.append(dict(contract))
     return contracts
-
-
-def _runtime_theory_trace_alignment_consumer_from_artifact(
-    artifact: Mapping[str, Any],
-) -> str:
-    kind = str(artifact.get("artifact_kind", "") or "")
-    source_agent = str(artifact.get("source_agent", "") or "")
-    if kind == "SimulationEngineerProposalPacket" or source_agent == (
-        "LLMSimulationEngineerAgent"
-    ):
-        return "SimulationEngineer"
-    if kind == "AlgorithmEngineerProposalPacket" or source_agent == (
-        "LLMAlgorithmEngineerAgent"
-    ):
-        return "AlgorithmEngineer"
-    if kind == "FormalizerProofEngineerProposalPacket" or source_agent == (
-        "LLMFormalizerProofEngineerAgent"
-    ):
-        return "FormalizerProofEngineer"
-    return ""
-
-
-def _append_runtime_architect_initial_routing_record(
-    records: list[dict[str, Any]],
-    seen: set[str],
-    value: Any,
-) -> None:
-    if not (
-        isinstance(value, Mapping)
-        and value.get("artifact_kind") == "ArchitectInitialRoutingDecision"
-    ):
-        return
-    record = dict(value)
-    fingerprint = json.dumps(record, sort_keys=True, default=str)
-    if fingerprint in seen:
-        return
-    seen.add(fingerprint)
-    records.append(record)
 
 
 def _runtime_formal_source_hits(

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from ai_statistician.client_tool_loop import (
-    CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY,
+    CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
 )
 from ai_statistician.fingerprint import stable_hash
@@ -92,8 +92,20 @@ def _initial_workspace(request: ClientToolTurnRequest) -> dict:
     marker = "Initial authoritative Lean workspace state:\n"
     for message in reversed(request.messages):
         content = message.get("content", "")
-        if isinstance(content, str) and marker in content:
-            return json.loads(content.split(marker, 1)[1])
+        blocks = (
+            [content]
+            if isinstance(content, str)
+            else [
+                str(block.get("text", "") or "")
+                for block in content
+                if isinstance(block, dict) and block.get("type") == "text"
+            ]
+            if isinstance(content, list)
+            else []
+        )
+        for block in reversed(blocks):
+            if marker in block:
+                return json.loads(block.split(marker, 1)[1])
     raise AssertionError("Lean workspace state is missing from the request")
 
 
@@ -2323,13 +2335,13 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
     assert result.evidence["client_tool_session_lineage_continued"] is True
     assert result.evidence["resumed_from_client_tool_session_ref"] == session_ref
     window = result.evidence["client_tool_checkpoint_window"]
-    assert window["policy"] == CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY
+    assert window["policy"] == CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY
     assert window["parent_message_count"] == session_ref["message_count"]
     assert window["checkpoint_identity"] == checkpoint["checkpoint_id"]
-    assert window["prior_transcript_replayed"] is False
+    assert window["prior_transcript_replayed"] is True
     assert result.evidence["transcript_policy"] == CLIENT_TOOL_TRANSCRIPT_POLICY
-    assert "submit-failed" not in str(second_backend.requests[0].messages)
-    assert len(second_backend.requests[0].messages) == 1
+    assert "submit-failed" in str(second_backend.requests[0].messages)
+    assert len(second_backend.requests[0].messages) >= 3
 
 
 def test_lean_candidate_workspace_rejects_tampered_checkpoint_before_model_call() -> None:

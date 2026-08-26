@@ -8,6 +8,7 @@ import pytest
 
 from ai_statistician.client_tool_loop import (
     CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY,
+    CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolExecutionResult,
     ClientToolInputError,
@@ -211,7 +212,7 @@ def test_checkpoint_window_validates_parent_without_replaying_it(tmp_path) -> No
     ]
     assert window["prior_transcript_replayed"] is False
     assert window["summary_used"] is False
-    assert CLIENT_TOOL_TRANSCRIPT_POLICY.endswith("checkpoint_windows_v1")
+    assert CLIENT_TOOL_TRANSCRIPT_POLICY.endswith("checkpoint_windows_v2")
     with pytest.raises(ValueError, match="requires checkpoint identity"):
         resume_client_tool_session_from_checkpoint(
             reference,
@@ -220,6 +221,66 @@ def test_checkpoint_window_validates_parent_without_replaying_it(tmp_path) -> No
             checkpoint_identity="",
             request=request,
         )
+
+
+def test_checkpoint_window_replays_recent_complete_tool_rounds(tmp_path) -> None:
+    request = _request()
+    prior_messages = (
+        *request.messages,
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "prior-complete-call",
+                    "name": "edit",
+                    "input": {"value": 2},
+                }
+            ],
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "prior-complete-call",
+                    "content": '{"ok":true,"value":2}',
+                    "is_error": False,
+                }
+            ],
+        },
+    )
+    reference = persist_client_tool_session(
+        session_dir=tmp_path,
+        session_id="theory:q1",
+        request=request,
+        messages=prior_messages,
+    )
+
+    resumed_request, window = resume_client_tool_session_from_checkpoint(
+        reference,
+        session_dir=tmp_path,
+        session_id="theory:q1",
+        checkpoint_identity="theory-checkpoint:q1",
+        request=request,
+        replay_recent_tool_rounds=1,
+    )
+
+    assert window["policy"] == CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY
+    assert window["prior_transcript_replayed"] is True
+    assert window["replayed_tool_rounds"] == 1
+    assert window["replayed_message_count"] == 2
+    assert window["replayed_messages_fingerprint"]
+    assert len(resumed_request.messages) == 3
+    assert [row["role"] for row in resumed_request.messages] == [
+        "user",
+        "assistant",
+        "user",
+    ]
+    resumed_text = str(resumed_request.messages)
+    assert "prior-complete-call" in resumed_text
+    assert "Repair the artifact." in resumed_text
+    assert "budget counters in them belong to the old window" in resumed_text
 
 
 def test_client_tool_session_rejects_contract_drift_and_tampering(tmp_path) -> None:

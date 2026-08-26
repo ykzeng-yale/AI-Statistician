@@ -84,17 +84,6 @@ def _without_runtime_authored_prescriptions(value: Any) -> Any:
     return coding_agent_observations_only(value)
 
 
-def _is_compaction_path_key(key: Any) -> bool:
-    lowered = str(key).lower()
-    return (
-        lowered == "path"
-        or lowered.endswith("_path")
-        or lowered.endswith("_paths")
-        or lowered.endswith("_file")
-        or lowered.endswith("_files")
-    )
-
-
 @dataclass(frozen=True)
 class FormalizerConfig:
     model: str = ""
@@ -1888,20 +1877,6 @@ def _feedback_requires_formalizer_lean_candidate(
     return False
 
 
-def _formalizer_bool_like(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return value != 0
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"", "0", "false", "no", "none", "null", "off"}:
-            return False
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-    return bool(value)
-
-
 def _source_theorem_target_known(provenance: object) -> bool | None:
     if not isinstance(provenance, Mapping):
         return None
@@ -1964,21 +1939,6 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
                 "exact declaration emitted by lean_statement_sketch"
             )
     return errors
-
-
-def _string_list_values(row: Mapping[str, Any], *keys: str) -> list[str]:
-    values: list[str] = []
-    for key in keys:
-        raw = row.get(key)
-        candidates = raw if isinstance(raw, list | tuple | set) else [raw]
-        for value in candidates:
-            if isinstance(value, Mapping):
-                text = str(value.get("name", "") or "").strip()
-            else:
-                text = str(value or "").strip()
-            if text:
-                values.append(text)
-    return values
 
 
 def _normalize_formalizer_packet(

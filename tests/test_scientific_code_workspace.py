@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from ai_statistician.client_tool_loop import (
-    CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY,
+    CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
 )
 from ai_statistician.fingerprint import stable_hash
@@ -1151,14 +1151,14 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
     assert result.evidence["client_tool_session_lineage_continued"] is True
     assert result.evidence["resumed_from_client_tool_session_ref"] == session_ref
     window = result.evidence["client_tool_checkpoint_window"]
-    assert window["policy"] == CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY
+    assert window["policy"] == CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY
     assert window["parent_message_count"] == session_ref["message_count"]
     assert window["checkpoint_identity"] == checkpoint["checkpoint_id"]
-    assert window["prior_transcript_replayed"] is False
+    assert window["prior_transcript_replayed"] is True
     assert result.evidence["transcript_policy"] == CLIENT_TOOL_TRANSCRIPT_POLICY
     assert checkpoint["checkpoint_id"] in str(second_backend.requests[0].messages)
-    assert "submit-first" not in str(second_backend.requests[0].messages)
-    assert len(second_backend.requests[0].messages) == 1
+    assert "submit-first" in str(second_backend.requests[0].messages)
+    assert len(second_backend.requests[0].messages) >= 3
 
     tampered = {**checkpoint, "current_code_draft_hash": "tampered"}
     with pytest.raises(ValueError, match="identity mismatch"):

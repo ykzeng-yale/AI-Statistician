@@ -1087,15 +1087,6 @@ def _theory_developer_recovered_core_checkpoint(
     return core_packet
 
 
-def _theory_developer_serious_mode(
-    architect_context: Mapping[str, Any],
-) -> bool:
-    return (
-        _theory_developer_prompt_mode(architect_context)
-        in THEORY_SERIOUS_PROMPT_MODES
-    )
-
-
 def _compact_architect_context_for_prompt(context: Mapping[str, Any]) -> dict[str, Any]:
     compact: dict[str, Any] = {
         "compaction_note": (
@@ -1318,24 +1309,6 @@ def _compact_formal_hit(hit: Any, *, primary: bool) -> dict[str, Any]:
         for key, value in compact.items()
         if value not in (None, "", [], {})
     }
-
-
-def _compact_prompt_rows(
-    rows: Any,
-    *,
-    keys: tuple[str, ...],
-    limit: int,
-    list_limit: int,
-    text_limit: int,
-) -> list[dict[str, Any]]:
-    if not isinstance(rows, (list, tuple)):
-        return []
-    return [
-        _compact_prompt_mapping(row, keys=keys, list_limit=list_limit, text_limit=text_limit)
-        if isinstance(row, Mapping)
-        else {"summary": _truncate_text(row, text_limit)}
-        for row in list(rows)[:limit]
-    ]
 
 
 def _compact_prompt_mapping(
@@ -3309,8 +3282,13 @@ def _initial_theory_workspace_prompt(
         "task-intent-required, shape-typed cross-agent handoff. The documents, "
         "not JSON rows, are the "
         "authority for definitions, assumptions, equation-by-equation derivations, "
-        "counterexamples, and unresolved arguments. Use stable claim IDs and document "
-        "paths in the compact claim_index and sanity_check_index. Headings and LaTeX "
+        "counterexamples, and unresolved arguments. Put every task-requested conclusion, "
+        "scope boundary, implementation meaning, and task-intent-required empirical "
+        "design or interpretation in those authoritative documents; a structured "
+        "simulation handoff may index that content but cannot replace it. Do not invent "
+        "confirmatory outcomes before execution. Give each independently falsifiable "
+        "requested conclusion a stable claim ID and document path in the compact "
+        "claim_index. Use sanity_check_index for the checks. Headings and LaTeX "
         "labels may help readers navigate, but runtime does not parse or require any "
         "Markdown anchor syntax. Record only direct claim dependencies in "
         "claim_index.depends_on so "

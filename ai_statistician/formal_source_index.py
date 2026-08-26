@@ -3233,21 +3233,6 @@ def _parse_imports(import_tail: str) -> list[str]:
     ]
 
 
-def _iter_lean_files(location: Path, *, max_file_bytes: int, max_files: int):
-    """Yield a capped, deterministic stream of Lean files.
-
-    Kept as a compatibility wrapper around the generic formal-source iterator.
-    """
-
-    root = FormalSourceRoot("lean_compat", str(location), "lean_library")
-    yield from _iter_formal_source_files(
-        root,
-        location,
-        max_file_bytes=max_file_bytes,
-        max_files=max_files,
-    )
-
-
 def _iter_formal_source_files(
     root: FormalSourceRoot,
     location: Path,

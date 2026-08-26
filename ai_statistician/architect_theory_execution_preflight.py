@@ -67,8 +67,8 @@ from .theory_workspace import (
     theory_scratchpad_client_tool,
 )
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 23
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 32
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 24
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 33
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -82,7 +82,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
     "client_tool_model_directed_document_and_source_inspection_v17"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = (
-    "model_owned_markdown_referee_workspace_with_compact_disposition_v4"
+    "model_owned_markdown_referee_workspace_with_compact_disposition_v5"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY = "model_authored_markdown_referee_report"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL = "write_theory_preflight_report"
@@ -350,6 +350,73 @@ def _active_claim_review_rows(
     return rows
 
 
+def _runtime_bound_review_components(
+    *,
+    question: OpenResearchQuestion,
+    required_claim_reviews: Sequence[Mapping[str, Any]],
+    estimator_ids: Sequence[str],
+    upstream_research_contract: Mapping[str, Any],
+    execution_handoff_required: bool,
+    formal_sources_applicable: bool,
+) -> list[dict[str, Any]]:
+    """Build an identity-only accountability map from the active task contract."""
+
+    components: list[dict[str, Any]] = []
+
+    def add(
+        component_id: str,
+        kind: str,
+        anchor: str,
+        *,
+        required: bool = True,
+    ) -> None:
+        components.append(
+            {
+                "component_id": component_id,
+                "component_kind": kind,
+                "source_anchor_id": anchor,
+                "required_for_acceptance": required,
+            }
+        )
+
+    add(f"question:{question.id}", "research_question_scope", "question")
+    for claim in required_claim_reviews:
+        claim_id = str(claim.get("claim_id", "") or "").strip()
+        if claim_id:
+            status = str(claim.get("declared_status", "") or "").strip().upper()
+            add(
+                f"claim:{claim_id}",
+                "active_theory_claim",
+                "theory.claim_index",
+                required=status not in {"OPEN", "UNCERTAIN"},
+            )
+    if execution_handoff_required:
+        for estimator_id in estimator_ids:
+            add(
+                f"estimator:{estimator_id}",
+                "finite_estimator_handoff",
+                "theory.estimator_specs",
+            )
+    raw_dimensions = upstream_research_contract.get("dimension_requirements", {})
+    dimensions = raw_dimensions if isinstance(raw_dimensions, Mapping) else {}
+    target_specs = (
+        ("simulation_targets", "requested_simulation_target",
+         str(dimensions.get("empirical", "") or "").strip() != "not_applicable"),
+        ("formal_targets", "requested_formal_target", formal_sources_applicable),
+    )
+    for field, kind, applicable in target_specs:
+        targets = upstream_research_contract.get(field, [])
+        rows = targets if isinstance(targets, (list, tuple)) else [targets]
+        for index, target in enumerate(rows if applicable else []):
+            if target not in (None, "", [], {}):
+                add(
+                    f"{kind}:{index}:{stable_hash(target)[:16]}",
+                    kind,
+                    "architect.upstream_research_contract",
+                )
+    return components
+
+
 def _preflight_review_workspace_root(
     semantic: Mapping[str, Any],
     *,
@@ -506,6 +573,14 @@ def build_architect_theory_execution_preflight_material(
         == dimension_requirements.get("empirical")
         == "not_applicable"
     )
+    required_review_components = _runtime_bound_review_components(
+        question=question,
+        required_claim_reviews=required_claim_reviews,
+        estimator_ids=estimator_ids,
+        upstream_research_contract=upstream_research_contract,
+        execution_handoff_required=execution_handoff_required,
+        formal_sources_applicable=formal_sources_applicable,
+    )
     source_theory_packet_hash = str(
         theory_protocol_material.get("source_theory_packet_hash", "") or ""
     )
@@ -519,10 +594,9 @@ def build_architect_theory_execution_preflight_material(
         "source_theory_packet_hash": source_theory_packet_hash,
         "execution_results_available": False,
         "execution_handoff_required": execution_handoff_required,
-        "required_estimator_ids": estimator_ids,
-        "required_claim_reviews": required_claim_reviews,
-        "required_claim_review_ids": [
-            row["claim_id"] for row in required_claim_reviews
+        "required_review_components": required_review_components,
+        "required_review_component_ids": [
+            row["component_id"] for row in required_review_components
         ],
         "active_prior_finding_ledger": active_prior_findings,
         "active_prior_finding_ids": [
@@ -703,14 +777,13 @@ def build_architect_theory_execution_preflight_prompt(
         "review_protocol": list(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL),
         "review_scope": {
             "execution_handoff_required": material.get("execution_handoff_required", True),
-            "claims": [
-                deepcopy(dict(claim))
-                for claim in material.get("required_claim_reviews", []) or []
-                if isinstance(claim, Mapping)
-            ],
-            "estimators": [
-                str(estimator_id)
-                for estimator_id in material.get("required_estimator_ids", []) or []
+            "ordered_components": [
+                deepcopy(dict(component))
+                for component in material.get(
+                    "required_review_components", []
+                )
+                or []
+                if isinstance(component, Mapping)
             ],
             "active_prior_finding_slots": [
                 prior_review_slot(index, finding_id)
@@ -749,17 +822,22 @@ def build_architect_theory_execution_preflight_prompt(
         "verdict_policy": (
             "Return your own overall ACCEPT or REVISE disposition, with the complete "
             "mathematical argument in one Markdown referee report. The terminal "
-            "envelope carries only that disposition, actual blocking findings, and "
-            "ordered statuses for immutable prior findings; it is not an exhaustive "
-            "scientific checklist. ACCEPT requires no blocking finding and every "
-            "active prior finding closed from current evidence. Resolve a prior finding only when current "
+            "envelope carries only that disposition, one ordered PASS, FAIL, or "
+            "UNCERTAIN status for each runtime-bound review component, actual blocking "
+            "findings, and ordered statuses for immutable prior findings. This compact "
+            "accountability map is not a substitute for the mathematical report. "
+            "ACCEPT requires every component marked required_for_acceptance to be PASS, "
+            "no component to be FAIL, no blocking finding, and every active prior "
+            "finding closed from current evidence. A component explicitly declared "
+            "OPEN or UNCERTAIN by the source owner may remain UNCERTAIN only when its "
+            "runtime-bound required_for_acceptance flag is false. Resolve a prior finding only when current "
             "inspected documents or indexed artifacts establish the required change; "
             "retract it only when the "
             "current derivation or independent source evidence defeats its premise. "
             "Otherwise keep prior findings unresolved and use REVISE. Inspect the "
-            "declared review scope, but use mathematical judgment to choose and deeply "
-            "check the load-bearing dependency chain rather than filling one status per "
-            "claim or consideration. Every blocker needs a checkable independent "
+            "declared review scope, and use mathematical judgment to deeply check the "
+            "load-bearing dependency chain before assigning the ordered statuses. Every "
+            "blocker needs a checkable independent "
             "derivation, reduction, or counterexample grounded in exact inspected "
             "documents or indexed artifacts; quoting candidate self-critique or prior "
             "reviewer prose is not "
@@ -927,6 +1005,9 @@ def _architect_theory_execution_preflight_submit_schema(
         ),
     }
     prior_count = len(material.get("active_prior_finding_ids", []) or [])
+    component_count = len(
+        material.get("required_review_component_ids", []) or []
+    )
     properties: dict[str, Any] = {
         "review_report_sha256": {
             "type": "string",
@@ -961,6 +1042,21 @@ def _architect_theory_execution_preflight_submit_schema(
                 "prior finding; otherwise use REVISE."
             ),
         },
+        "component_statuses": {
+            "type": "array",
+            "minItems": component_count,
+            "maxItems": component_count,
+            "items": {
+                "type": "string",
+                "enum": ["PASS", "FAIL", "UNCERTAIN"],
+            },
+            "description": (
+                "One status for every ordered review_scope component. Put the "
+                "mathematical checks and every FAIL or UNCERTAIN explanation in the "
+                "Markdown report; runtime binds these positions to immutable component "
+                "identities without choosing their semantics."
+            ),
+        },
         "findings": {
             "type": "array",
             "description": (
@@ -974,6 +1070,7 @@ def _architect_theory_execution_preflight_submit_schema(
         "review_report_sha256",
         "report_evidence_refs",
         "overall_verdict",
+        "component_statuses",
         "findings",
     ]
     if prior_count:
@@ -2054,8 +2151,10 @@ def _canonical_preflight_source_refs(
     return canonical
 
 
-def _derived_verdict(packet: Mapping[str, Any]) -> str:
-    """Return the only disposition consistent with blocking-finding lineage."""
+def _derived_verdict(
+    packet: Mapping[str, Any], *, material: Mapping[str, Any]
+) -> str:
+    """Return the disposition consistent with review and finding lineage."""
 
     prior_finding_reviews = packet.get("prior_finding_reviews", [])
     all_prior_findings_resolved = all(
@@ -2064,34 +2163,18 @@ def _derived_verdict(packet: Mapping[str, Any]) -> str:
         in _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES
         for row in prior_finding_reviews or []
     )
-    return (
-        "ACCEPT"
-        if all_prior_findings_resolved and not packet.get("findings", [])
-        else "REVISE"
-    )
-
-
-def _source_interface_inventories(
-    material: Mapping[str, Any],
-) -> dict[str, dict[str, Any]]:
-    estimator_anchor = next(
-        (
-            row
-            for row in material.get("anchor_catalog", []) or []
-            if isinstance(row, Mapping)
-            and row.get("anchor_id") == "theory.estimator_specs"
-        ),
-        {},
-    )
-    inventories: dict[str, dict[str, Any]] = {}
-    for projected in estimator_anchor.get("content", []) or []:
-        if not isinstance(projected, Mapping):
-            continue
-        estimator_id = str(projected.get("preflight_estimator_id", "") or "")
-        inventory = projected.get("source_interface_inventory", {})
-        if estimator_id and isinstance(inventory, Mapping):
-            inventories[estimator_id] = dict(inventory)
-    return inventories
+    component_status = {
+        str(row.get("component_id", "") or ""): str(row.get("status", "") or "").strip().upper()
+        for row in packet.get("component_reviews", []) or []
+        if isinstance(row, Mapping)
+    }
+    components_accepted = all(
+        component_status.get(str(row.get("component_id", "") or "")) == "PASS"
+        for row in material.get("required_review_components", []) or []
+        if isinstance(row, Mapping) and row.get("required_for_acceptance") is True
+    ) and all(status != "FAIL" for status in component_status.values())
+    accepted = components_accepted and all_prior_findings_resolved and not packet.get("findings", [])
+    return "ACCEPT" if accepted else "REVISE"
 
 
 def _ordered_review_slot_rows(
@@ -2328,6 +2411,7 @@ def _validate_compact_preflight_submission(
         "review_report_markdown",
         "report_evidence_refs",
         "overall_verdict",
+        "component_statuses",
         "findings",
     }
     if material.get("active_prior_finding_ids", []) or []:
@@ -2398,17 +2482,32 @@ def _normalize_packet(
     report_ref = str(body["review_report"]["document_id"])
     model_verdict = str(body.get("overall_verdict", "") or "").strip().upper()
     body["review_scope"] = {
-        "required_claim_ids": [
+        "required_component_ids": [
             str(value)
-            for value in material.get("required_claim_review_ids", []) or []
-        ],
-        "required_estimator_ids": [
-            str(value)
-            for value in material.get("required_estimator_ids", []) or []
+            for value in material.get(
+                "required_review_component_ids", []
+            )
+            or []
         ],
         "scope_source": "runtime_bound_review_material",
-        "model_reported_per_item_statuses": False,
+        "model_reported_per_item_statuses": True,
     }
+    component_statuses = [
+        str(status or "").strip().upper()
+        for status in body.get("component_statuses", []) or []
+    ]
+    body["component_reviews"] = [
+        {
+            "component_id": str(component.get("component_id", "") or ""),
+            "status": status,
+            "review_report_ref": report_ref,
+        }
+        for component, status in zip(
+            material.get("required_review_components", []) or [],
+            component_statuses,
+        )
+        if isinstance(component, Mapping)
+    ]
     if "prior_finding_statuses" in body:
         body["prior_finding_reviews"] = [
             {
@@ -2418,6 +2517,7 @@ def _normalize_packet(
             for status in body.get("prior_finding_statuses", []) or []
         ]
     for field in (
+        "component_statuses",
         "prior_finding_statuses",
         "report_evidence_refs",
     ):
@@ -2827,22 +2927,41 @@ def validate_architect_theory_execution_preflight_packet(
             "theory execution preflight review_input_fingerprint mismatch"
         )
 
-    required_estimator_ids = [
-        str(value) for value in material.get("required_estimator_ids", []) or []
+    required_components = [
+        dict(row)
+        for row in material.get("required_review_components", []) or []
+        if isinstance(row, Mapping)
     ]
     expected_review_scope = {
-        "required_claim_ids": [
-            str(value)
-            for value in material.get("required_claim_review_ids", []) or []
+        "required_component_ids": [
+            str(row.get("component_id", "") or "")
+            for row in required_components
         ],
-        "required_estimator_ids": required_estimator_ids,
         "scope_source": "runtime_bound_review_material",
-        "model_reported_per_item_statuses": False,
+        "model_reported_per_item_statuses": True,
     }
     if packet.get("review_scope") != expected_review_scope:
         errors.append(
             "theory execution preflight runtime-bound review scope mismatch"
         )
+
+    component_reviews = [
+        row
+        for row in packet.get("component_reviews", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if [
+        str(row.get("component_id", "") or "") for row in component_reviews
+    ] != [str(row.get("component_id", "") or "") for row in required_components]:
+        errors.append(
+            "theory execution preflight ordered component bindings mismatch"
+        )
+    if any(
+        str(row.get("status", "") or "").strip().upper()
+        not in {"PASS", "FAIL", "UNCERTAIN"}
+        for row in component_reviews
+    ):
+        errors.append("theory execution preflight component status is invalid")
 
     prior_finding_reviews = [
         row
@@ -2895,6 +3014,14 @@ def validate_architect_theory_execution_preflight_packet(
         if any(ref not in valid_anchor_ids for ref in report_evidence_refs):
             errors.append(
                 "theory execution preflight review report uses unknown evidence refs"
+            )
+        if not report_ref or any(
+            str(row.get("review_report_ref", "") or "") != report_ref
+            for row in component_reviews
+        ):
+            errors.append(
+                "theory execution preflight component statuses are not bound to the "
+                "review report"
             )
         if not report_ref or any(
             str(row.get("review_report_ref", "") or "") != report_ref
@@ -3006,14 +3133,18 @@ def validate_architect_theory_execution_preflight_packet(
             "findings; finding_ids="
             + json.dumps(closed_with_continuation)
         )
-    expected_verdict = _derived_verdict(packet)
+    expected_verdict = _derived_verdict(packet, material=material)
     if packet.get("overall_verdict") != expected_verdict:
         errors.append(
             "theory execution preflight overall verdict contradicts its blocking "
             "findings or prior-finding dispositions"
         )
+    has_estimator_component = any(
+        row.get("component_kind") == "finite_estimator_handoff"
+        for row in required_components
+    )
     if material.get("execution_handoff_required", True) and not (
-        required_estimator_ids or expected_verdict == "REVISE"
+        has_estimator_component or expected_verdict == "REVISE"
     ):
         errors.append("theory execution preflight cannot accept without an estimator")
     if packet.get("overall_verdict") == "REVISE" and not findings:

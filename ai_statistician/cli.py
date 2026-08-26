@@ -2999,20 +2999,6 @@ def _formalization_delta_plan(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
-def _formal_source_roots_from_specs(specs: list[str] | None) -> tuple[FormalSourceRoot, ...] | None:
-    if not specs:
-        return None
-    roots: list[FormalSourceRoot] = []
-    for idx, spec in enumerate(specs, start=1):
-        if "=" in spec:
-            root_id, location = spec.split("=", 1)
-        else:
-            location = spec
-            root_id = f"formal_source_root_{idx}"
-        roots.append(FormalSourceRoot(root_id.strip(), location.strip()))
-    return tuple(roots)
-
-
 def _research_training_export(args: argparse.Namespace) -> int:
     payload = export_research_training_dataset(
         Path(args.run_dir),
