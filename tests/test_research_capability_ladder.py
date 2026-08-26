@@ -4271,9 +4271,9 @@ def test_one_way_anova_l0_records_its_only_consumed_product_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 50
+    assert readiness["active_scored_tasks"] == 51
     assert readiness["consumed_scored_tasks"] == 50
-    assert readiness["fully_gold_configured_tasks"] == 50
+    assert readiness["fully_gold_configured_tasks"] == 51
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -4406,9 +4406,9 @@ def test_pyod_abod_l1_records_one_consumed_semantic_failure() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 50
+    assert readiness["active_scored_tasks"] == 51
     assert readiness["consumed_scored_tasks"] == 50
-    assert readiness["fully_gold_configured_tasks"] == 50
+    assert readiness["fully_gold_configured_tasks"] == 51
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["runtime_source_replication_components_ready"] == 4
     assert readiness["source_replication_components_passed"] == 1
@@ -4433,5 +4433,99 @@ def test_pyod_abod_l1_records_one_consumed_semantic_failure() -> None:
         "semantic_reference.md",
         "semantic_rubric.json",
         "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_weighted_partial_regression_l0_is_frozen_and_unconsumed() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "weighted_partial_regression_identity_known_result"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "weighted_partitioned_regression"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "frozen_ready_preactivation_calibrated_exact_haiku"
+    )
+    assert candidate["gold_manifest_sha256"] == (
+        "7255132932bd1425c42406522b88b2f6d5f4709fac01b9a07b238cad3a4a1f75"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "c6a0c78a48b3339dbba508dd064e11938e6a8c3ec21ce0aaba2a4959c6528b35"
+    )
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_commit"] == (
+        "a1ca9c327ed7606795a562ab4f86cc46a9e12139"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["preactivation_evaluator_model_calls"] == 2
+    assert evidence["activation_reference_tasks_passed"] == 1
+    assert evidence["activation_negative_controls_rejected"] == 5
+    assert evidence["mechanical_reference_checks"] == "5/5"
+    assert evidence["algorithm_reference_checks"] == "17/17"
+    assert evidence["algorithm_reference_estimator_invocations"] == 22
+    assert evidence["algorithm_negative_variants_rejected"] == 3
+    assert evidence["empirical_reference_checks"] == "10/10"
+    assert evidence["empirical_reference_scenarios"] == 4
+    assert evidence["empirical_reference_estimator_invocations"] == 12000
+    assert evidence["empirical_negative_variants_rejected"] == 2
+    assert evidence["semantic_calibration_attempts"] == 1
+    assert evidence["semantic_calibration_total_model_calls"] == 2
+    assert evidence["semantic_calibration_cases_correct"] == 14
+    assert evidence["semantic_reference_claims"] == 11
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["full_task_passed"] is False
+    assert evidence["trusted_capability_credit"] is False
+
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == 51
+    assert readiness["consumed_scored_tasks"] == 50
+    assert readiness["fully_gold_configured_tasks"] == 51
+    assert readiness["fully_gold_passed_tasks"] == 4
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["source"]["primary_paper"]["doi"] == "10.2307/1907330"
+    assert question["source"]["extension_paper"]["doi"] == (
+        "10.1080/01621459.1963.10480682"
+    )
+    contract = question["estimator_execution_contract"]
+    assert contract["estimator_id"] == "est_weighted_partial_regression"
+    assert contract["entrypoint"] == "run_estimator"
+    assert len(contract["request_fields"]) == 4
+    assert len(contract["response_fields"]) == 8
+    assert len(contract["invariants"]) == 5
+    assert len(contract["empirical_claims"]) == 5
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
+        "hidden_algorithm_harness.py",
+        "hidden_empirical_harness.py",
+        "reference_estimator.py",
+        "theory_reference.md",
+        "theory_rubric.json",
+        "theory_calibration_cases.json",
     ):
         assert hidden_name not in runtime_visible
