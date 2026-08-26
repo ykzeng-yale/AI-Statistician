@@ -6,10 +6,10 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`a26f1806a4f4b8cfec2ea1be129963815a61e58c`.
+`a9ed4f154a4fad64acf538d6418d3ed012aeab86`.
 
 Latest implementation commit:
-`36f90f4c1f1bb7851dba9fce5bd3a6438683eb52`.
+`39d42c18b09c34221f6b09dc6f5f49991b9540f6`.
 
 Primary references:
 
@@ -143,16 +143,18 @@ copying Codex's runtime or adding a summarizer. The shared client-tool helper:
 2. binds the new window to the exact current Theory workspace hash or verified
    scientific/Lean checkpoint ID;
 3. retains the parent transcript reference and fingerprint as lineage;
-4. starts the model from the current authoritative document/source,
-   environment observation, and unchanged workspace tools;
-5. explicitly records that the prior transcript was not replayed and no model
-   or runtime summary was used.
+4. may replay at most eight recent exact, complete tool-call/result pairs from
+   the same source-owning session before appending the current authoritative
+   document/source and environment observation;
+5. records the exact replay count and fingerprint, treats older history as
+   lineage only, and uses no model- or runtime-authored summary.
 
-History remains linear within each workspace segment. A durable checkpoint is
-the only context-window boundary, so there is no token threshold, silent
-truncation, extra model call, or content-specific compression rule. Mathematics,
-code, Lean source, findings, and raw diagnostics remain external authoritative
-artifacts; conversation history remains non-authoritative lineage.
+History remains linear within each workspace segment, and only complete recent
+tool pairs can cross a durable checkpoint. There is no token threshold, silent
+content truncation, extra model call, or content-specific compression rule.
+Mathematics, code, Lean source, findings, and raw diagnostics remain external
+authoritative artifacts; conversation history remains non-authoritative working
+context and lineage.
 
 ## Terminal errors and pending workspace state
 
@@ -1042,3 +1044,52 @@ complete repository passed `908/908` in 69.26 seconds. No live model call,
 consumed-task rerun, hidden reevaluation, score change, proof, formula rule,
 RepairAgent, scheduler, or model escalation occurred. Neyman remains the same
 immutable automated 1/1 and operator-invalidated capability result.
+
+## Recent exact history and task-bound review
+
+The official repository was rechecked through upstream commit
+`a9ed4f154a4fad64acf538d6418d3ed012aeab86`. Three current implementation details
+are directly relevant:
+
+- [`ContextManager`](https://github.com/openai/codex/blob/a9ed4f154a4fad64acf538d6418d3ed012aeab86/codex-rs/core/src/context_manager/history.rs)
+  owns normalized conversation history and preserves complete tool-call/output
+  relationships.
+- [`run_turn`](https://github.com/openai/codex/blob/a9ed4f154a4fad64acf538d6418d3ed012aeab86/codex-rs/core/src/session/turn.rs)
+  reuses one model-client session while tools execute and observations accumulate.
+- [`compact`](https://github.com/openai/codex/blob/a9ed4f154a4fad64acf538d6418d3ed012aeab86/codex-rs/core/src/compact.rs)
+  treats context replacement as model-owned history. AI Statistician does not
+  adopt this summarization path because it would add a model call and another
+  non-authoritative scientific representation.
+
+The consumed Normal-normal run supplied the shared-failure evidence for a
+narrower adoption. It logged 119 client-tool model turns, including 83 in
+SimulationEvaluator across repeated short same-owner segments. Future Theory,
+scientific Python/R, and Lean checkpoint windows therefore retain up to eight
+recent exact complete tool rounds after validating the sealed parent session.
+The hash-bound workspace and current raw environment observation remain the
+authority. Historical budget counters are explicitly stale, and no summary,
+repair model, automatic continuation, or Architect reroute is introduced.
+
+Algorithm and Simulation coding sessions now have an ordinary 24-turn capacity,
+matching the existing Theory/referee scale. Capacity is not a quota: the model
+can commit or report a gap earlier, and the harness makes no extra call merely
+because capacity remains.
+
+The same run also showed that one global referee acceptance can coexist with a
+false intermediate equation. Future review material therefore contains a small
+identity-only component map derived from the active research question, model-
+authored claim index, estimator handoff, and task-selected simulation or formal
+targets. The referee still writes the complete mathematics in one Markdown
+report and assigns each component `PASS`, `FAIL`, or `UNCERTAIN`. Runtime binds
+ordered identities, report hash, prior-finding lineage, and acceptance
+consistency; it does not derive a formula, parse Lean grammar, prescribe a proof,
+or repair content. Exploratory `OPEN` or `UNCERTAIN` claims remain nonblocking
+unless the task contract requires them.
+
+Commit `39d42c18b09c34221f6b09dc6f5f49991b9540f6` implements these changes and
+deletes thirteen unreferenced legacy helpers to keep the canonical production
+package at 149,994 lines. The complete suite passed `911/911` in 74.02 seconds.
+No live model call, consumed-task rerun, hidden reevaluation, score change,
+second scheduler, RepairAgent, Opus execution, task formula, or mandatory formal
+lane was added. This is selective Codex harness reuse, not embedding Codex as a
+second research runtime.
