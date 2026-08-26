@@ -306,7 +306,7 @@ def test_canonical_evidence_view_exposes_preflight_report_and_scratch_failures(
         formalization_manifest={},
         canonical_evidence_view=view,
     )
-    assert "Never describe a rejected or failed run as passed" in prompt
+    assert "Never call a rejected, failed, unavailable, or hash-mismatched" in prompt
     assert "All symbolic checks passed" in prompt
     assert "REJECTED_CONTRACT" in prompt
 
@@ -327,6 +327,105 @@ def test_canonical_evidence_view_exposes_preflight_report_and_scratch_failures(
     assert tampered["content_loaded"] is False
     assert tampered["content"] == ""
     assert tampered["load_error"] == "sha256_mismatch,byte_size_mismatch"
+
+
+def test_canonical_evidence_view_resolves_successful_referee_probe(
+    tmp_path,
+) -> None:
+    source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'only_checked': 'easy_positive_case'}\n"
+    )
+    metrics = {"only_checked": "easy_positive_case", "passed": True}
+    source_path = tmp_path / "scratch.py"
+    result_path = tmp_path / "scratch.json"
+    source_path.write_text(source, encoding="utf-8")
+    result_path.write_text(json.dumps(metrics), encoding="utf-8")
+    theory = {"packet_id": "theory:probe"}
+    preflight = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+        "packet_id": "preflight:probe",
+        "preflight_scratch_execution_refs": [
+            {
+                "scratch_run": 1,
+                "status": "EXECUTED",
+                "execution_attempted": True,
+                "returncode": 0,
+                "request_hash": "request-hash",
+                "code_hash": stable_hash(source),
+                "result_hash": stable_hash(metrics),
+                "metrics_hash": stable_hash(metrics),
+                "code_path": str(source_path),
+                "result_path": str(result_path),
+                "errors": [],
+            }
+        ],
+    }
+    acceptance = {
+        "artifact_kind": "RuntimeArchitectTheoryExecutionPreflightAcceptance",
+        "acceptance_id": "acceptance:probe",
+        "source_theory_packet_id": theory["packet_id"],
+        "preflight_packet_id": preflight["packet_id"],
+    }
+    artifacts = {
+        theory["packet_id"]: theory,
+        preflight["packet_id"]: preflight,
+        acceptance["acceptance_id"]: acceptance,
+    }
+
+    def scratch_resolution() -> dict[str, object]:
+        return build_critic_canonical_evidence_view(
+            question_id="probe-resolution",
+            theory_packet=theory,
+            algorithm_manifest={},
+            simulation_manifest={},
+            formalization_manifest={},
+            artifacts=artifacts,
+            formal_verification_policy="optional",
+        )["theory"]["independent_preflight"]["scratch_observations"][0][
+            "artifact_resolution"
+        ]
+
+    view = build_critic_canonical_evidence_view(
+        question_id="probe-resolution",
+        theory_packet=theory,
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        artifacts=artifacts,
+        formal_verification_policy="optional",
+    )
+
+    resolution = view["theory"]["independent_preflight"][
+        "scratch_observations"
+    ][0]["artifact_resolution"]
+    assert resolution["status"] == "HASH_VERIFIED"
+    assert resolution["model_authored_source"] == source
+    assert resolution["raw_metrics"] == metrics
+    prompt = build_critic_evaluator_prompt(
+        question=OpenResearchQuestion(
+            id="probe-resolution",
+            title="Probe resolution",
+            description="Audit whether a referee probe is discriminating.",
+        ),
+        retrieval_manifest={},
+        theory_packet=theory,
+        simulation_manifest={},
+        algorithm_manifest={},
+        formalization_manifest={},
+        canonical_evidence_view=view,
+    )
+    assert "easy_positive_case" in prompt
+
+    result_path.write_text(json.dumps({"tampered": True}), encoding="utf-8")
+    tampered = scratch_resolution()
+    assert tampered["status"] == "HASH_MISMATCH"
+    assert tampered["model_authored_source"] == ""
+    assert tampered["raw_metrics"] == {}
+
+    result_path.unlink()
+    unavailable = scratch_resolution()
+    assert unavailable == {"status": "UNAVAILABLE", "error_type": "FileNotFoundError"}
 
 
 def test_canonical_evidence_view_hydrates_authoritative_theory_documents(
