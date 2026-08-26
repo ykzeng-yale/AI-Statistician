@@ -998,3 +998,47 @@ false-accepted required mathematical errors. More Codex lifecycle machinery
 would not repair that reasoning failure; the correct response is honest
 operator invalidation and stronger future model/evaluator evidence, without a
 formula rule, retry, extra vote, or repair layer.
+
+## Referee session lineage and review breadth
+
+The Neyman trace still exposed two shared harness defects after separating the
+mathematical false acceptance from the mechanism. Its independent referee used
+the entire twelve-turn workspace segment, including two initial tool-input
+errors and a rejected terminal envelope, before the loop required a final
+disposition. Unlike TheoryDeveloper, the referee persisted only a redacted
+history inside the review packet; there was no exact contract-bound session
+artifact for operator inspection or checkpoint-lineage verification.
+
+A comparison with Beta-Binomial, Aitken GLS, and Hoeffding U-statistics ruled
+out a write-count rule. A correct task could use one initial theory draft, while
+a much longer revision could still retain false mathematics. Commit
+`70f5d658a2e9e8e1049debc990d8d99f9102a0e3` therefore changes only the shared
+harness:
+
+1. Independent-referee work now persists the same immutable
+   `ClientToolWorkspaceSessionRef` used by TheoryDeveloper and coding
+   workspaces. It binds the exact model, system prompt, complete tool surface,
+   transcript bytes, and review workspace.
+2. A resumed referee checkpoint validates those exact session bytes and the
+   unchanged tool contract before any new model call. The existing hash-bound
+   report and exact prior observations remain the scientific workspace state;
+   the old conversation remains lineage, not evidence.
+3. The ordinary ceilings are now 24 model turns and 48 tool calls for both
+   TheoryDeveloper and the independent referee. They are capacity, not a quota:
+   the model may commit or report a gap earlier, and no automatic continuation
+   or extra model call was added.
+4. The referee prompt asks for the smallest dependency graph covering every
+   explicitly requested conclusion or scope boundary that can fail
+   independently. This is a model-owned review principle, not a claim checklist,
+   formula library, parser, or runtime verdict.
+5. Packet history now retains only turn index and tool name/status plus a
+   reference to the exact session. Per-tool redaction branches and duplicated
+   result excerpts were removed.
+
+The change is line-neutral at the architecture boundary: production Python is
+149,999 lines under the existing 150,000-line budget. Focused referee tests
+passed `63/63`, adjacent Architect/runtime/core tests passed `175/175`, and the
+complete repository passed `908/908` in 69.26 seconds. No live model call,
+consumed-task rerun, hidden reevaluation, score change, proof, formula rule,
+RepairAgent, scheduler, or model escalation occurred. Neyman remains the same
+immutable automated 1/1 and operator-invalidated capability result.

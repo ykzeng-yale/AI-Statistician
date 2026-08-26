@@ -1,13 +1,13 @@
 {
-  "schema_version": 176,
+  "schema_version": 177,
   "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "36f90f4c1f1bb7851dba9fce5bd3a6438683eb52",
+  "validated_code_head": "70f5d658a2e9e8e1049debc990d8d99f9102a0e3",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all forty-five consumed tasks and their immutable automatic artifacts. Five automatic protocols returned 1/1, but trustworthy capability accounting remains 4/45 because the new Neyman-allocation draw is operator-invalidated: its central all-positive theorem is correct, while the explicitly required zero-variance case violates the stated feasible set and its active unequal-cost and finite-population claims are wrong. TheoryDeveloper, the isolated referee, terminal Critic, and calibrated hidden Haiku judge all missed those errors despite a complete Codex-style persistent file/tool loop. This is model and evaluator capability evidence, not a reason to add formulas, arithmetic parsers, repair layers, prompt checklists, extra votes, retries, or another scheduler. Source replication and exact development Lean closure 0/2 also remain incomplete.",
+  "current_goal_focus": "Preserve all forty-five consumed tasks and their immutable automatic artifacts. Five automatic protocols returned 1/1, but trustworthy capability accounting remains 4/45 because Neyman allocation is operator-invalidated. Commit 70f5d658 gives future independent theory referees exact contract-bound session persistence, checkpoint-lineage validation, nonmandatory 24-turn/48-call capacity, and a generic dependency-graph review instruction covering explicitly requested claims that can fail independently. It adds no formula, checklist, parser, repair layer, retry, vote, scheduler, model escalation, or score change. The source owner, referee, Critic, and hidden judge can still share a mathematical error; source replication and exact development Lean closure 0/2 also remain incomplete.",
   "latest_neyman_allocation_l0_evaluation": {
     "task_id": "neyman_stratified_allocation_known_result",
     "family": "stratified_sampling_allocation",
@@ -43,7 +43,9 @@
     "automatic_full_task_score": "1/1 under the pre-frozen automated protocol",
     "trusted_capability_credit": false,
     "ladder_score_after_consumption": "4/45",
-    "post_run_shared_change": "none; the specialist harness worked as designed, so no task formula, parser, repair model, prompt checklist, retry, extra vote, scheduler, rerun, or rescore was added",
+    "post_run_shared_change_commit": "70f5d658a2e9e8e1049debc990d8d99f9102a0e3",
+    "post_run_shared_change": "Future independent-referee segments persist and validate the same exact ClientToolWorkspaceSessionRef used by source owners; their ordinary capacity is 24 turns and 48 calls, and the model is asked to cover independently failing explicitly requested claim components. The compact packet retains only tool lifecycle metadata plus the session ref. This was justified by comparison across Beta-Binomial, Aitken, Hoeffding, and Neyman, not by encoding Neyman mathematics.",
+    "post_run_shared_change_evidence": "Future-task regression only: referee tests passed 63/63, adjacent Architect/runtime/core tests passed 175/175, and the complete repository passed 908/908 in 69.26 seconds. Production Python is 149,999 lines. No live call, consumed-task rerun, hidden reevaluation, score change, proof, formula, checklist, RepairAgent, scheduler, or model escalation occurred.",
     "boundary": "The sole draw and sole hidden evaluation are consumed. Their automatic 1/1 artifacts remain immutable, while operator audit denies capability credit. Never rerun, resume, repair, hidden-evaluate again, rescore, or resample this task."
   },
   "latest_gaussian_kde_amise_l0_evaluation": {
@@ -400,10 +402,10 @@
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
     "latest_rechecked_upstream_commit": "a26f1806a4f4b8cfec2ea1be129963815a61e58c",
     "latest_incremental_finding": "The sole upstream delta after 21c58c90 binds approval policy and reviewer identity to the step that issued a delayed tool action instead of consulting newer turn settings.",
-    "latest_incremental_adoption": "No product code change. AI-Statistician specialist sessions execute synchronously under a contract fingerprint that already binds the exact model, system prompt, complete tool descriptions and schemas, terminal semantics, transcript, workspace, and hashes. If background scientific actions are introduced later, their task-intent and safety settings must likewise be sealed at issuance.",
+    "latest_incremental_adoption": "Commit 70f5d658 applies the existing Codex-shaped session invariant to the independent theory referee: exact model/prompt/tool/transcript/workspace identity is persisted and checked across a referee checkpoint, while Markdown and exact observations remain scientific state. It also removes per-tool history-redaction branches, retains only compact lifecycle metadata, and raises optional workspace capacity without requiring extra calls.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "36f90f4c1f1bb7851dba9fce5bd3a6438683eb52",
+    "implementation_commit": "70f5d658a2e9e8e1049debc990d8d99f9102a0e3",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -428,7 +430,8 @@
       "ec1f6fc8f83fa1a3d6812ab6b8eab8ac8c692940",
       "ea0118067a2f9f2558db300c76c3fd74675725b9",
       "a55517140acd3185e20531f147cbc9309238a78b",
-      "36f90f4c1f1bb7851dba9fce5bd3a6438683eb52"
+      "36f90f4c1f1bb7851dba9fce5bd3a6438683eb52",
+      "70f5d658a2e9e8e1049debc990d8d99f9102a0e3"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "678e03eebc72ffb02815cc017dbed26bc978e3a31056d6e57c59fedbd9d296d5",
@@ -481,7 +484,8 @@
       "A hash-valid Simulation review that returns REVISE with current_source_edit_sufficient now restores the exact parent proposal and source, sends the model-authored finding directly to the same Simulation source-owner coding loop, requires changed source bytes, and records zero planning-model calls for that continuation. Architect is not invoked and runtime does not edit or interpret scientific source.",
       "Simulation source authoring now separates a quick non-evidence diagnostic from one full blinded confirmatory execution. Raw diagnostic execution and metric shape stay in the same source-owner session, but confirmatory acceptance outcomes are not a source-commit condition; any terminal workspace failure makes the last executed source ineligible for promotion.",
       "GeneratedCodeSemanticReviewer v26 replaces the ambiguous parent/no-parent disposition with CURRENT_SOURCE_REWRITE_SUFFICIENT and CROSS_ARTIFACT_RESOLUTION_REQUIRED. A defect in the exact Simulation source is therefore described as local even though Simulation is downstream; runtime adds no repair plan or semantic router.",
-      "TheoryDeveloper revision now receives the exact persisted independent-referee Markdown through the existing read-only workspace artifact tool. A shared hash-bound UTF-8 loader verifies path, SHA-256, and byte size, then removes the absolute path from model-visible state. Compact finding rows remain immutable ledger identity; no model-authored mathematical explanation is flattened into runtime prose."
+      "TheoryDeveloper revision now receives the exact persisted independent-referee Markdown through the existing read-only workspace artifact tool. A shared hash-bound UTF-8 loader verifies path, SHA-256, and byte size, then removes the absolute path from model-visible state. Compact finding rows remain immutable ledger identity; no model-authored mathematical explanation is flattened into runtime prose.",
+      "Commit 70f5d658 gives the independent theory referee the existing immutable ClientToolWorkspaceSessionRef, validates exact transcript and model/prompt/tool identity before checkpoint continuation, replaces per-tool redaction branches with compact lifecycle metadata, and expands nonmandatory workspace capacity to 24 turns and 48 calls. The model is asked to cover independently failing explicitly requested claim components; runtime still chooses no mathematics."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -1022,8 +1026,11 @@
     ]
   },
   "validated_change": {
-    "commit": "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7",
+    "commit": "70f5d658a2e9e8e1049debc990d8d99f9102a0e3",
     "changes": [
+      "Commit 70f5d658 persists exact independent-referee client-tool sessions, validates their model/prompt/tool/transcript/workspace identity before checkpoint continuation, and replaces duplicated per-tool result redaction with compact lifecycle metadata plus one immutable session ref.",
+      "TheoryDeveloper and referee capacity is now 24 turns and 48 ordinary tool calls per segment, but no call is mandatory and no retry or continuation is automatic. The generic referee instruction covers independently failing explicitly requested conclusions and scope boundaries without formulas, claim checklists, parsers, or runtime-authored verdicts.",
+      "Focused referee tests passed 63/63, adjacent Architect/runtime/core tests passed 175/175, and the complete repository passed 908/908 in 69.26 seconds. Production Python is 149,999 lines. No live model call, consumed-task rerun, hidden reevaluation, score change, proof, RepairAgent, scheduler, or model escalation occurred.",
       "Commit ba9e553f completes the measured reviewer-observation boundary for future tasks: the existing terminal Critic receives exact hash-verified source and raw metrics for successful referee scratch probes, while missing or changed artifacts fail closed and expose no content. The model, not runtime, decides whether a probe discriminates a mathematical claim.",
       "The change adds no formula, mathematical parser, model call, agent, scheduler, retry, fallback, or task-specific rule. Exact deterministic inspection of the immutable Hoeffding probe succeeded without rerunning or rescoring it; focused tests and the complete 902-test repository pass, and production Python decreased to 149,991 lines.",
       "The sole frozen Aitken GLS theory-only draw reached canonical runtime ACCEPTED and frozen hidden 1/1 under exact Haiku, with no code, simulation, or formal lane because those dimensions were not applicable. Its persistent 352-line Markdown/LaTeX derivation correctly establishes the core BLUE covariance decomposition, but operator audit records local strict-Loewner, whitening, rank-deficient, and nonlinear-boundary errors that both automated reviewers missed.",
@@ -1930,6 +1937,7 @@
     "latest_runtime_manifest_bytes": 50536
   },
   "next_gates": [
+    "Validate commit 70f5d658 only on a future unrelated task frozen before its first model call: the independent theory referee must resume from the exact immutable session reference, inspect every explicitly requested claim component that can fail independently, and issue one model-owned verdict within optional capacity. Do not rerun Neyman, force extra turns, add a mathematical checklist, or count regression evidence as theory capability.",
     "Preserve Neyman allocation L0 v1 as one consumed automatic 1/1 with operator-invalidated capability credit. Its all-positive theorem is correct, but the required zero-variance feasibility treatment and active unequal-cost and finite-population claims are wrong, and every Haiku review gate false-accepted them. Never rerun, resume, repair, hidden-evaluate again, rescore, add a formula rule, or add another vote.",
     "Preserve Gaussian KDE AMISE L0 v1 at immutable 0/1. Treat the contradictory model-authored bandwidth derivation and mathematically incorrect terminal gap as model-capability evidence. Treat commit 36f90f4c only as future-task evidence that the same TheoryDeveloper can read the exact current referee Markdown by a hash-bound reference; never rerun, resume, repair, hidden-evaluate again, rescore, or add a KDE formula rule.",
     "Preserve Kendall tau-a L0 v1 at immutable 0/1. Automated hidden theory semantics 9/9 is an operator-recorded false positive because the derivation combines a false 1/3 shared-index kernel expectation with one-third of the required overlap count. Never rerun, resume, patch, hidden-evaluate again, rescore, or feed this diagnosis to its source owners.",
