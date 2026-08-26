@@ -218,7 +218,12 @@ def test_canonical_evidence_view_excludes_legacy_simulation_flags() -> None:
     }
 
 
-def test_canonical_evidence_view_exposes_preflight_scratch_failures() -> None:
+def test_canonical_evidence_view_exposes_preflight_report_and_scratch_failures(
+    tmp_path,
+) -> None:
+    report_content = "# Independent report\n\nAll symbolic checks passed.\n"
+    report_path = tmp_path / "review.md"
+    report_path.write_text(report_content, encoding="utf-8")
     theory = {
         "artifact_kind": "TheoryDerivationPacket",
         "packet_id": "theory:1",
@@ -229,6 +234,14 @@ def test_canonical_evidence_view_exposes_preflight_scratch_failures() -> None:
         "packet_id": "preflight:1",
         "overall_verdict": "ACCEPT",
         "findings": [],
+        "review_report": {
+            "artifact_kind": "TheoryExecutionPreflightReviewDocument",
+            "document_id": "theory_preflight_review_document:1",
+            "path": str(report_path),
+            "persisted": True,
+            "sha256": hashlib.sha256(report_content.encode("utf-8")).hexdigest(),
+            "byte_size": len(report_content.encode("utf-8")),
+        },
         "preflight_scratch_execution_refs": [
             {
                 "scratch_run": 1,
@@ -262,6 +275,9 @@ def test_canonical_evidence_view_exposes_preflight_scratch_failures() -> None:
     )
 
     independent = view["theory"]["independent_preflight"]
+    assert independent["review_report"]["content_loaded"] is True
+    assert independent["review_report"]["content"] == report_content
+    assert independent["review_report"]["load_error"] == ""
     assert independent["scratch_observation_summary"] == {
         "run_count": 1,
         "successful_execution_count": 0,
@@ -291,7 +307,26 @@ def test_canonical_evidence_view_exposes_preflight_scratch_failures() -> None:
         canonical_evidence_view=view,
     )
     assert "Never describe a rejected or failed run as passed" in prompt
+    assert "All symbolic checks passed" in prompt
     assert "REJECTED_CONTRACT" in prompt
+
+    report_path.write_text("tampered", encoding="utf-8")
+    tampered = build_critic_canonical_evidence_view(
+        question_id="generic",
+        theory_packet=theory,
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        artifacts={
+            "theory:1": theory,
+            "preflight:1": preflight,
+            "acceptance:1": acceptance,
+        },
+        formal_verification_policy="optional",
+    )["theory"]["independent_preflight"]["review_report"]
+    assert tampered["content_loaded"] is False
+    assert tampered["content"] == ""
+    assert tampered["load_error"] == "sha256_mismatch,byte_size_mismatch"
 
 
 def test_canonical_evidence_view_hydrates_authoritative_theory_documents(

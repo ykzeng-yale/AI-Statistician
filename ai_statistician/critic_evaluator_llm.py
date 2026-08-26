@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
@@ -198,7 +200,9 @@ def build_critic_evaluator_prompt(
         "The independent_preflight scratch summary is runtime-authored from raw tool "
         "observations. Never describe a rejected or failed run as passed. Such a run may "
         "remain nonblocking when your independent reconstruction does not rely on it, but "
-        "disclose the review-evidence limitation. "
+        "disclose the review-evidence limitation. When the hash-verified referee Markdown "
+        "is loaded, audit its claims against those same raw observations; the verdict and "
+        "finding envelope is not a substitute for the report. "
         "Before describing a correction as evidence of a defect, compare it with the "
         "observed expression: algebraically or logically equivalent forms are not a "
         "correction and must be reported as unsupported. "
@@ -595,6 +599,43 @@ def _artifact_identity(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _critic_review_report(report: Mapping[str, Any]) -> dict[str, Any]:
+    identity = _artifact_identity(report)
+    if not report:
+        return {**identity, "content_loaded": False, "content": "", "load_error": ""}
+    path = str(report.get("path", "") or "").strip()
+    if report.get("persisted") is not True or not path:
+        return {
+            **identity,
+            "content_loaded": False,
+            "content": "",
+            "load_error": "report_not_persisted",
+        }
+    try:
+        encoded = Path(path).expanduser().resolve().read_bytes()
+        content = encoded.decode("utf-8")
+    except (OSError, UnicodeError) as exc:
+        return {
+            **identity,
+            "content_loaded": False,
+            "content": "",
+            "load_error": type(exc).__name__,
+        }
+    errors = []
+    if hashlib.sha256(encoded).hexdigest() != str(
+        report.get("sha256", "") or ""
+    ):
+        errors.append("sha256_mismatch")
+    if len(encoded) != int(report.get("byte_size", -1) or -1):
+        errors.append("byte_size_mismatch")
+    return {
+        **identity,
+        "content_loaded": not errors,
+        "content": "" if errors else content,
+        "load_error": ",".join(errors),
+    }
+
+
 def _critic_theory_workspace_evidence(
     *,
     theory_packet: Mapping[str, Any],
@@ -847,7 +888,7 @@ def build_critic_canonical_evidence_view(
                 preflight_packet.get("overall_verdict", "") or ""
             ),
             "review_scope": deepcopy(preflight_packet.get("review_scope", {})),
-            "review_report": _artifact_identity(
+            "review_report": _critic_review_report(
                 preflight_packet.get("review_report", {})
             ),
             "findings": [

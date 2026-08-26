@@ -279,10 +279,6 @@ def _dotenv_key_from_secret_value(value: str) -> str:
     return ""
 
 
-
-
-
-
 def _load_runtime_resume_task_from_manifest(
     path: Path,
 ) -> tuple[str, AgentTask, dict[str, Any]]:
@@ -1696,7 +1692,6 @@ def _proof_training_export(args: argparse.Namespace) -> int:
     return 0
 
 
-
 def _proof_policy_baseline(args: argparse.Namespace) -> int:
     payload = evaluate_retrieval_proof_policy_baseline(
         Path(args.train_jsonl),
@@ -3018,7 +3013,6 @@ def _formal_source_roots_from_specs(specs: list[str] | None) -> tuple[FormalSour
     return tuple(roots)
 
 
-
 def _research_training_export(args: argparse.Namespace) -> int:
     payload = export_research_training_dataset(
         Path(args.run_dir),
@@ -3104,7 +3098,6 @@ def _research_report(args: argparse.Namespace) -> int:
     print(f"\nmarkdown report written to {(Path(args.out) / 'research_report.md').resolve()}")
     print(f"report manifest written to {(Path(args.out) / 'research_report_manifest.json').resolve()}")
     return 0 if payload["all_ok"] else 1
-
 
 
 def _theorem_composition_export(args: argparse.Namespace) -> int:
@@ -3226,7 +3219,6 @@ def _research_capability_audit(args: argparse.Namespace) -> int:
         print(f"\nresearch capability audit manifest written to {manifest.resolve()}")
         print(f"markdown report written to {(Path(args.out) / 'research_capability_audit.md').resolve()}")
     return 0 if report["all_current_release_requirements_met"] else 1
-
 
 
 def _prover_component_audit(args: argparse.Namespace) -> int:
@@ -3390,7 +3382,6 @@ async def _research_benchmark(args: argparse.Namespace) -> int:
     return 0
 
 
-
 async def _research_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -3428,7 +3419,6 @@ async def _research_eval(args: argparse.Namespace) -> int:
                 print(f"  {procedure_id}: " + " ".join(metric_bits))
     print(f"\nresearch evaluation manifest written to {(Path(args.out) / 'research_evaluation_manifest.json').resolve()}")
     return 0 if payload["all_trace_audits_ok"] else 1
-
 
 
 def _list(args: argparse.Namespace) -> int:
@@ -4044,24 +4034,6 @@ def _research_agent_runtime_research_eval_ready(
     return summary.get("all_questions_research_eval_complete") is True
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def _selected_research_eval_requires_formal_lane(
     args: argparse.Namespace,
 ) -> bool:
@@ -4468,8 +4440,6 @@ def _capability_eval_default_lean_project_candidates() -> tuple[Path, ...]:
     return tuple(unique)
 
 
-
-
 def _default_openprover_root() -> str:
     """Return a source-controlled OpenProver adapter checkout when available."""
 
@@ -4814,16 +4784,6 @@ def _research_agent_runtime_audit(args: argparse.Namespace) -> int:
         f"{(Path(args.out) / 'research_agent_runtime_audit_manifest.json').resolve()}"
     )
     return 0 if payload["capability_ready_for_full_ai_statistician"] else 1
-
-
-
-
-
-
-
-
-
-
 
 
 def _architect_research_path_policy_eval(args: argparse.Namespace) -> int:
