@@ -5394,6 +5394,8 @@
         "hidden_behavior_entailment_audit": "The hidden source evaluator checks only public identity, immutability, environment, execution and report obligations. The real reference passed; ten invoked corruptions of source, environment, execution, arguments, working directory, output hashes, outputs, warnings and artifacts were rejected before the first product call. Exact-Haiku semantic calibration classified all eight reports and accepted the ten-claim reference.",
         "hidden_gold_manifest_validated": true,
         "gold_frozen_before_first_runtime_model_call": true,
+        "activation_commit": "3e844a12fa25a77830aa81b1784b18e64a2f139d",
+        "activation_push_confirmed_on_work_branch_and_main": true,
         "preactivation_product_model_calls": 0,
         "preactivation_evaluator_model_calls": 2,
         "first_runtime_model_call_occurred": false,

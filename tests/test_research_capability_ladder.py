@@ -4827,6 +4827,10 @@ def test_rdrobust_senate_l1_is_frozen_without_consuming_a_draw() -> None:
     )
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_commit"] == (
+        "3e844a12fa25a77830aa81b1784b18e64a2f139d"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 2
     assert evidence["first_runtime_model_call_occurred"] is False
