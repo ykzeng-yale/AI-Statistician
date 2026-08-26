@@ -178,24 +178,6 @@ def _exact_estimator_probe_targets(
         }
     return targets
 
-
-def _review_probe_execution_succeeded(row: Mapping[str, Any]) -> bool:
-    """Return whether a reviewer probe ran and reached its bound estimator."""
-
-    invocation_counts = row.get("estimator_invocation_counts", {})
-    return bool(
-        row.get("status") == "EXECUTED"
-        and not row.get("errors")
-        and not row.get("estimator_runtime_errors")
-        and isinstance(invocation_counts, Mapping)
-        and sum(
-            count
-            for count in invocation_counts.values()
-            if type(count) is int and count > 0
-        )
-        > 0
-    )
-
 def generated_code_semantic_review_finding_id(
     *,
     question_id: str,
@@ -932,11 +914,8 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             + " to actively test an exact current estimator. When useful, "
                             "prefer one broad model-authored probe that covers multiple "
                             "load-bearing public boundary cases; choose the cases and "
-                            "interpretation yourself. If you choose to probe, read every "
-                            "raw execution observation and correct an unsuccessful probe "
-                            "in this same session before submitting ACCEPT. An unsuccessful "
-                            "reviewer-authored probe is not evidence that the estimator "
-                            "passed or failed."
+                            "interpretation yourself. Correct a failed probe in this session "
+                            "before ACCEPT; it is not evidence about the estimator."
                             if probe_targets
                             else ""
                         )
@@ -1049,6 +1028,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         execution.estimator_invocation_counts
                     ),
                     "estimator_runtime_errors": list(execution.estimator_runtime_errors),
+                    "successful_exact_invocation": execution.status == "EXECUTED" and any(execution.estimator_invocation_counts.values()),
                     "request_hash": execution.request_hash,
                     "result_hash": execution.result_hash,
                     "code_path": execution.code_path,
@@ -1073,19 +1053,11 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             errors = validate_generated_code_semantic_review_packet(
                 packet, review_material=review_material
             )
-            if (
-                packet.get("overall_verdict") == "ACCEPT"
-                and probe_executions
-                and not any(
-                    _review_probe_execution_succeeded(row)
-                    for row in probe_executions
-                )
-            ):
+            if packet.get("overall_verdict") == "ACCEPT" and probe_executions and not any(row["successful_exact_invocation"] for row in probe_executions):
                 errors.append(
                     "ACCEPT is inconsistent with the reviewer's own probe history: "
                     "no probe executed successfully and invoked the exact estimator; "
-                    "repair and rerun the reviewer-authored probe or submit a "
-                    "non-accepting judgment"
+                    "repair and rerun the probe or submit a non-accepting judgment"
                 )
             validation_history.append(
                 {
@@ -1136,16 +1108,8 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 backend=self.provider,
                 request=request,
                 execute_tool=execute_tool,
-                max_turns=(
-                    GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES + 1
-                    if probe_targets
-                    else 1
-                ),
-                max_tool_calls=(
-                    GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES + 1
-                    if probe_targets
-                    else 1
-                ),
+                max_turns=GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES + 1 if probe_targets else 1,
+                max_tool_calls=GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES + 1 if probe_targets else 1,
                 max_no_progress_turns=1,
                 max_terminal_recovery_turns=max(0, self.config.max_validation_retries),
             )

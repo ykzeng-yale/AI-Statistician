@@ -6,10 +6,10 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`a9ed4f154a4fad64acf538d6418d3ed012aeab86`.
+`f5420174dafba153913a3e697f89002c338dfd7e`.
 
 Latest implementation commit:
-`39d42c18b09c34221f6b09dc6f5f49991b9540f6`.
+`3b28df58d3ac03af48d7f855ba912725d3324aa3`.
 
 Primary references:
 
@@ -1120,3 +1120,82 @@ removed, leaving 142 production modules, 149,999 package lines, and 24,854 lines
 in `research_agent_runtime.py`. The focused referee suite passed `65/65`; the
 complete repository passed `912/912` in 70.15 seconds. These are regression facts
 for future tasks and do not repair or rescore any of the forty-six consumed draws.
+
+## Current upstream recheck and failed-review probes
+
+The official Apache-2.0 checkout was fast-forwarded and rechecked through
+[`f5420174`](https://github.com/openai/codex/commit/f5420174dafba153913a3e697f89002c338dfd7e).
+The central architecture remains the same: `run_turn` keeps one model-client
+session while tool outputs accumulate; `ToolOrchestrator` handles infrastructure
+approval and sandbox policy; tool failures remain exact model-visible
+observations. No upstream change justifies embedding Codex core, app-server,
+Responses transport, Guardian, or its scheduler in AI Statistician.
+
+Two new upstream details sharpen the selective-adoption boundary:
+
+1. [`039eb58a`](https://github.com/openai/codex/commit/039eb58a0ba6647fb8f29fdd35341f3f1b153728)
+   gives an isolated Guardian reviewer only four read-only parent-history tools;
+   unrelated parent tools remain unavailable. AI Statistician should preserve the
+   analogous least-authority rule: a theory, code, metric, or formal reviewer may
+   read exact hash-bound source artifacts and public observations needed for its
+   judgment, but it should not inherit the author's writable workspace, hidden
+   evaluator authority, or broad parent tool surface.
+2. [`f5420174`](https://github.com/openai/codex/commit/f5420174dafba153913a3e697f89002c338dfd7e)
+   propagates the originating response-item ID through direct and nested MCP calls.
+   AI Statistician already binds observations to task, handoff, source, session,
+   and content hashes. Preserve that direct origin lineage; do not add a parallel
+   Codex item model or duplicate artifact graph.
+
+The forty-seventh frozen research-capability draw exposed a concrete violation of
+the first principle inside generated-code review. The isolated reviewer chose to
+execute an exact-estimator probe. Its first probe omitted the required sandbox
+entry point; its second used the wrong callable signature and never invoked the
+bound estimator. Both raw failures were available, but the old terminal contract
+still allowed the reviewer to submit `ACCEPT`. The hidden evaluator later rejected
+the source for violating a public no-coercion clause. The consumed task remains
+immutable `0/1`.
+
+Commit `3b28df58d3ac03af48d7f855ba912725d3324aa3` applies the Codex-shaped correction
+without adding scientific rules. If a future reviewer elects to probe, terminal
+`ACCEPT` now requires at least one execution that succeeded and actually invoked
+the exact hash-bound estimator. A malformed probe and the terminal-validation
+observation return to the same reviewer session. The reviewer owns the correction
+or may submit a non-accepting judgment; runtime does not infer scientific success
+from metrics and does not patch source.
+
+This gives the specialist collaboration rule in operational form:
+
+```text
+outer research graph
+  -> specialist workspace with one model-owned session
+       -> read exact artifact
+       -> choose general tool
+       -> receive raw observation
+       -> revise artifact/action in the same session
+       -> commit checkpoint or report honest gap
+  -> isolated least-authority reviewer
+       -> read exact public artifact/observation
+       -> optionally falsify with a general scratch tool
+       -> resolve its own failed tool action before judgment
+  -> deterministic evidence boundary and optional downstream authority
+```
+
+TheoryDeveloper should continue to own persistent Markdown/LaTeX plus Python/R
+scratch; Algorithm and Simulation should own source plus execution; Formalizer
+should own Lean source plus current goals, diagnostics, and proof-state retrieval.
+Ordinary source, simulation, and Lean failures stay inside those sessions. The
+Architect handles initial intent, real cross-workspace contradictions, and stop
+decisions rather than ordinary repair traffic.
+
+The same draw also showed that the one-shot metric semantic reviewer can accept
+wrong arithmetic and a vacuous check even though its prompt already requires
+independent recomputation and non-vacuity. The scientifically coherent next
+mechanism, if confirmed on fresh tasks, is one reusable read-only scratch loop for
+review workspaces. It is not another metric checklist, formula parser, vote,
+repair agent, or subsystem-specific scheduler. One consumed failure does not
+authorize a large new abstraction or a hidden-result-driven rerun.
+
+Focused generated-code review and architecture tests passed `36/36`; the complete
+repository passed `914/914` in 71.31 seconds. Compile-all, JSON parsing, and diff
+checks passed, and the top-level production package remains at 149,999 lines under
+its unchanged architecture budget. These are future-task mechanism facts only.

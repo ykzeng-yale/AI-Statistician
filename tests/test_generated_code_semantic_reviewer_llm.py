@@ -974,6 +974,10 @@ def test_reviewer_must_repair_its_failed_probe_before_accepting(
         "FAILED",
         "EXECUTED",
     ]
+    assert [
+        row["successful_exact_invocation"]
+        for row in loop["review_probe_executions"]
+    ] == [False, True]
 
 
 @pytest.mark.parametrize("tamper_hash", [False, True])

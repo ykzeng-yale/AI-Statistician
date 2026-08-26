@@ -773,3 +773,42 @@ hidden empirical component success, and a deterministic lifecycle fail-open. Do
 not collapse them into a single repair target, add a Kendall formula parser, or
 use hidden results as feedback. Production serious theory remains a Sonnet role;
 all benchmark calls remain exact Haiku under the frozen model policy.
+
+## SRSWOR finite-population mean L0 v1
+
+The forty-seventh fully configured task received exactly one frozen exact-Haiku
+product draw and one post-runtime hidden evaluation. Runtime completed the
+canonical non-formal research loop and returned `ACCEPTED`; hidden full-task
+authority returned `0/1`, so trustworthy aggregate capability remains `4/47`.
+Formalization was explicitly not applicable.
+
+Component evidence is intentionally not collapsed into that outcome. Hidden
+theory authority passed `7/7` mechanical checks and a calibrated ten-claim
+semantic review. Hidden empirical authority passed `6/6` over 96,000 exact
+estimator invocations. Hidden algorithm authority passed `11/12` and rejected the
+task because the accepted Python estimator silently coerced a numeric string even
+though the public contract forbids coercion. The source-owning smoke test tried a
+nonnumeric string only, and the independent code reviewer false-accepted after
+both of its self-authored probes failed without invoking the estimator.
+
+Operator review separately invalidated the task. The main finite-population
+theorems are correct, but the authoritative Markdown contains a false displayed
+binomial expansion, loses singleton undefinedness in its constant-population
+section, and gives an insufficient large-`N` condition for the with-replacement
+comparison. The metric protocol also contains wrong arithmetic for both fixed
+populations and uses a constant population for a vacuous mean-unbiasedness check.
+Generated Simulation happened to recompute reference quantities from arrays, so
+its executable metrics passed despite the wrong protocol prose.
+
+Commit `3b28df58d3ac03af48d7f855ba912725d3324aa3` is a future-task harness change,
+not a repair. A code reviewer that elects to execute a probe can no longer submit
+`ACCEPT` unless at least one probe executes successfully and invokes the exact
+hash-bound estimator. Probe failures and terminal-validation feedback return to
+the same reviewer session for model-owned correction. No SRSWOR rule, contract
+case, source patch, repair agent, retry scheduler, or model escalation was added.
+
+This draw adds a useful benchmark-design rule: hidden empirical scenarios should
+include nondegenerate cases capable of distinguishing plausible wrong
+implementations, while model-authored public metrics remain an audited research
+artifact rather than hidden authority. The task remains immutable and must never
+be rerun, repaired, reevaluated, rescored, or resampled.
