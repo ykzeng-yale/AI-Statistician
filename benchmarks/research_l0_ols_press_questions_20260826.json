@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "ols_press_leave_one_out_known_result",
+      "title": "OLS PRESS leave-one-out residual identity",
+      "description": "Focused L0 known-result evaluation grounded in Allen (1974) and the declared statsmodels OLSInfluence convention. Let X be a finite real n by p design matrix used exactly as supplied, with n>p, full column rank, and every delete-one design X_{-i} still full column rank. Let y be a finite n-vector, beta_hat=(X'X)^{-1}X'y, H=X(X'X)^{-1}X', h_i=H_ii, fitted=X beta_hat, and e=y-fitted. In one authoritative Markdown/LaTeX theory workspace, derive the exact coefficient downdate beta_hat_{-i}=beta_hat-(X'X)^{-1}x_i e_i/(1-h_i) using a valid rank-one inverse argument. Deduce that the prediction residual for observation i from the model fitted without i is e_i/(1-h_i), and hence PRESS=sum_i (e_i/(1-h_i))^2. Prove why delete-one full rank is equivalent to 1-h_i>0 under the stated assumptions, distinguish PRESS residuals from ordinary and studentized residuals, and establish normal-equation consistency, row-permutation equivariance, invariance of fitted values, residuals, leverage, leave-one-out residuals, and PRESS under any invertible change of design-column basis, and the declared outcome-scaling law. Do not use numerical agreement as proof. The required model-authored artifact is est_ols_press and must implement the frozen Python run_estimator(request) contract exactly, without adding an intercept or coercing malformed values. Exploratory Python or R may compare the shortcut with explicit delete-one refits. A separately frozen confirmatory assessment uses predeclared random full-rank designs and outcomes, compares every returned quantity with independent linear algebra and brute-force refits, and records numerical error under fixed tolerances. That is computational validation, not proof of the universal identity. Source-code replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "linear_regression",
+        "leave_one_out_cross_validation",
+        "PRESS",
+        "influence_diagnostics",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "The Relationship Between Variable Selection and Data Augmentation and a Method for Prediction",
+          "authors": [
+            "David M. Allen"
+          ],
+          "journal": "Technometrics",
+          "year": 1974,
+          "volume": 16,
+          "issue": 1,
+          "pages": "125-127",
+          "doi": "10.1080/00401706.1974.10489157",
+          "url": "https://doi.org/10.1080/00401706.1974.10489157"
+        },
+        "implementation_convention": {
+          "title": "statsmodels OLSInfluence resid_press and ess_press",
+          "repository": "https://github.com/statsmodels/statsmodels",
+          "commit": "9307ef1b3a975a3807009432cbb489c4ae6f5c60",
+          "url": "https://github.com/statsmodels/statsmodels/blob/9307ef1b3a975a3807009432cbb489c4ae6f5c60/statsmodels/stats/outliers_influence.py",
+          "meaning": "The public implementation computes PRESS residuals as ordinary OLS residuals divided by one minus the hat diagonal and sums their squares; the task contract below is the executable authority."
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_ols_press",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.design",
+            "name": "design",
+            "meaning": "The real design matrix X used exactly as supplied; an intercept is present only if explicitly included as a column.",
+            "json_type": "array",
+            "shape": "n nonempty rows of a common positive length p with n>p, full column rank, and every delete-one design full column rank",
+            "units": "declared design-column units",
+            "indexing": "rows are observations and columns are regressors",
+            "edge_cases": "Reject booleans, strings, nonfinite values, empty or ragged arrays, n<=p, rank deficiency, or any delete-one rank deficiency; do not coerce or add an intercept.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.outcome",
+            "name": "outcome",
+            "meaning": "The finite real response vector y aligned with the rows of design.",
+            "json_type": "array",
+            "shape": "exactly n finite real scalars",
+            "units": "outcome units",
+            "indexing": "entry i corresponds to design row i",
+            "edge_cases": "Reject booleans, strings, nonfinite values, nested values, or any length other than n; do not coerce.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.coefficients",
+            "name": "coefficients",
+            "meaning": "The full-data ordinary least-squares coefficient vector beta_hat.",
+            "json_type": "array",
+            "shape": "exactly p finite real scalars",
+            "units": "outcome units per design-column unit",
+            "indexing": "design-column order",
+            "edge_cases": "Must solve the supplied full-rank least-squares problem without an implicit intercept.",
+            "normalization": "(X'X)^{-1}X'y, evaluated by a numerically stable equivalent solver"
+          },
+          {
+            "clause_id": "response.fitted",
+            "name": "fitted",
+            "meaning": "The full-data fitted values X beta_hat.",
+            "json_type": "array",
+            "shape": "exactly n finite real scalars",
+            "units": "outcome units",
+            "indexing": "observation order",
+            "edge_cases": "Must equal design times coefficients under the supplied column convention.",
+            "normalization": "X beta_hat"
+          },
+          {
+            "clause_id": "response.residuals",
+            "name": "residuals",
+            "meaning": "The ordinary full-data residuals e=y-X beta_hat.",
+            "json_type": "array",
+            "shape": "exactly n finite real scalars",
+            "units": "outcome units",
+            "indexing": "observation order",
+            "edge_cases": "These are ordinary residuals, not studentized or delete-one residuals.",
+            "normalization": "outcome minus fitted"
+          },
+          {
+            "clause_id": "response.leverage",
+            "name": "leverage",
+            "meaning": "The diagonal h_i of the full-data OLS hat matrix H.",
+            "json_type": "array",
+            "shape": "exactly n finite real scalars strictly below one and at least zero up to numerical tolerance",
+            "units": "dimensionless",
+            "indexing": "observation order",
+            "edge_cases": "Each one-minus-leverage denominator must be strictly positive under the admitted domain.",
+            "normalization": "diag(X(X'X)^{-1}X')"
+          },
+          {
+            "clause_id": "response.loo_residuals",
+            "name": "loo_residuals",
+            "meaning": "The leave-one-out prediction residual y_i-x_i' beta_hat_{-i} for every observation.",
+            "json_type": "array",
+            "shape": "exactly n finite real scalars",
+            "units": "outcome units",
+            "indexing": "observation order",
+            "edge_cases": "Must be the exact delete-one residual, not the ordinary or studentized residual.",
+            "normalization": "residuals[i] divided by 1-leverage[i]"
+          },
+          {
+            "clause_id": "response.press",
+            "name": "press",
+            "meaning": "The predicted residual error sum of squares.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared outcome units",
+            "indexing": "aggregate over all observations",
+            "edge_cases": "Must sum squared leave-one-out residuals without averaging or studentization.",
+            "normalization": "sum_i loo_residuals[i]^2"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly design and outcome, and the response contains exactly coefficients, fitted, residuals, leverage, loo_residuals, and press. Missing, extra, malformed, nonfinite, or coercible-only values are rejected."
+          },
+          {
+            "clause_id": "invariant.ols_and_press_identity",
+            "meaning": "The full-data outputs satisfy fitted=X coefficients, residuals=outcome-fitted, X' residuals=0 up to numerical tolerance, leverage=diag(H), every loo_residual equals both residual/(1-leverage) and the residual from an explicit delete-one refit, and press is their squared sum."
+          },
+          {
+            "clause_id": "invariant.row_permutation_equivariance",
+            "meaning": "Applying the same row permutation to design and outcome leaves coefficients and press unchanged and applies that permutation to fitted, residuals, leverage, and loo_residuals."
+          },
+          {
+            "clause_id": "invariant.column_basis_invariance",
+            "meaning": "For any invertible p by p matrix A, replacing design X by X A transforms coefficients to A^{-1} coefficients while fitted, residuals, leverage, loo_residuals, and press remain unchanged."
+          },
+          {
+            "clause_id": "invariant.outcome_scaling",
+            "meaning": "Multiplying outcome by a finite nonzero scalar c multiplies coefficients, fitted, residuals, and loo_residuals by c, leaves leverage unchanged, and multiplies press by c^2."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every frozen scenario fixes dimensions, design generator, outcome generator, seed, replicate count, and tolerances before candidate execution and invokes the accepted estimator through the exact public request."
+          },
+          {
+            "clause_id": "claim.empirical.independent_full_fit",
+            "meaning": "Candidate coefficients, fitted values, ordinary residuals, leverage, and PRESS agree with an independent stable full-data least-squares and hat-diagonal implementation under frozen tolerances."
+          },
+          {
+            "clause_id": "claim.empirical.brute_force_leave_one_out",
+            "meaning": "Every candidate leave-one-out residual agrees with a separately fitted delete-one least-squares model for the corresponding observation under frozen tolerances."
+          },
+          {
+            "clause_id": "claim.empirical.computational_not_proof",
+            "meaning": "Finite random-design agreement is numerical validation only and does not prove the universal rank-one identity or its domain conditions."
+          }
+        ]
+      }
+    }
+  ]
+}
