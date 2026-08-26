@@ -23,6 +23,7 @@ from .agent_runtime import (
     agent_task_reference,
     agent_runtime_substage,
     compact_runtime_artifact_references,
+    mark_same_owner_workspace_continuation,
     materialize_agent_task_continuation,
     resolve_runtime_artifact_references,
     restore_agent_task_continuation,
@@ -6499,7 +6500,10 @@ def _theory_developer_progress_result(
             ),
         ),
         evidence_entries=(evidence,),
-        next_task=next_task,
+        next_task=mark_same_owner_workspace_continuation(
+            parent_task=task,
+            next_task=next_task,
+        ),
     )
 
 
@@ -10879,6 +10883,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 if progress_observation is not None:
                     observations.append(progress_observation)
                 return scientific_workspace_progress_result(
+                    task=task,
                     source_owner="SimulationEngineer",
                     produced_artifacts=produced_artifacts,
                     observations=observations,
@@ -13191,6 +13196,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 if progress_observation is not None:
                     observations.append(progress_observation)
                 return scientific_workspace_progress_result(
+                    task=task,
                     source_owner="AlgorithmEngineer",
                     produced_artifacts=produced_artifacts,
                     observations=observations,
@@ -15654,6 +15660,10 @@ def _formalizer_packet_validation_failure_result(
                 "compiler, retrieval, and proof-state observations."
             ),
             inputs=next_inputs,
+        )
+        next_task = mark_same_owner_workspace_continuation(
+            parent_task=task,
+            next_task=next_task,
         )
     result_rationale = (
         "The same Formalizer will continue its content-addressed Lean workspace from "
@@ -20777,6 +20787,14 @@ def run_research_agent_runtime(
         "research_evaluation_summary": research_evaluation_summary,
         "research_gold_evaluation": research_gold_evaluation,
         "n_runtime_traces": len(trace_rows),
+        "n_runtime_outer_graph_iterations": sum(
+            int(row.get("outer_graph_iterations_consumed", 0) or 0)
+            for row in results
+        ),
+        "n_runtime_same_owner_workspace_continuations": sum(
+            int(row.get("same_owner_workspace_continuations_consumed", 0) or 0)
+            for row in results
+        ),
         "n_runtime_evidence_ledger_rows": len(evidence_rows),
         "n_runtime_task_handoffs": len(handoff_rows),
         "n_runtime_observations": len(observation_rows),

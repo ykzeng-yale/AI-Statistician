@@ -12,10 +12,13 @@ from ai_statistician.agent_runtime import (
     BlackboardState,
     EnvironmentObservation,
     EvidenceLedgerEntry,
+    RUNTIME_OUTER_GRAPH_BUDGET_SCOPE,
+    RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE,
     ToolCallRecord,
     agent_task_continuation_reference,
     agent_runtime_substage,
     materialize_agent_task_continuation,
+    mark_same_owner_workspace_continuation,
     restore_agent_task_continuation,
     runtime_artifact_reference,
 )
@@ -570,6 +573,167 @@ def test_agent_runtime_checkpoints_exact_pending_task_at_budget_boundary() -> No
     assert compact["pending_task"] == continuation_ref["task_ref"]
     assert "inputs" not in compact["pending_task"]
     assert compact["pending_task_continuation_ref"] == continuation_ref
+
+
+def test_agent_runtime_separates_workspace_and_outer_graph_budgets() -> None:
+    class WorkspaceSubsystem:
+        name = "TheoryDeveloper"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            self.calls += 1
+            if self.calls == 1:
+                next_task = AgentTask(
+                    task_id="theory:q1:2",
+                    owner_subsystem=self.name,
+                    objective=task.objective,
+                )
+                return AgentStepResult(
+                    status="REVISE",
+                    rationale="checkpoint exact model-owned mathematics",
+                    next_task=mark_same_owner_workspace_continuation(
+                        parent_task=task,
+                        next_task=next_task,
+                    ),
+                )
+            return AgentStepResult(
+                status="REROUTE",
+                rationale="stable claim can now enter simulation",
+                next_task=AgentTask(
+                    task_id="simulate:q1",
+                    owner_subsystem="SimulationEngineer",
+                    objective="test the stable claim",
+                ),
+            )
+
+    class SimulationSubsystem:
+        name = "SimulationEngineer"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            return AgentStepResult(status="ACCEPTED", rationale="simulation complete")
+
+    result = AgentRuntime(
+        subsystems={
+            "TheoryDeveloper": WorkspaceSubsystem(),
+            "SimulationEngineer": SimulationSubsystem(),
+        },
+        blackboard=BlackboardState(project_id="split-iteration-budgets"),
+    ).run(
+        AgentTask(
+            task_id="theory:q1:1",
+            owner_subsystem="TheoryDeveloper",
+            objective="develop one durable claim",
+        ),
+        max_iterations=2,
+    )
+
+    assert result.status == "ACCEPTED"
+    assert len(result.traces) == 3
+    assert result.outer_graph_iterations_consumed == 2
+    assert result.same_owner_workspace_continuations_consumed == 1
+    assert [row.iteration_budget_scope for row in result.traces] == [
+        RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE,
+        RUNTIME_OUTER_GRAPH_BUDGET_SCOPE,
+        RUNTIME_OUTER_GRAPH_BUDGET_SCOPE,
+    ]
+    payload = result.to_json()
+    assert payload["runtime_steps_executed"] == 3
+    assert payload["outer_graph_iterations_consumed"] == 2
+    assert payload["same_owner_workspace_continuations_consumed"] == 1
+
+
+def test_agent_runtime_unmarked_same_owner_revision_spends_outer_budget() -> None:
+    class UnmarkedWorkspaceSubsystem:
+        name = "TheoryDeveloper"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            return AgentStepResult(
+                status="REVISE",
+                rationale="unmarked same-owner route",
+                next_task=AgentTask(
+                    task_id="theory:q1:unmarked",
+                    owner_subsystem=self.name,
+                    objective=task.objective,
+                ),
+            )
+
+    result = AgentRuntime(
+        subsystems={"TheoryDeveloper": UnmarkedWorkspaceSubsystem()},
+        blackboard=BlackboardState(project_id="unmarked-workspace-budget"),
+    ).run(
+        AgentTask(
+            task_id="theory:q1",
+            owner_subsystem="TheoryDeveloper",
+            objective="attempt an unmarked continuation",
+        ),
+        max_iterations=1,
+    )
+
+    assert result.status == "MAX_ITERATIONS_REACHED"
+    assert result.pending_task_checkpoint_reason == (
+        "outer_iteration_budget_exhausted"
+    )
+    assert result.outer_graph_iterations_consumed == 1
+    assert result.same_owner_workspace_continuations_consumed == 0
+
+
+def test_agent_runtime_checkpoints_at_same_owner_workspace_budget() -> None:
+    class ProgressingWorkspaceSubsystem:
+        name = "Formalizer"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            next_task = AgentTask(
+                task_id=f"{task.task_id}:next",
+                owner_subsystem=self.name,
+                objective=task.objective,
+            )
+            return AgentStepResult(
+                status="REVISE",
+                rationale="new Lean workspace checkpoint",
+                next_task=mark_same_owner_workspace_continuation(
+                    parent_task=task,
+                    next_task=next_task,
+                ),
+            )
+
+    result = AgentRuntime(
+        subsystems={"Formalizer": ProgressingWorkspaceSubsystem()},
+        blackboard=BlackboardState(project_id="workspace-budget-checkpoint"),
+    ).run(
+        AgentTask(
+            task_id="formalize:q1",
+            owner_subsystem="Formalizer",
+            objective="continue compiling model-authored Lean",
+        ),
+        max_iterations=2,
+    )
+
+    assert result.status == "MAX_ITERATIONS_REACHED"
+    assert result.pending_task_checkpoint_reason == (
+        "same_owner_workspace_continuation_budget_exhausted"
+    )
+    assert result.outer_graph_iterations_consumed == 0
+    assert result.same_owner_workspace_continuations_consumed == 2
+    assert result.pending_task is not None
+    assert result.pending_task.task_id == "formalize:q1:next:next"
 
 
 def test_agent_runtime_handoff_policy_can_rewrite_next_task() -> None:

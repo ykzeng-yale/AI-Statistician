@@ -6,6 +6,7 @@ import ai_statistician.research_agent_runtime as runtime_module
 from ai_statistician.agent_runtime import (
     AgentTask,
     BlackboardState,
+    RUNTIME_CONTINUATION_BUDGET_MARKER_KEY,
     ToolCallRecord,
     resolve_runtime_artifact_references,
 )
@@ -17,6 +18,7 @@ from ai_statistician.scientific_code_workspace import (
     runtime_scientific_workspace_resume_plan,
     scientific_workspace_resume_plan,
     scientific_workspace_progress_continuation,
+    scientific_workspace_progress_result,
 )
 from ai_statistician.simulation_engineer_llm import (
     LLMSimulationEngineerAgent,
@@ -141,6 +143,21 @@ def test_scientific_progress_uses_same_owner_refs_and_stops_on_stagnation() -> N
     assert observation.payload["architect_routing_used"] is False
     assert evidence is not None
     assert evidence.status == "SCIENTIFIC_SOURCE_PROGRESS_RECORDED_NOT_ACCEPTED"
+    progress_result = scientific_workspace_progress_result(
+        task=task,
+        source_owner="AlgorithmEngineer",
+        produced_artifacts={},
+        observations=(),
+        tool_calls=(),
+        evidence_entries=(evidence,),
+        next_task=next_task,
+        failure_classification="algorithm_source_workspace_progress_checkpoint",
+    )
+    marker = progress_result.next_task.budget[
+        RUNTIME_CONTINUATION_BUDGET_MARKER_KEY
+    ]
+    assert marker["parent_task_id"] == task.task_id
+    assert marker["next_task_id"] == next_task.task_id
     persisted_manifest = next_task.inputs[
         "scientific_code_workspace_progress_manifest"
     ]

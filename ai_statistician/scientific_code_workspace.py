@@ -13,6 +13,7 @@ from .agent_runtime import (
     BlackboardState,
     EnvironmentObservation,
     EvidenceLedgerEntry,
+    mark_same_owner_workspace_continuation,
     runtime_artifact_reference,
 )
 from .client_tool_loop import (
@@ -539,6 +540,7 @@ def scientific_workspace_progress_rejected_result(
 
 def scientific_workspace_progress_result(
     *,
+    task: AgentTask,
     source_owner: str,
     produced_artifacts: Mapping[str, Any],
     observations: Sequence[EnvironmentObservation],
@@ -554,7 +556,7 @@ def scientific_workspace_progress_result(
         rationale=(
             f"{source_owner} made new executed source progress. The exact "
             "checkpoint returns to the same coding owner under the existing "
-            "outer iteration budget, without Architect routing."
+            "workspace continuation budget, without Architect routing."
         ),
         produced_artifacts=dict(produced_artifacts),
         observations=tuple(observations),
@@ -562,7 +564,10 @@ def scientific_workspace_progress_result(
         evidence_entries=tuple(
             row for row in evidence_entries if row is not None
         ),
-        next_task=next_task,
+        next_task=mark_same_owner_workspace_continuation(
+            parent_task=task,
+            next_task=next_task,
+        ),
         failure_classification=failure_classification,
     )
 

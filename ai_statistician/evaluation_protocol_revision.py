@@ -11,6 +11,7 @@ from .agent_runtime import (
     BlackboardState,
     EnvironmentObservation,
     EvidenceLedgerEntry,
+    mark_same_owner_workspace_continuation,
     runtime_artifact_reference,
 )
 from .architect_theory_execution_preflight import (
@@ -678,6 +679,10 @@ def architect_metric_semantic_review_validation_failure_result(
                 "exact document, source, scratch, and validator observations."
             ),
             inputs=next_inputs,
+        )
+        next_task = mark_same_owner_workspace_continuation(
+            parent_task=task,
+            next_task=next_task,
         )
     return AgentStepResult(
         status="REVISE" if workspace_continuation_allowed else "BLOCKED",

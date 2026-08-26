@@ -14,6 +14,7 @@ from ai_statistician.agent_runtime import (
     AgentStepResult,
     AgentTask,
     BlackboardState,
+    RUNTIME_CONTINUATION_BUDGET_MARKER_KEY,
     TaskHandoffRecord,
     ToolCallRecord,
     restore_agent_task_continuation,
@@ -743,6 +744,10 @@ def test_model_owned_theory_progress_continues_same_owner_by_reference() -> None
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "TheoryDeveloper"
     assert result.next_task.inputs["theory_progress_continuation_count"] == 1
+    marker = result.next_task.budget[RUNTIME_CONTINUATION_BUDGET_MARKER_KEY]
+    assert marker["parent_task_id"] == task.task_id
+    assert marker["next_task_id"] == result.next_task.task_id
+    assert marker["owner_subsystem"] == "TheoryDeveloper"
     checkpoint_ref = result.next_task.inputs["theory_progress_checkpoint"]
     assert checkpoint_ref["artifact_kind"] == "RuntimeArtifactRef"
     assert checkpoint_ref["artifact_id"] == checkpoint["checkpoint_id"]
@@ -1060,6 +1065,10 @@ def test_full_runtime_honors_required_source_replication_before_model_route(
     ]
     assert row["requirements"]["critic_research_acceptance"] is False
     assert manifest["n_runtime_architect_coordinator_traces"] == 1
+    assert manifest["n_runtime_outer_graph_iterations"] == 2
+    assert manifest["n_runtime_same_owner_workspace_continuations"] == 0
+    assert runtime_result["outer_graph_iterations_consumed"] == 2
+    assert runtime_result["same_owner_workspace_continuations_consumed"] == 0
     assert manifest["n_generated_simulation_sandbox_executed"] == 0
     assert manifest["n_kernel_verified_subclaims"] == 0
     assert manifest["formal_closure_summary"]["formal_closure_status"] == (

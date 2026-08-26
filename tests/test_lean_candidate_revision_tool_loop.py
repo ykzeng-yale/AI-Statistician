@@ -10,7 +10,11 @@ from ai_statistician.client_tool_loop import (
     CLIENT_TOOL_TRANSCRIPT_POLICY,
 )
 from ai_statistician.fingerprint import stable_hash
-from ai_statistician.agent_runtime import AgentTask, BlackboardState
+from ai_statistician.agent_runtime import (
+    AgentTask,
+    BlackboardState,
+    RUNTIME_CONTINUATION_BUDGET_MARKER_KEY,
+)
 from ai_statistician.lean_candidate_revision_tool_loop import (
     LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND,
     LEAN_FORMAL_GAP_TOOL,
@@ -2669,6 +2673,9 @@ def test_exhausted_formalizer_source_loop_continues_same_workspace_by_ref() -> N
     assert result.status == "REVISE"
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    marker = result.next_task.budget[RUNTIME_CONTINUATION_BUDGET_MARKER_KEY]
+    assert marker["parent_task_id"] == "formalize:checkpoint-routing"
+    assert marker["next_task_id"] == result.next_task.task_id
     routed = result.next_task.inputs["environment_feedback"]
     assert routed["artifact_kind"] == "RuntimeWorkspaceObservationRef"
     assert routed["checkpoint_id"] == checkpoint["checkpoint_id"]
