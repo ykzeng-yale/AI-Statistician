@@ -4271,9 +4271,9 @@ def test_one_way_anova_l0_records_its_only_consumed_product_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 51
+    assert readiness["active_scored_tasks"] == 52
     assert readiness["consumed_scored_tasks"] == 51
-    assert readiness["fully_gold_configured_tasks"] == 51
+    assert readiness["fully_gold_configured_tasks"] == 52
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -4406,9 +4406,9 @@ def test_pyod_abod_l1_records_one_consumed_semantic_failure() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 51
+    assert readiness["active_scored_tasks"] == 52
     assert readiness["consumed_scored_tasks"] == 51
-    assert readiness["fully_gold_configured_tasks"] == 51
+    assert readiness["fully_gold_configured_tasks"] == 52
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["runtime_source_replication_components_ready"] == 4
     assert readiness["source_replication_components_passed"] == 1
@@ -4511,9 +4511,9 @@ def test_weighted_partial_regression_l0_records_its_only_consumed_failed_draw() 
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 51
+    assert readiness["active_scored_tasks"] == 52
     assert readiness["consumed_scored_tasks"] == 51
-    assert readiness["fully_gold_configured_tasks"] == 51
+    assert readiness["fully_gold_configured_tasks"] == 52
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -4534,6 +4534,97 @@ def test_weighted_partial_regression_l0_records_its_only_consumed_failed_draw() 
     assert len(contract["response_fields"]) == 8
     assert len(contract["invariants"]) == 5
     assert len(contract["empirical_claims"]) == 5
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
+        "hidden_algorithm_harness.py",
+        "hidden_empirical_harness.py",
+        "reference_estimator.py",
+        "theory_reference.md",
+        "theory_rubric.json",
+        "theory_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_clopper_pearson_l0_is_frozen_before_its_first_product_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "clopper_pearson_binomial_interval_known_result"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "exact_binomial_confidence_intervals"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "frozen_ready_full_task_gold_v1_awaiting_fresh_draw"
+    )
+    assert candidate["gold_manifest_sha256"] == (
+        "5f9a02121cbf139753c0f185d3b4d369a91b2e5427e65d6231ec747b5eb5d565"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "757e30849fdbee046f7d6759f91ee52db1aafc2a742437adef57e12fef63958b"
+    )
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_commit"] == (
+        "73248fc8eda1e9ec52fdcbb1b6fe41b10aa6ce99"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["preactivation_evaluator_model_calls"] == 2
+    assert evidence["activation_reference_tasks_passed"] == 1
+    assert evidence["activation_negative_controls_rejected"] == 7
+    assert evidence["mechanical_reference_checks"] == "5/5"
+    assert evidence["algorithm_reference_checks"] == "11/11"
+    assert evidence["algorithm_reference_estimator_invocations"] == 34
+    assert evidence["algorithm_negative_variants_rejected"] == 4
+    assert evidence["empirical_reference_checks"] == "8/8"
+    assert evidence["empirical_reference_scenarios"] == 4
+    assert evidence["empirical_reference_estimator_invocations"] == 16213
+    assert evidence["empirical_negative_variants_rejected"] == 3
+    assert evidence["semantic_calibration_total_model_calls"] == 2
+    assert evidence["semantic_calibration_cases_correct"] == 12
+    assert evidence["semantic_reference_claims"] == 9
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == 52
+    assert readiness["consumed_scored_tasks"] == 51
+    assert readiness["fully_gold_configured_tasks"] == 52
+    assert readiness["fully_gold_passed_tasks"] == 4
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["source"]["primary_paper"]["doi"] == (
+        "10.1093/biomet/26.4.404"
+    )
+    contract = question["estimator_execution_contract"]
+    assert contract["estimator_id"] == "est_clopper_pearson_interval"
+    assert contract["entrypoint"] == "run_estimator"
+    assert len(contract["request_fields"]) == 3
+    assert len(contract["response_fields"]) == 4
+    assert len(contract["invariants"]) == 4
+    assert len(contract["empirical_claims"]) == 4
 
     runtime_visible = json.dumps(
         {"candidate": candidate, "question": question}, sort_keys=True
